@@ -3,14 +3,45 @@
  */
 import type { MultiVehicleSuggestionPair } from './multi-vehicle-suggestion.port.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
+import type { RouteSuggestionStatus } from '../../database/route-suggestion.schema.js'
 import type { RouteSuggestionRecord } from './route-suggestion.repository.js'
 
 export type MultiVehicleSuggestionGroup = Readonly<{
   documentIds: readonly string[]
+  /**
+   * Spec 112: as notas de cada parada. O aceite move a parada **com as notas dela** para outro
+   * caminhão — mover só a chave vincularia as notas ao caminhão antigo, e a reconciliação por
+   * endereço recriaria a parada lá.
+   */
+  documentIdsByAddressKey: ReadonlyMap<string, readonly string[]>
   /** O motorista escolhido para este veículo, ou `null` quando o par não trouxe nenhum. */
   driverId: string | null
   /** Na ordem que o solver propôs — é ela que vira a ordem das paradas da viagem criada. */
   orderedAddressKeys: readonly string[]
+  /**
+   * Spec 107 D3: a hora estimada de chegada em cada endereço, do planejamento. É o que o aceite
+   * carrega para a viagem — sem isso o ETA morre na sugestão, e não há hora de término em lugar
+   * nenhum do sistema.
+   */
+  estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+  vehicleId: string
+}>
+
+/**
+ * Spec 101: as pernas de um veículo, na ordem das paradas. É o que `sumVehicleTrip` soma para dar
+ * distância e duração da viagem proposta — sem tocar no roteirizador (D1).
+ */
+export type MultiVehicleSuggestionRoad = Readonly<{
+  /** A política de fim gravada nas premissas da sugestão — é ela que diz se a volta era esperada. */
+  endPolicy: string
+  /** A volta gravada pelo worker; nula na sugestão anterior à coluna e na política sem retorno. */
+  returnDistanceMeters: number | null
+  returnDurationSeconds: number | null
+  stops: readonly Readonly<{
+    distanceFromPreviousMeters: number | null
+    durationFromPreviousSeconds: number | null
+    serviceTimeSeconds: number | null
+  }>[]
   vehicleId: string
 }>
 
@@ -47,4 +78,24 @@ export type MultiVehicleSuggestionRepository = Readonly<{
     readonly companyId: string
     readonly suggestionId: string
   }) => Promise<readonly MultiVehicleSuggestionGroup[]>
+  /**
+   * Spec 101: o estado da sugestão **desta empresa**. `null` é ausência — sugestão de outra empresa
+   * responde igual a sugestão inexistente, porque dizer "existe, mas não é sua" já entrega que ela
+   * existe.
+   */
+  readSuggestionStatus: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<null | RouteSuggestionStatus>
+  /**
+   * Spec 101: as pernas por veículo, para a conta da sugestão.
+   *
+   * ⚠️ Consulta **própria**, e não uma coluna a mais em `readGroups`: aquela devolve uma linha por
+   * (parada × nota), então uma parada com três notas apareceria três vezes e a soma triplicaria a
+   * distância. Aqui a linha é a parada, e não há o que deduplicar.
+   */
+  readVehicleRoads: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<readonly MultiVehicleSuggestionRoad[]>
 }>

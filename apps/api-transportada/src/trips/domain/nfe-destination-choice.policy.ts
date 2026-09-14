@@ -12,11 +12,13 @@ import type { StopAddressComponents } from './stop-address-key.js'
 export type NfeDestinationRow = {
   readonly city: string | null
   readonly cityCode: string | null
+  readonly legalName?: string | null
   readonly number: string | null
   readonly postalCode: string | null
   readonly role: string
   readonly state: string | null
   readonly street: string | null
+  readonly tradeName?: string | null
 }
 
 export type NfeDestinationChoice = {
@@ -36,6 +38,13 @@ export type NfeDestinationChoice = {
    * é `trip_documents`, o vínculo — com migration própria.
    */
   readonly origin: PhysicalDestinationOrigin
+  /**
+   * Quem recebe, pelo nome que a nota dá a ele.
+   *
+   * ⚠️ Nome fantasia primeiro, razão social depois: é o fantasia que está na fachada e na etiqueta, e
+   * "MINIMERCADO ABADE" identifica a parada que "ABADE COMERCIO DE ALIMENTOS LTDA" não identifica.
+   */
+  readonly recipientName: string
 }
 
 /**
@@ -76,5 +85,6 @@ export function chooseNfeDestinationRow(
       street: chosen.row.street,
     }),
     origin: chosen.origin,
+    recipientName: chosen.row.tradeName ?? chosen.row.legalName ?? '',
   }
 }

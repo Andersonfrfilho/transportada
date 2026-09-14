@@ -46,7 +46,8 @@ export type SolverCityOrderController = Readonly<{
  */
 export function useSolverCityOrder(input: {
   readonly client?: RouteSuggestionClient
-  readonly onOrderChange: (order: AssemblyCityOrder) => void
+  /** Ausente é mapa somente-leitura: quem hospeda nem sempre é dono da ordem (spec 110 D3). */
+  readonly onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
   readonly order: AssemblyCityOrder
   readonly points: readonly AssemblyMapPoint[]
   readonly vehicleId: null | string
@@ -96,7 +97,7 @@ export function useSolverCityOrder(input: {
         return
       }
 
-      onOrderChange(toCityOrderFromSolver({ order, stops: pronta.stops }))
+      onOrderChange?.(toCityOrderFromSolver({ order, stops: pronta.stops }))
       setFinish(
         resolveRouteFinish({
           distanceMetres: pronta.estimatedDistanceMeters,

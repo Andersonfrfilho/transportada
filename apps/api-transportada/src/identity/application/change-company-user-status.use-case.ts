@@ -29,10 +29,22 @@ type ChangeCompanyUserStatusDependencies = {
     | 'listActiveMembershipCompanyIds'
     | 'setMembershipStatus'
   >
+  /** Estrutural, para `identity` não depender de `whatsapp-commands`. */
+  readonly whatsappPhones: {
+    unbindWithAudit(input: {
+      readonly audit: {
+        readonly actorUserId: string
+        readonly companyId: string
+        readonly correlationId: string
+      }
+      readonly userId: string
+    }): Promise<boolean>
+  }
 }
 
 export type ChangeCompanyUserStatusInput = {
-  readonly context: { readonly companyId: string }
+  readonly context: { readonly companyId: string; readonly userId: string }
+  readonly correlationId: string
   readonly status: CompanyUserApiStatus
   readonly userId: string
 }
@@ -47,13 +59,18 @@ export type ChangeCompanyUserStatusUseCase = {
  * A ordem das duas escritas é deliberada e não pode inverter: desabilitar chama o provedor antes
  * do banco, habilitar chama o banco antes do provedor. Sem transação distribuída, é assim que
  * qualquer falha no meio deixa o usuário sem acesso em vez de com acesso indevido.
+ *
+ * Spec 144 T005b M3: pela mesma razão o número do WhatsApp cai **primeiro**, com trilha. O vínculo
+ * mora noutro repositório e o provedor não entra em transação; desvincular antes faz a falha de
+ * qualquer passo seguinte deixar o usuário ativo e sem número — nunca suspenso com número calado.
  */
 export function createChangeCompanyUserStatusUseCase({
   identityGateway,
   repository,
+  whatsappPhones,
 }: ChangeCompanyUserStatusDependencies): ChangeCompanyUserStatusUseCase {
   return {
-    async execute({ context, status, userId }) {
+    async execute({ context, correlationId, status, userId }) {
       const existing = await repository.findByUserId({ companyId: context.companyId, userId })
       if (existing === undefined) throw new CompanyUserNotFoundError()
 
@@ -71,9 +88,16 @@ export function createChangeCompanyUserStatusUseCase({
       }
 
       const activeMembershipCompanyIds = await repository.listActiveMembershipCompanyIds({ userId })
-      if (
-        shouldDisableIdentity({ activeMembershipCompanyIds, leavingCompanyId: context.companyId })
-      ) {
+      const isLeavingLastCompany = shouldDisableIdentity({
+        activeMembershipCompanyIds,
+        leavingCompanyId: context.companyId,
+      })
+      if (isLeavingLastCompany) {
+        /** Spec 144: o número verificado é credencial; sem empresa ativa nenhuma, ele cai junto. */
+        await whatsappPhones.unbindWithAudit({
+          audit: { actorUserId: context.userId, companyId: context.companyId, correlationId },
+          userId,
+        })
         await identityGateway.setEnabled({ enabled: false, userId: subject })
       }
 

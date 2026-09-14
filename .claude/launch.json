@@ -5,6 +5,11 @@
       "name": "painel-local",
       "url": "http://localhost:53000",
       "port": 53000
+    },
+    {
+      "name": "painel-worktree",
+      "url": "http://localhost:53010",
+      "port": 53010
     }
   ]
 }

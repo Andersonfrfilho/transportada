@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { buildCargoPreviewStops } from '../../src/trips/domain/cargo-preview.policy.js'
+import {
+  buildCargoPreviewStops,
+  resolvePreviewStopKeys,
+} from '../../src/trips/domain/cargo-preview.policy.js'
 import { previewTripCargo } from '../../src/trips/application/preview-trip-cargo.use-case.js'
 
 const NOTAS = [
@@ -149,17 +152,48 @@ describe('paradas da prévia de carga (spec 085 G002)', () => {
  * Spec 085 G006: o desenho é de **volume**, e volume não conta a história do peso — mil caixas de
  * papel higiênico e cem de bebida enchem o mesmo baú com pesos que não se parecem.
  */
+/**
+ * Spec 145 T11: estes casos não têm baú (`bedDimensions: null`), então a prévia sai `unavailable` e
+ * nunca toca a tabela nem a fila — qualquer chamada aqui é defeito.
+ */
+const UNUSED_LAYOUT_DEPENDENCIES = {
+  correlationId: 'correlation-preview',
+  layouts: {
+    findById: async () => {
+      throw new Error('Unexpected cargo layout lookup')
+    },
+    findByInputHash: async () => {
+      throw new Error('Unexpected cargo layout lookup')
+    },
+  },
+  requestCargoLayout: {
+    execute: async () => {
+      throw new Error('Unexpected cargo layout request')
+    },
+  },
+}
+
 describe('a prévia acusa peso concentrado numa parada', () => {
   const CONTEXT = {
+    bedDimensions: null,
+    boxesByDocument: new Map(),
     capacityM3: '10.000000',
     cargoWeight: null,
+    /** Spec 096: sem caixa medida na empresa, a presumida não tem tamanho — e não é inventada. */
+    fallbackBoxVolumeM3: null,
     loadingAccess: 'rear' as const,
+    measuredShapes: [],
     occupancy: null,
+    /** Spec 100: ninguém amarra por padrão — a pilha fica limitada por esbeltez. */
+    enclosedBody: false,
+    securesCargo: false,
   }
 
   test('devolve a parada que domina o peso, pela chave da parada', async () => {
     const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
       companyId: 'company',
+      driverIds: [],
       nfeDocumentIds: ['a', 'b'],
       repository: {
         readCargoPreviewContext: async () => ({
@@ -186,12 +220,20 @@ describe('a prévia acusa peso concentrado numa parada', () => {
       vehicleId: 'vehicle',
     })
 
-    expect(preview.weightConcentration).toEqual({ share: 0.8, stopId: 'porta-1' })
+    /** ⚠️ O aviso carrega o **rótulo** da parada: a chave crua (`3534302|14620000|50`) não diz a
+     * ninguém de qual endereço se trata, e é justamente o aviso que pede uma ação. */
+    expect(preview.weightConcentration).toEqual({
+      label: 'A',
+      share: 0.8,
+      stopId: 'porta-1',
+    })
   })
 
   test('carga equilibrada não acusa nada', async () => {
     const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
       companyId: 'company',
+      driverIds: [],
       nfeDocumentIds: ['a', 'b'],
       repository: {
         readCargoPreviewContext: async () => ({
@@ -219,5 +261,134 @@ describe('a prévia acusa peso concentrado numa parada', () => {
     })
 
     expect(preview.weightConcentration).toBeNull()
+  })
+})
+
+/**
+ * G004 (spec 144, D4): a prévia carimba `documentNumber` na caixa sem ficha, pela mesma regra do
+ * detalhe da viagem (`stampCargoNote`) — sem isso a lista do que falta medir sai sem nota na tela
+ * que ainda não existe viagem.
+ */
+describe('a prévia carimba a nota nas caixas pendentes de medição (spec 144 D4)', () => {
+  test('pendingMeasurements sai com o documentNumber da nota', async () => {
+    const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
+      companyId: 'company',
+      driverIds: [],
+      nfeDocumentIds: ['a'],
+      repository: {
+        readCargoPreviewContext: async () => ({
+          bedDimensions: null,
+          boxesByDocument: new Map([
+            [
+              'a',
+              [
+                {
+                  count: 5,
+                  estimateSource: 'note' as const,
+                  heightMm: null,
+                  label: 'Caneta',
+                  lengthMm: null,
+                  productCode: 'P1',
+                  widthMm: null,
+                },
+              ],
+            ],
+          ]),
+          capacityM3: '10.000000',
+          cargoWeight: null,
+          fallbackBoxVolumeM3: null,
+          loadingAccess: 'rear' as const,
+          measuredShapes: [],
+          enclosedBody: false,
+          occupancy: null,
+          securesCargo: false,
+          documents: [
+            {
+              addressKey: 'porta-1',
+              label: 'A',
+              nfeDocumentId: 'a',
+              number: '12345',
+              volumeM3: '1.000000',
+              weightKilograms: null,
+            },
+          ],
+        }),
+      },
+      stopOrder: [],
+      vehicleId: 'vehicle',
+    })
+
+    expect(preview.cargoLayout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 5,
+        documentNumber: '12345',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'A',
+      },
+    ])
+  })
+})
+
+/**
+ * Spec 090 D3: a distância da prévia agrupa e ordena as paradas pela **mesma** regra que
+ * `buildCargoPreviewStops` — é o que garante que o mapa e o combustível numeram a mesma parada.
+ */
+describe('a chave da parada, para a distância da prévia (spec 090 D3)', () => {
+  test('notas do mesmo endereço viram uma parada só, como na prévia de carga', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+        ['c', 'barrinha|14710000|100'],
+      ]),
+      nfeDocumentIds: ['a', 'b', 'c'],
+      order: [],
+    })
+
+    expect(keys).toEqual(['barrinha|14710000|100', 'campinas|13000000|20'])
+  })
+
+  test('a ordem escolhida manda na sequência', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: ['campinas|13000000|20', 'barrinha|14710000|100'],
+    })
+
+    expect(keys).toEqual(['campinas|13000000|20', 'barrinha|14710000|100'])
+  })
+
+  test('parada que a ordem não menciona vai para o fim', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: ['campinas|13000000|20'],
+    })
+
+    expect(keys).toEqual(['campinas|13000000|20', 'barrinha|14710000|100'])
+  })
+
+  /** Nota sem endereço vira parada própria, como o balde "Sem parada" da prévia de carga. */
+  test('nota sem chave de endereço vira parada própria pelo id da nota', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', null],
+        ['b', null],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: [],
+    })
+
+    expect(keys).toEqual(['documento:a', 'documento:b'])
   })
 })

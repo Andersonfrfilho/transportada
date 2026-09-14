@@ -2,8 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import type {
+  CargoBedDimensions,
+  CargoPlanBox,
+  MeasuredBoxShape,
+} from '@adatechnology/cargo-placement'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
-import type { MeasuredCargoItem } from '../../nfe-documents/domain/cargo-volume.policy.js'
+import type {
+  MeasuredCargoItem,
+  ResolvedDocumentCargoEstimate,
+} from '../../nfe-documents/domain/cargo-volume.policy.js'
 
 import { companyCargoVolumeFactors } from '../../database/company-cargo-volume-factor.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
@@ -16,9 +24,9 @@ import {
 } from '../../database/nfe.schema.js'
 import { vehicleVolumeReferences } from '../../database/vehicle-volume-reference.schema.js'
 import {
+  countMeasuredBoxes,
   medianBoxVolumeM3,
-  resolveCargoVolume,
-  resolveMeasuredCargoVolume,
+  resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
@@ -45,14 +53,44 @@ export async function loadTripOccupancy(
   readonly occupancy: TripOccupancyView | null
   /** Spec 076: o volume por nota, para o layout agrupar por parada sem uma consulta nova. */
   readonly volumeByDocument: ReadonlyMap<string, string | null>
+  /**
+   * Spec 088 G003: as caixas por nota, na mesma viagem da consulta acima. Quem conhece as paradas
+   * agrupa por parada — aqui só há `nfeDocumentIds`, e inventar a parada seria um segundo critério
+   * de agrupamento ao lado do `buildStopAddressKey` que o vínculo já usa.
+   */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
+  /**
+   * ⚠️ Spec 088 D2: a medida do baú vem da **ficha do veículo**, e por isso viaja fora de
+   * `occupancy`. Derivá-la da ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** —
+   * a planta sumia por falta de um dado que não é dela, e o aviso mandava preencher um campo que já
+   * estava preenchido. Ler as colunas do veículo também descarta a referência de mercado por
+   * construção, que é mais forte que filtrar pela origem do m³.
+   */
+  readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
+  /**
+   * Spec 094: o volume típico de uma caixa da empresa e as formas medidas — é deles que a caixa
+   * presumida tira tamanho e proporção. Sem eles ela não é desenhada, e sim nomeada.
+   */
+  readonly fallbackBoxVolumeM3: number | null
+  readonly measuredShapes: readonly MeasuredBoxShape[]
+  /**
+   * Spec 093: o teto de peso da ficha (`capacity_kg`, o `capKG` do MDF-e). Viaja daqui porque o
+   * veículo já foi lido: pedi-lo de novo no suporte de peso serializaria duas consultas paralelas.
+   * `null` quando o veículo não existe — zero, que é ausência, quem trata é a política.
+   */
+  readonly maxPayloadKg: string | null
   /** Spec 085: por onde a carga entra — o layout decide com ela se a ordem e obrigacao. */
   readonly loadingAccess: LoadingAccess
+  /** Spec 145 D21: a carroceria do mesmo veículo — baú fechado segura a carga sem cinta. */
+  readonly bodyType: string | null
 }> {
   const [vehicle] = await queryable
     .select({
       bodyType: fleetVehicles.bodyType,
       loadingAccess: fleetVehicles.loadingAccess,
+      /** Spec 093: o `capKG` do MDF-e, que aqui vira o teto de peso da montagem. */
+      capacityKg: fleetVehicles.capacityKg,
       capacityM3: fleetVehicles.capacityM3,
       cargoHeightM: fleetVehicles.cargoHeightM,
       cargoLengthM: fleetVehicles.cargoLengthM,
@@ -64,9 +102,15 @@ export async function loadTripOccupancy(
     .limit(1)
   if (vehicle === undefined) {
     return {
+      bedDimensions: null,
+      boxesByDocument: new Map(),
       capacityM3: null,
+      fallbackBoxVolumeM3: null,
+      measuredShapes: [],
+      bodyType: null,
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
       loadingAccess: 'rear',
+      maxPayloadKg: null,
       occupancy: null,
       volumeByDocument: new Map(),
     }
@@ -102,8 +146,14 @@ export async function loadTripOccupancy(
   })
   if (capacity === null) {
     return {
+      bedDimensions: toBedDimensions(vehicle, reference),
+      boxesByDocument: new Map(),
       capacityM3: null,
+      fallbackBoxVolumeM3: null,
+      measuredShapes: [],
+      bodyType: vehicle.bodyType,
       loadingAccess: vehicle.loadingAccess,
+      maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
       volumeByDocument: new Map(),
     }
@@ -139,46 +189,67 @@ export async function loadTripOccupancy(
 
   const measured = await loadMeasuredItems(queryable, input)
   const byDocument = new Map(volumes.map((row) => [row.documentId, row]))
-  const documents = input.nfeDocumentIds.map((documentId) => {
-    /**
-     * Spec 085 G006: a caixa medida vence a estimativa por espécie. A estimativa continua sendo a
-     * resposta de quem ainda não mediu nada — ela não sai, ela deixa de ser a única.
-     */
-    const fromBoxes = resolveMeasuredCargoVolume({
-      fallbackBoxVolumeM3: measured.medianM3,
-      items: measured.itemsByDocument.get(documentId) ?? [],
-    })
-    if (fromBoxes !== null) return fromBoxes
+  /**
+   * Spec 144 (D1/D2): uma estimativa por nota, na precedência ficha → resíduo → mediana → ausência.
+   * `resolveDocumentCargoEstimate` já decide tudo isso — o par `resolveMeasuredCargoVolume` +
+   * `resolveCargoVolume` que vivia aqui só cobria ficha e espécie, sem o resíduo no meio.
+   */
+  const estimates = new Map(
+    input.nfeDocumentIds.map((documentId) => {
+      const row = byDocument.get(documentId)
 
-    const row = byDocument.get(documentId)
-    if (row === undefined) return { source: null, volumeM3: null }
-    const resolved = resolveCargoVolume({
-      volumeFactor: factorBySpecies.get(row.species) ?? defaultFactor,
-      volumeQuantity: row.quantity,
-    })
-    return { source: resolved?.source ?? null, volumeM3: resolved?.volumeM3 ?? null }
+      return [
+        documentId,
+        resolveDocumentCargoEstimate({
+          items: measured.itemsByDocument.get(documentId) ?? [],
+          medianBoxVolumeM3: measured.medianM3,
+          volumeFactor:
+            row === undefined ? null : (factorBySpecies.get(row.species) ?? defaultFactor),
+          volumeQuantity: row?.quantity ?? null,
+        }),
+      ] as const
+    }),
+  )
+  const documents = input.nfeDocumentIds.map((documentId) => {
+    const estimate = estimates.get(documentId)
+
+    return { source: estimate?.source ?? null, volumeM3: estimate?.volumeM3 ?? null }
   })
 
   const volumeByDocument = new Map(
-    input.nfeDocumentIds.map((documentId, index) => [
+    input.nfeDocumentIds.map((documentId) => [
       documentId,
-      documents[index]?.volumeM3 ?? null,
+      estimates.get(documentId)?.volumeM3 ?? null,
     ]),
   )
+  const boxesByDocument = stampEstimatedVolume(measured.boxesByDocument, estimates)
 
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
+      bedDimensions: toBedDimensions(vehicle, reference),
+      boxesByDocument,
       capacityM3: capacity.capacityM3,
+      fallbackBoxVolumeM3: toNumber(measured.medianM3),
+      measuredShapes: measured.measuredShapes,
+      bodyType: vehicle.bodyType,
       loadingAccess: vehicle.loadingAccess,
+      maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
       volumeByDocument,
     }
   }
 
   return {
+    bedDimensions: toBedDimensions(vehicle, reference),
+    boxesByDocument,
     capacityM3: capacity.capacityM3,
+    fallbackBoxVolumeM3: toNumber(measured.medianM3),
+    measuredShapes: measured.measuredShapes,
+    bodyType: vehicle.bodyType,
     loadingAccess: vehicle.loadingAccess,
+    /** Spec 093: o `capKG` do MDF-e, que a montagem passou a ler como teto de peso da viagem. */
+    maxPayloadKg: vehicle.capacityKg,
     occupancy: {
       ...occupancy,
       capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),
@@ -186,6 +257,81 @@ export async function loadTripOccupancy(
       capacitySource: capacity.source,
     },
     volumeByDocument,
+  }
+}
+
+/**
+ * Spec 144 (D2/D4): carimba na caixa sem ficha a procedência da estimativa (`estimateSource`) e,
+ * quando o resíduo da nota foi a origem, o m³ que ela devolveu. Caixa medida nunca é tocada; sem
+ * resíduo (mediana ou ausência) a caixa segue sem m³ presumido, mas a procedência é dita mesmo
+ * assim — é o que a lista do que falta medir (D4) usa para dizer "pela nota", "pela mediana" ou
+ * "sem estimativa".
+ */
+export function stampEstimatedVolume(
+  boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>,
+  estimates: ReadonlyMap<string, ResolvedDocumentCargoEstimate>,
+): ReadonlyMap<string, readonly CargoPlanBox[]> {
+  return new Map(
+    [...boxesByDocument].map(([documentId, boxes]) => {
+      const estimate = estimates.get(documentId)
+      const estimateSource = estimate?.estimateSource ?? 'none'
+      const estimatedVolumeM3 =
+        estimate?.estimateSource === 'note' && estimate.unmeasuredBoxVolumeM3 !== null
+          ? Number.parseFloat(estimate.unmeasuredBoxVolumeM3)
+          : null
+
+      return [
+        documentId,
+        boxes.map((box) =>
+          box.heightMm === null && box.lengthMm === null && box.widthMm === null
+            ? {
+                ...box,
+                estimateSource,
+                ...(estimatedVolumeM3 === null ? {} : { estimatedVolumeM3 }),
+              }
+            : box,
+        ),
+      ] as const
+    }),
+  )
+}
+
+/**
+ * As três medidas da ficha, ou nada. Medida pela metade não desenha planta pela metade: duas
+ * medidas e um palpite não descrevem um baú, e a escala é a única coisa que o desenho promete.
+ */
+/**
+ * A escala do baú: **a ficha primeiro, o catálogo do tipo depois** — e a origem viaja junto.
+ *
+ * ⚠️ Zero na ficha é ausência de medida, nunca baú de volume zero (spec 088). E o catálogo só entra
+ * marcado: sem a marca, o palpite de mercado se apresentaria como fita na mão de quem carrega.
+ */
+function toBedDimensions(
+  vehicle: Dimensions,
+  reference?: Dimensions | undefined,
+): CargoBedDimensions | null {
+  const measured = fromDimensions(vehicle, 'measured')
+  if (measured !== null) return measured
+
+  return reference === undefined ? null : fromDimensions(reference, 'reference')
+}
+
+function fromDimensions(
+  dimensions: Dimensions,
+  source: 'measured' | 'reference',
+): CargoBedDimensions | null {
+  const [height, length, width] = [
+    Number(dimensions.cargoHeightM),
+    Number(dimensions.cargoLengthM),
+    Number(dimensions.cargoWidthM),
+  ]
+  if (!(height > 0) || !(length > 0) || !(width > 0)) return null
+
+  return {
+    heightM: dimensions.cargoHeightM,
+    lengthM: dimensions.cargoLengthM,
+    source,
+    widthM: dimensions.cargoWidthM,
   }
 }
 
@@ -223,10 +369,25 @@ async function loadMeasuredItems(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
 ): Promise<{
+  /** Spec 088 G003: a mesma linha, agora com a caixa que a planta conta em camadas. */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly itemsByDocument: ReadonlyMap<string, readonly MeasuredCargoItem[]>
+  /**
+   * Spec 094: as formas das caixas que a empresa mediu. É delas que sai a **proporção** da caixa
+   * presumida — proporção, não cubo: um cubo de 0,021 m³ empilha diferente de uma caixa de
+   * 38 × 26 × 21, e a planta é justamente sobre como as peças se arrumam no piso.
+   */
+  readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly medianM3: string | null
 }> {
-  if (input.nfeDocumentIds.length === 0) return { itemsByDocument: new Map(), medianM3: null }
+  if (input.nfeDocumentIds.length === 0) {
+    return {
+      boxesByDocument: new Map(),
+      itemsByDocument: new Map(),
+      measuredShapes: [],
+      medianM3: null,
+    }
+  }
 
   const boxVolume = sql<string | null>`
     case
@@ -239,69 +400,124 @@ async function loadMeasuredItems(
     end
   `
 
-  const [rows, measuredBoxes] = await Promise.all([
-    queryable
-      .select({
-        boxVolumeM3: boxVolume,
-        documentId: nfeProducts.documentId,
-        quantity: nfeProducts.quantity,
-        unitsPerBox: nfePackageBoxes.unitsPerBox,
-      })
-      .from(nfeProducts)
-      .innerJoin(
-        nfeDocuments,
-        and(
-          eq(nfeDocuments.id, nfeProducts.documentId),
-          eq(nfeDocuments.companyId, nfeProducts.companyId),
-        ),
-      )
-      .innerJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.documentId, nfeDocuments.id),
-          eq(nfeParticipants.companyId, nfeDocuments.companyId),
-          eq(nfeParticipants.role, 'emitter'),
-        ),
-      )
-      .leftJoin(
-        nfePackageBoxes,
-        and(
-          eq(nfePackageBoxes.companyId, nfeProducts.companyId),
-          eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
-          eq(nfePackageBoxes.productCode, nfeProducts.code),
-          eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
-        ),
-      )
-      .where(
-        and(
-          eq(nfeProducts.companyId, input.companyId),
-          inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
-        ),
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const rows = await queryable
+    .select({
+      boxHeightMm: nfePackageBoxes.heightMm,
+      boxLengthMm: nfePackageBoxes.lengthMm,
+      boxVolumeM3: boxVolume,
+      boxWidthMm: nfePackageBoxes.widthMm,
+      documentId: nfeProducts.documentId,
+      /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
+      isFragile: nfePackageBoxes.isFragile,
+      isStackable: nfePackageBoxes.isStackable,
+      keepUpright: nfePackageBoxes.keepUpright,
+      /** O nome que a planta imprime, e que a linha do excedente usa para nomear o que não coube. */
+      label: nfeProducts.description,
+      maxStackCount: nfePackageBoxes.maxStackCount,
+      /** Spec 144: código do produto, carimbado na caixa sem ficha para a lista do que falta medir. */
+      productCode: nfeProducts.code,
+      quantity: nfeProducts.quantity,
+      unitsPerBox: nfePackageBoxes.unitsPerBox,
+    })
+    .from(nfeProducts)
+    .innerJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.id, nfeProducts.documentId),
+        eq(nfeDocuments.companyId, nfeProducts.companyId),
       ),
-    queryable
-      .select({ boxVolumeM3: boxVolume })
-      .from(nfePackageBoxes)
-      .where(
-        and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
+    )
+    .innerJoin(
+      nfeParticipants,
+      and(
+        eq(nfeParticipants.documentId, nfeDocuments.id),
+        eq(nfeParticipants.companyId, nfeDocuments.companyId),
+        eq(nfeParticipants.role, 'emitter'),
       ),
-  ])
+    )
+    .leftJoin(
+      nfePackageBoxes,
+      and(
+        eq(nfePackageBoxes.companyId, nfeProducts.companyId),
+        eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
+        eq(nfePackageBoxes.productCode, nfeProducts.code),
+        eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
+      ),
+    )
+    .where(
+      and(
+        eq(nfeProducts.companyId, input.companyId),
+        inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
+      ),
+    )
+    // A ordem das caixas entra no hash da planta (spec 145 D6): sem ela o hash oscila à toa
+    .orderBy(nfeProducts.documentId, nfeProducts.ordinal, nfeProducts.id)
+  const measuredBoxes = await queryable
+    .select({
+      boxVolumeM3: boxVolume,
+      heightMm: nfePackageBoxes.heightMm,
+      lengthMm: nfePackageBoxes.lengthMm,
+      widthMm: nfePackageBoxes.widthMm,
+    })
+    .from(nfePackageBoxes)
+    .where(
+      and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
+    )
+    .orderBy(nfePackageBoxes.id)
 
   const itemsByDocument = new Map<string, MeasuredCargoItem[]>()
+  const boxesByDocument = new Map<string, CargoPlanBox[]>()
   for (const row of rows) {
-    const items = itemsByDocument.get(row.documentId) ?? []
-    items.push({
+    const item: MeasuredCargoItem = {
       boxVolumeM3: row.boxVolumeM3,
       quantity: row.quantity,
       /** Caixa ainda não medida não tem coluna: a reserva conta a linha como uma caixa por unidade. */
       unitsPerBox: row.unitsPerBox ?? 1,
-    })
-    itemsByDocument.set(row.documentId, items)
+    }
+    itemsByDocument.set(row.documentId, [...(itemsByDocument.get(row.documentId) ?? []), item])
+    /**
+     * ⚠️ A contagem de caixas é a **mesma** de `resolveMeasuredCargoVolume` — arredondada para
+     * cima, porque cinco unidades de um produto que vem de doze ainda viajam dentro de uma caixa.
+     * Duas contagens diferentes fariam o m³ da faixa e as camadas dentro dela discordarem.
+     */
+    boxesByDocument.set(row.documentId, [
+      ...(boxesByDocument.get(row.documentId) ?? []),
+      {
+        count: countMeasuredBoxes(item),
+        heightMm: row.boxHeightMm,
+        /** Spec 094: as restrições viajam com a caixa — nulas até alguém informar. */
+        isFragile: row.isFragile,
+        isStackable: row.isStackable,
+        keepUpright: row.keepUpright,
+        label: row.label,
+        lengthMm: row.boxLengthMm,
+        maxStackCount: row.maxStackCount,
+        /** Spec 144: só a caixa sem ficha carrega o código — a medida nunca precisou dele. */
+        ...(row.boxHeightMm === null ? { productCode: row.productCode } : {}),
+        widthMm: row.boxWidthMm,
+      },
+    ])
   }
 
   return {
+    boxesByDocument,
     itemsByDocument,
+    measuredShapes: measuredBoxes.flatMap((row) =>
+      row.heightMm === null || row.lengthMm === null || row.widthMm === null
+        ? []
+        : [{ heightMm: row.heightMm, lengthMm: row.lengthMm, widthMm: row.widthMm }],
+    ),
     medianM3: medianBoxVolumeM3(
       measuredBoxes.flatMap((row) => (row.boxVolumeM3 === null ? [] : [row.boxVolumeM3])),
     ),
   }
+}
+
+/** A mediana chega como decimal em texto; o empacotador pensa em número. */
+function toNumber(value: string | null): number | null {
+  if (value === null) return null
+  const parsed = Number.parseFloat(value)
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }

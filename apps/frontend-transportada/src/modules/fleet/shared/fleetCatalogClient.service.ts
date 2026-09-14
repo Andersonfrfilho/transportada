@@ -3,6 +3,7 @@ import {
   FLEET_ERROR,
   FLEET_VEHICLE_CATALOG_BRANDS_PATH,
   FLEET_VEHICLE_CATALOG_MODELS_PATH,
+  FLEET_VEHICLE_REFERENCES_PATH,
 } from './fleet.constant'
 import type {
   FleetVehicleCatalogBrandsInput,
@@ -10,6 +11,7 @@ import type {
   FleetVehicleCatalogResult,
 } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
+import type { VehicleReference } from './vehicleSuggestion.service'
 import { createFleetResponseAdapters } from './fleetResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -25,6 +27,7 @@ export type FleetCatalogClient = Readonly<{
   listVehicleCatalogModels: (
     input: FleetVehicleCatalogModelsInput,
   ) => Promise<FleetVehicleCatalogResult>
+  listVehicleReferences: () => Promise<readonly VehicleReference[]>
 }>
 
 function requestError(code: string): Error {
@@ -109,6 +112,13 @@ export function createFleetCatalogClient(dependencies: ClientDependencies): Flee
         path: `${FLEET_VEHICLE_CATALOG_MODELS_PATH}?${search}`,
       })
       return adapters.catalogResultFromApi(readEnvelopeData(response))
+    },
+    async listVehicleReferences() {
+      const response = await authorizedRequest({
+        dependencies,
+        path: FLEET_VEHICLE_REFERENCES_PATH,
+      })
+      return adapters.vehicleReferencesFromApi(readEnvelopeData(response))
     },
   }
 }

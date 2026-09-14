@@ -89,9 +89,9 @@ export function TripRouteAssemblyPanel({
   }
 
   const { alreadyOnTrip, eligible } = assembly.selection
-  const isBlocked = assembly.issues.length > 0 || assembly.assembleMutation.isPending
-  const failure = assembly.assembleMutation.isError
-    ? resolveRouteAssemblyFailure(assembly.assembleMutation.error)
+  const isBlocked = assembly.issues.length > 0 || assembly.proposeMutation.isPending
+  const failure = assembly.proposeMutation.isError
+    ? resolveRouteAssemblyFailure(assembly.proposeMutation.error)
     : null
 
   /**
@@ -212,7 +212,7 @@ export function TripRouteAssemblyPanel({
       <div className={styles.actionActions}>
         <Button
           disabled={isBlocked}
-          onClick={() => assembly.assembleMutation.mutate()}
+          onClick={() => assembly.proposeMutation.mutate()}
           size="sm"
           type="button"
         >
@@ -221,7 +221,7 @@ export function TripRouteAssemblyPanel({
         </Button>
       </div>
 
-      {assembly.assembleMutation.isPending ? (
+      {assembly.proposeMutation.isPending ? (
         <SkeletonGroup className={styles.assemblyPending} label={t('routeAssembly.pending')}>
           {assembly.effectiveVehicleIds.map((vehicleId) => (
             <div className={styles.assemblyPendingCard} key={vehicleId}>

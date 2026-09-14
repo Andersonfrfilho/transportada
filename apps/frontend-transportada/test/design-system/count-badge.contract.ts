@@ -117,7 +117,7 @@ describe('design system count badge contract', () => {
   test('states the rule for every future table', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/data-tables.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/count-badge')

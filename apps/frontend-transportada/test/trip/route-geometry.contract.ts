@@ -30,6 +30,7 @@ const ESTRADA: RouteGeometry = {
     { latitude: '-22.00900', longitude: '-47.88250' },
   ],
   source: 'road',
+  toll: null,
 }
 
 describe('traço do roteiro (spec 079, geometria do OSRM)', () => {
@@ -52,7 +53,7 @@ describe('traço do roteiro (spec 079, geometria do OSRM)', () => {
   /** Provedor mudo e provedor ausente são a mesma coisa para quem olha: reta, e dita como reta. */
   test('trata indisponível como ausente, nunca como estrada vazia', () => {
     const trace = resolveRouteTrace({
-      geometry: { legs: [], points: [], source: 'unavailable' },
+      geometry: { legs: [], points: [], source: 'unavailable', toll: null },
       project,
       stops: PARADAS,
     })

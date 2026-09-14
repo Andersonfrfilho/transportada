@@ -278,7 +278,7 @@ describe('design system select contract', () => {
   test('states the rule for every future select', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/selects.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/select')

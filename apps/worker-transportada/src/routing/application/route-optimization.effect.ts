@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveServableStops, type DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import type {
   RouteProblem,
   RouteSolution,
@@ -14,15 +15,36 @@ import type {
  */
 export type RouteOptimizationContext = Readonly<{
   companyId: string
-  /** Segundos a partir do início da jornada; a janela da parada é relativa a ele. */
-  dayStartEpochSeconds: number
+  /**
+   * Spec 109: **o instante em que a frota sai**, e a origem do relógio do solver — a janela da
+   * parada é relativa a ele.
+   *
+   * ⚠️ Era a meia-noite **UTC**, que em Brasília são 21h do dia anterior: toda rota partia à noite e
+   * as chegadas caíam de madrugada (medido em 2026-09-09: cinco viagens terminando entre 03:04 e
+   * 07:03). A hora de saída é cadastro (`company_route_optimization_settings.departure_time_seconds`),
+   * porque a operação que sai às 5h existe e não é a mesma que sai às 8h.
+   */
+  departureEpochSeconds: number
   depot: RouteOptimizationPoint | null
   duty: RouteProblem['duty']
+  /**
+   * Spec 106: o cadastro de cobertura por motorista. **Motorista ausente do mapa serve tudo** — a
+   * regra de fallback: quem não declarou não restringiu.
+   */
+  driverCoverage?: ReadonlyMap<string, readonly DriverCoverageEntry[]> | undefined
+  /** Cidade dobrada + UF → código da zona, de `freight_region_cities`. */
+  regionCodeByCityKey?: ReadonlyMap<string, string> | undefined
+  /** Spec 104 D3: `null` desliga; hoje nenhuma origem o preenche (ver o comentário no uso). */
+  maxStopsPerRoute?: number | null
   end: RouteOptimizationPoint | null
   seed: number
   solverTimeBudgetSeconds: number
   stops: readonly RouteOptimizationStop[]
-  vehicles: readonly RouteVehicleInput[]
+  /**
+   * Spec 106: o veículo do contexto carrega **quem dirige**, que o do solver não precisa conhecer —
+   * a cobertura é resolvida aqui e chega ao solver já como conjunto de índices.
+   */
+  vehicles: readonly (RouteVehicleInput & Readonly<{ driverId?: string | null }>)[]
 }>
 
 export type RouteOptimizationPoint = Readonly<{
@@ -37,6 +59,8 @@ export type RouteOptimizationStop = RouteOptimizationPoint &
      * Spec 058 P2: as notas que caem nesta parada. Vazio na sugestão de viagem — lá a nota já está
      * vinculada, e a parada tem `stopId`. Aqui é o contrário: parada proposta, sem viagem ainda.
      */
+    /** Spec 106: a cidade e a UF da parada, que é como a cobertura do motorista casa com ela. */
+    city: string
     documentIds: readonly string[]
     /** ADR-0044 §5: `city` não entra na otimização — vai marcada, no fim, esperando o humano. */
     excludedFromOptimization: boolean
@@ -44,6 +68,7 @@ export type RouteOptimizationStop = RouteOptimizationPoint &
     serviceTimeSeconds: number
     /** Nulo na multi-veículo: a parada ainda não existe, e é o aceite que a cria. */
     stopId: string | null
+    state: string
     weightEstimated: boolean
     weightKilograms: number
     windowEndSeconds: number | null
@@ -64,11 +89,28 @@ export type RouteOptimizationPorts = Readonly<{
 
 export type RouteOptimizationOutcome = Readonly<{
   estimatedCostAmount: string
+  /**
+   * Spec 109 D2: **a saída sob a qual este roteiro foi proposto.** Ela viaja com a sugestão porque é
+   * a premissa que o operador aceitou — e é dela que o despacho mede o atraso para reancorar o ETA.
+   */
+  plannedDepartureAt: Date
   estimatedDistanceMeters: number
   estimatedDurationSeconds: number
   orderedStops: readonly OptimizedStop[]
+  /**
+   * A volta da última entrega de cada veículo ao fim da rota, da mesma matriz do solver. Vazia
+   * quando a política não manda voltar (`last_stop`) — o solver também não a soma nesse caso.
+   */
+  returnLegs: readonly OptimizedReturnLeg[]
   solverMetrics: Readonly<{ generations: number }>
   truncated: boolean
+}>
+
+export type OptimizedReturnLeg = Readonly<{
+  /** `null` quando o par é inalcançável na matriz — ausência, nunca zero. */
+  distanceMeters: number | null
+  durationSeconds: number | null
+  vehicleId: string
 }>
 
 export type OptimizedStop = Readonly<{
@@ -82,6 +124,14 @@ export type OptimizedStop = Readonly<{
   sequence: number
   serviceTimeSeconds: number
   stopId: string | null
+  /**
+   * Por que a parada ficou **sem veículo**. Nulo é parada distribuída.
+   *
+   * ⚠️ As três causas pedem ações diferentes — cadastrar o endereço, cadastrar cobertura, ou mandar
+   * outro caminhão. Sem a razão viajando, a tela derivava "sem motorista que cubra a região" para
+   * qualquer sobra, e mandaria o operador cadastrar cobertura para resolver tonelagem.
+   */
+  leftoverReason: 'imprecise_location' | 'not_covered' | 'over_capacity' | null
   /** Qual veículo serve a parada — nulo quando a sugestão é de uma viagem só, ou quando ela ficou de fora. */
   vehicleId: string | null
   violations: RouteSolution['violations']
@@ -119,8 +169,10 @@ export async function runRouteOptimization(input: {
     return {
       estimatedCostAmount: '0.0000',
       estimatedDistanceMeters: 0,
+      plannedDepartureAt: toDepartureDate(context),
       estimatedDurationSeconds: 0,
       orderedStops: excluded.map((stop, offset) => toExcludedStop({ offset, stop })),
+      returnLegs: [],
       solverMetrics: { generations: 0 },
       truncated: false,
     }
@@ -138,6 +190,12 @@ export async function runRouteOptimization(input: {
     distancesMeters: matrix.distancesMeters,
     durationsSeconds: matrix.durationsSeconds,
     duty: context.duty,
+    /**
+     * Spec 104 D3: teto **operacional** de paradas numa rota. `null` até a empresa poder declará-lo
+     * — acrescentá-lo como padrão silencioso mudaria o roteiro de toda instalação sem ninguém pedir,
+     * e um número escolhido aqui seria palpite com aparência de regra.
+     */
+    maxStopsPerRoute: context.maxStopsPerRoute ?? null,
     endIndex: context.end === null ? null : points.length - 1,
     seed: context.seed,
     stagnationLimit: 40,
@@ -151,7 +209,25 @@ export async function runRouteOptimization(input: {
       }),
     ),
     timeBudgetMilliseconds: context.solverTimeBudgetSeconds * MILLISECONDS_PER_SECOND,
-    vehicles: context.vehicles,
+    /**
+     * Spec 106: **a costura.** O índice da parada só existe aqui — o repositório lê o cadastro, e é
+     * este ponto que sabe qual parada virou qual índice na matriz.
+     *
+     * ⚠️ `index: offset + 1` porque `points[0]` é o depósito, a mesma conta de `stops` acima. Errar
+     * o deslocamento aqui restringiria o veículo à parada errada, calado.
+     */
+    vehicles: context.vehicles.map((vehicle) => ({
+      ...vehicle,
+      servableStopIndexes: resolveServableStops({
+        coverage: context.driverCoverage?.get(vehicle.driverId ?? '') ?? [],
+        regionCodeByCityKey: context.regionCodeByCityKey ?? new Map(),
+        stops: optimizable.map((stop, offset) => ({
+          city: stop.city,
+          index: offset + 1,
+          state: stop.state,
+        })),
+      }),
+    })),
   }
 
   const solution = ports.solve(problem)
@@ -159,6 +235,7 @@ export async function runRouteOptimization(input: {
   return {
     estimatedCostAmount: toMoney(solution.totalCostMicros),
     estimatedDistanceMeters: solution.totalDistanceMeters,
+    plannedDepartureAt: toDepartureDate(context),
     estimatedDurationSeconds: solution.totalDurationSeconds,
     orderedStops: [
       ...toOrderedStops({
@@ -168,13 +245,61 @@ export async function runRouteOptimization(input: {
         optimizable,
         solution,
       }),
+      /**
+       * ⚠️ **A parada que o solver não distribuiu precisa ser gravada, ou a carga some da tela.**
+       * `toOrderedStops` percorre as rotas; sem esta linha, a nota aparada por capacidade não
+       * viraria nem viagem nem sobra — desapareceria do maço em silêncio, que é o modo de falha que
+       * a spec 107 existe para impedir.
+       */
+      ...toLeftoverStops({
+        offset: countAssigned(solution),
+        optimizable,
+        solution,
+      }),
       ...excluded.map((stop, offset) =>
-        toExcludedStop({ offset: countAssigned(solution) + offset, stop }),
+        toExcludedStop({
+          offset: countAssigned(solution) + solution.unassignedStopIndexes.length + offset,
+          stop,
+        }),
       ),
     ],
+    returnLegs: toReturnLegs({
+      distancesMeters: matrix.distancesMeters,
+      durationsSeconds: matrix.durationsSeconds,
+      endIndex: problem.endIndex,
+      solution,
+    }),
     solverMetrics: { generations: solution.generations },
     truncated: solution.truncated,
   }
+}
+
+/**
+ * A perna última entrega → fim de cada veículo, lida da **mesma matriz** que o solver usou para
+ * somá-la no custo (`readReturnLeg`). Sem ela gravada, o tempo da proposta não tinha como contar a
+ * volta ao barracão (decisão do usuário, 2026-09-13).
+ */
+function toReturnLegs(input: {
+  readonly distancesMeters: readonly (readonly (number | null)[])[]
+  readonly durationsSeconds: readonly (readonly (number | null)[])[]
+  readonly endIndex: number | null
+  readonly solution: RouteSolution
+}): readonly OptimizedReturnLeg[] {
+  const { endIndex } = input
+  if (endIndex === null) return []
+
+  return input.solution.assignments.flatMap((assignment) => {
+    const lastIndex = assignment.stopIndexes.at(-1)
+    if (lastIndex === undefined) return []
+
+    return [
+      {
+        distanceMeters: readLeg(input.distancesMeters, lastIndex, endIndex),
+        durationSeconds: readLeg(input.durationsSeconds, lastIndex, endIndex),
+        vehicleId: assignment.vehicleId,
+      },
+    ]
+  })
 }
 
 function countAssigned(solution: RouteSolution): number {
@@ -201,7 +326,7 @@ function toOrderedStops(input: {
 
   const ordered: OptimizedStop[] = []
   let sequence = 0
-  let clockSeconds = input.context.dayStartEpochSeconds
+  let clockSeconds = input.context.departureEpochSeconds
 
   for (const assignment of input.solution.assignments) {
     /**
@@ -231,7 +356,7 @@ function toOrderedStops(input: {
       if (stop.windowStartSeconds !== null) {
         clockSeconds = Math.max(
           clockSeconds,
-          input.context.dayStartEpochSeconds + stop.windowStartSeconds,
+          input.context.departureEpochSeconds + stop.windowStartSeconds,
         )
       }
 
@@ -240,6 +365,8 @@ function toOrderedStops(input: {
         distanceFromPreviousMeters,
         durationFromPreviousSeconds,
         estimatedArrivalAt: new Date(clockSeconds * MILLISECONDS_PER_SECOND),
+        /** Parada distribuída não é sobra: a razão é nula porque ela **tem** veículo. */
+        leftoverReason: null,
         excludedFromOptimization: false,
         label: stop.label,
         sequence,
@@ -259,6 +386,11 @@ function toOrderedStops(input: {
   return ordered
 }
 
+/** Spec 109 D2: a saída suposta, como instante — a mesma origem que o relógio do solver usou. */
+function toDepartureDate(context: RouteOptimizationContext): Date {
+  return new Date(context.departureEpochSeconds * MILLISECONDS_PER_SECOND)
+}
+
 /** `null` quando o par é inalcançável — e a violação já foi registrada pelo solver. */
 function readLeg(
   matrix: readonly (readonly (number | null)[])[],
@@ -266,6 +398,46 @@ function readLeg(
   to: number,
 ): number | null {
   return matrix[from]?.[to] ?? null
+}
+
+/**
+ * As paradas que o solver deixou sem veículo — hoje, a carga que passou do teto do caminhão e ficou
+ * para a próxima viagem (`capacity-trim.ts`).
+ *
+ * ⚠️ Elas entram **depois** das distribuídas e **antes** das excluídas por endereço, e a `sequence`
+ * é contínua porque ela é a chave que casa a parada com as notas dela na gravação.
+ */
+function toLeftoverStops(input: {
+  readonly offset: number
+  readonly optimizable: readonly RouteOptimizationStop[]
+  readonly solution: RouteSolution
+}): readonly OptimizedStop[] {
+  return input.solution.unassignedStopIndexes.flatMap((stopIndex, offset) => {
+    /** `index: offset + 1` na montagem do problema: o depósito é o zero, e aqui se desfaz a conta. */
+    const stop = input.optimizable[stopIndex - 1]
+    if (stop === undefined) return []
+
+    return [
+      {
+        addressKey: stop.addressKey,
+        distanceFromPreviousMeters: null,
+        documentIds: stop.documentIds,
+        durationFromPreviousSeconds: null,
+        /** Sem ETA: ela não entrou na conta, e um horário aqui seria número inventado. */
+        estimatedArrivalAt: null,
+        /** Ela **entrou** na otimização; o que a tirou foi o teto do caminhão, não o endereço. */
+        excludedFromOptimization: false,
+        label: stop.label,
+        leftoverReason: 'over_capacity' as const,
+        sequence: input.offset + offset + 1,
+        serviceTimeSeconds: stop.serviceTimeSeconds,
+        stopId: stop.stopId,
+        vehicleId: null,
+        violations: [],
+        weightEstimated: stop.weightEstimated,
+      },
+    ]
+  })
 }
 
 function toExcludedStop(input: {
@@ -280,6 +452,8 @@ function toExcludedStop(input: {
     estimatedArrivalAt: null,
     excludedFromOptimization: true,
     label: input.stop.label,
+    /** ADR-0044 §5: coordenada em precisão de município sai antes da matriz, e a razão é essa. */
+    leftoverReason: 'imprecise_location' as const,
     sequence: input.offset + 1,
     documentIds: input.stop.documentIds,
     serviceTimeSeconds: input.stop.serviceTimeSeconds,

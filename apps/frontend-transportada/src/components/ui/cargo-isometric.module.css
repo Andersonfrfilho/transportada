@@ -1,0 +1,198 @@
+.root {
+  width: 100%;
+  height: auto;
+  max-height: 22rem;
+}
+
+/** O piso é uma sombra fraca: ele situa a carga sem competir com ela. */
+.floor {
+  fill: color-mix(in srgb, var(--color-slate) 12%, transparent);
+  stroke: color-mix(in srgb, var(--color-slate) 26%, transparent);
+  stroke-width: 1;
+}
+
+/** O contorno do baú é a referência de tamanho, e por isso vem por cima da carga. */
+.bedEdge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  stroke-width: 1.4;
+}
+
+.rearDoor {
+  fill: color-mix(in srgb, var(--color-copper) 8%, transparent);
+  stroke: var(--color-copper);
+  stroke-width: 1.6;
+}
+
+.sideDoor {
+  fill: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  stroke: var(--color-copper);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.6;
+}
+
+/**
+ * ⚠️ **O sombreado é o que faz o olho ler volume.** Três faces com o mesmo tom viram um mosaico de
+ * losangos, e o desenho deixa de parecer tridimensional — que é a única razão de ele existir.
+ */
+.faceTop {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.faceFront {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.faceSide {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+/**
+ * ⚠️ Spec 119: a caixa presumida é marcada na **borda** — pontos curtos nas arestas das faces. A
+ * lavagem de antes clareava o preenchimento, que agora é a cor da nota, e as duas marcas brigariam.
+ * Nunca hachura: o risco diagonal cruza a face e lê como rachadura na quina. Vem depois das três
+ * faces para o contorno pontilhado vencer o traço cheio delas.
+ */
+.facePresumed {
+  stroke: var(--color-fog);
+  stroke-dasharray: 0.6 2.4;
+  stroke-linecap: round;
+  stroke-width: 1.3;
+}
+
+/** A amostra da cor da nota, na ficha da entrega: a mesma cor que a caixa tem no desenho. */
+.swatch {
+  background: currentColor;
+  block-size: var(--space-3);
+  display: inline-block;
+  flex: none;
+  inline-size: var(--space-3);
+}
+
+/*
+ * Spec 121: os quatro `.noteTone*` saíram daqui. Eles misturavam a cor da parada a um token do tema
+ * para distinguir as notas dela, e a mistura vivia em dois lugares — `color-mix` aqui, a mesma conta
+ * em TypeScript ao lado, só para a trava rodar sem DOM. Hoje a nota tem **cor própria**, servida como
+ * string por `noteColor.service.ts`, e `currentColor` basta: uma fonte, sem cópia para divergir.
+ */
+
+/** A carga dividida é contornada: sem a marca, ela é indistinguível da que coube na própria fatia. */
+.faceSplit {
+  fill: none;
+  stroke: var(--color-alert);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.6;
+}
+
+/**
+ * Spec 120: a caixa do complemento — entrou fora do mapa recomendado. Cor de cobre (o mesmo aviso
+ * da referência de catálogo e da carroceria fechada) e tracejado mais longo que o vermelho da
+ * dividida, para as duas marcas não se lerem como a mesma coisa numa caixa que carrega as duas.
+ */
+.faceComplement {
+  fill: none;
+  stroke: var(--color-copper);
+  stroke-dasharray: 8 3;
+  stroke-width: 1;
+}
+
+/** A caixa que também fura a ordem de descarga: mesmo traço, mais grosso — o aviso mais grave. */
+.faceComplementStrong {
+  fill: none;
+  stroke: var(--color-copper);
+  stroke-dasharray: 8 3;
+  stroke-width: 1.5;
+}
+
+/**
+ * Spec 148 D5: a caixa por cima de entrega que desce antes. Traço cheio na cor da tinta — nem o
+ * tracejado de cobre do complemento, nem o vermelho da dividida —, porque ela sai do caminho numa
+ * parada certa e o conferente precisa achá-la de longe.
+ */
+.faceOverEarlier {
+  fill: none;
+  stroke: var(--color-fog);
+  stroke-width: 2;
+}
+
+/**
+ * A amostra da legenda (spec 122): mesma escala em todas as marcas, para o quadrado ficar do
+ * tamanho de uma letra ao lado do texto que ele explica.
+ */
+.legendSample {
+  block-size: 1.25rem;
+  flex: none;
+  inline-size: 1.25rem;
+}
+
+.legendSampleFill {
+  fill: var(--color-slate);
+  stroke: none;
+}
+
+/** Sob o contorno, a mesma cor da carga medida — esmaecida para o traço de cima ler primeiro. */
+.legendSampleFillFaint {
+  opacity: 0.35;
+}
+
+/** A divisa entre as fatias das paradas: onde a carga de uma acaba e a da seguinte começa. */
+.sliceCut {
+  fill: none;
+  opacity: 0.5;
+  stroke: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  stroke-dasharray: 4 6;
+  stroke-width: 1;
+}
+
+/** A camada fora de foco não some: ela continua situando a que está sendo carregada. */
+.boxDimmed {
+  opacity: 0.28;
+}
+
+/**
+ * ⚠️ A parada apagada é **cinza sólido esmaecido**, nunca contorno tracejado: o tracejado parecia bom
+ * com três caixas e virava uma teia de linhas com trinta — com a carga inteira riscada não dava para
+ * ver nem a parada escolhida nem o resto.
+ */
+.boxGhost {
+  opacity: 0.42;
+}
+
+/** Só marcada quando o desenho recebe `onBoxSelect`: o cursor é a única pista de que a caixa clica. */
+.boxSelectable {
+  cursor: pointer;
+}
+
+/**
+ * Spec 145 T13 (D4): a caixa nova surge esmaecendo e a que saiu some esmaecendo. `backwards` na
+ * entrada devolve a opacidade à cascata ao fim — a caixa apagada pelo foco continua apagada.
+ */
+.boxEntering {
+  animation: cargo-box-enter 600ms ease-out backwards;
+}
+
+.boxLeaving {
+  animation: cargo-box-leave 600ms ease-in forwards;
+}
+
+@keyframes cargo-box-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes cargo-box-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boxEntering,
+  .boxLeaving {
+    animation: none;
+  }
+}

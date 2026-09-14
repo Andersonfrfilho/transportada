@@ -233,6 +233,26 @@ describe('trip navigation contract', () => {
       'dispatchPopState',
     ])
   })
+
+  /**
+   * Spec 144 T8: o atalho da lista do que falta medir cai na mesma tela do NFe workspace, direto
+   * na aba de caixas — sem isso o operador chega no workspace e ainda tem de achar a aba certa.
+   */
+  test('navigating to the package box queue opens the nfe workspace on the boxes tab', async () => {
+    const { navigateToPackageBoxQueue, NFE_WORKSPACE, NFE_WORKSPACE_ROUTE } =
+      await loadFutureModule<TripNavigationModule>(
+        '../../src/modules/trip/shared/tripNavigation.service',
+      )
+    const spy = createNavigatorSpy()
+
+    navigateToPackageBoxQueue(spy.navigator)
+
+    expect(spy.calls).toEqual([
+      `pushPath:${NFE_WORKSPACE_ROUTE}?tab=boxes`,
+      `rememberWorkspace:${NFE_WORKSPACE}`,
+      'dispatchPopState',
+    ])
+  })
 })
 
 function createNavigatorSpy(): Readonly<{
@@ -294,6 +314,7 @@ type TripNavigationModule = {
     input: Readonly<{ navigator: WorkspaceNavigatorSpy; tripId?: string }>,
   ) => void
   readonly navigateToNfeWorkspace: (navigator: WorkspaceNavigatorSpy) => void
+  readonly navigateToPackageBoxQueue: (navigator: WorkspaceNavigatorSpy) => void
   readonly NFE_WORKSPACE: string
   readonly NFE_WORKSPACE_ROUTE: string
 }

@@ -31,6 +31,15 @@ export const vehicleVolumeReferences = pgTable(
     cargoLengthM: numeric('cargo_length_m', { precision: 8, scale: 3 }).notNull(),
     cargoWidthM: numeric('cargo_width_m', { precision: 8, scale: 3 }).notNull(),
     cargoHeightM: numeric('cargo_height_m', { precision: 8, scale: 3 }).notNull(),
+    /**
+     * Spec 093: a carga máxima que o mercado publica para o tipo, para o cadastro sugerir o
+     * `capacity_kg` da ficha — que é o `capKG` do MDF-e e já existe lá.
+     *
+     * ⚠️ **Nulo é ausência de fonte, e zero é recusado.** Aqui a linha só existe porque alguém
+     * publicou o número; um zero afirmaria que o tipo não carrega nada. É o oposto do vocabulário da
+     * ficha, onde zero significa "ninguém mediu" — lá a linha existe pelo veículo, não pelo dado.
+     */
+    maxPayloadKg: numeric('max_payload_kg', { precision: 10, scale: 3 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -43,5 +52,6 @@ export const vehicleVolumeReferences = pgTable(
       'vehicle_volume_references_dimensions_check',
       sql`${table.cargoLengthM} > 0 and ${table.cargoWidthM} > 0 and ${table.cargoHeightM} > 0`,
     ),
+    check('vehicle_volume_references_payload_check', sql`${table.maxPayloadKg} > 0`),
   ],
 )

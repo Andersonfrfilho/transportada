@@ -80,7 +80,7 @@ describe('design system checkbox contract', () => {
   test('states the rule for every future checkbox', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/checkboxes.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/checkbox')

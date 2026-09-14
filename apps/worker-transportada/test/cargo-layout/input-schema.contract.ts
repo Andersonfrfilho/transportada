@@ -1,0 +1,99 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import type { z } from 'zod'
+
+import {
+  storedCargoLayoutInputSchema,
+  type StoredCargoLayoutInput,
+} from '../../src/cargo-layout/application/stored-cargo-layout-input.schema.js'
+import { buildStoredCargoLayoutInput } from '../fixtures/cargo-layout-input.fixture.js'
+
+/** Paridade nos dois sentidos, em tempo de compilação: o schema não aceita menos nem mais que o tipo. */
+const outputIsStored: StoredCargoLayoutInput = {} as z.output<typeof storedCargoLayoutInputSchema>
+const storedIsOutput: z.output<typeof storedCargoLayoutInputSchema> = {} as StoredCargoLayoutInput
+
+describe('entrada guardada da planta (spec 145 D5 — o jsonb é fronteira)', () => {
+  test('aceita a entrada que a API grava, com rótulo, cliente e nota', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 2 })
+
+    expect(storedCargoLayoutInputSchema.parse(JSON.parse(JSON.stringify(input)))).toEqual(input)
+    expect([outputIsStored, storedIsOutput]).toHaveLength(2)
+  })
+
+  /** D23: baú fechado é campo novo; linha gravada antes dele não pode virar `failed` no decode. */
+  test('aceita enclosedBody, e linha antiga sem ele entra como baú aberto', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+    const legacyRow = Object.fromEntries(
+      Object.entries(input).filter(([key]) => key !== 'enclosedBody'),
+    )
+
+    expect(storedCargoLayoutInputSchema.parse({ ...input, enclosedBody: true }).enclosedBody).toBe(
+      true,
+    )
+    expect(storedCargoLayoutInputSchema.parse(legacyRow).enclosedBody).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, enclosedBody: 'yes' }).success).toBe(
+      false,
+    )
+  })
+
+  /** D24: o alcance muda o desenho; linha gravada antes dele fica sem o campo e o pacote usa o padrão. */
+  test('aceita deliveryReachM número ou null, e linha sem ele segue sem ele', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+
+    expect(storedCargoLayoutInputSchema.parse({ ...input, deliveryReachM: 2 }).deliveryReachM).toBe(
+      2,
+    )
+    expect(
+      storedCargoLayoutInputSchema.parse({ ...input, deliveryReachM: null }).deliveryReachM,
+    ).toBeNull()
+    expect('deliveryReachM' in storedCargoLayoutInputSchema.parse(input)).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, deliveryReachM: -1 }).success).toBe(
+      false,
+    )
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, deliveryReachM: '2' }).success).toBe(
+      false,
+    )
+  })
+
+  test('recusa campo desconhecido na raiz, na parada e na caixa', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+    const [stop] = input.stops
+    const [box] = stop?.boxes ?? []
+
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, companyId: 'x' }).success).toBe(false)
+    expect(
+      storedCargoLayoutInputSchema.safeParse({ ...input, stops: [{ ...stop, phone: '11' }] })
+        .success,
+    ).toBe(false)
+    expect(
+      storedCargoLayoutInputSchema.safeParse({
+        ...input,
+        stops: [{ ...stop, boxes: [{ ...box, weightKg: 3 }] }],
+      }).success,
+    ).toBe(false)
+  })
+
+  test('recusa forma quebrada: acesso desconhecido, sem policyVersion, dimensão em texto', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+    const withoutVersion = Object.fromEntries(
+      Object.entries(input).filter(([key]) => key !== 'policyVersion'),
+    )
+    const [stop] = input.stops
+    const [box] = stop?.boxes ?? []
+
+    expect(
+      storedCargoLayoutInputSchema.safeParse({ ...input, loadingAccess: 'roof' }).success,
+    ).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse(withoutVersion).success).toBe(false)
+    expect(
+      storedCargoLayoutInputSchema.safeParse({
+        ...input,
+        stops: [{ ...stop, boxes: [{ ...box, heightMm: '300' }] }],
+      }).success,
+    ).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse(null).success).toBe(false)
+  })
+})

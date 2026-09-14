@@ -1,0 +1,127 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 145 D6: a chave que diz se um layout já calculado pode ser reaproveitado. `buildCargoLayoutInput`
+ * monta o retrato canônico a partir do mesmo objeto que `resolveCargoLayout` já recebe hoje
+ * (`drizzle-trip.repository.ts` e `preview-trip-cargo.use-case.ts`); `hashCargoLayoutInput` resume esse
+ * retrato num hexadecimal.
+ *
+ * ⚠️ `label`/`clientName`/`noteNumbers`/`documentNumber`/`productCode` nunca entram: são a etiqueta,
+ * não o desenho — mudar o nome do cliente não pode invalidar um layout que já custou o orçamento de
+ * tempo do worker para calcular. Todo o resto que o empacotador lê entra.
+ */
+import { createHash } from 'node:crypto'
+
+import type {
+  CargoLayoutStop,
+  CargoPlanBox,
+  MeasuredBoxShape,
+} from '@adatechnology/cargo-placement'
+import { CARGO_LAYOUT_POLICY_VERSION } from '@adatechnology/cargo-placement'
+
+import { canonicalJson } from '../../shared/canonical-json.service.js'
+import type {
+  BuildCargoLayoutInputParams,
+  CargoLayoutBoxInput,
+  CargoLayoutInput,
+  CargoLayoutStopInput,
+  StoredCargoLayoutInput,
+} from './cargo-layout-hash.types.js'
+
+/** As três dimensões vindas da ficha — ausente qualquer uma, a caixa é presumida (spec 094/144). */
+function isMeasuredBox(box: CargoPlanBox): boolean {
+  return box.heightMm !== null && box.lengthMm !== null && box.widthMm !== null
+}
+
+function buildBoxInput(box: CargoPlanBox): CargoLayoutBoxInput {
+  return {
+    dims: { heightMm: box.heightMm, lengthMm: box.lengthMm, widthMm: box.widthMm },
+    documentId: box.documentId ?? null,
+    estimatedVolumeM3: box.estimatedVolumeM3 ?? null,
+    estimateSource: box.estimateSource ?? null,
+    isFragile: box.isFragile ?? null,
+    isStackable: box.isStackable ?? null,
+    keepUpright: box.keepUpright ?? null,
+    maxStackCount: box.maxStackCount ?? null,
+    measured: isMeasuredBox(box),
+    quantity: box.count,
+  }
+}
+
+function buildStopInput(stop: CargoLayoutStop): CargoLayoutStopInput {
+  return {
+    boxes: (stop.boxes ?? []).map((box) => buildBoxInput(box)),
+    documentsWithoutVolume: stop.documentsWithoutVolume,
+    sequence: stop.sequence,
+    volumeM3: stop.volumeM3,
+  }
+}
+
+function compareMeasuredShapes(left: MeasuredBoxShape, right: MeasuredBoxShape): number {
+  return (
+    left.lengthMm - right.lengthMm || left.widthMm - right.widthMm || left.heightMm - right.heightMm
+  )
+}
+
+/** `measuredShapes` é conjunto: a ordem em que o banco devolve as fichas não pode mudar o hash. */
+function sortMeasuredShapes(
+  shapes: readonly MeasuredBoxShape[] | undefined,
+): readonly MeasuredBoxShape[] {
+  return [...(shapes ?? [])].sort(compareMeasuredShapes)
+}
+
+/**
+ * A ordem em que as paradas chegam **é** a sequência — nenhuma reordenação aqui, quem monta `stops`
+ * já entrega na ordem que o desenho lê.
+ */
+export function buildCargoLayoutInput(params: BuildCargoLayoutInputParams): CargoLayoutInput {
+  const bed = params.bedDimensions ?? null
+
+  return {
+    bed:
+      bed === null
+        ? null
+        : { heightM: bed.heightM, lengthM: bed.lengthM, source: bed.source, widthM: bed.widthM },
+    capacityM3: params.capacityM3,
+    /** D24: o alcance muda o que cabe; ausente fica fora do retrato — o hash de antes, o padrão do pacote. */
+    ...(params.deliveryReachM === undefined ? {} : { deliveryReachM: params.deliveryReachM }),
+    /** D23: baú fechado muda onde a pilha alta pode ficar — entra no hash; ausente é baú aberto. */
+    enclosedBody: params.enclosedBody ?? false,
+    fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
+    /** Ausente assume `rear`, o mais restritivo — a mesma omissão de `resolveCargoLayout`. */
+    loadingAccess: params.loadingAccess ?? 'rear',
+    measuredShapes: sortMeasuredShapes(params.measuredShapes),
+    payloadRatio: params.payloadRatio ?? null,
+    policyVersion: params.policyVersion ?? CARGO_LAYOUT_POLICY_VERSION,
+    /** Ausente é ninguém amarrando (spec 100) — supor cinta desenharia pilha que não existe. */
+    securesCargo: params.securesCargo ?? false,
+    stops: params.stops.map((stop) => buildStopInput(stop)),
+  }
+}
+
+/**
+ * A entrada que o worker empacota (D5), com as mesmas omissões resolvidas que o hash usa — os campos
+ * são escolhidos um a um para o envelope do pedido (`companyId`, `tripId`...) nunca vazar para a coluna.
+ */
+export function buildStoredCargoLayoutInput(
+  params: BuildCargoLayoutInputParams,
+): StoredCargoLayoutInput {
+  return {
+    bedDimensions: params.bedDimensions ?? null,
+    capacityM3: params.capacityM3,
+    ...(params.deliveryReachM === undefined ? {} : { deliveryReachM: params.deliveryReachM }),
+    enclosedBody: params.enclosedBody ?? false,
+    fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
+    loadingAccess: params.loadingAccess ?? 'rear',
+    /** A mesma ordem do hash: hash igual precisa significar entrada igual para o empacotador. */
+    measuredShapes: sortMeasuredShapes(params.measuredShapes),
+    payloadRatio: params.payloadRatio ?? null,
+    policyVersion: params.policyVersion ?? CARGO_LAYOUT_POLICY_VERSION,
+    securesCargo: params.securesCargo ?? false,
+    stops: params.stops,
+  }
+}
+
+export function hashCargoLayoutInput(input: CargoLayoutInput): string {
+  return createHash('sha256').update(canonicalJson(input)).digest('hex')
+}

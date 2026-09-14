@@ -6,19 +6,30 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionStopClaimedTwiceError,
+  MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
 } from '../domain/routing.error.js'
 import type {
   AcceptedMultiVehicleTrip,
+  SkippedMultiVehicleDocument,
   MultiVehicleScope,
   MultiVehicleSuggestionUseCase,
 } from './multi-vehicle-suggestion.port.js'
-import type { MultiVehicleSuggestionRepository } from './multi-vehicle-suggestion.repository.js'
+import type {
+  MultiVehicleSuggestionGroup,
+  MultiVehicleSuggestionRepository,
+} from './multi-vehicle-suggestion.repository.js'
 import type { RouteOptimizationQueue } from './route-suggestion.use-case.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionRepository } from './route-suggestion.repository.js'
+import type { TripDocumentReviewReason } from '../../database/trip-document-review.schema.js'
+import {
+  resolveAcceptReleasePlans,
+  type AcceptReleaseEntry,
+} from './accept-release-plan.service.js'
 
 /**
  * O que o aceite usa para transformar a proposta em viagem. São os casos de uso da 056 vistos de
@@ -31,21 +42,58 @@ export type TripComposer = Readonly<{
     readonly driverId: string | null
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
+  /**
+   * Spec 107 D1: devolve `false` quando a nota **já está viva em outra viagem**, em vez de lançar.
+   * Um vínculo recusado não pode derrubar um aceite que já criou cinco viagens corretas — foi o que
+   * aconteceu em 2026-09-09, e o operador leu um código de suporte no lugar do roteiro pronto.
+   */
   linkDocument: (input: {
     readonly context: MultiVehicleScope
     readonly nfeDocumentId: string
     readonly tripId: string
-  }) => Promise<void>
+  }) => Promise<boolean>
   planRoute: (input: {
     readonly context: MultiVehicleScope
     readonly tripId: string
   }) => Promise<void>
   /** As paradas nascem da reconciliação; aqui só se diz em que ordem elas ficam. */
+  /**
+   * Spec 107 D3: grava na viagem o ETA que a sugestão calculou, e **carimba quando** ele foi
+   * calculado. ⚠️ A hora envelhece: sem o carimbo a tela mostraria uma previsão de 7h como se fosse
+   * de agora.
+   */
+  applyEstimatedArrivals: (input: {
+    readonly context: MultiVehicleScope
+    readonly estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+    /** Spec 109 D2: a saída suposta, que vira a âncora do ETA na viagem. */
+    readonly plannedDepartureAt: string | null
+    readonly tripId: string
+  }) => Promise<void>
   reorderStops: (input: {
     readonly context: MultiVehicleScope
     readonly orderedAddressKeys: readonly string[]
     readonly tripId: string
   }) => Promise<void>
+  /** Spec 148 T7: a planta da prévia — as notas que ela desenhou e as que deixou de fora. */
+  readReleasePlan?: (input: {
+    readonly context: MultiVehicleScope
+    readonly layoutId: string
+  }) => Promise<{
+    readonly documentIds: readonly string[]
+    readonly released: readonly {
+      readonly documentId: string
+      readonly reason: TripDocumentReviewReason
+    }[]
+  }>
+  /** Spec 148 T7: vincula e solta na mesma transação; `false` é a nota viva em outra viagem. */
+  linkAndRelease?: (input: {
+    readonly context: MultiVehicleScope
+    readonly correlationId: string
+    readonly layoutId: string
+    readonly nfeDocumentId: string
+    readonly reason: TripDocumentReviewReason
+    readonly tripId: string
+  }) => Promise<boolean>
 }>
 
 export type MultiVehicleSuggestionDependencies = Readonly<{
@@ -57,6 +105,21 @@ export type MultiVehicleSuggestionDependencies = Readonly<{
 }>
 
 const MAX_SEED = 2_147_483_647
+
+/**
+ * Spec 107 D3: o término é a **maior** hora entre as paradas, não a última do mapa — `Map` preserva
+ * a ordem de escrita, que é a das paradas propostas, e a reordenação pode não segui-la.
+ *
+ * ⚠️ Mapa vazio é `null`, nunca agora: planejamento sem ETA é o caso em que a tela cala.
+ */
+function resolveFinishAt(estimatedArrivalByAddressKey: ReadonlyMap<string, string>): string | null {
+  let latest: string | null = null
+  for (const arrival of estimatedArrivalByAddressKey.values()) {
+    if (latest === null || arrival > latest) latest = arrival
+  }
+
+  return latest
+}
 
 export function createMultiVehicleSuggestionUseCase(
   dependencies: MultiVehicleSuggestionDependencies,
@@ -77,50 +140,66 @@ export function createMultiVehicleSuggestionUseCase(
   }
 
   return {
-    async accept({ context, suggestionId }) {
+    async accept({
+      context,
+      correlationId,
+      releaseUnplacedFromLayoutIds,
+      stopOrderByVehicle,
+      suggestionId,
+      vehicleIds,
+    }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
-      const groups = await dependencies.multiVehicle.readGroups({
+      const proposed = await dependencies.multiVehicle.readGroups({
         companyId: context.companyId,
         suggestionId,
       })
 
       /**
-       * As viagens nascem **antes** de a sugestão virar `accepted`, como no aceite de viagem única:
-       * se a criação falhar no meio, a sugestão continua `ready` e o operador tenta de novo. O
-       * contrário deixaria uma sugestão marcada como aceita com metade das viagens criadas.
+       * Spec 110 D5a: **a recusa vem antes da reivindicação.** Um veículo que esta distribuição
+       * nunca propôs é pedido malformado, e consumir a sugestão por causa dele queimaria uma
+       * proposta boa — o operador perderia as quatro viagens por causa de um id errado.
        */
-      const trips: AcceptedMultiVehicleTrip[] = []
-      for (const group of groups) {
-        const { tripId } = await dependencies.trips.createTrip({
+      const groups = resolveAcceptedGroups({ proposed, stopOrderByVehicle, vehicleIds })
+      const releasePlans = await resolveAcceptReleasePlans({
+        context,
+        groups,
+        layoutIds: releaseUnplacedFromLayoutIds ?? [],
+        trips: dependencies.trips,
+      })
+      const linkOrRelease = async (input: {
+        readonly nfeDocumentId: string
+        readonly release: AcceptReleaseEntry | undefined
+        readonly tripId: string
+      }): Promise<{ readonly linked: boolean; readonly released: boolean }> => {
+        if (input.release === undefined) {
+          const linked = await dependencies.trips.linkDocument({ context, ...input })
+          return { linked, released: false }
+        }
+        const linkAndRelease = dependencies.trips.linkAndRelease
+        if (linkAndRelease === undefined) throw new Error('TRIP_COMPOSER_WITHOUT_LINK_AND_RELEASE')
+        const released = await linkAndRelease({
           context,
-          driverId: group.driverId,
-          vehicleId: group.vehicleId,
+          correlationId: correlationId ?? crypto.randomUUID(),
+          layoutId: input.release.layoutId,
+          nfeDocumentId: input.nfeDocumentId,
+          reason: input.release.reason,
+          tripId: input.tripId,
         })
-
-        for (const nfeDocumentId of group.documentIds) {
-          await dependencies.trips.linkDocument({ context, nfeDocumentId, tripId })
-        }
-
-        if (group.orderedAddressKeys.length > 0) {
-          await dependencies.trips.reorderStops({
-            context,
-            orderedAddressKeys: group.orderedAddressKeys,
-            tripId,
-          })
-        }
-
-        /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
-        await dependencies.trips.planRoute({ context, tripId })
-
-        trips.push({
-          documentCount: group.documentIds.length,
-          driverId: group.driverId,
-          stopCount: group.orderedAddressKeys.length,
-          tripId,
-          vehicleId: group.vehicleId,
-        })
+        return { linked: false, released }
       }
 
+      /**
+       * Spec 107 D2: **a sugestão é reivindicada antes de qualquer viagem nascer.**
+       *
+       * ⚠️ A ordem era a inversa, de propósito — criar primeiro deixava a sugestão `ready` quando a
+       * criação falhava no meio, e o operador repetia. Mas `accept` gastava **onze segundos**
+       * criando viagens entre ler `ready` e marcar `accepted`, e dois pedidos nessa janela passavam
+       * os dois: medido em 2026-09-09, o segundo criou uma viagem órfã e morreu ao vincular uma nota
+       * que o primeiro acabara de vincular.
+       *
+       * `decide` já era condicional (`where status = 'ready'`); faltava chamá-lo cedo. A retomada
+       * que a ordem antiga protegia é preservada pela **escrita compensatória** do `catch`.
+       */
       const decided = await dependencies.suggestions.decide({
         companyId: context.companyId,
         decidedByUserId: context.userId,
@@ -129,7 +208,80 @@ export function createMultiVehicleSuggestionUseCase(
       })
       if (decided === null) throw new RouteSuggestionNotDecidableError()
 
-      return { suggestion: { ...decided, stops: found.stops }, trips }
+      const trips: AcceptedMultiVehicleTrip[] = []
+      const skippedDocuments: SkippedMultiVehicleDocument[] = []
+      try {
+        for (const group of groups) {
+          /**
+           * ⚠️ **O horário previsto é da ordem do solver**, gravado casado por endereço. Com a ordem
+           * trocada à mão ele diria que o caminhão chega na terceira parada antes da primeira — e
+           * campo vazio é o vocabulário da casa, nunca um horário plausível descrevendo outra ordem.
+           */
+          const arrivals = group.isManualOrder
+            ? new Map<string, string>()
+            : group.estimatedArrivalByAddressKey
+          const { tripId } = await dependencies.trips.createTrip({
+            context,
+            driverId: group.driverId,
+            vehicleId: group.vehicleId,
+          })
+
+          let linkedCount = 0
+          for (const nfeDocumentId of group.documentIds) {
+            const outcome = await linkOrRelease({
+              nfeDocumentId,
+              release: releasePlans.get(group.vehicleId)?.get(nfeDocumentId),
+              tripId,
+            })
+            if (outcome.linked) linkedCount += 1
+            else if (!outcome.released) {
+              skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
+            }
+          }
+
+          if (group.orderedAddressKeys.length > 0) {
+            await dependencies.trips.reorderStops({
+              context,
+              orderedAddressKeys: group.orderedAddressKeys,
+              tripId,
+            })
+          }
+
+          /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
+          await dependencies.trips.planRoute({ context, tripId })
+
+          /**
+           * ⚠️ **Depois de `reorderStops`**: a parada só existe pela reconciliação do vínculo, e o
+           * casamento por endereço precisa dela gravada. Antes disso não há o que carimbar.
+           */
+          await dependencies.trips.applyEstimatedArrivals({
+            context,
+            estimatedArrivalByAddressKey: arrivals,
+            plannedDepartureAt: found.plannedDepartureAt,
+            tripId,
+          })
+
+          trips.push({
+            documentCount: linkedCount,
+            driverId: group.driverId,
+            estimatedFinishAt: resolveFinishAt(arrivals),
+            stopCount: group.orderedAddressKeys.length,
+            tripId,
+            vehicleId: group.vehicleId,
+          })
+        }
+      } catch (cause) {
+        /**
+         * ⚠️ A escrita compensatória: devolve a sugestão para `ready`, e o operador repete — é a
+         * propriedade que a ordem antiga protegia. Ela **não** desfaz as viagens já criadas:
+         * apagá-las seria destruir trabalho que pode estar correto, e a lista de viagens mostra o
+         * que nasceu.
+         */
+        await dependencies.suggestions.release({ companyId: context.companyId, suggestionId })
+        throw cause
+      }
+
+      return { skippedDocuments, suggestion: { ...decided, stops: found.stops }, trips }
     },
 
     async create(input) {
@@ -234,4 +386,145 @@ export function createMultiVehicleSuggestionUseCase(
       return decided
     },
   }
+}
+
+/**
+ * Quais grupos entram no aceite. Ausente é **todos**, que é o comportamento anterior à spec 110.
+ *
+ * ⚠️ A ordem da proposta é preservada: ela é a ordem em que os veículos foram ofertados, e é ela que
+ * faz a mesma semente distribuir igual (spec 058 P2).
+ */
+type StopOrderEntry = Readonly<{ orderedAddressKeys: readonly string[]; vehicleId: string }>
+
+/** O grupo como o aceite o cria: as paradas finais, e se a ordem deixou de ser a do solver. */
+type AcceptedGroup = MultiVehicleSuggestionGroup & Readonly<{ isManualOrder: boolean }>
+
+/**
+ * Quais veículos viram viagem, com que paradas, e em que ordem cada um para.
+ *
+ * ⚠️ **Toda recusa acontece aqui, antes da reivindicação** (spec 107 D2): veículo fora da proposta
+ * e parada reivindicada por dois caminhões são pedido malformado, e consumir a sugestão por causa
+ * deles queimaria uma proposta boa.
+ */
+function resolveAcceptedGroups(
+  input: Readonly<{
+    proposed: readonly MultiVehicleSuggestionGroup[]
+    stopOrderByVehicle: readonly StopOrderEntry[] | undefined
+    vehicleIds: readonly string[] | undefined
+  }>,
+): readonly AcceptedGroup[] {
+  const proposedIds = new Set(input.proposed.map((group) => group.vehicleId))
+  const named = [
+    ...(input.vehicleIds ?? []),
+    ...(input.stopOrderByVehicle ?? []).map((entry) => entry.vehicleId),
+  ]
+  const unknown = [...new Set(named.filter((vehicleId) => !proposedIds.has(vehicleId)))]
+  if (unknown.length > 0) throw new MultiVehicleSuggestionVehicleNotInProposalError(unknown)
+
+  const accepted = input.vehicleIds === undefined ? proposedIds : new Set(input.vehicleIds)
+  const chosenByVehicle = new Map(
+    (input.stopOrderByVehicle ?? []).map((entry) => [entry.vehicleId, entry.orderedAddressKeys]),
+  )
+  const groupByVehicle = new Map(input.proposed.map((group) => [group.vehicleId, group]))
+  const ownerByKey = new Map(
+    input.proposed.flatMap((group) =>
+      group.orderedAddressKeys.map((key) => [key, group.vehicleId]),
+    ),
+  )
+  const movedTo = resolveMoves({ chosenByVehicle, ownerByKey })
+
+  return input.proposed
+    .filter((group) => accepted.has(group.vehicleId))
+    .flatMap((group) => {
+      const resolved = resolveGroup({
+        chosen: chosenByVehicle.get(group.vehicleId) ?? [],
+        group,
+        groupByVehicle,
+        movedTo,
+        ownerByKey,
+      })
+      return resolved === null ? [] : [resolved]
+    })
+}
+
+/**
+ * As paradas que mudam de caminhão: chave → caminhão de destino.
+ *
+ * ⚠️ Spec 112 D3: **chave de outro caminhão na ordem de um veículo é movimento.** A spec 111 a
+ * recusava, porque a 110 dizia que o solver desfaria o movimento — e desde a 111 o aceite não roda o
+ * solver. Chave que a proposta não conhece segue ignorada (é o degrau `cidade:` da tela), e a mesma
+ * chave na ordem de dois caminhões é recusada: qual deles fica com ela seria palpite.
+ */
+function resolveMoves(
+  input: Readonly<{
+    chosenByVehicle: ReadonlyMap<string, readonly string[]>
+    ownerByKey: ReadonlyMap<string, string>
+  }>,
+): ReadonlyMap<string, string> {
+  const claimedBy = new Map<string, string>()
+  for (const [vehicleId, keys] of input.chosenByVehicle) {
+    for (const key of new Set(keys)) {
+      if (!input.ownerByKey.has(key)) continue
+      const previous = claimedBy.get(key)
+      if (previous !== undefined && previous !== vehicleId) {
+        throw new MultiVehicleSuggestionStopClaimedTwiceError([previous, vehicleId])
+      }
+      claimedBy.set(key, vehicleId)
+    }
+  }
+  return new Map(
+    [...claimedBy].filter(([key, vehicleId]) => input.ownerByKey.get(key) !== vehicleId),
+  )
+}
+
+/**
+ * O caminhão depois dos movimentos: as paradas que ficam, as que chegam, e a ordem escolhida.
+ *
+ * ⚠️ É a mesma regra de `orderStopKeys`, que monta a planta de carga: parada que a ordem não
+ * menciona **vai para o fim, na ordem do solver**. O aceite tem de criar o caminhão que o operador
+ * acabou de ver desenhado; duas regras criariam outro.
+ *
+ * ⚠️ A parada que chega traz **as notas dela**, lidas do grupo de origem. Caminhão que não ganhou
+ * nem perdeu parada segue com a lista de notas de sempre — nada a reescrever.
+ */
+function resolveGroup(
+  input: Readonly<{
+    chosen: readonly string[]
+    group: MultiVehicleSuggestionGroup
+    groupByVehicle: ReadonlyMap<string, MultiVehicleSuggestionGroup>
+    movedTo: ReadonlyMap<string, string>
+    ownerByKey: ReadonlyMap<string, string>
+  }>,
+): AcceptedGroup | null {
+  const { group } = input
+  const staying = group.orderedAddressKeys.filter((key) => !input.movedTo.has(key))
+  const arriving = new Set(
+    [...input.movedTo].filter(([, vehicleId]) => vehicleId === group.vehicleId).map(([key]) => key),
+  )
+  const available = new Set([...staying, ...arriving])
+  const picked = [...new Set(input.chosen.filter((key) => available.has(key)))]
+  const pickedSet = new Set(picked)
+  const orderedAddressKeys = [...picked, ...staying.filter((key) => !pickedSet.has(key))]
+  /**
+   * Caminhão que **perdeu** todas as paradas para outros não vira viagem vazia. ⚠️ Só esse: grupo que
+   * nunca teve chave de parada continua criando a viagem, como sempre criou — o aceite anterior
+   * tratava esse caso de propósito, e contratos dependem dele.
+   */
+  if (group.orderedAddressKeys.length > 0 && orderedAddressKeys.length === 0) return null
+
+  const changedStops = arriving.size > 0 || staying.length !== group.orderedAddressKeys.length
+  const documentsOf = (key: string): readonly string[] =>
+    input.groupByVehicle.get(input.ownerByKey.get(key) ?? '')?.documentIdsByAddressKey.get(key) ??
+    []
+
+  return {
+    ...group,
+    documentIds: changedStops ? orderedAddressKeys.flatMap(documentsOf) : group.documentIds,
+    isManualOrder: changedStops || !isSameOrder(orderedAddressKeys, group.orderedAddressKeys),
+    orderedAddressKeys,
+  }
+}
+
+function isSameOrder(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index])
 }

@@ -1,0 +1,135 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * O valor efetivo de pedágio, por praça: ajuste manual da empresa, quando existe, e senão o
+ * catálogo do OSM. No molde de `fuel-price.policy.ts` — a diferença é que aqui a decisão é por
+ * **campo**, não por linha inteira: corrigir só o valor por eixo e deixar o carro de passeio no
+ * catálogo é o caso comum (spec 095 D1).
+ */
+
+export type TollBoothCatalogEntry = Readonly<{
+  chargeCar: null | string
+  chargePerAxle: null | string
+  /** Spec 095 D3: a tarifa de tag — o OSM não a declara, e nasce nula até um ajuste a informar. */
+  chargePerAxleAutomatic: null | string
+  name: null | string
+  observedOn: string
+  operator: null | string
+  osmNodeId: number
+}>
+
+export type TollBoothChargeAdjustmentRow = Readonly<{
+  actorUserId: string
+  chargeCar: null | string
+  chargePerAxle: null | string
+  chargePerAxleAutomatic: null | string
+  observedOn: string
+  osmNodeId: number
+  updatedAt: Date
+}>
+
+export type TollBoothChargeSource = 'catalog' | 'manual'
+
+export type EffectiveTollBoothCharge = Readonly<{
+  actorUserId: null | string
+  catalog: Readonly<{
+    chargeCar: null | string
+    chargePerAxle: null | string
+    chargePerAxleAutomatic: null | string
+    observedOn: string
+  }>
+  /**
+   * ⚠️ `false` quando o catálogo não conhece mais esta praça — o nó saiu do OSM num extract novo,
+   * mas a empresa já passou por ela e corrigiu a tarifa. A linha fica, porque ajuste é trabalho de
+   * gente e não some por decisão de um mapa de terceiro; a tela diz que o mapa não a conhece.
+   */
+  catalogKnown: boolean
+  /**
+   * ⚠️ **A origem é por campo, não por linha.** Um ajuste que corrige só a tarifa de carro deixa o
+   * valor por eixo vindo do mapa — e é o por eixo que decide o custo do caminhão. Uma origem só
+   * para os dois mentiria sobre um deles, na página que existe justamente para dizer de onde cada
+   * número veio.
+   */
+  chargeCarSource: TollBoothChargeSource
+  chargePerAxleSource: TollBoothChargeSource
+  chargePerAxleAutomaticSource: TollBoothChargeSource
+  effectiveChargeCar: null | string
+  effectiveChargePerAxle: null | string
+  effectiveChargePerAxleAutomatic: null | string
+  name: null | string
+  observedOn: string
+  operator: null | string
+  osmNodeId: number
+  source: TollBoothChargeSource
+  updatedAt: Date | null
+}>
+
+/**
+ * ⚠️ Cada campo vence o catálogo por conta própria. `0.00` no ajuste é isenção afirmada por gente,
+ * com autor e data — vence o `null` "desconhecida" do catálogo sem confundir os dois.
+ */
+export function resolveEffectiveTollBoothCharge(input: {
+  readonly adjustment: TollBoothChargeAdjustmentRow | null
+  readonly catalog: TollBoothCatalogEntry
+}): EffectiveTollBoothCharge {
+  const { adjustment, catalog } = input
+
+  return {
+    actorUserId: adjustment?.actorUserId ?? null,
+    catalogKnown: true,
+    catalog: {
+      chargeCar: catalog.chargeCar,
+      chargePerAxle: catalog.chargePerAxle,
+      chargePerAxleAutomatic: catalog.chargePerAxleAutomatic,
+      observedOn: catalog.observedOn,
+    },
+    chargeCarSource: sourceOf(adjustment?.chargeCar ?? null),
+    chargePerAxleSource: sourceOf(adjustment?.chargePerAxle ?? null),
+    chargePerAxleAutomaticSource: sourceOf(adjustment?.chargePerAxleAutomatic ?? null),
+    effectiveChargeCar: adjustment?.chargeCar ?? catalog.chargeCar,
+    effectiveChargePerAxle: adjustment?.chargePerAxle ?? catalog.chargePerAxle,
+    effectiveChargePerAxleAutomatic:
+      adjustment?.chargePerAxleAutomatic ?? catalog.chargePerAxleAutomatic,
+    name: catalog.name,
+    observedOn: adjustment?.observedOn ?? catalog.observedOn,
+    operator: catalog.operator,
+    osmNodeId: catalog.osmNodeId,
+    source: adjustment === null ? 'catalog' : 'manual',
+    updatedAt: adjustment?.updatedAt ?? null,
+  }
+}
+
+/** Campo ajustado é `manual`; campo em branco no ajuste continua sendo o do mapa. */
+function sourceOf(adjusted: null | string): TollBoothChargeSource {
+  return adjusted === null ? 'catalog' : 'manual'
+}
+
+const ZERO_CHARGE = '0.0000'
+
+/**
+ * Spec 095 item 4: as praças sem tarifa conhecida primeiro, depois as com `0.00` — são o motivo da
+ * página existir —, e o resto por último. Dentro de cada grupo, por nome, para a lista não pular de
+ * ordem a cada leitura; sem nome, o `osmNodeId` desempata.
+ *
+ * ⚠️ Quem decide o grupo é `effectiveChargePerAxle` — a base manual, que é a que decide custo hoje
+ * (D4 da spec 095 ainda não fez a automática entrar na conta da viagem).
+ */
+export function orderTollBoothChargesByUnknownFirst(
+  charges: readonly EffectiveTollBoothCharge[],
+): readonly EffectiveTollBoothCharge[] {
+  return [...charges].sort((left, right) => {
+    const priorityDelta = priorityOf(left) - priorityOf(right)
+    if (priorityDelta !== 0) return priorityDelta
+
+    const nameDelta = (left.name ?? '').localeCompare(right.name ?? '')
+    if (nameDelta !== 0) return nameDelta
+
+    return left.osmNodeId - right.osmNodeId
+  })
+}
+
+function priorityOf(charge: EffectiveTollBoothCharge): number {
+  if (charge.effectiveChargePerAxle === null) return 0
+  if (charge.effectiveChargePerAxle === ZERO_CHARGE) return 1
+  return 2
+}

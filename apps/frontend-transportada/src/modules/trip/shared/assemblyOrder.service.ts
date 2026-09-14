@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { AssemblyMapPoint } from './assemblyMap.service'
+import { buildStopAddressKey, type StopAddressComponents } from './stopAddressKey.service'
 
 /**
  * A ordem que o operador monta no mapa, antes de a viagem existir.
@@ -14,6 +15,23 @@ import type { AssemblyMapPoint } from './assemblyMap.service'
  * distância no mapa.
  */
 export type AssemblyCityOrder = readonly string[]
+
+/**
+ * A chave sob a qual a parada entra na ordem — e o degrau abaixo dela.
+ *
+ * ⚠️ **A queda para `cidade:` não é enfeite.** CEP que não fecha oito dígitos não tem chave, e sem
+ * este degrau a parada entraria como `null`, sumindo da ordem enquanto continua desenhada no mapa:
+ * o botão de subir some para ela e ninguém sabe por quê. A expressão estava copiada em três
+ * lugares — o agrupamento do mapa, o ranque do mapa e a fila da criação manual —, e três cópias de
+ * um degrau silencioso é o número que garante que uma delas envelhece sozinha.
+ *
+ * ⚠️ Ela **não** é a chave da API: lá a nota sem endereço vira `documento:${id}`. Quem cai aqui
+ * também não casa lá, e vai para o fim do desenho — que é o comportamento de sempre, dito por
+ * extenso para o próximo leitor não o descobrir por acidente.
+ */
+export function resolveStopKey(components: StopAddressComponents): string {
+  return buildStopAddressKey(components) ?? `cidade:${components.cityCode ?? ''}`
+}
 
 /**
  * A ordem nasce da chegada e **converge**: cidade nova entra no fim, cidade que saiu da seleção sai
@@ -130,4 +148,30 @@ export function resolveStopOrder(input: {
 
 function isBlank(value: string): boolean {
   return value.trim() === ''
+}
+
+/**
+ * Duas ordens são a mesma quando têm as mesmas chaves nas mesmas posições.
+ *
+ * ⚠️ Voltar à ordem salva **não é rascunho**: sem esta conta, descer e subir a mesma parada deixaria
+ * a faixa de "ordem não salva" acesa — e o aceite travado — sobre uma ordem que já foi medida.
+ */
+export function isSameOrder(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index])
+}
+
+/**
+ * Os pontos do mapa na ordem dada, pela chave de parada. Ponto que a ordem não menciona vai para o
+ * fim, na ordem em que estava — a mesma regra de `orderStopKeys` na API.
+ *
+ * ⚠️ Existe para o mapa **medir uma ordem e desenhar outra**: o rascunho das setas reordena a lista,
+ * e a rota continua sendo pedida na ordem salva até alguém salvar.
+ */
+export function orderPointsByKey<TPoint extends Readonly<{ stopKey: string }>>(
+  points: readonly TPoint[],
+  order: AssemblyCityOrder,
+): readonly TPoint[] {
+  const rank = new Map(order.map((key, index) => [key, index]))
+  const rankOf = (point: TPoint): number => rank.get(point.stopKey) ?? Number.MAX_SAFE_INTEGER
+  return [...points].sort((left, right) => rankOf(left) - rankOf(right))
 }

@@ -18,6 +18,9 @@ export type ActiveCompanyMembership = {
   readonly roles: readonly CompanyRole[]
 }
 
+/** `absent`: nenhuma membership na empresa. `suspended`: existe, mas ela ou a empresa está desativada. */
+export type MembershipStanding = 'absent' | 'suspended'
+
 export type MembershipRepositoryPort = {
   findActiveByUserAndCompany(input: MembershipLookup): Promise<ActiveCompanyMembership | null>
 }

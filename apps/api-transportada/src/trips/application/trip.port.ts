@@ -1,9 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
+import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
@@ -60,6 +63,15 @@ export type Trip = {
    * existe, e a tela precisa poder dizer isso em vez de deixar a célula muda.
    */
   readonly driverNames: readonly string[]
+  /**
+   * Spec 107 D3: quando esta viagem termina, pela última chegada estimada do roteiro. `null` até o
+   * roteiro ser planejado.
+   *
+   * ⚠️ Anda **em par** com `estimatedArrivalFrozenAt`: a hora sem o carimbo é previsão sem idade, e
+   * a tela mostraria o que o planejamento achava às 7h como se fosse de agora.
+   */
+  readonly estimatedFinishAt?: string | null
+  readonly estimatedArrivalFrozenAt?: string | null
   readonly companyId: string
   readonly createdAt: string
   readonly id: string
@@ -147,13 +159,18 @@ export type TripStopDetail = {
  * marca junto do número (contrato de tela, T011).
  */
 /**
- * Spec 079: o peso da carga da viagem. **Sem percentual** — a ficha do veículo não guarda
- * capacidade em massa, e um teto inventado para produzir porcentagem é o defeito que a ocupação
- * evita ao devolver `null` sem capacidade conhecida.
+ * Spec 079/093: o peso da carga da viagem, e quanto ele ocupa do teto do veículo.
+ *
+ * ⚠️ O teto é `fleet_vehicles.capacity_kg`, o `capKG` do MDF-e — ele **sempre existiu**, e o que
+ * faltava era alguém lê-lo fora da emissão fiscal. Ausência continua sendo `null` nos dois campos,
+ * nunca 100% nem zero: veículo sem teto cadastrado com carga dentro é o caso em que um número
+ * inventado faz alguém parar de carregar, ou continuar.
  */
 export type TripCargoWeightView = {
   readonly documentsWithoutWeight: number
   readonly grossWeightKilograms: string
+  readonly maxPayloadKg: string | null
+  readonly payloadRatio: string | null
   readonly source: 'declared' | 'estimated'
 }
 
@@ -199,6 +216,8 @@ export type TripCargoLayoutView = {
   /** `false` sem capacidade: divide a carga e cala sobre o espaço livre. */
   readonly occupancyKnown: boolean
   readonly overflowM3: string
+  /** Spec 144 (D4): a lista do que falta medir, ordenada por `boxCount` decrescente. */
+  readonly pendingMeasurements: readonly PendingMeasurement[]
   readonly slices: readonly {
     readonly label: string
     /** `1` é o fundo, e o fundo é da **última** entrega. */
@@ -215,6 +234,16 @@ export type TripCargoLayoutView = {
 
 export type TripDetail = Trip & {
   readonly cargoLayout: TripCargoLayoutView | null
+  /** Spec 145 D10: de onde veio a planta servida — pronta, antiga (`stale`), pendente ou impossível. */
+  readonly cargoLayoutState: TripCargoLayoutState
+  /** Spec 148 T7: a planta pronta do hash atual — por ela a tela tira as notas que não couberam. */
+  readonly cargoLayoutId?: string | null
+  /**
+   * Spec 145 D7 (lazy): presente só quando a planta do hash atual falta, falhou ou parou além do
+   * lease — a rota pede o cálculo com ela depois da leitura. ⚠️ Nunca serializado: carrega rótulo de
+   * parada e nome de cliente.
+   */
+  readonly pendingCargoLayoutInput?: BuildCargoLayoutInputParams
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null

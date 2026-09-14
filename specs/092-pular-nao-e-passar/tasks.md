@@ -1,13 +1,16 @@
 # Tasks
 
-> 🤖 Modelo: `sonnet` (T001 e T002 são 🧠 — decidir a fronteira falha × pulo antes de codificar)
+> 🤖 Modelo: `sonnet` (T002 é 🧠 — decidir a fronteira falha × pulo antes de codificar)
 
-⚠️ **T001 bloqueia T006.** A dúvida do MinIO decide a metade do contrato que afirma o pulo
-legítimo; sem ela, T006 nasce afirmando meia regra.
+⚠️ **Meça antes de codificar em cima.** Duas premissas da primeira versão desta spec eram
+inferência e caíram ao rodar o arquivo isolado: que o pulo por object storage era legítimo (não é —
+`make up` cria o bucket, e os testes falham em vez de pular) e que os 4 skips vinham dele (vêm de
+`DRIZZLE_TEST_DATABASE_URL`). A task que herdar uma afirmação da spec confere primeiro.
 
-- [ ] **T001** 🧠 Fechar `[NEEDS CLARIFICATION: o pulo do MinIO deve virar falha no CI?]` — decidir
-      entre opcional sempre, exigido sob `CI=true`, ou opt-out explícito — `specs/092-.../spec.md`
-      — decisão escrita na spec, com a razão
+- [ ] **T001** Unificar as três variáveis de gate — `API_TEST_DATABASE_URL`/`DATABASE_URL`,
+      `DRIZZLE_TEST_DATABASE_URL` (`test/database-migration/support.ts:5`) e `STORAGE_*` — num
+      lugar só, e supri-las pelo alvo do T007 — `test/fixtures/integration-database.fixture.ts`,
+      `test/database-migration/support.ts` — os 4 skips de migration passam a rodar
 
 - [ ] **T002** 🧠 [P] Fechar `[NEEDS CLARIFICATION: make check passa a incluir a integração?]` —
       `specs/092-.../spec.md` — decisão escrita; não bloqueia T003..T008
@@ -35,19 +38,19 @@ legítimo; sem ela, T006 nasce afirmando meia regra.
       — com o guard, `test` e `testWithPostgres` passam a ser a mesma coisa; contrato de T003 cobre
       a reincidência
 
-- [ ] **T006** Segunda metade do contrato: o pulo do MinIO **continua existindo** e é distinguível
-      do pulo por defeito — depende de **T001** —
-      `apps/api-transportada/test/integration-scaffold/database-seam.contract.ts` +
-      `test/fixtures/integration-database.fixture.ts` — contrato reprova quem apagar
-      `testWithObjectStorage` junto
+- [ ] **T006** Segunda metade do contrato: o pulo **se anuncia com a razão** — o único que sobra é o
+      do OSRM, no worker, e `(skip)` sozinho não diz de onde vem (foi o que escondeu os 4 skips de
+      migration) — `apps/api-transportada/test/integration-scaffold/database-seam.contract.ts` +
+      `test/fixtures/integration-database.fixture.ts` — contrato reprova pulo sem razão declarada
 
 - [ ] **T007** Alvo `make api-integration` no molde de `worker-integration:269`, e `ci.yml` passa a
       **chamar o alvo** em vez de repetir as linhas — `Makefile`, `.github/workflows/ci.yml` — alvo
       roda local com a infra de pé; o comando inline do CI some
 
 - [ ] **T008** Prova de ponta, que é a única que fecha a spec — `evidence.md` —
-      sem env: exit ≠ 0 e **nenhum teste executado**; com env: **196 pass**, os mesmos de hoje;
-      `make check` e a suíte de contratos seguem verdes
+      sem env: exit ≠ 0 e **nenhum teste executado**; com env: **200 pass** (os 196 de hoje mais os
+      4 contratos de migration que deixam de pular) e as 2 falhas do `cte-archive-gateway` visíveis
+      e nomeadas; `make check` e a suíte de contratos seguem verdes
 
 `[P]` significa que a tarefa pode executar em paralelo sem editar os mesmos
 arquivos. Marque como concluída apenas após registrar evidência.

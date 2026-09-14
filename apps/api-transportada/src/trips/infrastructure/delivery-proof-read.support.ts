@@ -266,35 +266,34 @@ export async function listDeliveryContacts(
 ): Promise<ReadonlyMap<string, DeliveryContact>> {
   if (input.nfeDocumentIds.length === 0) return new Map()
 
-  const [parties, contractorRecords] = await Promise.all([
-    queryable
-      .select({
-        documentId: nfeParticipants.documentId,
-        legalName: nfeParticipants.legalName,
-        phone: nfeAddresses.phone,
-        role: nfeParticipants.role,
-        taxId: nfeParticipants.taxId,
-        tradeName: nfeParticipants.tradeName,
-      })
-      .from(nfeParticipants)
-      .leftJoin(
-        nfeAddresses,
-        and(
-          eq(nfeAddresses.companyId, nfeParticipants.companyId),
-          eq(nfeAddresses.participantId, nfeParticipants.id),
-        ),
-      )
-      .where(
-        and(
-          eq(nfeParticipants.companyId, input.companyId),
-          inArray(nfeParticipants.documentId, [...input.nfeDocumentIds]),
-        ),
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const parties = await queryable
+    .select({
+      documentId: nfeParticipants.documentId,
+      legalName: nfeParticipants.legalName,
+      phone: nfeAddresses.phone,
+      role: nfeParticipants.role,
+      taxId: nfeParticipants.taxId,
+      tradeName: nfeParticipants.tradeName,
+    })
+    .from(nfeParticipants)
+    .leftJoin(
+      nfeAddresses,
+      and(
+        eq(nfeAddresses.companyId, nfeParticipants.companyId),
+        eq(nfeAddresses.participantId, nfeParticipants.id),
       ),
-    queryable
-      .select({ displayName: contractors.displayName, taxId: contractors.taxId })
-      .from(contractors)
-      .where(eq(contractors.companyId, input.companyId)),
-  ])
+    )
+    .where(
+      and(
+        eq(nfeParticipants.companyId, input.companyId),
+        inArray(nfeParticipants.documentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  const contractorRecords = await queryable
+    .select({ displayName: contractors.displayName, taxId: contractors.taxId })
+    .from(contractors)
+    .where(eq(contractors.companyId, input.companyId))
 
   const byDocument = new Map<
     string,

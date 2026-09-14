@@ -19,8 +19,10 @@ const JOB = {
 const OUTCOME: RouteOptimizationOutcome = {
   estimatedCostAmount: '184.5000',
   estimatedDistanceMeters: 24_000,
+  plannedDepartureAt: new Date('2026-09-10T11:00:00.000Z'),
   estimatedDurationSeconds: 5_400,
   orderedStops: [],
+  returnLegs: [],
   solverMetrics: { generations: 12 },
   truncated: false,
 }

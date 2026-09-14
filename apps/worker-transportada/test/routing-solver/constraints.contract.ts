@@ -8,9 +8,13 @@ import { CLUSTERED_POINTS, GRID_POINTS, buildEuclideanProblem } from './solver-i
 
 describe('weight is a real constraint (ADR-0044 §9)', () => {
   /**
-   * Aceite da spec 058: instância que só cabe violando massa devolve a violação **explícita**. Ela
-   * não é escondida escolhendo uma ordem pior, e não trava o solver — a penalidade deixa a solução
-   * viver, e o conferente decide.
+   * Aceite da spec 058: instância que só cabe violando massa devolve a violação **explícita**, em
+   * quilos — nunca "estourou", que manda o operador adivinhar se falta meia tonelada ou um caminhão.
+   *
+   * ⚠️ **O que o número conta mudou**, e o teste não: antes era o excesso que o caminhão levaria a
+   * mais; hoje é o que ficou **para a próxima viagem**, porque a carga acima do teto sai da rota
+   * (`capacity-trim.ts`) em vez de viajar. A ADR-0044 §5 sempre disse isso — "vêm listadas, não
+   * empurradas estourando o peso" — e ninguém executava.
    */
   test('returns the overweight explicitly instead of pretending the load fits', () => {
     const problem = buildEuclideanProblem({

@@ -97,10 +97,17 @@ describe('fleet vehicle type contract', () => {
    */
   test('leaves no suggestion rule behind in the form hook', async () => {
     const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+    const patchService = await readApplicationFile(
+      'src/modules/fleet/shared/vehicleFormPatch.service.ts',
+    )
 
     expect(hook).not.toContain('suggestFreightClass')
     expect(hook).not.toContain('wheelType')
-    expect(hook).toContain('resolveVehicleBrandDefaults')
+    /**
+     * Spec 093: a composição do `patch` saiu do hook para `vehicleFormPatch.service.ts` — o updater
+     * de `setState` precisa ser puro, e a marca de origem da sugestão é lida fora dele.
+     */
+    expect(patchService).toContain('resolveVehicleBrandDefaults')
   })
 
   /**
@@ -166,11 +173,18 @@ describe('fleet vehicle type contract', () => {
    */
   test('applies the type default on the form, after the brand inheritance', async () => {
     const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+    const patchService = await readApplicationFile(
+      'src/modules/fleet/shared/vehicleFormPatch.service.ts',
+    )
 
-    expect(hook).toContain('resolveVehicleTypeDefaults')
-    expect(hook.indexOf('...brandDefaults')).toBeLessThan(hook.indexOf('...typeDefaults'))
+    expect(patchService).toContain('resolveVehicleTypeDefaults')
+    expect(patchService.indexOf('...brandDefaults')).toBeLessThan(
+      patchService.indexOf('...typeDefaults'),
+    )
     // Só a troca do tipo dispara: editar a placa não pode mexer no eixo gravado
-    expect(hook).toContain('next.vehicleType === previous.vehicleType')
+    expect(patchService).toContain('next.vehicleType === input.previous.vehicleType')
+    /** O hook consome a composição; a ordem das camadas vive num arquivo só. */
+    expect(hook).toContain('composeVehicleFormPatch')
   })
 
   test('rejects a vehicle whose type is outside the catalog', async () => {

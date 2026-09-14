@@ -29,11 +29,16 @@ const LOCATION = {
 } as const
 
 function buildArrivalWorld(
-  input: { readonly arrivedAt?: Date; readonly tripStatus?: string } = {},
+  input: {
+    readonly arrivedAt?: Date
+    readonly estimatedArrivalAt?: Date | null
+    readonly tripStatus?: string
+  } = {},
 ) {
   const state = createFieldReportState()
   state.stops.set(STOP_ID, {
     arrivedAt: input.arrivedAt ?? null,
+    estimatedArrivalAt: input.estimatedArrivalAt ?? null,
     tripId: TRIP_ID,
     tripStatus: input.tripStatus ?? 'dispatched',
   })
@@ -102,6 +107,60 @@ describe('cheguei', () => {
     expect(world.state.calls).toContain(`markStopArrived:${STOP_ID}`)
     expect(world.state.calls).toContain(`markTripInTransit:${TRIP_ID}`)
     expect(world.state.calls).toContain('recordEvent:arrived:no-gps')
+  })
+
+  /**
+   * ⚠️ Spec 109 D3: **a entrega que demorou empurra o resto do dia.** O atraso é medido contra o
+   * que o plano dizia para esta parada, e as paradas que ainda não aconteceram andam junto — sem
+   * isso, uma parada de quarenta minutos a mais deixa toda a tarde adiantada no papel.
+   */
+  it('a chegada atrasada desloca as paradas que ainda não aconteceram', async () => {
+    const world = buildArrivalWorld({
+      estimatedArrivalAt: new Date(NOW.getTime() - 40 * 60 * 1_000),
+    })
+
+    await reportStopArrival(arrivalInput(world, 'chave-atraso'))
+
+    expect(world.state.calls).toContain(`shiftPendingStops:${TRIP_ID}:${String(40 * 60 * 1_000)}`)
+  })
+
+  /**
+   * ⚠️ Chegou na hora: nada se move. Um deslocamento de zero gravaria em toda parada da viagem por
+   * nada, e renovaria o carimbo de estimativa como se algo tivesse sido recalculado.
+   */
+  it('chegada na hora não desloca nada', async () => {
+    const world = buildArrivalWorld({ estimatedArrivalAt: NOW })
+
+    await reportStopArrival(arrivalInput(world, 'chave-pontual'))
+
+    expect(world.state.calls.some((call) => call.startsWith('shiftPendingStops'))).toBe(false)
+  })
+
+  /**
+   * ⚠️ Parada **sem** hora prevista não tem de que medir atraso — e inventar uma faria a viagem
+   * inteira se deslocar por um número que ninguém calculou.
+   */
+  it('parada sem previsão não desloca nada', async () => {
+    const world = buildArrivalWorld()
+
+    await reportStopArrival(arrivalInput(world, 'chave-sem-eta'))
+
+    expect(world.state.calls.some((call) => call.startsWith('shiftPendingStops'))).toBe(false)
+  })
+
+  /**
+   * ⚠️ O segundo "cheguei" da mesma parada é a rede do armazém tentando de novo, não chegada nova:
+   * ele não pode deslocar o dia outra vez.
+   */
+  it('repetir a chegada não desloca de novo', async () => {
+    const world = buildArrivalWorld({
+      arrivedAt: new Date(NOW.getTime() - 10 * 60 * 1_000),
+      estimatedArrivalAt: new Date(NOW.getTime() - 40 * 60 * 1_000),
+    })
+
+    await reportStopArrival(arrivalInput(world, 'chave-repetida'))
+
+    expect(world.state.calls.some((call) => call.startsWith('shiftPendingStops'))).toBe(false)
   })
 
   /** A recusa de GPS não bloqueia (ADR-0045 §3.1) — e o evento entra sem coordenada nenhuma. */

@@ -6,6 +6,7 @@ import type {
   fleetVehicles,
   MdfeOwnerTaxRegime,
 } from '../../database/fleet.schema.js'
+import { describeDriverHome } from '../domain/driver-home-geocoding.policy.js'
 import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
 import { MEASURE_SCALE, formatDecimalAtScale } from '../../shared/decimal.service.js'
 import type { FuelProduct } from '../../shared/fuel.constant.js'
@@ -70,6 +71,7 @@ export function mapVehicle({ fuelPrices, record }: MapVehicleParams): FleetVehic
     fleetNumber: record.fleetNumber,
     fuelPrice,
     fuelType: record.fuelType,
+    hasAutomaticTollPayment: record.hasAutomaticTollPayment,
     id: record.id,
     model: record.model,
     modelYear: record.modelYear,
@@ -137,6 +139,7 @@ export function toVehicleColumns(
     color: vehicle.color,
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
+    hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     model: vehicle.model,
     modelYear: vehicle.modelYear,
     monthlyInstallmentAmount: vehicle.monthlyInstallmentAmount,
@@ -169,7 +172,25 @@ export function mapDriver(record: DriverRecord): FleetDriver {
       state: record.state,
       street: record.street,
     },
+    /**
+     * Onde a casa fica, e por que ela pode não ter coordenada (spec 097 D6). A interpretação é
+     * recomputada na leitura — o banco guarda a observação (o par e a marca de "já procurei"), e o
+     * estado sai de `describeDriverHome`.
+     */
+    home: describeDriverHome({
+      city: record.city,
+      geocodedAt: record.homeGeocodedAt,
+      latitude: record.homeLatitude,
+      longitude: record.homeLongitude,
+      number: record.number,
+      postalCode: record.postalCode,
+      state: record.state,
+      street: record.street,
+    }),
+    homeLatitude: record.homeLatitude,
+    homeLongitude: record.homeLongitude,
     anttCategory: record.anttCategory,
+    securesCargo: record.securesCargo,
     licenseCategory: record.licenseCategory,
     birthCity: record.birthCity,
     birthDate: record.birthDate,
@@ -218,6 +239,7 @@ export function toDriverColumns(
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
     anttCategory: driver.anttCategory,
+    securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate,

@@ -7,7 +7,9 @@ import { LOCAL_IDENTITY_ROLES } from '../src/database/local-identity-seed.consta
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import {
   COMPANY_ROLE_PERMISSIONS,
+  isGrantablePermission,
   resolveCompanyPermissions,
+  SERVICE_ONLY_PERMISSIONS,
   TRANSPORTADA_PERMISSIONS,
 } from '../src/identity/domain/authorization.policy'
 import type { AuthenticatedIdentity } from '../src/identity/domain/authenticated-identity'
@@ -64,6 +66,8 @@ describe('authorization contract', () => {
       'trip.financials',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
+      // Spec 144 T014: a liquidação do WhatsApp, pela mesma régua — uma rota só, do serviço
+      'whatsapp.settle',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -172,7 +176,7 @@ describe('authorization contract', () => {
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       contractor: ['deliveries.track', 'charges.decide'],
-      automation: ['mdfe.auto-issue'],
+      automation: ['mdfe.auto-issue', 'whatsapp.settle'],
     })
   })
 
@@ -324,6 +328,7 @@ describe('authorization contract', () => {
       (permission) =>
         permission !== 'companies.manage' &&
         permission !== 'mdfe.auto-issue' &&
+        permission !== 'whatsapp.settle' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide',
     )
@@ -613,5 +618,57 @@ describe('permissão efetiva — a soma das três origens', () => {
 
   test('sem papel e sem concessão, ninguém alcança nada', () => {
     expect([...resolveCompanyPermissions({ granted: [], roles: [] })]).toEqual([])
+  })
+})
+
+/**
+ * Spec 144 T014b (revisão da Fase 3, M1): permissão de **máquina** não se concede a pessoa. Quem tem
+ * `groups.manage` concederia a si mesmo `whatsapp.settle` e liquidaria pedido alheio — e
+ * `mdfe.auto-issue` dispararia MDF-e pela rota do serviço.
+ */
+describe('permissão de serviço (spec 144 T014b)', () => {
+  test('as duas permissões de máquina estão declaradas como de serviço', () => {
+    expect([...SERVICE_ONLY_PERMISSIONS]).toEqual(['mdfe.auto-issue', 'whatsapp.settle'])
+  })
+
+  test('permissão de serviço não é concedível, e a de pessoa continua sendo', () => {
+    for (const permission of SERVICE_ONLY_PERMISSIONS) {
+      expect(isGrantablePermission(permission)).toBe(false)
+    }
+    expect(isGrantablePermission('companies.manage')).toBe(false)
+    expect(isGrantablePermission('coisa.nova')).toBe(false)
+    expect(isGrantablePermission('billing.create')).toBe(true)
+  })
+
+  test('a linha já gravada em grupo ou concessão avulsa é ignorada na resolução', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['mdfe.auto-issue', 'whatsapp.settle', 'billing.read'],
+      roles: ['viewer'],
+    })
+
+    expect(permissions.has('mdfe.auto-issue')).toBe(false)
+    expect(permissions.has('whatsapp.settle')).toBe(false)
+    expect(permissions.has('billing.read')).toBe(true)
+  })
+
+  test('o papel automation continua recebendo as duas', () => {
+    expect([...resolveCompanyPermissions({ granted: [], roles: ['automation'] })]).toEqual([
+      'mdfe.auto-issue',
+      'whatsapp.settle',
+    ])
+  })
+
+  test('nenhum papel de gente concede permissão de serviço', () => {
+    for (const [role, permissions] of Object.entries(COMPANY_ROLE_PERMISSIONS)) {
+      if (role === 'automation') continue
+      const roleGrants = new Set<string>(permissions)
+      for (const permission of SERVICE_ONLY_PERMISSIONS) {
+        expect({ permission, role, granted: roleGrants.has(permission) }).toEqual({
+          granted: false,
+          permission,
+          role,
+        })
+      }
+    }
   })
 })

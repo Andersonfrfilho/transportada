@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { GeocodingPrecision, GeocodingSource } from '../../database/geocoding.schema.js'
+import type { SuggestionLeftoverReason } from '../../database/route-suggestion.schema.js'
 import type {
   RouteSuggestionStatus,
   ServiceTimeSource,
@@ -23,6 +24,12 @@ export type RouteSuggestionAssumptions = Readonly<{
 
 export type RouteSuggestionStop = Readonly<{
   addressKey: string
+  /**
+   * Spec 107 D3: as notas que caem nesta parada. É o que o botão de continuação seleciona de volta —
+   * sem elas, a sobra é uma lista de nomes de cidade que o operador refiltraria à mão, que é
+   * exatamente o passo em que a seleção deu errado (spec 103).
+   */
+  nfeDocumentIds: readonly string[]
   distanceFromPreviousMeters: number | null
   durationFromPreviousSeconds: number | null
   estimatedArrivalAt: string | null
@@ -30,6 +37,11 @@ export type RouteSuggestionStop = Readonly<{
   excludedFromOptimization: boolean
   geocodingPrecision: GeocodingPrecision | null
   label: string
+  /**
+   * Por que a parada ficou **sem veículo** — endereço impreciso, sem cobertura, ou carga acima do
+   * teto do caminhão. Nulo é parada distribuída, e é também a sugestão anterior à coluna.
+   */
+  leftoverReason: SuggestionLeftoverReason | null
   sequence: number
   serviceTimeSampleSize: number | null
   serviceTimeSeconds: number | null
@@ -54,6 +66,11 @@ export type RouteSuggestion = Readonly<{
   estimatedDistanceMeters: number | null
   estimatedDurationSeconds: number | null
   id: string
+  /**
+   * Spec 109 D2: a saída suposta pelo solver — a premissa sob a qual o operador aceita, e a âncora
+   * que o aceite leva para a viagem. `null` é sugestão anterior a esta spec.
+   */
+  plannedDepartureAt: string | null
   seed: number
   status: RouteSuggestionStatus
   stops: readonly RouteSuggestionStop[]

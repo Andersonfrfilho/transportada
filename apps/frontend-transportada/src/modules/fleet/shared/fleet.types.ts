@@ -209,6 +209,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     color: string
     fleetNumber: string
     fuelType: FuelProduct
+    /** Spec 095 D3: com a tag, o pedágio usa a automática da praça quando ela é conhecida. */
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: number
     owner: FleetVehicleOwner | null
@@ -290,9 +292,19 @@ export type FleetDriverAddress = Readonly<{
 }>
 
 export type FleetDriverBody = Readonly<{
+  /** A coordenada corrigida à mão; ausente é "não mexeram nela" (spec 097 D6). */
+  homeCoordinate?: Readonly<{ latitude: string; longitude: string }>
   address: FleetDriverAddress
   /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
   anttCategory: '' | MdfeOwnerTaxRegime
+  /**
+   * Spec 100: este motorista amarra a carga com cinta.
+   *
+   * ⚠️ Ele muda a **planta da carga**: com a carga amarrada a pilha sobe até o teto do baú; sem ela a
+   * altura para na esbeltez, porque coluna livre tomba na curva. Falso por padrão — supor cinta
+   * desenharia pilha alta para quem não amarra.
+   */
+  securesCargo: boolean
   /** Naturalidade; a cidade pode existir sem a UF em ficha antiga, e nenhuma exige a outra. */
   birthCity: string
   birthDate: null | string
@@ -351,9 +363,33 @@ export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
 export type FleetDriverCreateBody = Omit<FleetDriverBody, 'membershipId'> &
   Readonly<{ profile: FleetDriverProfile }>
 
+/** Os campos do endereço que a busca da coordenada precisa, nos nomes que a tela imprime. */
+export const DRIVER_HOME_FIELDS = ['street', 'number', 'city', 'state', 'postalCode'] as const
+export type DriverHomeField = (typeof DRIVER_HOME_FIELDS)[number]
+
+/**
+ * Em que pé está a coordenada da casa — cópia por valor do catálogo da API, como `FUEL_TYPES` e
+ * `VEHICLE_TYPES`: o bundle não carrega código da API. Mudou de um lado, mude do outro.
+ *
+ * ⚠️ Os quatro estados existem porque o remédio de cada um é distinto: `incomplete` pede cadastro e
+ * **nomeia os campos**, `not_found` pede conferência do endereço já preenchido, `pending` só espera
+ * o próximo salvamento, e `resolved` não pede nada.
+ */
+export const DRIVER_HOME_STATUSES = ['pending', 'resolved', 'incomplete', 'not_found'] as const
+export type DriverHomeStatus = (typeof DRIVER_HOME_STATUSES)[number]
+
+export type DriverHomeReport = Readonly<{
+  missing: readonly DriverHomeField[]
+  status: DriverHomeStatus
+}>
+
 export type FleetDriverDetail = FleetDriverBody &
   Readonly<{
     createdAt: string
+    /** Spec 097 D6: onde a casa fica, e por que ela pode não ter coordenada. */
+    home: DriverHomeReport
+    homeLatitude: null | string
+    homeLongitude: null | string
     id: string
     status: FleetDriverStatus
     updatedAt: string
@@ -429,6 +465,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     color: '' | VehicleColor
     fleetNumber: string
     fuelType: FuelProduct
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: string
     ownerName: string
@@ -453,9 +490,18 @@ export type FleetDriverFormState = Readonly<{
   addressDistrict: string
   addressNumber: string
   addressPostalCode: string
+  /**
+   * A coordenada da casa, como a tela a mostra — movida pelo alfinete ou vinda da busca. Só é
+   * enviada quando o operador a move: omissão é silêncio, nunca ordem de apagar.
+   */
+  homeLatitude: null | string
+  homeLongitude: null | string
+  homeMoved: boolean
   addressState: string
   addressStreet: string
   anttCategory: string
+  /** Spec 100: amarra a carga com cinta — libera a planta a empilhar até o teto do baú. */
+  securesCargo: boolean
   birthCity: string
   birthDate: string
   birthState: string

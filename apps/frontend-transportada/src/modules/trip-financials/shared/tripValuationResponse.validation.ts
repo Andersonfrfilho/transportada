@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { TripValuation, ValuationSource } from './tripValuation.service'
+import type {
+  TripValuation,
+  TripValuationCostParcelBasis,
+  ValuationSource,
+} from './tripValuation.service'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -41,6 +45,8 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
   return {
     costParcels: costParcels.filter(isRecord).map((parcel) => ({
       amount: readText(parcel.amount),
+      /** Resposta anterior à 110 não traz base: a linha sai sem derivação, nunca quebrada. */
+      basis: readBasis(parcel.basis),
       /** Resposta anterior à 086 não traz o campo: ausência é `null`, nunca "undefined" na tela. */
       detail: typeof parcel.detail === 'string' && parcel.detail !== '' ? parcel.detail : null,
       gap: readGap(parcel.gap),
@@ -66,4 +72,70 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
     totalMargin: readText(payload.totalMargin),
     totalRevenue: readText(payload.totalRevenue),
   }
+}
+
+/**
+ * ⚠️ A base é lida **por forma**, não por confiança: `of` decide quais campos existem, e um corpo
+ * que não declara nenhuma das duas formas vira ausência. A tela então imprime só o total, que é o
+ * comportamento anterior a esta spec.
+ */
+function readBasis(value: unknown): null | TripValuationCostParcelBasis {
+  if (!isRecord(value)) return null
+
+  if (value.of === 'fuel') {
+    return {
+      kilometersPerLiter: readText(value.kilometersPerLiter),
+      litres: readText(value.litres),
+      of: 'fuel',
+      pricePerLiter: readText(value.pricePerLiter),
+    }
+  }
+  if (value.of === 'driver') {
+    return {
+      of: 'driver',
+      paymentModel: readText(value.paymentModel),
+      regionCity: typeof value.regionCity === 'string' ? value.regionCity : null,
+      regionCode: typeof value.regionCode === 'string' ? value.regionCode : null,
+      tie: readTie(value.tie),
+      vehicleClass: readText(value.vehicleClass),
+    }
+  }
+  if (value.of === 'icms') {
+    return {
+      baseReductionRate: readText(value.baseReductionRate),
+      cst: readText(value.cst),
+      of: 'icms',
+      rate: readText(value.rate),
+    }
+  }
+
+  return null
+}
+
+/**
+ * Spec 129: `basis.tie` é opcional e cru — API anterior a esta spec não o manda, e vira ausência,
+ * não quebra. Faixa malformada é descartada em vez de invalidar as outras: uma célula ruim não
+ * pode apagar a lista inteira.
+ */
+function readTie(
+  value: unknown,
+): NonNullable<Extract<TripValuationCostParcelBasis, { readonly of: 'driver' }>['tie']> | null {
+  if (!isRecord(value)) return null
+  if (typeof value.cityCount !== 'number') return null
+  if (!Array.isArray(value.zones)) return null
+
+  const zones = value.zones.flatMap((zone) => {
+    if (!isRecord(zone)) return []
+    if (typeof zone.city !== 'string' || typeof zone.code !== 'string') return []
+
+    return [
+      {
+        amount: typeof zone.amount === 'string' ? zone.amount : null,
+        city: zone.city,
+        code: zone.code,
+      },
+    ]
+  })
+
+  return { cityCount: value.cityCount, zones }
 }

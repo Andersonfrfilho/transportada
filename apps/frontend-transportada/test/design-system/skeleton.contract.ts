@@ -54,7 +54,7 @@ describe('design system skeleton contract', () => {
   test('states the rule for every future loading state', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/loading.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/skeleton')

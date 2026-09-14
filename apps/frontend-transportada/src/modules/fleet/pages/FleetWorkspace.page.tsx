@@ -14,6 +14,7 @@ import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
 import { FreightRegionPanel } from '../components/FreightRegionPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
+import { TollBoothChargePanel } from '../components/TollBoothChargePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
 import type { VehicleStatusChange } from '../components/VehicleSelectionBar.component'
@@ -25,7 +26,13 @@ import { useEnergySettings } from '../hooks/useEnergySettings.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
-import { useVehicleCatalog, type VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
+import { useTollBoothCharges } from '../hooks/useTollBoothCharges.hook'
+import {
+  useVehicleCatalog,
+  useVehicleReferences,
+  type VehicleCatalogController,
+} from '../hooks/useVehicleCatalog.hook'
+import type { VehicleReference } from '../shared/vehicleSuggestion.service'
 import { useVehicleColumns } from '../hooks/useVehicleColumns.hook'
 import { useVehicleTable } from '../hooks/useVehicleTable.hook'
 import type {
@@ -51,7 +58,14 @@ type FleetEditor =
 
 type FleetWorkspace = ReturnType<typeof useFleet>
 
-type FleetTabId = 'applications' | 'documents' | 'drivers' | 'fuel' | 'regions' | 'vehicles'
+type FleetTabId =
+  | 'applications'
+  | 'documents'
+  | 'drivers'
+  | 'fuel'
+  | 'regions'
+  | 'tolls'
+  | 'vehicles'
 
 const FLEET_TAB_IDS: readonly FleetTabId[] = [
   'vehicles',
@@ -59,6 +73,7 @@ const FLEET_TAB_IDS: readonly FleetTabId[] = [
   'applications',
   'documents',
   'fuel',
+  'tolls',
   'regions',
 ]
 
@@ -82,6 +97,7 @@ function FleetEditorPanel({
   onClose,
   onEditVehicle,
   vehicleCatalog,
+  vehicleReferences,
   vehicles,
   workspace,
 }: Readonly<{
@@ -91,6 +107,7 @@ function FleetEditorPanel({
   onClose: () => void
   onEditVehicle: (vehicle: FleetVehicleDetail) => void
   vehicleCatalog: VehicleCatalogController
+  vehicleReferences: readonly VehicleReference[]
   vehicles: readonly FleetVehicleDetail[]
   workspace: FleetWorkspace
 }>) {
@@ -109,6 +126,7 @@ function FleetEditorPanel({
         onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdateDriver={(input) => workspace.updateDriverMutation.mutateAsync(input)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
+        references={vehicleReferences}
         vehicles={vehicles}
       />
     )
@@ -145,6 +163,10 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.fuelPrices,
   })
+  const tollBoothCharges = useTollBoothCharges({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.tollBoothCharges,
+  })
   const freightRegions = useFreightRegions({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: settingsScope.freightRegions,
@@ -155,6 +177,11 @@ export function FleetWorkspacePage() {
     permissions,
   })
   const vehicleCatalog = useVehicleCatalog({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
+  /** Spec 093: a medida típica do tipo, para a ficha nascer preenchida em vez de vazia. */
+  const vehicleReferences = useVehicleReferences({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
   })
@@ -225,6 +252,9 @@ export function FleetWorkspacePage() {
   const energyErrorCode = toErrorCode(
     energySettings.chooseMutation.error ?? energySettings.clearMutation.error,
   )
+  const tollBoothChargeErrorCode = toErrorCode(
+    tollBoothCharges.adjustMutation.error ?? tollBoothCharges.clearMutation.error,
+  )
   const fuelTab: TabsItem = {
     id: 'fuel',
     label: t('tabs.fuel'),
@@ -251,6 +281,26 @@ export function FleetWorkspacePage() {
           onClear={() => energySettings.clearMutation.mutate()}
         />
       </>
+    ),
+  }
+
+  const tollTab: TabsItem = {
+    id: 'tolls',
+    label: t('tabs.tolls'),
+    panel: (
+      <TollBoothChargePanel
+        charges={tollBoothCharges.query.data}
+        {...(tollBoothChargeErrorCode === undefined ? {} : { errorCode: tollBoothChargeErrorCode })}
+        disabled={
+          tollBoothCharges.adjustMutation.isPending || tollBoothCharges.clearMutation.isPending
+        }
+        loading={tollBoothCharges.query.isLoading}
+        saved={
+          tollBoothCharges.adjustMutation.isSuccess || tollBoothCharges.clearMutation.isSuccess
+        }
+        onAdjust={(input) => tollBoothCharges.adjustMutation.mutate(input)}
+        onClear={(osmNodeId) => tollBoothCharges.clearMutation.mutate(osmNodeId)}
+      />
     ),
   }
 
@@ -352,7 +402,7 @@ export function FleetWorkspacePage() {
           } satisfies TabsItem,
         ]
       : []),
-    ...(canManageSettings ? [fuelTab] : []),
+    ...(canManageSettings ? [fuelTab, tollTab] : []),
     regionsTab,
   ]
 
@@ -371,6 +421,7 @@ export function FleetWorkspacePage() {
           editor={editor}
           onEditVehicle={(vehicle) => setEditor({ kind: 'vehicle', vehicle })}
           vehicleCatalog={vehicleCatalog}
+          vehicleReferences={vehicleReferences}
           vehicles={vehicles}
           workspace={workspace}
           onClose={() => setEditor(null)}

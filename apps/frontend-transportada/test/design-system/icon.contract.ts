@@ -17,6 +17,22 @@ const DATA_GEOMETRY_PATHS: readonly string[] = [
   'src/components/ui/vector-map.tsx',
   // Code 128: as barras saem do cálculo da chave da NF-e, e mudam a cada nota (spec 065 D1b).
   'src/components/ui/barcode.tsx',
+  /**
+   * Planta em escala: o contorno, a régua e cada faixa saem das medidas do baú e do volume da
+   * parada, em tempo de execução (spec 088 R2). Não há retângulo para declarar antes — e a escala
+   * é a promessa do desenho, então ele não pode virar glifo de tamanho fixo.
+   */
+  'src/components/ui/scale-plan.tsx',
+  /**
+   * Silhueta do veículo com a carga dentro: o contorno muda com o tipo escolhido e a quantidade de
+   * caixas sai da ocupação, em tempo de execução. Não há glifo a declarar antes.
+   */
+  'src/components/ui/cargo-vehicle.tsx',
+  /**
+   * Isométrico da carga: cada caixa vira três polígonos projetados a partir da posição em metros,
+   * em tempo de execução. Não há glifo a declarar antes — e a projeção **é** o desenho.
+   */
+  'src/components/ui/cargo-isometric.tsx',
 ]
 
 function readApplicationFile(filePath: string): Promise<string> {
@@ -136,7 +152,7 @@ describe('design system icon contract', () => {
   test('states the rule for every future icon', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/icons.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/icon')

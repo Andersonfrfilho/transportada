@@ -102,7 +102,12 @@ describe('chaves de template por motivo de parada (spec 082 D8)', () => {
 describe('disparo do aviso de ocorrência de parada (spec 082 D8)', () => {
   function worldWithStop() {
     const state = createFieldReportState()
-    state.stops.set(STOP_ID, { arrivedAt: new Date(), tripId: TRIP_ID, tripStatus: 'in_transit' })
+    state.stops.set(STOP_ID, {
+      arrivedAt: new Date(),
+      estimatedArrivalAt: null,
+      tripId: TRIP_ID,
+      tripStatus: 'in_transit',
+    })
     return createFieldReportUnitOfWork(state)
   }
 

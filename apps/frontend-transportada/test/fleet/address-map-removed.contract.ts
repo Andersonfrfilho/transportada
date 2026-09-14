@@ -36,6 +36,18 @@ const FORBIDDEN_NEEDLE = [
  */
 const REQUIRED_DESTINATION = ['https://photon.komoot.io/api'] as const
 
+/**
+ * ⚠️ **Adendo de 2026-09-08 à ADR-0037: o mapa voltou a esta tela, por outro caminho.** O que a ADR
+ * removeu foi a moldura embutida de terceiro; o que entrou é o **nosso** basemap vetorial, servido
+ * da nossa origem, e ele existe para tornar a coordenada errada visível — medido, o provedor casou
+ * "Rua Sete de Setembro, 990, Pontal" em Guarulhos, a 250 km.
+ *
+ * A lista proibida acima **continua inteira**: nada de moldura embutida, host de mapa de terceiro
+ * ou o provedor que a ADR recusou. O que este teste acrescenta é o caminho permitido — e ele é um
+ * só, para o dia em que alguém desenhar o segundo mapa não abrir uma segunda porta.
+ */
+const ALLOWED_BASEMAP_IMPORT = '@/modules/shared/vectorBasemap.service'
+
 async function listFleetModuleFiles(): Promise<readonly string[]> {
   const glob = new Bun.Glob('**/*.{css,json,ts,tsx}')
   const files: string[] = []
@@ -87,6 +99,23 @@ describe('driver address map removal contract', () => {
       const sections = Object.keys(dictionary)
       expect(sections.filter((key) => key.includes('addressMap'))).toEqual([])
       expect(sections.filter((key) => key.includes('Map'))).toEqual(['regionMap'])
+    }
+  })
+
+  /**
+   * ⚠️ Mapa no módulo da frota só existe pelo basemap **nosso**. Sem esta trava, o adendo à ADR-0037
+   * seria lido como "mapa liberado", e o próximo mapa poderia voltar a ser o de terceiro — que é
+   * exatamente o que a ADR proibiu, e continua proibindo.
+   */
+  test('desenha mapa apenas pelo basemap próprio', async () => {
+    const files = await listFleetModuleFiles()
+    const contents = await Promise.all(files.map(readModuleFile))
+
+    for (const [index, content] of contents.entries()) {
+      if (!content.includes('maplibre-gl')) continue
+      expect(`${files[index] ?? ''}:${content.includes(ALLOWED_BASEMAP_IMPORT)}`).toBe(
+        `${files[index] ?? ''}:true`,
+      )
     }
   })
 })

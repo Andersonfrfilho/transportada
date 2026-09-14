@@ -7,6 +7,8 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
+/** Spec 093: o catálogo de referência de baú por tipo, que a ficha consulta para sugerir. */
+export const FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'
@@ -177,6 +179,7 @@ export const VEHICLE_BODY_KEYS = [
   'color',
   'fleetNumber',
   'fuelType',
+  'hasAutomaticTollPayment',
   'model',
   'modelYear',
   'owner',
@@ -219,6 +222,7 @@ export const VEHICLE_FORM_KEYS = [
   'color',
   'fleetNumber',
   'fuelType',
+  'hasAutomaticTollPayment',
   'model',
   'modelYear',
   'ownerName',
@@ -236,6 +240,15 @@ export const VEHICLE_FORM_KEYS = [
   'vehicleType',
 ] as const
 
+/**
+ * Só os campos de texto: o rascunho do formulário guarda `string` no `localStorage`, e
+ * `hasAutomaticTollPayment` é o único booleano da ficha do veículo — fora daqui, nunca perdido do
+ * `VEHICLE_FORM_KEYS` que valida as chaves conhecidas do rascunho.
+ */
+export const VEHICLE_DRAFT_FORM_KEYS = VEHICLE_FORM_KEYS.filter(
+  (key) => key !== 'hasAutomaticTollPayment',
+)
+
 export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const
 
 export const DRIVER_ADDRESS_KEYS = [
@@ -251,6 +264,12 @@ export const DRIVER_ADDRESS_KEYS = [
 export const DRIVER_BODY_KEYS = [
   'address',
   'anttCategory',
+  /**
+   * Spec 100: amarra a carga com cinta. ⚠️ Como todo campo desta lista, **a API sobe antes do
+   * frontend**: com o corpo antigo `hasEveryKey` recusa toda linha e a tabela de motoristas
+   * renderiza vazia — 200 na rede, nada no console, nenhum erro na tela.
+   */
+  'securesCargo',
   'birthCity',
   'birthDate',
   'birthState',
@@ -286,6 +305,8 @@ export const DRIVER_BODY_KEYS = [
 export const DRIVER_CREATE_BODY_KEYS = [
   'address',
   'anttCategory',
+  /** Spec 100: amarra a carga com cinta — a planta lê isso para decidir a altura da pilha. */
+  'securesCargo',
   'birthCity',
   'birthDate',
   'birthState',
@@ -362,6 +383,14 @@ export const DRIVER_FORM_KEYS = [
 export const DRIVER_DETAIL_KEYS = [
   ...DRIVER_BODY_KEYS,
   'createdAt',
+  /**
+   * ⚠️ Spec 097 D6. Como todo campo desta lista, **a API sobe antes do frontend**: com o corpo
+   * antigo, `hasEveryKey` recusa toda linha e a tabela de motoristas renderiza vazia — 200 na rede,
+   * nada no console, nenhum erro na tela. É o mesmo defeito de `VEHICLE_DETAIL_KEYS`.
+   */
+  'home',
+  'homeLatitude',
+  'homeLongitude',
   'id',
   'status',
   'updatedAt',

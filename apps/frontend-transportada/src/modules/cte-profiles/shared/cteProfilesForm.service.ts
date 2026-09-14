@@ -4,6 +4,7 @@ import type {
   CteProfileComponent,
   CteProfileDetail,
   CteProfileMatcher,
+  CteProfileOutputDocument,
   CteProfileSettings,
 } from './cteProfiles.types'
 import { createCteProfileDrafts, DEFAULT_VALID_FROM } from './cteProfilesDraft.service'
@@ -41,6 +42,30 @@ export type ProfileFormState = Omit<
     validFrom: string
     validUntil: string
   }>
+
+export type NfseProfileOption = Readonly<{ label: string; value: string }>
+
+type NfseProfileSummary = Readonly<{ id: string; name: string; status: string }>
+
+/** Em `nfse` tomador, regra de frete, CFOP e ICMS são do perfil NFS-e: a tela os esconde. */
+export function showsCteFiscalFields(outputDocument: CteProfileOutputDocument): boolean {
+  return outputDocument === 'cte'
+}
+
+/** Só perfil ativo entra no seletor: a API recusa apontar para os outros. */
+export function toNfseProfileOptions(
+  profiles: readonly NfseProfileSummary[],
+): readonly NfseProfileOption[] {
+  return profiles
+    .filter((profile) => profile.status === 'active')
+    .map((profile) => ({ label: profile.name, value: profile.id }))
+}
+
+/** O corpo nunca leva combinação que o banco recusa: CT-e solta o ponteiro, NFS-e não bloqueia. */
+function withCoherentOutput(state: ProfileFormState): ProfileFormState {
+  if (showsCteFiscalFields(state.outputDocument)) return { ...state, nfseEmissionProfileId: null }
+  return { ...state, municipalServicePolicy: 'allow' }
+}
 
 export function toDateInput(value: null | string): string {
   return value === null ? '' : value.slice(0, 10)
@@ -101,8 +126,10 @@ export function toFormState(profile?: CteProfileDetail): ProfileFormState {
     minimumAmount: fromMoneyDecimal(freightRule.minimumAmount),
     modal: settings.modal,
     name: settings.name,
+    nfseEmissionProfileId: settings.nfseEmissionProfileId,
     observations: settings.observations,
     operationNature: settings.operationNature,
+    outputDocument: settings.outputDocument,
     percentage: fromRateFraction(freightRule.percentage),
     pickupDetails: settings.pickupDetails,
     pickupIndicator: settings.pickupIndicator,
@@ -130,6 +157,37 @@ function toComponent(row: ComponentFormRow, index: number): CteProfileComponent 
   }
 }
 
+function toSettings(state: ProfileFormState): CteProfileSettings {
+  return {
+    cargoInsuranceDeclared: state.cargoInsuranceDeclared,
+    municipalServicePolicy: state.municipalServicePolicy,
+    cfopInternal: state.cfopInternal,
+    cfopInterstate: state.cfopInterstate,
+    chargeComponentLabel: state.chargeComponentLabel,
+    deliveryDays: state.deliveryDays,
+    groupingMode: state.groupingMode,
+    icmsBaseReductionRate: toRateFraction(state.icmsBaseReductionRate),
+    icmsCst: state.icmsCst,
+    icmsRate: toRateFraction(state.icmsRate),
+    matchMode: state.matchMode,
+    modal: state.modal,
+    name: state.name,
+    nfseEmissionProfileId: state.nfseEmissionProfileId,
+    observations: state.observations,
+    operationNature: state.operationNature,
+    outputDocument: state.outputDocument,
+    pickupDetails:
+      state.pickupIndicator === RECEIVER_PICKUP_AT_DESTINATION ? state.pickupDetails.trim() : '',
+    pickupIndicator: state.pickupIndicator,
+    predominantProductMode: state.predominantProductMode,
+    predominantProductName: state.predominantProductName,
+    priority: state.priority,
+    receiverIeIndicator: state.receiverIeIndicator,
+    serviceType: state.serviceType,
+    taker: state.taker,
+  }
+}
+
 export function toProfileBody(state: ProfileFormState): CteProfileBody {
   return {
     components: state.components.map(toComponent),
@@ -141,31 +199,6 @@ export function toProfileBody(state: ProfileFormState): CteProfileBody {
       validUntil: toNullableIsoInstant(state.validUntil),
     },
     matchers: state.matchers.filter((matcher) => matcher.taxId.trim() !== ''),
-    settings: {
-      cargoInsuranceDeclared: state.cargoInsuranceDeclared,
-      municipalServicePolicy: state.municipalServicePolicy,
-      cfopInternal: state.cfopInternal,
-      cfopInterstate: state.cfopInterstate,
-      chargeComponentLabel: state.chargeComponentLabel,
-      deliveryDays: state.deliveryDays,
-      groupingMode: state.groupingMode,
-      icmsBaseReductionRate: toRateFraction(state.icmsBaseReductionRate),
-      icmsCst: state.icmsCst,
-      icmsRate: toRateFraction(state.icmsRate),
-      matchMode: state.matchMode,
-      modal: state.modal,
-      name: state.name,
-      observations: state.observations,
-      operationNature: state.operationNature,
-      pickupDetails:
-        state.pickupIndicator === RECEIVER_PICKUP_AT_DESTINATION ? state.pickupDetails.trim() : '',
-      pickupIndicator: state.pickupIndicator,
-      predominantProductMode: state.predominantProductMode,
-      predominantProductName: state.predominantProductName,
-      priority: state.priority,
-      receiverIeIndicator: state.receiverIeIndicator,
-      serviceType: state.serviceType,
-      taker: state.taker,
-    },
+    settings: toSettings(withCoherentOutput(state)),
   }
 }

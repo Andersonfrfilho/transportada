@@ -18,9 +18,11 @@ import { tripDocuments } from '../../database/trip.schema.js'
 import type {
   MultiVehicleSuggestionGroup,
   MultiVehicleSuggestionRepository,
+  MultiVehicleSuggestionRoad,
 } from '../application/multi-vehicle-suggestion.repository.js'
 import { MultiVehicleSuggestionWriteFailedError } from '../domain/routing.error.js'
 import { createDrizzleRouteSuggestionRepository } from './drizzle-route-suggestion.repository.js'
+import { buildSuggestionVehicleRoadWhere } from './suggestion-vehicle-road.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -160,11 +162,92 @@ export function createDrizzleMultiVehicleSuggestionRepository(
      * determinismo prometido no RNF morria aqui, depois de o solver tê-lo respeitado. Foi o teste de
      * integração que pegou — em oito execuções isoladas ele passou, e falhou na primeira sob carga.
      */
+    async readSuggestionStatus({ companyId, suggestionId }) {
+      const [row] = await database
+        .select({ status: routeSuggestions.status })
+        .from(routeSuggestions)
+        .where(
+          and(eq(routeSuggestions.companyId, companyId), eq(routeSuggestions.id, suggestionId)),
+        )
+        .limit(1)
+
+      return row?.status ?? null
+    },
+
+    /**
+     * Spec 101 D1: a linha aqui é a **parada**, sem junção às notas — `readGroups` devolve uma
+     * linha por (parada × nota) e somar as pernas ali multiplicaria a distância pelo número de
+     * notas da parada.
+     */
+    async readVehicleRoads({ companyId, suggestionId }) {
+      /**
+       * A volta vem da linha do veículo e a política das premissas da sugestão — as duas junções
+       * são 1:1 com a parada (única por sugestão × veículo), e não multiplicam a soma das pernas.
+       */
+      const rows = await database
+        .select({
+          distanceFromPreviousMeters: routeSuggestionStops.distanceFromPreviousMeters,
+          durationFromPreviousSeconds: routeSuggestionStops.durationFromPreviousSeconds,
+          endPolicy: sql<null | string>`${routeSuggestions.assumptions}->>'endPolicy'`,
+          returnDistanceMeters: routeSuggestionVehicles.returnDistanceMeters,
+          returnDurationSeconds: routeSuggestionVehicles.returnDurationSeconds,
+          serviceTimeSeconds: routeSuggestionStops.serviceTimeSeconds,
+          vehicleId: routeSuggestionStops.vehicleId,
+        })
+        .from(routeSuggestionStops)
+        .innerJoin(
+          routeSuggestions,
+          and(
+            eq(routeSuggestions.companyId, routeSuggestionStops.companyId),
+            eq(routeSuggestions.id, routeSuggestionStops.suggestionId),
+          ),
+        )
+        .leftJoin(
+          routeSuggestionVehicles,
+          and(
+            eq(routeSuggestionVehicles.companyId, routeSuggestionStops.companyId),
+            eq(routeSuggestionVehicles.suggestionId, routeSuggestionStops.suggestionId),
+            eq(routeSuggestionVehicles.vehicleId, routeSuggestionStops.vehicleId),
+          ),
+        )
+        .where(buildSuggestionVehicleRoadWhere({ companyId, suggestionId }))
+        .orderBy(routeSuggestionStops.sequence)
+
+      const byVehicle = new Map<
+        string,
+        { road: MultiVehicleSuggestionRoad; stops: MultiVehicleSuggestionRoad['stops'][number][] }
+      >()
+      for (const row of rows) {
+        if (row.vehicleId === null) continue
+        const entry = byVehicle.get(row.vehicleId) ?? {
+          road: {
+            /** Premissa sem política é a sugestão anterior à ADR-0044 §5: o padrão era o barracão. */
+            endPolicy: row.endPolicy ?? 'depot',
+            returnDistanceMeters: row.returnDistanceMeters,
+            returnDurationSeconds: row.returnDurationSeconds,
+            stops: [],
+            vehicleId: row.vehicleId,
+          },
+          stops: [],
+        }
+        entry.stops.push({
+          distanceFromPreviousMeters: row.distanceFromPreviousMeters,
+          durationFromPreviousSeconds: row.durationFromPreviousSeconds,
+          serviceTimeSeconds: row.serviceTimeSeconds,
+        })
+        byVehicle.set(row.vehicleId, entry)
+      }
+
+      return [...byVehicle.values()].map(({ road, stops }) => ({ ...road, stops }))
+    },
+
     async readGroups({ companyId, suggestionId }) {
       const rows = await database
         .select({
           addressKey: routeSuggestionStops.addressKey,
           driverId: routeSuggestionVehicles.driverId,
+          /** Spec 107 D3: a hora que o planejamento calculou — o aceite a leva para a viagem. */
+          estimatedArrivalAt: routeSuggestionStops.estimatedArrivalAt,
           nfeDocumentId: routeSuggestionStopDocuments.nfeDocumentId,
           position: routeSuggestionVehicles.position,
           sequence: routeSuggestionStops.sequence,
@@ -197,18 +280,39 @@ export function createDrizzleMultiVehicleSuggestionRepository(
 
       const groups = new Map<
         string,
-        { addressKeys: string[]; documentIds: string[]; driverId: string | null }
+        {
+          addressKeys: string[]
+          arrivals: Map<string, string>
+          byAddress: Map<string, string[]>
+          documentIds: string[]
+          driverId: string | null
+        }
       >()
       for (const row of rows) {
         if (row.vehicleId === null) continue
         const group = groups.get(row.vehicleId) ?? {
           addressKeys: [],
+          arrivals: new Map<string, string>(),
+          byAddress: new Map<string, string[]>(),
           documentIds: [],
           driverId: row.driverId,
         }
+        if (row.estimatedArrivalAt !== null) {
+          group.arrivals.set(row.addressKey, row.estimatedArrivalAt.toISOString())
+        }
         /** A mesma parada volta uma vez por nota: a ordem é por parada, não por linha. */
         if (group.addressKeys.at(-1) !== row.addressKey) group.addressKeys.push(row.addressKey)
-        if (row.nfeDocumentId !== null) group.documentIds.push(row.nfeDocumentId)
+        if (row.nfeDocumentId !== null) {
+          group.documentIds.push(row.nfeDocumentId)
+          /**
+           * Spec 112: a nota fica sabendo de qual parada ela é. A linha já trazia isso — a junção a
+           * `route_suggestion_stop_documents` é por parada —, e o agrupamento o jogava fora.
+           */
+          group.byAddress.set(row.addressKey, [
+            ...(group.byAddress.get(row.addressKey) ?? []),
+            row.nfeDocumentId,
+          ])
+        }
         groups.set(row.vehicleId, group)
       }
 
@@ -216,7 +320,9 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       for (const [vehicleId, group] of groups) {
         result.push({
           documentIds: group.documentIds,
+          documentIdsByAddressKey: group.byAddress,
           driverId: group.driverId,
+          estimatedArrivalByAddressKey: group.arrivals,
           orderedAddressKeys: group.addressKeys,
           vehicleId,
         })

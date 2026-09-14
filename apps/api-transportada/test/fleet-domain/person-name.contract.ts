@@ -28,8 +28,12 @@ const RECORD: DriverRecord = {
   city: '',
   companyId: '00000000-0000-4000-8000-000000000901',
   complement: '',
+  securesCargo: false,
   locationSharingConsentAt: null,
   createdAt: TIMESTAMP,
+  homeGeocodedAt: null,
+  homeLatitude: null,
+  homeLongitude: null,
   district: '',
   email: '',
   fatherName: '',
@@ -77,6 +81,9 @@ const RECORD: DriverRecord = {
 const EMPTY_ADDRESS = {
   city: '',
   complement: '',
+  homeGeocodedAt: null,
+  homeLatitude: null,
+  homeLongitude: null,
   district: '',
   number: '',
   postalCode: '',
@@ -85,6 +92,7 @@ const EMPTY_ADDRESS = {
 } as const
 
 const DRIVER_INPUT: FleetDriverInput = {
+  securesCargo: false,
   address: EMPTY_ADDRESS,
   linkedAddress: EMPTY_ADDRESS,
   anttCategory: '',

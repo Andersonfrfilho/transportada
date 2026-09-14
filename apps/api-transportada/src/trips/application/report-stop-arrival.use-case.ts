@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import { TripStopNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
 import { withFieldReport } from './trip-field-report.port.js'
@@ -55,6 +56,26 @@ export async function reportStopArrival(
             companyId: input.companyId,
             stopId: input.stopId,
           })
+
+          /**
+           * Spec 109 D3: **a entrega que demorou empurra o resto do dia.** O atraso é medido contra
+           * o que o plano dizia para esta parada, e as paradas que ainda não aconteceram andam junto.
+           *
+           * ⚠️ Dentro do `arrivedAt === null`, e é o que impede o deslocamento duplo: o segundo
+           * "cheguei" da mesma parada não é chegada nova, é a rede do armazém tentando de novo.
+           */
+          const shiftMilliseconds = resolveEtaShiftMilliseconds({
+            plannedAt: stop.estimatedArrivalAt,
+            reportedAt: input.now,
+          })
+          if (shiftMilliseconds !== 0) {
+            await transaction.shiftPendingStops({
+              at: input.now,
+              companyId: input.companyId,
+              shiftMilliseconds,
+              tripId: stop.tripId,
+            })
+          }
         }
         if (stop.tripStatus === DISPATCHED_STATUS) {
           await transaction.markTripInTransit({

@@ -1,11 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DocumentOutputClassification } from '../../cte-profiles/domain/document-output.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 
 export type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  /** Para qual documento fiscal a nota vai, pelo perfil que a rege (spec 144 D3). */
+  readonly documentOutput: DocumentOutputClassification
   /** Bloqueio da NFS-e, que não conhece peso. Nulo aqui e preenchido acima é o caso da spec 067. */
   readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
@@ -121,4 +124,38 @@ export type NfeDocumentRepositoryPort = {
     readonly cursor: string | null
     readonly limit: number
   }): Promise<NfeDocumentPage>
+}
+
+/**
+ * A classificação da listagem para notas escolhidas por id — a porta que o bot consome (spec 144
+ * D3). Nota de outra empresa ou inexistente fica fora do mapa, sem erro.
+ */
+export type NfeDocumentOutputClassifierPort = {
+  classifyDocumentOutputs(input: {
+    readonly context: CompanyContext
+    readonly documentIds: readonly string[]
+  }): Promise<ReadonlyMap<string, DocumentOutputClassification>>
+  /**
+   * A mesma classificação, com o que a prévia do bot congela ao lado dela (spec 144 D5): o perfil que
+   * rege a nota, a versão dele, o tomador que ele escolhe e o frete que a listagem prevê. Tudo sai do
+   * **mesmo** `mapSummary` da página — uma segunda conta discordaria da tela.
+   */
+  describeDocumentOutputs(input: {
+    readonly context: CompanyContext
+    readonly documentIds: readonly string[]
+  }): Promise<ReadonlyMap<string, DocumentOutputDescription>>
+}
+
+export type DocumentOutputDescription = {
+  readonly classification: DocumentOutputClassification
+  /** A previsão da listagem (`freightAmount`); nula quando nenhuma regra, ou duas, casam. */
+  readonly freightAmount: string | null
+  readonly number: string
+  /** Nulo quando nenhum perfil rege a nota (`no_profile`). */
+  readonly profile: {
+    readonly id: string
+    /** CNPJ do remetente (`taker = 0`) ou do destinatário (`3`); nulo nos tomadores que o CT-e não emite. */
+    readonly takerTaxId: string | null
+    readonly version: string
+  } | null
 }

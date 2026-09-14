@@ -8,6 +8,7 @@ import { DocumentIntakeDropZone } from '@/modules/document-intake/components/Doc
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
+import type { VehicleReference } from '../shared/vehicleSuggestion.service'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
 import { useVehiclePlateMatch } from '../hooks/useVehiclePlateMatch.hook'
 import type {
@@ -42,6 +43,8 @@ type VehicleFormProps = Readonly<{
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
+  /** Spec 093: o catálogo de mercado que sugere a medida do baú quando a frota não tem igual. */
+  references: readonly VehicleReference[]
   vehicles: readonly FleetVehicleDetail[]
   vehicle?: FleetVehicleDetail
 }>
@@ -55,6 +58,7 @@ export function VehicleForm({
   onEditVehicle,
   onUpdateDriver,
   onUpdate,
+  references,
   vehicle,
   vehicles,
 }: VehicleFormProps) {
@@ -65,6 +69,7 @@ export function VehicleForm({
     onCreate,
     onSaved: onCancel,
     onUpdate,
+    references,
     vehicles,
     ...(vehicle === undefined ? {} : { vehicle }),
   })
@@ -115,6 +120,8 @@ export function VehicleForm({
       <VehicleOperationFields
         documentFields={form.documentFields}
         state={form.state}
+        suggestedFields={form.suggestedFields}
+        suggestionOrigin={form.suggestionOrigin}
         onChange={form.patch}
       />
       <VehicleOwnerFields

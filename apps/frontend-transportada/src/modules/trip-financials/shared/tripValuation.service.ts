@@ -14,8 +14,48 @@
  */
 export type ValuationSource = 'estimated' | 'measured' | 'missing' | 'period'
 
+/**
+ * Spec 110 D7: **de onde o número veio**, em valores crus. Cópia por valor de `TripCostParcelBasis`
+ * na API — o bundle não carrega código dela.
+ *
+ * ⚠️ A API **não compõe a frase**. `184,2 km ÷ 2,8 km/l × R$ 6,29` é apresentação: quem imprime é
+ * quem formata por locale, traduz e quebra em duas linhas.
+ */
+export type TripValuationCostParcelBasis =
+  | Readonly<{
+      kilometersPerLiter: string
+      litres: string
+      of: 'fuel'
+      pricePerLiter: string
+    }>
+  | Readonly<{
+      of: 'driver'
+      paymentModel: string
+      regionCity: null | string
+      regionCode: null | string
+      /**
+       * Spec 129: **cru** — quantas cidades empataram e cada faixa empatada com o preço dela (ou
+       * ausência). Cópia por valor de `TripCostParcelBasis['tie']` da API; a moeda e a frase são
+       * compostas na tela (`composeCostParcelDetail`), nunca aqui.
+       */
+      tie?: null | Readonly<{
+        cityCount: number
+        zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
+      }>
+      vehicleClass: string
+    }>
+  /** Spec 125: o ICMS projetado pelo perfil de emissão — CST e frações (não percentuais). */
+  | Readonly<{
+      baseReductionRate: string
+      cst: string
+      of: 'icms'
+      rate: string
+    }>
+
 export type TripValuationCostParcel = Readonly<{
   amount: string
+  /** Os insumos da parcela derivada. `null` onde o número não vem de conta nossa. */
+  basis: null | TripValuationCostParcelBasis
   /** O que a lacuna nomeia — hoje a cidade a cadastrar (spec 086). `null` quando não há o que dizer. */
   detail: null | string
   gap: null | string

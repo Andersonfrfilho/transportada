@@ -75,6 +75,7 @@ import {
   fleetVehicles,
 } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
+import { tollBooths } from './toll-booth.schema.js'
 import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
@@ -143,7 +144,21 @@ import {
   routeSuggestions,
 } from './route-suggestion.schema.js'
 import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
+import {
+  contractorContacts,
+  contractorInboundEmailOutbox,
+  contractorMailMessages,
+  contractorMailOutbox,
+  contractorMailSettings,
+  contractorMailThreads,
+} from './contractor-mail.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
+import {
+  userWhatsAppPhones,
+  whatsAppPhoneVerificationRequests,
+} from './user-whatsapp-phone.schema.js'
+import { whatsappFlowGraphVersions } from './whatsapp-flow-graph-version.schema.js'
+import { whatsAppCommandDocuments, whatsAppCommandRequests } from './whatsapp-command.schema.js'
 import {
   companyTaxSettings,
   tripCostEntries,
@@ -163,10 +178,13 @@ import {
 
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
+export * from './company-toll-booth-charge.schema.js'
 export * from './energy-tariff.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
+export * from './fleet-vehicle-axle.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './toll-booth.schema.js'
 export * from './vehicle-volume-reference.schema.js'
 export * from './freight-region.schema.js'
 export * from './freight.schema.js'
@@ -202,7 +220,11 @@ export * from './address-comparison.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
+export * from './contractor-mail.schema.js'
 export * from './whatsapp-channel.schema.js'
+export * from './user-whatsapp-phone.schema.js'
+export * from './whatsapp-flow-graph-version.schema.js'
+export * from './whatsapp-command.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -244,6 +266,7 @@ export const databaseSchema = {
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,
+  tollBooths,
   vehicleVolumeReferences,
   identityUserProfiles,
   identityUsers,
@@ -325,11 +348,22 @@ export const databaseSchema = {
   routeSuggestions,
   storedObjects,
   companyTaxSettings,
+  contractorContacts,
+  contractorInboundEmailOutbox,
+  contractorMailMessages,
+  contractorMailOutbox,
+  contractorMailSettings,
+  contractorMailThreads,
   contractorPortalBindings,
   tripCostEntries,
   tripDispatchSnapshots,
   tripLocationPings,
   whatsappChannels,
+  userWhatsAppPhones,
+  whatsAppPhoneVerificationRequests,
+  whatsappFlowGraphVersions,
+  whatsAppCommandRequests,
+  whatsAppCommandDocuments,
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,
@@ -355,3 +389,6 @@ export {
 
 export { loginIdentifiers, LOGIN_IDENTIFIER_KINDS } from './login-identifier.schema.js'
 export type { LoginIdentifierKind } from './login-identifier.schema.js'
+export * from './trip-cargo-layout.schema.js'
+export * from './trip-cargo-layout-outbox.schema.js'
+export * from './trip-document-review.schema.js'

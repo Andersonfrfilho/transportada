@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CargoEstimateSource } from '@adatechnology/cargo-placement'
 import {
   divideHalfUp,
   formatScaledDecimal,
@@ -111,7 +112,7 @@ export function resolveMeasuredCargoVolume(input: {
     const box = item.boxVolumeM3 ?? fallback
     if (box === null) return null
     if (item.boxVolumeM3 === null) usedFallback = true
-    total += divideHalfUp(toScaled(box) * toScaled(String(countBoxes(item))), VOLUME_FACTOR)
+    total += divideHalfUp(toScaled(box) * toScaled(String(countMeasuredBoxes(item))), VOLUME_FACTOR)
   }
   if (total <= 0n) return null
 
@@ -139,9 +140,153 @@ export function medianBoxVolumeM3(values: readonly string[]): string | null {
  * Quantas caixas a linha ocupa. ⚠️ Arredonda **para cima**: cinco unidades de um produto que vem de
  * doze ainda viajam dentro de uma caixa, e o baú não sabe que ela está pela metade.
  */
-function countBoxes(item: MeasuredCargoItem): number {
+export function countMeasuredBoxes(item: MeasuredCargoItem): number {
   const quantity = Number(item.quantity)
   const perBox = item.unitsPerBox > 0 ? item.unitsPerBox : 1
   if (!Number.isFinite(quantity) || quantity <= 0) return 0
   return perBox === 1 ? quantity : Math.ceil(quantity / perBox)
+}
+
+/** `countMeasuredBoxes` devolve `quantity` cru quando `unitsPerBox === 1` — fracionário na nota em KG/LT/M. */
+function countWholeBoxes(item: MeasuredCargoItem): number {
+  return Math.ceil(countMeasuredBoxes(item))
+}
+
+export type ResolveDocumentCargoEstimateParams = {
+  readonly items: readonly MeasuredCargoItem[]
+  /** A mediana das caixas medidas da empresa — o terceiro degrau, nunca o primeiro. */
+  readonly medianBoxVolumeM3: string | null
+  readonly volumeFactor: string | null
+  readonly volumeQuantity: string | null
+}
+
+/** De onde saiu o tamanho da caixa sem ficha: do resíduo da nota, da mediana, ou de lugar nenhum. */
+export type { CargoEstimateSource }
+
+/** A procedência da cubagem da nota inteira — a mesma escala que a ocupação da viagem agrega. */
+export type DocumentCargoVolumeSource = 'measured' | 'partial' | CargoVolumeSource
+
+/**
+ * `volumeM3` e `source` andam juntos: ambos `null` é "a nota não tem cubagem", o mesmo sinal que
+ * o casal `resolveMeasuredCargoVolume` / `resolveCargoVolume` dava com `null`. Os outros campos
+ * existem mesmo assim — a lista do que falta medir precisa da contagem e da procedência da caixa.
+ */
+export type ResolvedDocumentCargoEstimate = {
+  readonly estimateSource: CargoEstimateSource
+  readonly source: DocumentCargoVolumeSource | null
+  readonly unmeasuredBoxCount: number
+  /** O m³ de **cada** caixa sem ficha — todas iguais; a soma difere do resíduo em menos de 0,5 µm³ por caixa. */
+  readonly unmeasuredBoxVolumeM3: string | null
+  readonly volumeM3: string | null
+}
+
+type ScaledCargoLines = {
+  readonly hasMeasured: boolean
+  readonly measured: bigint
+  readonly unmeasuredCount: number
+}
+
+function sumCargoLines(items: readonly MeasuredCargoItem[]): ScaledCargoLines {
+  let measured = 0n
+  let unmeasuredCount = 0
+  let hasMeasured = false
+  for (const item of items) {
+    if (item.boxVolumeM3 === null) {
+      unmeasuredCount += countWholeBoxes(item)
+      continue
+    }
+    hasMeasured = true
+    measured += toScaled(item.boxVolumeM3) * BigInt(countWholeBoxes(item))
+  }
+
+  return { hasMeasured, measured, unmeasuredCount }
+}
+
+/**
+ * A cubagem da nota e o tamanho da caixa que ninguém mediu, na precedência da spec 144 (D1/D2):
+ * a ficha do conferente, depois o **resíduo da nota** — `qVol × fator` menos o que já foi medido —
+ * dividido pelas caixas sem ficha, depois a mediana da empresa, e por fim ausência.
+ *
+ * ⚠️ O resíduo existe porque a fatia da parada é dimensionada pelo total da nota, e caixa presumida
+ * pela mediana não soma o mesmo m³ que a fatia: o desenho sobrava ou transbordava uma faixa que na
+ * verdade cabia. Com o resíduo, `medido + caixas presumidas = total`, e o `volumeM3` é o total
+ * exato — nunca a soma das caixas arredondadas.
+ *
+ * ⚠️ Toda linha com ficha: total e mediana não são consultados — a medida sempre vence. Resíduo
+ * que não dá caixa positiva (o medido já passou do total, ou sobrou menos de meio µm³ por caixa)
+ * cai na mediana, e a nota soma medido mais mediana como antes desta spec. Sem mediana também, a
+ * nota vale só o medido — é o maior número com procedência, e ocupação menor que a real é o que
+ * faz alguém seguir carregando. Sem total, a mediana dá tamanho às caixas mas não cubagem à nota:
+ * a nota continua "sem volume", como sempre foi.
+ */
+export function resolveDocumentCargoEstimate(
+  input: ResolveDocumentCargoEstimateParams,
+): ResolvedDocumentCargoEstimate {
+  const total = resolveCargoVolume({
+    volumeFactor: input.volumeFactor,
+    volumeQuantity: input.volumeQuantity,
+  })
+  const totalScaled = total === null ? null : toScaled(total.volumeM3)
+  const lines = sumCargoLines(input.items)
+
+  if (lines.unmeasuredCount === 0) return resolveWithoutUnmeasuredBoxes(lines, totalScaled)
+
+  const source: DocumentCargoVolumeSource = lines.hasMeasured ? 'partial' : 'estimated'
+  const count = BigInt(lines.unmeasuredCount)
+  const residualBox = totalScaled === null ? 0n : divideHalfUp(totalScaled - lines.measured, count)
+  if (totalScaled !== null && residualBox > 0n) {
+    return {
+      estimateSource: 'note',
+      source,
+      unmeasuredBoxCount: lines.unmeasuredCount,
+      unmeasuredBoxVolumeM3: formatScaledDecimal(residualBox, VOLUME_SCALE),
+      volumeM3: formatScaledDecimal(totalScaled, VOLUME_SCALE),
+    }
+  }
+
+  if (input.medianBoxVolumeM3 !== null) {
+    const median = toScaled(input.medianBoxVolumeM3)
+    return {
+      estimateSource: 'median',
+      source: totalScaled === null && !lines.hasMeasured ? null : source,
+      unmeasuredBoxCount: lines.unmeasuredCount,
+      unmeasuredBoxVolumeM3: formatScaledDecimal(median, VOLUME_SCALE),
+      volumeM3:
+        totalScaled === null && !lines.hasMeasured
+          ? null
+          : formatScaledDecimal(lines.measured + median * count, VOLUME_SCALE),
+    }
+  }
+
+  const keepsMeasured = lines.hasMeasured && totalScaled !== null
+  return {
+    estimateSource: 'none',
+    source: keepsMeasured ? source : null,
+    unmeasuredBoxCount: lines.unmeasuredCount,
+    unmeasuredBoxVolumeM3: null,
+    volumeM3: keepsMeasured ? formatScaledDecimal(lines.measured, VOLUME_SCALE) : null,
+  }
+}
+
+/** Nada por medir: ou está tudo medido, ou a nota não tem linha e só resta o total por espécie. */
+function resolveWithoutUnmeasuredBoxes(
+  lines: ScaledCargoLines,
+  totalScaled: bigint | null,
+): ResolvedDocumentCargoEstimate {
+  const empty = {
+    estimateSource: 'none' as const,
+    unmeasuredBoxCount: 0,
+    unmeasuredBoxVolumeM3: null,
+  }
+  if (lines.hasMeasured) {
+    if (lines.measured <= 0n) return { ...empty, source: null, volumeM3: null }
+    return {
+      ...empty,
+      source: 'measured',
+      volumeM3: formatScaledDecimal(lines.measured, VOLUME_SCALE),
+    }
+  }
+  if (totalScaled === null) return { ...empty, source: null, volumeM3: null }
+
+  return { ...empty, source: 'estimated', volumeM3: formatScaledDecimal(totalScaled, VOLUME_SCALE) }
 }

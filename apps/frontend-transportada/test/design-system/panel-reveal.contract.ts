@@ -109,7 +109,7 @@ describe('design system revealed panel contract', () => {
   test('states the rule for every future panel', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/panels.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('useRevealedPanel')

@@ -8,21 +8,32 @@ import { resolveDeploymentEnvironment } from '../../src/modules/shared/deploymen
 const FAVICON_SELECTOR = 'link[rel="icon"]'
 const ICON_CANVAS_SIZE = 192
 
+type StubLink = {
+  href: string
+  type?: string
+  rel?: string
+  remove: () => void
+}
+
 function createDocument(faviconHref: string | null): {
-  readonly document: {
-    title: string
-    querySelector: (selectors: string) => { href: string } | null
-  }
-  readonly link: { href: string } | null
+  readonly document: Document
+  readonly currentFavicon: () => StubLink | null
 } {
-  const link = faviconHref === null ? null : { href: faviconHref }
-  return {
-    document: {
-      querySelector: (selectors: string) => (selectors === FAVICON_SELECTOR ? link : null),
-      title: 'TransportAdA',
+  let link: StubLink | null =
+    faviconHref === null ? null : { href: faviconHref, remove: () => (link = null) }
+
+  const stub = {
+    createElement: (): StubLink => ({ href: '', remove: () => (link = null) }),
+    head: {
+      appendChild: (node: StubLink) => {
+        link = node
+      },
     },
-    link,
+    querySelector: (selectors: string) => (selectors === FAVICON_SELECTOR ? link : null),
+    title: 'TransportAdA',
   }
+
+  return { document: stub as unknown as Document, currentFavicon: () => link }
 }
 
 describe('deployment environment resolution', () => {
@@ -110,11 +121,16 @@ describe('application icon', () => {
 describe('environment badge', () => {
   test('moves the mark ahead of the application icon outside production', () => {
     for (const environment of ['local', 'staging'] as const) {
-      const { document, link } = createDocument('/icons/icon.svg')
+      const { document, currentFavicon } = createDocument('/icons/icon.svg')
 
       applyEnvironmentBadge({ document, environment })
 
-      expect(link?.href).toBe('/icons/icon-work-in-progress.svg')
+      const favicon = currentFavicon()
+
+      // O elemento é trocado, não editado: editar o `href` deixa a aba com o ícone já buscado.
+      expect(favicon?.href).toBe('/icons/icon-work-in-progress.svg')
+      expect(favicon?.rel).toBe('icon')
+      expect(favicon?.type).toBe('image/svg+xml')
     }
   })
 
@@ -128,12 +144,12 @@ describe('environment badge', () => {
   })
 
   test('keeps production untouched', () => {
-    const { document, link } = createDocument('/icons/icon.svg')
+    const { document, currentFavicon } = createDocument('/icons/icon.svg')
 
     applyEnvironmentBadge({ document, environment: 'production' })
 
     expect(document.title).toBe('TransportAdA')
-    expect(link?.href).toBe('/icons/icon.svg')
+    expect(currentFavicon()?.href).toBe('/icons/icon.svg')
   })
 
   test('survives a page that declares no icon link', () => {
@@ -145,11 +161,11 @@ describe('environment badge', () => {
   })
 
   test('never stacks the mark when applied twice', () => {
-    const { document, link } = createDocument('/icons/icon.svg')
+    const { document, currentFavicon } = createDocument('/icons/icon.svg')
 
     applyEnvironmentBadge({ document, environment: 'staging' })
     applyEnvironmentBadge({ document, environment: 'staging' })
 
-    expect(link?.href).toBe('/icons/icon-work-in-progress.svg')
+    expect(currentFavicon()?.href).toBe('/icons/icon-work-in-progress.svg')
   })
 })

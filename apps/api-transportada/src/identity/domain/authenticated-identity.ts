@@ -1,7 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+/** Canal que não é o JWT do painel. Ausente = token HTTP, que é o caso de sempre. */
+export type AuthenticationChannel = 'whatsapp'
+
 export type AuthenticatedIdentity = {
+  /**
+   * Spec 144 T005: presente só quando a identidade veio de um canal (o número verificado), não de um
+   * token. Aí `issuer` é o canal e `subject`/`externalIdentityId` ficam vazios — não há token.
+   */
+  readonly channel?: AuthenticationChannel
   /**
    * A verified token selection only. It is not a tenant context until T011
    * confirms the active company membership in PostgreSQL.

@@ -12,8 +12,10 @@ import {
   freightRules,
   freightRuleVersions,
   idempotencyRecords,
+  nfseEmissionProfiles,
 } from '../../database/database.schema.js'
 import type { CteEmissionProfileStatus } from '../../database/cte-emission-profile.schema.js'
+import type { NfseEmissionProfileStatus } from '../../database/nfse.schema.js'
 import type {
   CteEmissionProfileAuditRecord,
   CteEmissionProfileComponentInput,
@@ -129,6 +131,23 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
       fingerprint: record.fingerprint,
       response: record.response as CteEmissionProfileDetail,
     }
+  }
+
+  public async findNfseEmissionProfileStatus(input: {
+    readonly companyId: string
+    readonly nfseEmissionProfileId: string
+  }): Promise<NfseEmissionProfileStatus | null> {
+    const [record] = await this.transaction
+      .select({ status: nfseEmissionProfiles.status })
+      .from(nfseEmissionProfiles)
+      .where(
+        and(
+          eq(nfseEmissionProfiles.companyId, input.companyId),
+          eq(nfseEmissionProfiles.id, input.nfseEmissionProfileId),
+        ),
+      )
+      .limit(1)
+    return record?.status ?? null
   }
 
   public async findProfile(input: {
@@ -428,28 +447,29 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
     const companyId = records[0]?.companyId ?? ''
     const profileIds = records.map((record) => record.id)
 
-    const [matchers, components, freightRuleVersionRows] = await Promise.all([
-      this.transaction
-        .select()
-        .from(cteEmissionProfileMatchers)
-        .where(
-          and(
-            eq(cteEmissionProfileMatchers.companyId, companyId),
-            inArray(cteEmissionProfileMatchers.profileId, profileIds),
-          ),
+    // Em série: o `this.transaction` pode ser transação, e consulta concorrente nela pode nunca voltar.
+    const matchers = await this.transaction
+      .select()
+      .from(cteEmissionProfileMatchers)
+      .where(
+        and(
+          eq(cteEmissionProfileMatchers.companyId, companyId),
+          inArray(cteEmissionProfileMatchers.profileId, profileIds),
         ),
-      this.transaction
-        .select()
-        .from(cteEmissionProfileComponents)
-        .where(
-          and(
-            eq(cteEmissionProfileComponents.companyId, companyId),
-            inArray(cteEmissionProfileComponents.profileId, profileIds),
-          ),
-        )
-        .orderBy(cteEmissionProfileComponents.ordinal),
+      )
+    const components = await this.transaction
+      .select()
+      .from(cteEmissionProfileComponents)
+      .where(
+        and(
+          eq(cteEmissionProfileComponents.companyId, companyId),
+          inArray(cteEmissionProfileComponents.profileId, profileIds),
+        ),
+      )
+      .orderBy(cteEmissionProfileComponents.ordinal)
+    const freightRuleVersionRows =
       freightRuleOverride === undefined
-        ? this.transaction
+        ? await this.transaction
             .select({ version: freightRuleVersions })
             .from(freightRuleVersions)
             .innerJoin(
@@ -469,8 +489,7 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
                 ),
               ),
             )
-        : [],
-    ])
+        : []
 
     const freightRuleByRuleId = new Map(
       freightRuleVersionRows.map((row) => [row.version.freightRuleId, mapFreightRule(row.version)]),
@@ -538,8 +557,10 @@ function toProfileColumns(
     matchMode: settings.matchMode,
     modal: settings.modal,
     name: settings.name,
+    nfseEmissionProfileId: settings.nfseEmissionProfileId,
     observations: settings.observations,
     operationNature: settings.operationNature,
+    outputDocument: settings.outputDocument,
     pickupDetails: settings.pickupDetails,
     pickupIndicator: settings.pickupIndicator,
     predominantProductMode: settings.predominantProductMode,

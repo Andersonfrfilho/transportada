@@ -6,15 +6,27 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
   TripCargoLayout,
+  TripCargoLayoutPoll,
+  TripCargoLayoutState,
   TripCargoPreview,
   TripCargoWeight,
   TripOccupancy,
+  TripPendingMeasurement,
   TripWeightConcentration,
 } from './trip.types'
 import {
+  AXLE_COUNT_SOURCES,
+  ROUTE_COST_GAPS,
+  ROUTE_DEPOT_ABSENCES,
   ROUTE_GEOMETRY_SOURCES,
+  TOLL_PAYMENT_MODES,
   type RouteGeometry,
+  type DepotDescription,
+  type RouteGeometryDepot,
   type RouteGeometryLeg,
+  type RouteGeometryOption,
+  type RouteGeometryToll,
+  type RouteGeometryTollBooth,
 } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
@@ -41,6 +53,8 @@ import {
   TRIP_STATUS_RESULT_KEYS,
   TRIP_STOP_KEYS,
   TRIP_STOP_OPTIONAL_KEYS,
+  TRIP_CARGO_LAYOUT_STATE_KEYS,
+  TRIP_CARGO_LAYOUT_POLL_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -50,6 +64,7 @@ import {
   TRIP_DESTINATION_ORIGINS,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
+  CARGO_LAYOUT_STATUSES,
 } from './trip.types'
 import type {
   BatchStatusResult,
@@ -109,6 +124,59 @@ function invalid(): Error {
   return new Error(TRIP_ERROR.RESPONSE_INVALID)
 }
 
+/** `unavailable` com lista vazia é o único jeito de dizer "não sei o caminho" (spec 079/093). */
+const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
+  cheapestIndex: null,
+  costGap: null,
+  depot: null,
+  fastestIndex: null,
+  hasChoice: false,
+  legs: [],
+  options: [],
+  points: [],
+  source: 'unavailable',
+  toll: null,
+}
+
+/**
+ * Spec 097: a perna do barracão. ⚠️ Corpo malformado vira `null` — "ninguém pediu barracão" —, e
+ * não uma ausência anunciada: inventar aviso a partir de resposta quebrada mandaria o operador
+ * cadastrar um barracão que já existe.
+ */
+/** ⚠️ A coordenada vem como texto, na mesma forma dos pontos do traçado — nunca número. */
+function isCoordinate(value: unknown): value is Readonly<{ latitude: string; longitude: string }> {
+  return isRecord(value) && isString(value.latitude) && isString(value.longitude)
+}
+
+function isGeometryDepot(value: unknown): value is RouteGeometryDepot {
+  return (
+    isRecord(value) &&
+    (value.absence === null || isOneOf(value.absence, ROUTE_DEPOT_ABSENCES)) &&
+    /**
+     * ⚠️ Tolerante à ausência, como o `origin` ao lado — e ao contrário do extrato de pedágio, onde
+     * o campo é obrigatório. A diferença é deliberada: a perna do barracão já funcionava sem a
+     * descrição, e exigi-la faria uma API anterior derrubar o bloco inteiro em vez de mostrá-lo sem
+     * a linha nova. Quem lê usa `?? null`.
+     */
+    (value.description === null ||
+      value.description === undefined ||
+      isDepotDescription(value.description)) &&
+    typeof value.leadingLegs === 'number' &&
+    (value.origin === null || value.origin === undefined || isCoordinate(value.origin)) &&
+    typeof value.trailingLegs === 'number'
+  )
+}
+
+function isDepotDescription(value: unknown): value is DepotDescription {
+  return (
+    isRecord(value) &&
+    isString(value.address) &&
+    isString(value.legalName) &&
+    isNullableString(value.phone) &&
+    isString(value.tradeName)
+  )
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => isString(entry))
 }
@@ -132,7 +200,14 @@ function isTrip(value: unknown): value is Trip {
     return false
   }
 
-  return isTripFields(value) && isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts)
+  const optional = value as { estimatedArrivalFrozenAt?: unknown; estimatedFinishAt?: unknown }
+
+  return (
+    isTripFields(value) &&
+    isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
+    isAbsentOrNullableString(optional.estimatedArrivalFrozenAt) &&
+    isAbsentOrNullableString(optional.estimatedFinishAt)
+  )
 }
 
 /**
@@ -246,6 +321,9 @@ function isDetail(value: unknown): value is TripDetail {
   }
   return (
     isTripFields(value) &&
+    isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
+    ((value as { cargoLayoutId?: unknown }).cargoLayoutId === undefined ||
+      isNullableString((value as { cargoLayoutId?: unknown }).cargoLayoutId)) &&
     isEveryItem(value.documents, isDocumentDetail) &&
     isEveryItem(value.drivers, isDriverLine) &&
     /** Opcional não é "qualquer coisa": presente com forma errada continua reprovando (D2). */
@@ -253,7 +331,20 @@ function isDetail(value: unknown): value is TripDetail {
       value.cargoWeight === null ||
       isCargoWeight(value.cargoWeight)) &&
     (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
+    (value.cargoLayoutState === undefined || isCargoLayoutState(value.cargoLayoutState)) &&
     isEveryItem(value.stops, isStopDetail)
+  )
+}
+
+/** Spec 145 D10: chave exata e status fechado — estado estranho reprova, não vira "pendente". */
+function isCargoLayoutState(value: unknown): value is TripCargoLayoutState {
+  if (!hasExactKeys(value, TRIP_CARGO_LAYOUT_STATE_KEYS)) return false
+  return (
+    isNullableString(value.computedAt) &&
+    isNullableString(value.errorCode) &&
+    typeof value.stale === 'boolean' &&
+    isOneOf(value.status, CARGO_LAYOUT_STATUSES) &&
+    typeof value.truncated === 'boolean'
   )
 }
 
@@ -572,7 +663,10 @@ export function createTripResponseAdapters() {
      */
     tripCargoPreviewFromApi(input: unknown): TripCargoPreview {
       if (!isRecord(input)) throw invalid()
-      const { cargoLayout, cargoWeight, occupancy, weightConcentration } = input
+      const { cargoLayout, cargoWeight, layoutId, occupancy, state, weightConcentration } = input
+      /** ⚠️ Spec 145 D17: a prévia não confere chaves, então só a forma de `layoutId`/`state` reprova. */
+      if (layoutId !== undefined && !isString(layoutId)) throw invalid()
+      if (state !== undefined && !isCargoLayoutState(state)) throw invalid()
       const layoutOk =
         cargoLayout === null || cargoLayout === undefined || isCargoLayout(cargoLayout)
       const weightOk =
@@ -588,21 +682,54 @@ export function createTripResponseAdapters() {
         cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
         occupancy: (occupancy ?? null) as TripOccupancy | null,
         weightConcentration: weightConcentration ?? null,
+        ...(layoutId === undefined ? {} : { layoutId }),
+        ...(state === undefined ? {} : { state }),
       }
+    },
+    /** Spec 145 T11: chave exata, `state` e planta pelos mesmos validadores da prévia. */
+    tripCargoLayoutPollFromApi(input: unknown): TripCargoLayoutPoll {
+      if (!hasExactKeys(input, TRIP_CARGO_LAYOUT_POLL_KEYS)) throw invalid()
+      const { cargoLayout, layoutId, state } = input
+      if (!isString(layoutId) || !isCargoLayoutState(state)) throw invalid()
+      if (cargoLayout !== null && !isCargoLayout(cargoLayout)) throw invalid()
+      return { cargoLayout: cargoLayout as TripCargoLayout | null, layoutId, state }
     },
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
-        return { legs: [], points: [], source: 'unavailable' }
+        return UNAVAILABLE_ROUTE_GEOMETRY
       }
       const points = Array.isArray(input.points) ? input.points : []
-      if (!points.every(isGeometryPoint)) return { legs: [], points: [], source: 'unavailable' }
+      if (!points.every(isGeometryPoint)) {
+        return UNAVAILABLE_ROUTE_GEOMETRY
+      }
       /**
        * ⚠️ Trecho estranho zera **só os trechos**, não a linha: a estrada continua desenhável, e o
        * que se perde é o tempo — que some da tela em vez de virar palpite. Devolver `unavailable`
        * aqui apagaria um desenho bom por causa de um número ruim.
        */
       const legs = Array.isArray(input.legs) ? input.legs : []
-      return { legs: legs.every(isGeometryLeg) ? legs : [], points, source: input.source }
+      /**
+       * ⚠️ Pedágio estranho zera **só o pedágio**, pelo mesmo motivo do trecho: a linha e o tempo
+       * continuam valendo, e é melhor a tela dizer "não calculei" do que esconder o mapa inteiro.
+       */
+      /**
+       * Spec 096 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
+       * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
+       * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
+       */
+      const options = Array.isArray(input.options) ? input.options : []
+      return {
+        cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
+        depot: isGeometryDepot(input.depot) ? input.depot : null,
+        costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
+        fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
+        hasChoice: input.hasChoice === true,
+        legs: legs.every(isGeometryLeg) ? legs : [],
+        options: options.every(isGeometryOption) ? options : [],
+        points,
+        source: input.source,
+        toll: isGeometryToll(input.toll) ? input.toll : null,
+      }
     },
     occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
@@ -666,9 +793,78 @@ function isCargoLayout(value: unknown): boolean {
     ) &&
     isUnsignedInteger(value.freeRows) &&
     typeof value.orderIsBinding === 'boolean' &&
+    /**
+     * ⚠️ Tolerante à **ausência**, não ao lixo (spec 100): a API sobe antes do frontend, e recusar o
+     * corpo por falta do campo apagaria o painel de carga inteiro na janela entre os dois deploys.
+     */
+    (value.stopArrangement === undefined ||
+      value.stopArrangement === 'depth' ||
+      value.stopArrangement === 'grid' ||
+      value.stopArrangement === 'lanes') &&
+    (value.stopArrangementReason === undefined ||
+      typeof value.stopArrangementReason === 'string') &&
+    (value.layoutNotes === undefined ||
+      (Array.isArray(value.layoutNotes) &&
+        value.layoutNotes.every((note) => typeof note === 'string'))) &&
     typeof value.occupancyKnown === 'boolean' &&
     isString(value.overflowM3) &&
-    Array.isArray(value.stopsWithoutVolume)
+    /**
+     * Spec 088: os quatro andam juntos — ou o baú tem medida e a planta existe, ou nenhum deles vem.
+     * Um só preenchido seria uma planta com metade da escala, desenhada mesmo assim.
+     */
+    isNullableString(value.bedLengthM) &&
+    isNullableString(value.bedSource) &&
+    /** API antiga não serve o acesso: sem ele a planta desenha só a traseira, que é o mais restritivo. */
+    (value.loadingAccess === undefined || isString(value.loadingAccess)) &&
+    /**
+     * Spec 096: o arranjo é opcional na resposta — API antiga não o serve, e recusar a resposta
+     * inteira por causa dele apagaria a planta que já funciona.
+     */
+    (value.placement === undefined || value.placement === null || isPlacement(value.placement)) &&
+    isNullableString(value.bedWidthM) &&
+    isNullableString(value.freeDepthM) &&
+    isNullableString(value.overflowDepthM) &&
+    Array.isArray(value.stopsWithoutVolume) &&
+    /**
+     * Spec 144 (D4): a lista do que falta medir é opcional — API antiga não a serve, e recusar a
+     * resposta inteira por causa dela apagaria a planta que já funciona.
+     */
+    (value.pendingMeasurements === undefined ||
+      (Array.isArray(value.pendingMeasurements) &&
+        value.pendingMeasurements.every(isPendingMeasurement)))
+  )
+}
+
+const CARGO_ESTIMATE_SOURCES = ['median', 'none', 'note'] as const
+
+/** Spec 144 (D4): uma linha da lista do que falta medir. */
+function isPendingMeasurement(value: unknown): value is TripPendingMeasurement {
+  return (
+    isRecord(value) &&
+    isUnsignedInteger(value.boxCount) &&
+    isNullableString(value.documentNumber) &&
+    isOneOf(value.estimateSource, CARGO_ESTIMATE_SOURCES) &&
+    isNullableString(value.label) &&
+    isNullableString(value.productCode) &&
+    isUnsignedInteger(value.sequence) &&
+    isString(value.stopLabel)
+  )
+}
+
+/**
+ * O arranjo camada por camada. Valida a forma, não cada caixa: são até 600, e percorrer todas em
+ * cada resposta custaria mais que desenhá-las.
+ */
+function isPlacement(value: unknown): boolean {
+  if (!isRecord(value)) return false
+
+  return (
+    Array.isArray(value.layers) &&
+    value.layers.every(
+      (layer) => isRecord(layer) && Array.isArray(layer.boxes) && isUnsignedInteger(layer.index),
+    ) &&
+    Array.isArray(value.unplaced) &&
+    isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
 
@@ -678,6 +874,9 @@ function isCargoWeight(value: unknown): boolean {
   return (
     isUnsignedInteger(value.documentsWithoutWeight) &&
     isString(value.grossWeightKilograms) &&
+    /** Os dois andam juntos: teto sem percentual, ou percentual sem teto, é resposta pela metade. */
+    isNullableString(value.maxPayloadKg) &&
+    isNullableString(value.payloadRatio) &&
     isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
@@ -690,7 +889,12 @@ function isCargoWeight(value: unknown): boolean {
 const TRIP_OCCUPANCY_SOURCES = ['declared', 'estimated', 'measured', 'partial'] as const
 
 function isWeightConcentration(value: unknown): value is TripWeightConcentration {
-  return isRecord(value) && typeof value.share === 'number' && isString(value.stopId)
+  return (
+    isRecord(value) &&
+    isString(value.label) &&
+    typeof value.share === 'number' &&
+    isString(value.stopId)
+  )
 }
 
 function isOccupancy(value: unknown): boolean {
@@ -761,6 +965,83 @@ function isGeometryLeg(value: unknown): value is RouteGeometryLeg {
     typeof value.durationSeconds === 'number' &&
     Number.isFinite(value.durationSeconds)
   )
+}
+
+function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
+  return (
+    isRecord(value) &&
+    isNullableString(value.chargeCar) &&
+    isNullableString(value.chargePerAxle) &&
+    isNullableString(value.effectiveChargePerAxle) &&
+    typeof value.fellBackToManual === 'boolean' &&
+    isNullableString(value.total) &&
+    isString(value.latitude) &&
+    isString(value.longitude) &&
+    isNullableString(value.name) &&
+    isNullableString(value.operator) &&
+    typeof value.osmNodeId === 'number' &&
+    Number.isFinite(value.osmNodeId) &&
+    /**
+     * ⚠️ Tolerante à **ausência**, não ao lixo: API antiga não manda o campo, e recusar a praça
+     * inteira por causa dele apagaria o pedágio da tela durante a janela entre subir a API e subir
+     * o frontend. Presente, tem de ser inteiro.
+     */
+    (value.legIndex === undefined ||
+      value.legIndex === null ||
+      (typeof value.legIndex === 'number' && Number.isInteger(value.legIndex)))
+  )
+}
+
+/** Spec 090 T7: o pedágio vem na resposta da geometria — validado com o mesmo rigor de qualquer dado. */
+function isGeometryToll(value: unknown): value is RouteGeometryToll {
+  if (!isRecord(value)) return false
+  const {
+    axles,
+    booths,
+    boothsFallenBackToManual,
+    boothsWithoutCharge,
+    chargePerAxle,
+    paymentMode,
+    tariffObservedOn,
+    total,
+  } = value
+  return (
+    isRecord(axles) &&
+    typeof axles.count === 'number' &&
+    isOneOf(axles.source, AXLE_COUNT_SOURCES) &&
+    Array.isArray(booths) &&
+    booths.every(isGeometryTollBooth) &&
+    typeof boothsFallenBackToManual === 'number' &&
+    typeof boothsWithoutCharge === 'number' &&
+    isString(value.multiplierLabel) &&
+    isString(chargePerAxle) &&
+    isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&
+    isNullableString(tariffObservedOn) &&
+    isString(total)
+  )
+}
+
+/** Spec 096 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
+function isGeometryOption(value: unknown): value is RouteGeometryOption {
+  if (!isRecord(value)) return false
+  const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
+  return (
+    typeof distanceMeters === 'number' &&
+    Number.isFinite(distanceMeters) &&
+    typeof durationSeconds === 'number' &&
+    Number.isFinite(durationSeconds) &&
+    isNullableString(fuelTotal) &&
+    Array.isArray(legs) &&
+    legs.every(isGeometryLeg) &&
+    Array.isArray(points) &&
+    points.every(isGeometryPoint) &&
+    (toll === null || isGeometryToll(toll)) &&
+    isNullableString(totalCost)
+  )
+}
+
+function isNullableNumber(value: unknown): value is null | number {
+  return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
 
 function isOccurrenceType(value: unknown): value is OccurrenceType {

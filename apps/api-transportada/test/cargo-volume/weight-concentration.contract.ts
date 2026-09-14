@@ -11,21 +11,21 @@ describe('o alerta de peso concentrado numa parada (spec 085 G006)', () => {
     expect(
       detectWeightConcentration({
         stops: [
-          { stopId: 'a', weightKilograms: '700' },
-          { stopId: 'b', weightKilograms: '200' },
-          { stopId: 'c', weightKilograms: '100' },
+          { label: 'Parada a', stopId: 'a', weightKilograms: '700' },
+          { label: 'Parada b', stopId: 'b', weightKilograms: '200' },
+          { label: 'Parada c', stopId: 'c', weightKilograms: '100' },
         ],
       }),
-    ).toEqual({ share: 0.7, stopId: 'a' })
+    ).toEqual({ label: 'Parada a', share: 0.7, stopId: 'a' })
   })
 
   test('carga espalhada não acusa nada', () => {
     expect(
       detectWeightConcentration({
         stops: [
-          { stopId: 'a', weightKilograms: '350' },
-          { stopId: 'b', weightKilograms: '350' },
-          { stopId: 'c', weightKilograms: '300' },
+          { label: 'Parada a', stopId: 'a', weightKilograms: '350' },
+          { label: 'Parada b', stopId: 'b', weightKilograms: '350' },
+          { label: 'Parada c', stopId: 'c', weightKilograms: '300' },
         ],
       }),
     ).toBeNull()
@@ -38,7 +38,9 @@ describe('o alerta de peso concentrado numa parada (spec 085 G006)', () => {
    */
   test('viagem de uma parada não acusa concentração', () => {
     expect(
-      detectWeightConcentration({ stops: [{ stopId: 'a', weightKilograms: '900' }] }),
+      detectWeightConcentration({
+        stops: [{ label: 'Parada a', stopId: 'a', weightKilograms: '900' }],
+      }),
     ).toBeNull()
   })
 
@@ -47,8 +49,8 @@ describe('o alerta de peso concentrado numa parada (spec 085 G006)', () => {
     expect(
       detectWeightConcentration({
         stops: [
-          { stopId: 'a', weightKilograms: null },
-          { stopId: 'b', weightKilograms: null },
+          { label: 'Parada a', stopId: 'a', weightKilograms: null },
+          { label: 'Parada b', stopId: 'b', weightKilograms: null },
         ],
       }),
     ).toBeNull()
@@ -60,8 +62,8 @@ describe('o alerta de peso concentrado numa parada (spec 085 G006)', () => {
       detectWeightConcentration({
         threshold: 0.3,
         stops: [
-          { stopId: 'a', weightKilograms: '350' },
-          { stopId: 'b', weightKilograms: '650' },
+          { label: 'Parada a', stopId: 'a', weightKilograms: '350' },
+          { label: 'Parada b', stopId: 'b', weightKilograms: '650' },
         ],
       })?.stopId,
     ).toBe('b')
@@ -77,8 +79,8 @@ describe('o piso do alerta acompanha o número de paradas', () => {
     expect(
       detectWeightConcentration({
         stops: [
-          { stopId: 'a', weightKilograms: '500' },
-          { stopId: 'b', weightKilograms: '500' },
+          { label: 'Parada a', stopId: 'a', weightKilograms: '500' },
+          { label: 'Parada b', stopId: 'b', weightKilograms: '500' },
         ],
       }),
     ).toBeNull()
@@ -88,8 +90,8 @@ describe('o piso do alerta acompanha o número de paradas', () => {
     expect(
       detectWeightConcentration({
         stops: [
-          { stopId: 'a', weightKilograms: '800' },
-          { stopId: 'b', weightKilograms: '200' },
+          { label: 'Parada a', stopId: 'a', weightKilograms: '800' },
+          { label: 'Parada b', stopId: 'b', weightKilograms: '200' },
         ],
       })?.stopId,
     ).toBe('a')

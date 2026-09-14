@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { RouteSuggestion } from './routeSuggestion.types'
 import { toRouteSuggestion } from './routeSuggestionResponse.validation'
+import type { SuggestionValuation } from './suggestionValuation.service'
+import { toSuggestionValuation } from './suggestionValuationResponse.validation'
 
 const TRIPS_PATH = '/trips'
 const GEOCODED_ADDRESSES_PATH = '/geocoded-addresses'
@@ -30,8 +32,18 @@ type ClientDependencies = Readonly<{
 
 /** O que o aceite da multi-veículo devolve: a sugestão decidida e as viagens que ela criou. */
 export type AcceptedMultiVehicleSuggestion = Readonly<{
+  /**
+   * Spec 107 D1: as notas que o aceite **pulou** por já estarem vivas em outra viagem. Vazio é o
+   * normal; não-vazio é o que a tela lista, porque um total sem quais não é acionável.
+   */
+  skippedDocuments: readonly SkippedDocument[]
   suggestion: RouteSuggestion
   trips: readonly MultiVehicleTrip[]
+}>
+
+export type SkippedDocument = Readonly<{
+  nfeDocumentId: string
+  reason: string
 }>
 
 export type MultiVehicleTrip = Readonly<{
@@ -56,6 +68,14 @@ export type RouteSuggestionClient = Readonly<{
     }>,
   ) => Promise<RouteSuggestion>
   readMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
+  /**
+   * Spec 101: a conta por viagem proposta e o relatório do conjunto. Corpo malformado vira
+   * **ausência**, não exceção — a conta é apoio, e derrubar o diálogo por causa dela trocaria o
+   * problema de lugar.
+   */
+  readMultiVehicleValuation: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<SuggestionValuation | null>
   rejectMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
   correctAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
@@ -113,6 +133,16 @@ export function createRouteSuggestionClient(
           dependencies,
           method: 'POST',
           path: `${MULTI_VEHICLE_PATH}/multi-vehicle`,
+        }),
+      )
+    },
+
+    async readMultiVehicleValuation(input) {
+      return toSuggestionValuation(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}/valuation`,
         }),
       )
     },
@@ -198,13 +228,35 @@ function toAcceptedMultiVehicle(payload: unknown): AcceptedMultiVehicleSuggestio
     throw new RoutingRequestError(ROUTING_ERROR.RESPONSE_INVALID)
   }
 
-  const record = payload as { suggestion?: unknown; trips?: unknown }
+  const record = payload as {
+    skippedDocuments?: unknown
+    suggestion?: unknown
+    trips?: unknown
+  }
   const suggestion = toRouteSuggestion(record.suggestion)
   if (suggestion === null) throw new RoutingRequestError(ROUTING_ERROR.RESPONSE_INVALID)
 
   const trips = Array.isArray(record.trips) ? record.trips.map(toMultiVehicleTrip) : []
 
-  return { suggestion, trips: trips.filter((trip): trip is MultiVehicleTrip => trip !== null) }
+  /** ⚠️ Campo ausente é resposta de API anterior à spec 107: lista vazia, nunca erro. */
+  const skipped = Array.isArray(record.skippedDocuments) ? record.skippedDocuments : []
+
+  return {
+    skippedDocuments: skipped.flatMap((entry) => {
+      const value = entry as Record<string, unknown>
+
+      return typeof value.nfeDocumentId === 'string'
+        ? [
+            {
+              nfeDocumentId: value.nfeDocumentId,
+              reason: typeof value.reason === 'string' ? value.reason : 'already_linked',
+            },
+          ]
+        : []
+    }),
+    suggestion,
+    trips: trips.filter((trip): trip is MultiVehicleTrip => trip !== null),
+  }
 }
 
 function toMultiVehicleTrip(value: unknown): MultiVehicleTrip | null {

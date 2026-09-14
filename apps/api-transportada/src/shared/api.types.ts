@@ -7,14 +7,28 @@ import type { CryptographicConfiguration } from '../config/cryptographic-configu
 import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
+export type DatabasePoolConfiguration = {
+  readonly connectTimeoutSeconds: number
+  readonly max: number
+  /**
+   * Prazo da consulta **incluindo a espera por conexão livre**: prazo do lado do cliente, que
+   * cancela a consulta ainda na fila, e `statement_timeout` no servidor para a que já roda.
+   */
+  readonly queryTimeoutMs: number
+}
+
 export type ApiEnvironment = {
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
   readonly bootstrapToken: string | undefined
+  /** Spec 145 D14: orçamento da 1ª tentativa da planta; a API deriva dele o lease do worker. */
+  readonly cargoLayoutTimeBudgetMs: number
   /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
+  /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */
+  readonly databasePool: DatabasePoolConfiguration
   /** Remetente compartilhado com o worker; ausente deixa o canal de e-mail sem driver. */
   readonly emailDelivery:
     | {
@@ -48,6 +62,11 @@ export type ApiEnvironment = {
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
   /** Endereço público desta instalação. Ausente, a foto de perfil não vira atributo no realm. */
   readonly apiPublicUrl: string | undefined
+  /**
+   * O Photon, para a coordenada da casa do motorista (spec 097 D6). Ausente é "esta instalação não
+   * preenche coordenada": o cadastro segue igual, e o retorno da viagem cai no endereço da empresa.
+   */
+  readonly driverAddressLookupUrl: string | undefined
   readonly nfseCallbackBaseUrl: string | undefined
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined

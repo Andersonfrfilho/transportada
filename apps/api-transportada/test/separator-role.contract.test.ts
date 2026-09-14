@@ -10,6 +10,7 @@ import { AuthorizationService } from '../src/identity/application/authorization.
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
+import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -60,6 +61,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createBillingRoutes(dependencies),
     ...createCteIssuanceRoutes(dependencies),
     ...createNfeDocumentRoutes(dependencies),
+    ...createTripDocumentReviewRoutes(dependencies),
   ]
 
   return routes
@@ -97,6 +99,13 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/eligibility',
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
+      /**
+       * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
+       * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
+       * mostra número da nota, motivo e o Δ% de peso e espaço — nada de dinheiro nem ficha de pessoa.
+       */
+      'GET /trip-document-reviews',
+      'GET /trip-document-reviews/:id/swap-suggestions',
       'GET /trip-documents/returned-with-active-cte',
       /**
        * O feed de ocorrências da empresa, e o separador **lê** — decisão registrada aqui em
@@ -169,6 +178,13 @@ describe('separator role contract', () => {
        */
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
+      /**
+       * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
+       * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
+       * prévia (spec 085, abaixo): sem ela, a planta que ele pediu nunca chegaria à tela dele. Ela
+       * devolve só a planta e o estado do cálculo — nada de receita, custo ou ficha de pessoa.
+       */
+      'GET /trips/cargo-layouts/:layoutId',
       'PATCH /trips/:id/stops/order',
       /**
        * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
@@ -178,8 +194,16 @@ describe('separator role contract', () => {
        * na tela; nada de ficha de pessoa entra aqui.
        */
       'POST /route-geometry',
+      /**
+       * Spec 148 T7 (D7): tirar, mover e trocar nota que não coube é `trip.manage` — "quem monta a
+       * viagem (o que inclui o separador) decide". A trava é a mesma do vínculo: o despacho.
+       */
+      'POST /trip-document-reviews/:id/move',
+      'POST /trip-document-reviews/:id/move-preview',
+      'POST /trip-document-reviews/:id/swap',
       'POST /trips',
       'POST /trips/:id/cancel',
+      'POST /trips/:id/cargo-layouts/:layoutId/release-unplaced',
       'POST /trips/:id/close',
       /**
        * Spec 061: pedágio e avulso são lançamento de **operação**, não de dinheiro sensível — quem

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { formatPostalCode } from '@/modules/shared/postalCode.service'
 import { DEFAULT_FUEL_PRODUCT } from '@/modules/shared/fuel.constant'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
@@ -62,6 +63,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   color: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: '0',
   monthlyInstallmentAmount: '',
@@ -88,9 +90,14 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   addressDistrict: '',
   addressNumber: '',
   addressPostalCode: '',
+  homeLatitude: null,
+  homeLongitude: null,
+  homeMoved: false,
   addressState: '',
   addressStreet: '',
   anttCategory: '',
+  /** Spec 100: ninguém amarra por padrão — a planta limita a pilha por esbeltez. */
+  securesCargo: false,
   birthCity: '',
   birthDate: '',
   birthState: '',
@@ -173,6 +180,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
+    hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
     ownerName: vehicle.owner?.name ?? '',
@@ -199,10 +207,20 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     addressComplement: driver.address.complement,
     addressDistrict: driver.address.district,
     addressNumber: driver.address.number,
-    addressPostalCode: driver.address.postalCode,
+    /**
+     * ⚠️ A máscara existia só para quem **digita**: `changePostalCode` formata a cada tecla, e o
+     * valor vindo da API entrava cru. A ficha abria com `14020210` onde o mesmo campo, digitado,
+     * mostra `14020-210` — duas grafias do mesmo dado na mesma tela.
+     */
+    addressPostalCode: formatPostalCode(driver.address.postalCode),
+    homeLatitude: driver.homeLatitude,
+    homeLongitude: driver.homeLongitude,
+    /** Só o que o operador mover nesta sessão vai no corpo — o resto já está gravado. */
+    homeMoved: false,
     addressState: driver.address.state,
     addressStreet: driver.address.street,
     anttCategory: driver.anttCategory,
+    securesCargo: driver.securesCargo,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
     birthState: driver.birthState,
@@ -221,7 +239,8 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     linkedAddressComplement: driver.linkedAddress.complement,
     linkedAddressDistrict: driver.linkedAddress.district,
     linkedAddressNumber: driver.linkedAddress.number,
-    linkedAddressPostalCode: driver.linkedAddress.postalCode,
+    /** O CEP da empresa do agregado tinha o mesmo defeito, e o mesmo remédio. */
+    linkedAddressPostalCode: formatPostalCode(driver.linkedAddress.postalCode),
     linkedAddressState: driver.linkedAddress.state,
     linkedAddressStreet: driver.linkedAddress.street,
     linkedLegalName: driver.linkedLegalName,
@@ -311,6 +330,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     color: state.color,
     fleetNumber: state.fleetNumber,
     fuelType: state.fuelType,
+    hasAutomaticTollPayment: state.hasAutomaticTollPayment,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
     owner: isOwn
@@ -366,6 +386,14 @@ function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
   return {
+    /**
+     * ⚠️ **Só vai no corpo o que o operador moveu nesta sessão.** Reenviar a coordenada gravada a
+     * cada salvamento faria toda edição de telefone carimbar a ficha como correção manual — e a
+     * marca de "corrigido à mão" é o que impede a busca automática de rodar de novo.
+     */
+    ...(state.homeMoved && state.homeLatitude !== null && state.homeLongitude !== null
+      ? { homeCoordinate: { latitude: state.homeLatitude, longitude: state.homeLongitude } }
+      : {}),
     address: {
       city: state.addressCity,
       complement: state.addressComplement,
@@ -376,6 +404,7 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
       street: state.addressStreet,
     },
     anttCategory: toAnttCategory(state.anttCategory),
+    securesCargo: state.securesCargo,
     birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,
     birthState: state.birthState.toUpperCase(),

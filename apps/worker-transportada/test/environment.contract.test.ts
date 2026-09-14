@@ -38,6 +38,7 @@ describe('worker environment contract', () => {
       apiBaseUrl: undefined,
       appBaseUrl: undefined,
       appEnv: 'local',
+      cargoLayoutTimeBudgetMs: 120_000,
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
@@ -136,6 +137,23 @@ describe('worker environment contract', () => {
       }),
     ).toThrow(WorkerConfigurationError)
   })
+
+  /** Spec 145 D9/D13: o primeiro degrau da escada de orçamento da planta; os outros dobram. */
+  test('lê o orçamento da planta de carga, com padrão de 120 s', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, CARGO_LAYOUT_TIME_BUDGET_MS: '90000' })
+        .cargoLayoutTimeBudgetMs,
+    ).toBe(90_000)
+  })
+
+  test.each(['abc', '0', '999', '600001', '1.5'])(
+    'recusa orçamento da planta inválido: %p',
+    (value) => {
+      expect(() =>
+        parseWorkerEnvironment({ ...validEnvironment, CARGO_LAYOUT_TIME_BUDGET_MS: value }),
+      ).toThrow(WorkerConfigurationError)
+    },
+  )
 
   // A Nota RP publica um servidor só, e é o de produção (ADR-0035). O endereço é da instalação, mas
   // não é por ambiente fiscal: quem separa staging de produção é a credencial selada por empresa.

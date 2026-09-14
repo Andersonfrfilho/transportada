@@ -20,6 +20,10 @@ export class AuthorizationService {
     if (policy === undefined || context.scope.kind !== policy.scope) {
       throw forbidden()
     }
+    if ('membership' in policy) {
+      if (isNotAPerson(context.identity)) throw forbidden()
+      return
+    }
 
     if (
       policy.scope === 'company' &&
@@ -28,6 +32,15 @@ export class AuthorizationService {
       throw forbidden()
     }
   }
+}
+
+/**
+ * Spec 144 T005b A1: a política de membership não pede permissão, então quem passa por ela precisa
+ * ser gente com token de gente. Service account, plataforma e contexto que já veio de um canal não
+ * vinculam número — senão um token de serviço vazado vira credencial de 90 dias que rotação não revoga.
+ */
+function isNotAPerson(identity: AnyAuthenticatedContext['identity']): boolean {
+  return identity.serviceAccount || identity.platformAdmin || identity.channel !== undefined
 }
 
 function forbidden(): ApiError {

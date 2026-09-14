@@ -96,6 +96,8 @@ const workerEnvironmentSchema = z
     // Um endereço só: a Nota RP publica um servidor, e é o de produção (ADR-0035).
     NFSE_PROVIDER_BASE_URL: optionalUrl(),
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
+    // Spec 145 D9/D13: o primeiro degrau do orçamento da planta de carga; cada nova tentativa dobra.
+    CARGO_LAYOUT_TIME_BUDGET_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
     // Spec 062 T005 — o convite e a recuperação de senha por WhatsApp. Sem segredo aqui: o token é
     // por empresa e vive selado no banco, gravado pela API. A versão da Graph API tem padrão porque
     // a Meta a exige no caminho e ela envelhece; a base existe para apontar para um mock local.
@@ -207,6 +209,7 @@ export function parseWorkerEnvironment(
       ? {}
       : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
+    cargoLayoutTimeBudgetMs: result.data.CARGO_LAYOUT_TIME_BUDGET_MS,
     ...(result.data.GOOGLE_MAPS_API_KEY === undefined
       ? {}
       : { googleMapsApiKey: result.data.GOOGLE_MAPS_API_KEY }),

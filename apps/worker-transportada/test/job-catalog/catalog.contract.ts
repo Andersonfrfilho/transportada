@@ -83,6 +83,18 @@ const CATALOG = [
     job: 'geocoding.refine',
     minimumIntervalSeconds: 3600,
   },
+  {
+    /** Spec 144 T014: a rotina só pergunta à API; a única falha própria é não conseguir perguntar. */
+    failureOutcomes: ['settlement_request_failed'],
+    job: 'whatsapp.command.settle',
+    minimumIntervalSeconds: 300,
+  },
+  {
+    /** Spec 145 D19: a prévia só toca o próprio banco — o imprevisto já tem nome no invólucro. */
+    failureOutcomes: [],
+    job: 'trip.cargo-layout.purge',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('worker job catalog', () => {

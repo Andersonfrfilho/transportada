@@ -70,6 +70,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'mdfe.auto-issue',
   /**
+   * Spec 144 T014: a liquidação do pedido de WhatsApp, pela mesma régua da ADR-0047 §4 — uma rota
+   * só, do serviço. Quem fatura é a API em nome de quem confirmou, depois de revalidá-lo; o serviço
+   * não recebe `billing.create`, senão faturaria qualquer CT-e de qualquer empresa.
+   */
+  'whatsapp.settle',
+  /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
    * da prefeitura — quem confere caixa não administra nada disso.
@@ -221,7 +227,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
    * a viagem já está pronta para ter.
    */
-  automation: Object.freeze(['mdfe.auto-issue']),
+  automation: Object.freeze(['mdfe.auto-issue', 'whatsapp.settle']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {
@@ -234,7 +240,22 @@ export type PlatformAuthorizationPolicy = {
   readonly scope: 'platform'
 }
 
-export type RouteAuthorizationPolicy = CompanyAuthorizationPolicy | PlatformAuthorizationPolicy
+/**
+ * Rota da própria pessoa que serve a qualquer papel (spec 144: o número de WhatsApp). A membership
+ * ativa já foi exigida pelo tenant-context antes de a política ser lida; aqui só se recusa o escopo
+ * de plataforma. Não é carona: a rota só alcança dado do próprio usuário.
+ */
+export type MembershipAuthorizationPolicy = {
+  readonly membership: 'active'
+  /** Nenhuma permissão: quem lê `policy.permission` numa lista de rotas recebe `undefined`. */
+  readonly permission?: never
+  readonly scope: 'company'
+}
+
+export type RouteAuthorizationPolicy =
+  | CompanyAuthorizationPolicy
+  | MembershipAuthorizationPolicy
+  | PlatformAuthorizationPolicy
 
 export type CompanyPermissionSources = {
   /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */
@@ -252,7 +273,8 @@ export type CompanyPermissionSources = {
  * pessoa entrando com o que ainda existe.
  *
  * `companies.manage` nunca entra, venha de onde vier: ela é de plataforma, e conceder por grupo
- * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem.
+ * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem. Pela
+ * mesma razão a permissão de serviço só chega pelo papel, nunca por `granted`.
  */
 export function resolveCompanyPermissions(
   input: CompanyPermissionSources | readonly CompanyRole[],
@@ -267,7 +289,7 @@ export function resolveCompanyPermissions(
     }
   }
   for (const permission of sources.granted ?? []) {
-    if (isCompanyPermission(permission)) granted.add(permission)
+    if (isGrantablePermission(permission)) granted.add(permission)
   }
 
   const ordered = TRANSPORTADA_PERMISSIONS.filter(
@@ -279,6 +301,18 @@ export function resolveCompanyPermissions(
 
 export function isCompanyPermission(value: string): value is CompanyPermission {
   return value !== 'companies.manage' && TRANSPORTADA_PERMISSIONS.some((entry) => entry === value)
+}
+
+/**
+ * Spec 144 T014b: permissão de **máquina** — só o papel de serviço (`automation`) a recebe. Grupo e
+ * concessão avulsa a recusam na escrita, e a linha já gravada é ignorada na resolução: quem tem
+ * `groups.manage` não concede a si mesmo a liquidação de pedido alheio nem a emissão de MDF-e.
+ */
+export const SERVICE_ONLY_PERMISSIONS = ['mdfe.auto-issue', 'whatsapp.settle'] as const
+
+/** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */
+export function isGrantablePermission(value: string): value is CompanyPermission {
+  return isCompanyPermission(value) && !SERVICE_ONLY_PERMISSIONS.some((entry) => entry === value)
 }
 
 function createReadonlySet<TValue>(values: readonly TValue[]): ReadonlySet<TValue> {

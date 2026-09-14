@@ -74,8 +74,19 @@ const DOCUMENT_PAGE = {
   page: { nextCursor: null },
 } as const
 
+/**
+ * ⚠️ `freeDocuments` existe porque a montagem de roteiro **só oferece nota livre**
+ * (`loadAvailableTripDocuments` filtra `tripId === null`). O molde daqui sai com `tripId`
+ * preenchido de propósito — é a afirmação da spec 065 D4b, de que nota que saiu numa viagem
+ * continua entrando no lote —, e reusá-lo cru no diálogo de montar roteiro dava tabela vazia com
+ * 200 na rede: a caixa "selecionar todas" existia e não marcava nada.
+ */
 function buildDocumentPage(
-  input: Readonly<{ blockedDocumentCount: number; documentCount: number }>,
+  input: Readonly<{
+    blockedDocumentCount: number
+    documentCount: number
+    freeDocuments: boolean
+  }>,
 ): unknown {
   const template = DOCUMENT_PAGE.data[0]
   return {
@@ -86,6 +97,7 @@ function buildDocumentPage(
       nfseBlockReason: index < input.blockedDocumentCount ? MISSING_WEIGHT_REASON : null,
       id: `${template.id.slice(0, -3)}${String(index).padStart(3, '0')}`,
       number: String(index + 1),
+      ...(input.freeDocuments ? { tripId: null, tripStatus: null } : {}),
     })),
     page: { nextCursor: null },
   }
@@ -107,6 +119,13 @@ const DISTRIBUTION_STATUS = {
 } as const
 
 const EMISSION_PROFILE_ID = '00000000-0000-4000-8000-000000000905'
+
+/**
+ * A tela de perfis de CT-e lista os perfis NFS-e para o select do documento de saída (spec 144
+ * T009). Nenhum smoke daqui escolhe NFS-e, então a página vazia basta — sem ela a busca escapa para
+ * a API real e vira `requestfailed` em `failures()`.
+ */
+const NFSE_EMISSION_PROFILE_PAGE = { data: [], page: { nextCursor: null } } as const
 
 const EMISSION_PROFILE_PAGE = {
   data: [
@@ -208,6 +227,8 @@ type MockPermissions = readonly (
   | 'invoices.read'
   /** Spec 058 P2: a distribuição multi-veículo lê a frota e escreve viagem. */
   | 'fleet.read'
+  /** Spec 110: a conta da proposta tem permissão própria — sem ela some só o dinheiro. */
+  | 'trip.financials'
   | 'settings.manage'
   | 'trip.manage'
 )[]
@@ -296,6 +317,7 @@ async function registerNfeMocks(
   input: Readonly<{
     blockedDocumentCount: number
     documentCount: number
+    freeDocuments: boolean
     page: Page
     state: MockState
   }>,
@@ -338,6 +360,7 @@ async function registerNfeMocks(
   const documentPage = buildDocumentPage({
     blockedDocumentCount: input.blockedDocumentCount,
     documentCount: input.documentCount,
+    freeDocuments: input.freeDocuments,
   })
   await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, documentPage)
@@ -352,6 +375,9 @@ async function registerNfeMocks(
   })
   await input.page.route(/\/cte-emission-profiles(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, EMISSION_PROFILE_PAGE)
+  })
+  await input.page.route(/\/nfse-emission-profiles(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, NFSE_EMISSION_PROFILE_PAGE)
   })
   await input.page.route(/\/cte-batches\/preview$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -382,6 +408,8 @@ export async function mockNfeWorkspaceApi(
   input: Readonly<{
     blockedDocumentCount?: number
     documentCount?: number
+    /** As notas saem livres de viagem — é o que a montagem de roteiro consegue oferecer. */
+    freeDocuments?: boolean
     page: Page
     permissions: MockPermissions
   }>,
@@ -416,6 +444,7 @@ export async function mockNfeWorkspaceApi(
     registerNfeMocks({
       blockedDocumentCount: input.blockedDocumentCount ?? 0,
       documentCount: input.documentCount ?? 1,
+      freeDocuments: input.freeDocuments ?? false,
       page: input.page,
       state,
     }),

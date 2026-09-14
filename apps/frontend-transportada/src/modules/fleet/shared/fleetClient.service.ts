@@ -356,6 +356,14 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
       const response = await authorizedRequest({
         body: JSON.stringify({
           ...pickKeys(input, DRIVER_BODY_KEYS),
+          /**
+           * ⚠️ **Fora da lista branca de propósito, e por isso explícito aqui.** `homeCoordinate` só
+           * existe na atualização — a criação não tem mapa para mover —, então ela não pertence a
+           * `DRIVER_BODY_KEYS`, que as duas rotas compartilham. Sem esta linha o `pickKeys` a
+           * descarta em silêncio: o corpo sai sem ela, a API responde 200 e a correção do operador
+           * some sem nada falhar.
+           */
+          ...(input.homeCoordinate === undefined ? {} : { homeCoordinate: input.homeCoordinate }),
           expectedVersion: input.expectedVersion,
           status: input.status,
         }),

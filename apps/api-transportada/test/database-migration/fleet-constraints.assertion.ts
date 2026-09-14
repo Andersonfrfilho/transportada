@@ -87,6 +87,45 @@ export async function assertFleetConstraints(
     'fleet_vehicles_owner_rntrc_check',
   )
 
+  /**
+   * Spec 088: a planta do baú é desenhada em metros e conferida com fita. Zero segue passando —
+   * é ausência, e a frota inteira está assim —, mas 40 m de comprimento e 4 cm de largura são erro
+   * de ordem de grandeza, e cada um é recusado pelo CHECK da SUA dimensão, nunca por um comum.
+   */
+  await database`
+    insert into fleet_vehicles (
+      company_id, plate, role, vehicle_type, state, cargo_length_m, cargo_width_m, cargo_height_m
+    ) values (${companyId}, 'BAU1A11', 'traction', 'truck', 'SP', 8.900, 2.500, 2.400)
+  `
+  await database`
+    insert into fleet_vehicles (company_id, plate, role, vehicle_type, state)
+    values (${companyId}, 'BAU2A22', 'traction', 'truck', 'SP')
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state, cargo_length_m)
+      values (${companyId}, 'BAU3A33', 'traction', 'truck', 'SP', 40.000)
+    `,
+    '23514',
+    'fleet_vehicles_cargo_length_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state, cargo_width_m)
+      values (${companyId}, 'BAU4A44', 'traction', 'truck', 'SP', 0.040)
+    `,
+    '23514',
+    'fleet_vehicles_cargo_width_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into fleet_vehicles (company_id, plate, role, vehicle_type, state, cargo_height_m)
+      values (${companyId}, 'BAU5A55', 'traction', 'truck', 'SP', 9.000)
+    `,
+    '23514',
+    'fleet_vehicles_cargo_height_check',
+  )
+
   // O flex tem dois tanques, e o segundo tem consumo próprio — o carro não faz km/l de gasolina no etanol
   await database`
     insert into fleet_vehicles (

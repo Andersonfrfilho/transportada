@@ -178,6 +178,26 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * Spec 144 T014: a liquidação dos pedidos de WhatsApp. A rotina só pergunta à API — quem decide
+     * e fatura é ela —, então a única falha própria é não conseguir perguntar.
+     */
+    failureOutcomes: ['settlement_request_failed'],
+    job: 'whatsapp.command.settle',
+    /** A batida: a NFS-e só muda de estado pelo `nfse.status.pull`, e a liquidação só varre. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
+  {
+    /**
+     * Spec 145 D19: a prévia da planta que não virou viagem guarda nome de cliente e endereço no
+     * `input`, e some em 24 h. A rotina só toca o próprio banco — vocabulário de falha vazio.
+     */
+    failureOutcomes: [],
+    job: 'trip.cargo-layout.purge',
+    /** Um dia: o corte é de 24 h, e correr mais fino só encurtaria a retenção em minutos. */
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

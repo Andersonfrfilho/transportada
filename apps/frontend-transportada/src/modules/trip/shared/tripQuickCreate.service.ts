@@ -118,6 +118,27 @@ export function stagedDocumentIds(queue: TripQuickCreateQueue): readonly string[
   )
 }
 
+/**
+ * O que a busca ainda pode oferecer: tudo menos o que já está na fila da viagem.
+ *
+ * ⚠️ A nota escolhida **sai da lista**, e volta assim que for retirada da fila. Mantê-la ali é
+ * oferecer de novo o que já foi levado: quem monta um lote de trinta notas perde a conta de quais
+ * faltam, e a linha marcada não ajuda — ela some no meio das outras a cada rolagem.
+ *
+ * ⚠️ O corte é por **id da nota**, não pela chave de acesso: a fila mistura o que veio do bipe (que
+ * nasce só com a chave) com o que veio da busca, e uma entrada ainda resolvendo não tem documento
+ * para casar. Nota bipada que ainda não resolveu continua aparecendo na busca — e escolhê-la ali é
+ * ignorado pela deduplicação por chave, que já existe.
+ */
+export function listSelectableDocuments<TDocument extends { readonly id: string }>(
+  input: Readonly<{ documents: readonly TDocument[]; queue: TripQuickCreateQueue }>,
+): readonly TDocument[] {
+  const staged = new Set(stagedDocumentIds(input.queue))
+  if (staged.size === 0) return input.documents
+
+  return input.documents.filter((document) => !staged.has(document.id))
+}
+
 /** As notas em fila, como o mapa da montagem as lê: cidade, UF e o código que casa com a malha. */
 export function stagedDocuments(queue: TripQuickCreateQueue): readonly ScannedNfeDocument[] {
   return queue.flatMap((entry) =>

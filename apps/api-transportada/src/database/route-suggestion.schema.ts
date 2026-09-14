@@ -25,6 +25,18 @@ import { nfeDocuments } from './nfe.schema.js'
 import { trips } from './trip.schema.js'
 
 /**
+ * Por que a parada ficou fora da distribuição. São três causas com **ações diferentes** — cadastrar
+ * o endereço, cadastrar cobertura, ou mandar outro caminhão —, e juntá-las num "não coube" mandaria
+ * o operador procurar no lugar errado.
+ */
+export const SUGGESTION_LEFTOVER_REASONS = [
+  'imprecise_location',
+  'not_covered',
+  'over_capacity',
+] as const
+export type SuggestionLeftoverReason = (typeof SUGGESTION_LEFTOVER_REASONS)[number]
+
+/**
  * ADR-0044 §5 e §7: a sugestão nasce `queued`, o worker a resolve, e o humano decide. `stale` é o
  * que acontece quando uma nota entra depois da sugestão pronta — a proposta descreve uma viagem que
  * não existe mais, e reaproveitá-la seria propor o roteiro errado com cara de certo.
@@ -78,6 +90,11 @@ export const routeSuggestions = pgTable(
      */
     assumptions: jsonb().notNull(),
     estimatedCostAmount: numeric('estimated_cost_amount', { precision: 19, scale: 4 }),
+    /**
+     * Spec 109 D2: a saída suposta pelo solver — a premissa sob a qual o operador aceitou o roteiro.
+     * Ela **não muda**: quem se move com a saída real é `trips.eta_departure_at`.
+     */
+    plannedDepartureAt: timestamp('planned_departure_at', { withTimezone: true }),
     estimatedDistanceMeters: bigint('estimated_distance_meters', { mode: 'number' }),
     estimatedDurationSeconds: bigint('estimated_duration_seconds', { mode: 'number' }),
     /** Métricas do solver: gerações, melhor fitness, tempo gasto — a conversa sobre qualidade. */
@@ -160,6 +177,12 @@ export const routeSuggestionStops = pgTable(
     /** ADR-0044 §5: `city` fica fora da otimização — vai marcada, no fim, esperando o humano. */
     geocodingPrecision: text('geocoding_precision').$type<GeocodingPrecision>(),
     excludedFromOptimization: boolean('excluded_from_optimization').notNull().default(false),
+    /**
+     * Por que a parada ficou **sem veículo**. Nulo é parada distribuída — e também é o passado:
+     * sugestão anterior a esta coluna não registrou razão, e a tela continua derivando as duas
+     * causas antigas como sempre derivou.
+     */
+    leftoverReason: text('leftover_reason').$type<SuggestionLeftoverReason>(),
     estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
     distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
     durationFromPreviousSeconds: bigint('duration_from_previous_seconds', { mode: 'number' }),
@@ -199,6 +222,10 @@ export const routeSuggestionStops = pgTable(
     check('route_suggestion_stops_sequence_check', sql`${table.sequence} >= 1`),
     check('route_suggestion_stops_address_key_check', sql`length(${table.addressKey}) > 0`),
     check(
+      'route_suggestion_stops_leftover_reason_check',
+      sql`${table.leftoverReason} is null or ${table.leftoverReason} in (${sql.raw(inList(SUGGESTION_LEFTOVER_REASONS))})`,
+    ),
+    check(
       'route_suggestion_stops_precision_check',
       sql`${table.geocodingPrecision} is null or ${table.geocodingPrecision} in (${sql.raw(inList(GEOCODING_PRECISIONS))})`,
     ),
@@ -237,6 +264,14 @@ export const companyRouteOptimizationSettings = pgTable(
      * dele. Quem converte é `Intl`, com a data da sugestão.
      */
     timezone: text().notNull().default('America/Sao_Paulo'),
+    /**
+     * Spec 109: **a hora em que a frota sai**, em segundos desde a meia-noite local. O relógio do
+     * solver conta a partir da meia-noite UTC, e sem ela toda rota partia às 21h de Brasília — as
+     * chegadas caíam de madrugada (medido: cinco viagens terminando entre 03:04 e 07:03).
+     */
+    departureTimeSeconds: bigint('departure_time_seconds', { mode: 'number' })
+      .notNull()
+      .default(28_800),
     originAddressKey: text('origin_address_key').notNull().default(''),
     endPolicy: text('end_policy').$type<RouteEndPolicy>().notNull().default('depot'),
     endAddressKey: text('end_address_key').notNull().default(''),
@@ -280,6 +315,10 @@ export const companyRouteOptimizationSettings = pgTable(
     check(
       'company_route_optimization_settings_end_address_check',
       sql`(${table.endPolicy} = 'address') = (length(${table.endAddressKey}) > 0)`,
+    ),
+    check(
+      'company_route_optimization_settings_departure_check',
+      sql`${table.departureTimeSeconds} between 0 and 86399`,
     ),
     check(
       'company_route_optimization_settings_budget_check',
@@ -331,6 +370,13 @@ export const routeSuggestionVehicles = pgTable(
      */
     driverId: uuid('driver_id'),
     position: bigint({ mode: 'bigint' }).notNull(),
+    /**
+     * A volta da última entrega ao fim da rota, da mesma matriz do solver (decisão 2026-09-13).
+     * **Nula é legítima**: sugestão anterior à coluna (a API a declara desconhecida), política
+     * `last_stop` (não há volta) ou par inalcançável.
+     */
+    returnDistanceMeters: bigint('return_distance_meters', { mode: 'number' }),
+    returnDurationSeconds: bigint('return_duration_seconds', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -370,6 +416,10 @@ export const routeSuggestionVehicles = pgTable(
       table.position,
     ),
     check('route_suggestion_vehicles_position_check', sql`${table.position} >= 0`),
+    check(
+      'route_suggestion_vehicles_return_leg_check',
+      sql`(${table.returnDistanceMeters} is null or ${table.returnDistanceMeters} >= 0) and (${table.returnDurationSeconds} is null or ${table.returnDurationSeconds} >= 0)`,
+    ),
   ],
 )
 

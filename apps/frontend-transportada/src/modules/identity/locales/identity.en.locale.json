@@ -394,6 +394,10 @@
         "label": "Emissão automática de MDF-e",
         "where": "Só do serviço: o gatilho automático, sem tela. Nenhuma pessoa recebe."
       },
+      "whatsapp.settle": {
+        "label": "WhatsApp request settlement",
+        "where": "Service only: bills on behalf of whoever confirmed, no screen. No person receives it."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."
@@ -565,6 +569,33 @@
       "noUsers": "No people registered",
       "submit": "Assign",
       "truncated": "The list shows the first 100 people. For the rest, use the selection on the access screen."
+    }
+  },
+  "whatsappPhone": {
+    "dialogTitle": "Link WhatsApp",
+    "close": "Close",
+    "loading": "Loading the WhatsApp link",
+    "phoneLabel": "WhatsApp number",
+    "phonePlaceholder": "(11) 98765-4321",
+    "generate": "Generate code",
+    "generating": "Generating",
+    "pendingWaiting": "Code generated, waiting for your WhatsApp message. If you lost the code, generate a new one.",
+    "codeTitle": "Your code",
+    "codeInstruction": "Send this code from your own WhatsApp to the number above",
+    "copyCompanyNumber": "Copy number",
+    "copyCompanyNumberDone": "Number copied",
+    "expiresIn": "Expires in {{seconds}}s",
+    "linkedUntil": "Valid until {{date}}",
+    "linkExpired": "The link expired. Generate a new code to verify again.",
+    "unlink": "Unlink",
+    "unlinkConfirmBody": "The number stops receiving WhatsApp commands until it is verified again.",
+    "unlinkConfirm": "Unlink",
+    "unlinkCancel": "Cancel",
+    "channelMissing": "The company has not configured WhatsApp yet. Talk to the administrator.",
+    "requestFailed": "Could not complete. Try again.",
+    "errors": {
+      "WHATSAPP_PHONE_INVALID": "Check the number you typed.",
+      "WHATSAPP_CHANNEL_NUMBER_MISSING": "The company has not configured WhatsApp yet. Talk to the administrator."
     }
   }
 }

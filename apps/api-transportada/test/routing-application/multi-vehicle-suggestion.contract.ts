@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type {
   MultiVehicleSuggestionGroup,
+  MultiVehicleSuggestionRoad,
   MultiVehicleSuggestionRepository,
 } from '../../src/routing/application/multi-vehicle-suggestion.repository.js'
 import {
@@ -21,13 +22,17 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionStopClaimedTwiceError,
+  MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
 } from '../../src/routing/domain/routing.error.js'
+import { TripCargoLayoutOutdatedError } from '../../src/trips/domain/trip-document-review.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-000000000002'
+const PLANNED_DEPARTURE = '2026-09-10T11:00:00.000Z'
 const SUGGESTION_ID = '00000000-0000-4000-8000-000000000003'
 const FIRST_VEHICLE = '00000000-0000-4000-8000-000000000010'
 const SECOND_VEHICLE = '00000000-0000-4000-8000-000000000011'
@@ -72,6 +77,7 @@ function suggestion(overrides: Partial<RouteSuggestionRecord> = {}): RouteSugges
     estimatedDistanceMeters: null,
     estimatedDurationSeconds: null,
     id: SUGGESTION_ID,
+    plannedDepartureAt: null,
     seed: 7,
     status: 'ready',
     stops: [],
@@ -85,7 +91,20 @@ function suggestion(overrides: Partial<RouteSuggestionRecord> = {}): RouteSugges
 
 function buildFixture(
   input: {
+    /** Spec 107 D1: as notas que o vínculo recusa por já estarem vivas em outra viagem. */
+    readonly alreadyLinkedDocumentIds?: readonly string[]
+    /** Spec 107 D2: simula a reivindicação perdida para outro pedido concorrente. */
+    readonly claimFails?: boolean
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
+    /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
+    readonly releasePlans?: ReadonlyMap<
+      string,
+      {
+        readonly documentIds: readonly string[]
+        readonly released: readonly { readonly documentId: string; readonly reason: 'bedFull' }[]
+      }
+    >
+    readonly vehicleRoads?: readonly MultiVehicleSuggestionRoad[]
     readonly stored?: RouteSuggestionRecord | null
     readonly unavailableDocuments?: readonly string[]
     readonly unavailableDrivers?: readonly string[]
@@ -94,10 +113,12 @@ function buildFixture(
 ) {
   const calls: Record<string, unknown[]> = {
     create: [],
+    arrivals: [],
     decide: [],
     link: [],
     plan: [],
     publish: [],
+    release: [],
     reorder: [],
     trip: [],
   }
@@ -111,12 +132,19 @@ function buildFixture(
     findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
     findUnavailableVehicleIds: async () => input.unavailableVehicles ?? [],
     readGroups: async () => input.groups ?? [],
+    readSuggestionStatus: async () => 'ready',
+    readVehicleRoads: async () => input.vehicleRoads ?? [],
   }
 
   const suggestions: RouteSuggestionRepository = {
     create: async () => suggestion(),
+    /** Spec 107 D2: a compensação do aceite — devolve a sugestão reivindicada para `ready`. */
+    release: async () => undefined,
     async decide(record) {
       calls.decide?.push(record)
+      /** Spec 107 D2: `null` é "outro pedido chegou antes" — o `where status = 'ready'` não casou. */
+      if (input.claimFails === true) return null
+
       return suggestion({ decidedAt: '2026-08-27T11:00:00.000Z', status: record.status })
     },
     find: async () => (input.stored === undefined ? suggestion() : input.stored),
@@ -132,12 +160,28 @@ function buildFixture(
     },
     async linkDocument(record) {
       calls.link?.push(record)
+
+      /** Spec 107 D1: `false` é "já vinculada" — o aceite pula e nomeia, em vez de derrubar tudo. */
+      return input.alreadyLinkedDocumentIds?.includes(record.nfeDocumentId) !== true
+    },
+    /** Spec 107 D3: o duplo registra a chamada — o contrato afirma que ela acontece. */
+    async applyEstimatedArrivals(record) {
+      calls.arrivals?.push(record)
     },
     async planRoute(record) {
       calls.plan?.push(record)
     },
     async reorderStops(record) {
       calls.reorder?.push(record)
+    },
+    async readReleasePlan(record) {
+      const plan = input.releasePlans?.get(record.layoutId)
+      if (plan === undefined) throw new Error('unknown layout')
+      return plan
+    },
+    async linkAndRelease(record) {
+      calls.release?.push(record)
+      return true
     },
   }
 
@@ -285,13 +329,17 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: FIRST_DRIVER,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: FIRST_VEHICLE,
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: SECOND_VEHICLE,
         },
@@ -347,13 +395,17 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
         },
@@ -366,6 +418,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       {
         documentCount: 1,
         driverId: null,
+        estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-1',
         vehicleId: FIRST_VEHICLE,
@@ -373,6 +426,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       {
         documentCount: 1,
         driverId: null,
+        estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-2',
         vehicleId: SECOND_VEHICLE,
@@ -381,7 +435,11 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(fixture.calls.link).toHaveLength(2)
     expect(fixture.calls.reorder).toHaveLength(2)
     expect(fixture.calls.plan).toHaveLength(2)
-    /** A sugestão vira `accepted` **depois** das viagens: falha no meio deixa `ready` para repetir. */
+    /**
+     * ⚠️ Spec 107 D2: a sugestão é reivindicada **antes** das viagens — a ordem inversa deixava dois
+     * aceites concorrentes passarem os dois pela janela de onze segundos. A retomada que a ordem
+     * antiga protegia vive agora na escrita compensatória (`release`).
+     */
     expect(fixture.calls.decide).toEqual([
       {
         companyId: COMPANY_ID,
@@ -390,6 +448,227 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         suggestionId: SUGGESTION_ID,
       },
     ])
+  })
+
+  describe('spec 148 T7: o aceite que vincula e solta', () => {
+    const LAYOUT_ID = '00000000-0000-4000-8000-000000000040'
+    const GROUP = {
+      documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+      documentIdsByAddressKey: new Map(),
+      driverId: null,
+      estimatedArrivalByAddressKey: new Map(),
+      orderedAddressKeys: ['chave-1'],
+      vehicleId: FIRST_VEHICLE,
+    }
+
+    test('a nota que não coube na planta da prévia nasce na viagem já solta, na fila', async () => {
+      const fixture = buildFixture({
+        groups: [GROUP],
+        releasePlans: new Map([
+          [
+            LAYOUT_ID,
+            {
+              documentIds: [SECOND_DOCUMENT, FIRST_DOCUMENT],
+              released: [{ documentId: SECOND_DOCUMENT, reason: 'bedFull' }],
+            },
+          ],
+        ]),
+      })
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        correlationId: 'correlation-accept',
+        releaseUnplacedFromLayoutIds: [LAYOUT_ID],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(fixture.calls.link).toEqual([
+        { context: CONTEXT, nfeDocumentId: FIRST_DOCUMENT, tripId: 'trip-1' },
+      ])
+      expect(fixture.calls.release).toEqual([
+        {
+          context: CONTEXT,
+          correlationId: 'correlation-accept',
+          layoutId: LAYOUT_ID,
+          nfeDocumentId: SECOND_DOCUMENT,
+          reason: 'bedFull',
+          tripId: 'trip-1',
+        },
+      ])
+      expect(accepted.trips[0]?.documentCount).toBe(1)
+    })
+
+    /** A planta de outra carga decidiria sobre notas que não são deste caminhão: recusa antes de consumir. */
+    test('planta que não é de nenhum caminhão da proposta é 409, sem consumir a sugestão', async () => {
+      const fixture = buildFixture({
+        groups: [GROUP],
+        releasePlans: new Map([[LAYOUT_ID, { documentIds: [FIRST_DOCUMENT], released: [] }]]),
+      })
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          releaseUnplacedFromLayoutIds: [LAYOUT_ID],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(TripCargoLayoutOutdatedError)
+      expect(fixture.calls.decide).toEqual([])
+    })
+  })
+
+  /**
+   * ⚠️ Spec 107 D1: o aceite de 345 notas terminou em `TRIP_DOCUMENT_ALREADY_LINKED` com **cinco
+   * viagens já criadas e corretas**, e o operador leu um código de suporte no lugar do roteiro
+   * pronto. Nota já viva em outra viagem é **pulada e nomeada** — a diferença entre "o roteiro
+   * falhou" e "o roteiro saiu, e estas ficaram de fora porque já estão em rota".
+   */
+  test('pula a nota já vinculada e a devolve nomeada', async () => {
+    const fixture = buildFixture({
+      alreadyLinkedDocumentIds: [SECOND_DOCUMENT],
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.skippedDocuments).toEqual([
+      { nfeDocumentId: SECOND_DOCUMENT, reason: 'already_linked' },
+    ])
+    /** ⚠️ A contagem é do que **ficou**, não do que foi tentado: senão a tela mentiria o total. */
+    expect(accepted.trips[0]?.documentCount).toBe(1)
+  })
+
+  /**
+   * ⚠️ Spec 107 D2: `decide` é condicional (`where status = 'ready'`) e passou a ser chamado
+   * **primeiro**. Antes ele rodava depois de onze segundos criando viagens, e dois pedidos nessa
+   * janela passavam os dois — medido: o segundo criou uma viagem órfã e morreu ao vincular.
+   */
+  test('o aceite que perde a reivindicação não cria viagem nenhuma', async () => {
+    const fixture = buildFixture({
+      claimFails: true,
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    await expect(
+      fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID }),
+    ).rejects.toBeInstanceOf(RouteSuggestionNotDecidableError)
+
+    /** ⚠️ **Zero viagens.** Era daqui que nascia a órfã com zero notas do aceite duplicado. */
+    expect(fixture.calls.trip).toEqual([])
+  })
+
+  /**
+   * ⚠️ Spec 107 D3: **o ETA morria na sugestão.** Medido em 2026-09-09: `route_suggestion_stops`
+   * tinha 873 de 950 paradas com hora estimada e `trip_stops` tinha **0 de 869** — não existia hora
+   * de término de viagem em lugar nenhum do sistema, e a frase "o RTD5J78 termina por volta das 14h"
+   * não tinha de onde sair.
+   */
+  test('leva para a viagem o ETA que o planejamento calculou', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    /**
+     * ⚠️ Spec 109 D2: **a saída suposta viaja junto.** Sem ela a viagem nasce sem âncora, e o
+     * despacho não tem de que medir o atraso — as horas ficam eternamente ancoradas nas 8h.
+     */
+    expect(fixture.calls.arrivals).toEqual([
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        tripId: 'trip-1',
+      },
+    ])
+  })
+
+  /**
+   * ⚠️ Spec 107 D3: **o término é o ETA da última parada**, e ele sai do mesmo mapa que acabou de
+   * ser gravado — não de uma segunda leitura do banco. É o que a frase da sobra imprime ("o RTD5J78
+   * termina por volta das 14h"), e é a única metade dela que existe sem consultar cobertura.
+   *
+   * O maior, nunca o último da ordem de inserção: `Map` preserva ordem de escrita, e a ordem de
+   * escrita é a das paradas propostas, que a reordenação pode não seguir.
+   */
+  test('o término da viagem é o ETA mais tardio entre as paradas dela', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map([
+            ['chave-2', '2026-09-09T17:00:00.000Z'],
+            ['chave-1', '2026-09-09T19:30:00.000Z'],
+            ['chave-3', '2026-09-09T12:00:00.000Z'],
+          ]),
+          orderedAddressKeys: ['chave-1', 'chave-2', 'chave-3'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips[0]?.estimatedFinishAt).toBe('2026-09-09T19:30:00.000Z')
+  })
+
+  /**
+   * ⚠️ Ausência é `null`, **nunca a hora de agora**: o planejamento sem ETA é o caso em que a tela
+   * tem de calar, e uma hora inventada ali diria ao operador que o caminhão volta às sete quando
+   * ninguém sabe se ele volta.
+   */
+  test('planejamento sem ETA nenhum não inventa término', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips[0]?.estimatedFinishAt).toBe(null)
   })
 
   /**
@@ -442,13 +721,17 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: SECOND_VEHICLE,
         },
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: FIRST_VEHICLE,
         },
@@ -460,5 +743,402 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE, FIRST_VEHICLE])
     /** Sem endereço proposto não há o que reordenar — e chamar a reordenação com lista vazia é recusa. */
     expect(fixture.calls.reorder).toEqual([])
+  })
+
+  /**
+   * Spec 110 D5: **aceitar parte é a decisão que a tela existe para apoiar.** Uma viagem com o
+   * caminhão errado obrigava a descartar as quatro e refazer o pedido inteiro.
+   */
+  test('aceita só os veículos marcados, e não cria nada para os outros', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|200'],
+          vehicleId: SECOND_VEHICLE,
+        },
+      ],
+    })
+
+    const accepted = await fixture.useCase.accept({
+      context: CONTEXT,
+      suggestionId: SUGGESTION_ID,
+      vehicleIds: [SECOND_VEHICLE],
+    })
+
+    expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE])
+    /** ⚠️ A nota do veículo não marcado **não é vinculada**: ela volta ao maço porque nunca saiu. */
+    expect(fixture.calls.link).toHaveLength(1)
+    expect(fixture.calls.plan).toHaveLength(1)
+  })
+
+  /**
+   * ⚠️ A reivindicação atômica da spec 107 D2 **não muda com o aceite parcial**: a sugestão é
+   * consumida de uma vez. Manter `ready` para aceitar o resto depois seria descrever, na segunda
+   * metade, uma distribuição que o maço já não tem — é a mesma razão pela qual `stale` existe.
+   */
+  test('aceite parcial consome a sugestão: repetir é recusado', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({
+      context: CONTEXT,
+      suggestionId: SUGGESTION_ID,
+      vehicleIds: [FIRST_VEHICLE],
+    })
+
+    expect(fixture.calls.decide).toEqual([
+      {
+        companyId: COMPANY_ID,
+        decidedByUserId: USER_ID,
+        status: 'accepted',
+        suggestionId: SUGGESTION_ID,
+      },
+    ])
+  })
+
+  test('veículo fora da proposta é recusado antes de qualquer viagem nascer', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await expect(
+      fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+        vehicleIds: [SECOND_VEHICLE],
+      }),
+    ).rejects.toBeInstanceOf(MultiVehicleSuggestionVehicleNotInProposalError)
+
+    expect(fixture.calls.decide).toEqual([])
+    expect(fixture.calls.link).toEqual([])
+  })
+
+  /** Ausente é "todos": o corpo sem `vehicleIds` é o comportamento de sempre, e não muda. */
+  test('sem vehicleIds, aceita a proposta inteira', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|200'],
+          vehicleId: SECOND_VEHICLE,
+        },
+      ],
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips).toHaveLength(2)
+  })
+
+  /**
+   * A ordem escolhida à mão, nas setas da proposta.
+   *
+   * ⚠️ **Sem isto as setas mentem.** O operador reordena, a carreta e o pedágio recalculam na tela,
+   * e o aceite criava a viagem com a ordem do solver — lida de `route_suggestion_stops.sequence` e
+   * de mais lugar nenhum. A diferença só aparecia no dia seguinte, com o caminhão na estrada.
+   */
+  describe('ordem escolhida à mão', () => {
+    const A = '3543402|14020000|100'
+    const B = '3543402|14020000|200'
+    const C = '3543402|14020000|300'
+    const OTHER_TRUCK = '3543402|14020000|900'
+
+    function fixtureWithThreeStops() {
+      return buildFixture({
+        groups: [
+          {
+            documentIds: [FIRST_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([
+              [A, '2026-09-10T11:00:00.000Z'],
+              [B, '2026-09-10T11:30:00.000Z'],
+              [C, '2026-09-10T12:00:00.000Z'],
+            ]),
+            orderedAddressKeys: [A, B, C],
+            vehicleId: FIRST_VEHICLE,
+          },
+          {
+            documentIds: [SECOND_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [OTHER_TRUCK],
+            vehicleId: SECOND_VEHICLE,
+          },
+        ],
+      })
+    }
+
+    function reorderOf(fixture: ReturnType<typeof fixtureWithThreeStops>, index: number) {
+      return (fixture.calls.reorder?.[index] as { orderedAddressKeys: readonly string[] })
+        .orderedAddressKeys
+    }
+
+    test('leva a ordem escolhida para a viagem criada', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C, A, B], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([C, A, B])
+      /** O caminhão que ninguém reordenou continua com a ordem do solver. */
+      expect(reorderOf(fixture, 1)).toEqual([OTHER_TRUCK])
+    })
+
+    /**
+     * ⚠️ Parada que a ordem não menciona **vai para o fim, na ordem do solver** — nunca some. É a
+     * mesma regra de `orderStopKeys`, que monta a planta de carga: o aceite tem de criar o caminhão
+     * que o operador acabou de ver desenhado, e duas regras diferentes criariam outro.
+     */
+    test('parada que a ordem não menciona vai para o fim', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([C, A, B])
+    })
+
+    /**
+     * ⚠️ Chave que a proposta inteira não conhece é **ignorada**, não recusada: é o degrau
+     * `cidade:` da tela, que existe para o endereço sem CEP utilizável e não casa com a chave da API.
+     * A planta de carga já a trata assim — ela cai no fim —, e recusar aqui travaria o aceite de
+     * todo caminhão com um endereço ruim.
+     */
+    test('ignora a chave que a proposta não conhece', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [
+          { orderedAddressKeys: ['cidade:3543402', B], vehicleId: FIRST_VEHICLE },
+        ],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([B, A, C])
+    })
+
+    /**
+     * ⚠️ **Mover parada para outro caminhão não existe** (spec 110): o solver redistribui e desfaria
+     * o movimento. Uma chave de outro veículo desta proposta é pedido malformado, e a recusa vem
+     * **antes** da reivindicação — consumir a sugestão por causa dela queimaria uma proposta boa.
+     */
+    /** Um caminhão com uma nota por parada, para dar para ver qual nota foi para onde. */
+    function fixtureWithMovableStops() {
+      return buildFixture({
+        groups: [
+          {
+            documentIds: ['nota-a', 'nota-b', 'nota-c'],
+            documentIdsByAddressKey: new Map([
+              [A, ['nota-a']],
+              [B, ['nota-b']],
+              [C, ['nota-c']],
+            ]),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[A, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [A, B, C],
+            vehicleId: FIRST_VEHICLE,
+          },
+          {
+            documentIds: ['nota-outro'],
+            documentIdsByAddressKey: new Map([[OTHER_TRUCK, ['nota-outro']]]),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [OTHER_TRUCK],
+            vehicleId: SECOND_VEHICLE,
+          },
+        ],
+      })
+    }
+
+    function linkedTo(fixture: ReturnType<typeof fixtureWithMovableStops>, tripIndex: number) {
+      const reorders = fixture.calls.reorder as { tripId: string }[]
+      const tripId = reorders[tripIndex]?.tripId
+      return (fixture.calls.link as { nfeDocumentId: string; tripId: string }[])
+        .filter((call) => call.tripId === tripId)
+        .map((call) => call.nfeDocumentId)
+    }
+
+    /**
+     * Spec 112 D3: **chave de outro caminhão na ordem de um veículo é movimento.** A 111 a recusava,
+     * porque a 110 dizia que o solver desfaria o movimento — e desde a 111 o aceite não roda o solver.
+     *
+     * ⚠️ A parada vai **com as notas dela**. Mover só a chave criaria a parada no caminhão novo e
+     * vincularia as notas ao antigo, e a reconciliação por endereço recriaria a parada lá.
+     */
+    test('move a parada e as notas dela para o outro caminhão', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([B, C])
+      expect(linkedTo(fixture, 0)).toEqual(['nota-b', 'nota-c'])
+      expect(reorderOf(fixture, 1)).toEqual([OTHER_TRUCK, A])
+      expect(linkedTo(fixture, 1)).toEqual(['nota-outro', 'nota-a'])
+    })
+
+    /** Os dois caminhões mudaram de ordem: o horário do solver descreveria outro dia nos dois. */
+    test('os dois caminhões do movimento nascem sem horário previsto', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals.map((call) => call.estimatedArrivalByAddressKey.size)).toEqual([0, 0])
+    })
+
+    /**
+     * ⚠️ A mesma parada em dois caminhões é pedido malformado: qual deles fica com ela seria palpite
+     * do servidor. A recusa vem **antes** da reivindicação (spec 107 D2).
+     */
+    test('recusa a mesma parada reivindicada por dois caminhões, sem consumir a proposta', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [A, B], vehicleId: FIRST_VEHICLE },
+            { orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE },
+          ],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionStopClaimedTwiceError)
+
+      expect(fixture.calls.decide).toEqual([])
+      expect(fixture.calls.link).toEqual([])
+    })
+
+    /** Caminhão que ficou sem parada nenhuma não vira viagem vazia: não há o que ele carregue. */
+    test('caminhão que perdeu todas as paradas não vira viagem', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [
+          { orderedAddressKeys: [OTHER_TRUCK, A, B, C], vehicleId: SECOND_VEHICLE },
+        ],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE])
+      expect(linkedTo(fixture, 0)).toEqual(['nota-outro', 'nota-a', 'nota-b', 'nota-c'])
+    })
+
+    test('recusa ordem de veículo que a proposta não tem', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [A], vehicleId: '00000000-0000-4000-8000-00000000dead' },
+          ],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionVehicleNotInProposalError)
+
+      expect(fixture.calls.decide).toEqual([])
+    })
+
+    /**
+     * ⚠️ **O horário previsto é da ordem do solver**, gravado casado por endereço — não por posição.
+     * Com a ordem trocada à mão ele passaria a dizer que o caminhão chega na terceira parada antes da
+     * primeira. Campo vazio é o vocabulário da casa: horário plausível descrevendo outra ordem é o
+     * número sem aviso que a ADR-0044 §1 proíbe.
+     */
+    test('ordem trocada à mão não carrega o horário do solver', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C, A, B], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals[0]?.estimatedArrivalByAddressKey.size).toBe(0)
+      expect(accepted.trips[0]?.estimatedFinishAt).toBeNull()
+      /** O outro caminhão não foi tocado, e o horário dele continua valendo. */
+      expect(arrivals[1]?.estimatedArrivalByAddressKey.size).toBe(1)
+    })
+
+    /** Mandar a ordem que o solver já tinha não é trocar nada — o horário continua verdadeiro. */
+    test('a ordem do solver reenviada não apaga o horário', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [A, B, C], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals[0]?.estimatedArrivalByAddressKey.size).toBe(3)
+    })
   })
 })

@@ -219,6 +219,20 @@ describe('design system floating layer contract', () => {
     }
   })
 
+  /**
+   * O evento de rolagem chega no quadro seguinte ao gesto: uma rolagem que terminou antes do toque
+   * fechava a lista recém-aberta sem nada ter saído do lugar. No celular, o prazo da fatura não abria.
+   */
+  test('only dismisses on a scroll that actually moved the anchor', async () => {
+    const hook = await readApplicationFile(HOOK_PATH)
+    const handler = hook.slice(hook.indexOf('function handleScroll'))
+
+    expect(hook).toContain('const openedAt = anchorRef.current?.getBoundingClientRect()')
+    expect(handler).toContain('current?.top === openedAt.top')
+    expect(handler).toContain('current.left === openedAt.left')
+    expect(handler.indexOf('openedAt')).toBeLessThan(handler.indexOf('dismissRef.current()'))
+  })
+
   test('positions every floating skin by the shared custom properties', async () => {
     const [selectStyles, searchableStyles, calendarStyles] = await Promise.all([
       readApplicationFile(SELECT_STYLES_PATH),
@@ -241,7 +255,7 @@ describe('design system floating layer contract', () => {
   test('states the rule for every future floating layer', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/selects.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('useFloatingLayer')

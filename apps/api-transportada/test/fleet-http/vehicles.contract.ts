@@ -482,6 +482,60 @@ describe('fleet vehicles http contract', () => {
     expect(fixture.createVehicleCalls).toEqual([])
   })
 
+  /**
+   * Spec 088: o CHECK do banco recusa baú de 40 m e de 4 cm, e sem o mesmo limite na fronteira o
+   * `INSERT` estourava lá dentro — 500 genérico, nenhum campo marcado, e a separação dos três
+   * CHECKs (feita para nomear qual medida está fora) sem leitor nenhum. Zero passa: é ausência.
+   */
+  test.each([
+    ['a bed longer than any road vehicle', { cargoLengthMeters: '40.00' }],
+    ['a bed width typed in centimetres', { cargoWidthMeters: '0.02' }],
+    ['a bed taller than a bridge clearance', { cargoHeightMeters: '9.00' }],
+  ])(
+    'refuses %s at the boundary instead of at the database',
+    async (_description, invalidFields) => {
+      const fixture = await createFleetHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...CREATE_VEHICLE_BODY, ...invalidFields },
+          method: 'POST',
+          path: FLEET_VEHICLES_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+      expect(fixture.createVehicleCalls).toEqual([])
+    },
+  )
+
+  test('accepts a measured bed, and zero as the bed nobody measured yet', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          ...CREATE_VEHICLE_BODY,
+          cargoHeightMeters: '2.40',
+          cargoLengthMeters: '8.90',
+          cargoWidthMeters: '2.50',
+        },
+        method: 'POST',
+        path: FLEET_VEHICLES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createVehicleCalls[0]).toMatchObject({
+      vehicle: {
+        cargoHeightMeters: '2.40',
+        cargoLengthMeters: '8.90',
+        cargoWidthMeters: '2.50',
+      },
+    })
+  })
+
   test('accepts the second product with no consumption yet, as the first one already is', async () => {
     const fixture = await createFleetHttpFixture()
 

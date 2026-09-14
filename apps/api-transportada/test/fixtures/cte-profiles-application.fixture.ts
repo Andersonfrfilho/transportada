@@ -41,8 +41,10 @@ export const PROFILE_SETTINGS: CteEmissionProfileSettings = {
   matchMode: 'sender_tax_id',
   modal: '01',
   name: 'Spani',
+  nfseEmissionProfileId: null,
   observations: '',
   operationNature: 'PRESTACAO DE SERVICO DE TRANSPORTE',
+  outputDocument: 'cte',
   pickupDetails: '',
   pickupIndicator: '1',
   predominantProductMode: 'highest_value',
@@ -90,8 +92,15 @@ type Store = {
     string,
     { readonly fingerprint: string; readonly response: CteEmissionProfileDetail }
   >
+  readonly nfseProfiles: readonly NfseProfileSeed[]
   readonly profiles: Map<string, CteEmissionProfileDetail>
 }
+
+export type NfseProfileSeed = Readonly<{
+  companyId: string
+  id: string
+  status: 'active' | 'draft' | 'inactive'
+}>
 
 export type CteProfilesFixture = {
   readonly audits: CteEmissionProfileAuditRecord[]
@@ -108,12 +117,16 @@ export type CteProfilesFixture = {
 }
 
 export function createCteProfilesFixture(
-  params: { readonly seedOtherCompanyProfile?: boolean } = {},
+  params: {
+    readonly nfseProfiles?: readonly NfseProfileSeed[]
+    readonly seedOtherCompanyProfile?: boolean
+  } = {},
 ): CteProfilesFixture {
   const store: Store = {
     audits: [],
     freightRules: new Map(),
     idempotency: new Map(),
+    nfseProfiles: params.nfseProfiles ?? [],
     profiles: new Map(),
   }
   const listCalls: CteProfilesFixture['listCalls'] = []
@@ -216,6 +229,12 @@ function createTransaction(input: {
     },
     async findIdempotency({ companyId, idempotencyKey, operation }) {
       return store.idempotency.get(`${companyId}:${operation}:${idempotencyKey}`) ?? null
+    },
+    async findNfseEmissionProfileStatus({ companyId, nfseEmissionProfileId }) {
+      const profile = store.nfseProfiles.find(
+        (candidate) => candidate.id === nfseEmissionProfileId && candidate.companyId === companyId,
+      )
+      return profile?.status ?? null
     },
     async findProfile({ companyId, profileId }) {
       const profile = store.profiles.get(profileId)

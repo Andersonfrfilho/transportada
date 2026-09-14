@@ -44,9 +44,9 @@ cópia por valor: varre `test/integration/*.integration.ts` por glob e falha se 
 `process.env` para banco ou declarar o próprio ternário de skip. Glob e não lista fechada — arquivo
 novo precisa entrar na varredura sozinho, senão a regra nasce vencida.
 
-⚠️ O contrato tem de afirmar **as duas metades**: que o pulo por banco sumiu **e** que o pulo por
-MinIO continua. Cobrar só a primeira transforma "removi o skip" em verde mesmo se alguém apagar o
-pulo legítimo junto.
+⚠️ O contrato varre as **três** variáveis, não uma: `API_TEST_DATABASE_URL`/`DATABASE_URL`,
+`DRIZZLE_TEST_DATABASE_URL` e `STORAGE_*`. Cobrar só a primeira deixaria de pé exatamente os 4
+skips silenciosos que sobrevivem hoje ao ambiente carregado — que são da segunda.
 
 ## Dados, migration e rollback
 
@@ -69,8 +69,9 @@ nem o alivia.
 A saída da suíte é a superfície. Duas exigências:
 
 1. A falha do guard sai **uma vez**, no boot, e não 38 vezes.
-2. O pulo do MinIO se anuncia. Hoje `test.skip` do Bun já imprime `(skip)`; o que falta é a razão,
-   e ela vai numa linha só na carga do módulo.
+2. O pulo do OSRM — o único que sobra — se anuncia com a razão. Hoje `test.skip` do Bun imprime
+   `(skip)` e mais nada, e foi por isso que 4 skips passaram esta sessão inteira sem ninguém saber
+   de onde vinham.
 
 ## Estratégia de testes
 
@@ -93,9 +94,11 @@ exatamente o defeito que estamos consertando, um nível acima — e seria irôni
 - **`make api-integration` pode divergir do `ci.yml`.** Hoje o CI monta o comando inline; se o alvo
   fizer diferente, o gate local deixa de provar o do CI. Mitigação: o `ci.yml` passa a chamar o
   alvo, em vez de repetir as linhas.
-- **As duas dúvidas em aberto.** A do MinIO **bloqueia o RF5** — sem ela não dá para escrever a
-  metade do contrato que afirma o pulo legítimo. A do `make check` decide só o último critério de
-  aceite e não trava a implementação.
+- **Uma dúvida em aberto**, a do `make check`: decide só o último critério de aceite e não trava a
+  implementação. A do MinIO caiu por medição, e o modo como ela caiu é o próprio risco desta spec:
+  **duas afirmações da primeira versão eram inferência, não medida** — que o pulo do object storage
+  era legítimo, e que os 4 skips vinham dele. Nenhuma resistiu a rodar o arquivo isolado. Quem
+  executar as tasks deve medir cada premissa de novo antes de codificar em cima dela.
 - **Timeout sob carga (os 7).** Ao tornar a suíte obrigatória, esses flakes passam a doer mais.
   Não são desta spec, mas a probabilidade de alguém tropeçar neles sobe — vale abrir a investigação
   em paralelo.

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 
 import {
   checkSqlByName,
@@ -6,10 +7,13 @@ import {
   columnSqlTypes,
   expectGeneratedUuidPrimaryKey,
   foreignKeys,
+  indexColumnsByName,
   requiredColumnNames,
   uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
 import { requireSchemaTable } from './tables.js'
+
+const dialect = new PgDialect()
 
 describe('normalized NF-e document children schema', () => {
   test('normalizes participants and addresses through tenant-composite relationships', () => {
@@ -168,5 +172,40 @@ describe('normalized NF-e document children schema', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+
+  /**
+   * D11 (spec 145): a ocupação da viagem lê volume e produto por (empresa, documento) — sem índice
+   * a consulta varre a tabela inteira a cada layout de carga.
+   */
+  test('há índice de volume e de produto por empresa e documento', () => {
+    const nfeVolumes = requireSchemaTable('nfeVolumes')
+    const nfeProducts = requireSchemaTable('nfeProducts')
+
+    expect(indexColumnsByName(nfeVolumes)).toMatchObject({
+      nfe_volumes_company_document_idx: ['company_id', 'document_id'],
+    })
+    expect(indexColumnsByName(nfeProducts)).toMatchObject({
+      nfe_products_company_document_idx: ['company_id', 'document_id'],
+    })
+  })
+
+  /** D11 (spec 145): a caixa medida por empresa é a metade da tabela que a ocupação de fato lê. */
+  test('há índice parcial da caixa medida por empresa', () => {
+    const nfePackageBoxes = requireSchemaTable('nfePackageBoxes')
+
+    expect(indexColumnsByName(nfePackageBoxes)).toMatchObject({
+      nfe_package_boxes_company_measured_idx: ['company_id'],
+    })
+
+    const measuredIndex = getTableConfig(nfePackageBoxes).indexes.find(
+      (tableIndex) => tableIndex.config.name === 'nfe_package_boxes_company_measured_idx',
+    )
+
+    expect(
+      measuredIndex?.config.where === undefined
+        ? undefined
+        : dialect.sqlToQuery(measuredIndex.config.where).sql,
+    ).toBe('"nfe_package_boxes"."measured_at" is not null')
   })
 })

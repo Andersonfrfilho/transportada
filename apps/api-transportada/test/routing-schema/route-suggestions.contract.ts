@@ -7,6 +7,7 @@ import {
   ROUTE_SUGGESTION_STATUSES,
   companyRouteOptimizationSettings,
   routeSuggestionStops,
+  routeSuggestionVehicles,
   routeSuggestions,
 } from '../../src/database/database.schema.js'
 import {
@@ -74,6 +75,26 @@ describe('route suggestions (ADR-0044 §5)', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+})
+
+/**
+ * Decisão do usuário (2026-09-13): o tempo da proposta soma a volta ao barracão, e ela precisa ser
+ * gravada — o solver já a somava no custo, mas nenhuma coluna a guardava.
+ */
+describe('route suggestion vehicles — a perna de volta', () => {
+  /** Nula é legítima: sugestão anterior à coluna, política sem retorno ou par inalcançável. */
+  test('records the return leg, nullable', () => {
+    expect(columnNames(routeSuggestionVehicles)).toContain('return_distance_meters')
+    expect(columnNames(routeSuggestionVehicles)).toContain('return_duration_seconds')
+    expect(requiredColumnNames(routeSuggestionVehicles)).not.toContain('return_distance_meters')
+    expect(requiredColumnNames(routeSuggestionVehicles)).not.toContain('return_duration_seconds')
+  })
+
+  test('refuses a negative return leg', () => {
+    expect(
+      unqualifiedCheckSqlByName(routeSuggestionVehicles).route_suggestion_vehicles_return_leg_check,
+    ).toContain('"return_duration_seconds" >= 0')
   })
 })
 

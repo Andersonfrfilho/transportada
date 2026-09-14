@@ -34,14 +34,15 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     bodyType: '02',
     loadingAccess: 'rear',
     brand: 'MERCEDES-BENZ',
-    capacityCubicMeters: '0.000',
-    cargoHeightMeters: '2.40',
-    cargoLengthMeters: '7.20',
-    cargoWidthMeters: '2.45',
+    capacityCubicMeters: '42.000',
     capacityKilograms: '12000.000',
+    cargoHeightMeters: '2.300',
+    cargoLengthMeters: '7.400',
+    cargoWidthMeters: '2.470',
     color: 'branca',
     fleetNumber: '1042',
     fuelType: 'diesel-s10',
+    hasAutomaticTollPayment: false,
     model: 'ATEGO 2426',
     modelYear: 2022,
     monthlyInstallmentAmount: '0.00',
@@ -66,14 +67,15 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     bodyType: '02',
     loadingAccess: 'rear',
     brand: 'VOLKSWAGEN',
-    capacityCubicMeters: '0.000',
-    cargoHeightMeters: '2.30',
-    cargoLengthMeters: '5.10',
-    cargoWidthMeters: '2.40',
+    capacityCubicMeters: '28.000',
     capacityKilograms: '6500.000',
+    cargoHeightMeters: '1.900',
+    cargoLengthMeters: '6.200',
+    cargoWidthMeters: '2.400',
     color: 'branca',
     fleetNumber: '1043',
     fuelType: 'diesel-s10',
+    hasAutomaticTollPayment: false,
     model: 'DELIVERY 9.170',
     modelYear: 2021,
     monthlyInstallmentAmount: '0.00',
@@ -98,14 +100,15 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     bodyType: '02',
     loadingAccess: 'rear',
     brand: 'IVECO',
-    capacityCubicMeters: '0.000',
-    cargoHeightMeters: '2.10',
-    cargoLengthMeters: '3.50',
-    cargoWidthMeters: '2.20',
+    capacityCubicMeters: '16.000',
     capacityKilograms: '3000.000',
+    cargoHeightMeters: '1.800',
+    cargoLengthMeters: '4.200',
+    cargoWidthMeters: '2.100',
     color: 'branca',
     fleetNumber: '1044',
     fuelType: 'diesel-s10',
+    hasAutomaticTollPayment: false,
     model: 'DAILY 35-150',
     modelYear: 2023,
     monthlyInstallmentAmount: '0.00',
@@ -137,13 +140,19 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     loadingAccess: 'rear',
     brand: 'MERCEDES-BENZ',
     capacityCubicMeters: '20.000',
-    cargoHeightMeters: '0.00',
-    cargoLengthMeters: '0.00',
-    cargoWidthMeters: '0.00',
     capacityKilograms: '4200.000',
+    /**
+     * O 3/4 fica SEM medida de proposito (spec 088 R6/D7): ele nao tem linha em
+     * `vehicle_volume_references` e nao tem ficha, e e o caso que a tela precisa saber recusar —
+     * mostrar as fileiras proporcionais da 085 e nomear o campo que falta, nunca desenhar planta.
+     */
+    cargoHeightMeters: '0.000',
+    cargoLengthMeters: '0.000',
+    cargoWidthMeters: '0.000',
     color: 'branca',
     fleetNumber: '1045',
     fuelType: 'diesel-s10',
+    hasAutomaticTollPayment: false,
     model: 'ACCELO 1016',
     modelYear: 2020,
     monthlyInstallmentAmount: '0.00',
@@ -164,6 +173,94 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     state: 'SP',
     tareWeightKilograms: '3400.000',
     vehicleType: 'three_quarter',
+  },
+  /**
+   * ⚠️ A van e o utilitário existem no seed porque a frota real do cliente não tem nenhum dos dois,
+   * e sem eles **metade do catálogo nunca aparece na tela**: são os tipos monovolume, desenhados com
+   * um contorno só, e o único jeito de ver que eles não saem com cara de caminhãozinho é ter um
+   * cadastrado. O Daily 35-150 acima é furgão no mundo e `vuc` na ficha — não serve de prova.
+   */
+  {
+    acquisitionAmount: '230000.00',
+    annualInsuranceAmount: '5400.00',
+    annualVehicleTaxAmount: '2100.00',
+    averageConsumption: '9.5000',
+    axleCount: 2,
+    bodyType: '02',
+    /** Sem tag por padrão: a base manual superestima, e é a direção segura (spec 095 D3). */
+    hasAutomaticTollPayment: false,
+    /**
+     * A Sprinter sai com porta lateral direita, e a ficha o declara — **a ficha**, não o tipo: a
+     * Fiorino logo abaixo é `utility` como a Kangoo e não tem a porta. Cadastrar um furgão que a
+     * tem como `rear` faz a planta tratar a ordem de carregamento como obrigação, e quem carrega
+     * descarrega meia carga para alcançar o que dava pela lateral.
+     */
+    loadingAccess: 'rear_and_side',
+    brand: 'MERCEDES-BENZ',
+    capacityCubicMeters: '0.000',
+    capacityKilograms: '1500.000',
+    /** Sprinter 416 furgão teto alto: as três medidas vêm da ficha, e a planta em escala existe. */
+    cargoHeightMeters: '1.900',
+    cargoLengthMeters: '3.400',
+    cargoWidthMeters: '1.780',
+    color: 'branca',
+    fleetNumber: '1046',
+    fuelType: 'diesel-s10',
+    model: 'SPRINTER 416',
+    modelYear: 2024,
+    monthlyInstallmentAmount: '0.00',
+    otherCostsPerKilometer: '0.2200',
+    owner: null,
+    ownership: 'own',
+    plate: 'RTE6K89',
+    renavam: '00483721099',
+    role: 'traction',
+    secondaryAverageConsumption: '0.00',
+    secondaryFuelType: '',
+    state: 'SP',
+    tareWeightKilograms: '2100.000',
+    vehicleType: 'van',
+  },
+  {
+    acquisitionAmount: '95000.00',
+    annualInsuranceAmount: '2600.00',
+    annualVehicleTaxAmount: '900.00',
+    averageConsumption: '11.0000',
+    axleCount: 2,
+    bodyType: '02',
+    /** Sem tag por padrão: a base manual superestima, e é a direção segura (spec 095 D3). */
+    hasAutomaticTollPayment: false,
+    /**
+     * ⚠️ **A Fiorino furgão não tem porta lateral**, e é justamente por isso que ela está aqui: o
+     * catálogo a chama de `utility`, igual à Kangoo, que tem. O tipo não decide a porta — quem
+     * decide é a ficha, e uma base de bancada em que todo furgão abre pela lateral esconderia o
+     * caso que a planta precisa desenhar direito.
+     */
+    loadingAccess: 'rear',
+    brand: 'FIAT',
+    capacityCubicMeters: '0.000',
+    capacityKilograms: '650.000',
+    /** Fiorino furgão: 3,2 m³ é o que o fabricante publica, e as medidas o reproduzem. */
+    cargoHeightMeters: '1.300',
+    cargoLengthMeters: '1.700',
+    cargoWidthMeters: '1.450',
+    color: 'branca',
+    fleetNumber: '1047',
+    fuelType: 'gasolina-comum',
+    model: 'FIORINO 1.4 FURGAO',
+    modelYear: 2023,
+    monthlyInstallmentAmount: '0.00',
+    otherCostsPerKilometer: '0.1800',
+    owner: null,
+    ownership: 'own',
+    plate: 'RTF7L01',
+    renavam: '00483721100',
+    role: 'traction',
+    secondaryAverageConsumption: '0.00',
+    secondaryFuelType: '',
+    state: 'SP',
+    tareWeightKilograms: '1100.000',
+    vehicleType: 'utility',
   },
 ]
 

@@ -6,6 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import {
   freightCalculations,
   nfeAddresses,
+  nfeDocuments,
   nfeParticipants,
 } from '../../database/database.schema.js'
 import { destinationRolesFilter } from '../../nfe-documents/infrastructure/physical-destination.join.js'
@@ -20,6 +21,8 @@ export type NfeDestinationAddress = {
   readonly components: StopAddressComponents
   readonly label: string
   readonly origin: PhysicalDestinationOrigin
+  /** Quem recebe — o nome impresso na etiqueta que o separador confere na hora de carregar. */
+  readonly recipientName: string
   /** A UF da parada — o mapa a usa para escolher a malha do IBGE. */
   readonly state: string
 }
@@ -71,6 +74,7 @@ export async function resolveNfeDestinationAddress(
       role: nfeParticipants.role,
       state: nfeAddresses.state,
       street: nfeAddresses.street,
+      tradeName: nfeParticipants.tradeName,
     })
     .from(nfeParticipants)
     .innerJoin(
@@ -107,11 +111,13 @@ export async function listStopAddresses(
       city: nfeAddresses.city,
       cityCode: nfeAddresses.cityCode,
       documentId: nfeParticipants.documentId,
+      legalName: nfeParticipants.legalName,
       number: nfeAddresses.number,
       postalCode: nfeAddresses.postalCode,
       role: nfeParticipants.role,
       state: nfeAddresses.state,
       street: nfeAddresses.street,
+      tradeName: nfeParticipants.tradeName,
     })
     .from(nfeParticipants)
     .innerJoin(
@@ -139,6 +145,34 @@ export async function listStopAddresses(
     const chosen = chooseNfeDestinationRow(documentRows)
     if (chosen !== null) found.set(documentId, chosen)
   }
+
+  return found
+}
+
+/**
+ * O número de cada nota, em lote.
+ *
+ * ⚠️ Uma consulta para todas, nunca uma por nota (§15 do code-standart) — e ela existe porque
+ * **"Parada 3" não identifica nada**: quem carrega procura o número que bipou.
+ */
+export async function listDocumentNumbers(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<Map<string, string>> {
+  const found = new Map<string, string>()
+  if (input.nfeDocumentIds.length === 0) return found
+
+  const rows = await queryable
+    .select({ id: nfeDocuments.id, number: nfeDocuments.number })
+    .from(nfeDocuments)
+    .where(
+      and(
+        eq(nfeDocuments.companyId, input.companyId),
+        inArray(nfeDocuments.id, [...new Set(input.nfeDocumentIds)]),
+      ),
+    )
+
+  for (const row of rows) found.set(row.id, row.number)
 
   return found
 }

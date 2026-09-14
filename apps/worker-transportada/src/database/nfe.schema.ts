@@ -1,8 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { sql } from 'drizzle-orm'
 import {
   bigint,
+  index,
   integer,
   jsonb,
   numeric,
@@ -52,6 +54,8 @@ export type StorageObjectPurpose =
   | 'cte_document'
   | 'mdfe_document'
   | 'nfse_document'
+  /** Spec 143 T010 (ADR-0063 §5): o MIME bruto de todo e-mail recebido da contratante, evidência. */
+  | 'contractor_mail_raw'
 
 export type FiscalEnvironment = 'homologation' | 'production'
 export type TaxRegime = '1' | '2' | '3'
@@ -203,33 +207,41 @@ export const nfeAddresses = pgTable('nfe_addresses', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-export const nfeVolumes = pgTable('nfe_volumes', {
-  id: uuid().defaultRandom().primaryKey(),
-  companyId: uuid('company_id').notNull(),
-  documentId: uuid('document_id').notNull(),
-  ordinal: bigint({ mode: 'bigint' }).notNull(),
-  quantity: decimalColumn('quantity').default('0'),
-  species: text(),
-  grossWeight: decimalColumn('gross_weight').default('0'),
-  netWeight: decimalColumn('net_weight').default('0'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const nfeVolumes = pgTable(
+  'nfe_volumes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    ordinal: bigint({ mode: 'bigint' }).notNull(),
+    quantity: decimalColumn('quantity').default('0'),
+    species: text(),
+    grossWeight: decimalColumn('gross_weight').default('0'),
+    netWeight: decimalColumn('net_weight').default('0'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('nfe_volumes_company_document_idx').on(table.companyId, table.documentId)],
+)
 
-export const nfeProducts = pgTable('nfe_products', {
-  id: uuid().defaultRandom().primaryKey(),
-  companyId: uuid('company_id').notNull(),
-  documentId: uuid('document_id').notNull(),
-  ordinal: bigint({ mode: 'bigint' }).notNull(),
-  code: text().notNull(),
-  description: text().notNull(),
-  ncm: text().notNull(),
-  cfop: text().notNull(),
-  commercialUnit: text('commercial_unit').notNull(),
-  quantity: decimalColumn('quantity').notNull(),
-  unitValue: decimalColumn('unit_value').notNull(),
-  totalValue: decimalColumn('total_value').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const nfeProducts = pgTable(
+  'nfe_products',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    ordinal: bigint({ mode: 'bigint' }).notNull(),
+    code: text().notNull(),
+    description: text().notNull(),
+    ncm: text().notNull(),
+    cfop: text().notNull(),
+    commercialUnit: text('commercial_unit').notNull(),
+    quantity: decimalColumn('quantity').notNull(),
+    unitValue: decimalColumn('unit_value').notNull(),
+    totalValue: decimalColumn('total_value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('nfe_products_company_document_idx').on(table.companyId, table.documentId)],
+)
 
 export const nfeEvents = pgTable('nfe_events', {
   id: uuid().defaultRandom().primaryKey(),
@@ -294,22 +306,30 @@ export const nfeDistributionCursors = pgTable(
  * Spec 085: a caixa de papelao do produto. Cópia por valor da tabela da API — migrations só rodam
  * lá. A importação cria a linha **sem medida**; quem mede é o conferente, pela API.
  */
-export const nfePackageBoxes = pgTable('nfe_package_boxes', {
-  id: uuid().defaultRandom().primaryKey(),
-  companyId: uuid('company_id').notNull(),
-  emitterTaxId: varchar('emitter_tax_id', { length: 14 }).notNull(),
-  productCode: text('product_code').notNull(),
-  commercialUnit: text('commercial_unit').notNull(),
-  description: text().notNull().default(''),
-  cartonGtin: varchar('carton_gtin', { length: 14 }),
-  lengthMm: integer('length_mm'),
-  widthMm: integer('width_mm'),
-  heightMm: integer('height_mm'),
-  grossWeightGrams: integer('gross_weight_grams'),
-  measuredAt: timestamp('measured_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const nfePackageBoxes = pgTable(
+  'nfe_package_boxes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    emitterTaxId: varchar('emitter_tax_id', { length: 14 }).notNull(),
+    productCode: text('product_code').notNull(),
+    commercialUnit: text('commercial_unit').notNull(),
+    description: text().notNull().default(''),
+    cartonGtin: varchar('carton_gtin', { length: 14 }),
+    lengthMm: integer('length_mm'),
+    widthMm: integer('width_mm'),
+    heightMm: integer('height_mm'),
+    grossWeightGrams: integer('gross_weight_grams'),
+    measuredAt: timestamp('measured_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('nfe_package_boxes_company_measured_idx')
+      .on(table.companyId)
+      .where(sql`${table.measuredAt} is not null`),
+  ],
+)
 
 /**
  * ⚠️ Cópia por valor de `company-cargo-settings.schema.ts` da API. Nulo é **estimativa desligada**,

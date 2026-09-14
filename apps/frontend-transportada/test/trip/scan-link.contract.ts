@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { loadFutureModule, NFE_ACCESS_KEY } from './trip.fixture'
@@ -235,5 +237,82 @@ describe('trip scan sequence contract', () => {
       expect(ptBrLocale.detail).toHaveProperty(key)
       expect(englishLocale.detail).toHaveProperty(key)
     }
+  })
+})
+
+/**
+ * ⚠️ O caminho de cada rota, conferido contra o que a API publica. Este par passou meses errado:
+ * o cliente pedia `POST /cargo-preview` na raiz e a rota mora em `/trips/cargo-preview`, então o
+ * navegador levava 403 no preflight, a requisição falhava e `preview` ficava `null` — e o painel de
+ * carga da montagem **não renderizava, sem erro nenhum na tela**. Nenhum teste pegava: o contrato
+ * da API confere o pathname dela, e o do cliente nunca conferiu o que ele monta.
+ *
+ * A geometria por pontos é o contraexemplo que torna o engano fácil: ela **é** de raiz.
+ */
+describe('trip client paths', () => {
+  const source = readFileSync(
+    new URL('src/modules/trip/shared/tripClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('pede a prévia de carga sob /trips, como a API a publica', () => {
+    expect(source).toContain('path: `${TRIPS_PATH}/cargo-preview`')
+    expect(source).not.toContain("path: '/cargo-preview'")
+  })
+
+  test('mantém a geometria por pontos na raiz, que é onde a API a publica', () => {
+    expect(source).toContain("path: '/route-geometry'")
+  })
+})
+
+/**
+ * A nota escolhida sai da busca e volta quando é retirada. Oferecê-la de novo faz quem monta um
+ * lote de trinta perder a conta de quais faltam — e a linha marcada não ajuda, porque some no meio
+ * das outras a cada rolagem.
+ */
+describe('busca não reoferece o que já está na fila', () => {
+  const documents = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+
+  test('retira da lista a nota já em fila', async () => {
+    const { listSelectableDocuments } = await loadFutureModule<{
+      listSelectableDocuments: (input: {
+        documents: readonly { id: string }[]
+        queue: readonly unknown[]
+      }) => readonly { id: string }[]
+    }>('src/modules/trip/shared/tripQuickCreate.service.ts')
+
+    const queue = [
+      { accessKey: NFE_ACCESS_KEY, document: { id: 'b' }, status: 'staged' },
+    ] as readonly unknown[]
+
+    expect(listSelectableDocuments({ documents, queue }).map((d) => d.id)).toEqual(['a', 'c'])
+  })
+
+  /**
+   * ⚠️ Entrada ainda **resolvendo** não corta nada: ela nasce só com a chave, sem documento para
+   * casar. Escolher a mesma nota pela busca nesse intervalo é inofensivo — a deduplicação por chave
+   * já existe e a mantém como uma linha só.
+   */
+  test('a entrada que ainda resolve não retira nada da busca', async () => {
+    const { listSelectableDocuments } = await loadFutureModule<{
+      listSelectableDocuments: (input: {
+        documents: readonly { id: string }[]
+        queue: readonly unknown[]
+      }) => readonly { id: string }[]
+    }>('src/modules/trip/shared/tripQuickCreate.service.ts')
+
+    const queue = [{ accessKey: NFE_ACCESS_KEY, status: 'resolving' }] as readonly unknown[]
+
+    expect(listSelectableDocuments({ documents, queue })).toHaveLength(3)
+  })
+
+  test('o diálogo alimenta a busca pela lista filtrada, não pela crua', () => {
+    const source = readFileSync(
+      new URL('src/modules/trip/components/TripQuickCreateDialog.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+
+    expect(source).toContain('listSelectableDocuments({')
+    expect(source).not.toContain('documents={availableDocuments}')
   })
 })

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { canServe } from './coverage.js'
 import type {
   RouteAssignment,
   RouteDutyLimits,
@@ -21,6 +22,17 @@ import type {
 const WEIGHT_PENALTY_MICROS_PER_KILOGRAM = 10_000_000
 const WINDOW_PENALTY_MICROS_PER_SECOND = 100_000
 const DUTY_PENALTY_MICROS_PER_SECOND = 200_000
+/**
+ * Spec 104 D3: uma parada a mais custa como ~1 tonelada de excesso — cara o bastante para o solver
+ * preferir abrir outro veículo, barata o bastante para não vencer uma violação de peso, que é a
+ * restrição física de verdade.
+ */
+const STOP_COUNT_PENALTY_MICROS = 10_000_000
+/**
+ * Spec 106: região não é restrição frouxa. A penalidade é da ordem do par inalcançável, porque
+ * mandar o motorista para fora da zona dele é roteiro que a operação recusa, não roteiro caro.
+ */
+const REGION_PENALTY_MICROS = 1_000_000_000_000
 /** Par inalcançável não é rota cara: é rota que não existe, e tem de perder de qualquer alternativa. */
 const UNREACHABLE_PENALTY_MICROS = 1_000_000_000_000
 
@@ -83,6 +95,21 @@ export function evaluateRoute(input: {
 
     loadKilograms += stop.weightKilograms
 
+    /**
+     * Spec 106 D2: **a rede.** A proibição é imposta pelo reparo, no cromossomo — aqui ela só é
+     * conferida. Se um operador genético novo violar a cobertura, a violação aparece com nome em vez
+     * de sair calada, e a penalidade a torna economicamente impossível de escolher.
+     */
+    if (!canServe(vehicle, stopIndex)) {
+      penaltyMicros += REGION_PENALTY_MICROS
+      violations.push({
+        amount: 1,
+        kind: 'region_not_covered',
+        stopIndex,
+        vehicleId: vehicle.id,
+      })
+    }
+
     const lateness = latenessSeconds(stop, durationSeconds)
     if (lateness > 0) {
       penaltyMicros += lateness * WINDOW_PENALTY_MICROS_PER_SECOND
@@ -114,6 +141,25 @@ export function evaluateRoute(input: {
   if (overweight > 0) {
     penaltyMicros += overweight * WEIGHT_PENALTY_MICROS_PER_KILOGRAM
     violations.push({ amount: overweight, kind: 'weight', stopIndex: null, vehicleId: vehicle.id })
+  }
+
+  /**
+   * Spec 104 D3: **o fitness é a soma dos custos, e soma é indiferente à distribuição** — concentrar
+   * paradas próximas num veículo até a reduz. Foi assim que uma viagem levou 207 notas e outra 8.
+   * O teto é o único termo do objetivo que sabe que uma viagem pode ser grande demais.
+   */
+  const stopCap = input.problem.maxStopsPerRoute
+  if (stopCap !== null) {
+    const excessStops = input.stopIndexes.length - stopCap
+    if (excessStops > 0) {
+      penaltyMicros += excessStops * STOP_COUNT_PENALTY_MICROS
+      violations.push({
+        amount: excessStops,
+        kind: 'stop_count',
+        stopIndex: null,
+        vehicleId: vehicle.id,
+      })
+    }
   }
 
   const dutyViolation = evaluateDuty({

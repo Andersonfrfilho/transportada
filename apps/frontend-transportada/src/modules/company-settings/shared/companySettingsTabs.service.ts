@@ -11,17 +11,21 @@ export const SETTINGS_PANELS = [
   'scheduledDistribution',
   'distributionCursor',
   'fuelPrices',
+  'tollBoothCharges',
   'freightRegions',
   'nfseCredential',
   'nfseProfiles',
   'occurrenceNotifications',
   'deliveryProof',
+  'federalTaxes',
+  'contractorMail',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
 
 export const SETTINGS_PANEL_MODULES = [
   'company-settings',
+  'delivery-clients',
   'fleet',
   'nfe-workspace',
   'nfse-invoice',
@@ -35,14 +39,17 @@ export type SettingsDataSource =
   | 'cargoVolumeFactors'
   | 'companyContacts'
   | 'companySettings'
+  | 'contractorMailSettings'
   | 'deliveryProofSettings'
   | 'distributionCursor'
+  | 'federalTaxes'
   | 'freightRegions'
   | 'fuelPrices'
   | 'landing'
   | 'nfse'
   | 'occurrenceNotifications'
   | 'scheduledDistribution'
+  | 'tollBoothCharges'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
 
@@ -72,6 +79,13 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   /**
+   * Spec 143 — o painel entra na tela onde as contratantes são cadastradas (`delivery-clients`),
+   * numa aba própria: é onde o administrador já está quando pensa em "como falo com quem eu
+   * transporto para". A tela não tinha abas até aqui — ganhou uma para hospedar isto ao lado da
+   * lista de clientes.
+   */
+  contractorMail: { module: 'delivery-clients', source: 'contractorMailSettings', tab: 'mail' },
+  /**
    * Spec 082 (D4, ADR-0057) — o formulário do comprovante se decide **na tela de viagens**: é onde a
    * entrega aparece e onde o operador confere o que o motorista colheu. Configuração perto do efeito.
    */
@@ -79,6 +93,8 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
+  /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
+  tollBoothCharges: { module: 'fleet', source: 'tollBoothCharges', tab: 'tolls' },
   /**
    * Spec 079 — o aviso de ocorrência mora **na tela de viagens**, que é onde a ocorrência é
    * registrada e onde ela aparece. Numa tela de configurações genérica, quem liga o aviso estaria
@@ -105,6 +121,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     tab: 'imports',
   },
   settingsForm: { module: 'company-settings', source: 'companySettings', tab: 'company' },
+  /**
+   * Spec 126 — o regime federal e o PIS/COFINS moram em Configurações, numa aba própria: o dado é
+   * da empresa inteira e fica ao lado do CRT, que é de onde a sugestão sai.
+   */
+  federalTaxes: { module: 'company-settings', source: 'federalTaxes', tab: 'taxes' },
 }
 
 export function settingsPanelsOf(
@@ -145,18 +166,21 @@ export function resolveSettingsDataScope(
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
+    contractorMailSettings: sources.has('contractorMailSettings'),
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
+    federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
     landing: sources.has('landing'),
     nfse: sources.has('nfse'),
     occurrenceNotifications: sources.has('occurrenceNotifications'),
     scheduledDistribution: sources.has('scheduledDistribution'),
+    tollBoothCharges: sources.has('tollBoothCharges'),
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates'] as const
+export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates', 'taxes'] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

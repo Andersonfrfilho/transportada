@@ -4,3 +4,4 @@
 import './trip-documents/batch-transition.contract.js'
 import './trip-documents/returned-with-active-cte.contract.js'
 import './trip-documents/transition.contract.js'
+import './trip-documents/eager-layout-trigger.contract.js'

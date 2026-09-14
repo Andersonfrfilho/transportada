@@ -3,7 +3,12 @@
  *
  * Spec 079: quando a tela do escritório repete a consulta sozinha.
  */
+import {
+  type CargoLayoutPendingEpisode,
+  resolveCargoLayoutRefetchInterval,
+} from './cargoLayoutPolling.service'
 import { isTripOnTheRoad, TRIP_ON_THE_ROAD_REFETCH_MS } from './trip.constant'
+import type { CargoLayoutStatus } from './trip.types'
 
 /** Os dois estados em que a nota ainda pode mudar sozinha — o motorista é quem a move daqui. */
 const PENDING_STATUSES = new Set(['loaded', 'pending', 'separated'])
@@ -22,6 +27,24 @@ export type TripPollingDocument = Readonly<{ separationStatus: string }>
  * `false` — não `0`, não `null` — porque é o que o TanStack Query entende como "não repita".
  */
 export function resolveTripRefetchInterval(input: {
+  /** Spec 145 T12: a planta em cálculo também faz perguntar, mais rápido e com teto próprio. */
+  readonly cargoLayout?: Readonly<{
+    episode: CargoLayoutPendingEpisode | undefined
+    now: number
+    status: CargoLayoutStatus | undefined
+  }>
+  readonly documents: readonly TripPollingDocument[]
+  readonly status: string | undefined
+}): false | number {
+  const tripInterval = resolveOnTheRoadInterval(input)
+  const cargoInterval =
+    input.cargoLayout === undefined ? false : resolveCargoLayoutRefetchInterval(input.cargoLayout)
+  if (cargoInterval === false) return tripInterval
+  if (tripInterval === false) return cargoInterval
+  return Math.min(tripInterval, cargoInterval)
+}
+
+function resolveOnTheRoadInterval(input: {
   readonly documents: readonly TripPollingDocument[]
   readonly status: string | undefined
 }): false | number {

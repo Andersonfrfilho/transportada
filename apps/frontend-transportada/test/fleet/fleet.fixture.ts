@@ -67,6 +67,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     color: string
     fleetNumber: string
     fuelType: FleetVehicleFuelProductContract
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: number
     owner: FleetVehicleOwnerContract | null
@@ -119,6 +120,7 @@ export type FleetDriverAddressContract = Readonly<{
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
   anttCategory: '' | '0' | '1' | '2'
+  securesCargo: false
   birthCity: string
   birthDate: null | string
   birthState: string
@@ -154,6 +156,14 @@ export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membe
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
     createdAt: string
+    /**
+     * ⚠️ Spec 097 D6. Este contrato é a **redeclaração** do corpo que a API serve — ele existe para
+     * a divergência aparecer aqui, e não numa tabela de motoristas que renderiza vazia com 200 na
+     * rede. Campo novo na API entra também aqui.
+     */
+    home: Readonly<{ missing: readonly string[]; status: string }>
+    homeLatitude: null | string
+    homeLongitude: null | string
     id: string
     status: 'active' | 'inactive'
     updatedAt: string
@@ -213,6 +223,7 @@ export const VEHICLE_BODY = {
   color: 'branca',
   fleetNumber: '101',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: 'Modelo Sintetico',
   modelYear: 2020,
   monthlyInstallmentAmount: '2000.0000',
@@ -265,6 +276,7 @@ export const DRIVER_ADDRESS = {
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
@@ -296,6 +308,7 @@ export const DRIVER_BODY = {
 export const DRIVER_CREATE_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
@@ -410,6 +423,10 @@ export const FLEX_VEHICLE_DETAIL = {
 export const DRIVER_DETAIL = {
   ...DRIVER_BODY,
   createdAt: '2026-07-28T12:00:00.000Z',
+  /** Spec 097 D6: ficha já procurada e achada — é o caso em que a tela desenha o mapa. */
+  home: { missing: [], status: 'resolved' },
+  homeLatitude: '-21.1834475',
+  homeLongitude: '-47.8034145',
   id: DRIVER_ID,
   membershipId: MEMBERSHIP_ID,
   status: 'active',
@@ -478,6 +495,7 @@ export const VEHICLE_DRAFT_BODY = {
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: 0,
   owner: null,
@@ -538,6 +556,7 @@ export const DRIVER_DRAFT_BODY = {
   pixKey: '',
   pixKeyType: '',
   rntrc: '',
+  securesCargo: false,
   taxId: '',
 } as const satisfies Omit<FleetDriverBodyContract, 'membershipId'>
 

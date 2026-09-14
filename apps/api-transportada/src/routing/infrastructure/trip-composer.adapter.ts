@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TripDocumentAlreadyLinkedError } from '../../trips/domain/trip.error.js'
 import type { TripStopSummary } from '../../trips/application/list-trip-stops.use-case.js'
 import type { MultiVehicleScope } from '../application/multi-vehicle-suggestion.port.js'
 import type { TripComposer } from '../application/multi-vehicle-suggestion.use-case.js'
@@ -27,6 +28,17 @@ export type TripComposerDependencies = Readonly<{
     readonly companyId: string
     readonly tripId: string
   }) => Promise<readonly TripStopSummary[]>
+  /**
+   * Spec 107 D3: grava o ETA nas paradas e **carimba quando** ele foi calculado, na mesma
+   * transação — o valor sem o carimbo é uma hora sem idade, e a hora envelhece.
+   */
+  writeEstimatedArrivals: (input: {
+    readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
+    readonly context: MultiVehicleScope
+    /** Spec 109 D2: a âncora do ETA — a saída sob a qual estas horas foram calculadas. */
+    readonly plannedDepartureAt: string | null
+    readonly tripId: string
+  }) => Promise<void>
   planRoute: (input: {
     readonly context: MultiVehicleScope
     readonly tripId: string
@@ -36,10 +48,19 @@ export type TripComposerDependencies = Readonly<{
     readonly stopIds: readonly string[]
     readonly tripId: string
   }) => Promise<unknown>
+  /** Spec 148 T7: a fila de revisão, vista de fora — ler a planta da prévia, vincular e soltar. */
+  readReleasePlan?: TripComposer['readReleasePlan']
+  linkAndRelease?: TripComposer['linkAndRelease']
 }>
 
 export function createTripComposer(dependencies: TripComposerDependencies): TripComposer {
   return {
+    ...(dependencies.readReleasePlan === undefined
+      ? {}
+      : { readReleasePlan: dependencies.readReleasePlan }),
+    ...(dependencies.linkAndRelease === undefined
+      ? {}
+      : { linkAndRelease: dependencies.linkAndRelease }),
     async createTrip({ context, driverId, vehicleId }) {
       /**
        * ADR-0055: a viagem nasce **com** o motorista que o humano pareou no diálogo. O solver
@@ -59,8 +80,20 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       return { tripId: created.id }
     },
 
+    /**
+     * Spec 107 D1: nota já viva em outra viagem devolve `false` em vez de derrubar o aceite. É o
+     * único erro engolido aqui, e de propósito — qualquer outro sobe, porque só este significa
+     * "alguém chegou antes", e não "algo quebrou".
+     */
     async linkDocument({ context, nfeDocumentId, tripId }) {
-      await dependencies.link({ context, freightCalculationId: null, nfeDocumentId, tripId })
+      try {
+        await dependencies.link({ context, freightCalculationId: null, nfeDocumentId, tripId })
+
+        return true
+      } catch (cause) {
+        if (cause instanceof TripDocumentAlreadyLinkedError) return false
+        throw cause
+      }
     },
 
     async planRoute({ context, tripId }) {
@@ -76,6 +109,32 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
      * endereço de destinatário, e nesse caso ela cai no balde "sem parada" da viagem — recusar o
      * aceite inteiro por causa dela desfaria as outras trinta e nove entregas já vinculadas.
      */
+    /**
+     * Spec 107 D3: grava o ETA que a sugestão calculou, casando por **endereço** — a mesma chave que
+     * `reorderStops` usa, porque a parada nasce da reconciliação e o id dela não existe na sugestão.
+     *
+     * ⚠️ Endereço proposto que não virou parada é **ignorado**, como na reordenação: a nota pode ter
+     * chegado sem endereço de destinatário, e recusar por causa dela desfaria as outras entregas.
+     */
+    async applyEstimatedArrivals({
+      context,
+      estimatedArrivalByAddressKey,
+      plannedDepartureAt,
+      tripId,
+    }) {
+      if (estimatedArrivalByAddressKey.size === 0) return
+
+      const stops = await dependencies.listStops({ companyId: context.companyId, tripId })
+      const arrivals = stops.flatMap((stop) => {
+        const arrival = estimatedArrivalByAddressKey.get(stop.addressKey)
+
+        return arrival === undefined ? [] : [{ estimatedArrivalAt: arrival, stopId: stop.id }]
+      })
+      if (arrivals.length === 0) return
+
+      await dependencies.writeEstimatedArrivals({ arrivals, context, plannedDepartureAt, tripId })
+    },
+
     async reorderStops({ context, orderedAddressKeys, tripId }) {
       const stops = await dependencies.listStops({ companyId: context.companyId, tripId })
       const byAddressKey = new Map(stops.map((stop) => [stop.addressKey, stop.id]))

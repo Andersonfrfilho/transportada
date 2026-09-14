@@ -1,16 +1,37 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tabs, type TabsItem } from '@/components/ui/tabs'
+import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
+import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
+import { useContractorMailSettings } from '../hooks/useContractorMailSettings.hook'
 import { useDeliveryClients } from '../hooks/useDeliveryClients.hook'
 import styles from '../styles/deliveryClients.module.css'
+
+const CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
+
+type DeliveryClientTabId = 'clients' | 'mail'
+
+const DELIVERY_CLIENT_TAB_IDS: readonly DeliveryClientTabId[] = ['clients', 'mail']
+
+function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
+  return DELIVERY_CLIENT_TAB_IDS.find((tab) => tab === id) ?? 'clients'
+}
+
+/** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
+function toErrorCode(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined
+}
 
 /**
  * Spec 060: **a base já existe** — todo destinatário virou cadastro na importação da nota. O que
@@ -19,11 +40,58 @@ import styles from '../styles/deliveryClients.module.css'
  * Por isso a lista não tem "novo cliente": criar à mão seria o caminho de quem ainda não mandou
  * nota, e esse caso se resolve pela API — não vale uma porta na tela que confunde o caminho normal.
  */
-export function DeliveryClientWorkspacePage() {
+export function DeliveryClientWorkspacePage(): JSX.Element {
   const { t } = useTranslation('deliveryClients')
   const authQuery = useAuthMeQuery()
-  const controller = useDeliveryClients({ permissions: authQuery.data?.data.permissions ?? [] })
+  const permissions = authQuery.data?.data.permissions ?? []
+  const companyId = authQuery.data?.data.company.id
+  const [activeTab, setActiveTab] = useState<DeliveryClientTabId>('clients')
+  const controller = useDeliveryClients({ permissions })
   const isReadOnly = !controller.canManageClients
+
+  const canManageContractorMail = permissions.includes(CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION)
+  const settingsScope = resolveSettingsDataScope('delivery-clients', activeTab)
+  const contractorMail = useContractorMailSettings({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageContractorMail && settingsScope.contractorMailSettings,
+  })
+
+  const clientsTab: TabsItem = {
+    id: 'clients',
+    label: t('tabs.clients'),
+    panel: <ClientsListPanel controller={controller} isReadOnly={isReadOnly} t={t} />,
+  }
+
+  const mailTab: TabsItem = {
+    id: 'mail',
+    label: t('tabs.mail'),
+    panel: (
+      <ContractorMailSettingsPanel
+        // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
+        // regrava por cima do que já estava salvo.
+        key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
+        apiUrl={getIdentityEnvironment().apiBaseUrl}
+        checks={contractorMail.checksQuery.data}
+        checksLoading={contractorMail.checksQuery.isLoading}
+        disabled={contractorMail.saveMutation.isPending}
+        errorCode={toErrorCode(contractorMail.saveMutation.error)}
+        loading={contractorMail.settingsQuery.isLoading}
+        onRefreshChecks={contractorMail.refreshChecks}
+        onSave={(body) => contractorMail.saveMutation.mutate(body)}
+        onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
+        saved={contractorMail.saveMutation.isSuccess}
+        summary={contractorMail.settingsQuery.data}
+        testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
+        testEmailPending={contractorMail.sendTestEmailMutation.isPending}
+        testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
+      />
+    ),
+  }
+
+  const tabs: readonly TabsItem[] = [clientsTab, ...(canManageContractorMail ? [mailTab] : [])]
+  const selectedTab = tabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : (tabs[0]?.id ?? 'clients')
 
   return (
     <main className={styles.shell}>
@@ -32,6 +100,29 @@ export function DeliveryClientWorkspacePage() {
         <p className={styles.hint}>{t('subtitle')}</p>
       </header>
 
+      {tabs.length > 1 ? (
+        <Tabs
+          ariaLabel={t('title')}
+          items={tabs}
+          onChange={(id) => setActiveTab(resolveDeliveryClientTab(id))}
+          value={selectedTab}
+        />
+      ) : (
+        clientsTab.panel
+      )}
+    </main>
+  )
+}
+
+type ClientsListPanelProps = Readonly<{
+  controller: ReturnType<typeof useDeliveryClients>
+  isReadOnly: boolean
+  t: ReturnType<typeof useTranslation>['t']
+}>
+
+function ClientsListPanel({ controller, isReadOnly, t }: ClientsListPanelProps): JSX.Element {
+  return (
+    <>
       <section className={styles.filters}>
         <label className={styles.field}>
           {t('filters.name')}
@@ -161,6 +252,6 @@ export function DeliveryClientWorkspacePage() {
           />
         </section>
       )}
-    </main>
+    </>
   )
 }

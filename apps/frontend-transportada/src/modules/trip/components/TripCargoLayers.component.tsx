@@ -1,0 +1,917 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+import { CargoIsometric, CargoLegendSample, CargoNoteSwatch } from '@/components/ui/cargo-isometric'
+
+import {
+  applyViewPreset,
+  DEFAULT_CARGO_VIEW,
+  dragView,
+  panViewBy,
+  rotateView,
+  zoomViewBy,
+  type CargoViewPreset,
+} from '../shared/cargoView.service'
+import { stopColorOf } from '../shared/stopColor.service'
+import { resolveCargoComplement } from '../shared/cargoComplement.service'
+import { buildOverEarlierDeliveryRows } from '../shared/cargoOverEarlier.service'
+import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
+import {
+  buildCargoChipFacts,
+  buildCargoComplementSummary,
+  buildCargoPrintSummary,
+  resolveLoadingPosition,
+} from '../shared/cargoPrintSummary.service'
+import {
+  EMPTY_CARGO_FOCUS,
+  isBoxLit,
+  isNoteLit,
+  isStopSelected,
+  toggleBoxFocus,
+  toggleCargoStopFocus,
+  toggleNoteFocus,
+} from '../shared/stopFocus.service'
+import {
+  buildStopNotes,
+  countNotesSharingColor,
+  noteColorOf,
+  resolveNoteColors,
+  resolveSplitPieces,
+} from '../shared/noteColor.service'
+import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
+import { useCargoLayoutTransition } from '../hooks/useCargoLayoutTransition.hook'
+import type { CargoLayoutPhase, CargoLayoutView } from '../shared/cargoLayoutPolling.service'
+import {
+  applyCargoLayoutTransition,
+  type CargoLayoutTransitionFrame,
+  listCargoBoxMatchKeys,
+} from '../shared/cargoLayoutTransition.service'
+import type { TripCargoLayout, TripOccupancy } from '../shared/trip.types'
+import styles from '../styles/trip.module.css'
+import { TripCargoLayoutWait } from './TripCargoLayoutWait.component'
+import { TripCargoOverEarlierList } from './TripCargoOverEarlierList.component'
+
+/** Spec 145 T13: as fases em que a planta está sendo (ou não pôde ser) calculada pelo worker. */
+const WAITING_PHASES: ReadonlySet<CargoLayoutPhase> = new Set(['pending', 'failed', 'timedOut'])
+
+/** A ficha do veículo, onde as três medidas do baú são preenchidas. */
+const FLEET_HREF = '/fleet'
+
+/** Abaixo disto o ponteiro tremeu, não arrastou — o clique na caixa continua valendo. */
+const BOX_CLICK_DRAG_THRESHOLD_PX = 4
+
+type TripCargoLayersProps = Readonly<{
+  /** Spec 145 T13: a medida do baú para o esqueleto quando ainda não há planta nenhuma. */
+  bedDimensions?: TripOccupancy['capacityDimensions'] | undefined
+  layout: TripCargoLayout | null
+  /**
+   * Muda a parada de posição na **ordem de carregamento** (`-1` carrega antes, `1` depois). Ausente,
+   * a ficha é só leitura — é o caso da viagem já criada.
+   */
+  onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
+  /** Spec 145 T12/T13: `null` é API anterior à planta do worker — a tela segue a de hoje. */
+  view?: CargoLayoutView | null | undefined
+}>
+
+type TripCargoPlanProps = Readonly<{
+  layout: TripCargoLayout | null
+  onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
+  transition: CargoLayoutTransitionFrame | null
+  truncated: boolean
+}>
+
+/**
+ * Spec 145 T13: a espera (`pending`/`failed`/`timedOut`) tem tela própria; `ready`, `unavailable` e a
+ * API antiga desenham a planta como sempre. O hook da transição fica aqui, montado nas duas: é ele
+ * que lembra o fantasma da espera quando a planta nova chega.
+ */
+export function TripCargoLayers({
+  bedDimensions = null,
+  layout,
+  onLoadingMove,
+  view = null,
+}: TripCargoLayersProps) {
+  const transition = useCargoLayoutTransition({ layout: view?.layout ?? null, phase: view?.phase })
+  if (view !== null && WAITING_PHASES.has(view.phase)) {
+    return <TripCargoLayoutWait bedDimensions={bedDimensions} view={view} />
+  }
+  return (
+    <TripCargoPlan
+      layout={layout}
+      onLoadingMove={onLoadingMove}
+      transition={transition}
+      truncated={view?.truncated === true}
+    />
+  )
+}
+
+/**
+ * Spec 094: **onde cada caixa cabe**, camada por camada.
+ *
+ * ⚠️ A promessa é **"cabe"**, nunca "deve ir assim" — e a tela diz isso numa linha fixa. Faltam
+ * empilhabilidade informada em toda caixa, peso por caixa e peso por eixo; sem eles o desenho mostra
+ * um arranjo possível, não uma instrução de carregamento. Um plano de estiva que não conhece o peso
+ * por eixo é o defeito que a 085 evitou, com outra roupa.
+ *
+ * ⚠️ Uma camada por vez, com navegação. Todas de uma vez seriam seis plantas empilhadas na tela do
+ * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
+ * desenho ser assim.
+ */
+function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCargoPlanProps) {
+  const { t } = useTranslation('trip')
+  const [index, setIndex] = useState(0)
+  /**
+   * ⚠️ A camada só entra em foco depois que o operador **navega**. Antes disso o desenho é a pilha
+   * inteira, sólida: abrir a tela com as camadas de cima esmaecidas lia como caixa transparente, e
+   * não como "a camada aberta é a de baixo".
+   */
+  const [hasChosenLayer, setHasChosenLayer] = useState(false)
+  const [view, setView] = useState(DEFAULT_CARGO_VIEW)
+  /**
+   * ⚠️ A mãozinha some no **primeiro** arrasto e não volta: ela é a única pista de que o desenho
+   * gira, e repeti-la toda visita seria avisar quem já sabe.
+   */
+  const [hasDragged, setHasDragged] = useState(false)
+  const dragFrom = useRef<{ x: number; y: number } | null>(null)
+  /**
+   * ⚠️ **Separado de `dragFrom`.** Aquele guarda o último ponto, para o passo seguinte do arrasto —
+   * este guarda o ponto de partida, para medir o deslocamento total e distinguir clique de arrasto.
+   */
+  const pointerDownAt = useRef<{ x: number; y: number } | null>(null)
+  const hasDraggedPastClickThreshold = useRef(false)
+  const [focus, setFocus] = useState(EMPTY_CARGO_FOCUS)
+
+  const placement = layout?.placement ?? null
+  if (layout === null) return null
+
+  /**
+   * ⚠️ **Sem as três medidas do baú não há desenho, e dizer isso é o mínimo.** Nomear o campo não
+   * basta: quem lê está montando uma viagem, e voltar à ficha do veículo é um caminho que ele teria
+   * de descobrir sozinho — o atalho é o que separa um aviso de uma instrução. Era a única coisa que
+   * a planta em escala dizia e este painel não dizia, e ela saiu com a 095.
+   */
+  if (layout.bedLengthM === null || layout.bedWidthM === null) {
+    return (
+      <p className={styles.hint}>
+        {t('cargoLayers.missingBed')} <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
+      </p>
+    )
+  }
+  if (placement === null || placement.layers.length === 0) return null
+
+  const current = placement.layers[Math.min(index, placement.layers.length - 1)]
+  if (current === undefined) return null
+
+  /**
+   * ⚠️ **Todas as camadas no desenho**, com a escolhida em foco e as outras esmaecidas. Desenhar só a
+   * camada aberta tiraria justamente o que o 3D tem de melhor — ver a pilha inteira — e deixaria a
+   * carga flutuando sobre um piso vazio.
+   */
+  /**
+   * ⚠️ Memoizado porque o **arrasto** redesenha a cada evento de ponteiro: sem isto, remontar a lista
+   * acontecia a cada quadro do gesto. **Não há teto de caixas desenhadas** (spec 131): toda caixa
+   * empacotada chega aqui, e o custo do redesenho é resolvido em `cargo-isometric.tsx`.
+   */
+  /**
+   * Spec 121: a cor de cada nota e a lista da ficha, decididas **uma vez por planta** — não mudam ao
+   * girar a vista nem ao acender uma parada, então ficam fora da memória que o foco invalida.
+   */
+  const { notesSharingColor, stopNotes, noteColors } = useMemo(() => {
+    const placed = placement.layers.flatMap((layer) => layer.boxes)
+    const resolved = resolveNoteColors(placed)
+    const splitPieces = resolveSplitPieces(placement.splitNotes)
+    return {
+      noteColors: resolved,
+      notesSharingColor: countNotesSharingColor(resolved),
+      stopNotes: buildStopNotes(placed, resolved, splitPieces),
+    }
+  }, [placement.layers, placement.splitNotes])
+
+  /**
+   * Spec 120: quantas caixas vieram do mapa recomendado e quantas do complemento, mais o que a
+   * viagem pediu ao todo — a mesma conta usada no resumo do topo e na coluna nova da folha impressa.
+   */
+  const complementSummary = buildCargoComplementSummary(
+    placement.layers.flatMap((layer) => layer.boxes),
+    placement.unplaced,
+  )
+
+  const { boxRecordsById, boxes } = useMemo(() => {
+    const records = new Map<
+      string,
+      Readonly<{ documentId?: string | null | undefined; id: string; stopSequence: number }>
+    >()
+    const isometricBoxes = placement.layers.flatMap((layer) =>
+      layer.boxes.map((rawBox, position) => {
+        const id = `${String(layer.index)}-${String(position)}`
+        const box = { ...rawBox, id }
+        records.set(id, { documentId: box.documentId, id, stopSequence: box.stopSequence })
+
+        return {
+          /**
+           * Spec 121: **a caixa é da cor da NOTA.** Caixa sem nota carimbada volta à cor da parada —
+           * `documentId` nulo é "não se sabe" (spec 119), e a cor da parada é o que se sabe dela.
+           */
+          color: noteColorOf(noteColors, box, stopColorOf(box.stopSequence)),
+          complement: resolveCargoComplement(box),
+          depthM: box.depthM,
+          heightM: box.heightM,
+          id,
+          isEstimated: box.source === 'estimated',
+          isGhost: !isBoxLit(focus, box),
+          isSplit: box.reasons.includes('splitCargo'),
+          /** Spec 131: rótulo do clique — caixa sem nota carimbada anuncia só a parada. */
+          label:
+            box.documentId === null || box.documentId === undefined
+              ? t('cargoLayers.box.toggleWithoutNote', { stop: box.stopSequence })
+              : t('cargoLayers.box.toggle', {
+                  note: box.documentNumber ?? t('cargoLayers.invoice.withoutNumber'),
+                  stop: box.stopSequence,
+                }),
+          layer: box.layer,
+          stopSequence: box.stopSequence,
+          widthM: box.widthM,
+          xM: box.xM,
+          yM: box.yM,
+          zM: box.zM,
+        }
+      }),
+    )
+
+    return { boxRecordsById: records, boxes: isometricBoxes }
+  }, [focus, noteColors, placement.layers, t])
+
+  /**
+   * Spec 145 T13 (D4): só o **desenho** anima. Lista, fatias, fichas e folha impressa leem `boxes`,
+   * a planta nova de verdade — a caixa que está saindo nunca entra numa contagem.
+   */
+  const matchKeys = useMemo(
+    () => listCargoBoxMatchKeys(placement.layers.flatMap((layer) => layer.boxes)),
+    [placement.layers],
+  )
+  const drawnBoxes = useMemo(
+    () =>
+      applyCargoLayoutTransition({
+        boxes,
+        frame: transition,
+        keys: matchKeys,
+        toLeaving: (box, key) => ({
+          color: stopColorOf(box.stopSequence),
+          complement: null,
+          depthM: box.depthM,
+          heightM: box.heightM,
+          id: `leaving-${key}`,
+          isEstimated: box.source === 'estimated',
+          isGhost: false,
+          isSplit: false,
+          label: box.label,
+          layer: box.layer,
+          stopSequence: box.stopSequence,
+          widthM: box.widthM,
+          xM: box.xM,
+          yM: box.yM,
+          zM: box.zM,
+        }),
+      }),
+    [boxes, matchKeys, transition],
+  )
+
+  /**
+   * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
+   * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
+   * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
+   */
+  /**
+   * ⚠️ Ausente é `depth`, o comportamento de sempre: uma API que ainda não publica o arranjo não pode
+   * fazer a folha de carregamento inverter a ordem sozinha.
+   */
+  const arrangement = layout.stopArrangement ?? 'depth'
+  /**
+   * Spec 100 D4. ⚠️ **Quem diz que foi o peso é a API, não uma dedução daqui.** Concluir isso de
+   * `depth` mais carga pesada afirmava o mesmo na viagem de uma parada só, na carroceria aberta e
+   * quando as faixas não caberiam de todo jeito — e nesses três o operador conclui que aliviar a
+   * carga devolveria as faixas, e não devolve.
+   */
+  /** Na grade o peso não venceu o acesso: ela equilibra dentro de cada faixa (spec 113). */
+  const weightWonAccess = layout.stopArrangementReason === 'weight' && arrangement === 'depth'
+
+  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
+  const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')
+  const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
+  const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM
+
+  const stopLabels = buildCargoStopLabels(layout.rows)
+  const labelOf = (sequence: number): string =>
+    formatCargoStopLabel(stopLabels.get(sequence)) || t('cargoLayers.stop', { sequence })
+
+  /**
+   * ⚠️ **Uma lista só na tela.** A ficha dizia cliente e endereço e a tabela ao lado dizia a ordem
+   * de carregamento, a faixa e as contagens — casar as duas era trabalho de quem estava com a carga
+   * na mão. A tabela continua, escondida na tela e impressa no papel: lá não há cor nem clique.
+   */
+  const totalStops = layout.rows.length
+  const chipFacts = buildCargoChipFacts(boxes, arrangement, totalStops)
+
+  /**
+   * ⚠️ **Todas as paradas, não só as desenhadas.** A lista saía das caixas que o desenho posicionou:
+   * 37 entregas viravam 7 fichas, e a ordem de carregamento era contada entre as 7. Parada fora do
+   * desenho continua na lista — ela também entra no baú, e a posição dela é a da ordem de entrega.
+   *
+   * ⚠️ **Na ordem em que se carrega**: quem está no galpão lê de cima para baixo enquanto enche o baú.
+   */
+  /** Ignora o clique se o ponteiro arrastou — o gesto já girou ou moveu o desenho. */
+  function handleBoxSelect(boxId: string): void {
+    if (hasDraggedPastClickThreshold.current) return
+    const box = boxRecordsById.get(boxId)
+    if (box === undefined) return
+    setFocus((previous) => toggleBoxFocus(previous, box))
+  }
+
+  const stopChips = layout.rows
+    .map((row) => ({
+      facts: chipFacts.get(row.sequence),
+      loading: resolveLoadingPosition({ arrangement, stopSequence: row.sequence, totalStops }),
+      sequence: row.sequence,
+    }))
+    .sort((first, second) => first.loading - second.loading)
+
+  return (
+    <section aria-labelledby="trip-cargo-layers-title" className={styles.panel} data-print-region>
+      <h3 className={styles.hint} id="trip-cargo-layers-title">
+        {t('cargoLayers.title')}
+      </h3>
+
+      {/* ⚠️ A linha que diz o que a planta NÃO promete. Fixa, nunca condicional. */}
+      <p className={styles.hint}>{t('cargoLayers.promise')}</p>
+
+      {/*
+        Spec 145 D13: a última tentativa esgotou o tempo e a planta ficou como estava. O aviso é
+        discreto — as caixas de fora já aparecem na lista abaixo, com o motivo.
+      */}
+      {truncated ? (
+        <p aria-live="polite" className={styles.hint} role="status">
+          {t('cargoLayers.wait.truncated')}
+        </p>
+      ) : null}
+
+      {/*
+        Spec 120: quanto do pedido está no mapa recomendado e quanto está no complemento — a mesma
+        pergunta que "cabe?" não respondia sozinha. Sem complemento a forma é curta: dizer "0 no
+        complemento" faria o aviso deixar de ser lido justamente quando ele importa.
+      */}
+      <p className={styles.hint}>
+        {complementSummary.complement === 0
+          ? t('cargoLayers.summary.short', {
+              count: complementSummary.requested,
+              recommended: complementSummary.recommended,
+              requested: complementSummary.requested,
+            })
+          : t('cargoLayers.summary.long', {
+              complement: complementSummary.complement,
+              count: complementSummary.requested,
+              recommended: complementSummary.recommended,
+              requested: complementSummary.requested,
+            })}
+      </p>
+
+      {/*
+        ⚠️ **O desenho promete metro, e este metro é de catálogo.** A escala veio da referência do
+        tipo porque a ficha deste veículo não tem as três medidas — e a dispersão dentro de um tipo
+        chega a 2×. Sem esta linha, o palpite se apresentaria como fita na mão de quem carrega, que
+        é o modo de falha da ADR-0044 §1.
+      */}
+      {layout.bedSource !== 'reference' ? null : (
+        <p className={styles.warning} role="status">
+          {t('cargoLayers.bedFromReference')}{' '}
+          <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
+        </p>
+      )}
+
+      {/**
+       * ⚠️ **Todas as camadas de uma vez, com o que cada uma tem dentro.** O par anterior/próxima
+       * mostrava "Camada 1 de 2" e obrigava a percorrer o baú para saber o que havia na de cima —
+       * numa pilha de duas ou seis, a lista inteira cabe e responde de relance. Clicar acende uma;
+       * clicar de novo devolve a pilha inteira sólida.
+       */}
+      <ul className={styles.cargoLayerList} role="list">
+        {placement.layers.map((layer) => {
+          const chosen = hasChosenLayer && layer.index === current.index
+          return (
+            <li key={layer.index}>
+              <button
+                aria-pressed={chosen}
+                className={styles.cargoLayerChip}
+                type="button"
+                onClick={() => {
+                  setIndex(layer.index)
+                  setHasChosenLayer(!chosen || layer.index !== current.index)
+                }}
+              >
+                <strong>{t('cargoLayers.layer', { index: layer.index + 1 })}</strong>
+                {t('cargoLayers.layerSummary', {
+                  boxes: layer.boxes.length,
+                  height: layer.heightM.toFixed(2),
+                  stops: new Set(layer.boxes.map((box) => box.stopSequence)).size,
+                })}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className={styles.cargoStage}>
+        <CargoIsometric
+          angle={view.angle}
+          ariaLabel={t('cargoLayers.planLabel', { index: current.index + 1 })}
+          bedHeightM={drawnHeightM}
+          bedLengthM={Number.parseFloat(layout.bedLengthM)}
+          bedWidthM={Number.parseFloat(layout.bedWidthM)}
+          boxes={drawnBoxes}
+          className={styles.cargoCanvas}
+          {...(hasChosenLayer ? { focusLayer: current.index } : {})}
+          hasSideDoor={layout.loadingAccess !== 'rear'}
+          sliceCutsAcrossWidth={arrangement === 'lanes'}
+          panX={view.panX}
+          sliceCutsM={sliceCutsM}
+          panY={view.panY}
+          zoom={view.zoom}
+          onBoxSelect={handleBoxSelect}
+          onPointerDown={(event: PointerEvent<SVGSVGElement>) => {
+            dragFrom.current = { x: event.clientX, y: event.clientY }
+            pointerDownAt.current = { x: event.clientX, y: event.clientY }
+            hasDraggedPastClickThreshold.current = false
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event: PointerEvent<SVGSVGElement>) => {
+            const from = dragFrom.current
+            if (from === null) return
+            setView((previous) =>
+              dragView(previous, { x: event.clientX - from.x, y: event.clientY - from.y }),
+            )
+            dragFrom.current = { x: event.clientX, y: event.clientY }
+            setHasDragged(true)
+
+            const start = pointerDownAt.current
+            if (start === null) return
+            const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+            if (distance > BOX_CLICK_DRAG_THRESHOLD_PX) hasDraggedPastClickThreshold.current = true
+          }}
+          onPointerUp={() => {
+            dragFrom.current = null
+            pointerDownAt.current = null
+          }}
+        />
+        {hasDragged ? null : (
+          <span className={styles.cargoDragHint}>
+            <Icon aria-hidden name="grip" />
+            {t('cargoLayers.dragHint')}
+          </span>
+        )}
+      </div>
+
+      <div className={styles.cargoPads}>
+        {/*
+          ⚠️ **O rótulo é visível, não só acessível.** Os dois teclados de setas eram idênticos na
+          tela — um gira, o outro move —, e o nome existia apenas no `aria-label`: quem enxerga
+          tinha de clicar para descobrir qual era qual. O texto entra `aria-hidden` porque o grupo
+          já se anuncia pelo nome.
+        */}
+        <div className={styles.cargoPadGroup}>
+          <span aria-hidden className={styles.cargoPadLabel}>
+            {t('cargoLayers.rotate')}
+          </span>
+          <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.rotate')}>
+            {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+              <Button
+                aria-label={t(`cargoLayers.rotateTo.${direction}`)}
+                className={styles[`cargoPad${capitalise(direction)}`]}
+                key={direction}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setView((previous) => rotateView(previous, direction))}
+              >
+                <Icon name={ARROW_ICONS[direction]} />
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.cargoPadGroup}>
+          <span aria-hidden className={styles.cargoPadLabel}>
+            {t('cargoLayers.pan')}
+          </span>
+          <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.pan')}>
+            {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+              <Button
+                aria-label={t(`cargoLayers.panTo.${direction}`)}
+                className={styles[`cargoPad${capitalise(direction)}`]}
+                key={direction}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setView((previous) => panViewBy(previous, direction))}
+              >
+                <Icon name={ARROW_ICONS[direction]} />
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.cargoViewActions}>
+          <Button
+            aria-label={t('cargoLayers.zoomOut')}
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView((previous) => zoomViewBy(previous, -1))}
+          >
+            <Icon name="minus" />
+            {t('cargoLayers.zoomOut')}
+          </Button>
+          <Button
+            aria-label={t('cargoLayers.zoomIn')}
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView((previous) => zoomViewBy(previous, 1))}
+          >
+            <Icon name="add" />
+            {t('cargoLayers.zoomIn')}
+          </Button>
+          {(['rear', 'side', 'top'] as const).map((preset: CargoViewPreset) => (
+            <Button
+              key={preset}
+              size="sm"
+              type="button"
+              variant="ghost"
+              onClick={() => setView((previous) => applyViewPreset(previous, preset))}
+            >
+              <Icon name={PRESET_ICONS[preset]} />
+              {t(`cargoLayers.view.${preset}`)}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView(DEFAULT_CARGO_VIEW)}
+          >
+            <Icon name="refresh" />
+            {t('cargoLayers.view.reset')}
+          </Button>
+          <Button size="sm" type="button" variant="ghost" onClick={() => globalThis.print()}>
+            <Icon name="document" />
+            {t('cargoLayers.print.action')}
+          </Button>
+        </div>
+      </div>
+
+      {/* A legenda das marcas, ao lado do desenho: sem ela o contorno vermelho não quer dizer nada. */}
+      <ul className={styles.cargoLegend} role="list">
+        <li>
+          <CargoLegendSample mark="measured" />
+          {t('cargoLayers.legend.measured')}
+        </li>
+        <li>
+          <CargoLegendSample mark="presumed" />
+          {t('cargoLayers.legend.presumed')}
+        </li>
+        <li>{t('cargoLayers.legend.notes')}</li>
+        <li>
+          <CargoLegendSample mark="split" />
+          {t('cargoLayers.legend.split')}
+        </li>
+        <li>
+          <CargoLegendSample mark="complement" />
+          {t('cargoLayers.legend.complement')}
+        </li>
+        <li>
+          <CargoLegendSample mark="complementStrong" />
+          {t('cargoLayers.legend.complementStrong')}
+        </li>
+        <li>
+          <CargoLegendSample mark="overEarlier" />
+          {t('cargoLayers.legend.overEarlier')}
+        </li>
+        {/*
+          ⚠️ **Spec 121: cor repetida é dita, nunca calada.** A lista de cores tem 128 itens e a
+          viagem real mais cheia tem 94 notas, então esta linha não aparece hoje; se a viagem passar
+          disso, duas notas com a mesma cor sem aviso fazem a cor deixar de identificar e ninguém
+          descobre — foi o defeito que a paleta de paradas já pagou uma vez.
+        */}
+        {notesSharingColor === 0 ? null : (
+          <li>{t('cargoLayers.legend.reusedColors', { count: notesSharingColor })}</li>
+        )}
+        <li>{t('cargoLayers.legend.select')}</li>
+      </ul>
+
+      <div className={styles.cargoStops}>
+        {stopChips.map(({ facts, loading, sequence }) => {
+          const notesOfStop = stopNotes.get(sequence) ?? []
+
+          return (
+            <div className={styles.cargoStopGroup} key={sequence}>
+              <div className={styles.cargoStopItem}>
+                <button
+                  aria-pressed={isStopSelected(focus, {
+                    documentIds: notesOfStop.map((note) => note.documentId),
+                    sequence,
+                  })}
+                  className={styles.cargoStopChip}
+                  type="button"
+                  onClick={() =>
+                    setFocus((previous) =>
+                      toggleCargoStopFocus(previous, {
+                        documentIds: notesOfStop.map((note) => note.documentId),
+                        sequence,
+                      }),
+                    )
+                  }
+                >
+                  {/*
+              ⚠️ **Spec 121: o disco de cor da parada saiu daqui.** Com a carga pintada pela nota, a
+              parada deixou de ser um bloco de uma cor só, e um disco de cor ao lado do rótulo
+              afirmaria uma cor que o baú não tem em lugar nenhum. O que identifica a parada agora é
+              o número da entrega abaixo, a lista de notas dela (cada uma com a cor que está no
+              desenho), a divisa entre fatias e o destaque ao clicar. `stopColorOf` continua servindo
+              o mapa, o traço do roteiro e a lista de paradas, que não desenham carga.
+            */}
+                  {/*
+              ⚠️ **O número da entrega vive com a cor.** A ficha dizia só o cliente e o endereço, e
+              a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
+              nome de mercado para saber que caixa era de qual parada.
+            */}
+                  <span className={styles.cargoStopOrder}>
+                    {t('cargoLayers.chip.deliveryOrder', { sequence })}
+                  </span>
+                  {/*
+              ⚠️ **A ordem de carregamento é o número que o galpão procura.** Ela era uma linha cinza
+              pequena no meio da ficha; quem carrega lê a ficha de longe, com a caixa na mão.
+            */}
+                  <span className={styles.cargoStopBody}>
+                    {/* A descrição ao lado do número da entrega — é assim que o operador lê a parada. */}
+                    <span>{labelOf(sequence)}</span>
+                    <span className={styles.cargoStopFacts}>
+                      <span className={styles.cargoStopLoadingBadge}>
+                        {t('cargoLayers.chip.loadingBadge', { position: loading })}
+                      </span>
+                      {facts === undefined ? <span>{t('cargoLayers.chip.notDrawn')}</span> : null}
+                    </span>
+                    {facts === undefined ? null : (
+                      <span className={styles.cargoStopFacts}>
+                        <span>
+                          {t('cargoLayers.print.spanValue', {
+                            from: facts.fromM.toFixed(2),
+                            to: facts.toM.toFixed(2),
+                          })}
+                        </span>
+                        <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
+                        {/*
+                    ⚠️ Presumida e dividida só aparecem quando existem: zero delas é o caso normal,
+                    e imprimir "0 divididas" em toda ficha faz o aviso deixar de ser lido justamente
+                    na parada em que ele importa.
+                  */}
+                        {facts.presumed === 0 ? null : (
+                          <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
+                        )}
+                        {facts.split === 0 ? null : (
+                          <span className={styles.cargoStopSplit}>
+                            {t('cargoLayers.chip.split', { count: facts.split })}
+                          </span>
+                        )}
+                        {facts.complement === 0 ? null : (
+                          <span className={styles.cargoStopComplement}>
+                            {t('cargoLayers.chip.complement', { count: facts.complement })}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                {onLoadingMove === undefined ? null : (
+                  <span className={styles.cargoStopMoves}>
+                    <Button
+                      aria-label={t('cargoLayers.chip.loadEarlier', { label: labelOf(sequence) })}
+                      disabled={loading === 1}
+                      onClick={() => onLoadingMove(sequence, -1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon name="chevron-up" />
+                    </Button>
+                    <Button
+                      aria-label={t('cargoLayers.chip.loadLater', { label: labelOf(sequence) })}
+                      disabled={loading === totalStops}
+                      onClick={() => onLoadingMove(sequence, 1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon name="chevron-down" />
+                    </Button>
+                  </span>
+                )}
+              </div>
+              {/*
+            Spec 121: as notas da entrega, cada uma na **cor** que ela tem no desenho.
+
+            ⚠️ **A lista vale também para a parada de uma nota só**, ao contrário da 119, que a
+            escondia porque ali acender a nota era acender a parada. Com a cor saindo da nota, a
+            ficha é o único lugar em que a cor desenhada é nomeada: escondê-la deixava a parada de
+            uma nota — a maioria das reais — com carga colorida e ficha sem cor nenhuma. O aviso de
+            nota dividida (spec 120) volta para dentro da lista pelo mesmo motivo, e o caso especial
+            que ele exigia deixou de existir.
+          */}
+              {notesOfStop.length === 0 ? null : (
+                <ul
+                  aria-label={t('cargoLayers.invoice.listLabel', { label: labelOf(sequence) })}
+                  className={styles.cargoNoteList}
+                  role="list"
+                >
+                  {notesOfStop.map((note) => {
+                    const noteLabel =
+                      note.documentNumber === null
+                        ? t('cargoLayers.invoice.withoutNumber')
+                        : t('cargoLayers.invoice.number', { number: note.documentNumber })
+                    return (
+                      <li key={note.documentId}>
+                        <button
+                          aria-label={t('cargoLayers.invoice.toggle', { label: noteLabel })}
+                          aria-pressed={isNoteLit(focus, {
+                            documentId: note.documentId,
+                            stopSequence: sequence,
+                          })}
+                          className={styles.cargoNoteChip}
+                          type="button"
+                          onClick={() =>
+                            setFocus((previous) =>
+                              toggleNoteFocus(previous, {
+                                documentId: note.documentId,
+                                siblingDocumentIds: notesOfStop.map(
+                                  (sibling) => sibling.documentId,
+                                ),
+                                stopSequence: sequence,
+                              }),
+                            )
+                          }
+                        >
+                          <CargoNoteSwatch color={note.color} />
+                          <span>{noteLabel}</span>
+                          <span className={styles.cargoStopFacts}>
+                            {t('cargoLayers.chip.counts', { boxes: note.boxes })}
+                            {/* Spec 120: a nota que o desenho separou em mais de um pedaço. */}
+                            {note.pieces === undefined ? null : (
+                              <span className={styles.cargoStopComplement}>
+                                {t('cargoLayers.invoice.splitPieces', { pieces: note.pieces })}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/**
+       * ⚠️ **A tela diz qual arranjo desenhou** (spec 100 D5). O corte entre os dois — caixa larga
+       * demais para a faixa, ou peso acima de metade do teto — não é adivinhável olhando a planta, e
+       * sem a linha o desenho parece mudar sozinho de uma viagem para a outra.
+       */}
+      <p className={styles.hint}>{t(`cargoLayers.arrangement.${arrangement}`)}</p>
+      {weightWonAccess ? (
+        <p className={styles.hint}>{t('cargoLayers.arrangement.weightWon')}</p>
+      ) : null}
+
+      {/**
+       * A folha do agregado: ele carrega a van sozinho, longe da tela, e o galpão imprime em laser
+       * mono — nada aqui depende de cor. A ordem é a de **carregamento**, inversa à de entrega.
+       */}
+      <table className={styles.cargoPrintSheet}>
+        <caption>{t(`cargoLayers.print.caption.${arrangement}`)}</caption>
+        <thead>
+          <tr>
+            {/*
+              ⚠️ **São dois números, e eles não coincidem.** Quem carrega segue a ordem de
+              carregamento; quem dirige segue a de entrega — e em profundidade uma é o inverso da
+              outra, porque a última entrega entra primeiro e vai ao fundo. Uma coluna só obrigava a
+              cabeça a fazer a inversão a cada linha, no barracão, com a carga na mão.
+            */}
+            <th scope="col">{t('cargoLayers.print.order')}</th>
+            <th scope="col">{t('cargoLayers.print.delivery')}</th>
+            <th scope="col">{t('cargoLayers.print.stop')}</th>
+            <th scope="col">{t(`cargoLayers.print.span.${arrangement}`)}</th>
+            <th scope="col">{t('cargoLayers.print.boxes')}</th>
+            <th scope="col">{t('cargoLayers.print.presumed')}</th>
+            <th scope="col">{t('cargoLayers.print.split')}</th>
+            <th scope="col">{t('cargoLayers.print.complement')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buildCargoPrintSummary(boxes, arrangement).map((row) => (
+            <tr key={row.stopSequence}>
+              <td className={styles.cargoOrderCell}>
+                {resolveLoadingPosition({
+                  arrangement,
+                  stopSequence: row.stopSequence,
+                  totalStops,
+                })}
+              </td>
+              <td className={styles.cargoOrderCell}>{row.stopSequence}</td>
+              <td>{labelOf(row.stopSequence)}</td>
+              <td>
+                {t('cargoLayers.print.spanValue', {
+                  from: row.fromM.toFixed(2),
+                  to: row.toM.toFixed(2),
+                })}
+              </td>
+              <td>{row.boxes}</td>
+              <td>{row.presumed}</td>
+              <td>{row.split}</td>
+              <td>{row.complement}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/**
+       * ⚠️ **A planta é uma instrução, e instrução sem motivo não se confere.** Quem carrega precisa
+       * saber se a pilha parou por estabilidade ou por falta de caixa, e se a carga foi para o fundo
+       * por escolha ou por não caber — senão a única leitura possível é "o sistema decidiu".
+       *
+       * ⚠️ Só entram as decisões que moldaram **esta** carga: nota que valeria para toda viagem é
+       * ruído, e ruído fixo deixa de ser lido na terceira vez. Quem escolhe é a API.
+       */}
+      {(layout.layoutNotes ?? []).length === 0 ? null : (
+        <div className={styles.cargoNotes}>
+          <p className={styles.hint}>{t('cargoLayers.notes.title')}</p>
+          <ul className={styles.cargoNotesList} role="list">
+            {(layout.layoutNotes ?? []).map((note) => (
+              <li key={note}>{t(`cargoLayers.notes.${note}`)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
+      <p className={styles.hint}>
+        {layout.loadingAccess === 'rear'
+          ? t('cargoLayers.doorsRear')
+          : t('cargoLayers.doorsRearAndSide')}
+      </p>
+
+      {isMostlyPresumed(boxes) ? (
+        <p className={styles.hint}>{t('cargoLayers.mostlyPresumed')}</p>
+      ) : placement.source === 'estimated' ? (
+        <p className={styles.hint}>{t('cargoLayers.estimated')}</p>
+      ) : null}
+
+      <TripCargoOverEarlierList
+        rows={buildOverEarlierDeliveryRows(placement.layers.flatMap((layer) => layer.boxes))}
+      />
+
+      {placement.unplaced.length === 0 ? null : (
+        <ul className={styles.cargoUnplaced} role="list">
+          {/* Spec 148 (T7): o unplaced vem por nota — o mesmo rótulo e motivo repetem entre notas. */}
+          {placement.unplaced.map((entry) => (
+            <li key={`${entry.documentId ?? ''}-${entry.label}-${entry.reason}`}>
+              {t(`cargoLayers.unplaced.${entry.reason}`, {
+                count: entry.count,
+                label: entry.label,
+              })}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** As setas da botoeira: o mesmo ícone para girar e para mover, porque o gesto é o mesmo. */
+const ARROW_ICONS = {
+  down: 'chevron-down',
+  left: 'chevron-left',
+  right: 'chevron-right',
+  up: 'chevron-up',
+} as const
+
+/** Cada atalho de vista com o seu ícone: numa fileira de botões, o olho acha o símbolo antes da palavra. */
+const PRESET_ICONS = {
+  default: 'refresh',
+  rear: 'page-last',
+  side: 'truck',
+  top: 'arrow-down',
+} as const
+
+function capitalise(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`
+}

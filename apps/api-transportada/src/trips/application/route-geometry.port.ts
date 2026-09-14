@@ -18,7 +18,35 @@ export type RouteGeometryLeg = Readonly<{
  */
 export type RouteGeometryRoad = Readonly<{
   legs: readonly RouteGeometryLeg[]
+  /**
+   * Os **ids de nó OSM percorridos**, na ordem em que o caminhão passa por eles — 845 numa rota de
+   * 126 km medida. É por identidade de nó que a praça de pedágio se encontra (spec 090 D1): a praça
+   * **é** um nó, então a interseção é exata e o sentido está resolvido por construção. Casar por
+   * raio cobraria a praça da pista contrária, a poucos metros dali.
+   *
+   * ⚠️ `null` é **desconhecimento**, e lista vazia é "passou por nó nenhum". A distinção existe
+   * porque, sem ela, uma resposta do OSRM sem anotação viraria pedágio zero com cara de medido —
+   * o modo de falha silencioso desta feature.
+   */
+  nodeIds: readonly number[] | null
+  /**
+   * Os mesmos nós, **agrupados por trecho** — um grupo por par de pontos enviados. É a única coisa
+   * capaz de dizer em que perna da viagem cada praça cai: a lista achatada acima perde o limite, e
+   * num roteiro que fecha no barracão o par de cancelas gêmeas (a mesma praça nos dois sentidos)
+   * aparecia inteiro antes da primeira entrega.
+   *
+   * ⚠️ `null` pela mesma razão do `nodeIds`, e sempre junto dele: um sem o outro seria meia verdade.
+   */
+  nodeIdsByLeg: readonly (readonly number[])[] | null
   points: readonly RouteGeometryPoint[]
+  /**
+   * As demais rotas que o OSRM ofereceu para o **mesmo** par de paradas, na ordem em que ele as
+   * devolveu (spec 096 T1). Ausente ou vazia é "o roteirizador só tem um caminho" — medido: **uma
+   * de quatro** rotas reais teve segunda opção — e a tela usa isso para não desenhar seletor
+   * nenhum (D2). Cada alternativa não carrega as suas próprias, porque a resposta do OSRM não tem
+   * alternativa de alternativa.
+   */
+  alternatives?: readonly Omit<RouteGeometryRoad, 'alternatives'>[]
 }>
 
 export type RouteGeometryPort = {

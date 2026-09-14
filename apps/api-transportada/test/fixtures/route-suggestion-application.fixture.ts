@@ -32,6 +32,7 @@ export const QUEUED_RECORD: RouteSuggestionRecord = {
   estimatedDistanceMeters: null,
   estimatedDurationSeconds: null,
   id: SUGGESTION_ID,
+  plannedDepartureAt: null,
   seed: 12_345,
   status: 'queued',
   stops: [],
@@ -57,11 +58,13 @@ function buildStopRecord(
   overrides: Readonly<{ sequence: number; stopId: string | null }>,
 ): RouteSuggestionRecord['stops'][number] {
   return {
+    nfeDocumentIds: [],
     addressKey: `3550308|0131010${overrides.sequence}|1000`,
     distanceFromPreviousMeters: 2_400,
     durationFromPreviousSeconds: 420,
     estimatedArrivalAt: '2026-08-26T13:00:00.000Z',
     excludedFromOptimization: false,
+    leftoverReason: null,
     geocodingPrecision: 'rooftop',
     label: `Parada ${overrides.sequence}`,
     sequence: overrides.sequence,
@@ -118,6 +121,7 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
         created.push(input)
         return { ...QUEUED_RECORD, seed: input.seed, assumptions: input.assumptions }
       },
+      release: async () => undefined,
       async decide(input) {
         if (params.decideReturnsNull === true) return null
         decided.push(input)

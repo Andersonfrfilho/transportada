@@ -1,10 +1,22 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+
+import type {
+  CoverableSuggestionStop,
+  LeftoverStop,
+} from '@/modules/routing/shared/suggestionLeftover.service'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
  *
  * ⚠️ Cópia por valor de `TRIP_STATUSES` da API — o bundle não carrega código de lá.
  */
+/**
+ * Onde o dia termina. ⚠️ Só `resolveRouteEndAddressKey` interpreta isto — a tela **imprime** a
+ * política, nunca decide por ela (spec 110 D4a).
+ */
+export const ROUTE_END_POLICIES = ['address', 'depot', 'last_stop'] as const
+export type RouteEndPolicy = (typeof ROUTE_END_POLICIES)[number]
+
 export const TRIP_STATUS = [
   'cancelled',
   'completed',
@@ -64,6 +76,14 @@ export type Trip = Readonly<{
    */
   driverNames: readonly string[]
   createdAt: string
+  /**
+   * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ Anda **em par** com `estimatedFinishAt`
+   * — hora sem carimbo é previsão sem idade, e a tela imprimiria uma estimativa de ontem como se
+   * fosse de agora.
+   */
+  estimatedArrivalFrozenAt?: null | string
+  /** Spec 107 D3: o ETA mais tardio das paradas — quando este caminhão fica livre. */
+  estimatedFinishAt?: null | string
   id: string
   /** Spec 065 D4c: `null` é "derive da classificação das notas", não "não precisa". */
   requiresMdfe: boolean | null
@@ -188,6 +208,9 @@ export type TripStopDetail = Readonly<{
 export type TripCargoWeight = Readonly<{
   documentsWithoutWeight: number
   grossWeightKilograms: string
+  /** Spec 093: o teto da ficha (`capacity_kg`) e quanto dele a carga ocupa. `null` sem teto. */
+  maxPayloadKg: string | null
+  payloadRatio: string | null
   source: 'declared' | 'estimated'
 }>
 
@@ -210,20 +233,138 @@ export type TripOccupancy = Readonly<{
  * Spec 076: a fatia do baú de cada parada. ⚠️ Representação proporcional, **não plano de estiva** —
  * a NF-e não traz dimensão de volume, e não há como dizer onde cada caixa vai.
  */
+export type TripPlacedBox = Readonly<{
+  /**
+   * Spec 148 D5: as entregas anteriores que a caixa cobre (`overEarlierDelivery`). Opcional: planta
+   * anterior à 148 não traz, e a caixa sem ele segue desenhada.
+   */
+  coversStops?: readonly number[] | undefined
+  depthM: number
+  /**
+   * Spec 119: a nota de origem e o número impresso dela. Opcionais: API anterior à 119 não os serve,
+   * e aí toda caixa sai no tom da parada, sem a lista de notas.
+   */
+  documentId?: string | null | undefined
+  documentNumber?: string | null | undefined
+  heightM: number
+  isFragile: boolean
+  label: string
+  layer: number
+  /**
+   * O porquê daquela posição, em vocabulário fechado — é o que permite discordar do algoritmo.
+   *
+   * Spec 120: `outOfReach` (funda demais para a mão de quem descarrega de pé no piso) e
+   * `needsRehandling` (fura a ordem de descarga) marcam a caixa como "do complemento" — entrou fora
+   * do mapa recomendado. `resolveCargoComplement` (`cargoComplement.service.ts`) é quem lê os dois.
+   */
+  reasons: readonly string[]
+  source: 'estimated' | 'measured'
+  stopSequence: number
+  widthM: number
+  xM: number
+  yM: number
+  /**
+   * Altura do piso até a base da caixa, servida pela política.
+   *
+   * ⚠️ A tela reconstruía isto somando a altura das camadas, e a altura de uma camada é o máximo do
+   * baú inteiro naquele índice: uma fatia de caixas baixas ao lado de outra de caixas altas desenhava
+   * a segunda camada com meio metro de ar embaixo, num desenho que promete escala.
+   */
+  zM: number
+}>
+
+export type TripCargoPlacement = Readonly<{
+  layers: readonly Readonly<{
+    boxes: readonly TripPlacedBox[]
+    heightM: number
+    index: number
+  }>[]
+  /** A pior origem manda: uma caixa presumida torna presumido o arranjo inteiro. */
+  source: 'estimated' | 'measured'
+  /**
+   * Spec 120: as notas que o desenho dividiu em mais de um pedaço — pedaço é componente conexo de
+   * caixas da nota por contato de face. Nota inteira não aparece nesta lista.
+   *
+   * ⚠️ Opcional pela razão de sempre: a API sobe antes do frontend, e ausência é lista vazia, nunca
+   * "ninguém dividiu nada" virando exceção. `resolveSplitPieces` (`noteTone.service.ts`) lê o campo
+   * de forma tolerante — item malformado é ignorado, nunca derruba a planta inteira.
+   */
+  splitNotes?: readonly Readonly<{ documentId: string; pieces: number }>[]
+  /** Spec 148 (T7): uma linha por nota, com `documentId`; ausente em planta antiga. */
+  unplaced: readonly Readonly<{
+    count: number
+    documentId?: string | null | undefined
+    label: string
+    reason: string
+  }>[]
+}>
+
+/**
+ * Spec 144 (D4): uma linha da lista do que falta medir — um produto sem ficha, numa parada.
+ * `label`/`productCode` vêm da caixa; `stopLabel`/`sequence` são da parada, para o conferente
+ * saber **onde** procurar antes de abrir a fila da 085.
+ */
+export type TripPendingMeasurement = Readonly<{
+  boxCount: number
+  documentNumber: null | string
+  estimateSource: 'median' | 'none' | 'note'
+  label: null | string
+  productCode: null | string
+  sequence: number
+  stopLabel: string
+}>
+
 export type TripCargoLayout = Readonly<{
   /**
    * As fileiras do baú, do fundo para a porta. A parada dona aparece em fileiras **seguidas**, e a
    * quebra da carga em blocos da mesma cor é consequência da quantização (spec 085 G001).
    */
   rows: readonly Readonly<{
+    /**
+     * Quem recebe e quais notas. **"Parada 3" não identifica nada**: o separador procura o número
+     * que ele bipou e o nome do cliente na etiqueta, e a ordem é só a posição na fila.
+     */
+    clientName: string
     label: string
     loadOrder: number
+    noteNumbers: readonly string[]
     sequence: number
     /** Se dá para chegar nesta carga sem descarregar o que está na frente (spec 085 G003). */
     sideReachable: boolean
   }>[]
   /** `true` quando a ordem é obrigação, não conveniência — veículo que abre só atrás. */
   orderIsBinding: boolean
+  /**
+   * Spec 100: em que eixo as paradas se dividem. `depth` é a fatia de sempre — uma parada atrás da
+   * outra a partir da porta; `lanes` põe cada parada numa faixa ao longo da largura, e aí todas
+   * encostam na porta.
+   *
+   * ⚠️ Opcional de propósito: a API sobe antes do frontend, e recusar o corpo por falta do campo
+   * apagaria o painel de carga inteiro na janela entre os dois deploys. Ausente é `depth`, que é o
+   * comportamento de sempre.
+   */
+  stopArrangement?: 'depth' | 'grid' | 'lanes'
+  /**
+   * Por que este arranjo, e não o outro. ⚠️ Ele vem da API porque a tela **não pode deduzi-lo**:
+   * concluir "foi o peso" de `depth` mais carga pesada afirmava isso também na viagem de uma parada
+   * só, na carroceria aberta e quando as faixas não caberiam de todo jeito — e nesses três o operador
+   * conclui que aliviar a carga devolveria as faixas, e não devolve.
+   */
+  /**
+   * Spec 100: por que o desenho ficou assim — as decisões que moldaram esta planta.
+   *
+   * ⚠️ Opcional pela razão de sempre: a API sobe antes do frontend, e recusar o corpo por falta do
+   * campo apagaria o painel de carga inteiro na janela entre os dois deploys.
+   */
+  layoutNotes?: readonly string[]
+  stopArrangementReason?:
+    | 'fits'
+    | 'noBed'
+    | 'openBody'
+    | 'singleStop'
+    | 'tooWide'
+    | 'volumeDoesNotFit'
+    | 'weight'
   /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
   freeRows: number
   /**
@@ -232,7 +373,48 @@ export type TripCargoLayout = Readonly<{
    */
   occupancyKnown: boolean
   overflowM3: string
+  /**
+   * Spec 144 (D4): produtos sem caixa cadastrada, ainda sem medida. Opcional pela razão de sempre —
+   * API antiga não o serve, e recusar o corpo por falta do campo apagaria o painel de carga inteiro
+   * na janela entre os dois deploys.
+   */
+  pendingMeasurements?: readonly TripPendingMeasurement[]
+  /**
+   * Spec 088: o comprimento e a largura internos do baú, da ficha do veículo. `null` sem as três
+   * medidas — e aí a tela mantém as fileiras da 085 e não promete metro nenhum.
+   */
+  /** A altura interna do baú, da ficha — é ela que diz se cabe mais uma camada. */
+  bedHeightM: null | string
+  bedLengthM: null | string
+  /**
+   * De onde saiu a escala. ⚠️ `reference` é o catálogo do tipo, e a tela **diz isso**: o desenho
+   * promete metro, e metro de catálogo não é metro de fita (a dispersão dentro de um tipo chega a
+   * 2×). Sem a marca, o palpite se apresentaria como medida.
+   */
+  bedSource: 'measured' | 'reference' | null
+  /** Por onde a carga entra — a planta marca a porta lateral na borda do lado direito. */
+  loadingAccess: 'open' | 'rear' | 'rear_and_side'
+  /**
+   * Spec 094: o arranjo camada por camada. `null` sem baú medido — a mesma regra da 088, e pelo
+   * mesmo motivo: sem escala o desenho não pode prometer metro.
+   */
+  placement: TripCargoPlacement | null
+  bedWidthM: null | string
+  /** Metros de baú vazios entre a carga e a porta. Espelha `freeRows`, agora em metro. */
+  freeDepthM: null | string
+  /** Metros de carga que atravessam a porta, desenhados **fora** dela. */
+  overflowDepthM: null | string
   slices: readonly Readonly<{
+    /** Quanto de baú esta faixa ocupa, em metros. `null` sem a medida do baú. */
+    depthM: null | string
+    /** ⚠️ Negativa é a carga que não coube e atravessou a porta — não é erro, é o excedente. */
+    distanceFromDoorM: null | string
+    /**
+     * Spec 088 R4: caixas por camada e camadas. `null` com uma caixa por medir — e também quando a
+     * caixa não cabe na faixa, e é por isso que `boxesToMeasure` existe ao lado.
+     */
+    layers: null | Readonly<{ boxCount: number; boxesPerLayer: number; layers: number }>
+    boxesToMeasure: number
     label: string
     /** `1` é o fundo, e o fundo é da última entrega. */
     loadOrder: number
@@ -248,13 +430,45 @@ export type TripCargoLayout = Readonly<{
  * `POST /trips/cargo-preview` a partir das notas e do veículo que o operador acabou de escolher.
  */
 /** A parada que carrega mais que a própria fatia do peso (spec 085 G006). */
-export type TripWeightConcentration = Readonly<{ share: number; stopId: string }>
+/**
+ * ⚠️ `label` é o que a tela imprime; `stopId` é a chave que agrupa. O aviso saía com a chave crua
+ * (`3534302|14620000|50` — IBGE, CEP e número), e quem lê não descobre de qual parada se trata
+ * justamente no aviso que pede uma ação.
+ */
+export type TripWeightConcentration = Readonly<{ label: string; share: number; stopId: string }>
 
+/** Spec 145 D10: o estado da planta que o worker calcula. `truncated` é derivado na leitura (D13). */
+export const CARGO_LAYOUT_STATUSES = ['failed', 'pending', 'ready', 'unavailable'] as const
+
+export type CargoLayoutStatus = (typeof CARGO_LAYOUT_STATUSES)[number]
+
+export type TripCargoLayoutState = Readonly<{
+  computedAt: null | string
+  /** A coluna é `text not null default ''`: sem erro pode chegar `''`, não só `null`. */
+  errorCode: null | string
+  stale: boolean
+  status: CargoLayoutStatus
+  truncated: boolean
+}>
+
+/**
+ * ⚠️ Spec 145 D17: `layoutId` e `state` são opcionais porque o bundle vai ao ar antes da API que os
+ * serve (T11). Ausente é API anterior; ainda não há tela que os leia (T12/T13).
+ */
 export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null
   cargoWeight: TripCargoWeight | null
+  layoutId?: string
   occupancy: TripOccupancy | null
+  state?: TripCargoLayoutState
   weightConcentration: TripWeightConcentration | null
+}>
+
+/** Spec 145 T11: a resposta do polling da planta pelo `layoutId`. */
+export type TripCargoLayoutPoll = Readonly<{
+  cargoLayout: TripCargoLayout | null
+  layoutId: string
+  state: TripCargoLayoutState
 }>
 
 export type TripDetail = Trip &
@@ -262,6 +476,10 @@ export type TripDetail = Trip &
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
     cargoLayout: TripCargoLayout | null
+    /** Spec 145 D17: opcional até a T10 servir a chave; ainda sem leitor na tela. */
+    cargoLayoutState?: TripCargoLayoutState
+    /** Spec 148 T7: a planta pronta do hash atual; `null` enquanto ela não está pronta. */
+    cargoLayoutId?: null | string
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]
@@ -564,6 +782,13 @@ export type MultiVehicleSuggestionStatus =
   | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
+  /**
+   * Spec 110 D4a: a política de fim da rota, que decide se o caminhão volta e para onde.
+   *
+   * ⚠️ Ela sempre veio em `assumptions` e o adaptador a descartava — o mesmo defeito da parada: a
+   * API manda, o cliente joga fora uma linha antes de virar tela.
+   */
+  endPolicy: RouteEndPolicy
   errorCode: null | string
   estimatedDistanceMeters: null | number
   estimatedDurationSeconds: null | number
@@ -574,12 +799,62 @@ export type MultiVehicleSuggestion = Readonly<{
 
 export type AcceptedMultiVehicleTrip = Readonly<{
   documentCount: number
+  /** Spec 107 D3: o ETA mais tardio das paradas desta viagem — quando o caminhão fica livre. */
+  estimatedFinishAt: null | string
   stopCount: number
   tripId: string
   vehicleId: string
 }>
 
+/** Spec 107 D1: a nota que o aceite pulou por já estar viva em outra viagem. */
+export type SkippedMultiVehicleDocument = Readonly<{
+  nfeDocumentId: string
+  reason: string
+}>
+
+/**
+ * Spec 107: a parada que não entrou em viagem nenhuma. ⚠️ Sugestão que devolve quarenta paradas e
+ * cala sobre doze **parece completa** — o operador aceita e descobre a carga esquecida depois.
+ */
+/**
+ * ⚠️ A causa (`reason`) vem junto: a regra que a decide mora em
+ * `routing/shared/suggestionLeftover.service.ts`, e reimplementá-la aqui produziria duas definições
+ * de "sobra" que divergiriam na primeira causa nova.
+ */
+export type MultiVehicleLeftoverStop = LeftoverStop
+
+/**
+ * Spec 108: **a proposta que o operador revê antes de qualquer viagem existir.** É a sugestão com as
+ * paradas dela — o que o solver distribuiu, o que sobrou e para qual caminhão cada parada foi.
+ *
+ * ⚠️ Neste ponto o banco tem a **sugestão**, nunca viagem: nem rascunho, nem vínculo de nota. Quem
+ * cria é o aceite.
+ */
+/**
+ * Spec 110: a parada proposta **como a API a manda** — `CoverableSuggestionStop` mais o que a linha
+ * do tempo precisa para desenhar o dia.
+ *
+ * ⚠️ Ela **estende** a forma mínima em vez de substituí-la: `resolveLeftoverStops` pede só quatro
+ * campos de propósito, e alargar a assinatura dele o obrigaria a construir campos que não usa.
+ */
+export type ProposalStop = CoverableSuggestionStop &
+  Readonly<{
+    distanceFromPreviousMeters: null | number
+    durationFromPreviousSeconds: null | number
+    estimatedArrivalAt: null | string
+    /** ADR-0044 §5: `city` é centroide de município, e a marca acompanha a parada até a tela. */
+    geocodingPrecision: null | string
+    sequence: number
+  }>
+
+export type MultiVehicleProposal = Readonly<{
+  stops: readonly ProposalStop[]
+  suggestion: MultiVehicleSuggestion
+}>
+
 export type AcceptedMultiVehicleSuggestion = Readonly<{
+  leftoverStops: readonly MultiVehicleLeftoverStop[]
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   suggestion: MultiVehicleSuggestion
   trips: readonly AcceptedMultiVehicleTrip[]
 }>

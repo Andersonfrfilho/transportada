@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { createDatabaseProvider } from './database/database-client.service.js'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
@@ -44,8 +44,15 @@ import { createCargoSettingsRoutes } from './companies/presentation/cargo-settin
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
 import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
+import { createAdjustTollBoothChargeUseCase } from './companies/application/adjust-toll-booth-charge.use-case.js'
+import { createClearTollBoothChargeUseCase } from './companies/application/clear-toll-booth-charge.use-case.js'
+import { createListTollBoothChargesUseCase } from './companies/application/list-toll-booth-charges.use-case.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
+import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
+import { DrizzleTollBoothSightingRepository } from './trips/infrastructure/drizzle-toll-booth-sighting.repository.js'
 import { createFuelPriceRoutes } from './companies/presentation/fuel-price.routes.js'
+import { createTollBoothChargeRoutes } from './companies/presentation/toll-booth-charge.routes.js'
+import { createCompanyScopedTollBoothGateway } from './trips/infrastructure/company-scoped-toll-booth.gateway.js'
 import { createChooseEnergyDistributorUseCase } from './companies/application/choose-energy-distributor.use-case.js'
 import { createClearEnergyDistributorUseCase } from './companies/application/clear-energy-distributor.use-case.js'
 import { createGetCompanyEnergyUseCase } from './companies/application/get-company-energy.use-case.js'
@@ -55,6 +62,13 @@ import { createAdjustDistributionCursorUseCase } from './companies/application/a
 import { createGetDistributionCursorUseCase } from './companies/application/get-distribution-cursor.use-case.js'
 import { DrizzleDistributionCursorRepository } from './companies/infrastructure/drizzle-distribution-cursor.repository.js'
 import { createDistributionCursorRoutes } from './companies/presentation/distribution-cursor.routes.js'
+import {
+  createClearFederalTaxSettingsUseCase,
+  createGetFederalTaxSettingsUseCase,
+  createSetFederalTaxSettingsUseCase,
+} from './companies/application/federal-tax-settings.use-case.js'
+import { DrizzleFederalTaxSettingsRepository } from './companies/infrastructure/drizzle-federal-tax-settings.repository.js'
+import { createFederalTaxSettingsRoutes } from './companies/presentation/federal-tax-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -127,7 +141,33 @@ import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/d
 import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
+import { createRateLimiter } from './http/rate-limiter.service.js'
+import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
+import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
+import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
+import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
+import { createConfirmDocumentSelectionUseCase } from './whatsapp-commands/application/confirm-document-selection.use-case.js'
+import { createNfseCredentialGapFinder } from './whatsapp-commands/application/preview-nfse-blocks.service.js'
+import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
+import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
+import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
+import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
+import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
+import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
+import {
+  createWhatsAppCommandHookFactory,
+  type WhatsAppCommandHookFactory,
+} from './whatsapp-commands/infrastructure/whatsapp-command-hook.factory.js'
+import { createReadWhatsAppPhoneStateUseCase } from './whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
+import { createRequestWhatsAppPhoneVerificationUseCase } from './whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
+import { createUnbindWhatsAppPhoneUseCase } from './whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
+import { createVerifyWhatsAppPhoneUseCase } from './whatsapp-commands/application/verify-whatsapp-phone.use-case.js'
+import { createWhatsAppPhoneRoutes } from './whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
+import { createSettleWhatsAppCommandUseCase } from './whatsapp-commands/application/settle-whatsapp-command.use-case.js'
+import { DrizzleWhatsAppCommandSettlementRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command-settlement.repository.js'
+import { createWhatsAppCommandSettlementRoutes } from './whatsapp-commands/presentation/whatsapp-command-settlement.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
 import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
@@ -144,10 +184,20 @@ import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-p
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
+import { freezeTripRouteToll } from './trips/application/freeze-trip-route-toll.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
+import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
+import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
+import { DrizzleTripRouteTollRepository } from './trips/infrastructure/drizzle-trip-route-toll.repository.js'
+import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import { createRequestCargoLayoutUseCase } from './trips/application/request-cargo-layout.use-case.js'
+import { DrizzleCargoLayoutRequestRepository } from './trips/infrastructure/drizzle-cargo-layout-request.repository.js'
+import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-layout.use-case.js'
+import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
+import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
@@ -186,6 +236,8 @@ import { createCteExportSelection } from './cte-issuance/infrastructure/cte-expo
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
+import { createDriverHomeGeocoder } from './fleet/application/driver-home-geocoder.port.js'
+import { createPhotonDriverHomeGateway } from './fleet/infrastructure/photon-driver-home.gateway.js'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
@@ -196,6 +248,8 @@ import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/driz
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.routes'
+import { createVehicleReferenceRoutes } from './fleet/presentation/vehicle-reference.routes'
+import { DrizzleVehicleReferenceRepository } from './fleet/infrastructure/drizzle-vehicle-reference.repository'
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -233,7 +287,13 @@ import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation
 import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
 import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
 import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
+import {
+  CARGO_LAYOUT_MAX_ATTEMPTS,
+  resolveCargoLayoutLeaseMs,
+} from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
+import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
 import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
@@ -255,6 +315,10 @@ import { attachDeliveryProof } from './trips/application/attach-delivery-proof.u
 import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
 import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
 import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
+import { transitionTripDocument } from './trips/application/transition-trip-document.use-case.js'
+import { transitionTripDocumentsBatch } from './trips/application/transition-trip-documents-batch.use-case.js'
+import { listWarehouseTrips } from './trips/application/list-warehouse-trips.use-case.js'
+import { DrizzleWarehouseTripRepository } from './trips/infrastructure/drizzle-warehouse-trip.repository.js'
 import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
 import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
@@ -265,6 +329,8 @@ import { createRouteSuggestionRoutes } from './routing/presentation/route-sugges
 import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
 import { createMultiVehicleSuggestionUseCase } from './routing/application/multi-vehicle-suggestion.use-case'
 import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrastructure/drizzle-multi-vehicle-suggestion.repository'
+import { readSuggestionValuation } from './routing/application/read-suggestion-valuation.use-case'
+import { createSuggestionValuationAdapter } from './routing/infrastructure/suggestion-valuation.adapter'
 import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
 import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
@@ -313,6 +379,16 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
+import { createProcessInboundEmailWebhookUseCase } from './contractor-mail/application/process-inbound-email-webhook.use-case.js'
+import { createSendContractorMailTestEmailUseCase } from './contractor-mail/application/send-contractor-mail-test-email.use-case.js'
+import { createActorEmailRepository } from './contractor-mail/infrastructure/actor-email.repository.js'
+import { DrizzleContractorMailRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
+import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
+import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
+import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
+import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
@@ -485,7 +561,7 @@ export function bootstrap(): Bun.Server<undefined> {
     },
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
-  const database = createDrizzleProvider({ connection: config.databaseUrl })
+  const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,
@@ -579,6 +655,224 @@ export function bootstrap(): Bun.Server<undefined> {
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
+  /**
+   * Spec 144 T015 — as mesmas dependências compostas de `createMeTripRoutes` (`resolveDriverId`,
+   * `reportDocumentDelivery`/`reportDocumentReturn`, `registerDriverOccurrence`), montadas aqui
+   * também porque o hook do WhatsApp (abaixo) nasce antes das instâncias de `me-trip` mais adiante
+   * neste arquivo. Nenhum caminho paralelo: o motorista pelo WhatsApp grava pelo mesmo repositório.
+   */
+  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
+  const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
+  const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    findCurrentTrip: (input) =>
+      findCurrentDriverTrip({ ...input, repository: whatsappDriverTripRepository }),
+    listOccurrenceTypes: (input) =>
+      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    registerOccurrence: (input) =>
+      registerDriverOccurrence({
+        ...input,
+        repository: {
+          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
+          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
+        },
+      }),
+    reportDelivery: (input) =>
+      reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+    reportReturn: (input) =>
+      reportDocumentReturn({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+    resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
+  })
+  /**
+   * Spec 144 T016 — as mesmas repositórios que `createTripLifecycleUseCase` (T009/T010) injeta nas
+   * rotas `/trips/:id/documents/:documentId/{separate,load}`, `.../batch-status` e `/dispatch`,
+   * numa segunda instância montada aqui por causa da mesma ordem de construção do T015 acima (o
+   * hook nasce antes de `tripLifecycle`, mais adiante neste arquivo). Nenhum caminho paralelo: as
+   * funções puras (`transitionTripDocument`, `transitionTripDocumentsBatch`, `dispatchTrip`) e as
+   * tabelas são as mesmas do painel.
+   */
+  const whatsappTripDocumentRepository = new DrizzleTripDocumentRepository(database.db)
+  const whatsappTripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database.db)
+  const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
+  const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
+  const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
+    batchTransition: (input) =>
+      transitionTripDocumentsBatch({
+        action: input.action,
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentIds: input.documentIds,
+        repository: whatsappTripDocumentBatchRepository,
+        tripId: input.tripId,
+      }),
+    dispatchTrip: (input) =>
+      dispatchTrip({
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        repository: whatsappTripRouteRepository,
+        tripId: input.tripId,
+      }),
+    listOccurrenceTypes: (input) =>
+      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listWarehouseTrips: (input) =>
+      listWarehouseTrips({
+        companyId: input.companyId,
+        repository: whatsappWarehouseTripRepository,
+      }),
+    loadDocument: (input) =>
+      transitionTripDocument({
+        action: 'load',
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentId: input.documentId,
+        repository: whatsappTripDocumentRepository,
+        tripId: input.tripId,
+      }),
+    registerOccurrence: (input) =>
+      registerTripOccurrence({
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        documentId: input.documentId,
+        note: input.note,
+        occurredOn: new Date().toLocaleDateString('pt-BR'),
+        occurrenceTypeId: input.occurrenceTypeId,
+        productCode: '',
+        repository: {
+          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+          listOccurrences: (query) => listTripOccurrences(database.db, query),
+          readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
+          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
+        },
+        tripId: input.tripId,
+      }),
+    separateDocument: (input) =>
+      transitionTripDocument({
+        action: 'separate',
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentId: input.documentId,
+        repository: whatsappTripDocumentRepository,
+        tripId: input.tripId,
+      }),
+  })
+  /**
+   * Spec 144 T012 — a prévia da emissão por seleção. Segunda instância das mesmas classes que as
+   * rotas de notas e de NFS-e montam em `createApplicationRoutes` (a mesma ordem de construção da
+   * T016): a classificação passa pelo `mapSummary` da listagem, e a prévia de NFS-e é a do painel.
+   */
+  const whatsappStorageBucket = resolveStorageBucket(process.env)
+  const whatsappStorageGateway = createNfeStorageGatewayFromEnvironment({
+    environment: process.env,
+    finalBucket: whatsappStorageBucket,
+    stagingBucket: whatsappStorageBucket,
+  })
+  const whatsappNfeDocuments = new DrizzleNfeDocumentRepository(database.db, whatsappStorageGateway)
+  const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
+  const whatsappNfseInvoices = createNfseInvoiceUseCase({
+    now: () => new Date(),
+    repository: whatsappNfseInvoiceRepository,
+  })
+  /**
+   * Spec 144 T013 — a confirmação emite pelos **mesmos** casos de uso das rotas `POST /cte-batches`,
+   * `POST /cte-batches/:id/issue` e `POST /nfse-service-invoices`, cada um com a sua transação; as
+   * instâncias de rota nascem em `createApplicationRoutes`, depois do hook.
+   */
+  const whatsappFingerprints = createIdempotencyFingerprintService({
+    key: config.cryptography.idempotencyHmacKey,
+  })
+  const whatsappCteBatches = createCteBatchUseCase({
+    fingerprintService: whatsappFingerprints,
+    profiles: new DrizzleCteEmissionProfileCatalogRepository(
+      new DrizzleCteEmissionProfileRepository(database.db),
+    ),
+    unitOfWork: new DrizzleCteBatchRepository(database.db),
+  })
+  const whatsappCteIssuance = createCteIssuanceUseCase({
+    documentDownload: createCteDocumentDownloadGateway({ storage: whatsappStorageGateway }),
+    fingerprintService: whatsappFingerprints,
+    unitOfWork: new DrizzleCteIssuanceRepository(database.db),
+  })
+  const whatsappDocumentSelection = new DrizzleDocumentSelectionRepository(database.db)
+  const whatsappPreviewDependencies = {
+    classifier: whatsappNfeDocuments,
+    clock: () => new Date(),
+    commands: new DrizzleWhatsAppCommandRepository(database.db),
+    findNfseCredentialGap: createNfseCredentialGapFinder(whatsappNfseInvoiceRepository),
+    generateId: () => crypto.randomUUID(),
+    previewNfseInvoices: (input: Parameters<typeof whatsappNfseInvoices.preview>[0]) =>
+      whatsappNfseInvoices.preview(input),
+    selection: whatsappDocumentSelection,
+  }
+  const whatsappSelectionConfirmation = createConfirmDocumentSelectionUseCase({
+    ...whatsappPreviewDependencies,
+    authorization: new AuthorizationService(),
+    createCteBatch: (input) => whatsappCteBatches.create(input),
+    createNfseInvoice: (input) => whatsappNfseInvoices.create(input),
+    issueCteBatch: (input) => whatsappCteIssuance.issue(input),
+  })
+  /**
+   * Spec 144 T014 — a liquidação, chamada pelo worker. Fatura pelo **mesmo** caso de uso da rota
+   * `POST /billing-invoices`, em nome de quem confirmou, revalidado pelo mesmo caminho do canal.
+   */
+  const whatsappSettlement = createSettleWhatsAppCommandUseCase({
+    authorization: new AuthorizationService(),
+    billing: createBillingUseCase({
+      clock: { now: () => new Date().toISOString() },
+      fingerprintService: whatsappFingerprints,
+      unitOfWork: new DrizzleBillingRepository(database.db),
+    }),
+    clock: () => new Date(),
+    commands: new DrizzleWhatsAppCommandRepository(database.db),
+    documents: new DrizzleWhatsAppCommandSettlementRepository(database.db),
+    logger,
+    resolveActor: (input) => tenantContext.resolveCompanyForUser({ ...input, channel: 'whatsapp' }),
+    resume: (input) => whatsappSelectionConfirmation.resume(input),
+  })
+  const issuanceWhatsAppFlowActions = createIssuanceWhatsAppFlowActions({
+    clock: () => new Date(),
+    confirmSelection: (input) => whatsappSelectionConfirmation.confirm(input),
+    listIssueDateEmitters: (input) => whatsappDocumentSelection.listIssueDateEmitters(input),
+    listPendingEmitters: (input) => whatsappDocumentSelection.listPendingEmitters(input),
+    listPendingSeries: (input) => whatsappDocumentSelection.listPendingSeries(input),
+    listRecentTrips: (input) => whatsappDocumentSelection.listRecentTrips(input),
+    previewSelection: createPreviewDocumentSelectionUseCase(whatsappPreviewDependencies),
+  })
+  /**
+   * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
+   * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
+   */
+  const whatsappCommandHook = createWhatsAppCommandHookFactory({
+    apiVersion: config.whatsapp.apiVersion,
+    authorization: new AuthorizationService(),
+    baseUrl: config.whatsapp.baseUrl,
+    clock: () => new Date(),
+    flowActions: [
+      ...driverWhatsAppFlowActions,
+      ...operatorWhatsAppFlowActions,
+      ...issuanceWhatsAppFlowActions,
+    ],
+    /**
+     * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
+     * escrevem), nunca o grafo em código direto: o comando de republicação é o único que decide
+     * quando o código passa a valer para o número real.
+     */
+    graphs: createModuleWhatsAppFlowGraphProvider({
+      repository: new FlowGraphRepository(database.db as never),
+      rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
+    }),
+    logger,
+    rateLimiter: createRateLimiter(),
+    resolveActor: createResolveWhatsAppActorUseCase({
+      memberships: new DrizzleMembershipRepository(database.db),
+      phones: new DrizzleWhatsAppPhoneRepository(database.db),
+      tenantContext,
+    }),
+    verifyPhone: createVerifyWhatsAppPhoneUseCase({
+      repository: new DrizzleWhatsAppPhoneRepository(database.db),
+    }),
+  })
   // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
   // a empresa raiz, e sem segredo não há com o que assinar o access token do módulo (064/T1).
   const userModule =
@@ -590,7 +884,13 @@ export function bootstrap(): Bun.Server<undefined> {
           db: database.db,
         })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger, userModule }),
+    anonymousRoutes: createAnonymousRoutes({
+      config,
+      database: database.db,
+      logger,
+      userModule,
+      whatsappCommandHook,
+    }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
@@ -648,23 +948,27 @@ export function bootstrap(): Bun.Server<undefined> {
             },
           ]),
     ],
-    routes: createApplicationRoutes({
-      apiPublicUrl: config.apiPublicUrl,
-      automaticManifestNotifier,
-      database: database.db,
-      notifications,
-      envelopeKeyRing: config.cryptography.envelopeKeyRing,
-      environment: process.env,
-      googleMapsApiKey: config.googleMapsApiKey,
-      messaging: config.messaging,
-      idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
-      keycloak: config.keycloak,
-      logger,
-      postalCodeProviders: config.postalCodeProviders,
-      routingMatrixUrl: config.routingMatrixUrl,
-      routeOptimizationQueue,
-      vehicleCatalog: config.vehicleCatalog,
-    }),
+    routes: [
+      ...createApplicationRoutes({
+        apiPublicUrl: config.apiPublicUrl,
+        automaticManifestNotifier,
+        cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
+        database: database.db,
+        notifications,
+        envelopeKeyRing: config.cryptography.envelopeKeyRing,
+        environment: process.env,
+        googleMapsApiKey: config.googleMapsApiKey,
+        messaging: config.messaging,
+        idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+        keycloak: config.keycloak,
+        logger,
+        postalCodeProviders: config.postalCodeProviders,
+        routingMatrixUrl: config.routingMatrixUrl,
+        routeOptimizationQueue,
+        vehicleCatalog: config.vehicleCatalog,
+      }),
+      ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
+    ],
     tenantContext,
   })
   const server = startApiServer({
@@ -715,6 +1019,7 @@ type CreateAnonymousRoutesParams = {
   readonly logger: ApiLogger
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
+  readonly whatsappCommandHook: WhatsAppCommandHookFactory
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -731,6 +1036,7 @@ function createAnonymousRoutes({
   database,
   logger,
   userModule,
+  whatsappCommandHook,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -750,6 +1056,19 @@ function createAnonymousRoutes({
     }),
   })
   /**
+   * Spec 143 T010 (ADR-0063 §7): a terceira superfície anônima, e a primeira assinada. Ela não
+   * depende de `config.companyId` — quem diz a empresa é o `webhookId` opaco da URL, achado por
+   * `findSettingsByWebhookId` — e por isso existe sempre, como o postback de NFS-e ao lado.
+   */
+  const contractorMailInboundWebhookRoutes = createPublicInboundEmailRoutes({
+    processInboundEmailWebhook: createProcessInboundEmailWebhookUseCase({
+      repository: new DrizzleContractorMailRepository(database),
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      }),
+    }),
+  })
+  /**
    * Spec 062 T006 — o webhook da Meta. Um endereço só para a instalação: a empresa é descoberta pelo
    * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
    * registrada.
@@ -761,6 +1080,7 @@ function createAnonymousRoutes({
       apiVersion: config.whatsapp.apiVersion,
       appSecret: config.whatsapp.webhook?.appSecret ?? '',
       baseUrl: config.whatsapp.baseUrl,
+      buildMessageHook: whatsappCommandHook,
       database,
       nonceStore: createDrizzleWebhookNonceStore(database),
       repository: new DrizzleWhatsAppChannelRepository(database),
@@ -849,6 +1169,7 @@ function createAnonymousRoutes({
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
       /**
@@ -870,6 +1191,7 @@ function createAnonymousRoutes({
   return [
     ...loginHintRoutes,
     ...nfseCallbackRoutes,
+    ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,
@@ -930,6 +1252,8 @@ type CreateApplicationRoutesParams = {
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
+  /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
+  readonly cargoLayoutTimeBudgetMs: number
   readonly database: CompanySettingsDatabase
   /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
   readonly notifications: NotificationModule
@@ -957,6 +1281,7 @@ type CreateApplicationRoutesParams = {
 function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
+  cargoLayoutTimeBudgetMs,
   database,
   googleMapsApiKey,
   messaging,
@@ -1028,9 +1353,12 @@ function createApplicationRoutes({
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
+  const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
+  const tollBoothChargeRepository = new DrizzleTollBoothChargeRepository(database)
+  const tollBoothSightingRepository = new DrizzleTollBoothSightingRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const companyContactsRepository = new DrizzleCompanyContactsRepository(database)
@@ -1070,15 +1398,48 @@ function createApplicationRoutes({
   })
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
-  const tripRepository = new DrizzleTripRepository(database)
+  const cargoLayoutLeaseOptions = {
+    cargoLayoutLeaseMs: resolveCargoLayoutLeaseMs({
+      baseBudgetMs: cargoLayoutTimeBudgetMs,
+      maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS,
+    }),
+  }
+  const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
+  const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
+  /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
+  const cargoLayoutRequestRepository = new DrizzleCargoLayoutRequestRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
+  const requestCargoLayout = createRequestCargoLayoutUseCase({
+    repository: cargoLayoutRequestRepository,
+  })
+  /** Spec 145 T11: a prévia lê a planta pelo hash, e a tela pergunta de novo pelo id. */
+  const cargoLayoutLookup = new DrizzleCargoLayoutLookupRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
-  const tripRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripRouteRepository = new DrizzleTripRouteRepository(database, cargoLayoutLeaseOptions)
   const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
-  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
+  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
+  /**
+   * Spec 097: de onde a viagem parte. A porta é montada por empresa nos três chamadores abaixo,
+   * porque `readRouteGeometry` conhece pontos, nunca tenant.
+   */
+  const routeDepotQuery = createRouteDepotQuery(database)
+  const tollBoothRepository = createDrizzleTollBoothRepository(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
@@ -1090,6 +1451,33 @@ function createApplicationRoutes({
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
+  const tripRouteTollRepository = new DrizzleTripRouteTollRepository(database)
+  /**
+   * Spec 090 T11: congela o pedágio na mesma chamada que planeja o roteiro, com o mesmo
+   * roteirizador, catálogo de praças e barracão que `readTripRouteGeometry` já usa para o mapa —
+   * nunca uma segunda rota, que poderia discordar (D4).
+   */
+  const tripRouteTollFreezer = {
+    freeze: (input: { readonly companyId: string; readonly tripId: string }) =>
+      freezeTripRouteToll({
+        companyId: input.companyId,
+        depot: {
+          readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+          readDescription: () => routeDepotQuery.readDescription({ companyId: input.companyId }),
+        },
+        geometry:
+          routingMatrixUrl === undefined
+            ? { readRouteGeometry: async () => null }
+            : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+        repository: tripRouteTollRepository,
+        tollBooths: createCompanyScopedTollBoothGateway({
+          catalog: tollBoothRepository,
+          charges: tollBoothChargeRepository,
+          companyId: input.companyId,
+        }),
+        tripId: input.tripId,
+      }),
+  }
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1098,6 +1486,7 @@ function createApplicationRoutes({
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
+    tollFreezer: tripRouteTollFreezer,
     trackingRepository: tripLocationRepository,
   })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
@@ -1237,6 +1626,23 @@ function createApplicationRoutes({
   const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
     envelopeProvider,
   })
+  const contractorMailRepository = new DrizzleContractorMailRepository(database)
+  const contractorMailCredentialSecretService = createContractorMailCredentialSecretService({
+    envelopeProvider,
+  })
+  const contractorMailSettings = createContractorMailSettingsUseCase({
+    mxLookupGateway: createMxLookupGateway(),
+    repository: contractorMailRepository,
+    resendAccountGateway: createResendAccountGateway({
+      fetch: (target, init) => fetch(target, init),
+    }),
+    secretService: contractorMailCredentialSecretService,
+  })
+  const sendContractorMailTestEmail = createSendContractorMailTestEmailUseCase({
+    actorEmailResolver: createActorEmailRepository({ database }),
+    repository: contractorMailRepository,
+    secretService: contractorMailCredentialSecretService,
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -1359,9 +1765,22 @@ function createApplicationRoutes({
     repository: companyUserRepository,
   })
   // Depois do convite: cadastrar motorista abre o usuário dele, então a frota depende da identidade
+  /**
+   * A coordenada da casa do motorista, uma vez por ficha (spec 097 D6). Sem `driverAddressLookupUrl`
+   * a dependência nem existe — e o cadastro segue igual, porque o `homeGeocoder` é opcional.
+   */
+  const driverHomeGeocoder =
+    environment.driverAddressLookupUrl === undefined
+      ? undefined
+      : createDriverHomeGeocoder({
+          provider: createPhotonDriverHomeGateway({ baseUrl: environment.driverAddressLookupUrl }),
+          repository: fleetDriverRepository,
+        })
   const fleetDrivers = createFleetDriversUseCase({
     account: inviteCompanyUser,
     contacts: createIdentityContactDirectoryGateway({ identity: identityAccessGateway }),
+    ...(driverHomeGeocoder === undefined ? {} : { homeGeocoder: driverHomeGeocoder }),
+    logger,
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
@@ -1397,6 +1816,7 @@ function createApplicationRoutes({
   const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
+    whatsappPhones: new DrizzleWhatsAppPhoneRepository(database),
   })
   const replaceCompanyUserRoles = createReplaceCompanyUserRolesUseCase({
     repository: companyUserRepository,
@@ -1404,6 +1824,7 @@ function createApplicationRoutes({
   const removeCompanyUserMembership = createRemoveCompanyUserMembershipUseCase({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
+    whatsappPhones: new DrizzleWhatsAppPhoneRepository(database),
   })
   const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
     identityGateway: identityAccessGateway,
@@ -1450,6 +1871,24 @@ function createApplicationRoutes({
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
     }),
+    ...createContractorMailSettingsRoutes({
+      read: { execute: (input) => contractorMailSettings.read(input) },
+      runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
+      save: { execute: (input) => contractorMailSettings.save(input) },
+      sendTestEmail: { execute: (input) => sendContractorMailTestEmail.execute(input) },
+    }),
+    ...createTollBoothChargeRoutes({
+      adjust: createAdjustTollBoothChargeUseCase({
+        catalog: tollBoothRepository,
+        charges: tollBoothChargeRepository,
+      }),
+      clear: createClearTollBoothChargeUseCase({ charges: tollBoothChargeRepository }),
+      list: createListTollBoothChargesUseCase({
+        catalog: tollBoothRepository,
+        charges: tollBoothChargeRepository,
+        sightings: tollBoothSightingRepository,
+      }),
+    }),
     ...createCompanyEnergyRoutes({
       choose: createChooseEnergyDistributorUseCase({ energy: companyEnergyRepository }),
       clear: createClearEnergyDistributorUseCase({ energy: companyEnergyRepository }),
@@ -1462,6 +1901,11 @@ function createApplicationRoutes({
         repository: distributionCursorRepository,
       }),
       getStatus: createGetDistributionCursorUseCase({ repository: distributionCursorRepository }),
+    }),
+    ...createFederalTaxSettingsRoutes({
+      clear: createClearFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+      get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+      set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
@@ -1519,8 +1963,49 @@ function createApplicationRoutes({
                 (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
               planRoute: (input) => tripLifecycle.planRoute.execute(input),
               reorder: (input) => tripLifecycle.reorderStops.execute(input),
+              /** Spec 148 T7: o aceite que vincula e solta as notas que não couberam na prévia. */
+              readReleasePlan: (input) =>
+                tripDocumentReviewRepository.readReleasePlan({
+                  companyId: input.context.companyId,
+                  layoutId: input.layoutId,
+                }),
+              linkAndRelease: (input) =>
+                tripDocumentReviewRepository.linkAndReleaseForReview({
+                  companyId: input.context.companyId,
+                  correlationId: input.correlationId,
+                  layoutId: input.layoutId,
+                  nfeDocumentId: input.nfeDocumentId,
+                  reason: input.reason,
+                  tripId: input.tripId,
+                  userId: input.context.userId,
+                }),
+              /** Spec 107 D3: o ETA da sugestão vira o ETA da viagem, com o carimbo do momento. */
+              writeEstimatedArrivals: (input) =>
+                tripRouteRepository.writeEstimatedArrivals({
+                  arrivals: input.arrivals,
+                  companyId: input.context.companyId,
+                  plannedDepartureAt: input.plannedDepartureAt,
+                  tripId: input.tripId,
+                }),
             }),
           }),
+          /**
+           * Spec 101: a conta da sugestão. ⚠️ **Nenhuma porta de geometria entra aqui** — a
+           * distância sai das paradas que o solver já escolheu (D1), e passar o roteirizador para
+           * este caminho é justamente o que a spec proíbe.
+           */
+          readSuggestionValuation: (query) =>
+            readSuggestionValuation({
+              ...query,
+              repository: createSuggestionValuationAdapter({
+                multiVehicle: createDrizzleMultiVehicleSuggestionRepository(database),
+                valuation: {
+                  findApplicableRule: (rule) => applicableFreightRuleQuery.findApplicableRule(rule),
+                  readContext: (trip) => tripValuationQuery.readContext(trip),
+                  readPreviewContext: (preview) => tripValuationQuery.readPreviewContext(preview),
+                },
+              }),
+            }),
         })),
     ...createLandingSettingsRoutes({ landingSettings }),
     ...createAggregateApplicationRoutes({ aggregateApplications }),
@@ -1570,6 +2055,9 @@ function createApplicationRoutes({
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createVehicleReferenceRoutes({
+      vehicleReferences: new DrizzleVehicleReferenceRepository({ database }),
+    }),
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
     ...createAddressReportRoutes({ readReport: readAddressReport }),
     ...createFleetDriverRegionRoutes({
@@ -1593,6 +2081,8 @@ function createApplicationRoutes({
         },
       },
     }),
+    /** Spec 148 T7: a fila de revisão das notas que não couberam. */
+    ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
     ...createExtraChargeBatchRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
       decideBatch: { execute: (input) => extraChargeBatches.decide(input) },
@@ -1688,6 +2178,20 @@ function createApplicationRoutes({
       recordLocation: (input) => recordTripLocation(input),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
+    }),
+    ...createWhatsAppPhoneRoutes({
+      readState: createReadWhatsAppPhoneStateUseCase({
+        clock: () => new Date(),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
+      requestVerification: createRequestWhatsAppPhoneVerificationUseCase({
+        clock: () => new Date(),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
+      unbind: createUnbindWhatsAppPhoneUseCase({
+        memberships: new DrizzleMembershipRepository(database),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
     }),
     ...createDeliveryProofSettingsRoutes({
       listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
@@ -1902,18 +2406,57 @@ function createApplicationRoutes({
        * que são retas**.
        */
       readRouteGeometry: {
-        execute: (input) =>
-          readRouteGeometry({
+        execute: async (input) => {
+          const vehicleContext =
+            input.vehicleId === null
+              ? null
+              : await routeGeometryVehicleAxlesQuery.readVehicleContext({
+                  companyId: input.context.companyId,
+                  vehicleId: input.vehicleId,
+                })
+
+          return readRouteGeometry({
+            axles: vehicleContext?.axles ?? null,
+            multiplier: vehicleContext?.multiplier ?? null,
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.context.companyId }),
+            },
+            fuelBaseline: vehicleContext?.fuelBaseline ?? null,
+            hasAutomaticTollPayment: vehicleContext?.hasAutomaticTollPayment ?? false,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
                 : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
             stops: input.points,
-          }),
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.context.companyId,
+            }),
+          })
+        },
       },
       readTripRouteGeometry: {
-        execute: async (input) =>
-          readRouteGeometry({
+        execute: async (input) => {
+          const trip = await trips.get(input)
+          const vehicleContext = await routeGeometryVehicleAxlesQuery.readVehicleContext({
+            companyId: input.context.companyId,
+            vehicleId: trip.vehicleId,
+          })
+
+          return readRouteGeometry({
+            axles: vehicleContext.axles,
+            multiplier: vehicleContext.multiplier,
+            /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.context.companyId }),
+            },
+            fuelBaseline: vehicleContext.fuelBaseline,
+            hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
@@ -1922,7 +2465,13 @@ function createApplicationRoutes({
               companyId: input.context.companyId,
               tripId: input.tripId,
             }),
-          }),
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.context.companyId,
+            }),
+          })
+        },
       },
       readDeliveryProofs: {
         execute: (input) =>
@@ -1965,6 +2514,12 @@ function createApplicationRoutes({
         },
       },
       getTrip: { execute: (input) => trips.get(input) },
+      logger,
+      requestCargoLayout,
+      readCargoLayout: createReadCargoLayoutUseCase({ repository: cargoLayoutLookup }),
+      reopenCargoLayout: createReopenCargoLayoutUseCase({
+        repository: cargoLayoutRequestRepository,
+      }),
       listSchedules: { execute: (input) => tripStopSchedules.list(input) },
       readFinancialResult: {
         execute: (input) =>
@@ -2045,6 +2600,8 @@ function createApplicationRoutes({
         execute: (input) =>
           previewTripCargo({
             ...input,
+            layouts: cargoLayoutLookup,
+            requestCargoLayout,
             repository: {
               readCargoPreviewContext: (query) => readCargoPreviewContext(database, query),
             },
@@ -2054,11 +2611,33 @@ function createApplicationRoutes({
         execute: (input) =>
           previewTripValuation({
             ...input,
+            /** Spec 097: a prévia parte do mesmo barracão que o mapa da montagem desenha. */
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.companyId }),
+            },
+            /**
+             * A mesma porta e o mesmo caso de uso da geometria da viagem — spec 090 D3. Sem
+             * `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a distância continua `null`.
+             */
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
             repository: {
               findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
               readContext: (query) => tripValuationQuery.readContext(query),
               readPreviewContext: (query) => tripValuationQuery.readPreviewContext(query),
+              readPreviewStopCoordinates: (query) =>
+                tripValuationQuery.readPreviewStopCoordinates(query),
             },
+            /** Spec 090 T9: o mesmo catálogo de praças que o `/route-geometry` da montagem usa. */
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.companyId,
+            }),
           }),
       },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },

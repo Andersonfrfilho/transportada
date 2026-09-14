@@ -50,7 +50,16 @@ type RouteDependencies = {
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly requestCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly previewCargo: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly reopenCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
   readonly setMdfeRequirement: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly logger: {
+    error(message: string, metadata?: Record<string, unknown>): void
+    info(message: string, metadata?: Record<string, unknown>): void
+    warn(message: string, metadata?: Record<string, unknown>): void
+  }
 }
 
 type CreateFixtureParams = {
@@ -64,6 +73,14 @@ type CreateFixtureParams = {
   readonly deliverTripDocumentError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
+  readonly getTripResult?: object
+  readonly requestCargoLayoutError?: Error
+  readonly previewCargoResult?: unknown
+  readonly readCargoLayoutError?: Error
+  readonly readCargoLayoutResult?: unknown
+  readonly reopenCargoLayoutError?: Error
+  readonly reopenCargoLayoutResult?: unknown
+  readonly requestCargoLayoutResult?: unknown
   readonly linkTripDocumentError?: Error
   readonly listDeliveryAddressHistoryError?: Error
   readonly listDeliveryAddressHistoryResult?: unknown
@@ -117,6 +134,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
+  readonly requestCargoLayoutCalls: ExecuteCall[]
+  readonly previewCargoCalls: ExecuteCall[]
+  readonly readCargoLayoutCalls: ExecuteCall[]
+  readonly reopenCargoLayoutCalls: ExecuteCall[]
+  readonly warnings: ExecuteCall[]
   readonly setMdfeRequirementCalls: ExecuteCall[]
 }> {
   const batchStatusCalls: ExecuteCall[] = []
@@ -135,6 +157,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const readValuationCalls: ExecuteCall[] = []
+  const requestCargoLayoutCalls: ExecuteCall[] = []
+  const previewCargoCalls: ExecuteCall[] = []
+  const readCargoLayoutCalls: ExecuteCall[] = []
+  const reopenCargoLayoutCalls: ExecuteCall[] = []
+  const warnings: ExecuteCall[] = []
   const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
@@ -210,7 +237,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         getTripCalls.push(structuredClone(input))
         if (params.getTripError) throw params.getTripError
-        return TRIP_DETAIL
+        return (params.getTripResult ?? TRIP_DETAIL) as typeof TRIP_DETAIL
       },
     },
     linkTripDocument: {
@@ -284,6 +311,52 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
           totalMargin: '200.0000',
           totalRevenue: '1000.0000',
         }
+      },
+    },
+    logger: {
+      error() {},
+      info() {},
+      warn(message, metadata) {
+        warnings.push({ message, metadata })
+      },
+    },
+    requestCargoLayout: {
+      async execute(input) {
+        requestCargoLayoutCalls.push(structuredClone(input))
+        if (params.requestCargoLayoutError) throw params.requestCargoLayoutError
+        return (
+          params.requestCargoLayoutResult ?? {
+            enqueued: true,
+            layoutId: '00000000-0000-4000-8000-000000000c01',
+            status: 'queued',
+          }
+        )
+      },
+    },
+    previewCargo: {
+      async execute(input) {
+        previewCargoCalls.push(structuredClone(input))
+        return params.previewCargoResult ?? {}
+      },
+    },
+    readCargoLayout: {
+      async execute(input) {
+        readCargoLayoutCalls.push(structuredClone(input))
+        if (params.readCargoLayoutError) throw params.readCargoLayoutError
+        return params.readCargoLayoutResult ?? {}
+      },
+    },
+    reopenCargoLayout: {
+      async execute(input) {
+        reopenCargoLayoutCalls.push(structuredClone(input))
+        if (params.reopenCargoLayoutError) throw params.reopenCargoLayoutError
+        return (
+          params.reopenCargoLayoutResult ?? {
+            enqueued: true,
+            layoutId: '00000000-0000-4000-8000-000000000c01',
+            status: 'queued',
+          }
+        )
       },
     },
     setMdfeRequirement: {
@@ -367,6 +440,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     planTripRouteCalls,
     releaseTripDocumentCalls,
     reorderStopsCalls,
+    requestCargoLayoutCalls,
+    previewCargoCalls,
+    readCargoLayoutCalls,
+    reopenCargoLayoutCalls,
+    warnings,
     setMdfeRequirementCalls,
     returnTripDocumentCalls,
     separateTripDocumentCalls,

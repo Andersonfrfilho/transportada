@@ -8,7 +8,7 @@ import type {
   CteEmissionProfileFilters,
   CteEmissionProfileFreightRuleInput,
   CteEmissionProfileMatcherInput,
-  CteEmissionProfileSettings,
+  CteEmissionProfileSettingsInput,
 } from '../application/cte-emission-profile.port.js'
 import { CTE_EMISSION_PROFILE_STATUSES } from '../../database/cte-emission-profile.schema.js'
 import { APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES, HTTP_ERROR } from '../../shared/api.constant.js'
@@ -30,7 +30,7 @@ export type CteEmissionProfileBody = {
   readonly components: readonly CteEmissionProfileComponentInput[]
   readonly freightRule: CteEmissionProfileFreightRuleInput
   readonly matchers: readonly CteEmissionProfileMatcherInput[]
-  readonly settings: CteEmissionProfileSettings
+  readonly settings: CteEmissionProfileSettingsInput
 }
 
 export async function parseCreateProfileRequest(request: Request): Promise<CteEmissionProfileBody> {

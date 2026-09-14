@@ -296,6 +296,96 @@ export const ADJUSTED_FUEL_PRICE = {
   updatedAt: '2026-08-14T09:00:00.000Z',
 } as const satisfies FuelPriceEntryContract
 
+export type TollBoothChargeEntryContract = Readonly<{
+  actorUserId: string | null
+  catalog: Readonly<{
+    chargeCar: string | null
+    chargePerAxle: string | null
+    chargePerAxleAutomatic: string | null
+    observedOn: string
+  }>
+  chargeCarSource: 'catalog' | 'manual'
+  chargePerAxleAutomaticSource: 'catalog' | 'manual'
+  chargePerAxleSource: 'catalog' | 'manual'
+  effectiveChargeCar: string | null
+  effectiveChargePerAxle: string | null
+  effectiveChargePerAxleAutomatic: string | null
+  name: string | null
+  observedOn: string
+  operator: string | null
+  osmNodeId: number
+  source: 'catalog' | 'manual'
+  updatedAt: string | null
+}>
+
+/** Uma praça vista em rota, sem ajuste — o valor efetivo é o do mapa nos dois campos. */
+export const TOLL_BOOTH_CHARGE_ENTRIES = [
+  {
+    actorUserId: null,
+    catalog: {
+      chargeCar: '10.5000',
+      chargePerAxle: '10.5000',
+      chargePerAxleAutomatic: null,
+      observedOn: '2026-06-01',
+    },
+    chargeCarSource: 'catalog',
+    chargePerAxleAutomaticSource: 'catalog',
+    chargePerAxleSource: 'catalog',
+    effectiveChargeCar: '10.5000',
+    effectiveChargePerAxle: '10.5000',
+    effectiveChargePerAxleAutomatic: null,
+    name: 'Praça SP-330',
+    observedOn: '2026-06-01',
+    operator: 'CCR',
+    osmNodeId: 111,
+    source: 'catalog',
+    updatedAt: null,
+  },
+  {
+    actorUserId: null,
+    catalog: {
+      chargeCar: null,
+      chargePerAxle: null,
+      chargePerAxleAutomatic: null,
+      observedOn: '2026-06-01',
+    },
+    chargeCarSource: 'catalog',
+    chargePerAxleAutomaticSource: 'catalog',
+    chargePerAxleSource: 'catalog',
+    effectiveChargeCar: null,
+    effectiveChargePerAxle: null,
+    effectiveChargePerAxleAutomatic: null,
+    name: 'Praça SP-291',
+    observedOn: '2026-06-01',
+    operator: null,
+    osmNodeId: 222,
+    source: 'catalog',
+    updatedAt: null,
+  },
+] as const satisfies readonly TollBoothChargeEntryContract[]
+
+export const ADJUSTED_TOLL_BOOTH_CHARGE = {
+  actorUserId: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e91',
+  catalog: {
+    chargeCar: null,
+    chargePerAxle: null,
+    chargePerAxleAutomatic: null,
+    observedOn: '2026-06-01',
+  },
+  chargeCarSource: 'catalog',
+  chargePerAxleAutomaticSource: 'catalog',
+  chargePerAxleSource: 'manual',
+  effectiveChargeCar: null,
+  effectiveChargePerAxle: '9.9000',
+  effectiveChargePerAxleAutomatic: null,
+  name: 'Praça SP-291',
+  observedOn: '2026-09-07',
+  operator: null,
+  osmNodeId: 222,
+  source: 'manual',
+  updatedAt: '2026-09-07T13:00:00.000Z',
+} as const satisfies TollBoothChargeEntryContract
+
 export const EMPTY_COMPANY_SETTINGS_RESPONSE = {
   data: { activation: null, billing: null, cte: null, cteRetry: null, mdfe: null, profile: null },
 } as const

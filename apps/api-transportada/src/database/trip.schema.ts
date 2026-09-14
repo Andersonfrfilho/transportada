@@ -112,6 +112,25 @@ export const trips = pgTable(
     requiresMdfeReason: text('requires_mdfe_reason'),
     requiresMdfeActorUserId: uuid('requires_mdfe_actor_user_id'),
     requiresMdfeSetAt: timestamp('requires_mdfe_set_at', { withTimezone: true }),
+    /**
+     * Spec 090 T11: o pedágio congelado no momento em que o roteiro foi planejado — nunca
+     * recalculado na leitura da valoração, que pareia a rota de hoje com a distância de ontem
+     * (D4). `null` é "roteiro nunca planejado com pedágio calculável", nunca zero.
+     */
+    plannedToll: jsonb('planned_toll'),
+    plannedTollFrozenAt: timestamp('planned_toll_frozen_at', { withTimezone: true }),
+    /**
+     * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
+     * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
+     * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
+     */
+    estimatedArrivalFrozenAt: timestamp('estimated_arrival_frozen_at', { withTimezone: true }),
+    /**
+     * Spec 109 D2: **a saída a que os ETAs das paradas estão ancorados.** Nasce com a premissa do
+     * planejamento e é reescrita pelo despacho com a saída real — é isso que torna o deslocamento
+     * idempotente, porque despachar de novo passa a ter diferença zero.
+     */
+    etaDepartureAt: timestamp('eta_departure_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -140,6 +159,14 @@ export const trips = pgTable(
     ),
     /** O semáforo da lista: filtrar "prontas para manifestar" sem varrer o fiscal da empresa. */
     index('trips_company_fiscal_readiness_idx').on(table.companyId, table.fiscalReadinessState),
+    /**
+     * Meia gravação é o estado que faz o leitor inventar (spec 090 T11): o congelado e a hora do
+     * congelamento nascem e morrem juntos.
+     */
+    check(
+      'trips_planned_toll_check',
+      sql`(${table.plannedToll} is null) = (${table.plannedTollFrozenAt} is null)`,
+    ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],
       foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
@@ -1034,6 +1061,12 @@ export const companyOccurrenceTypes = pgTable(
      * novo. Nula é o legado (ou tipo sem e-mail).
      */
     emailTemplateKey: varchar('email_template_key', { length: 120 }),
+    /**
+     * Spec 143 (P4): liga o envio automático à contratante quando a ocorrência é registrada, sem
+     * clique do operador — pela mesma porta do P1 (`send-occurrence-mail.use-case.ts`). Padrão
+     * `false`: nenhuma instalação passa a mandar e-mail sozinha ao aplicar esta migration.
+     */
+    emailsContractor: boolean('emails_contractor').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -203,6 +203,65 @@ describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
     })
   })
 
+  /**
+   * Spec 110 D5a: **aceitar parte, contra o banco.** O contrato de aplicação prova o filtro; só o
+   * Postgres prova que a nota do veículo não marcado continua **livre** — que é a frase que a tela
+   * promete ao operador ("as notas voltam para o maço").
+   */
+  testWithPostgres('aceita um dos dois veículos e deixa a carga do outro livre', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const useCase = buildUseCase(database)
+      const chosen = world.vehicles[1]?.vehicleId ?? ''
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+        vehicleIds: [chosen],
+      })
+
+      expect(accepted.trips).toHaveLength(1)
+      expect(accepted.trips[0]?.vehicleId).toBe(chosen)
+      expect(await countTrips(database, world.companyId)).toBe(1)
+
+      /**
+       * ⚠️ O que não foi aceito **não tem vínculo nenhum**: as notas do outro caminhão continuam
+       * como estavam, disponíveis para a próxima montagem. Nada a desfazer, porque nada foi feito.
+       */
+      const linked = await database.db
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(eq(tripDocuments.companyId, world.companyId))
+
+      expect(linked.length).toBe(accepted.trips[0]?.documentCount ?? 0)
+      expect(linked.length).toBeLessThan(world.documentIds.length)
+    })
+  })
+
+  testWithPostgres('veículo fora da proposta não consome a sugestão', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const useCase = buildUseCase(database)
+
+      await expect(
+        useCase.accept({
+          context: world.context,
+          suggestionId: world.suggestionId,
+          vehicleIds: [crypto.randomUUID()],
+        }),
+      ).rejects.toThrow()
+
+      expect(await countTrips(database, world.companyId)).toBe(0)
+
+      /** A proposta continua boa: o aceite inteiro ainda funciona depois do id errado. */
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      expect(accepted.trips).toHaveLength(2)
+    })
+  })
+
   /** Decidida uma vez, decidida para sempre: o segundo clique não cria a segunda leva de viagens. */
   testWithPostgres('o segundo aceite não cria viagem de novo', async () => {
     await withSharedDatabase(async (database) => {
@@ -258,6 +317,8 @@ function buildUseCase(database: TestDatabase) {
       link: (input) => tripUseCase.linkDocument(input),
       listStops: async (input) =>
         (await listTripStops({ ...input, repository: stopRepository })).stops,
+      /** Spec 107 D3: a integração não confere ETA; o contrato de unidade faz isso. */
+      writeEstimatedArrivals: async () => undefined,
       planRoute: (input) => lifecycle.planRoute.execute(input),
       reorder: (input) => lifecycle.reorderStops.execute(input),
     }),
@@ -486,3 +547,48 @@ async function withSharedDatabase(
   if (shared === undefined) throw new Error('A PostgreSQL test URL is required')
   await operation(shared.database)
 }
+
+/**
+ * Spec 112: **mover parada contra o banco.** O contrato de aplicação prova a regra com um
+ * repositório de mentira, que devolve o mapeamento nota→parada que o teste escreveu. Só o Postgres
+ * prova que `readGroups` o devolve de verdade — a junção a `route_suggestion_stop_documents` que o
+ * agrupamento jogava fora.
+ */
+describe('mover parada entre caminhões no aceite, contra Postgres (spec 112)', () => {
+  testWithPostgres(
+    'a parada vai com as duas notas dela, e o caminhão vazio não vira viagem',
+    async () => {
+      await withSharedDatabase(async (database) => {
+        const world = await seedSuggestion(database)
+        const useCase = buildUseCase(database)
+        const destination = world.vehicles[1]?.vehicleId ?? ''
+
+        const accepted = await useCase.accept({
+          context: world.context,
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [SECOND_ADDRESS_KEY, FIRST_ADDRESS_KEY], vehicleId: destination },
+          ],
+          suggestionId: world.suggestionId,
+        })
+
+        /** O primeiro caminhão perdeu a única parada que tinha: não há viagem vazia para ele. */
+        expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([destination])
+        const [trip] = accepted.trips
+        expect(trip?.documentCount).toBe(3)
+        expect(trip?.stopCount).toBe(2)
+
+        const linked = await database.db
+          .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+          .from(tripDocuments)
+          .where(
+            and(
+              eq(tripDocuments.companyId, world.companyId),
+              eq(tripDocuments.tripId, trip?.tripId ?? ''),
+            ),
+          )
+        /** As duas notas da parada que mudou de caminhão foram junto — e a nota de sempre ficou. */
+        expect(linked.map((row) => row.nfeDocumentId).sort()).toEqual([...world.documentIds].sort())
+      })
+    },
+  )
+})

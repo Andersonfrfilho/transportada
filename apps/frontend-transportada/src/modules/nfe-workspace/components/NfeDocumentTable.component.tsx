@@ -18,6 +18,7 @@ import {
   describeNfeDocumentFilterPills,
   type NfeDocumentFilterPill,
 } from '../shared/nfeDocumentFilterPills.service'
+import { describeDocumentOutput } from '../shared/documentOutput.service'
 import { NFSE_LINK_BLOCK_REASON } from '../shared/nfeWorkspace.constant'
 import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 import {
@@ -58,6 +59,7 @@ type ColumnMeta = Readonly<{ align?: 'end'; sortColumn?: SortColumn }>
 
 const COLUMN_META: Readonly<Record<ColumnKey, ColumnMeta>> = {
   amount: { align: 'end', sortColumn: 'amount' },
+  documentOutput: {},
   emitter: { sortColumn: 'emitter' },
   emitterLocation: {},
   issuedAt: { sortColumn: 'issuedAt' },
@@ -266,6 +268,7 @@ export function NfeDocumentTable({
     if (column === 'amount') {
       return copyableCell('amount', formatAmount(document.totalAmount), styles.amountCell)
     }
+    if (column === 'documentOutput') return <td>{documentOutputLabel(document)}</td>
     const nfseLink = resolveNfseLink(document)
     return (
       <td>
@@ -341,6 +344,22 @@ export function NfeDocumentTable({
 
   function blockReasonLabel(reason: string): string {
     return t(`cteEmission.blockReason.${reason}`, { defaultValue: reason })
+  }
+
+  /** Para qual documento a nota vai (spec 144 D3). Sem classificação a célula fica vazia. */
+  function documentOutputLabel(document: NfeDocumentListItem): string {
+    const described = describeDocumentOutput(document.documentOutput)
+    if (described === null) return '—'
+    if (described.kind === 'blocked') {
+      return t('documents.documentOutput.blocked', { reason: blockReasonLabel(described.reason) })
+    }
+    if (described.kind === 'noProfile') {
+      const reason = t(`documents.documentOutput.noProfileReason.${described.reason}`, {
+        defaultValue: described.reason,
+      })
+      return t('documents.documentOutput.noProfile', { reason })
+    }
+    return t(`documents.documentOutput.${described.kind}`)
   }
 
   function renderLocationCell(address: string | null, city: string | null, state: string | null) {

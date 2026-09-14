@@ -4,7 +4,33 @@
   "tabs": {
     "company": "Empresa",
     "site": "Site",
-    "certificates": "Certificados"
+    "certificates": "Certificados",
+    "taxes": "Tributos"
+  },
+  "federalTaxes": {
+    "kicker": "PIS e COFINS",
+    "title": "Regime federal",
+    "hint": "A conta da viagem desconta PIS e COFINS da receita por estas alíquotas. A sugestão sai do CRT e da lei; confirme com o contador antes de salvar.",
+    "regimeLabel": "Regime federal",
+    "regimePlaceholder": "Escolha o regime",
+    "regime": {
+      "presumed": "Lucro Presumido (cumulativo)",
+      "real": "Lucro Real (não cumulativo)",
+      "simple": "Simples Nacional"
+    },
+    "pisLabel": "PIS (%)",
+    "cofinsLabel": "COFINS (%)",
+    "origin": {
+      "stored": "gravado",
+      "suggested": "sugerido pela lei",
+      "typed": "digitado"
+    },
+    "simpleNote": "No Simples Nacional o PIS e a COFINS são pagos dentro do DAS: não há alíquota própria a descontar da margem da viagem.",
+    "realNote": "No Lucro Real as alíquotas sugeridas são as nominais (1,65% e 7,60%). Os créditos do regime não cumulativo baixam a alíquota efetiva — o contador ajusta.",
+    "save": "Salvar regime",
+    "clear": "Voltar a não declarado",
+    "saved": "Regime federal salvo.",
+    "error": "Não foi possível salvar o regime federal ({{code}})."
   },
   "landing": {
     "title": "Configuração do site",

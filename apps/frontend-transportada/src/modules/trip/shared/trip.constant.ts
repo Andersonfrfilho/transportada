@@ -32,6 +32,16 @@ export const TRIP_ERROR = {
   RESPONSE_INVALID: 'TRIP_RESPONSE_INVALID',
 } as const
 
+/**
+ * Spec 137: o código que a API devolve quando o banco não respondeu no prazo — não nasce no
+ * cliente da viagem como o resto de `TRIP_ERROR`, mas é o que o detalhe recebe num 503, e é o que
+ * distingue "tente de novo" de uma falha qualquer.
+ */
+export const DATABASE_UNAVAILABLE_ERROR_CODE = 'DATABASE_UNAVAILABLE'
+
+/** Viagem grande leva segundos para montar o mapa de carga — o aviso só aparece depois deste prazo. */
+export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
+
 export const TRIP_PAGE_SIZE = 25
 
 /** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
@@ -132,7 +142,16 @@ export const TRIP_STOP_KEYS = [
 export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
 
 /** Spec 078 D2: `amounts` nasce opcional — bundle novo com API antiga tem o campo ausente. */
-export const TRIP_OPTIONAL_KEYS = ['amounts'] as const
+/**
+ * ⚠️ Spec 107 D3: os dois nascem opcionais como todo campo novo (spec 078 D2) — mas estar **na
+ * lista** não é opcional: a validação recusa a viagem inteira por chave desconhecida, e a tabela de
+ * viagens renderizaria vazia com 200 na rede e nada no console (o defeito de `VEHICLE_DETAIL_KEYS`).
+ */
+export const TRIP_OPTIONAL_KEYS = [
+  'amounts',
+  'estimatedArrivalFrozenAt',
+  'estimatedFinishAt',
+] as const
 
 export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal'] as const
 
@@ -154,7 +173,41 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
  * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
  * essa mudança que torna o contrato exigível de novo.
  */
-export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupancy'] as const
+/**
+ * ⚠️ O detalhe herda os opcionais da viagem, e não só os dele. `TRIP_DETAIL_KEYS` espalha
+ * `TRIP_KEYS` mas parava aí: `amounts` — que a listagem já conhecia — chegava no detalhe como chave
+ * desconhecida, e `hasKeys` recusa a resposta **inteira**. O efeito não era um campo faltando: era
+ * a tela de detalhe inteira caindo em "Não foi possível carregar as viagens", levando junto as
+ * notas, as paradas e o painel de carga. Campo novo da viagem entra numa lista só, e as duas telas
+ * o aceitam.
+ */
+export const TRIP_DETAIL_OPTIONAL_KEYS = [
+  ...TRIP_OPTIONAL_KEYS,
+  'cargoLayout',
+  /** Spec 145 D17: aceito antes de a API servir (T10), para o detalhe não cair na janela de deploy. */
+  'cargoLayoutState',
+  /** Spec 148 T7: a planta do hash atual — é por ela que o botão tira as notas que não couberam. */
+  'cargoLayoutId',
+  'cargoWeight',
+  'occupancy',
+] as const
+
+export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
+  'computedAt',
+  'errorCode',
+  'stale',
+  'status',
+  'truncated',
+] as const
+
+/** Spec 145 T11: a resposta de `GET /trips/cargo-layouts/:layoutId`, chave por chave. */
+export const TRIP_CARGO_LAYOUT_POLL_KEYS = ['cargoLayout', 'layoutId', 'state'] as const
+
+export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
+
+/** Spec 148 T7: a fila de revisão das notas que não couberam — fora da árvore `/trips/:id`. */
+export const TRIP_DOCUMENT_REVIEWS_PATH = '/trip-document-reviews'
+export const TRIP_REVIEW_QUERY_KEY = 'trip-document-reviews'
 
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade
@@ -194,6 +247,14 @@ export const DELIVERY_PROOF_KEYS = [
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',
   'grossWeightKilograms',
+  /**
+   * ⚠️ Spec 093: chave nova em lista validada por `hasExactKeys` — **a API sobe antes do
+   * frontend**. Com a API servindo o corpo antigo, toda prévia de carga é recusada na validação e o
+   * painel some com 200 na rede e nada no console, que é o mesmo defeito já registrado em
+   * `VEHICLE_DETAIL_KEYS`.
+   */
+  'maxPayloadKg',
+  'payloadRatio',
   'source',
 ] as const
 
@@ -235,7 +296,22 @@ export const BATCH_STATUS_RESULT_KEYS = ['items', 'tripStatus'] as const
  */
 export const TRIP_ON_THE_ROAD_REFETCH_MS = 30_000
 
+/** Spec 145 D10: enquanto a planta está `pending`, a tela pergunta de novo a cada 3 s. */
+export const CARGO_LAYOUT_REFETCH_MS = 3_000
+
+/** Spec 145 D16: acima da escada da D13 (120 + 240 + 480 s) + 2 retries de 30 s ≈ 15,5 min; passado, para. */
+export const CARGO_LAYOUT_POLL_CEILING_MS = 1_080_000
+
+/** Passada essa espera, o selo avisa que viagem grande leva minutos — antes disso seria alarme à toa. */
+export const CARGO_LAYOUT_SLOW_NOTICE_MS = 120_000
+
 /** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
 export function isTripOnTheRoad(status: string | undefined): boolean {
   return status === 'dispatched' || status === 'in_transit'
 }
+
+/** Spec 145 T13 (D4): quanto dura o deslize da planta anterior para a nova — o CSS usa o mesmo. */
+export const CARGO_LAYOUT_TRANSITION_MS = 600
+
+/** Spec 145 T13: acima disto a planta nova entra sem deslize — cada quadro reprojeta a carga inteira. */
+export const CARGO_LAYOUT_TRANSITION_MAX_BOXES = 800

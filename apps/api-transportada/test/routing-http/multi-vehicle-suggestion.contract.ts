@@ -99,6 +99,93 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
     expect(fixture.acceptCalls[0]).toMatchObject({ suggestionId: SUGGESTION_ID })
   })
 
+  /**
+   * A ordem escolhida à mão nas setas atravessa a rota inteira até o caso de uso.
+   *
+   * ⚠️ O corpo é `.strict()`: sem o campo declarado, a tela nova mandando a ordem a uma API antiga
+   * leva **400**. Por isso esta rota sobe **antes** do front, como `VEHICLE_DETAIL_KEYS`.
+   */
+  test('o aceite leva a ordem escolhida à mão', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+    const order = [
+      {
+        orderedAddressKeys: ['3543402|14020000|300', '3543402|14020000|100'],
+        vehicleId: VEHICLE_ID,
+      },
+    ]
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { stopOrderByVehicle: order },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.acceptCalls[0]).toMatchObject({
+      stopOrderByVehicle: order,
+      suggestionId: SUGGESTION_ID,
+    })
+  })
+
+  /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam, com o rastro do pedido. */
+  test('o aceite leva as plantas de onde soltar as notas que não couberam', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+    const layoutId = '00000000-0000-4000-8000-00000000c0de'
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { releaseUnplacedFromLayoutIds: [layoutId] },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.acceptCalls[0]).toMatchObject({
+      releaseUnplacedFromLayoutIds: [layoutId],
+      suggestionId: SUGGESTION_ID,
+    })
+    expect(typeof (fixture.acceptCalls[0] as { correlationId?: unknown }).correlationId).toBe(
+      'string',
+    )
+
+    const empty = await fixture.handle(
+      jsonRequest({
+        body: { releaseUnplacedFromLayoutIds: [] },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+    expect(empty.status).toBe(400)
+  })
+
+  test('recusa ordem malformada antes de chegar ao caso de uso', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+    const malformed = [
+      { stopOrderByVehicle: [] },
+      { stopOrderByVehicle: [{ orderedAddressKeys: [], vehicleId: VEHICLE_ID }] },
+      { stopOrderByVehicle: [{ orderedAddressKeys: ['k'], vehicleId: 'nao-e-uuid' }] },
+      { stopOrderByVehicle: [{ orderedAddressKeys: ['k'], position: 1, vehicleId: VEHICLE_ID }] },
+      /** O mesmo veículo duas vezes: qual das duas listas vale seria palpite do servidor. */
+      {
+        stopOrderByVehicle: [
+          { orderedAddressKeys: ['k'], vehicleId: VEHICLE_ID },
+          { orderedAddressKeys: ['j'], vehicleId: VEHICLE_ID },
+        ],
+      },
+    ]
+
+    for (const body of malformed) {
+      const response = await fixture.handle(
+        jsonRequest({ body, method: 'POST', path: `${SUGGESTION_PATH}/accept` }),
+      )
+      expect(response.status).toBe(400)
+    }
+    expect(fixture.acceptCalls).toEqual([])
+  })
+
   test('lê e rejeita pela mesma árvore, sem nomear viagem', async () => {
     const fixture = await createMultiVehicleHttpFixture()
 

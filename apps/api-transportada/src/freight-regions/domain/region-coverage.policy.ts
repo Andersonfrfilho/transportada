@@ -9,7 +9,7 @@ const WHITESPACE_PATTERN = /\s+/g
 const DIACRITIC_PATTERN = /\p{Diacritic}/gu
 
 /** Família `0` é a matriz — saída, não zona. Por isso ela não entra na contagem acumulativa. */
-const HEAD_OFFICE_FAMILY = '0'
+export const HEAD_OFFICE_FAMILY = '0'
 const HEAD_OFFICE_ZONE = 0
 
 export type RegionCode = {

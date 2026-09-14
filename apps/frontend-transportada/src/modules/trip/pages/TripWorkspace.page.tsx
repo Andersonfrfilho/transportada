@@ -19,6 +19,7 @@ import { resolveSettingsDataScope } from '@/modules/company-settings/shared/comp
 
 import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
 import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
+import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
   useDeliveryProofOverridesQuery,
@@ -28,6 +29,7 @@ import {
 } from '../queries/useDeliveryProofSettings.query'
 import { TripTable } from '../components/TripTable.component'
 import { useTripQuickCreate } from '../hooks/useTripQuickCreate.hook'
+import { TRIP_LIST_QUERY_KEY } from '../shared/trip.constant'
 import { useTripRouteAssembly } from '../hooks/useTripRouteAssembly.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
@@ -179,6 +181,14 @@ export function TripWorkspacePage() {
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const fleet = useFleet(tenant)
   /**
+   * Spec 107 D3: a placa de quem fica livre, para a frase da sobra nomear o caminhão. A frota já é
+   * consultada aqui para os seletores da montagem — uma segunda consulta só para a placa seria
+   * varrer a mesma lista duas vezes.
+   */
+  const plateByVehicleId = new Map(
+    (fleet.viewModel.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.plate]),
+  )
+  /**
    * A viagem criada abre no detalhe: quem acabou de bipar dez notas quer conferir o roteiro, e
    * deixá-lo na lista o obrigaria a procurar a linha que ele mesmo acabou de criar.
    */
@@ -194,6 +204,23 @@ export function TripWorkspacePage() {
       .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
       .map((vehicle) => vehicle.id),
   })
+  /**
+   * Spec 102: cancelar as marcadas, **uma por uma e em sequência**. `Promise.all` mandaria N
+   * escritas concorrentes sobre o mesmo tenant, e a primeira falha esconderia quais das outras
+   * chegaram a acontecer — aqui a lista para na falha, e o que já foi cancelado está cancelado.
+   */
+  const cancelSelectedMutation = useMutation({
+    mutationFn: async () => {
+      for (const trip of table.cancellableSelection) {
+        await workspace.controller.cancelTrip({ tripId: trip.id })
+      }
+    },
+    onSuccess: () => {
+      table.clearSelection()
+      void queryClient.invalidateQueries({ queryKey: TRIP_LIST_QUERY_KEY })
+    },
+  })
+
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
     /**
@@ -306,20 +333,24 @@ export function TripWorkspacePage() {
                 </div>
               ) : null}
 
-              {/*
-                O resultado mora **na lista**, não no modal que o produziu: ele fecha ao criar, e a
-                mensagem dentro dele aparecia cercada dos avisos de campo vazio que a limpeza do
-                formulário trazia de volta — sucesso com cara de falha.
-              */}
               {assembly.outcome === null ? null : (
-                <p className={styles.hint} role="status">
-                  {t('routeAssembly.outcomeAutomatic', { count: assembly.outcome.trips.length })}
-                </p>
+                <>
+                  <p className={styles.hint} role="status">
+                    {t('routeAssembly.outcomeAutomatic', { count: assembly.outcome.trips.length })}
+                  </p>
+                  {/* Spec 107: o que não entrou em viagem nenhuma, com o motivo de cada um. */}
+                  <TripRouteAssemblyLeftovers
+                    onRetry={assembly.retryWith}
+                    outcome={assembly.outcome}
+                    plateByVehicleId={plateByVehicleId}
+                  />
+                </>
               )}
 
               <TripRouteAssemblyDialog
                 assembly={assembly}
                 drivers={fleet.viewModel.drivers ?? []}
+                permissions={permissions}
                 vehicles={fleet.viewModel.vehicles ?? []}
               />
 
@@ -349,7 +380,13 @@ export function TripWorkspacePage() {
               ) : null}
 
               {table.tripsQuery.isLoading ? null : (
-                <TripTable table={table} vehicles={fleet.viewModel.vehicles ?? []} />
+                <TripTable
+                  canCancel={workspace.controller.canManageTrips}
+                  isCancelling={cancelSelectedMutation.isPending}
+                  onCancelSelected={() => cancelSelectedMutation.mutate()}
+                  table={table}
+                  vehicles={fleet.viewModel.vehicles ?? []}
+                />
               )}
             </>
           )}

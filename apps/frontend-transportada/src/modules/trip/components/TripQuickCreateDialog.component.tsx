@@ -18,6 +18,9 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
+import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
+
+import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
@@ -29,7 +32,11 @@ import {
 } from '../shared/driverBoundVehicles.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import type { TripQuickCreateEntry } from '../shared/tripQuickCreate.service'
-import { isQuickCreateEntryPending, stagedDocumentIds } from '../shared/tripQuickCreate.service'
+import {
+  isQuickCreateEntryPending,
+  listSelectableDocuments,
+  stagedDocumentIds,
+} from '../shared/tripQuickCreate.service'
 import styles from '../styles/trip.module.css'
 
 type TripQuickCreateDialogProps = Readonly<{
@@ -132,20 +139,23 @@ export function TripQuickCreateDialog({
   )
   /** A conta acompanha a escolha: muda a nota, o motorista ou o veículo, e o número acompanha. */
   const selectedNotes = useMemo(
-    () => quickCreate.stagedDocuments.map(toAssemblyNote),
+    () => quickCreate.stagedDocuments.map(toAssemblyMapNote),
     [quickCreate.stagedDocuments],
   )
   /** A nota já em fila não é "o que faltou": o mapa a desenha como parada, não como ausência. */
   const nearbyNotes = useMemo(() => {
     const staged = new Set(quickCreate.stagedDocuments.map((document) => document.id))
-    return filteredDocuments.filter((document) => !staged.has(document.id)).map(toAssemblyNote)
+    return filteredDocuments.filter((document) => !staged.has(document.id)).map(toAssemblyMapNote)
   }, [filteredDocuments, quickCreate.stagedDocuments])
 
   /**
    * A carga desenhada **antes de a viagem existir**: cabe no baú, e em que ordem entra. A ordem das
    * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
    */
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)
   const cargoPreview = useTripCargoPreview({
+    /** Spec 100: quem amarra a carga muda a altura da pilha, então o desenho depende dele. */
+    driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
     stopOrder: quickCreate.cityOrder,
@@ -156,6 +166,7 @@ export function TripQuickCreateDialog({
     driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
+    stopOrder: quickCreate.cityOrder,
     vehicleId: quickCreate.vehicleId,
   })
   const bindingByDriverId = new Map(
@@ -224,8 +235,16 @@ export function TripQuickCreateDialog({
           ) : null}
         </div>
 
+        {/*
+          ⚠️ A busca oferece só o que ainda não está na fila. Nota escolhida sai da lista e volta
+          quando for retirada — oferecê-la de novo faz quem monta um lote grande perder a conta de
+          quais faltam.
+        */}
         <TripDocumentSearch
-          documents={availableDocuments}
+          documents={listSelectableDocuments({
+            documents: availableDocuments,
+            queue: quickCreate.queue,
+          })}
           onFilteredChange={setFilteredDocuments}
           onStage={quickCreate.stageDocuments}
         />
@@ -297,9 +316,43 @@ export function TripQuickCreateDialog({
           </label>
         </div>
 
+        {/*
+          Spec 110 D8: **a mesma faixa da proposta.** Quem monta a viagem à mão também precisa ver
+          qual caminhão é aquele antes de olhar o mapa — e duas faixas com a mesma informação e
+          caras diferentes é a divergência que o `web.md` §14 reprova.
+        */}
+        {selectedVehicle === undefined ? null : (
+          <VehicleIdentityBand
+            facts={[
+              {
+                label: t('proposal.stopsAndNotes'),
+                value: `${t('proposal.stopCount', { count: quickCreate.cityOrder.length })} · ${t('proposal.documentCount', { count: selectedNotes.length })}`,
+              },
+            ]}
+            label={[selectedVehicle.brand, selectedVehicle.model]
+              .filter((part) => part !== '')
+              .join(' ')}
+            plate={selectedVehicle.plate}
+            specification={describeSelectedVehicle(selectedVehicle)}
+            vehicleType={selectedVehicle.vehicleType}
+          />
+        )}
+
         <TripAssemblyMap
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
+          /**
+           * ⚠️ A parada é um endereço, e a fila é de **chaves de acesso**: a tradução de id de nota
+           * para chave acontece aqui, uma vez, sobre a mesma lista que alimentou o mapa. Nota que
+           * não está mais na fila é ignorada em vez de virar erro — o operador pode remover a mesma
+           * parada duas vezes com o clique repetido, e a segunda vez não tem o que desfazer.
+           */
+          onStopRemove={(noteIds) => {
+            const removing = new Set(noteIds)
+            for (const document of quickCreate.stagedDocuments) {
+              if (removing.has(document.id)) quickCreate.removeEntry(document.accessKey)
+            }
+          }}
           order={quickCreate.cityOrder}
           revenueLines={valuationPreview.valuation?.revenueLines}
           selected={selectedNotes}
@@ -310,6 +363,7 @@ export function TripQuickCreateDialog({
           <TripCargoPanel
             cargoWeight={cargoPreview.preview.cargoWeight}
             layout={cargoPreview.preview.cargoLayout}
+            layoutView={cargoPreview.cargoLayoutView}
             occupancy={cargoPreview.preview.occupancy}
             weightConcentration={cargoPreview.preview.weightConcentration}
             vehicleType={
@@ -366,29 +420,35 @@ export function TripQuickCreateDialog({
 }
 
 /** O recorte que o mapa da montagem lê da nota: onde ela para, e o que identifica a parada. */
-function toAssemblyNote(document: ScannedNfeDocument) {
-  return {
-    address: document.recipientAddress,
-    /**
-     * ⚠️ `addressNumber` é o número do **endereço**, e `number` é o número da **nota**. Trocar os
-     * dois faria a chave da parada nascer do número fiscal, e cada nota viraria uma parada própria.
-     */
-    addressNumber: document.recipientAddressNumber,
-    city: document.recipientCity,
-    cityCode: document.recipientCityCode,
-    id: document.id,
-    latitude: document.recipientLatitude,
-    locationPrecision: document.recipientLocationPrecision,
-    longitude: document.recipientLongitude,
-    number: document.number,
-    phone: document.recipientPhone,
-    totalAmount: document.totalAmount,
-    freightAmount: document.freightAmount,
-    freightRuleName: document.freightRuleName,
-    cargoGrossWeight: document.cargoGrossWeight,
-    cargoWeightSource: document.cargoWeightSource,
-    postalCode: document.recipientPostalCode,
-    recipient: document.recipientName,
-    state: document.recipientState,
+
+/**
+ * A ficha em uma linha: baú, capacidade e teto de massa. Campo ausente **some**, nunca vira "—".
+ *
+ * ⚠️ Cópia da mesma leitura que a proposta faz. Ela é pequena e local de propósito: subir isso para
+ * a faixa a obrigaria a conhecer `FleetVehicleDetail`, e ela existe para desenhar, não para saber
+ * de onde o texto veio.
+ */
+function describeSelectedVehicle(vehicle: FleetVehicleDetail): null | string {
+  const parts: string[] = []
+  const { cargoHeightMeters, cargoLengthMeters, cargoWidthMeters } = vehicle
+  if (
+    hasMeasure(cargoLengthMeters) &&
+    hasMeasure(cargoWidthMeters) &&
+    hasMeasure(cargoHeightMeters)
+  ) {
+    parts.push(`${cargoLengthMeters} × ${cargoWidthMeters} × ${cargoHeightMeters} m`)
   }
+  if (hasMeasure(vehicle.capacityCubicMeters)) parts.push(`${vehicle.capacityCubicMeters} m³`)
+  if (hasMeasure(vehicle.capacityKilograms)) parts.push(`${vehicle.capacityKilograms} kg`)
+
+  return parts.length === 0 ? null : parts.join(' · ')
+}
+
+/**
+ * ⚠️ **Zero é ausência, nunca medida.** A spec 088 é explícita: baú de volume zero não existe, e
+ * `0.00` é o vocabulário que o resolvedor de capacidade já lê como "ninguém mediu". Imprimir
+ * `0.00 × 0.00 × 0.00 m` seria afirmar uma ficha que ninguém preencheu.
+ */
+function hasMeasure(value: null | string): boolean {
+  return value !== null && Number.parseFloat(value) > 0
 }

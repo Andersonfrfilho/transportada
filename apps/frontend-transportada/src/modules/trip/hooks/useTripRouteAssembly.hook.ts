@@ -20,19 +20,38 @@ import {
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
 import { ROUTE_ASSEMBLY_TIMEOUT_CODE } from '../shared/routeAssemblyFailure.service'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
-import type { AcceptedMultiVehicleTrip, TripCandidateDocument } from '../shared/trip.types'
+import { TRIP_ERROR, TRIP_QUERY_KEY } from '../shared/trip.constant'
+import type {
+  AcceptedMultiVehicleTrip,
+  MultiVehicleLeftoverStop,
+  MultiVehicleProposal,
+  SkippedMultiVehicleDocument,
+  TripCandidateDocument,
+} from '../shared/trip.types'
 import {
   EMPTY_TRIP_ROUTE_ASSEMBLY,
   validateRouteAssembly,
   type TripRouteAssemblyDraft,
 } from '../shared/tripRouteAssembly.service'
+import {
+  applyStopMoves,
+  resolveAcceptedStopOrders,
+  resolveMovedVehicleIds,
+} from '../shared/proposalStopMove.service'
 import { getTripClient } from './useTripWorkspace.hook'
+import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
 const SUGGESTION_POLL_MS = 2_000
 const SUGGESTION_POLL_CAP = 60
 
 export type TripRouteAssemblyOutcome = Readonly<{
+  /**
+   * Spec 107: as notas que o aceite pulou por já estarem vivas em outra viagem, e as paradas que
+   * ficaram sem veículo. ⚠️ Sugestão que devolve quarenta paradas e cala sobre doze **parece
+   * completa** — o operador aceita e descobre a carga esquecida no dia seguinte.
+   */
+  leftoverStops: readonly MultiVehicleLeftoverStop[]
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   trips: readonly AcceptedMultiVehicleTrip[]
 }>
 
@@ -40,12 +59,16 @@ export type TripRouteAssemblyOutcome = Readonly<{
  * O automático espera o solver, que roda no worker: a criação responde `202` e a sugestão só fica
  * `ready` depois. Sem o teto de tentativas, um solver que morre deixa a tela girando para sempre.
  */
-async function waitForSuggestion(suggestionId: string): Promise<void> {
+async function waitForSuggestion(suggestionId: string): Promise<MultiVehicleProposal> {
   const client = getTripClient()
 
   for (let attempt = 0; attempt < SUGGESTION_POLL_CAP; attempt += 1) {
     const suggestion = await client.readMultiVehicleSuggestion({ suggestionId })
-    if (suggestion.status === 'ready') return
+    /**
+     * Spec 108: pronta, a proposta é **relida com as paradas** — o poll olha só o estado, e é a
+     * releitura que alimenta a tela de revisão. Duas chamadas, e não uma pesada por tentativa.
+     */
+    if (suggestion.status === 'ready') return client.readMultiVehicleProposal({ suggestionId })
     /**
      * `stale` é a nota que entrou depois da proposta ficar pronta: ela descreve uma viagem que não
      * existe mais, e esperar por ela seria esperar para sempre.
@@ -75,7 +98,55 @@ export function useTripRouteAssembly(
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<TripRouteAssemblyDraft>(EMPTY_TRIP_ROUTE_ASSEMBLY)
   const [outcome, setOutcome] = useState<null | TripRouteAssemblyOutcome>(null)
+  /** Spec 108: a proposta em revisão. Enquanto ela existe, **nada foi criado**. */
+  const [proposal, setProposal] = useState<null | MultiVehicleProposal>(null)
   const [isOpen, setIsOpen] = useState(false)
+  /** Spec 110 D5: a seleção nasce inteira — o caso comum é aceitar tudo. */
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<ReadonlySet<string>>(new Set())
+  const [openVehicleId, setOpenVehicleId] = useState<null | string>(null)
+  /**
+   * Spec 110 D6: as notas que o operador tirou do roteiro e que **ainda não saíram** — nada é
+   * destruído antes do recálculo, e é por isso que "Desfazer" existe.
+   *
+   * ⚠️ A marcação vale para a **proposta inteira**, não para um caminhão: tirar uma parada muda o
+   * maço, e o maço decide a distribuição toda. Um botão "recalcular este caminhão" prometeria um
+   * recorte que o solver não faz.
+   */
+  const [pendingRemovals, setPendingRemovals] = useState<ReadonlySet<string>>(new Set())
+  /**
+   * A ordem escolhida à mão nas setas, por veículo. Veículo ausente é a ordem do roteirizador.
+   *
+   * ⚠️ Ela é **por caminhão**, ao contrário da remoção: mexer na ordem de um não muda o maço nem a
+   * distribuição, só o caminho daquele caminhão — e por isso ela não trava o aceite nem pede
+   * recálculo da proposta. Quem recalcula é a prévia daquela viagem, que já recebe a ordem.
+   */
+  /**
+   * Spec 148 T7 (D10): por caminhão, a planta da prévia de onde o aceite solta as notas que não
+   * couberam. Marcado aqui, solto no aceite — na mesma transação que vincula.
+   */
+  const [releaseLayoutByVehicle, setReleaseLayoutByVehicle] = useState<ReadonlyMap<string, string>>(
+    new Map(),
+  )
+  const [orderByVehicle, setOrderByVehicle] = useState<ReadonlyMap<string, readonly string[]>>(
+    new Map(),
+  )
+  /**
+   * A ordem que as setas estão montando e que **ainda não foi salva**.
+   *
+   * ⚠️ **As setas não vão ao servidor.** Cada troca de ordem refazia três consultas — a conta, a
+   * carreta e a rota do mapa, as duas últimas no OSRM —, e descer uma parada dez posições gastava
+   * trinta chamadas para mostrar números que o operador só queria ver no fim. O rascunho troca de
+   * lugar na tela; quem mede é "Salvar ordem", uma vez.
+   */
+  const [draftOrderByVehicle, setDraftOrderByVehicle] = useState<
+    ReadonlyMap<string, readonly string[]>
+  >(new Map())
+  /**
+   * Spec 112: nota → caminhão de destino, salvos e em rascunho. O rascunho só muda a tela; salvar o
+   * torna o que as medições e o aceite usam — como a ordem.
+   */
+  const [stopMoves, setStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
+  const [draftStopMoves, setDraftStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -126,10 +197,22 @@ export function useTripRouteAssembly(
     selection,
   })
 
-  const assembleMutation = useMutation({
-    mutationFn: async (): Promise<TripRouteAssemblyOutcome> => {
+  /**
+   * Spec 108: **propor não cria nada.** O que nasce aqui é a sugestão — paradas propostas —, e a
+   * viagem só existe depois do aceite. Até 09/09/2026 o mesmo clique fazia as duas coisas: o
+   * operador lia "5 viagens criadas pela recomendação" sem nunca ter visto o que ia aceitar, e
+   * desfazer era cancelar cinco viagens uma a uma.
+   */
+  const proposeMutation = useMutation({
+    mutationFn: async (): Promise<MultiVehicleProposal> => {
       const client = getTripClient()
-      const nfeDocumentIds = selection.eligible.map((document) => document.id)
+      /**
+       * ⚠️ **O recálculo é o que honra a remoção.** Editar só no cliente seria ignorado pelo aceite,
+       * que parte dos grupos do servidor — o operador veria uma distribuição e receberia outra.
+       */
+      const nfeDocumentIds = selection.eligible
+        .filter((document) => !pendingRemovals.has(document.id))
+        .map((document) => document.id)
 
       /**
        * ⚠️ Cada veículo vai com **o motorista dele**, não com a lista inteira de motoristas. O
@@ -146,15 +229,104 @@ export function useTripRouteAssembly(
           })),
         ),
       })
-      await waitForSuggestion(suggestion.id)
-      const accepted = await client.acceptMultiVehicleSuggestion({ suggestionId: suggestion.id })
-      return { trips: accepted.trips }
+      return waitForSuggestion(suggestion.id)
+    },
+    onSuccess: (result) => {
+      setProposal(result)
+      /**
+       * ⚠️ Spec 110 D1: **o diálogo NÃO fecha aqui.** Ele fechava, e a revisão aparecia na tela de
+       * viagens — quem passou dois minutos escolhendo notas, motoristas e veículos perdia de vista o
+       * pedido que gerou aquilo. O comentário antigo dizia que a revisão dentro do diálogo ficaria
+       * cercada dos avisos de campo vazio: a premissa estava certa e a conclusão não, porque o
+       * formulário **recolhe** quando a proposta chega, e não há campo vazio para avisar sobre.
+       */
+      setSelectedVehicleIds(new Set(vehicleIdsOf(result)))
+      setOpenVehicleId(vehicleIdsOf(result)[0] ?? null)
+      /** A proposta nova já nasce sem o que foi removido: a marcação cumpriu o papel dela. */
+      setPendingRemovals(new Set())
+      setOrderByVehicle(new Map())
+      setReleaseLayoutByVehicle(new Map())
+      setDraftOrderByVehicle(new Map())
+      setStopMoves(new Map())
+      setDraftStopMoves(new Map())
+    },
+  })
+
+  /**
+   * Spec 108: o aceite é **o único** caminho que escreve viagem, e ele parte de uma proposta que o
+   * operador já viu na tela.
+   */
+  /** As paradas como o operador as deixou, rascunho incluído: é o que a tela desenha. */
+  const displayStops =
+    proposal === null
+      ? null
+      : applyStopMoves(proposal.stops, new Map([...stopMoves, ...draftStopMoves]))
+  /**
+   * O que o aceite leva: os movimentos e as ordens **salvos**. Rascunho aberto trava o aceite, então
+   * no clique os dois conjuntos são o mesmo — mas é daqui que o corpo sai.
+   */
+  const acceptedOrders =
+    proposal === null
+      ? []
+      : resolveAcceptedStopOrders({
+          addressById: new Map(
+            pool.map((document) => [
+              document.id,
+              {
+                cityCode: document.recipientCityCode,
+                number: document.recipientAddressNumber,
+                postalCode: document.recipientPostalCode,
+              },
+            ]),
+          ),
+          manualOrderByVehicle: orderByVehicle,
+          moves: stopMoves,
+          stops: proposal.stops,
+        })
+
+  const acceptMutation = useMutation({
+    mutationFn: async (vehicleIds?: readonly string[]): Promise<TripRouteAssemblyOutcome> => {
+      const suggestionId = proposal?.suggestion.id
+      if (suggestionId === undefined) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+      /**
+       * Spec 110 D5a: sem lista, a proposta inteira — o aceite de sempre. Com ela, só os marcados
+       * viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
+       */
+      /** Só a planta de caminhão aceito: a de outro caminhão seria recusada como carga alheia. */
+      const releaseUnplacedFromLayoutIds = [...releaseLayoutByVehicle]
+        .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
+        .map(([, layoutId]) => layoutId)
+      const accepted = await getTripClient().acceptMultiVehicleSuggestion({
+        suggestionId,
+        ...(vehicleIds === undefined ? {} : { vehicleIds }),
+        ...(releaseUnplacedFromLayoutIds.length === 0 ? {} : { releaseUnplacedFromLayoutIds }),
+        /**
+         * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
+         * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
+         */
+        ...(acceptedOrders.length === 0 ? {} : { stopOrderByVehicle: acceptedOrders }),
+      })
+
+      return {
+        leftoverStops: accepted.leftoverStops,
+        skippedDocuments: accepted.skippedDocuments,
+        trips: accepted.trips,
+      }
     },
     onSuccess: (result) => {
       setOutcome(result)
+      setProposal(null)
+      setSelectedVehicleIds(new Set())
+      setOpenVehicleId(null)
+      setPendingRemovals(new Set())
+      setOrderByVehicle(new Map())
+      setReleaseLayoutByVehicle(new Map())
+      setDraftOrderByVehicle(new Map())
+      setStopMoves(new Map())
+      setDraftStopMoves(new Map())
+      setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
-      setIsOpen(false)
       void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] })
       input.onCreated(result.trips)
@@ -163,12 +335,125 @@ export function useTripRouteAssembly(
 
   return {
     pool,
+    /** Spec 148 T7: a planta marcada é a de agora — outra planta do mesmo caminhão não conta. */
+    isReleaseMarked: (vehicleId: string, layoutId: string) =>
+      releaseLayoutByVehicle.get(vehicleId) === layoutId,
+    toggleRelease: (vehicleId: string, layoutId: string) => {
+      setReleaseLayoutByVehicle((current) => {
+        const next = new Map(current)
+        if (next.get(vehicleId) === layoutId) next.delete(vehicleId)
+        else next.set(vehicleId, layoutId)
+        return next
+      })
+    },
     /** A escolha da busca **é** o lote: não há segundo passo entre marcar a nota e ela contar. */
     setPool,
     close: () => setIsOpen(false),
     isOpen,
     open: () => setIsOpen(true),
-    assembleMutation,
+    /**
+     * Spec 107 D3: reabre a montagem já com as notas que sobraram. ⚠️ Ela **filtra o pool
+     * disponível** em vez de confiar nos ids: a nota pode ter entrado numa viagem entre o aceite e o
+     * clique, e reofertá-la produziria o `already_linked` que a D1 acabou de aprender a pular.
+     */
+    retryWith: (nfeDocumentIds: readonly string[]) => {
+      const wanted = new Set(nfeDocumentIds)
+      setPool((documentsQuery.data ?? []).filter((entry) => wanted.has(entry.id)))
+      setOutcome(null)
+      setIsOpen(true)
+    },
+    proposeMutation,
+    acceptMutation,
+    proposal,
+    /** ⚠️ Enquanto houver remoção pendente o aceite é recusado: o que está na tela não é o que sairia. */
+    isProposalEdited: pendingRemovals.size > 0,
+    pendingRemovals,
+    orderByVehicle,
+    draftOrderByVehicle,
+    displayStops,
+    /** Caminhões com movimento em rascunho: eles pausam as três medições até alguém salvar. */
+    draftMovedVehicleIds:
+      proposal === null
+        ? new Set<string>()
+        : resolveMovedVehicleIds(proposal.stops, draftStopMoves),
+    /** Caminhões alterados e salvos: a conta do roteirizador deixou de descrevê-los. */
+    staleValuationVehicleIds: new Set([
+      ...orderByVehicle.keys(),
+      ...(proposal === null ? [] : resolveMovedVehicleIds(proposal.stops, stopMoves)),
+    ]),
+    /** ⚠️ Rascunho não salvo trava o aceite: a viagem nasceria como ninguém a viu medida. */
+    hasUnsavedEdits: draftOrderByVehicle.size > 0 || draftStopMoves.size > 0,
+    setVehicleOrderDraft: (vehicleId: string, order: readonly string[]) =>
+      setDraftOrderByVehicle((current) => new Map([...current, [vehicleId, order]])),
+    discardVehicleOrderDraft: (vehicleId: string) =>
+      setDraftOrderByVehicle((current) => withoutVehicle(current, vehicleId)),
+    moveStopDraft: (nfeDocumentIds: readonly string[], vehicleId: string) =>
+      setDraftStopMoves(
+        (current) => new Map([...current, ...nfeDocumentIds.map((id) => [id, vehicleId] as const)]),
+      ),
+    /**
+     * ⚠️ **Um salvar só, para ordem e movimento.** Um movimento mexe em dois caminhões, e um salvar por
+     * caminhão deixaria um salvo e o outro não — o aceite levaria meia mudança.
+     */
+    saveEdits: () => {
+      setOrderByVehicle((current) => new Map([...current, ...draftOrderByVehicle]))
+      setStopMoves((current) => new Map([...current, ...draftStopMoves]))
+      setDraftOrderByVehicle(new Map())
+      setDraftStopMoves(new Map())
+    },
+    discardEdits: () => {
+      setDraftOrderByVehicle(new Map())
+      setDraftStopMoves(new Map())
+    },
+    markStopRemoved: (nfeDocumentIds: readonly string[]) =>
+      setPendingRemovals((current) => new Set([...current, ...nfeDocumentIds])),
+    undoStopRemoval: (nfeDocumentIds: readonly string[]) =>
+      setPendingRemovals((current) => {
+        const next = new Set(current)
+        for (const id of nfeDocumentIds) next.delete(id)
+        return next
+      }),
+    /**
+     * O par veículo→motorista tal como a proposta o enviou. ⚠️ Ele é a **fonte** de quem dirige na
+     * linha da proposta: ler isso da conta fazia toda viagem dizer "Sem motorista" sem
+     * `trip.financials`, numa distribuição em que o operador acabara de escolher seis motoristas.
+     */
+    driverIdByVehicleId: new Map(
+      effectiveVehicleIds.flatMap((vehicleId) => {
+        const driverId = resolveSoleDriverOfVehicle({ links, vehicleId })
+        return driverId === null ? [] : [[vehicleId, driverId] as const]
+      }),
+    ),
+    openVehicleId,
+    selectedVehicleIds,
+    setSelectedVehicleIds,
+    toggleOpenVehicle: (vehicleId: string) =>
+      setOpenVehicleId((current) => (current === vehicleId ? null : vehicleId)),
+    /**
+     * Descartar uma viagem da proposta é **desmarcá-la**: ela continua desenhada, e o operador vê o
+     * que deixou de fora. Sumir com a linha esconderia a decisão que ele acabou de tomar.
+     */
+    discardVehicle: (vehicleId: string) =>
+      setSelectedVehicleIds((current) => {
+        const next = new Set(current)
+        next.delete(vehicleId)
+        return next
+      }),
+    /**
+     * Spec 108: descartar avisa a API (`reject`) e volta o operador ao formulário com a escolha
+     * dele intacta. ⚠️ A recusa remota é **melhor esforço**: falhar ali não pode prender a tela
+     * numa proposta que o operador já rejeitou — a sugestão fica `ready` e ninguém a aceita.
+     */
+    discardProposal: () => {
+      const suggestionId = proposal?.suggestion.id
+      if (suggestionId !== undefined) {
+        void getRouteSuggestionClient()
+          .rejectMultiVehicle({ suggestionId })
+          .catch(() => undefined)
+      }
+      setProposal(null)
+      setIsOpen(true)
+    },
     bindings,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,
@@ -189,3 +474,19 @@ export function useTripRouteAssembly(
 }
 
 export type TripRouteAssemblyController = ReturnType<typeof useTripRouteAssembly>
+
+/** Os veículos que a proposta distribuiu, na ordem em que as paradas os nomeiam. */
+function vehicleIdsOf(proposal: MultiVehicleProposal): readonly string[] {
+  return [
+    ...new Set(proposal.stops.flatMap((stop) => (stop.vehicleId === null ? [] : [stop.vehicleId]))),
+  ]
+}
+
+function withoutVehicle(
+  orders: ReadonlyMap<string, readonly string[]>,
+  vehicleId: string,
+): ReadonlyMap<string, readonly string[]> {
+  const next = new Map(orders)
+  next.delete(vehicleId)
+  return next
+}

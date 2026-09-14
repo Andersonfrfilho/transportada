@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveCargoLayout } from '../../src/trips/domain/cargo-layout.policy.js'
+import { resolveCargoLayout } from '@adatechnology/cargo-placement'
 
 const PARADAS = [
   { documentsWithoutVolume: 0, label: 'Barrinha', sequence: 1, volumeM3: '2.000000' },

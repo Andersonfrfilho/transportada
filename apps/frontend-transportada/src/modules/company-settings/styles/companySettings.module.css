@@ -778,3 +778,27 @@
   gap: var(--space-1);
   margin-inline-start: auto;
 }
+
+/* Spec 126: o painel do regime federal — campos em coluna, a origem ao lado do número. */
+.federalTaxFields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.federalTaxOrigin {
+  color: var(--color-slate);
+  font-size: 0.74rem;
+}
+
+.federalTaxNote {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.federalTaxActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

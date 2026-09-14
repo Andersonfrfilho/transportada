@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -16,6 +18,8 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
+import { isCancellable } from '../shared/tripSelection.service'
+import { TripCancelDialog } from './TripCancelDialog.component'
 import { TRIP_COLUMN_KEYS, type TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -26,12 +30,24 @@ type TripTableProps = Readonly<{
    */
   vehicles: readonly FleetVehicleDetail[]
   table: TripTableController
+  /**
+   * Spec 102: sem `trip.manage` **não há coluna de seleção** — não é caixa desabilitada, que já
+   * diria que existe uma ação do outro lado.
+   */
+  canCancel: boolean
+  isCancelling: boolean
+  onCancelSelected: () => void
 }>
 
+/**
+ * ⚠️ `completed` e `cancelled` dividiam a mesma classe verde, e são estados **opostos**: uma viagem
+ * que deu certo e uma que não aconteceu. Cada uma tem a sua cor.
+ */
 function statusClassName(status: TripStatus): string {
-  return status === 'completed' || status === 'cancelled'
-    ? `${styles.statusBadge} ${styles.statusReady}`
-    : `${styles.statusBadge}`
+  if (status === 'completed') return `${styles.statusBadge} ${styles.statusReady}`
+  if (status === 'cancelled') return `${styles.statusBadge} ${styles.statusCancelled}`
+
+  return `${styles.statusBadge}`
 }
 
 function formatMoment(value: string): string {
@@ -39,8 +55,15 @@ function formatMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
 }
 
-export function TripTable({ table, vehicles }: TripTableProps) {
+export function TripTable({
+  canCancel,
+  isCancelling,
+  onCancelSelected,
+  table,
+  vehicles,
+}: TripTableProps) {
   const { t } = useTranslation('trip')
+  const [confirming, setConfirming] = useState(false)
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
@@ -173,13 +196,43 @@ export function TripTable({ table, vehicles }: TripTableProps) {
     <section className={styles.panel} aria-labelledby="trip-table-title">
       <div className={styles.panelHead}>
         <h2 id="trip-table-title">{t('tripsTitle')}</h2>
+        {/*
+          A contagem da página **não some** quando há seleção: "12 selecionadas" sem o total ao lado
+          não diz de quantas. As duas convivem, e a seleção é que ganha destaque.
+        */}
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
+        {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
+        {canCancel && table.cancellableSelection.length > 0 ? (
+          <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
+            <p className={styles.bulkCount}>
+              {t('selection.count', { count: table.cancellableSelection.length })}
+            </p>
+            <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
+              <Icon name="remove" />
+              {t('selection.cancelTrips')}
+            </Button>
+            <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
+              {t('selection.clear')}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.tableScroll}>
         <table className={styles.dataTable}>
           <thead>
             <tr>
+              {canCancel ? (
+                <th scope="col">
+                  <Checkbox
+                    ariaLabel={t('selection.selectAll')}
+                    checked={table.selectAllState === 'all'}
+                    indeterminate={table.selectAllState === 'some'}
+                    onChange={table.toggleSelectAll}
+                  />
+                </th>
+              ) : null}
               {TRIP_COLUMN_KEYS.map((column) => (
                 <th key={column} scope="col">
                   <button
@@ -201,6 +254,18 @@ export function TripTable({ table, vehicles }: TripTableProps) {
           <tbody>
             {table.visibleItems.map((trip) => (
               <tr key={trip.id}>
+                {canCancel ? (
+                  <td>
+                    {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
+                    {isCancellable(trip) ? (
+                      <Checkbox
+                        ariaLabel={t('selection.selectTrip', { vehicle: vehicleLabel(trip) })}
+                        checked={table.selectedIds.includes(trip.id)}
+                        onChange={() => table.toggleSelection(trip.id)}
+                      />
+                    ) : null}
+                  </td>
+                ) : null}
                 {TRIP_COLUMN_KEYS.map((column) => (
                   <td key={column}>{renderCell(trip, column)}</td>
                 ))}
@@ -226,6 +291,18 @@ export function TripTable({ table, vehicles }: TripTableProps) {
       </div>
 
       {table.visibleItems.length === 0 ? <p className={styles.hint}>{t('empty')}</p> : null}
+
+      <TripCancelDialog
+        isCancelling={isCancelling}
+        isOpen={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false)
+          onCancelSelected()
+        }}
+        trips={table.cancellableSelection}
+        vehicleLabelOf={vehicleLabel}
+      />
 
       <div className={styles.toolbar}>
         <Button

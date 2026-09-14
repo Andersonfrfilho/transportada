@@ -1,26 +1,56 @@
 {
   "gap": {
-    "FEATURE_ABSENT": "módulo ainda não usado",
     "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
+    "DRIVER_RATE_MISSING_FOR_CLASS": "zona sem preço para a classe do veículo — confira a aba Regiões",
+    "DRIVER_ZONE_NOT_COVERED": "motorista não cobre a zona do destino — ajuste a ficha dele",
+    "DRIVER_ZONE_PRICED_FROM_TABLE": "preço da tabela: o motorista não tem esta zona — adicione-a na ficha dele",
+    "DRIVER_ROUTE_AMBIGUOUS": "rotas empatadas: as cidades da viagem casam igualmente com mais de uma rota da tabela — escolha qual vale",
+    "DRIVER_ROUTE_TIE_HIGHEST_RATE": "rotas empatadas no número de cidades da viagem — usado o maior valor entre as faixas que couberam",
+    "ICMS_CST_UNSUPPORTED": "o perfil de emissão usa CST 60, que o produto não emite",
+    "NO_EMISSION_PROFILE": "nenhum perfil de emissão rege a nota (nenhum casa, ou dois empatam) — confira os perfis de CT-e",
+    "FEATURE_ABSENT": "módulo ainda não usado",
+    "NOT_RECORDED": "ninguém lançou",
     "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
     "NO_FEDERAL_REGIME": "regime federal não declarado",
-    "NO_FREIGHT_RULE": "nota ainda sem CT-e autorizado",
-    "NO_FUEL_BASELINE": "consumo do veículo ou preço do combustível sem cadastro",
+    "NO_FREIGHT_RULE": "sem regra de frete para a nota — sem receita prevista",
+    "NO_FUEL_BASELINE": "consumo médio do veículo não produz conta",
+    "NO_FUEL_CONSUMPTION": "veículo sem consumo médio na ficha",
+    "NO_FUEL_PRICE": "sem preço para o combustível deste veículo",
     "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
-    "NOT_RECORDED": "ninguém lançou",
-    "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período"
+    "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
+    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
+    "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
+  },
+  "ledger": {
+    "driverBasis": {
+      "fixed": "Motorista da casa: o custo é do período, e não é da viagem",
+      "route_table": "Zona {{zone}} ({{city}}) · {{vehicleClass}} · uma vez pela viagem, pela zona do destino mais distante"
+    },
+    "expenses": "Despesas",
+    "fuelBasis": "{{consumption}} km/l × {{price}} por litro · {{litres}} litros no trajeto",
+    "icmsBasis": "Projeção pelo perfil de emissão: CST {{cst}} · alíquota {{rate}} · redução da base {{reduction}} — o CT-e autorizado substitui este número",
+    "incomplete": "Conta incompleta: o total sai menor do que a viagem custa, e as parcelas sem valor continuam na lista com o motivo no lugar do número.",
+    "margin": "Lucro",
+    "operating": "O que a operação custa",
+    "revenue": "Receita do frete",
+    "taxNote": "Imposto desce da receita, não é gasto de rodar — por isso ele não se mistura com a operação acima.",
+    "taxes": "O que o imposto leva",
+    "tieCityCount_one": "{{count}} cidade",
+    "tieCityCount_other": "{{count}} cidades",
+    "tieNoPrice": "sem preço"
   },
   "panel": {
     "amount": "Valor",
     "cost": "Custo",
+    "error": "Não foi possível carregar a conta desta viagem.",
+    "expectedCost": "Custo previsto",
+    "expectedGaps": "Falta parâmetro para {{reasons}} — o total sai menor do que a viagem custa.",
+    "expectedMargin": "Margem prevista",
+    "expectedRevenue": "Ganho previsto",
     "frozenAt": "Congelado em {{date}} · versão {{version}}",
     "loading": "Carregando a conta da viagem…",
     "net": "Resultado",
     "notFrozen": "A conta é congelada quando a viagem fecha. Enquanto ela está aberta, o que existe é a avaliação prevista.",
-    "expectedRevenue": "Ganho previsto",
-    "expectedCost": "Custo previsto",
-    "expectedMargin": "Margem prevista",
-    "expectedGaps": "Falta parâmetro para {{reasons}} — o total sai menor do que a viagem custa.",
     "operationalNote": "Margem operacional: desconta o imposto sobre o frete, não folha nem resultado contábil.",
     "parcel": "Parcela",
     "partialRevenue": "Receita de {{measured}} de {{expected}} notas — o número não é final.",
@@ -28,6 +58,7 @@
     "reasonPlaceholder": "CT-e cancelado, taxa lançada depois…",
     "recalculate": "Recalcular",
     "recalculating": "Recalculando…",
+    "retry": "Tentar novamente",
     "revenue": "Receita",
     "source": "Origem",
     "tax": "Imposto",
@@ -76,7 +107,7 @@
     "pickPeriod": "Escolha o período para ver o acumulado.",
     "subtitle": "O acumulado dos resultados congelados. Uma viagem isolada não decide nada; o que decide é o mês.",
     "title": "Resultados",
-    "trips": "Viagens",
-    "to": "Até"
+    "to": "Até",
+    "trips": "Viagens"
   }
 }

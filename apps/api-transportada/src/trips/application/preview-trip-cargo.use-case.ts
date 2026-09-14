@@ -1,8 +1,18 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type {
+  CargoBedDimensions,
+  CargoPlanBox,
+  MeasuredBoxShape,
+  ResolvedCargoLayout,
+} from '@adatechnology/cargo-placement'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
-import { resolveCargoLayout, type ResolvedCargoLayout } from '../domain/cargo-layout.policy.js'
+import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
+import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
+import type { CargoLayoutLookupPort } from './cargo-layout-lookup.port.js'
+import { resolvePreviewCargoLayout } from './preview-cargo-layout.service.js'
+import type { RequestCargoLayoutUseCase } from './request-cargo-layout.types.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,
@@ -18,9 +28,13 @@ import type { TripCargoWeightView, TripOccupancyView } from './trip.port.js'
 const WEIGHT_SCALE = 4n
 
 export type TripCargoPreview = {
+  /** Spec 145 T11: `null` enquanto o worker calcula — a prévia não tem viagem com planta anterior. */
   readonly cargoLayout: ResolvedCargoLayout | null
   readonly cargoWeight: TripCargoWeightView | null
+  /** A linha em `trip_cargo_layouts` que a tela pergunta de novo; ausente em `unavailable`. */
+  readonly layoutId?: string
   readonly occupancy: TripOccupancyView | null
+  readonly state: TripCargoLayoutState
   /**
    * Spec 085 G006: a parada que domina o peso, quando alguma domina. O desenho do baú é de volume,
    * e volume não conta esta história — quem carrega precisa das duas.
@@ -29,8 +43,24 @@ export type TripCargoPreview = {
 }
 
 export type TripCargoPreviewContext = {
+  /** Spec 088 D2: a medida do baú, da ficha do veículo — independente de haver cubagem. */
+  readonly bedDimensions: CargoBedDimensions | null
+  /** Spec 088 G003: as caixas medidas por nota — a parada as reúne no mesmo agrupamento. */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly capacityM3: string | null
+  /** O volume típico de uma caixa da empresa — a mediana das medidas. */
+  readonly fallbackBoxVolumeM3: number | null
+  readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly loadingAccess: LoadingAccess
+  /**
+   * Spec 100: algum motorista escolhido amarra a carga com cinta.
+   *
+   * ⚠️ **O pior caso manda**, como no peso e na cubagem: com dois motoristas, basta um não amarrar
+   * para a planta desenhar a pilha limitada — quem carrega decide pelo que pode dar errado.
+   */
+  readonly securesCargo: boolean
+  /** Spec 145 D23: baú fechado (tpCar `02`) — a pilha alta precisa de encosto, não de cinta. */
+  readonly enclosedBody: boolean
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
   readonly occupancy: TripOccupancyView | null
@@ -39,6 +69,8 @@ export type TripCargoPreviewContext = {
 export type TripCargoPreviewPort = {
   readCargoPreviewContext(input: {
     readonly companyId: string
+    /** Os motoristas escolhidos até aqui. Vazio é ninguém escolhido — e ninguém amarra. */
+    readonly driverIds: readonly string[]
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   }): Promise<TripCargoPreviewContext>
@@ -46,6 +78,16 @@ export type TripCargoPreviewPort = {
 
 export type PreviewTripCargoInput = {
   readonly companyId: string
+  /** O da requisição: é ele que a outbox leva ao worker quando a prévia pede a planta. */
+  readonly correlationId: string
+  readonly layouts: CargoLayoutLookupPort
+  readonly requestCargoLayout: RequestCargoLayoutUseCase
+  /**
+   * ⚠️ Vazio é o caso comum no diálogo de montagem: o desenho aparece antes de o motorista ser
+   * escolhido. Ausência é **não amarra**, o limite conservador — e a planta se redesenha quando ele
+   * for escolhido, dizendo por quê.
+   */
+  readonly driverIds: readonly string[]
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripCargoPreviewPort
   /** A ordem que o operador montou no mapa, por chave de parada. Vazia é ordem de chegada. */
@@ -67,19 +109,41 @@ export type PreviewTripCargoInput = {
 export async function previewTripCargo(input: PreviewTripCargoInput): Promise<TripCargoPreview> {
   const context = await input.repository.readCargoPreviewContext({
     companyId: input.companyId,
+    driverIds: input.driverIds,
     nfeDocumentIds: input.nfeDocumentIds,
     vehicleId: input.vehicleId,
   })
 
-  return {
-    cargoLayout: resolveCargoLayout({
+  const layout = await resolvePreviewCargoLayout({
+    companyId: input.companyId,
+    correlationId: input.correlationId,
+    layoutInput: {
+      /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
+      bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
+      /** Spec 145 D24: o mesmo alcance do detalhe e do eager — senão o hash da prévia não bate. */
+      deliveryReachM: CARGO_DELIVERY_REACH_M,
+      enclosedBody: context.enclosedBody,
+      /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
+      fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,
+      measuredShapes: context.measuredShapes,
+      /** Spec 098: o mesmo peso que a tela imprime decide se a carga encosta na porta ou centraliza. */
+      payloadRatio: context.cargoWeight?.payloadRatio ?? null,
+      /** Spec 100: quem amarra pode empilhar até o teto; ninguém escolhido é ninguém amarrando. */
+      securesCargo: context.securesCargo,
       stops: buildCargoPreviewStops({
+        boxesByDocument: context.boxesByDocument,
         documents: context.documents,
         order: input.stopOrder,
       }),
-    }),
+    },
+    layouts: input.layouts,
+    requestCargoLayout: input.requestCargoLayout,
+  })
+
+  return {
+    ...layout,
     cargoWeight: context.cargoWeight,
     occupancy: context.occupancy,
     weightConcentration: detectWeightConcentration({ stops: sumWeightByStop(context.documents) }),
@@ -91,15 +155,19 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
  * normaliza vira parada própria, como em `buildCargoPreviewStops` — dois critérios de agrupamento
  * fariam o alerta apontar para uma parada que o desenho não mostra.
  */
-function sumWeightByStop(
-  documents: readonly CargoPreviewDocument[],
-): readonly { readonly stopId: string; readonly weightKilograms: string | null }[] {
+function sumWeightByStop(documents: readonly CargoPreviewDocument[]): readonly {
+  readonly label: string
+  readonly stopId: string
+  readonly weightKilograms: string | null
+}[] {
   /**
    * ⚠️ Soma em `bigint` escalado, não em `number`: `nfe_volumes.gross_weight` é `numeric(_,4)`, e
    * somar em float e voltar por `String()` produz `"0.30000000000000004"` — e notação exponencial
    * em totais grandes, que o próximo leitor da string não reabre.
    */
   const byStop = new Map<string, bigint>()
+  /** O rótulo da parada, para o aviso nomear um endereço em vez da chave que o agrupa. */
+  const labelByStop = new Map<string, string>()
   for (const document of documents) {
     const stopId = document.addressKey ?? `documento:${document.nfeDocumentId}`
     const weight =
@@ -111,8 +179,10 @@ function sumWeightByStop(
             value: document.weightKilograms,
           })
     byStop.set(stopId, (byStop.get(stopId) ?? 0n) + weight)
+    if (!labelByStop.has(stopId)) labelByStop.set(stopId, document.label)
   }
   return [...byStop].map(([stopId, weight]) => ({
+    label: labelByStop.get(stopId) ?? stopId,
     stopId,
     weightKilograms: formatScaledDecimal(weight, WEIGHT_SCALE),
   }))

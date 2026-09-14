@@ -1234,3 +1234,171 @@
   padding: var(--field-padding);
   font-size: var(--field-font-size);
 }
+
+/*
+  O mapa da casa do motorista (spec 097 D6). Altura fixa e sem interação: ele é conferência, não
+  navegação — quem precisa navegar abre o mapa da viagem.
+*/
+.homeMap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.homeMapCanvas {
+  /* ⚠️ Altura em `rem`, não na escala de espaçamento: `--space-16` dava 64px, e num mapa de rua
+     isso é um retângulo onde não se reconhece nada. Aqui o número é a altura do desenho, não um
+     espaçamento entre coisas. */
+  height: 18rem;
+  overflow: hidden;
+  /*
+    ⚠️ O MapLibre posiciona marcador em `absolute` dentro do contêiner. Sem um contexto de
+    posicionamento aqui, o pino resolve contra um ancestral distante e cai fora do mapa — medido,
+    288px abaixo, que é exatamente a altura do canvas.
+  */
+  position: relative;
+}
+
+/*
+  O mesmo círculo do pino da viagem.
+
+  ⚠️ `display: block` não é enfeite: `span` é inline por padrão, e elemento inline **ignora largura e
+  altura**. Sem isto o pino vira uma caixa de texto de 4px, invisível sobre o mapa — e nada falha.
+*/
+.homePin {
+  display: block;
+  width: var(--space-7);
+  height: var(--space-7);
+  /* A cor vem do `color` que o componente define; o glifo a herda por `currentColor`. */
+  pointer-events: none;
+}
+
+.homePin svg {
+  width: 100%;
+  height: 100%;
+  /* A gota precisa se destacar sobre rua clara e sobre parque escuro: sombra curta, não contorno. */
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%));
+}
+
+.homeNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.homeWarning {
+  color: var(--color-copper);
+}
+
+/* As setas de ajuste do alfinete, em cruz — a disposição diz para onde cada uma move. */
+.homeMove {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.homeMoveButtons {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: var(--space-1);
+  justify-content: start;
+}
+
+.homeMoveButtons > *:nth-child(1) {
+  grid-column: 2;
+}
+
+.homeMoveButtons > *:nth-child(4) {
+  grid-column: 2;
+}
+
+/**
+ * O check de carga amarrada e a linha que diz o efeito dele. ⚠️ O texto de ajuda fica **abaixo** e
+ * não ao lado: ele explica o que o campo faz no desenho da carga, e ao lado do rótulo viraria uma
+ * linha longa que o olho pula.
+ */
+.driverSecuresCargo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/**
+ * Spec 110 D3: a faixa de identidade do veículo — o caminhão na frente, antes de qualquer número.
+ * Compartilhada pela proposta multi-veículo e pela criação manual (D8).
+ */
+.identityBand {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 28%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 50%, transparent);
+}
+
+.identityMark {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 35%, transparent);
+  color: var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.identityFacts {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.identityTitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.identitySpecification {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.identityChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.identityChip {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+}
+
+.identityChip dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.identityChip dd {
+  margin: 0;
+}
+
+.identityChipNote {
+  color: var(--color-copper);
+  font-size: 0.72rem;
+}

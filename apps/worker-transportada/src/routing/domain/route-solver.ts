@@ -1,6 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { canServe, partitionByCoverage, repairCoverage } from './coverage.js'
+import { trimRoutesToCapacity } from './capacity-trim.js'
+import { buildNeighbourhood, type RouteNeighbourhood } from './neighbourhood.js'
 import {
   buildNearestNeighbourRoute,
   createSeededRandom,
@@ -8,6 +11,7 @@ import {
 } from './local-search.js'
 import { evaluateRoute, routeFitness } from './route-fitness.policy.js'
 import type {
+  OptimizationQuality,
   RouteAssignment,
   RouteProblem,
   RouteSolution,
@@ -30,6 +34,12 @@ type Chromosome = readonly number[]
 const SEPARATOR = -1
 
 /**
+ * Spec 106: largar uma parada que alguém cobre custa como um par inalcançável. Não é ajuste fino —
+ * é a diferença entre "rota cara" e "carga que não sai do barracão".
+ */
+const DROPPED_STOP_PENALTY_MICROS = 1_000_000_000_000
+
+/**
  * O solver da ADR-0044 §4: GA **memético** — todo indivíduo passa por `2-opt` antes de entrar na
  * população, e é essa hibridização que separa resultado publicável de brinquedo.
  *
@@ -45,15 +55,38 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
     return buildSolution({ chromosome: stopIndexes, generations: 0, problem, truncated: false })
   }
 
+  /**
+   * Spec 106 D1: **a parada que ninguém cobre nunca entra no cromossomo.** Mantê-la lá obrigaria
+   * cada indivíduo a carregá-la sem destino, e os operadores genéticos a passeariam entre veículos
+   * que não podem servi-la. Ela sai daqui direto para a sobra, que é o que a ADR-0044 §5 promete.
+   */
+  const coverage = partitionByCoverage(problem)
+  if (coverage.servable.length === 0) {
+    return buildSolution({ chromosome: [], generations: 0, problem, truncated: false })
+  }
+
   const random = createSeededRandom(problem.seed)
-  let population = buildInitialPopulation({ problem, random, stopIndexes })
-  let best = population[0] ?? stopIndexes
+  /** D1: o mesmo relógio que corta o laço de gerações corta o 2-opt lá dentro. */
+  const shouldStop = (): boolean => now() >= deadline
+  /**
+   * Spec 105: construída **uma vez** — com 40 indivíduos por geração, montá-la no laço custaria
+   * mais que o 2-opt que ela veio acelerar.
+   */
+  const neighbourhood = buildNeighbourhood({ problem, stopIndexes: coverage.servable })
+  let population = buildInitialPopulation({
+    neighbourhood,
+    problem,
+    random,
+    shouldStop,
+    stopIndexes: coverage.servable,
+  })
+  let best = population[0] ?? coverage.servable
   let bestFitness = totalFitness(problem, best)
   let generations = 0
   let stagnant = 0
 
   while (stagnant < problem.stagnationLimit && now() < deadline) {
-    population = evolve({ population, problem, random })
+    population = evolve({ neighbourhood, population, problem, random, shouldStop })
     generations += 1
 
     const challenger = population[0]
@@ -87,6 +120,8 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
  * existe justamente para pegar isso — começar acima dele é como não perder.
  */
 function buildInitialPopulation(input: {
+  readonly neighbourhood: RouteNeighbourhood
+  readonly shouldStop: () => boolean
   readonly problem: RouteProblem
   readonly random: () => number
   readonly stopIndexes: readonly number[]
@@ -99,11 +134,18 @@ function buildInitialPopulation(input: {
     }),
   })
 
-  const population: Chromosome[] = [refine(input.problem, greedy)]
+  const population: Chromosome[] = [
+    refine(input.problem, greedy, input.shouldStop, input.neighbourhood),
+  ]
   while (population.length < POPULATION_SIZE) {
     const shuffled = shuffle(input.stopIndexes, input.random)
     population.push(
-      refine(input.problem, splitAcrossVehicles({ problem: input.problem, stopIndexes: shuffled })),
+      refine(
+        input.problem,
+        splitAcrossVehicles({ problem: input.problem, stopIndexes: shuffled }),
+        input.shouldStop,
+        input.neighbourhood,
+      ),
     )
   }
 
@@ -111,6 +153,8 @@ function buildInitialPopulation(input: {
 }
 
 function evolve(input: {
+  readonly neighbourhood: RouteNeighbourhood
+  readonly shouldStop: () => boolean
   readonly population: readonly Chromosome[]
   readonly problem: RouteProblem
   readonly random: () => number
@@ -123,7 +167,7 @@ function evolve(input: {
     const parentB = selectByTournament(input)
     const child = orderCrossover({ parentA, parentB, random: input.random })
     const mutated = input.random() < MUTATION_RATE ? swapMutate(child, input.random) : child
-    next.push(refine(input.problem, mutated))
+    next.push(refine(input.problem, mutated, input.shouldStop, input.neighbourhood))
   }
 
   return sortByFitness(input.problem, next)
@@ -207,13 +251,44 @@ function swapMutate(chromosome: Chromosome, random: () => number): Chromosome {
 }
 
 /** A hibridização: cada rota do cromossomo é polida por `2-opt` antes de o indivíduo ser avaliado. */
-function refine(problem: RouteProblem, chromosome: Chromosome): Chromosome {
-  const routes = splitChromosome(chromosome, problem.vehicles.length)
+function refine(
+  problem: RouteProblem,
+  chromosome: Chromosome,
+  shouldStop: () => boolean = () => false,
+  neighbourhood?: RouteNeighbourhood,
+): Chromosome {
+  /**
+   * ⚠️ O reparo vem **antes** da busca local: 2-opt sobre uma rota que ainda tem parada proibida
+   * otimizaria a ordem de algo que vai mudar de veículo logo em seguida.
+   */
+  const routes = repairCoverage({
+    problem,
+    routes: splitChromosome(chromosome, problem.vehicles.length),
+  })
   const refined = routes.map((stopIndexes, vehicleIndex) =>
-    improveWithTwoOpt({ problem, stopIndexes, vehicleIndex }),
+    improveWithTwoOpt({ neighbourhood, problem, shouldStop, stopIndexes, vehicleIndex }),
   )
 
   return joinChromosome(refined)
+}
+
+/**
+ * Spec 104 D2: **zero geração é a semente gulosa, não uma solução.** Medido: acima de 200 paradas o
+ * GA não completa uma geração no orçamento padrão, e o que sai é o vizinho-mais-próximo com 2-opt
+ * parcial — apresentado, até esta spec, como sugestão otimizada.
+ *
+ * ⚠️ A instância trivial (0 ou 1 parada) sai `optimized`, e está certo: não há o que otimizar, e
+ * chamar de gulosa uma resposta exata seria o erro simétrico.
+ */
+function resolveOptimizationQuality(input: {
+  readonly generations: number
+  readonly problem: RouteProblem
+  readonly truncated: boolean
+}): OptimizationQuality {
+  if (input.problem.stops.length <= 1) return 'optimized'
+  if (input.generations === 0) return 'greedy'
+
+  return input.truncated ? 'partial' : 'optimized'
 }
 
 function splitAcrossVehicles(input: {
@@ -279,11 +354,31 @@ function joinChromosome(routes: readonly (readonly number[])[]): Chromosome {
   return chromosome
 }
 
+/**
+ * ⚠️ **Parada largada é a pior solução, nunca a melhor.**
+ *
+ * O fitness soma custo e penalidade, e uma rota vazia tem os dois em zero — ou seja, *não entregar
+ * nada* era o ótimo global. Medido em 2026-09-09: bastou existir um caminho capaz de perder um gene
+ * para a população inteira convergir para o cromossomo vazio em 48 gerações. O solver estava certo;
+ * a função objetivo é que não sabia que largar carga é proibido.
+ *
+ * A penalidade é por parada ausente, da ordem do par inalcançável — entregar caro sempre vence não
+ * entregar.
+ */
 function totalFitness(problem: RouteProblem, chromosome: Chromosome): number {
-  return splitChromosome(chromosome, problem.vehicles.length).reduce(
-    (total, stopIndexes, vehicleIndex) =>
-      total + routeFitness(evaluateRoute({ problem, stopIndexes, vehicleIndex })),
-    0,
+  const present = new Set(chromosome.filter((gene) => gene !== SEPARATOR))
+  const missing = problem.stops.filter(
+    (stop) =>
+      !present.has(stop.index) && problem.vehicles.some((vehicle) => canServe(vehicle, stop.index)),
+  ).length
+
+  return (
+    missing * DROPPED_STOP_PENALTY_MICROS +
+    splitChromosome(chromosome, problem.vehicles.length).reduce(
+      (total, stopIndexes, vehicleIndex) =>
+        total + routeFitness(evaluateRoute({ problem, stopIndexes, vehicleIndex })),
+      0,
+    )
   )
 }
 
@@ -316,7 +411,22 @@ function buildSolution(input: {
   readonly problem: RouteProblem
   readonly truncated: boolean
 }): RouteSolution {
-  const routes = splitChromosome(input.chromosome, input.problem.vehicles.length)
+  /**
+   * ⚠️ **O reparo também aqui, não só no `refine`.** O melhor indivíduo veio reparado, mas a
+   * instância trivial (uma parada só) e o atalho de cobertura vazia entram por outro caminho — e uma
+   * solução final que ignora a proibição a tornaria mentira exatamente onde ela é lida.
+   */
+  const covered = repairCoverage({
+    problem: input.problem,
+    routes: splitChromosome(input.chromosome, input.problem.vehicles.length),
+  })
+  /**
+   * ⚠️ **O que passa do teto do caminhão fica para a próxima viagem** — e o corte vem **antes** da
+   * avaliação, senão distância, duração e custo descreveriam a rota de antes do corte, que é a
+   * mesma divergência que a spec 090 D4 proíbe entre o traço e o preço.
+   */
+  const trimmed = trimRoutesToCapacity({ problem: input.problem, routes: covered })
+  const routes = trimmed.routes
   const assignments: RouteAssignment[] = []
   const violations: RouteViolation[] = []
   let totalCostMicros = 0
@@ -338,6 +448,22 @@ function buildSolution(input: {
    * ADR-0044 §5: carga que excede todos os veículos devolve o que cabe e **lista o que sobrou**, em
    * vez de estourar o peso em silêncio. Sobra aqui é parada que nenhuma rota recebeu.
    */
+  /**
+   * ⚠️ **A violação de peso continua saindo, e em quilos** (ADR-0044 §9) — o que mudou é o que ela
+   * conta: antes era o excesso que o caminhão levaria a mais, agora é o que ficou para a próxima
+   * viagem. Calar isso porque a rota agora "cabe" esconderia justamente a frota insuficiente.
+   */
+  for (const trim of trimmed.trimmedByVehicle) {
+    const vehicle = input.problem.vehicles[trim.vehicleIndex]
+    if (vehicle === undefined) continue
+    violations.push({
+      amount: trim.kilograms,
+      kind: 'weight',
+      stopIndex: null,
+      vehicleId: vehicle.id,
+    })
+  }
+
   const assigned = new Set(assignments.flatMap((assignment) => assignment.stopIndexes))
   const unassignedStopIndexes = input.problem.stops
     .map((stop) => stop.index)
@@ -346,6 +472,7 @@ function buildSolution(input: {
   return {
     assignments,
     generations: input.generations,
+    optimizationQuality: resolveOptimizationQuality(input),
     totalCostMicros,
     totalDistanceMeters,
     totalDurationSeconds,

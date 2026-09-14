@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { LOADING_ACCESS_KINDS, type LoadingAccess } from '../shared/loading-access.constant.js'
 import {
   bigint,
+  boolean,
   check,
   date,
   foreignKey,
@@ -181,6 +182,12 @@ export const fleetVehicles = pgTable(
     /** Spec 085: por onde a carga entra e sai. Semeado do `body_type`, depois disso e da ficha. */
     loadingAccess: text('loading_access').$type<LoadingAccess>().notNull().default('rear'),
     axleCount: integer('axle_count').notNull().default(0),
+    /**
+     * Spec 095 D3: quem paga com tag é o veículo, não a empresa — frota mista é o caso normal.
+     * Com a tag e a tarifa automática da praça conhecida, é ela que entra na conta; sem a tarifa
+     * automática, cai para a manual e a queda é contada (nunca um desconto estimado).
+     */
+    hasAutomaticTollPayment: boolean('has_automatic_toll_payment').notNull().default(false),
     // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação
     vehicleType: varchar('vehicle_type', { length: VEHICLE_TYPE_MAX_LENGTH })
       .$type<VehicleType | ''>()
@@ -270,6 +277,24 @@ export const fleetVehicles = pgTable(
       'fleet_vehicles_capacity_check',
       sql`${table.tareWeightKg} >= 0 and ${table.capacityKg} >= 0 and ${table.capacityM3} >= 0`,
     ),
+    /**
+     * Spec 088: um CHECK por dimensão, e não os três juntos, porque a recusa precisa nomear qual
+     * medida está fora. Zero segue sendo ausência — a ficha só passou a pedir estas três agora —,
+     * mas a planta é desenhada em metros contra a fita do conferente: baú de 40 m e baú de 4 cm são
+     * erro de ordem de grandeza, não medida.
+     */
+    check(
+      'fleet_vehicles_cargo_length_check',
+      sql`${table.cargoLengthM} = 0 or ${table.cargoLengthM} between 0.300 and 30.000`,
+    ),
+    check(
+      'fleet_vehicles_cargo_width_check',
+      sql`${table.cargoWidthM} = 0 or ${table.cargoWidthM} between 0.300 and 4.000`,
+    ),
+    check(
+      'fleet_vehicles_cargo_height_check',
+      sql`${table.cargoHeightM} = 0 or ${table.cargoHeightM} between 0.300 and 5.000`,
+    ),
     // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
     check(
       'fleet_vehicles_cost_check',
@@ -350,6 +375,17 @@ export const fleetDrivers = pgTable(
      * nenhuma, nem a última conhecida de ontem.
      */
     locationSharingConsentAt: timestamp('location_sharing_consent_at', { withTimezone: true }),
+    /**
+     * Spec 100: se este motorista amarra a carga com cinta.
+     *
+     * ⚠️ **`false` por padrão, e o padrão é o que decide.** A planta limita a altura da pilha por
+     * esbeltez — sem cinta ela tomba na primeira curva forte —, e supor cinta por omissão desenharia
+     * pilha alta para quem não amarra. Quem amarra declara.
+     *
+     * ⚠️ Ele mora no motorista, e não no veículo, porque é **prática de quem carrega**, não
+     * equipamento: a mesma van com dois motoristas sai amarrada com um e solta com o outro.
+     */
+    securesCargo: boolean('secures_cargo').notNull().default(false),
     paymentModel: text('payment_model')
       .$type<DriverPaymentModel>()
       .notNull()
@@ -389,6 +425,26 @@ export const fleetDrivers = pgTable(
     district: text().notNull().default(''),
     city: text().notNull().default(''),
     state: text().notNull().default(''),
+    /**
+     * Onde a casa fica, para o retorno da viagem entrar na conta (spec 097 D6).
+     *
+     * ⚠️ Não vem de consulta nossa a provedor pago — a ADR-0044 recusa a escalada em runtime. É a
+     * coordenada que o Photon já devolve na busca textual do próprio formulário do motorista e que
+     * era descartada desde que a ADR-0037 tirou o mapa do cadastro; o que mudou é guardá-la.
+     *
+     * ⚠️ São PII mais precisa que a rua em texto, e entram no envelope da ADR-0039 junto do endereço
+     * residencial quando ela for executada.
+     */
+    homeLatitude: numeric('home_latitude', { precision: 10, scale: 7 }),
+    homeLongitude: numeric('home_longitude', { precision: 10, scale: 7 }),
+    /**
+     * Quando alguém **procurou** a coordenada — distinto de tê-la achado.
+     *
+     * ⚠️ Sem esta marca, o motorista cujo endereço o provedor não encontra dispararia uma busca
+     * externa a cada leitura, para sempre, e nada falharia para denunciar: só sairia uma chamada a
+     * mais por página. A coordenada diz que achou; esta coluna diz que procurou.
+     */
+    homeGeocodedAt: timestamp('home_geocoded_at', { withTimezone: true }),
     linkedPostalCode: text('linked_postal_code').notNull().default(''),
     linkedStreet: text('linked_street').notNull().default(''),
     linkedNumber: text('linked_number').notNull().default(''),
@@ -498,6 +554,15 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_dates_check',
       sql`(${table.birthDate} is null or ${table.birthDate} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.licenseExpiresAt} is null or ${table.licenseExpiresAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.firstLicenseAt} is null or ${table.firstLicenseAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)})`,
+    ),
+    /**
+     * ⚠️ Meia gravação é proibida: um par pela metade cairia no meridiano de Greenwich ou no equador,
+     * e o mapa desenharia a casa no oceano. A caixa é a do Brasil continental — coordenada trocada de
+     * ordem (o Photon devolve `[lon, lat]`) cai fora dela e é recusada aqui, não descoberta no mapa.
+     */
+    check(
+      'fleet_drivers_home_coordinates_check',
+      sql`(${table.homeLatitude} is null) = (${table.homeLongitude} is null) and (${table.homeLatitude} is null or ${table.homeLatitude} between -34 and 6) and (${table.homeLongitude} is null or ${table.homeLongitude} between -74 and -34)`,
     ),
     check(
       'fleet_drivers_postal_code_check',

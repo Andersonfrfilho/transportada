@@ -9,11 +9,18 @@
 const DEFAULT_THRESHOLD = 0.4
 
 export type WeightConcentrationStop = {
+  /**
+   * ⚠️ O nome que a parada tem **na tela**, não a chave dela. O aviso saía com
+   * `3534302|14620000|50` — o `buildStopAddressKey` cru, que é código IBGE, CEP e número — e quem
+   * lê não descobre de qual parada se trata justamente no aviso que pede uma ação.
+   */
+  readonly label: string
   readonly stopId: string
   readonly weightKilograms: string | null
 }
 
 export type WeightConcentration = {
+  readonly label: string
   readonly share: number
   readonly stopId: string
 }
@@ -35,7 +42,9 @@ export function detectWeightConcentration(input: {
 
   const weighted = input.stops.flatMap((stop) => {
     const weight = stop.weightKilograms === null ? 0 : Number(stop.weightKilograms)
-    return Number.isFinite(weight) && weight > 0 ? [{ stopId: stop.stopId, weight }] : []
+    return Number.isFinite(weight) && weight > 0
+      ? [{ label: stop.label, stopId: stop.stopId, weight }]
+      : []
   })
   const total = weighted.reduce((sum, stop) => sum + stop.weight, 0)
   if (total <= 0) return null
@@ -52,5 +61,5 @@ export function detectWeightConcentration(input: {
   const share = heaviest.weight / total
   if (share <= Math.max(input.threshold ?? DEFAULT_THRESHOLD, 1 / weighted.length)) return null
 
-  return { share, stopId: heaviest.stopId }
+  return { label: heaviest.label, share, stopId: heaviest.stopId }
 }

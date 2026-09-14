@@ -64,6 +64,8 @@ export const routeSuggestions = pgTable('route_suggestions', {
   seed: bigint({ mode: 'number' }).notNull(),
   assumptions: jsonb().notNull(),
   estimatedCostAmount: numeric('estimated_cost_amount', { precision: 19, scale: 4 }),
+  /** Spec 109 D2: a saída suposta pelo solver — a âncora que o despacho usa para reancorar o ETA. */
+  plannedDepartureAt: timestamp('planned_departure_at', { withTimezone: true }),
   estimatedDistanceMeters: bigint('estimated_distance_meters', { mode: 'number' }),
   estimatedDurationSeconds: bigint('estimated_duration_seconds', { mode: 'number' }),
   solverMetrics: jsonb('solver_metrics'),
@@ -85,6 +87,8 @@ export const routeSuggestionStops = pgTable('route_suggestion_stops', {
   label: text().notNull(),
   geocodingPrecision: text('geocoding_precision'),
   excludedFromOptimization: boolean('excluded_from_optimization').notNull(),
+  /** Por que a parada ficou sem veículo. ⚠️ Cópia por valor da API — migration continua sendo de lá. */
+  leftoverReason: text('leftover_reason'),
   estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
   distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
   durationFromPreviousSeconds: bigint('duration_from_previous_seconds', { mode: 'number' }),
@@ -99,6 +103,8 @@ export const companyRouteOptimizationSettings = pgTable('company_route_optimizat
   companyId: uuid('company_id').primaryKey(),
   /** Spec 058 P2: o fuso da operação, em nome IANA — a janela do cliente é hora local. */
   timezone: text().notNull(),
+  /** Spec 109: a hora em que a frota sai, em segundos desde a meia-noite local. */
+  departureTimeSeconds: bigint('departure_time_seconds', { mode: 'number' }).notNull(),
   originAddressKey: text('origin_address_key').notNull(),
   endPolicy: text('end_policy').notNull(),
   endAddressKey: text('end_address_key').notNull(),
@@ -175,6 +181,9 @@ export const routeSuggestionVehicles = pgTable('route_suggestion_vehicles', {
   /** ADR-0055: o motorista do par. O solver não o lê — a coluna existe aqui para a cópia não mentir. */
   driverId: uuid('driver_id'),
   position: bigint({ mode: 'bigint' }).notNull(),
+  /** A volta da última entrega ao fim da rota, gravada aqui (decisão 2026-09-13). Nula sem retorno. */
+  returnDistanceMeters: bigint('return_distance_meters', { mode: 'number' }),
+  returnDurationSeconds: bigint('return_duration_seconds', { mode: 'number' }),
 })
 
 export const routeSuggestionDocuments = pgTable('route_suggestion_documents', {

@@ -7,6 +7,7 @@ import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripRe
 import {
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
+  TRIP_OPTIONAL_KEYS,
 } from '../../src/modules/trip/shared/trip.constant'
 import { TRIP_DETAIL } from './trip.fixture'
 
@@ -84,5 +85,37 @@ describe('a fixture declara todas as chaves do detalhe (spec 076)', () => {
     const permitidas = [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS].toSorted()
 
     expect(Object.keys(TRIP_DETAIL).toSorted()).toEqual(permitidas)
+  })
+})
+
+/**
+ * ⚠️ Visto na tela, não em teste: a viagem inteira caía em "Não foi possível carregar as viagens".
+ * A API devolvia **200**, e o guard recusava o corpo por causa de `amounts` — chave que a listagem
+ * conhecia (`TRIP_OPTIONAL_KEYS`) e o detalhe não. `hasKeys` recusa a resposta INTEIRA, então o
+ * efeito não era um campo faltando: era o detalhe sumindo com as notas, as paradas e a carga junto.
+ *
+ * O detalhe **é** a viagem mais o que ela abre. Campo novo da viagem entra numa lista só.
+ */
+describe('o detalhe herda os campos opcionais da viagem', () => {
+  it('aceita `amounts` no detalhe, como a listagem já aceitava', () => {
+    expect(aceita({ ...TRIP_DETAIL, amounts: null })).toBe(true)
+    expect(
+      aceita({
+        ...TRIP_DETAIL,
+        amounts: { documentsTotal: '10.0000', revenueSource: 'measured', revenueTotal: '1.0000' },
+      }),
+    ).toBe(true)
+  })
+
+  /** A herança é da lista, não uma cópia: opcional novo da viagem vale nas duas telas sozinho. */
+  it('mantém os opcionais da viagem dentro dos opcionais do detalhe', () => {
+    const constant = readFileSync(
+      new URL('../../src/modules/trip/shared/trip.constant.ts', import.meta.url),
+      'utf8',
+    )
+
+    expect(constant).toContain('...TRIP_OPTIONAL_KEYS')
+    for (const key of TRIP_OPTIONAL_KEYS) expect(TRIP_DETAIL_OPTIONAL_KEYS).toContain(key)
+    expect(TRIP_DETAIL_KEYS).not.toContain('amounts')
   })
 })

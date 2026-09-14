@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { MetaWhatsAppHooks } from '@adatechnology/meta-whatsapp-contracts'
 import {
   createMetaWhatsAppModule,
   type NonceStoreInterface,
@@ -25,10 +26,18 @@ export type MetaWhatsAppModuleResolver = {
   resolveByPhoneNumberId(phoneNumberId: string): Promise<ResolvedMetaWhatsAppModule | undefined>
 }
 
+export type MetaWhatsAppMessageHookBuilder = (instance: {
+  readonly accessToken: string
+  readonly module: MetaWhatsAppModuleInstance
+  readonly phoneNumberId: string
+}) => NonNullable<MetaWhatsAppHooks['onMessageReceived']>
+
 export type CreateMetaWhatsAppModuleResolverParams = {
   readonly apiVersion: string
   readonly appSecret: string
   readonly baseUrl: string | undefined
+  /** Spec 144 T006 — o despachante; ausente, a mensagem recebida só é registrada, como na 062. */
+  readonly buildMessageHook?: MetaWhatsAppMessageHookBuilder
   readonly database: unknown
   readonly nonceStore: NonceStoreInterface
   readonly repository: Pick<WhatsAppChannelRepositoryPort, 'findByPhoneNumberId'>
@@ -67,22 +76,34 @@ export function createMetaWhatsAppModuleResolver(
         companyId: channel.companyId,
         envelope: channel.envelope,
       })
-      const resolved: ResolvedMetaWhatsAppModule = {
-        companyId: channel.companyId,
-        module: createMetaWhatsAppModule({
-          config: {
-            accessToken,
-            apiVersion: params.apiVersion,
-            appSecret: params.appSecret,
-            phoneNumberId: channel.phoneNumberId,
-            webhookVerifyToken: params.verifyToken,
-            ...(params.baseUrl === undefined ? {} : { baseUrl: params.baseUrl }),
-            ...(channel.wabaId === '' ? {} : { wabaId: channel.wabaId }),
-          },
-          db: params.database as never,
-          nonceStore: params.nonceStore,
-        }),
+      /**
+       * O hook entra na construção, mas o despachante precisa do canal, do interpretador e das
+       * sessões **desta** instância, que só existem depois dela. O `ReceiveWebhookUseCase` lê
+       * `hooks.onMessageReceived` a cada mensagem, então preencher o objeto logo em seguida vale.
+       */
+      const hooks: MetaWhatsAppHooks = {}
+      const module = createMetaWhatsAppModule({
+        config: {
+          accessToken,
+          apiVersion: params.apiVersion,
+          appSecret: params.appSecret,
+          phoneNumberId: channel.phoneNumberId,
+          webhookVerifyToken: params.verifyToken,
+          ...(params.baseUrl === undefined ? {} : { baseUrl: params.baseUrl }),
+          ...(channel.wabaId === '' ? {} : { wabaId: channel.wabaId }),
+        },
+        db: params.database as never,
+        hooks,
+        nonceStore: params.nonceStore,
+      })
+      if (params.buildMessageHook !== undefined) {
+        hooks.onMessageReceived = params.buildMessageHook({
+          accessToken,
+          module,
+          phoneNumberId: channel.phoneNumberId,
+        })
       }
+      const resolved: ResolvedMetaWhatsAppModule = { companyId: channel.companyId, module }
       /** Versão nova invalida sozinha: a chave muda, e a entrada velha morre no `clear` do teto. */
       if (cache.size > MAXIMUM_CACHED_MODULES) cache.clear()
       cache.set(cacheKey, resolved)

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhonePanel.component'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
@@ -78,6 +79,11 @@ export function DriverProfilePage({ onOpenQueue, queuedCount, snapshot }: Driver
         >
           {t('eventQueue.open')}
         </Button>
+      </section>
+
+      <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('profile.whatsappTitle')}</h2>
+        <WhatsAppPhonePanel />
       </section>
 
       <Button

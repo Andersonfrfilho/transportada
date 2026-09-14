@@ -40,6 +40,7 @@ import {
   reconcileStopOnUnlink,
 } from '../application/reconcile-trip-stops.use-case.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import { closePendingReviewsOnLink } from './trip-document-review-relink.support.js'
 import {
   resolveNfeDestinationAddress,
   resolveNfeDocumentId,
@@ -58,9 +59,20 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import {
+  createRequestCargoLayoutForTrip,
+  type RequestCargoLayoutForTrip,
+} from './eager-cargo-layout-request.support.js'
+import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
+import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
+import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
+import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
-import { resolveCargoLayout, sumVolumes } from '../domain/cargo-layout.policy.js'
+import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
+import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
+import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -76,7 +88,16 @@ const MISSING_REFERENCE_CONSTRAINTS = new Set([
 ])
 
 export class DrizzleTripRepository implements TripRepositoryPort {
-  public constructor(private readonly database: TripDatabase) {}
+  private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+  private readonly cargoLayoutLeaseMs: number
+
+  public constructor(
+    private readonly database: TripDatabase,
+    options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+  ) {
+    this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+    this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
+  }
 
   public async close(input: {
     readonly companyId: string
@@ -89,7 +110,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
-      return readTripDetail(transaction, input)
+      return readTripDetail(transaction, {
+        ...input,
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+      })
     })
   }
 
@@ -115,10 +139,18 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       }
 
       const detail = await readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         companyId: input.companyId,
         tripId: created.id,
       })
       if (detail === null) throw new Error('TRIP_CREATE_FAILED')
+
+      // D7: a viagem nasce sem parada, e mesmo assim pede o cálculo — o gatilho lazy (T10/T11)
+      // reconcilia depois se algo mudar antes do worker desenhar a planta.
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: created.id,
+      })
       return detail
     })
   }
@@ -140,7 +172,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripDetail | null> {
-    return readTripDetail(this.database, input)
+    return readTripDetail(this.database, { ...input, cargoLayoutLeaseMs: this.cargoLayoutLeaseMs })
   }
 
   public async findDocumentById(input: {
@@ -214,14 +246,26 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       // ⚠️ A origem sobrevive à parada ausente: o CEP que não normaliza deixa a nota `SEM ENDEREÇO`
       // (T007) e a procedência do endereço continua conhecida — é justamente a nota cuja origem
       // mais precisa ser explicada na tela.
-      if (destinationOrigin === null && stopId === null) return mapTripDocument(record)
+      let linked = mapTripDocument(record)
+      if (destinationOrigin !== null || stopId !== null) {
+        const [withStop] = await transaction
+          .update(tripDocuments)
+          .set({ destinationOrigin, stopId })
+          .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
+          .returning()
+        linked = mapTripDocument(withStop ?? record)
+      }
 
-      const [withStop] = await transaction
-        .update(tripDocuments)
-        .set({ destinationOrigin, stopId })
-        .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
-        .returning()
-      return mapTripDocument(withStop ?? record)
+      /** Spec 148 D12: a nota que estava na fila de revisão entrou numa viagem — a entrada fecha. */
+      await closePendingReviewsOnLink(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+      return linked
     })
   }
 
@@ -314,6 +358,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .filter((id) => !insertedIds.has(id))
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
+      if (created.length > 0) {
+        await closePendingReviewsOnLink(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
+      }
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       return { linked, skipped, tripStatus: tripRow.status }
     })
   }
@@ -371,11 +425,22 @@ export class DrizzleTripRepository implements TripRepositoryPort {
      * dirige**, e o `vehicleId` sozinho manda o operador abrir viagem por viagem para descobrir.
      */
     const driversByTrip = await this.loadTripDriverNames(page.map((record) => record.id))
+    /**
+     * Spec 107 D3: quando esta viagem termina — a última chegada estimada do roteiro. Uma consulta
+     * para a página inteira, como a dos motoristas.
+     */
+    const finishByTrip = await this.loadTripFinishTimes(page.map((record) => record.id))
 
     return {
       items: page.map((record) => ({
         ...mapTrip(record),
         driverNames: driversByTrip.get(record.id) ?? [],
+        /**
+         * ⚠️ Os dois andam **em par**, sempre: a hora sem o carimbo é uma previsão sem idade, e a
+         * tela mostraria o que o planejamento achava às 7h como se fosse de agora.
+         */
+        estimatedArrivalFrozenAt: record.estimatedArrivalFrozenAt?.toISOString() ?? null,
+        estimatedFinishAt: finishByTrip.get(record.id) ?? null,
       })),
       nextCursor,
     }
@@ -385,6 +450,32 @@ export class DrizzleTripRepository implements TripRepositoryPort {
    * Só o nome, e na ordem em que a viagem os pareou (`position`): a listagem nomeia quem dirige, e
    * CPF e contato são da ficha — trazê-los para uma tabela de varredura seria PII sem consumidor.
    */
+  /**
+   * A **última** chegada estimada de cada viagem: é a hora em que o motorista fica livre.
+   *
+   * ⚠️ `max` e não a parada de maior sequência: parada sem ETA devolveria `null` e derrubaria a
+   * conta inteira, e a última nem sempre é a que tem a hora.
+   */
+  private async loadTripFinishTimes(tripIds: readonly string[]): Promise<Map<string, string>> {
+    const byTrip = new Map<string, string>()
+    if (tripIds.length === 0) return byTrip
+
+    const rows = await this.database
+      .select({
+        finishAt: sql<Date | null>`max(${tripStops.estimatedArrivalAt})`.as('finish_at'),
+        tripId: tripStops.tripId,
+      })
+      .from(tripStops)
+      .where(inArray(tripStops.tripId, [...tripIds]))
+      .groupBy(tripStops.tripId)
+
+    for (const row of rows) {
+      if (row.finishAt !== null) byTrip.set(row.tripId, new Date(row.finishAt).toISOString())
+    }
+
+    return byTrip
+  }
+
   private async loadTripDriverNames(
     tripIds: readonly string[],
   ): Promise<Map<string, readonly string[]>> {
@@ -445,6 +536,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
       }
 
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       return mapTripDocument(released)
     })
   }
@@ -466,7 +561,7 @@ const NO_DESTINATION: LinkedDocumentDestination = { destinationOrigin: null, sto
  * A origem (spec 073 CA10) é devolvida **junto e em separado**: no segundo caso ela é conhecida e o
  * `stopId` não, e é essa nota que mais precisa da procedência impressa na tela.
  */
-async function reconcileLinkedDocumentStop(
+export async function reconcileLinkedDocumentStop(
   transaction: TripTransaction,
   input: {
     readonly companyId: string
@@ -498,7 +593,7 @@ async function reconcileLinkedDocumentStop(
  * O `RETURNING` do `UPDATE` que libera a nota já reflete `stop_id = null` — a T010 aprendeu isso do
  * jeito caro. A parada de origem precisa ser lida numa consulta separada, antes de reconciliar.
  */
-async function readDocumentStopIdBeforeRelease(
+export async function readDocumentStopIdBeforeRelease(
   transaction: TripTransaction,
   input: { readonly companyId: string; readonly documentId: string },
 ): Promise<string | null> {
@@ -556,7 +651,11 @@ const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
 
 async function readTripDetail(
   queryable: TripQueryable,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly cargoLayoutLeaseMs: number
+    readonly companyId: string
+    readonly tripId: string
+  },
 ): Promise<TripDetail | null> {
   const [record] = await queryable
     .select()
@@ -575,6 +674,7 @@ async function readTripDetail(
       driver: tripDrivers,
       driverEmail: fleetDrivers.email,
       driverPhone: fleetDrivers.phone,
+      driverSecuresCargo: fleetDrivers.securesCargo,
     })
     .from(tripDrivers)
     .leftJoin(
@@ -686,16 +786,21 @@ async function readTripDetail(
   const nfeDocumentIds = documents.flatMap((document) =>
     document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
   )
-  const [cargo, cargoWeight] = await Promise.all([
-    loadTripOccupancy(queryable, {
-      companyId: input.companyId,
-      nfeDocumentIds,
-      vehicleId: record.vehicleId,
-    }),
-    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }).then(
-      (weight) => weight.view,
-    ),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const cargo = await loadTripOccupancy(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+    vehicleId: record.vehicleId,
+  })
+  const cargoWeight = await loadTripCargoWeight(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+  }).then((weight) => weight.view)
+  /** Spec 093: o teto sai do mesmo veículo que a ocupação já leu — sem segunda consulta. */
+  const cargoWeightWithCeiling = withPayloadCeiling({
+    maxPayloadKg: cargo.maxPayloadKg,
+    view: cargoWeight,
+  })
 
   /**
    * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
@@ -726,39 +831,58 @@ async function readTripDetail(
     return stored
   }
 
-  const stops = stopRecords.map((row) => ({
-    documents: documentsByStopId.get(row.stop.id) ?? [],
-    label: labelOf(row.stop.id, row.stop.label),
-    sequence: Number(row.stop.sequence),
-  }))
+  /** A mesma montagem da parada que o gatilho eager usa — é ela que faz os dois hashes baterem. */
+  const layoutStops = stopRecords.map((row) =>
+    buildLayoutStop({
+      addresses: stopAddresses,
+      cargo,
+      documents: documentsByStopId.get(row.stop.id) ?? [],
+      stop: row.stop,
+    }),
+  )
 
   /**
-   * Spec 076: a fatia do baú por parada, montada do que já veio — nenhuma consulta a mais. Parada
-   * cujas notas não têm cubagem entra em `stopsWithoutVolume`, nunca como fatia zero.
+   * Spec 145 D10 (T10): a entrada que o gatilho eager hasheia, montada do que já veio — nenhuma
+   * consulta a mais —, e a planta lida de `trip_cargo_layouts` por esse hash. O detalhe não empacota.
    */
-  const layout = resolveCargoLayout({
-    capacityM3: cargo.capacityM3,
-    loadingAccess: cargo.loadingAccess,
-    stops: stops.map((stop) => {
-      const volumes = stop.documents.map((document) =>
-        document.nfeDocumentId === null
-          ? null
-          : (cargo.volumeByDocument.get(document.nfeDocumentId) ?? null),
-      )
-      const known = volumes.filter((volume): volume is string => volume !== null)
-      return {
-        documentsWithoutVolume: volumes.length - known.length,
-        label: stop.label,
-        sequence: stop.sequence,
-        volumeM3: known.length === 0 ? null : sumVolumes(known),
-      }
-    }),
+  /** Spec 145 D23: a **mesma** regra da prévia e do eager; ficha apagada é ninguém amarrando. */
+  const { enclosedBody, securesCargo } = resolveCargoSecuring({
+    bodyType: cargo.bodyType,
+    driversSecureCargo: driverRecords.map((row) => row.driverSecuresCargo === true),
   })
+  const cargoLayoutInput: BuildCargoLayoutInputParams = {
+    /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
+    bedDimensions: cargo.bedDimensions,
+    capacityM3: cargo.capacityM3,
+    /** Spec 145 D24: o mesmo alcance da prévia e do eager — o hash dos três tem de bater. */
+    deliveryReachM: CARGO_DELIVERY_REACH_M,
+    enclosedBody,
+    /** Spec 094: o detalhe da viagem desenha a mesma planta da prévia — e pela mesma caixa. */
+    fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
+    loadingAccess: cargo.loadingAccess,
+    measuredShapes: cargo.measuredShapes,
+    /** Spec 098: o teto de massa já resolvido acima — a planta e o painel leem o mesmo número. */
+    payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
+    securesCargo,
+    stops: layoutStops,
+  }
+  const { layoutId, pendingCargoLayoutInput, ...cargoLayoutReading } = await readTripCargoLayout(
+    queryable,
+    {
+      companyId: input.companyId,
+      input: cargoLayoutInput,
+      leaseMs: input.cargoLayoutLeaseMs,
+      tripId: input.tripId,
+    },
+  )
 
   return {
     ...mapTrip(record),
-    cargoLayout: layout,
-    cargoWeight,
+    cargoLayout: cargoLayoutReading.cargoLayout,
+    cargoLayoutState: cargoLayoutReading.cargoLayoutState,
+    cargoLayoutId: layoutId,
+    ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
+    cargoWeight: cargoWeightWithCeiling,
     documents,
     drivers: driverRecords.map((row) =>
       mapTripDriver({

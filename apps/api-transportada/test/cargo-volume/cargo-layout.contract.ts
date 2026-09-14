@@ -3,9 +3,20 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveCargoLayout } from '../../src/trips/domain/cargo-layout.policy.js'
+import { resolveCargoLayout, type CargoLayoutStop } from '@adatechnology/cargo-placement'
 
 const CAPACIDADE = { capacityM3: '10.000000' }
+const BED = { heightM: '2.200', lengthM: '5.320', source: 'measured' as const, widthM: '2.080' }
+const MEASURED_BOX = { heightMm: 300, lengthMm: 400, widthMm: 300 }
+const UNMEASURED_BOX = { heightMm: null, lengthMm: null, widthMm: null }
+
+function drawnVolumeM3(box: {
+  readonly depthM: number
+  readonly heightM: number
+  readonly widthM: number
+}): number {
+  return box.heightM * box.widthM * box.depthM
+}
 
 /** Três paradas na ordem de entrega: a primeira é a que sai primeiro. */
 const PARADAS = [
@@ -110,5 +121,230 @@ describe('mapa de carga do baú (spec 076)', () => {
     const layout = resolveCargoLayout({ ...CAPACIDADE, stops: [] })
 
     expect(layout).toMatchObject({ overflowM3: '0.000000', slices: [] })
+  })
+})
+
+/**
+ * G003 (spec 144, D1): a precedência de quem dá a forma à caixa que o empacotador desenha —
+ * **medida > resíduo da nota > mediana da empresa**. A medida nunca cede; entre as duas presumidas,
+ * o resíduo é o número mais específico (veio da própria nota) e vence a mediana genérica.
+ */
+describe('a precedência D1 na caixa que o empacotador desenha', () => {
+  test('caixa medida ignora tanto o resíduo quanto a mediana', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [{ ...MEASURED_BOX, count: 1, estimatedVolumeM3: 0.5, label: 'Medida' }],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: '0.036000',
+      },
+    ]
+    const layout = resolveCargoLayout({
+      bedDimensions: BED,
+      ...CAPACIDADE,
+      fallbackBoxVolumeM3: 0.036,
+      measuredShapes: [MEASURED_BOX],
+      stops,
+    })
+    const box = layout?.placement?.layers
+      .flatMap((layer) => layer.boxes)
+      .find((placed) => placed.label === 'Medida')
+
+    expect(box?.source).toBe('measured')
+    expect(box === undefined ? NaN : Math.abs(drawnVolumeM3(box) - 0.036)).toBeLessThanOrEqual(1e-3)
+  })
+
+  test('caixa sem ficha com volume da nota usa o resíduo, não a mediana', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [
+          { ...UNMEASURED_BOX, count: 1, estimatedVolumeM3: 0.5, label: 'Presumida pela nota' },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: '0.500000',
+      },
+    ]
+    const layout = resolveCargoLayout({
+      bedDimensions: BED,
+      ...CAPACIDADE,
+      fallbackBoxVolumeM3: 0.036,
+      measuredShapes: [MEASURED_BOX],
+      stops,
+    })
+    const box = layout?.placement?.layers
+      .flatMap((layer) => layer.boxes)
+      .find((placed) => placed.label === 'Presumida pela nota')
+
+    expect(box?.source).toBe('estimated')
+    expect(box === undefined ? NaN : Math.abs(drawnVolumeM3(box) - 0.5)).toBeLessThanOrEqual(1e-3)
+  })
+
+  test('caixa sem ficha e sem volume da nota usa a mediana da empresa', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [{ ...UNMEASURED_BOX, count: 1, label: 'Presumida pela mediana' }],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: '0.036000',
+      },
+    ]
+    const layout = resolveCargoLayout({
+      bedDimensions: BED,
+      ...CAPACIDADE,
+      fallbackBoxVolumeM3: 0.036,
+      measuredShapes: [MEASURED_BOX],
+      stops,
+    })
+    const box = layout?.placement?.layers
+      .flatMap((layer) => layer.boxes)
+      .find((placed) => placed.label === 'Presumida pela mediana')
+
+    expect(box?.source).toBe('estimated')
+    expect(box === undefined ? NaN : Math.abs(drawnVolumeM3(box) - 0.036)).toBeLessThanOrEqual(1e-3)
+  })
+})
+
+/**
+ * G004 (spec 144, D4): a lista do que falta medir, uma linha por produto sem ficha e por parada —
+ * a mesma nota e produto em paradas diferentes não se somam, porque quem mede vai a cada parada.
+ */
+describe('pendingMeasurements — a lista do que falta medir (spec 144 D4)', () => {
+  test('a mesma nota e produto em paradas diferentes viram linhas separadas, ordenadas por caixas', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 6,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+          {
+            ...MEASURED_BOX,
+            count: 4,
+            documentNumber: '333',
+            estimateSource: 'none',
+            label: 'Não aparece — já medida',
+            productCode: 'P3',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Barrinha',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 2,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+          {
+            ...UNMEASURED_BOX,
+            count: 3,
+            documentNumber: '222',
+            estimateSource: 'median',
+            label: 'Caixa',
+            productCode: 'P2',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Campinas',
+        sequence: 2,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 6,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'Barrinha',
+      },
+      {
+        boxCount: 3,
+        documentNumber: '222',
+        estimateSource: 'median',
+        label: 'Caixa',
+        productCode: 'P2',
+        sequence: 2,
+        stopLabel: 'Campinas',
+      },
+      {
+        boxCount: 2,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 2,
+        stopLabel: 'Campinas',
+      },
+    ])
+  })
+
+  /** `box.count` fracionário (D2) não pode sair como fração — o frontend rejeita `boxCount` não inteiro. */
+  test('caixa sem ficha com contagem fracionária arredonda para cima', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 6.5,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Barrinha',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 7,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'Barrinha',
+      },
+    ])
+    expect(Number.isInteger(layout?.pendingMeasurements[0]?.boxCount)).toBe(true)
+  })
+
+  test('viagem toda medida devolve lista vazia', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [{ ...MEASURED_BOX, count: 4, label: 'Medida' }],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([])
   })
 })

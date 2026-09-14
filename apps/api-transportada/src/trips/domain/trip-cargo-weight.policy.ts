@@ -4,10 +4,14 @@
  * O peso da carga da **viagem**, com a origem junto — a irmã de `trip-occupancy.policy.ts`, que faz
  * o mesmo para cubagem.
  *
- * ⚠️ Não há denominador. A ficha do veículo guarda dimensões e `capacity_m3`, mas **nenhuma
- * capacidade em massa**, então aqui não existe percentual: sai o total e a origem dele. Inventar um
- * teto para produzir porcentagem seria o defeito que a ocupação evita ao devolver `null` sem
- * capacidade conhecida.
+ * ⚠️ Spec 093: **o denominador existe, e sempre existiu.** `fleet_vehicles.capacity_kg` é o `capKG`
+ * que o MDF-e exige e está preenchida em 10 dos 12 veículos desta base; o que faltava era alguém
+ * lê-la fora da emissão fiscal. O comentário antigo aqui afirmava que a ficha não guardava massa
+ * nenhuma, e é essa premissa — não a coluna — que estava faltando.
+ *
+ * Ausência continua sendo `null`, nunca 100% nem zero, pela mesma razão da ocupação: veículo sem
+ * teto conhecido com carga dentro é o caso em que um número inventado faz alguém parar de carregar,
+ * ou continuar.
  */
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
 import { CARGO_WEIGHT_SOURCE } from '../../nfe-documents/domain/cargo-weight.policy.js'
@@ -36,12 +40,26 @@ export type ResolvedTripCargoWeight = {
   /** Notas sem peso — ditas à parte, nunca somadas como zero. */
   readonly documentsWithoutWeight: number
   readonly grossWeightKilograms: string
+  /** O teto lido da ficha, ou `null` quando ninguém o cadastrou. */
+  readonly maxPayloadKg: string | null
+  /**
+   * Quanto do teto a carga ocupa. `null` sem teto — e **sem aparar o estouro**: acima de 1 é o que
+   * o conferente precisa ver, e um número aparado em 100% esconderia justamente o caso grave.
+   */
+  readonly payloadRatio: string | null
   readonly source: TripCargoWeightSource
 }
 
 /**
  * Uma nota estimada torna **o total** estimado, pela mesma razão do volume: quem carrega decide
  * pelo pior caso, e a marca é o que separa "cabe" de "deve caber".
+ */
+/**
+ * ⚠️ **Sai sem teto, sempre.** O teto entra por `withPayloadCeiling`, e é ele que os dois
+ * consumidores chamam — o peso e o veículo são lidos em paralelo, e encadeá-los serializaria duas
+ * consultas por nada. Aceitar `maxPayloadKg` aqui também criava uma segunda porta para a mesma
+ * decisão, e era a porta coberta por teste: quem "consertasse" o percentual por ela não mudaria
+ * tela nenhuma.
  */
 export function resolveTripCargoWeight({
   documents,
@@ -70,6 +88,63 @@ export function resolveTripCargoWeight({
   return {
     documentsWithoutWeight,
     grossWeightKilograms: formatScaledDecimal(total, WEIGHT_SCALE),
+    maxPayloadKg: null,
+    payloadRatio: null,
     source: estimated ? 'estimated' : 'declared',
   }
+}
+
+/**
+ * O teto aplicado a uma view **já montada** — o **único** caminho, e é por onde a viagem e a prévia
+ * o acrescentam: o peso e o veículo são lidos em paralelo, e encadeá-los serializaria duas consultas
+ * por nada.
+ *
+ * ⚠️ Ausência (`null` ou zero) devolve a view intacta, com os dois campos nulos — nunca 0% nem 100%.
+ */
+export function withPayloadCeiling(
+  input: Readonly<{
+    maxPayloadKg: string | null
+    view: null | ResolvedTripCargoWeight
+  }>,
+): null | ResolvedTripCargoWeight {
+  if (input.view === null) return null
+
+  return {
+    ...input.view,
+    ...resolvePayloadCeiling({
+      maxPayloadKg: input.maxPayloadKg,
+      totalScaled: parseScaledDecimal({
+        errorCodePrefix: ERROR_CODE_PREFIX,
+        scale: WEIGHT_SCALE,
+        value: input.view.grossWeightKilograms,
+      }),
+    }),
+  }
+}
+
+function resolvePayloadCeiling(
+  input: Readonly<{ maxPayloadKg: string | null; totalScaled: bigint }>,
+): Readonly<{ maxPayloadKg: string | null; payloadRatio: string | null }> {
+  const ceiling = parseCeiling(input.maxPayloadKg)
+  if (ceiling === null) return { maxPayloadKg: null, payloadRatio: null }
+
+  return {
+    maxPayloadKg: formatScaledDecimal(ceiling, WEIGHT_SCALE),
+    /** Sem aparar: acima de 1 é o que o conferente precisa ver. */
+    payloadRatio: formatScaledDecimal(
+      (input.totalScaled * 10n ** WEIGHT_SCALE) / ceiling,
+      WEIGHT_SCALE,
+    ),
+  }
+}
+
+/** Zero e ausência dizem a mesma coisa: ninguém cadastrou o teto. */
+function parseCeiling(value: string | null): bigint | null {
+  if (value === null) return null
+  const parsed = parseScaledDecimal({
+    errorCodePrefix: ERROR_CODE_PREFIX,
+    scale: WEIGHT_SCALE,
+    value,
+  })
+  return parsed === 0n ? null : parsed
 }

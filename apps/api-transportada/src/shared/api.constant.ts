@@ -36,7 +36,11 @@ export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
 export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
+/** Spec 095: o ajuste manual da tarifa de pedágio, por praça do catálogo do OSM. */
+export const API_COMPANY_SETTINGS_TOLL_BOOTH_CHARGES_PATH = '/company-settings/toll-booth-charges'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
+/** Spec 126: regime federal e alíquotas de PIS/COFINS da empresa (`company_tax_settings`). */
+export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
@@ -44,6 +48,15 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
+export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
+export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
+export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
+/**
+ * Spec 143 T010 (RF11): a terceira superfície anônima, e a primeira assinada — o `webhookId` opaco
+ * acha a configuração da empresa, e a assinatura Svix é conferida contra o segredo dela.
+ */
+export const API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId'
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
@@ -61,6 +74,11 @@ export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
+/**
+ * Spec 093: o catálogo de referência de baú por tipo, que alimenta a sugestão do cadastro. Fica sob
+ * `/fleet` como o catálogo FIPE ao lado — quem cadastra veículo já tem `fleet.read`.
+ */
+export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
@@ -75,6 +93,7 @@ export const API_ME_TRIPS_PATH = '/me/trips'
 export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
 /** ADR-0050 §5: o consentimento é do motorista, e mora fora da viagem — ele vale para todas. */
 export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
+export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
 
 /**
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
@@ -189,5 +208,11 @@ export const HTTP_ERROR = {
     code: 'TOO_MANY_REQUESTS',
     message: 'Too many requests',
     status: 429,
+  },
+  /** Spec 137: o banco não entregou conexão nem consulta no prazo. */
+  databaseUnavailable: {
+    code: 'DATABASE_UNAVAILABLE',
+    message: 'Database unavailable',
+    status: 503,
   },
 } as const

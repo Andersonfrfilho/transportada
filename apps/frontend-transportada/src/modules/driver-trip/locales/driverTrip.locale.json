@@ -97,7 +97,8 @@
       "unknown": "Sem papel de campo"
     },
     "signOut": "Sair",
-    "vehicleTitle": "Veículo da viagem"
+    "vehicleTitle": "Veículo da viagem",
+    "whatsappTitle": "WhatsApp"
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas"

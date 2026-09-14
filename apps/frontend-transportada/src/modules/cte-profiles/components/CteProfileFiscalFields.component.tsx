@@ -11,7 +11,7 @@ import {
   CTE_PROFILE_SERVICE_TYPE,
   CTE_PROFILE_TAKER,
 } from '../shared/cteProfiles.types'
-import type { ProfileFormState } from '../shared/cteProfilesForm.service'
+import { type ProfileFormState, showsCteFiscalFields } from '../shared/cteProfilesForm.service'
 import styles from '../styles/cteProfiles.module.css'
 import { ProfileCheckboxField, ProfileField, ProfileSelectField } from './ProfileField.component'
 
@@ -22,6 +22,7 @@ type CteProfileFiscalFieldsProps = Readonly<{
 
 export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFieldsProps) {
   const { t } = useTranslation('cteProfiles')
+  const isCte = showsCteFiscalFields(state.outputDocument)
   return (
     <fieldset className={styles.fieldGroup}>
       <legend>{t('fiscalLegend')}</legend>
@@ -31,48 +32,52 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
           value={state.operationNature}
           onChange={(operationNature) => onChange({ operationNature })}
         />
-        <ProfileField
-          inputMode="numeric"
-          label={t('cfopInternal')}
-          maxLength={4}
-          value={state.cfopInternal}
-          onChange={(cfopInternal) => onChange({ cfopInternal })}
-        />
-        <ProfileField
-          inputMode="numeric"
-          label={t('cfopInterstate')}
-          maxLength={4}
-          value={state.cfopInterstate}
-          onChange={(cfopInterstate) => onChange({ cfopInterstate })}
-        />
-        <ProfileSelectField
-          label={t('municipalServicePolicy')}
-          optionLabelKey="municipalServicePolicyOption"
-          options={CTE_PROFILE_MUNICIPAL_SERVICE_POLICY}
-          value={state.municipalServicePolicy}
-          onChange={(municipalServicePolicy) => onChange({ municipalServicePolicy })}
-        />
-        <ProfileSelectField
-          label={t('icmsCst')}
-          optionLabelKey="icmsCstOption"
-          options={CTE_PROFILE_ICMS_CST}
-          value={state.icmsCst}
-          onChange={(icmsCst) => onChange({ icmsCst })}
-        />
-        <ProfileField
-          inputMode="decimal"
-          label={t('icmsRate')}
-          maxLength={10}
-          value={state.icmsRate}
-          onChange={(icmsRate) => onChange({ icmsRate })}
-        />
-        <ProfileField
-          inputMode="decimal"
-          label={t('icmsBaseReductionRate')}
-          maxLength={10}
-          value={state.icmsBaseReductionRate}
-          onChange={(icmsBaseReductionRate) => onChange({ icmsBaseReductionRate })}
-        />
+        {isCte ? (
+          <>
+            <ProfileField
+              inputMode="numeric"
+              label={t('cfopInternal')}
+              maxLength={4}
+              value={state.cfopInternal}
+              onChange={(cfopInternal) => onChange({ cfopInternal })}
+            />
+            <ProfileField
+              inputMode="numeric"
+              label={t('cfopInterstate')}
+              maxLength={4}
+              value={state.cfopInterstate}
+              onChange={(cfopInterstate) => onChange({ cfopInterstate })}
+            />
+            <ProfileSelectField
+              label={t('municipalServicePolicy')}
+              optionLabelKey="municipalServicePolicyOption"
+              options={CTE_PROFILE_MUNICIPAL_SERVICE_POLICY}
+              value={state.municipalServicePolicy}
+              onChange={(municipalServicePolicy) => onChange({ municipalServicePolicy })}
+            />
+            <ProfileSelectField
+              label={t('icmsCst')}
+              optionLabelKey="icmsCstOption"
+              options={CTE_PROFILE_ICMS_CST}
+              value={state.icmsCst}
+              onChange={(icmsCst) => onChange({ icmsCst })}
+            />
+            <ProfileField
+              inputMode="decimal"
+              label={t('icmsRate')}
+              maxLength={10}
+              value={state.icmsRate}
+              onChange={(icmsRate) => onChange({ icmsRate })}
+            />
+            <ProfileField
+              inputMode="decimal"
+              label={t('icmsBaseReductionRate')}
+              maxLength={10}
+              value={state.icmsBaseReductionRate}
+              onChange={(icmsBaseReductionRate) => onChange({ icmsBaseReductionRate })}
+            />
+          </>
+        ) : null}
         <ProfileSelectField
           label={t('modal')}
           optionLabelKey="modalOption"
@@ -87,13 +92,15 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
           value={state.serviceType}
           onChange={(serviceType) => onChange({ serviceType })}
         />
-        <ProfileSelectField
-          label={t('taker')}
-          optionLabelKey="takerOption"
-          options={CTE_PROFILE_TAKER}
-          value={state.taker}
-          onChange={(taker) => onChange({ taker })}
-        />
+        {isCte ? (
+          <ProfileSelectField
+            label={t('taker')}
+            optionLabelKey="takerOption"
+            options={CTE_PROFILE_TAKER}
+            value={state.taker}
+            onChange={(taker) => onChange({ taker })}
+          />
+        ) : null}
         <ProfileSelectField
           label={t('receiverIeIndicator')}
           optionLabelKey="receiverIeOption"

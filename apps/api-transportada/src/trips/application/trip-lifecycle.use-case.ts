@@ -18,7 +18,11 @@ import {
   overrideDeliveryAddress,
   type OverrideDeliveryAddressPort,
 } from './override-delivery-address.use-case.js'
-import { planTripRoute, type PlanTripRoutePort } from './plan-trip-route.use-case.js'
+import {
+  planTripRoute,
+  type PlanTripRoutePort,
+  type PlanTripRouteTollFreezer,
+} from './plan-trip-route.use-case.js'
 import { reorderTripStops, type ReorderTripStopsPort } from './reorder-trip-stops.use-case.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import {
@@ -47,6 +51,8 @@ export type TripLifecycleDependencies = {
   readonly stopRepository: ListTripStopsPort
   /** Spec 060 D4b: a entrega concluída propõe a taxa recorrente. Ausente, nada muda na entrega. */
   readonly suggestCharges?: SuggestDeliveryChargesPort
+  /** Spec 090 T11: congela o pedágio no planejamento. Ausente, o comportamento é o de antes da task. */
+  readonly tollFreezer?: PlanTripRouteTollFreezer
 }
 
 /**
@@ -208,6 +214,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
+          ...(dependencies.tollFreezer === undefined
+            ? {}
+            : { tollFreezer: dependencies.tollFreezer }),
         })
       },
     },

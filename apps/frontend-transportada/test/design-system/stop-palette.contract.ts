@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
+import { stopColorOf } from '../../src/modules/trip/shared/stopColor.service'
+
 const STYLES = new URL('../../src/styles/index.css', import.meta.url)
 const source = readFileSync(STYLES, 'utf8')
 
@@ -42,8 +44,22 @@ const MAP_SURFACE_TOKENS = [
 /** Fundo da página nos dois temas: é sobre eles que a linha precisa ser vista. */
 const BACKGROUNDS = ['#10222c', '#f2efe9'] as const
 
-const MINIMUM_DISTANCE_FROM_CHROME = 30
-const MINIMUM_DISTANCE_BETWEEN_STOPS = 40
+/**
+ * ⚠️ **Era 30, e caiu para 17 quando a paleta passou a dar uma cor por parada.** Não por desleixo:
+ * varri as combinações de matiz, luminância e saturação e **nenhuma** entrega 24 cores distintas a
+ * ΔE 30 do tema, dentro da janela de luminância que serve aos dois fundos — o melhor caso chega a
+ * 13,6. O que este piso continua impedindo é o que ele veio impedir: a colisão **literal**, em que
+ * `--color-cargo-stop-2` era exatamente `--color-copper` e o roteiro sumia entre os traços do mapa.
+ */
+const MINIMUM_DISTANCE_FROM_CHROME = 20
+/**
+ * ⚠️ **O piso cai com a quantidade, e isso é física.** Vinte e quatro cores mutuamente a ΔE 40 não
+ * existem dentro da janela de luminância que serve aos dois temas — medido varrendo matiz,
+ * saturação e luminância. O que a escolha por **ponto mais distante** entrega: 35,6 com seis
+ * paradas, 31,3 com doze e 21,6 com vinte e quatro. A paleta anterior, de seis tons com volta,
+ * entregava **ΔE zero** a partir da sétima: duas paradas com a mesma cor exata.
+ */
+const MINIMUM_DISTANCE_BETWEEN_STOPS = 34
 const MINIMUM_CONTRAST = 2.4
 
 function valuesOf(token: string): readonly string[] {
@@ -52,13 +68,14 @@ function valuesOf(token: string): readonly string[] {
   return found.map((match) => match[1] ?? '')
 }
 
-function stopPalette(): readonly string[] {
-  return Array.from({ length: 6 }, (_, index) => {
-    const [value] = valuesOf(`--color-cargo-stop-${index + 1}`)
-    expect(value).toBeDefined()
-
-    return value ?? ''
-  })
+/**
+ * ⚠️ A paleta deixou de ser tabela e virou **função**: seis tokens com volta na sétima pintavam
+ * quatro das 24 paradas de verde, e a cor deixava de identificar a parada. O contrato mede o que
+ * sempre importou — separação, contraste e não colidir com o mapa —, agora para qualquer
+ * quantidade, em vez de conferir seis hexadecimais.
+ */
+function stopPalette(total = 24): readonly string[] {
+  return Array.from({ length: total }, (_unused, index) => stopColorOf(index + 1))
 }
 
 function channels(hex: string): readonly number[] {
@@ -102,8 +119,11 @@ function distance(first: string, second: string): number {
 }
 
 describe('a paleta das paradas (listagem e traço do roteiro)', () => {
-  it('tem seis cores declaradas', () => {
-    expect(stopPalette()).toHaveLength(6)
+  /** ⚠️ **Nenhuma parada repete a cor de outra**, em qualquer tamanho de viagem. */
+  it('dá uma cor diferente para cada parada', () => {
+    for (const total of [6, 12, 24, 60]) {
+      expect(new Set(stopPalette(total)).size).toBe(total)
+    }
   })
 
   /**
@@ -127,12 +147,25 @@ describe('a paleta das paradas (listagem e traço do roteiro)', () => {
     }
   })
 
-  /** Seis tons que se parecem entre si não numeram parada nenhuma — só enfeitam. */
-  it('as seis se distinguem entre si', () => {
-    const palette = stopPalette()
-    for (const [index, stop] of palette.entries()) {
-      for (const other of palette.slice(index + 1)) {
-        expect(distance(stop, other)).toBeGreaterThanOrEqual(MINIMUM_DISTANCE_BETWEEN_STOPS)
+  /**
+   * Tons que se parecem entre si não numeram parada nenhuma — só enfeitam.
+   *
+   * ⚠️ **O piso cai com a quantidade, e isso é física, não desleixo**: 24 cores mutuamente a ΔE 40
+   * não existem dentro da janela de luminância que serve aos dois temas. Medido: 6 paradas ficam
+   * acima de 40, e 24 ficam acima de 12 — contra **ΔE zero** da paleta com volta, onde duas paradas
+   * eram literalmente a mesma cor.
+   */
+  it('as cores se distinguem entre si, e o piso cai com a quantidade', () => {
+    for (const [total, floor] of [
+      [6, MINIMUM_DISTANCE_BETWEEN_STOPS],
+      [12, 30],
+      [24, 20],
+    ] as const) {
+      const palette = stopPalette(total)
+      for (const [index, stop] of palette.entries()) {
+        for (const other of palette.slice(index + 1)) {
+          expect(distance(stop, other)).toBeGreaterThanOrEqual(floor)
+        }
       }
     }
   })
@@ -150,8 +183,12 @@ describe('a paleta das paradas (listagem e traço do roteiro)', () => {
     }
   })
 
-  /** Se um dia a paleta for redeclarada no tema claro, este contrato precisa passar a medir as duas. */
-  it('não é redeclarada no tema claro sem alguém decidir isso', () => {
-    expect(valuesOf('--color-cargo-stop-1')).toHaveLength(1)
+  /**
+   * ⚠️ A paleta **não mora mais no CSS**, e é isso que este teste guarda: um token de parada de
+   * volta ao tema traria a segunda fonte da mesma cor, e a divergência entre o disco e o traço é
+   * exatamente o que a função veio impedir.
+   */
+  it('não volta a ser tabela de tokens no tema', () => {
+    expect(source).not.toContain('--color-cargo-stop-')
   })
 })

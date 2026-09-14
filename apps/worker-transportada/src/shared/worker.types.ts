@@ -71,6 +71,8 @@ export type WorkerEnvironment = {
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */
   readonly appBaseUrl: string | undefined
   readonly appEnv: string
+  /** Spec 145 D13: o primeiro degrau do orçamento da planta de carga, em ms. */
+  readonly cargoLayoutTimeBudgetMs: number
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
   /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */

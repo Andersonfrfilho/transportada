@@ -113,6 +113,22 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         volumeCount: '0',
       })
 
+      /**
+       * Spec 109 D3: o plano dizia que a primeira parada seria às 12h20 e o motorista chega às 13h.
+       * A segunda parada tem de andar os mesmos 40 minutos — a conta acontece em SQL
+       * (`make_interval`), e é contra o banco que ela se prova.
+       */
+      const plannedFirstArrival = new Date(NOW.getTime() - 40 * 60 * 1_000)
+      await database.db
+        .update(tripStops)
+        .set({ estimatedArrivalAt: plannedFirstArrival })
+        .where(eq(tripStops.id, world.stopIds[0] ?? ''))
+      const plannedSecondArrival = new Date(NOW.getTime() + 60 * 60 * 1_000)
+      await database.db
+        .update(tripStops)
+        .set({ estimatedArrivalAt: plannedSecondArrival })
+        .where(eq(tripStops.id, world.stopIds[1] ?? ''))
+
       // 2. Cheguei na primeira parada — e a viagem sai de `dispatched` sozinha
       await reportStopArrival({
         ...context,
@@ -123,6 +139,23 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         unitOfWork,
       })
       expect(await readTripStatus(database, world.tripId)).toBe('in_transit')
+
+      const [shiftedSecond] = await database.db
+        .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt })
+        .from(tripStops)
+        .where(eq(tripStops.id, world.stopIds[1] ?? ''))
+      expect(
+        ((shiftedSecond?.estimatedArrivalAt?.getTime() ?? 0) - plannedSecondArrival.getTime()) /
+          60_000,
+      ).toBe(40)
+      /** ⚠️ A parada que acabou de ser marcada **não** se move: o real dela é a hora da chegada. */
+      const [visitedFirst] = await database.db
+        .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt })
+        .from(tripStops)
+        .where(eq(tripStops.id, world.stopIds[0] ?? ''))
+      expect(visitedFirst?.estimatedArrivalAt?.toISOString()).toBe(
+        plannedFirstArrival.toISOString(),
+      )
 
       // 3. Entreguei as duas notas: a última fecha a parada, e só ela
       const firstDelivery = await reportDocumentDelivery({

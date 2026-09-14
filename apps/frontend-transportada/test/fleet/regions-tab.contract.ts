@@ -31,7 +31,7 @@ describe('fleet freight region tab contract', () => {
       source: 'freightRegions',
       tab: 'regions',
     })
-    expect(settingsTabsOf('fleet')).toEqual(['fuel', 'regions'])
+    expect(settingsTabsOf('fleet')).toEqual(['fuel', 'tolls', 'regions'])
     expect(settingsPanelsOf('fleet', 'regions')).toEqual(['freightRegions'])
   })
 

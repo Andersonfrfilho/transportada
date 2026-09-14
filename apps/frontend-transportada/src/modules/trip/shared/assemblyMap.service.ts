@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
 
-import { buildStopAddressKey } from './stopAddressKey.service'
+import { resolveStopKey } from './assemblyOrder.service'
 
 /**
  * O mapa de quem está **montando** a viagem, e não o do roteiro pronto.
@@ -85,6 +85,55 @@ export type AssemblyMapPoint = Readonly<{
   x: number
   y: number
 }>
+
+/**
+ * ⚠️ Duas paradas **diferentes** podem cair na mesma coordenada: as duas em posição aproximada
+ * (centroide do mesmo município — o caso comum) ou, mais raro, mesmo endereço exato. Achado
+ * testando localmente: duas notas em ORLANDIA/SP, endereços diferentes, ambas sem geocodificação
+ * de rua, colapsaram no mesmo ponto — o `Marker` mais recente cobriu o anterior no pixel idêntico,
+ * e quem monta a viagem via 2 pinos onde havia 3 paradas, sem indício nenhum de que um estava
+ * escondido atrás do outro.
+ *
+ * ⚠️ **O deslocamento é em PIXEL, nunca em grau de latitude/longitude.** A primeira versão espalhava
+ * em graus (dezenas de metros) — correto perto do zoom de rua, e invisível no zoom que esta tela usa
+ * de verdade: a montagem enquadra TODAS as paradas de uma vez (`fitToStops`), então duas paradas na
+ * mesma cidade continuam a poucos pixels uma da outra mesmo depois de afastadas em metros, porque
+ * o zoom cai para caber cidades a dezenas de km de distância na mesma tela. `Marker` aceita
+ * `offset: PointLike` em pixel, aplicado no render e por isso invariável ao zoom — é a única forma
+ * de garantir separação visível em qualquer enquadramento. A coordenada geográfica do marcador
+ * continua a mesma: só o desenho do pino desliza na tela, e a mensagem "posição aproximada" da
+ * lista permanece verdadeira.
+ */
+const OVERLAP_FAN_RADIUS_PIXELS = 16
+
+export function resolveMarkerOffsets(
+  points: readonly AssemblyMapPoint[],
+): ReadonlyMap<string, readonly [number, number]> {
+  const groups = new Map<string, AssemblyMapPoint[]>()
+  for (const point of points) {
+    const key = `${point.latitude}:${point.longitude}`
+    const group = groups.get(key)
+    if (group === undefined) groups.set(key, [point])
+    else group.push(point)
+  }
+
+  const offsets = new Map<string, readonly [number, number]>()
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      const [only] = group as [AssemblyMapPoint]
+      offsets.set(only.stopKey, [0, 0])
+      continue
+    }
+    group.forEach((point, index) => {
+      const angle = (2 * Math.PI * index) / group.length
+      offsets.set(point.stopKey, [
+        Math.round(OVERLAP_FAN_RADIUS_PIXELS * Math.cos(angle)),
+        Math.round(OVERLAP_FAN_RADIUS_PIXELS * Math.sin(angle)),
+      ])
+    })
+  }
+  return offsets
+}
 
 export type AssemblyMap = Readonly<{
   /**
@@ -214,12 +263,11 @@ function groupByStop(
 ): readonly StopGroup[] {
   const groups = new Map<string, AssemblyMapNote[]>()
   for (const note of notes) {
-    const key =
-      buildStopAddressKey({
-        cityCode: note.cityCode,
-        number: note.addressNumber,
-        postalCode: note.postalCode,
-      }) ?? `cidade:${note.cityCode ?? ''}`
+    const key = resolveStopKey({
+      cityCode: note.cityCode,
+      number: note.addressNumber,
+      postalCode: note.postalCode,
+    })
     groups.set(key, [...(groups.get(key) ?? []), note])
   }
 

@@ -28,7 +28,11 @@ type TripRouteMapProps = Readonly<{
   /** Corrigir é escrita: sem `trip.manage` a tela mostra o mapa e não oferece o pino. */
   canCorrect: boolean
   isCorrecting: boolean
+  /** GET /trips/:id pode levar segundos — a linha reta desenha enquanto a estrada não chega. */
+  isGeometryError: boolean
+  isGeometryPending: boolean
   onCorrect: (input: Readonly<{ addressKey: string; latitude: string; longitude: string }>) => void
+  onRetryGeometry: () => void
   stops: readonly TripStopDetail[]
 }>
 
@@ -50,7 +54,10 @@ export function TripRouteMap({
   canCorrect,
   geometry,
   isCorrecting,
+  isGeometryError,
+  isGeometryPending,
   onCorrect,
+  onRetryGeometry,
   stops,
 }: TripRouteMapProps) {
   const { t } = useTranslation('trip')
@@ -150,6 +157,20 @@ export function TripRouteMap({
         shapes={[...basemap, ...trace, ...pins]}
         viewBox={`0 0 ${MAP_VIEWBOX_SIZE} ${MAP_VIEWBOX_SIZE}`}
       />
+      {isGeometryPending ? (
+        <p className={styles.hint} role="status">
+          {t('routeMap.loadingGeometry')}
+        </p>
+      ) : null}
+      {isGeometryError ? (
+        <p className={styles.hint} role="status">
+          {t('routeMap.geometryUnavailable')}
+          <Button onClick={onRetryGeometry} size="sm" type="button" variant="ghost">
+            <Icon name="refresh" />
+            {t('routeMap.retry')}
+          </Button>
+        </p>
+      ) : null}
       {canCorrect ? (
         <TripStopPointCorrection isCorrecting={isCorrecting} onCorrect={onCorrect} stops={stops} />
       ) : null}

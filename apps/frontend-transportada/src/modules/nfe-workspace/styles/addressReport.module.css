@@ -6,21 +6,20 @@
 }
 
 .title {
-  font-size: var(--font-size-lg);
+  font-size: 1.1rem;
   font-weight: 600;
   margin: 0;
 }
 
 .summary,
 .notice {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
   margin: 0;
 }
 
 .group {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -35,16 +34,15 @@
 }
 
 .groupName {
-  font-size: var(--font-size-md);
+  font-size: 0.95rem;
   font-weight: 600;
   margin: 0;
 }
 
 .groupCount {
-  background: var(--color-surface-raised);
-  border-radius: var(--radius-full);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
   padding: var(--space-1) var(--space-3);
 }
 
@@ -58,7 +56,7 @@
 }
 
 .finding {
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -67,9 +65,9 @@
 
 .kind {
   align-items: center;
-  color: var(--color-text);
+  color: var(--color-fog);
   display: inline-flex;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   font-weight: 600;
   gap: var(--space-2);
   width: fit-content;
@@ -78,11 +76,11 @@
 .kind[data-kind='coordinate_unresolved'],
 .kind[data-kind='street_unknown'],
 .kind[data-kind='city_mismatch'] {
-  color: var(--color-danger);
+  color: var(--color-alert);
 }
 
 .kind[data-kind='street_incomplete'] {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
 }
 
 .sides {
@@ -103,23 +101,23 @@
 }
 
 .side {
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   margin: 0;
 }
 
 .sideLabel {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   display: block;
-  font-size: var(--font-size-xs);
+  font-size: 0.75rem;
   text-transform: uppercase;
 }
 
 .unknown {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
 }
 
 .distance {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.75rem;
   margin: 0;
 }

@@ -20,8 +20,10 @@ export type CteProfileSettingsContract = Readonly<{
   matchMode: 'manual' | 'sender_tax_id'
   modal: '01' | '02' | '03' | '04' | '05'
   name: string
+  nfseEmissionProfileId: null | string
   observations: string
   operationNature: string
+  outputDocument: 'cte' | 'nfse'
   pickupDetails: string
   pickupIndicator: '0' | '1'
   predominantProductMode: 'fixed' | 'highest_quantity' | 'highest_value' | 'highest_weight'
@@ -94,8 +96,10 @@ export const PROFILE_SETTINGS = {
   matchMode: 'sender_tax_id',
   modal: '01',
   name: 'Perfil padrão',
+  nfseEmissionProfileId: null,
   observations: '',
   operationNature: 'PRESTACAO DE SERVICO DE TRANSPORTE',
+  outputDocument: 'cte',
   pickupDetails: '',
   pickupIndicator: '1',
   predominantProductMode: 'highest_value',

@@ -15,6 +15,7 @@ export const PERMISSION_GROUPS = [
   { key: 'batches', permissions: ['batches.create', 'batches.approve'] },
   { key: 'cte', permissions: ['cte.manage', 'cte.submit', 'cte.issue', 'cte.cancel', 'cte.read'] },
   { key: 'freight', permissions: ['freight.simulate'] },
+  // `whatsapp.settle` e `mdfe.auto-issue` ficam fora: são de máquina, e a API não os oferece (T014b).
   { key: 'billing', permissions: ['billing.create', 'billing.cancel', 'billing.read'] },
   { key: 'fleet', permissions: ['fleet.read', 'fleet.manage'] },
   {
@@ -23,14 +24,7 @@ export const PERMISSION_GROUPS = [
   },
   {
     key: 'mdfe',
-    permissions: [
-      'mdfe.read',
-      'mdfe.manage',
-      'mdfe.issue',
-      'mdfe.close',
-      'mdfe.cancel',
-      'mdfe.auto-issue',
-    ],
+    permissions: ['mdfe.read', 'mdfe.manage', 'mdfe.issue', 'mdfe.close', 'mdfe.cancel'],
   },
   { key: 'nfse', permissions: ['nfse.read', 'nfse.manage', 'nfse.issue', 'nfse.cancel'] },
   {

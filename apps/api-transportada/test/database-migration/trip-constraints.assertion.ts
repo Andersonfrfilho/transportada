@@ -4,6 +4,7 @@ import { expect } from 'bun:test'
 import type { FleetFixture } from './fleet-constraints.assertion.js'
 import type { IdentityFixture } from './identity-constraints.assertion.js'
 import { expectQueryToFail } from './support.js'
+import { assertTripDocumentReviewConstraints } from './trip-document-review-constraints.assertion.js'
 
 const ZERO_SHA256 = '0'.repeat(64)
 
@@ -234,6 +235,15 @@ export async function assertTripConstraints(
       (select count(*) from trip_documents where trip_id = ${otherTripId}) as documents
   `
   expect(orphans[0]).toEqual({ drivers: '0', documents: '0' })
+
+  await assertTripDocumentReviewConstraints({
+    companyId,
+    database,
+    nfeDocumentId: liveNfeDocumentId,
+    tripDocumentId: liveTripDocumentId,
+    tripId,
+    userId,
+  })
 
   await assertLiveManifestConstraint({ companyId, database, tripId, vehicleId })
 

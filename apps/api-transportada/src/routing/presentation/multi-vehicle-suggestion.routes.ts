@@ -5,7 +5,7 @@
  * pertence a viagem nenhuma — ela existe justamente antes de as viagens existirem, e pendurá-la numa
  * viagem obrigaria a inventar uma para poder pedir a sugestão que decide quantas criar.
  */
-import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import { parseOptionalBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { HTTP_ERROR, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -19,18 +19,35 @@ import type {
   MultiVehicleSuggestionUseCase,
 } from '../application/multi-vehicle-suggestion.port.js'
 import type { RouteSuggestion } from '../application/route-suggestion.port.js'
-import { createMultiVehicleSuggestionSchema } from './route-suggestion-request.schema.js'
+import type { SuggestionValuation } from '../application/read-suggestion-valuation.use-case.js'
+import {
+  acceptMultiVehicleSuggestionSchema,
+  createMultiVehicleSuggestionSchema,
+} from './route-suggestion-request.schema.js'
 
 const MULTI_VEHICLE_PATH = '/route-suggestions/multi-vehicle'
 const MULTI_VEHICLE_SUGGESTION_PATH = '/route-suggestions/:suggestionId'
 const MULTI_VEHICLE_ACCEPT_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/accept`
 const MULTI_VEHICLE_REJECT_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/reject`
+const MULTI_VEHICLE_VALUATION_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/valuation`
 
 /** A mesma permissão da sugestão de viagem: pedir roteiro é escrever viagem, aqui e lá. */
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
+/**
+ * Spec 101: dinheiro tem permissão própria. Quem monta o roteiro (`trip.manage`) não ganha de
+ * carona a margem da operação — é a mesma separação que o painel da viagem já faz.
+ */
+const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 
-type Dependencies = Readonly<{ multiVehicleSuggestions: MultiVehicleSuggestionUseCase }>
+type Dependencies = Readonly<{
+  multiVehicleSuggestions: MultiVehicleSuggestionUseCase
+  /** Spec 101: a conta por viagem proposta, mais o relatório do conjunto. */
+  readSuggestionValuation: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<SuggestionValuation>
+}>
 
 export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
   return [
@@ -86,21 +103,73 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       pathname: MULTI_VEHICLE_SUGGESTION_PATH,
       policy: TRIP_READ_POLICY,
     }),
-    defineRoute<{ readonly suggestionId: string }>({
+    defineRoute<{
+      readonly correlationId?: string
+      readonly releaseUnplacedFromLayoutIds?: readonly string[]
+      readonly stopOrderByVehicle?: readonly Readonly<{
+        orderedAddressKeys: readonly string[]
+        vehicleId: string
+      }>[]
+      readonly suggestionId: string
+      readonly vehicleIds?: readonly string[]
+    }>({
       async handle({ context, input }): Promise<Response> {
         const accepted = await dependencies.multiVehicleSuggestions.accept({
           context: context.scope,
           suggestionId: input.suggestionId,
+          ...(input.releaseUnplacedFromLayoutIds === undefined
+            ? {}
+            : {
+                releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds,
+                ...(input.correlationId === undefined
+                  ? {}
+                  : { correlationId: input.correlationId }),
+              }),
+          ...(input.stopOrderByVehicle === undefined
+            ? {}
+            : { stopOrderByVehicle: input.stopOrderByVehicle }),
+          ...(input.vehicleIds === undefined ? {} : { vehicleIds: input.vehicleIds }),
         })
 
         return jsonResponse({ body: { data: serializeAccepted(accepted) }, status: 200 })
       },
       method: 'POST',
+      /**
+       * Spec 110 D5a: corpo **opcional**. Sem `content-type` o aceite é o de sempre — a proposta
+       * inteira —, e é isso que mantém o cliente anterior a esta spec funcionando sem mudar nada.
+       */
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseOptionalBody(acceptMultiVehicleSuggestionSchema, request)
+
+        return {
+          suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+          ...(body.releaseUnplacedFromLayoutIds === undefined
+            ? {}
+            : { correlationId, releaseUnplacedFromLayoutIds: body.releaseUnplacedFromLayoutIds }),
+          ...(body.stopOrderByVehicle === undefined
+            ? {}
+            : { stopOrderByVehicle: body.stopOrderByVehicle }),
+          ...(body.vehicleIds === undefined ? {} : { vehicleIds: body.vehicleIds }),
+        }
+      },
+      pathname: MULTI_VEHICLE_ACCEPT_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly suggestionId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const valuation = await dependencies.readSuggestionValuation({
+          companyId: context.scope.companyId,
+          suggestionId: input.suggestionId,
+        })
+
+        return jsonResponse({ body: { data: serializeValuation(valuation) }, status: 200 })
+      },
+      method: 'GET',
       parse: ({ pathParameters }) => ({
         suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
       }),
-      pathname: MULTI_VEHICLE_ACCEPT_PATH,
-      policy: TRIP_MANAGE_POLICY,
+      pathname: MULTI_VEHICLE_VALUATION_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
     }),
     defineRoute<{ readonly suggestionId: string }>({
       async handle({ context, input }): Promise<Response> {
@@ -142,14 +211,55 @@ async function parseRequiredBody(
  */
 function serializeAccepted(accepted: AcceptedMultiVehicleSuggestion): object {
   return {
+    /**
+     * Spec 107 D1: as notas que ficaram de fora, **nomeadas**. Vazio é o normal; não-vazio é o que a
+     * tela abre numa lista — "56 notas" sem quais manda o operador procurar numa tela de 345.
+     */
+    skippedDocuments: accepted.skippedDocuments,
     suggestion: serializeSuggestion(accepted.suggestion),
     trips: accepted.trips.map((trip) => ({
       documentCount: trip.documentCount,
       /** RF-6: quem ficou com o quê, sem uma segunda consulta à viagem recém-criada. */
       driverId: trip.driverId,
+      /** Spec 107 D3: quando este caminhão fica livre — o que a frase da sobra imprime. */
+      estimatedFinishAt: trip.estimatedFinishAt,
       stopCount: trip.stopCount,
       tripId: trip.tripId,
       vehicleId: trip.vehicleId,
+    })),
+  }
+}
+
+/**
+ * ⚠️ A conta por veículo viaja **inteira** — as parcelas com a lacuna de cada uma —, e não só o
+ * total: é a lacuna que diz o que cadastrar, e um total sem elas seria um número sem instrução.
+ */
+function serializeValuation(valuation: SuggestionValuation): object {
+  return {
+    report: {
+      gaps: valuation.report.gaps,
+      hasGaps: valuation.report.hasGaps,
+      totalCost: valuation.report.totalCost,
+      totalDistanceMeters: valuation.report.totalDistanceMeters,
+      totalDurationSeconds: valuation.report.totalDurationSeconds,
+      totalMargin: valuation.report.totalMargin,
+      totalRevenue: valuation.report.totalRevenue,
+    },
+    vehicles: valuation.vehicles.map((vehicle) => ({
+      distanceMeters: vehicle.distanceMeters,
+      /** Decisão 2026-09-13: ida e volta ao lado do total. ⚠️ Chave nova: o bundle sobe antes (D17). */
+      distanceParts: vehicle.distanceParts,
+      documentCount: vehicle.documentCount,
+      driverId: vehicle.driverId,
+      /**
+       * Decisão 2026-09-13: a composição do tempo (estrada, volta, parado) ao lado do total. ⚠️ Chave
+       * nova: o bundle que a aceita sobe **antes** desta API (spec 145 D17).
+       */
+      durationParts: vehicle.durationParts,
+      durationSeconds: vehicle.durationSeconds,
+      stopCount: vehicle.stopCount,
+      valuation: vehicle.valuation,
+      vehicleId: vehicle.vehicleId,
     })),
   }
 }

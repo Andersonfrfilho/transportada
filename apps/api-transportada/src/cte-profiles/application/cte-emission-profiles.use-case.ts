@@ -2,7 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CteEmissionProfileStatus } from '../../database/cte-emission-profile.schema.js'
-import { CteEmissionProfileNotActivatableError } from '../domain/cte-profile.error.js'
+import {
+  CteEmissionProfileNfseProfileNotActiveError,
+  CteEmissionProfileNotActivatableError,
+  CteEmissionProfileOutputDocumentIncoherentError,
+} from '../domain/cte-profile.error.js'
+import { findOutputDocumentViolations } from '../domain/output-document.policy.js'
 import {
   CREATE_OPERATION,
   createIdempotencyConflict,
@@ -26,11 +31,22 @@ import type {
   CteEmissionProfileMatcherInput,
   CteEmissionProfilePage,
   CteEmissionProfileSettings,
+  CteEmissionProfileSettingsInput,
   CteEmissionProfileTransactionPort,
   CteEmissionProfilesUnitOfWorkPort,
 } from './cte-emission-profile.port.js'
 
 const TEXT_ENCODER = new TextEncoder()
+
+type OutputDocumentChoice = Pick<
+  CteEmissionProfileSettings,
+  'nfseEmissionProfileId' | 'outputDocument'
+>
+
+const NEW_PROFILE_OUTPUT: OutputDocumentChoice = {
+  nfseEmissionProfileId: null,
+  outputDocument: 'cte',
+}
 
 export type CreateCteEmissionProfileInput = {
   readonly components: readonly CteEmissionProfileComponentInput[]
@@ -39,7 +55,7 @@ export type CreateCteEmissionProfileInput = {
   readonly freightRule: CteEmissionProfileFreightRuleInput
   readonly idempotencyKey: string
   readonly matchers: readonly CteEmissionProfileMatcherInput[]
-  readonly settings: CteEmissionProfileSettings
+  readonly settings: CteEmissionProfileSettingsInput
 }
 
 export type UpdateCteEmissionProfileInput = {
@@ -50,7 +66,7 @@ export type UpdateCteEmissionProfileInput = {
   readonly freightRule: CteEmissionProfileFreightRuleInput
   readonly matchers: readonly CteEmissionProfileMatcherInput[]
   readonly profileId: string
-  readonly settings: CteEmissionProfileSettings
+  readonly settings: CteEmissionProfileSettingsInput
 }
 
 export type ChangeCteEmissionProfileStatusInput = {
@@ -148,7 +164,12 @@ export function createCteEmissionProfilesUseCase(dependencies: {
           companyId: input.context.companyId,
           createdByUserId: input.context.userId,
           freightRule: input.freightRule,
-          settings: input.settings,
+          settings: await resolveSettings({
+            companyId: input.context.companyId,
+            current: NEW_PROFILE_OUTPUT,
+            settings: input.settings,
+            transaction,
+          }),
           transaction,
         })
         await replaceChildren({
@@ -207,6 +228,16 @@ export function createCteEmissionProfilesUseCase(dependencies: {
           transaction,
         })
 
+        const settings = await resolveSettings({
+          companyId: input.context.companyId,
+          current: {
+            nfseEmissionProfileId: current.nfseEmissionProfileId,
+            outputDocument: current.outputDocument,
+          },
+          settings: input.settings,
+          transaction,
+        })
+
         const persisted = await requirePersisted({
           companyId: input.context.companyId,
           persisted: await transaction.updateProfile({
@@ -214,7 +245,7 @@ export function createCteEmissionProfilesUseCase(dependencies: {
             expectedVersion: input.expectedVersion,
             freightRule: input.freightRule,
             profileId: input.profileId,
-            settings: input.settings,
+            settings,
           }),
           profileId: input.profileId,
           transaction,
@@ -275,6 +306,40 @@ async function appendProfileAudit(input: {
     entityId: input.profile.id,
     entityType: ENTITY_TYPE,
   })
+}
+
+/**
+ * Os dois campos da D3 andam em par: mandar o documento sem o ponteiro é dizer "sem perfil NFS-e", e
+ * não mandar nenhum dos dois preserva a escolha atual — é o caso do cliente anterior à spec 144.
+ */
+async function resolveSettings(input: {
+  readonly companyId: string
+  readonly current: OutputDocumentChoice
+  readonly settings: CteEmissionProfileSettingsInput
+  readonly transaction: CteEmissionProfileTransactionPort
+}): Promise<CteEmissionProfileSettings> {
+  const { nfseEmissionProfileId, outputDocument, ...rest } = input.settings
+  const settings: CteEmissionProfileSettings = {
+    ...rest,
+    nfseEmissionProfileId:
+      nfseEmissionProfileId !== undefined
+        ? nfseEmissionProfileId
+        : outputDocument === undefined
+          ? input.current.nfseEmissionProfileId
+          : null,
+    outputDocument: outputDocument ?? input.current.outputDocument,
+  }
+
+  const violations = findOutputDocumentViolations(settings)
+  if (violations.length > 0) throw new CteEmissionProfileOutputDocumentIncoherentError(violations)
+  if (settings.nfseEmissionProfileId === null) return settings
+
+  const status = await input.transaction.findNfseEmissionProfileStatus({
+    companyId: input.companyId,
+    nfseEmissionProfileId: settings.nfseEmissionProfileId,
+  })
+  if (status !== 'active') throw new CteEmissionProfileNfseProfileNotActiveError()
+  return settings
 }
 
 function assertActivatable(profile: CteEmissionProfileDetail): void {

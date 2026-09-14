@@ -40,6 +40,7 @@ export const QUEUED_SUGGESTION: RouteSuggestion = {
   estimatedDistanceMeters: null,
   estimatedDurationSeconds: null,
   id: SUGGESTION_ID,
+  plannedDepartureAt: null,
   seed: 12_345,
   status: 'queued',
   stops: [],
@@ -169,16 +170,31 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
   const poolSuggestion: RouteSuggestion = { ...QUEUED_SUGGESTION, tripId: null }
 
   const routes = createMultiVehicleSuggestionRoutes({
+    /** Spec 101: a fixture cobre as rotas de sugestão; a conta tem contrato próprio. */
+    readSuggestionValuation: async () => ({
+      report: {
+        gaps: [],
+        hasGaps: false,
+        totalCost: '0.0000',
+        totalDistanceMeters: null,
+        totalDurationSeconds: null,
+        totalMargin: '0.0000',
+        totalRevenue: '0.0000',
+      },
+      vehicles: [],
+    }),
     multiVehicleSuggestions: {
       async accept(input) {
         acceptCalls.push(structuredClone(input) as unknown as Call)
         if (params.acceptError) throw params.acceptError
         return {
+          skippedDocuments: [],
           suggestion: { ...poolSuggestion, status: 'accepted' as const },
           trips: [
             {
               documentCount: 2,
               driverId: 'driver-1',
+              estimatedFinishAt: '2026-09-09T17:00:00.000Z',
               stopCount: 1,
               tripId: 'trip-1',
               vehicleId: 'vehicle-1',

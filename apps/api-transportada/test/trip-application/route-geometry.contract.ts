@@ -31,7 +31,8 @@ function porta(
     port: {
       readRouteGeometry: async (points: readonly RouteGeometryPoint[]) => {
         calls.push(points)
-        return road === null ? null : { legs, points: road }
+        // Esta suíte é da geometria, não do pedágio: os nós ficam desconhecidos de propósito.
+        return road === null ? null : { legs, nodeIds: null, nodeIdsByLeg: null, points: road }
       },
     },
   }
@@ -58,7 +59,18 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
 
     const view = await readRouteGeometry({ geometry: port, stops: PARADAS })
 
-    expect(view).toEqual({ legs: [], points: [], source: 'unavailable' })
+    expect(view).toEqual({
+      cheapestIndex: null,
+      costGap: null,
+      depot: null,
+      fastestIndex: null,
+      hasChoice: false,
+      legs: [],
+      options: [],
+      points: [],
+      source: 'unavailable',
+      toll: null,
+    })
   })
 
   /** Uma parada só não tem trajeto, e pedi-lo ao OSRM gastaria uma chamada por nada. */

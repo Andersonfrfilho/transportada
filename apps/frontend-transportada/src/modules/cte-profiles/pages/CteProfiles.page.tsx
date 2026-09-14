@@ -135,6 +135,7 @@ export function CteProfilesPage() {
           <CteProfileForm
             key={editing.profile?.id ?? 'new-profile'}
             {...(editing.profile === undefined ? {} : { profile: editing.profile })}
+            nfseProfiles={workspace.nfseProfileOptions}
             onCancel={() => setEditing(null)}
             onCreate={(body) => workspace.createProfileMutation.mutateAsync(body)}
             onUpdate={(input) => workspace.updateProfileMutation.mutateAsync(input)}

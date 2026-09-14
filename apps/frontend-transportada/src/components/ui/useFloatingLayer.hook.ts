@@ -99,6 +99,7 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
       return undefined
     }
     measure()
+    const openedAt = anchorRef.current?.getBoundingClientRect() ?? null
 
     /**
      * Rolar a página **fecha** a camada, em vez de arrastá-la junto. Presa ao gatilho ela atravessa
@@ -107,10 +108,18 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
      * A rolagem **de dentro** da própria lista é a exceção: é assim que se chega ao fim das opções,
      * e fechar ali tornaria toda lista longa inescolhível. A captura existe para alcançar as duas —
      * o evento de rolagem não sobe pela árvore.
+     *
+     * ⚠️ **Evento de rolagem que não moveu o gatilho não fecha nada.** O navegador entrega a
+     * rolagem no quadro seguinte ao gesto, e uma rolagem que terminou antes do toque chegava
+     * depois da abertura e fechava a lista na mesma hora — sem nada ter saído do lugar.
      */
     function handleScroll(event: Event): void {
       const target = event.target
       if (target instanceof Node && layerRef.current?.contains(target) === true) return
+      const current = anchorRef.current?.getBoundingClientRect()
+      if (openedAt !== null && current?.top === openedAt.top && current.left === openedAt.left) {
+        return
+      }
       dismissRef.current()
     }
 

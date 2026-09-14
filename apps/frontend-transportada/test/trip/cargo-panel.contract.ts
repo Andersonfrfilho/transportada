@@ -17,8 +17,12 @@ const CSS = new URL('../../src/modules/trip/styles/trip.module.css', import.meta
 
 /**
  * A carga era **dois painéis**: um dizia quanto do baú foi ocupado sem mostrar de quem era o
- * espaço, e o outro desenhava a distribuição sem o número que ela ilustra. A ressalva de estimativa
- * aparecia nos dois.
+ * espaço, e o outro desenhava a distribuição sem o número que ela ilustra.
+ *
+ * ⚠️ E depois foram **três desenhos**: a fileira proporcional da 085, a planta em escala da 088 e o
+ * isométrico da 095. A spec 095 ficou com um só — a fileira e a planta eram justamente as duas que
+ * não dizem onde a caixa vai, e três linguagens para o mesmo fato é o que faz ninguém olhar
+ * nenhuma.
  */
 describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
   const source = readFileSync(PANEL, 'utf8')
@@ -34,7 +38,13 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
   it('o painel reúne ocupação, peso e desenho', () => {
     expect(source).toInclude("t('occupancy.ratio'")
     expect(source).toInclude("t('cargoWeight.total'")
-    expect(source).toInclude('layout.rows')
+    expect(source).toInclude('<TripCargoLayers')
+  })
+
+  /** Um desenho só: a fileira proporcional e a planta em escala saíram com a 095. */
+  it('desenha a carga uma vez', () => {
+    expect(source).not.toInclude('<TripCargoPlan')
+    expect(source).not.toInclude('<TripCargoDrawing')
   })
 
   /**
@@ -43,16 +53,15 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
    * inverso do que o operador tem de fazer com o caminhão vazio na frente dele.
    */
   it('desenha na ordem de carregamento, não na de entrega', () => {
-    /** Sem o espaçamento: a intenção é ordenar por carregamento, não a formatação da linha. */
-    expect(source).toInclude('first.loadOrder - second.loadOrder')
-    expect(trip.cargoLayout.bottom).toInclude('última')
-    expect(trip.cargoLayout.door).toInclude('primeira')
-  })
-
-  /** As duas pontas são nomeadas: posição sem legenda é adivinhação. */
-  it('nomeia o fundo e a porta', () => {
-    expect(source).toInclude("t('cargoLayout.bottom')")
-    expect(source).toInclude("t('cargoLayout.door')")
+    /**
+     * ⚠️ Spec 100: o cabeçalho passou a ter um por arranjo. Em profundidade ele continua dizendo
+     * "da testeira", que é o que esta afirmação mede; em faixas nenhuma parada fica atrás de outra
+     * e a palavra deixaria de ser verdade.
+     */
+    expect(trip.cargoLayers.print.caption.depth).toInclude('testeira')
+    expect(trip.cargoLayers.print.caption.depth).toInclude('porta')
+    /** E em faixas o cabeçalho diz o que muda: todas na porta, nenhuma atrás de outra. */
+    expect(trip.cargoLayers.print.caption.lanes).toInclude('porta')
   })
 
   /**
@@ -60,14 +69,9 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
    * a fatia é o total da parada — não a caixa. O desenho não pode ganhar altura por peça, pilha nem
    * canto: a spec 079 T003 já decidiu isso, e continuar valendo é o ponto deste teste.
    */
-  it('não sugere posição de peça', () => {
-    expect(source).toInclude('não sugere posição de peça')
-    expect(source).not.toInclude('stow')
-  })
-
-  /** O desenho é caixa de CSS: `<svg>` cru é proibido fora do design system. */
-  it('desenha sem svg', () => {
+  /** `<svg>` cru é proibido fora do design system — o desenho vem de `@/components/ui`. */
+  it('desenha sem svg cru', () => {
     expect(source).not.toInclude('<svg')
-    expect(css).toInclude('.truckCab')
+    expect(css).not.toInclude('.truckCab')
   })
 })

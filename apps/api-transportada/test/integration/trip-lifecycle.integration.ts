@@ -189,6 +189,33 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           'loading',
         )
 
+        /**
+         * Spec 109 D2: a viagem foi planejada para sair às 8h e o motorista clica agora. O ETA de
+         * cada parada tem de andar o mesmo tanto — é o deslocamento que só se prova contra o banco,
+         * porque a conta acontece em SQL (`make_interval`).
+         */
+        const plannedDepartureAt = new Date(Date.now() - 90 * 60 * 1_000)
+        await routeRepository.writeEstimatedArrivals({
+          arrivals: (
+            await database.db
+              .select({ id: tripStops.id })
+              .from(tripStops)
+              .where(eq(tripStops.tripId, trip.id))
+          ).map((stop, offset) => ({
+            estimatedArrivalAt: new Date(
+              plannedDepartureAt.getTime() + (offset + 1) * 3_600 * 1_000,
+            ).toISOString(),
+            stopId: stop.id,
+          })),
+          companyId,
+          plannedDepartureAt: plannedDepartureAt.toISOString(),
+          tripId: trip.id,
+        })
+        const beforeDispatch = await database.db
+          .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt, id: tripStops.id })
+          .from(tripStops)
+          .where(eq(tripStops.tripId, trip.id))
+
         const dispatched = await dispatchTrip({
           actorUserId: userId,
           companyId,
@@ -196,6 +223,24 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           tripId: trip.id,
         })
         expect(dispatched.tripStatus).toBe('dispatched')
+
+        const afterDispatch = new Map(
+          (
+            await database.db
+              .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt, id: tripStops.id })
+              .from(tripStops)
+              .where(eq(tripStops.tripId, trip.id))
+          ).map((stop) => [stop.id, stop.estimatedArrivalAt]),
+        )
+        for (const stop of beforeDispatch) {
+          const shiftedMinutes =
+            ((afterDispatch.get(stop.id)?.getTime() ?? 0) -
+              (stop.estimatedArrivalAt?.getTime() ?? 0)) /
+            60_000
+          /** Saiu ~90 minutos depois do previsto: toda parada anda ~90 minutos. */
+          expect(shiftedMinutes).toBeGreaterThan(89)
+          expect(shiftedMinutes).toBeLessThan(91)
+        }
 
         // O snapshot congelado lista as duas paradas, com as notas certas em cada uma.
         const [snapshot] = await database.db

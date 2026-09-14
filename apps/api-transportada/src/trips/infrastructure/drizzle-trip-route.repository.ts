@@ -3,7 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { and, asc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm'
 
 import {
   tripDispatchSnapshots,
@@ -20,11 +20,19 @@ import type {
 } from '../application/dispatch-trip.use-case.js'
 import { listUnscheduledStops } from '../../delivery-clients/infrastructure/unscheduled-stop.query.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
+import { buildCancelReleaseWhere } from './cancel-release.query.js'
+import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type {
   ReorderTripStopsPort,
   ReorderTripStopsPreconditions,
 } from '../application/reorder-trip-stops.use-case.js'
+import {
+  createRequestCargoLayoutForTrip,
+  type RequestCargoLayoutForTrip,
+} from './eager-cargo-layout-request.support.js'
+import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -42,7 +50,14 @@ const SEQUENCE_PARKING_OFFSET = 1_000_000
 export class DrizzleTripRouteRepository
   implements PlanTripRoutePort, DispatchTripPort, CancelTripPort, ReorderTripStopsPort
 {
-  public constructor(private readonly database: TripDatabase) {}
+  private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+
+  public constructor(
+    private readonly database: TripDatabase,
+    options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+  ) {
+    this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+  }
 
   public async readRouteState(input: {
     readonly companyId: string
@@ -106,16 +121,87 @@ export class DrizzleTripRouteRepository
     return record?.status ?? null
   }
 
+  /**
+   * Spec 102: cancelar **devolve a carga**. Até esta spec, este método só trocava `trips.status`, e
+   * quem decide se uma nota está disponível olha `released_at` — nunca o status da viagem. Cancelar
+   * prendia a carga para sempre, e nada na tela dizia por quê.
+   *
+   * ⚠️ **Na mesma transação, e nesta ordem.** Uma falha entre as duas escritas deixaria a viagem
+   * cancelada com a carga presa — exatamente o defeito que esta spec corrige.
+   *
+   * ⚠️ **`stop_id` NÃO é zerado aqui**, ao contrário de `releaseTripDocument`. Lá a nota sai de uma
+   * viagem que continua viva, e a parada precisa ser reconciliada (apagada se esvaziou); aqui a
+   * viagem inteira morre, ninguém vai reordenar parada dela, e manter a referência preserva o
+   * roteiro como ele foi planejado. Zerar produziria o pior dos dois: paradas vazias na tela e
+   * notas todas no balde "Sem parada".
+   */
+  /**
+   * Spec 107 D3: grava o ETA que o planejamento calculou e **carimba quando**, na mesma transação.
+   *
+   * ⚠️ O valor sem o carimbo é uma hora sem idade. O ETA congela no instante do planejamento e
+   * envelhece — às 14h ele ainda diz o que achava às 7h —, e é `estimated_arrival_frozen_at` que
+   * permite à tela dizer isso em vez de mostrar uma previsão que parece de agora.
+   */
+  public async writeEstimatedArrivals(input: {
+    readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
+    readonly companyId: string
+    /**
+     * Spec 109 D2: a saída suposta pelo planejamento — a âncora do ETA. `null` é sugestão anterior a
+     * esta spec: as horas ficam, e o despacho não as desloca por âncora inventada.
+     */
+    readonly plannedDepartureAt: string | null
+    readonly tripId: string
+  }): Promise<void> {
+    if (input.arrivals.length === 0) return
+
+    await this.database.transaction(async (transaction) => {
+      for (const arrival of input.arrivals) {
+        await transaction
+          .update(tripStops)
+          .set({ estimatedArrivalAt: new Date(arrival.estimatedArrivalAt) })
+          .where(
+            and(
+              eq(tripStops.companyId, input.companyId),
+              eq(tripStops.tripId, input.tripId),
+              eq(tripStops.id, arrival.stopId),
+            ),
+          )
+      }
+
+      await transaction
+        .update(trips)
+        .set({
+          estimatedArrivalFrozenAt: sql`now()`,
+          etaDepartureAt:
+            input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt),
+        })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    })
+  }
+
   public async markCancelled(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripStatus> {
-    const [updated] = await this.database
-      .update(trips)
-      .set({ status: 'cancelled', updatedAt: sql`now()` })
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-      .returning({ status: trips.status })
-    return updated?.status ?? 'cancelled'
+    return this.database.transaction(async (transaction) => {
+      /**
+       * ⚠️ A linha **permanece**, com `released_at` — é a única prova de que aquela nota chegou a
+       * ser carregada nesta viagem, e é o que atende "deixe no histórico da nota". Apagá-la
+       * destruiria o histórico enquanto todo teste de disponibilidade continuaria passando.
+       */
+      await transaction
+        .update(tripDocuments)
+        .set({ releasedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(buildCancelReleaseWhere(input))
+
+      const [updated] = await transaction
+        .update(trips)
+        .set({ status: 'cancelled', updatedAt: sql`now()` })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .returning({ status: trips.status })
+
+      return updated?.status ?? 'cancelled'
+    })
   }
 
   public async readStopOrderPreconditions(input: {
@@ -154,6 +240,11 @@ export class DrizzleTripRouteRepository
           .set({ sequence: BigInt(index + 1), updatedAt: sql`now()` })
           .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
       }
+
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
     })
   }
 }
@@ -216,6 +307,15 @@ async function dispatch(
     tripId: input.tripId,
   })
 
+  /**
+   * Spec 109 D2: **o roteiro foi planejado para uma hora de saída, e o caminhão sai noutra.** Aqui,
+   * no clique de quem sai, o ETA de cada parada anda o mesmo tanto que a saída atrasou.
+   *
+   * ⚠️ Deslocar, não recalcular: a ordem foi conferida no galpão e o caminhão foi carregado nela.
+   * ⚠️ Na mesma transação do congelamento do roteiro — o snapshot e as horas descrevem a mesma saída.
+   */
+  await shiftEstimatedArrivals(transaction, input)
+
   const [updated] = await transaction
     .update(trips)
     .set({ status: 'dispatched', updatedAt: sql`now()` })
@@ -223,6 +323,49 @@ async function dispatch(
     .returning({ status: trips.status })
 
   return { tripStatus: updated?.status ?? 'dispatched' }
+}
+
+/**
+ * ⚠️ **A âncora é reescrita com a saída real**, e é isso que torna o deslocamento idempotente:
+ * despachar de novo passa a ter diferença zero, sem depender de o chamador lembrar disso.
+ *
+ * ⚠️ Viagem sem âncora — planejada antes desta spec, ou montada à mão — não desloca nada: deslocar
+ * por uma âncora inventada erraria mais que não deslocar (`eta-anchor.policy.ts`).
+ */
+async function shiftEstimatedArrivals(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<void> {
+  const [trip] = await transaction
+    .select({ etaDepartureAt: trips.etaDepartureAt })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+
+  const departedAt = new Date()
+  const shiftMilliseconds = resolveEtaShiftMilliseconds({
+    plannedAt: trip?.etaDepartureAt ?? null,
+    reportedAt: departedAt,
+  })
+  if (shiftMilliseconds === 0) return
+
+  await transaction
+    .update(tripStops)
+    .set({
+      estimatedArrivalAt: sql`${tripStops.estimatedArrivalAt} + make_interval(secs => ${shiftMilliseconds / 1_000})`,
+    })
+    .where(
+      and(
+        eq(tripStops.companyId, input.companyId),
+        eq(tripStops.tripId, input.tripId),
+        isNotNull(tripStops.estimatedArrivalAt),
+      ),
+    )
+
+  await transaction
+    .update(trips)
+    .set({ estimatedArrivalFrozenAt: departedAt, etaDepartureAt: departedAt })
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
 }
 
 async function releaseUnloadedDocuments(

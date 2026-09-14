@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DriverHomeReport } from '../domain/driver-home-geocoding.policy.js'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type {
   FleetDriverStatus,
@@ -58,6 +59,12 @@ export type FleetVehicleInput = {
   readonly color: string
   readonly fleetNumber: string
   readonly fuelType: FuelProduct
+  /**
+   * Spec 095 D3: com a tag e a tarifa automática da praça conhecida, é ela que entra na conta do
+   * pedágio — sem a automática, cai para a manual (e a queda é contada, nunca um desconto
+   * estimado). Frota mista é o caso normal: quem paga com tag é o veículo, não a empresa.
+   */
+  readonly hasAutomaticTollPayment: boolean
   readonly model: string
   readonly modelYear: number
   readonly monthlyInstallmentAmount: string
@@ -129,6 +136,25 @@ export type FleetDriverAddress = {
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
   /**
+   * Spec 100: este motorista amarra a carga com cinta.
+   *
+   * ⚠️ Ele muda a **planta da carga**, não só a ficha: com a carga amarrada a pilha sobe até o teto
+   * do baú; sem ela a altura para na esbeltez, porque coluna livre tomba na curva. `false` por
+   * padrão — supor cinta desenharia pilha alta para quem não amarra.
+   */
+  readonly securesCargo: boolean
+  /**
+   * A coordenada da casa **corrigida à mão** no mapa da ficha (spec 097 D6).
+   *
+   * ⚠️ Ausente é "não mexeram nela", e não "apague": a ficha é salva inteira a cada edição, e um
+   * `undefined` lido como ordem de apagar destruiria a coordenada da busca automática toda vez que
+   * alguém corrigisse o telefone.
+   *
+   * ⚠️ Quando vem preenchida, ela **vence** a limpeza por mudança de endereço e carimba a marca de
+   * busca: correção humana é a palavra final, e não se procura de novo o que alguém já apontou.
+   */
+  readonly homeCoordinate?: Readonly<{ latitude: string; longitude: string }> | null
+  /**
    * Endereço da empresa do agregado — o do CNPJ de `linkedTaxId`, não o de quem dirige. Mesma
    * forma do residencial, e igualmente parcial. Endereço de pessoa jurídica é dado cadastral
    * público: ele fica em claro, fora do envelope da ADR-0039.
@@ -175,6 +201,14 @@ export type FleetDriverInput = {
 
 export type FleetDriver = FleetDriverInput & {
   readonly createdAt: string
+  /**
+   * Onde a casa fica, e por que ela pode não ter coordenada (spec 097 D6) — é isto que a tela
+   * transforma em mapa ou em aviso. A interpretação é recomputada na leitura; o banco guarda a
+   * observação (o par e a marca de "já procurei").
+   */
+  readonly home: DriverHomeReport
+  readonly homeLatitude: null | string
+  readonly homeLongitude: null | string
   readonly id: string
   readonly status: FleetDriverStatus
   readonly updatedAt: string

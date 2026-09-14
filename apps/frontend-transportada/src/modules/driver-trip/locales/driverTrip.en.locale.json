@@ -109,7 +109,8 @@
       "unknown": "No field role"
     },
     "signOut": "Sign out",
-    "vehicleTitle": "Trip vehicle"
+    "vehicleTitle": "Trip vehicle",
+    "whatsappTitle": "WhatsApp"
   },
   "progress": {
     "label": "{{resolved}} of {{total}} stops resolved"

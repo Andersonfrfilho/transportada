@@ -42,6 +42,16 @@ import settingsStyles from '../styles/distributionSettings.module.css'
 import styles from '../styles/nfeWorkspace.module.css'
 
 /** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
+/** Aba fora da lista, ou ausente, cai na de sempre — URL inventada não pode quebrar a tela. */
+function readTabFromLocation(): 'addresses' | 'boxes' | 'documents' | 'imports' {
+  const requested = new URLSearchParams(window.location.search).get('tab')
+  if (requested === 'addresses' || requested === 'boxes' || requested === 'imports') {
+    return requested
+  }
+
+  return 'documents'
+}
+
 function toErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
 }
@@ -217,8 +227,13 @@ export function NfeWorkspacePage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null)
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
+  /**
+   * Spec 088 R4: a aba abre pela URL. A planta do baú manda o conferente medir a caixa que falta, e
+   * um atalho que larga na aba errada faz ele procurar o botão em vez de medir. É leitura única, na
+   * montagem: a aba continua sendo estado da tela, e trocá-la não reescreve a URL.
+   */
   const [activeTab, setActiveTab] = useState<'addresses' | 'boxes' | 'documents' | 'imports'>(
-    'documents',
+    readTabFromLocation,
   )
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)

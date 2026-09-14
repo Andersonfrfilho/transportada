@@ -92,6 +92,18 @@ describe('contrato do .env.example', () => {
     expect(`ROUTING_MATRIX_URL=${declaration?.value}`).toBe('ROUTING_MATRIX_URL=')
   })
 
+  /** Spec 145 D14: API e worker derivam o mesmo lease deste número — os dois leem esta linha. */
+  test('o orçamento da planta de carga é declarado com o padrão do schema', async () => {
+    const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
+    const declaration = declarations.find(
+      (candidate) => candidate.key === 'CARGO_LAYOUT_TIME_BUDGET_MS',
+    )
+
+    expect(`CARGO_LAYOUT_TIME_BUDGET_MS=${declaration?.value}`).toBe(
+      'CARGO_LAYOUT_TIME_BUDGET_MS=120000',
+    )
+  })
+
   test('todo valor sobrevive ao `. ./.env` que o CI executa', async () => {
     const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
     expect(declarations.length).toBeGreaterThan(0)

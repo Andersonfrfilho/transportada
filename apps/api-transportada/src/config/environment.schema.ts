@@ -3,6 +3,8 @@
  */
 import { z } from 'zod'
 
+import { DATABASE_POOL_DEFAULTS } from '../database/database-pool.constant'
+import { REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
@@ -51,6 +53,24 @@ const environmentSchema = z.object({
         message: 'DATABASE_URL must use PostgreSQL',
       },
     ),
+  /**
+   * Spec 137: o pool e os tempos do banco são explícitos. Sem eles o Bun SQL espera conexão para
+   * sempre (`idleTimeout: 0`), e o pedido morria nos 10 s do `server.timeout` sem resposta nem log.
+   */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(DATABASE_POOL_DEFAULTS.max),
+  DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(30)
+    .default(DATABASE_POOL_DEFAULTS.connectTimeoutSeconds),
+  // Abaixo dos 10 s da requisição: acima dele o socket fecha antes de o 503 ter chance de sair.
+  DATABASE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(REQUEST_TIMEOUT_SECONDS * 1000 - 1000)
+    .default(DATABASE_POOL_DEFAULTS.queryTimeoutMs),
   // Lista separada por vírgula: painel e landing são origens diferentes e as duas precisam de CORS.
   // Cada uma valida sozinha — uma origem torta na lista não pode abrir a porta pras outras.
   FRONTEND_ORIGIN: z
@@ -94,6 +114,9 @@ const environmentSchema = z.object({
   // Marca e modelo da FIPE mudam em escala de mês, daí o padrão de trinta dias. Zero desliga o
   // cache — é a saída para depurar contra o provedor de verdade, e não contra a memória do processo.
   FLEET_VEHICLE_CATALOG_CACHE_HOURS: z.coerce.number().int().min(0).max(8_760).default(720),
+  // Spec 145 D14: mesmo formato e limites do worker — o lease que a API usa para reabrir planta parada
+  // é derivado deste número e precisa ser o mesmo do worker.
+  CARGO_LAYOUT_TIME_BUDGET_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -130,6 +153,21 @@ const environmentSchema = z.object({
   // Terceiro degrau da busca de CEP: só é consultado quando o banco da instalação não soube o
   // endereço inteiro. Vazio desliga aquele provedor — os dois vazios deixam a escada terminar em
   // casa, e o operador digita. Nenhum dos dois pede token: BrasilAPI e ViaCEP são públicos.
+  /**
+   * O Photon, para achar a coordenada da casa do motorista uma vez por ficha (spec 097 D6).
+   *
+   * ⚠️ Ausente é "esta instalação não preenche coordenada" — e o cadastro segue igual, sem ela.
+   * Serviço que não existe não pode derrubar salvamento de motorista.
+   */
+  DRIVER_ADDRESS_LOOKUP_URL: z
+    .string()
+    .url()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined || value.startsWith('https://') || value.startsWith('http://localhost'),
+      { message: 'DRIVER_ADDRESS_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL' },
+    ),
   POSTAL_CODE_BRASIL_API_URL: z
     .string()
     .trim()
@@ -236,9 +274,15 @@ export function parseEnvironment(environment: Record<string, string | undefined>
   return {
     appEnv: parsed.APP_ENV,
     bootstrapToken: parsed.BOOTSTRAP_TOKEN,
+    cargoLayoutTimeBudgetMs: parsed.CARGO_LAYOUT_TIME_BUDGET_MS,
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
+    databasePool: {
+      connectTimeoutSeconds: parsed.DATABASE_CONNECT_TIMEOUT_SECONDS,
+      max: parsed.DATABASE_POOL_MAX,
+      queryTimeoutMs: parsed.DATABASE_QUERY_TIMEOUT_MS,
+    },
     emailDelivery:
       parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
         ? undefined
@@ -262,6 +306,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
         ? undefined
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     apiPublicUrl: parsed.API_PUBLIC_URL,
+    driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,

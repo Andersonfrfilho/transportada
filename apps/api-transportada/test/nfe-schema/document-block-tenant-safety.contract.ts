@@ -6,6 +6,8 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  buildActiveEmissionProfileFilters,
+  buildNfseProfileJoin,
   buildDocumentBatchLinkFilters,
   buildDocumentGrossWeightFilters,
   buildDocumentListFilters,
@@ -84,6 +86,28 @@ describe('NF-e document block query tenant safety', () => {
    * O vínculo com a nota de serviço é liberado marcando `cancelled_at` na mesma transação que
    * cancela a nota — é esse recorte, e não o status da fatura, que o índice parcial guarda.
    */
+  /** Perfis carregados uma vez por página: o recorte de empresa é o que impede ler perfil alheio. */
+  test('scopes the active emission profiles by company', () => {
+    const query = toSql(buildActiveEmissionProfileFilters(COMPANY_ID))
+
+    expect(query.sql).toContain('"cte_emission_profiles"."company_id" = $')
+    expect(query.sql).toContain('"cte_emission_profiles"."status" = $')
+    expect(query.params).toEqual([COMPANY_ID, 'active'])
+  })
+
+  /** O status do perfil NFS-e entra pelo par da FK composta, nunca só pelo id (spec 144 D3). */
+  test('joins the NFS-e profile by company and id, never by id alone', () => {
+    const query = dialect.sqlToQuery(buildNfseProfileJoin())
+
+    expect(query.sql).toContain(
+      '"nfse_emission_profiles"."company_id" = "cte_emission_profiles"."company_id"',
+    )
+    expect(query.sql).toContain(
+      '"nfse_emission_profiles"."id" = "cte_emission_profiles"."nfse_emission_profile_id"',
+    )
+    expect(query.params).toEqual([])
+  })
+
   test('scopes the active service invoice links by company and ignores released ones', () => {
     const query = toSql(buildDocumentNfseLinkFilters(LOOKUP))
 

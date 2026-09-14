@@ -1,0 +1,254 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * O que a rota paga de pedágio (spec 090 T5). Política **pura**: recebe os nós que o caminhão
+ * percorreu, o catálogo de praças e a contagem de eixos, e devolve o custo com as praças nomeadas.
+ *
+ * ⚠️ **A praça se casa por identidade de nó, nunca por proximidade** (D1). A praça **é** um nó do
+ * OSM, então a interseção é exata e o sentido está resolvido por construção: rodovia duplicada tem
+ * as pistas a poucos metros uma da outra, e um raio cobraria a praça de quem passou do outro lado.
+ * Por isso esta política não conhece latitude nem longitude, e um contrato de texto de fonte reprova
+ * qualquer aritmética de distância que apareça aqui.
+ */
+import {
+  formatScaledDecimal,
+  MONEY_SCALE,
+  parseScaledDecimal,
+} from '../../shared/decimal.service.js'
+import type { TollMultiplier } from './toll-category.policy.js'
+
+const ERROR_CODE_PREFIX = 'TOLL_ROUTE_COST'
+
+export const AXLE_COUNT_SOURCES = ['declared', 'estimated'] as const
+export type AxleCountSource = (typeof AXLE_COUNT_SOURCES)[number]
+
+/**
+ * Quantos eixos, e de onde o número veio. A origem viaja **junto** do valor porque um veículo
+ * estimado torna o total estimado, e a tela é proibida de imprimir o número sem a marca
+ * (ADR-0044 §1).
+ */
+export type AxleCount = Readonly<{
+  count: number
+  source: AxleCountSource
+}>
+
+/**
+ * A praça como o catálogo a guarda. Tarifa `null` é **desconhecida**, nunca gratuita.
+ *
+ * ⚠️ `latitude`/`longitude` viajam junto **só para o mapa desenhar o ícone** (spec 096 D3) — quem
+ * decide se a praça foi cobrada continua sendo a identidade do nó, nunca a coordenada (ver o
+ * cabeçalho deste arquivo).
+ *
+ * ⚠️ `chargePerAxleAutomatic` é a tarifa de quem paga com tag (spec 095 D3) — o OSM não a declara,
+ * então ela só existe quando o ajuste da empresa (ou, um dia, a curadoria oficial) a informa. Nula
+ * é "desconhecida", nunca "sem desconto": inventar um percentual de tag por cima da manual é o
+ * palpite que a spec proíbe.
+ */
+export type TollBoothRecord = Readonly<{
+  chargeCar: null | string
+  chargePerAxle: null | string
+  chargePerAxleAutomatic: null | string
+  latitude: string
+  longitude: string
+  name: null | string
+  operator: null | string
+  osmNodeId: number
+}>
+
+/** Se o veículo paga com tag ou não — só ele decide qual das duas tarifas da praça vale. */
+export const TOLL_PAYMENT_MODES = ['automatic', 'manual'] as const
+export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
+
+export type TollRouteCost = Readonly<{
+  axles: AxleCount
+  /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * A tela imprime este número: sem ele, "R$ 38,40 por eixo × 2 eixos" continuaria explicando uma
+   * conta que a cancela não faz.
+   */
+  multiplier: TollMultiplier
+  /** Na ordem em que o caminhão passa, para quem confere saber **por onde** o custo entrou. */
+  booths: readonly TollBoothRecord[]
+  /**
+   * Quantas das praças acima não têm tarifa conhecida **na base que o veículo paga** — manual para
+   * quem não tem tag, e nem manual nem automática para quem tem (spec 090; a automática entrou na
+   * 095 sem mudar o que esta contagem significa).
+   *
+   * ⚠️ Medido em 2026-09-07 no extract real: 3 praças de 166 não declaram tarifa nenhuma, e outras
+   * declaram `0.00` — duas delas com nome de praça de rodovia e zero em tudo, que é campo não
+   * mapeado e não isenção. O mapa não distingue as duas coisas, então o total sozinho é número
+   * crível e possivelmente falso; esta contagem é o que a tela imprime ao lado dele.
+   */
+  boothsWithoutCharge: number
+  /**
+   * Quantas praças caíram para a manual por falta de tarifa automática conhecida — só existe
+   * quando `paymentMode` é `automatic` (spec 095 D3). A queda **superestima** de propósito: num
+   * número que decide aceitar carga, errar para cima recusa uma viagem que pagaria, e errar para
+   * baixo aceita uma que não paga.
+   */
+  boothsFallenBackToManual: number
+  /** A soma das tarifas efetivamente cobradas — automática onde o veículo paga com tag e ela é
+   *  conhecida, manual no resto. */
+  chargePerAxle: string
+  /** Se o veículo paga com tag — a base que a tela mostra ao lado do total. */
+  paymentMode: TollPaymentMode
+  total: string
+}>
+
+export type ResolveTollRouteCostParams = {
+  readonly axles: AxleCount
+  readonly booths: readonly TollBoothRecord[]
+  /** Spec 095 D3: quem decide qual das duas tarifas da praça vale é o veículo, não a empresa. */
+  readonly hasAutomaticTollPayment: boolean
+  /**
+   * ⚠️ **Quanto da tarifa base esta cancela cobra deste veículo** — a categoria, não a contagem de
+   * eixos. Quem resolve é `resolveTollMultiplier`, onde a tabela oficial está escrita; aqui só se
+   * multiplica, para esta política seguir sem saber o que é um furgão.
+   */
+  readonly multiplier: TollMultiplier
+  /** `null` quando o roteirizador não anotou os nós — e aí não há o que cruzar. */
+  readonly nodeIds: null | readonly number[]
+}
+
+/**
+ * ⚠️ **`null` é "não sei", e rota sem praça é zero.** As duas coisas são diferentes na conta, e
+ * colapsá-las num zero só faria uma rota cujos nós nunca chegaram parecer uma rota sem pedágio.
+ */
+export function resolveTollRouteCost(input: ResolveTollRouteCostParams): TollRouteCost | null {
+  if (input.nodeIds === null) return null
+
+  const byNode = new Map(input.booths.map((booth) => [booth.osmNodeId, booth]))
+  const passed: TollBoothRecord[] = []
+  const seen = new Set<number>()
+
+  for (const nodeId of input.nodeIds) {
+    const booth = byNode.get(nodeId)
+    /**
+     * ⚠️ **Uma vez por rota.** Medido: numa rota de 89,4 km, 27 nós aparecem mais de uma vez, com
+     * 65 ocorrências extras — alça de trevo e retorno de rotatória, não segunda passagem por
+     * cancela. Cobrar duas vezes daria número maior que o real na tela de quem aceita a carga, e a
+     * viagem de volta está fora do escopo da spec.
+     */
+    if (booth === undefined || seen.has(nodeId)) continue
+    seen.add(nodeId)
+    passed.push(booth)
+  }
+
+  let chargePerAxle = 0n
+  let boothsWithoutCharge = 0
+  let boothsFallenBackToManual = 0
+  for (const booth of passed) {
+    const charge = resolveBoothCharge({
+      booth,
+      hasAutomaticTollPayment: input.hasAutomaticTollPayment,
+    })
+    if (charge.fellBackToManual) boothsFallenBackToManual += 1
+    if (charge.value === null) {
+      boothsWithoutCharge += 1
+      continue
+    }
+    chargePerAxle += parseScaledDecimal({
+      errorCodePrefix: ERROR_CODE_PREFIX,
+      scale: MONEY_SCALE,
+      value: charge.value,
+    })
+  }
+
+  return {
+    axles: input.axles,
+    booths: passed,
+    boothsFallenBackToManual,
+    boothsWithoutCharge,
+    chargePerAxle: formatScaledDecimal(chargePerAxle, MONEY_SCALE),
+    paymentMode: input.hasAutomaticTollPayment ? 'automatic' : 'manual',
+    multiplier: input.multiplier,
+    total: formatScaledDecimal(applyMultiplier(chargePerAxle, input.multiplier), MONEY_SCALE),
+  }
+}
+
+/**
+ * Uma linha do extrato: a praça, o que ela custou **de verdade** neste veículo, e se a tarifa da tag
+ * não existia e o valor caiu para a manual.
+ */
+export type TollBoothStatementLine = TollBoothRecord &
+  Readonly<{
+    /** `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca. */
+    effectiveChargePerAxle: null | string
+    fellBackToManual: boolean
+    /** `effectiveChargePerAxle × eixos`, ou `null` pela mesma razão. */
+    total: null | string
+  }>
+
+/**
+ * O extrato do pedágio, praça a praça, na ordem da passagem.
+ *
+ * ⚠️ **Isto é interpretação, não observação — e por isso se recomputa na leitura em vez de ser
+ * congelado.** O que a praça cobra nas duas bases já está guardado, e qual das duas vale sai de
+ * `paymentMode`, que também está: derivar aqui faz o extrato de uma viagem antiga sair certo sem
+ * migrar jsonb nenhum. É o mesmo corte de `address-finding.policy.ts`.
+ *
+ * ⚠️ A linha sai do valor **efetivo**, nunca do `chargePerAxle` cru: com tag o cru é a tarifa que o
+ * veículo não pagou, e um extrato cujas linhas não somam o total faz duvidar do total.
+ */
+export function describeTollBoothCharges(input: {
+  readonly booths: readonly TollBoothRecord[]
+  readonly multiplier: TollMultiplier
+  readonly paymentMode: TollPaymentMode
+}): readonly TollBoothStatementLine[] {
+  return input.booths.map((booth) => {
+    const charge = resolveBoothCharge({
+      booth,
+      hasAutomaticTollPayment: input.paymentMode === 'automatic',
+    })
+    return {
+      ...booth,
+      effectiveChargePerAxle: charge.value,
+      fellBackToManual: charge.fellBackToManual,
+      total:
+        charge.value === null
+          ? null
+          : formatScaledDecimal(
+              applyMultiplier(
+                parseScaledDecimal({
+                  errorCodePrefix: ERROR_CODE_PREFIX,
+                  scale: MONEY_SCALE,
+                  value: charge.value,
+                }),
+                input.multiplier,
+              ),
+              MONEY_SCALE,
+            ),
+    }
+  })
+}
+
+/**
+ * ⚠️ **A queda para o manual só conta quando a automática é desconhecida E a manual é conhecida.**
+ * Sem tarifa nenhuma nas duas bases a praça é "sem tarifa conhecida" (`boothsWithoutCharge`), não
+ * uma queda — não há para onde cair. Nunca se aplica desconto estimado: sem a automática, o valor é
+ * a manual, inteira (spec 095 D3).
+ */
+function resolveBoothCharge(input: {
+  readonly booth: TollBoothRecord
+  readonly hasAutomaticTollPayment: boolean
+}): Readonly<{ fellBackToManual: boolean; value: null | string }> {
+  if (!input.hasAutomaticTollPayment) {
+    return { fellBackToManual: false, value: input.booth.chargePerAxle }
+  }
+  if (input.booth.chargePerAxleAutomatic !== null) {
+    return { fellBackToManual: false, value: input.booth.chargePerAxleAutomatic }
+  }
+  return { fellBackToManual: input.booth.chargePerAxle !== null, value: input.booth.chargePerAxle }
+}
+
+/**
+ * ⚠️ **Meio centavo arredonda para cima**, e a escolha é declarada: a fração só aparece quando o
+ * multiplicador é 0,5 ou 1,5, e arredondar para baixo faria a tela prometer menos do que a cancela
+ * cobra — o erro na direção que faz aceitar carga que não paga. Divisão inteira, nunca `number`:
+ * ponto flutuante não entra em conta de dinheiro.
+ */
+function applyMultiplier(value: bigint, multiplier: TollMultiplier): bigint {
+  const scaled = value * BigInt(multiplier.numerator)
+  const denominator = BigInt(multiplier.denominator)
+  return (scaled + denominator / 2n) / denominator
+}

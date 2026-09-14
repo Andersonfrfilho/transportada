@@ -649,7 +649,7 @@ describe('CT-e item table contract', () => {
   test('registers the CT-e table as a living reference of the data table rule', async () => {
     const [rule, projectContext] = await Promise.all([
       readModule('../../docs/frontend/data-tables.md'),
-      readModule('../../CLAUDE.md'),
+      readModule('CLAUDE.md'),
     ])
 
     expect(projectContext).toContain('docs/frontend/data-tables.md')

@@ -46,6 +46,8 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
         street: params.street,
       },
       anttCategory: params.anttCategory ?? '',
+      /** Spec 100: quem amarra declara; a base de bancada nasce com ninguém amarrando. */
+      securesCargo: false,
       birthCity: '',
       birthDate: params.birthDate,
       birthState: '',

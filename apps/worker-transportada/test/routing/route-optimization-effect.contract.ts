@@ -18,12 +18,14 @@ function buildStop(
 ): RouteOptimizationStop {
   return {
     addressKey: `key-${overrides.stopId}`,
+    city: '',
     documentIds: [],
     excludedFromOptimization: false,
     label: `Parada ${overrides.stopId}`,
     latitude: '-23.5613090',
     longitude: '-46.6564870',
     serviceTimeSeconds: 300,
+    state: '',
     weightEstimated: false,
     weightKilograms: 100,
     windowEndSeconds: null,
@@ -35,14 +37,21 @@ function buildStop(
 function buildContext(overrides: Partial<RouteOptimizationContext> = {}): RouteOptimizationContext {
   return {
     companyId: 'company-1',
-    dayStartEpochSeconds: 0,
+    departureEpochSeconds: 0,
     depot: DEPOT,
     duty: null,
     end: null,
     seed: 42,
     solverTimeBudgetSeconds: 1,
     stops: [buildStop({ stopId: 'a' }), buildStop({ stopId: 'b' }), buildStop({ stopId: 'c' })],
-    vehicles: [{ capacityKilograms: 10_000, costPerMeterMicros: 1, id: 'vehicle-1' }],
+    vehicles: [
+      {
+        servableStopIndexes: null,
+        capacityKilograms: 10_000,
+        costPerMeterMicros: 1,
+        id: 'vehicle-1',
+      },
+    ],
     ...overrides,
   }
 }
@@ -190,6 +199,25 @@ describe('route optimization effect (ADR-0044 §7)', () => {
   })
 
   /**
+   * ⚠️ Spec 109: **a rota parte da partida, não da meia-noite.** O relógio contava a partir da
+   * meia-noite UTC — 21h de Brasília —, e as chegadas caíam de madrugada: medido em 2026-09-09,
+   * cinco viagens propostas terminando às 03:04, 05:21, 07:03, 12:33 e 21:03.
+   */
+  test('a primeira chegada é depois da partida, nunca antes', async () => {
+    const departureEpochSeconds = 1_757_419_200 + 11 * 3_600
+    const context = buildContext({ departureEpochSeconds })
+
+    const outcome = await runRouteOptimization({ context, ports: buildPorts() })
+
+    for (const stop of outcome.orderedStops) {
+      expect(stop.estimatedArrivalAt).not.toBeNull()
+      expect((stop.estimatedArrivalAt as Date).getTime() / 1_000).toBeGreaterThanOrEqual(
+        departureEpochSeconds,
+      )
+    }
+  })
+
+  /**
    * A ETA publicada tem de contar a **espera** pela abertura da janela, que é o que o fitness já
    * conta. Enquanto ela não contava, o custo escolhia a rota somando o tempo parado no portão e a
    * tela mostrava chegada às 5h da manhã — duas respostas para a mesma pergunta.
@@ -207,7 +235,42 @@ describe('route optimization effect (ADR-0044 §7)', () => {
     const first = outcome.orderedStops.find((stop) => stop.stopId === 'stop-1')
     expect(first?.estimatedArrivalAt).not.toBeNull()
     expect((first?.estimatedArrivalAt as Date).getTime() / 1_000).toBeGreaterThanOrEqual(
-      context.dayStartEpochSeconds + 11 * 3_600,
+      context.departureEpochSeconds + 11 * 3_600,
     )
+  })
+
+  /**
+   * Decisão do usuário (2026-09-13): o tempo da proposta soma a volta ao barracão. O solver já a
+   * somava no custo (`readReturnLeg`), mas ela morria aqui — só a perna "desde a anterior" era
+   * gravada. A volta sai da **mesma matriz** que o solver usou, da última entrega ao fim.
+   */
+  test('grava a volta ao fim, da mesma matriz, quando a política manda voltar', async () => {
+    const context = buildContext({ end: DEPOT })
+
+    const outcome = await runRouteOptimization({ context, ports: buildPorts() })
+
+    /** Pontos: 0 depósito, 1..3 paradas, 4 o fim. A matriz sintética mede (4 − i) × 60 s. */
+    const indexByStopId = new Map([
+      ['a', 1],
+      ['b', 2],
+      ['c', 3],
+    ])
+    const last = outcome.orderedStops.at(-1)
+    const lastIndex = indexByStopId.get(last?.stopId ?? '') ?? 0
+
+    expect(outcome.returnLegs).toEqual([
+      {
+        distanceMeters: (4 - lastIndex) * 1_000,
+        durationSeconds: (4 - lastIndex) * 60,
+        vehicleId: 'vehicle-1',
+      },
+    ])
+  })
+
+  /** `last_stop`: o motorista fecha o dia onde está, e não existe volta a gravar. */
+  test('sem política de retorno não grava volta nenhuma', async () => {
+    const outcome = await runRouteOptimization({ context: buildContext(), ports: buildPorts() })
+
+    expect(outcome.returnLegs).toEqual([])
   })
 })

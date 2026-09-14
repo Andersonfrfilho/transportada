@@ -31,6 +31,13 @@ import type {
 } from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
 import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
+import type {
+  RequestCargoLayoutParams,
+  RequestCargoLayoutUseCase,
+} from '../application/request-cargo-layout.types.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+
+const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
 import type {
   CloseTripInput,
@@ -59,6 +66,12 @@ import type { CreateTripCteBatchResult } from '../application/create-trip-cte-ba
 import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
 import type { TripValuation } from '../domain/trip-valuation.policy.js'
 import type { TripCargoPreview } from '../application/preview-trip-cargo.use-case.js'
+import type { ReadCargoLayoutUseCase } from '../application/read-cargo-layout.types.js'
+import type {
+  ReopenCargoLayoutUseCase,
+  ReopenStoredCargoLayoutParams,
+} from '../application/cargo-layout-request.types.js'
+import { markCargoLayoutRequested } from '../domain/cargo-layout-state.policy.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -165,6 +178,13 @@ const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
 const TRIP_VALUATION_PREVIEW_PATH = `${API_TRIPS_PATH}/valuation-preview`
 /** Fora da árvore `/trips/:id`: a prévia responde **antes** de a viagem existir. */
 const TRIP_CARGO_PREVIEW_PATH = `${API_TRIPS_PATH}/cargo-preview`
+/**
+ * Spec 145 D10 (T11): a tela pergunta de novo pela planta que a prévia pediu, pelo `layoutId` que ela
+ * devolveu, a cada 3 s enquanto `pending`. Resposta: `{ data: { layoutId, state, cargoLayout } }`,
+ * com `state` nas cinco chaves de `cargoLayoutState`. Planta de outra empresa → 404, id malformado →
+ * 400. Fora da árvore `/trips/:id` pela mesma razão da prévia: pode não haver viagem.
+ */
+const TRIP_CARGO_LAYOUT_PATH = `${API_TRIPS_PATH}/cargo-layouts/:layoutId`
 /**
  * Spec 061 D4: **dinheiro tem permissão própria.** O resultado congelado é `trip.financials`, de
  * `company-admin` e `finance` — quem monta viagem já tem a avaliação prevista para decidir carga, e
@@ -288,9 +308,13 @@ type Dependencies = {
   }
   /** A linha da estrada para pontos que ainda não são viagem — ver `ROUTE_GEOMETRY_PATH`. */
   readonly readRouteGeometry: {
-    execute(input: {
-      readonly points: readonly Readonly<{ latitude: number; longitude: number }>[]
-    }): Promise<RouteGeometryView>
+    execute(
+      input: TenantInput<{
+        readonly points: readonly Readonly<{ latitude: number; longitude: number }>[]
+        /** Spec 090 T7: sem veículo, sem eixo a contar — o pedágio da resposta é `null`. */
+        readonly vehicleId: null | string
+      }>,
+    ): Promise<RouteGeometryView>
   }
   readonly readTripRouteGeometry: {
     execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
@@ -329,6 +353,13 @@ type Dependencies = {
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
+  /** Spec 145 D7: o pedido lazy da planta, disparado pelo detalhe depois da leitura. */
+  readonly requestCargoLayout: RequestCargoLayoutUseCase
+  /** Spec 145 T11: a pergunta de novo pela planta da prévia. */
+  readonly readCargoLayout: ReadCargoLayoutUseCase
+  /** D16/D18: o polling reabre o pedido parado ou falho além da espera. */
+  readonly reopenCargoLayout: ReopenCargoLayoutUseCase
+  readonly logger: ApiLogger
   readonly issueManifestAutomatically: {
     execute(input: {
       readonly companyId: string
@@ -362,6 +393,8 @@ type Dependencies = {
   readonly previewCargo: {
     execute(input: {
       readonly companyId: string
+      readonly correlationId: string
+      readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
@@ -372,6 +405,7 @@ type Dependencies = {
       readonly companyId: string
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }): Promise<TripValuation>
   }
@@ -665,6 +699,7 @@ export function createTripRoutes(
     defineRoute<{
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }>({
       async handle({ context, input }): Promise<Response> {
@@ -685,9 +720,11 @@ export function createTripRoutes(
      * viagem precisa saber se cabe, e o separador monta sem enxergar receita nem custo.
      */
     defineRoute<{
+      readonly correlationId: string
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
+      readonly driverIds: readonly string[]
     }>({
       async handle({ context, input }): Promise<Response> {
         const preview = await dependencies.previewCargo.execute({
@@ -698,17 +735,83 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: preview }, status: 200 })
       },
       method: 'POST',
-      parse: ({ request }) => parsePreviewTripCargoRequest(request),
+      parse: async ({ correlationId, request }) => ({
+        ...(await parsePreviewTripCargoRequest(request)),
+        correlationId,
+      }),
       pathname: TRIP_CARGO_PREVIEW_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
-    defineRoute<Omit<GetTripInput, 'context'>>({
+    /**
+     * ⚠️ Mesma política da prévia (`trip.manage`): quem pediu a planta é quem pergunta por ela.
+     * `raw` porque id malformado é erro do cliente (400), e planta de outra empresa é 404 — o
+     * `canonicalUuid` padrão responderia 404 aos dois.
+     */
+    defineRoute<{ readonly correlationId: string; readonly layoutId: string }>({
       async handle({ context, input }): Promise<Response> {
-        const trip = await dependencies.getTrip.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 200 })
+        const reading = await dependencies.readCargoLayout.execute({
+          companyId: context.scope.companyId,
+          layoutId: input.layoutId,
+        })
+        /** D16/D18: parada ou falha além da espera reabre aqui, depois da leitura, com a própria linha. */
+        const enqueued =
+          reading.shouldRequest &&
+          (await reopenCargoLayoutAfterRead({
+            dependencies,
+            request: {
+              companyId: context.scope.companyId,
+              correlationId: input.correlationId,
+              layoutId: reading.layoutId,
+            },
+          }))
+
+        return jsonResponse({
+          body: {
+            data: {
+              cargoLayout: reading.cargoLayout,
+              layoutId: reading.layoutId,
+              state: enqueued ? markCargoLayoutRequested(reading.state) : reading.state,
+            },
+          },
+          status: 200,
+        })
       },
       method: 'GET',
-      parse: ({ pathParameters }) => ({
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        layoutId: parseUuidPathIdentifier(pathParameters.layoutId ?? ''),
+      }),
+      pathParameterFormat: 'raw',
+      pathname: TRIP_CARGO_LAYOUT_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<GetTripInput, 'context'> & { readonly correlationId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const trip = await dependencies.getTrip.execute({
+          context: context.scope,
+          tripId: input.tripId,
+        })
+        const enqueued =
+          trip.pendingCargoLayoutInput !== undefined &&
+          (await requestCargoLayoutAfterRead({
+            correlationId: input.correlationId,
+            dependencies,
+            request: {
+              ...trip.pendingCargoLayoutInput,
+              companyId: context.scope.companyId,
+              correlationId: input.correlationId,
+              tripId: trip.id,
+            },
+          }))
+        /** Enfileirou: o que se serve é o pedido novo (pendente); falhou, o estado da leitura. */
+        const served = enqueued
+          ? { ...trip, cargoLayoutState: markCargoLayoutRequested(trip.cargoLayoutState) }
+          : trip
+        return jsonResponse({ body: { data: serializeTripDetail(served) }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DETAIL_PATH,
@@ -896,8 +999,12 @@ export function createTripRoutes(
      * e a tela tem como dizer "esta linha é reta" em vez de anunciar rodovia que não existe.
      */
     defineRoute<RouteGeometryBody>({
-      async handle({ input }): Promise<Response> {
-        const geometry = await dependencies.readRouteGeometry.execute({ points: input.points })
+      async handle({ context, input }): Promise<Response> {
+        const geometry = await dependencies.readRouteGeometry.execute({
+          context: context.scope,
+          points: input.points,
+          vehicleId: input.vehicleId,
+        })
         return jsonResponse({ body: { data: geometry }, status: 200 })
       },
       method: 'POST',
@@ -1227,6 +1334,54 @@ export function createTripRoutes(
   }
 }
 
+/**
+ * Spec 145 D7 (lazy): pedir o cálculo é escrita própria, na transação curta do caso de uso, e não é
+ * parte da resposta. Falhou? A leitura que já deu certo responde assim mesmo — fallback gracioso — e
+ * o aviso leva só referências: nunca rótulo de parada nem nome de cliente.
+ */
+async function requestCargoLayoutAfterRead(params: {
+  readonly correlationId: string
+  readonly dependencies: Pick<Dependencies, 'logger' | 'requestCargoLayout'>
+  readonly request: RequestCargoLayoutParams
+}): Promise<boolean> {
+  try {
+    return (await params.dependencies.requestCargoLayout.execute(params.request)).enqueued
+  } catch (error) {
+    params.dependencies.logger.warn(CARGO_LAYOUT_REQUEST_FAILED_MESSAGE, {
+      correlationId: params.correlationId,
+      errorCode: describeErrorCode(error),
+      tripId: params.request.tripId,
+    })
+    return false
+  }
+}
+
+/**
+ * Spec 145 T11 (D16/D18): o polling reabre pela linha guardada. Mesmo fallback gracioso do detalhe —
+ * falhou, a leitura responde — e o aviso leva só referências opacas.
+ */
+async function reopenCargoLayoutAfterRead(params: {
+  readonly dependencies: Pick<Dependencies, 'logger' | 'reopenCargoLayout'>
+  readonly request: ReopenStoredCargoLayoutParams
+}): Promise<boolean> {
+  try {
+    const result = await params.dependencies.reopenCargoLayout.execute(params.request)
+    return result?.enqueued ?? false
+  } catch (error) {
+    params.dependencies.logger.warn(CARGO_LAYOUT_REQUEST_FAILED_MESSAGE, {
+      correlationId: params.request.correlationId,
+      errorCode: describeErrorCode(error),
+      layoutId: params.request.layoutId,
+    })
+    return false
+  }
+}
+
+function describeErrorCode(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown'
+  return 'code' in error && typeof error.code === 'string' ? error.code : error.name
+}
+
 function jsonResponse(input: { readonly body: object; readonly status: number }): Response {
   return new Response(JSON.stringify(input.body), {
     headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
@@ -1249,6 +1404,9 @@ function serializeTrip(trip: Trip): object {
     status: trip.status,
     updatedAt: trip.updatedAt,
     driverNames: trip.driverNames,
+    /** Spec 107 D3: os dois juntos, sempre — hora sem carimbo é previsão sem idade. */
+    estimatedArrivalFrozenAt: trip.estimatedArrivalFrozenAt ?? null,
+    estimatedFinishAt: trip.estimatedFinishAt ?? null,
     vehicleId: trip.vehicleId,
   }
 }
@@ -1258,6 +1416,8 @@ function serializeTripDetail(trip: TripDetail): object {
     ...serializeTrip(trip),
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
+    /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
+    cargoLayoutState: { ...trip.cargoLayoutState },
     documents: trip.documents.map(serializeTripDocumentDetail),
     drivers: trip.drivers.map((driver) => ({
       driverEmail: driver.driverEmail,

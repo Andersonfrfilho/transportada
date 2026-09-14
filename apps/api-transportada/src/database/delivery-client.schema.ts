@@ -592,7 +592,24 @@ export type DeliveryChargeEventName = (typeof DELIVERY_CHARGE_EVENT_NAMES)[numbe
 /**
  * Trilha append-only do lançamento (`security.md` §10). É dinheiro entre duas empresas, e a pergunta
  * "quem aprovou isso?" vai ser feita — inclusive quando a resposta é "quem estava com o link do
- * lote", que é o que `decided_by_token` guarda (ADR-0048 §7).
+ * lote", que é o que `decided_by_token` guarda (ADR-0048 §7), ou "quem decidiu pela mensagem de
+ * e-mail" (spec 143 / RF6), que é o que `decided_by_message_id` guarda.
+ *
+ * ⚠️ **A FK de `decided_by_message_id` para `contractor_mail_messages` vive só na migration SQL,
+ * não neste objeto Drizzle.** `contractor-mail.schema.ts` já importa `contractors` deste arquivo
+ * para as FKs de `contractor_contacts`/`contractor_mail_threads`; importar `contractorMailMessages`
+ * de volta aqui fecharia um ciclo de módulos ES (nenhum par de arquivos de schema neste repositório
+ * importa um do outro), e o `pgTable` do lado que carregasse por último leria a tabela ainda não
+ * inicializada. A restrição existe no banco (composta, com `company_id`, igual às demais) — só não
+ * está espelhada no TypeScript. Decisão registrada em `evidence.md` da T003.
+ *
+ * ⚠️ **O CHECK de autoria não existia antes desta migration** — o `plan.md` presumia um CHECK
+ * anterior de "ator xor token" para "refazer"; a tabela real nunca teve essa restrição no banco (só
+ * `delivery_charge_events_name_check`). `suggest-delivery-charges.use-case.ts:88` grava o evento
+ * `suggested` com `actorUserId: null` e sem `decidedByToken` — nem ator, nem token, nem mensagem —
+ * porque é a sugestão automática do sistema, não uma decisão de alguém. Por isso o CHECK abaixo
+ * exige exatamente um dos três **exceto** em `suggested`, e não "sempre exatamente um" como o texto
+ * do RF6 sugere ao pé da letra.
  */
 export const deliveryChargeEvents = pgTable(
   'delivery_charge_events',
@@ -604,6 +621,9 @@ export const deliveryChargeEvents = pgTable(
     actorUserId: uuid('actor_user_id'),
     /** Preenchido quando quem decidiu foi a página pública: não se inventa `userId` para forasteiro. */
     decidedByToken: text('decided_by_token'),
+    /** Preenchido quando quem decidiu foi uma resposta de e-mail (spec 143, RF6). Sem FK aqui — ver
+     * o comentário da tabela. */
+    decidedByMessageId: uuid('decided_by_message_id'),
     payload: jsonb().notNull().default({}),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -619,6 +639,14 @@ export const deliveryChargeEvents = pgTable(
     check(
       'delivery_charge_events_name_check',
       sql`${table.eventName} in (${sql.raw(inList(DELIVERY_CHARGE_EVENT_NAMES))})`,
+    ),
+    check(
+      'delivery_charge_events_authorship_check',
+      sql`${table.eventName} = 'suggested' or (
+        (case when ${table.actorUserId} is not null then 1 else 0 end) +
+        (case when ${table.decidedByToken} is not null then 1 else 0 end) +
+        (case when ${table.decidedByMessageId} is not null then 1 else 0 end)
+      ) = 1`,
     ),
   ],
 )

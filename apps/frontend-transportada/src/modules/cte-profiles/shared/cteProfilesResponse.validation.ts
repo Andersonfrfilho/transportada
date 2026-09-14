@@ -4,9 +4,15 @@ import {
   CTE_PROFILES_ERROR,
   DETAIL_KEYS,
   FREIGHT_RULE_KEYS,
+  REQUIRED_DETAIL_KEYS,
   SETTINGS_KEYS,
 } from './cteProfiles.constant'
-import type { CteProfileDetail, CteProfileListPage } from './cteProfiles.types'
+import {
+  CTE_PROFILE_OUTPUT_DOCUMENT,
+  type CteProfileDetail,
+  type CteProfileListPage,
+  type CteProfileSettings,
+} from './cteProfiles.types'
 import {
   hasEveryKey,
   hasOnlyKeys,
@@ -21,8 +27,23 @@ import {
   PROFILE_ENUMS,
 } from './cteProfilesGuards.validation'
 
+/** O que a API anterior à spec 144 quer dizer ao não mandar os dois campos: o perfil emite CT-e. */
+const OUTPUT_DEFAULTS = {
+  nfseEmissionProfileId: null,
+  outputDocument: 'cte',
+} as const satisfies Pick<CteProfileSettings, 'nfseEmissionProfileId' | 'outputDocument'>
+
 function invalid(): Error {
   return new Error(CTE_PROFILES_ERROR.RESPONSE_INVALID)
+}
+
+/** Ausente é aceito; presente precisa ser válido. */
+function hasValidOutputDocument(value: Record<string, unknown>): boolean {
+  const isDocumentValid =
+    !('outputDocument' in value) || isOneOf(value.outputDocument, CTE_PROFILE_OUTPUT_DOCUMENT)
+  const isPointerValid =
+    !('nfseEmissionProfileId' in value) || isNullableString(value.nfseEmissionProfileId)
+  return isDocumentValid && isPointerValid
 }
 
 function isFreightRule(value: unknown): boolean {
@@ -65,6 +86,7 @@ function isMatcher(value: unknown): boolean {
 function isSettings(value: Record<string, unknown>): boolean {
   return (
     hasEveryKey(value, SETTINGS_KEYS) &&
+    hasValidOutputDocument(value) &&
     typeof value.cargoInsuranceDeclared === 'boolean' &&
     isString(value.municipalServicePolicy) &&
     isString(value.cfopInternal) &&
@@ -93,7 +115,7 @@ function isSettings(value: Record<string, unknown>): boolean {
 
 function isDetail(value: unknown): value is CteProfileDetail {
   if (!isRecord(value)) return false
-  if (!hasOnlyKeys(value, DETAIL_KEYS) || !hasEveryKey(value, DETAIL_KEYS)) return false
+  if (!hasOnlyKeys(value, DETAIL_KEYS) || !hasEveryKey(value, REQUIRED_DETAIL_KEYS)) return false
   if (!isSettings(value)) return false
   return (
     Array.isArray(value.components) &&
@@ -113,7 +135,7 @@ function isDetail(value: unknown): value is CteProfileDetail {
 export function createCteProfileResponseAdapters() {
   function profileFromApi(input: unknown): CteProfileDetail {
     if (!isDetail(input)) throw invalid()
-    return input
+    return { ...OUTPUT_DEFAULTS, ...input }
   }
 
   return {

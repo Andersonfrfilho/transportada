@@ -22,6 +22,7 @@ const DRIVER = {
     street: 'Rua das Palmeiras',
   },
   anttCategory: '1',
+  securesCargo: false,
   birthDate: null,
   createdAt: '2026-08-01T12:00:00.000Z',
   email: 'motorista@example.com',

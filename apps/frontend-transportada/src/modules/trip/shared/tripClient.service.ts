@@ -5,14 +5,27 @@ import {
   SCAN_LOOKUP_LIMIT,
   TRIP_ERROR,
   TRIPS_PATH,
+  TRIP_CARGO_LAYOUTS_PATH,
+  TRIP_DOCUMENT_REVIEWS_PATH,
 } from './trip.constant'
+import { createTripReviewAdapters } from './tripReview.validation'
+import type {
+  TripDocumentReview,
+  TripDocumentReviewStatus,
+  TripReviewPreview,
+  TripReviewPreviewInput,
+  TripReviewRelease,
+  TripSwapSuggestions,
+} from './tripReview.types'
 import {
   acceptedMultiVehicleSuggestionFromApi,
+  multiVehicleProposalFromApi,
   multiVehicleSuggestionFromApi,
 } from './multiVehicleSuggestion.validation'
 import type {
   AcceptedMultiVehicleSuggestion,
   CreateMultiVehicleSuggestionInput,
+  MultiVehicleProposal,
   MultiVehicleSuggestion,
   TripCandidateDocumentPage,
   BatchStatusInput,
@@ -47,6 +60,7 @@ import type {
   TripListInput,
   TripPage,
   TripCargoPreview,
+  TripCargoLayoutPoll,
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
@@ -76,8 +90,22 @@ export type TripClient = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  /**
+   * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
+   * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
+   */
   acceptMultiVehicleSuggestion: (
-    input: Readonly<{ suggestionId: string }>,
+    input: Readonly<{
+      /** A ordem escolhida à mão, por veículo. Ausente é a ordem do roteirizador. */
+      stopOrderByVehicle?: readonly Readonly<{
+        orderedAddressKeys: readonly string[]
+        vehicleId: string
+      }>[]
+      suggestionId: string
+      vehicleIds?: readonly string[]
+      /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
+      releaseUnplacedFromLayoutIds?: readonly string[]
+    }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
     input: CreateMultiVehicleSuggestionInput,
@@ -85,6 +113,13 @@ export type TripClient = Readonly<{
   readMultiVehicleSuggestion: (
     input: Readonly<{ suggestionId: string }>,
   ) => Promise<MultiVehicleSuggestion>
+  /**
+   * Spec 108: a mesma rota da leitura, **com as paradas** — é o que a prévia mostra antes de existir
+   * viagem nenhuma. A leitura sem paradas continua servindo ao poll, que só olha o estado.
+   */
+  readMultiVehicleProposal: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<MultiVehicleProposal>
   listNfeDocuments: (
     input: Readonly<{ cursor: null | string; limit: number; signal?: AbortSignal }>,
   ) => Promise<TripCandidateDocumentPage>
@@ -96,13 +131,39 @@ export type TripClient = Readonly<{
   /** A carga antes de a viagem existir: notas, veículo e a ordem que o operador montou no mapa. */
   previewCargo: (
     input: Readonly<{
+      /** Spec 100: quem amarra a carga empilha até o teto — o desenho depende de quem dirige. */
+      driverIds: readonly string[]
       nfeDocumentIds: readonly string[]
       stopOrder: readonly string[]
       vehicleId: string
     }>,
   ) => Promise<TripCargoPreview>
+  /** Spec 145 T11: pergunta de novo pela planta enquanto ela está `pending`. */
+  readCargoLayout: (
+    input: Readonly<{ layoutId: string; signal?: AbortSignal }>,
+  ) => Promise<TripCargoLayoutPoll>
+  /** Spec 148 T7: a fila das notas que não couberam, por viagem de origem. */
+  listTripDocumentReviews: (
+    input: Readonly<{ status?: TripDocumentReviewStatus; tripId: string }>,
+  ) => Promise<readonly TripDocumentReview[]>
+  /** D10: o botão "Tirar do caminhão as N notas que não couberam". Repetir devolve as mesmas. */
+  releaseUnplacedDocuments: (
+    input: Readonly<{ layoutId: string; tripId: string }>,
+  ) => Promise<TripReviewRelease>
+  readSwapSuggestions: (input: Readonly<{ reviewId: string }>) => Promise<TripSwapSuggestions>
+  previewReviewChange: (input: TripReviewPreviewInput) => Promise<TripReviewPreview>
+  moveReview: (
+    input: Readonly<{ reviewId: string; targetTripId: string; validatedLayoutId: string }>,
+  ) => Promise<TripDocumentReview>
+  swapReview: (
+    input: Readonly<{ outTripDocumentId: string; reviewId: string; validatedLayoutId: string }>,
+  ) => Promise<Readonly<{ review: TripDocumentReview; swappedOut: TripDocumentReview }>>
   readPointsRouteGeometry: (
-    input: Readonly<{ points: readonly Readonly<{ latitude: number; longitude: number }>[] }>,
+    input: Readonly<{
+      points: readonly Readonly<{ latitude: number; longitude: number }>[]
+      /** Spec 090 T7: sem veículo escolhido não há eixo a contar — o pedágio vem `null`. */
+      vehicleId: null | string
+    }>,
   ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
@@ -251,6 +312,7 @@ function buildSearch(
 
 export function createTripClient(dependencies: ClientDependencies): TripClient {
   const adapters = createTripResponseAdapters()
+  const reviewAdapters = createTripReviewAdapters()
 
   function documentPath(input: TripDocumentActionInput): string {
     return `${TRIPS_PATH}/${input.tripId}/documents/${input.documentId}`
@@ -298,6 +360,26 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async acceptMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
+        /**
+         * ⚠️ Sem seleção e sem ordem o corpo **não é enviado**: a rota lê corpo opcional pela
+         * ausência de `content-type`, e mandar `{}` faria toda instalação anterior a esta spec
+         * passar por um caminho novo sem precisar.
+         */
+        ...(input.vehicleIds === undefined &&
+        input.stopOrderByVehicle === undefined &&
+        input.releaseUnplacedFromLayoutIds === undefined
+          ? {}
+          : {
+              body: JSON.stringify({
+                ...(input.releaseUnplacedFromLayoutIds === undefined
+                  ? {}
+                  : { releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds }),
+                ...(input.stopOrderByVehicle === undefined
+                  ? {}
+                  : { stopOrderByVehicle: input.stopOrderByVehicle }),
+                ...(input.vehicleIds === undefined ? {} : { vehicleIds: input.vehicleIds }),
+              }),
+            }),
         dependencies,
         method: 'POST',
         path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}/accept`,
@@ -315,6 +397,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${ROUTE_SUGGESTIONS_PATH}/multi-vehicle`,
       })
       return multiVehicleSuggestionFromApi(readEnvelopeData(response))
+    },
+    async readMultiVehicleProposal(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}`,
+      })
+      return multiVehicleProposalFromApi(readEnvelopeData(response))
     },
     async readMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
@@ -477,19 +567,103 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     async previewCargo(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
+          driverIds: input.driverIds,
           nfeDocumentIds: input.nfeDocumentIds,
           stopOrder: input.stopOrder,
           vehicleId: input.vehicleId,
         }),
         dependencies,
         method: 'POST',
-        path: '/cargo-preview',
+        /**
+         * ⚠️ **Com o prefixo `/trips`**, ao contrário de `/route-geometry` logo abaixo: a rota da
+         * prévia mora em `${API_TRIPS_PATH}/cargo-preview` e a da geometria por pontos é de raiz.
+         * Sem o prefixo o navegador levava 403 no preflight, a requisição falhava, `preview` ficava
+         * `null` — e o painel de carga da montagem simplesmente não renderizava, sem erro na tela.
+         */
+        path: `${TRIPS_PATH}/cargo-preview`,
       })
       return adapters.tripCargoPreviewFromApi(readEnvelopeData(response))
     },
+    async readCargoLayout(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_CARGO_LAYOUTS_PATH}/${encodeURIComponent(input.layoutId)}`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.tripCargoLayoutPollFromApi(readEnvelopeData(response))
+    },
+    async listTripDocumentReviews(input) {
+      const search = new URLSearchParams({
+        status: input.status ?? 'pending',
+        tripId: input.tripId,
+      })
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}?${search.toString()}`,
+      })
+      return reviewAdapters.reviewsFromApi(readEnvelopeData(response))
+    },
+    async releaseUnplacedDocuments(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${encodeURIComponent(input.tripId)}/cargo-layouts/${encodeURIComponent(input.layoutId)}/release-unplaced`,
+      })
+      return reviewAdapters.releaseFromApi(readEnvelopeData(response))
+    },
+    async readSwapSuggestions(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/swap-suggestions`,
+      })
+      return reviewAdapters.swapSuggestionsFromApi(readEnvelopeData(response))
+    },
+    async previewReviewChange(input) {
+      const { reviewId, ...change } = input
+      const response = await authorizedRequest({
+        body: JSON.stringify(change),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(reviewId)}/move-preview`,
+      })
+      return reviewAdapters.previewFromApi(readEnvelopeData(response))
+    },
+    async moveReview(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          targetTripId: input.targetTripId,
+          validatedLayoutId: input.validatedLayoutId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/move`,
+      })
+      return reviewAdapters.reviewFromApi(readEnvelopeData(response))
+    },
+    async swapReview(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          outTripDocumentId: input.outTripDocumentId,
+          validatedLayoutId: input.validatedLayoutId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/swap`,
+      })
+      const data = readEnvelopeData(response)
+      if (typeof data !== 'object' || data === null) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      const swapped = data as { review?: unknown; swappedOut?: unknown }
+      return {
+        review: reviewAdapters.reviewFromApi(swapped.review),
+        swappedOut: reviewAdapters.reviewFromApi(swapped.swappedOut),
+      }
+    },
     async readPointsRouteGeometry(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ points: input.points }),
+        body: JSON.stringify({ points: input.points, vehicleId: input.vehicleId }),
         dependencies,
         method: 'POST',
         path: '/route-geometry',

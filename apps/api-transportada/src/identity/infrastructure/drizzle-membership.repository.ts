@@ -18,6 +18,7 @@ import type {
   ActiveCompanyMembership,
   MembershipLookup,
   MembershipRepositoryPort,
+  MembershipStanding,
 } from '../application/tenant-context.port'
 
 type IdentityDatabase = ReturnType<typeof createDrizzleProvider>['db']
@@ -65,6 +66,25 @@ export class DrizzleMembershipRepository implements MembershipRepositoryPort {
       membershipId: membership.membershipId,
       roles: [...new Set([...roles, ...groupRoles])],
     }
+  }
+
+  /**
+   * Spec 144 T005: só depois de `findActiveByUserAndCompany` recusar, para o log separar quem nunca
+   * teve membership de quem a teve suspensa (ela ou a empresa).
+   */
+  public async findStanding({ companyId, userId }: MembershipLookup): Promise<MembershipStanding> {
+    const [row] = await this.database
+      .select({ id: userCompanyMemberships.id })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.userId, userId),
+          eq(userCompanyMemberships.companyId, companyId),
+        ),
+      )
+      .limit(1)
+
+    return row === undefined ? 'absent' : 'suspended'
   }
 
   /**

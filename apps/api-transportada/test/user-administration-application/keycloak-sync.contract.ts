@@ -22,6 +22,9 @@ import {
   TARGET_USER_ID,
 } from '../fixtures/keycloak-sync.fixture'
 
+const STATUS_CONTEXT = { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000a1' }
+const CORRELATION_ID = 'corr-status-change'
+
 describe('sincronização com o Keycloak — convite', () => {
   test('grava nome e a empresa como atributo no usuário criado', async () => {
     const gateway = createIdentityGatewayFake()
@@ -179,8 +182,13 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake()
 
-    await createChangeCompanyUserStatusUseCase({ identityGateway: gateway, repository }).execute({
-      context: { companyId: COMPANY_ID },
+    await createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake(),
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -192,8 +200,13 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake({ membershipStatus: 'disabled' })
 
-    await createChangeCompanyUserStatusUseCase({ identityGateway: gateway, repository }).execute({
-      context: { companyId: COMPANY_ID },
+    await createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake(),
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'active',
       userId: TARGET_USER_ID,
     })
@@ -207,8 +220,13 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       activeMembershipCompanyIds: [COMPANY_ID, ANOTHER_COMPANY_ID],
     })
 
-    await createChangeCompanyUserStatusUseCase({ identityGateway: gateway, repository }).execute({
-      context: { companyId: COMPANY_ID },
+    await createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake(),
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -221,9 +239,14 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
     const gateway = createIdentityGatewayFake({ failSetEnabled: true })
     const repository = createCompanyUserRepositoryFake()
 
-    const useCase = createChangeCompanyUserStatusUseCase({ identityGateway: gateway, repository })
+    const useCase = createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake(),
+    })
     const execution = useCase.execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -236,9 +259,14 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
     const gateway = createIdentityGatewayFake({ failSetEnabled: true })
     const repository = createCompanyUserRepositoryFake({ membershipStatus: 'disabled' })
 
-    const useCase = createChangeCompanyUserStatusUseCase({ identityGateway: gateway, repository })
+    const useCase = createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake(),
+    })
     const execution = useCase.execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'active',
       userId: TARGET_USER_ID,
     })
@@ -246,40 +274,142 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
     await expect(execution).rejects.toThrow()
     expect(gateway.setEnabledCalls).toEqual([])
   })
-})
 
-describe('sincronização com o Keycloak — remoção de vínculo', () => {
-  test('remover o último vínculo desabilita o usuário no provedor', async () => {
+  /** Spec 144 T004: o número verificado é credencial, e cai junto com a última empresa ativa. */
+  test('suspender na última empresa ativa desfaz o vínculo do WhatsApp', async () => {
+    const whatsappPhones = createWhatsAppPhonesFake()
+
+    await createChangeCompanyUserStatusUseCase({
+      identityGateway: createIdentityGatewayFake(),
+      repository: createCompanyUserRepositoryFake(),
+      whatsappPhones,
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
+
+    /** T005b M3: a desvinculação por suspensão diz quem suspendeu, sob que pedido. */
+    expect(whatsappPhones.unbindCalls).toEqual([
+      {
+        audit: {
+          actorUserId: STATUS_CONTEXT.userId,
+          companyId: COMPANY_ID,
+          correlationId: CORRELATION_ID,
+        },
+        userId: TARGET_USER_ID,
+      },
+    ])
+  })
+
+  test('falha ao desvincular o número reprova antes de suspender, nunca deixa vínculo calado', async () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake()
+
+    const execution = createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake({ failUnbind: true }),
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
+
+    await expect(execution).rejects.toThrow('database down')
+    expect(gateway.setEnabledCalls).toEqual([])
+    expect(repository.setMembershipStatusCalls).toEqual([])
+  })
+
+  test('com vínculo ativo em outra empresa, o número continua valendo lá', async () => {
+    const whatsappPhones = createWhatsAppPhonesFake()
+
+    await createChangeCompanyUserStatusUseCase({
+      identityGateway: createIdentityGatewayFake(),
+      repository: createCompanyUserRepositoryFake({
+        activeMembershipCompanyIds: [COMPANY_ID, ANOTHER_COMPANY_ID],
+      }),
+      whatsappPhones,
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
+
+    expect(whatsappPhones.unbindCalls).toEqual([])
+  })
+})
+
+type UnbindWithAuditCall = {
+  readonly audit: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+  }
+  readonly userId: string
+}
+
+function createWhatsAppPhonesFake(options: { readonly failUnbind?: boolean } = {}) {
+  const unbindCalls: UnbindWithAuditCall[] = []
+  return {
+    unbindCalls,
+    async unbindWithAudit(input: UnbindWithAuditCall): Promise<boolean> {
+      if (options.failUnbind === true) throw new Error('database down')
+      unbindCalls.push(input)
+      return true
+    },
+  }
+}
+
+describe('sincronização com o Keycloak — remoção de vínculo', () => {
+  test('remover o último vínculo desabilita o usuário no provedor e desfaz o número de WhatsApp', async () => {
+    const gateway = createIdentityGatewayFake()
+    const repository = createCompanyUserRepositoryFake()
+    const whatsappPhones = createWhatsAppPhonesFake()
+    const actorUserId = '00000000-0000-4000-8000-0000000000aa'
 
     await createRemoveCompanyUserMembershipUseCase({
       identityGateway: gateway,
       repository,
+      whatsappPhones,
     }).execute({
-      context: { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000aa' },
+      context: { companyId: COMPANY_ID, userId: actorUserId },
+      correlationId: CORRELATION_ID,
       userId: TARGET_USER_ID,
     })
 
     expect(gateway.setEnabledCalls).toEqual([{ enabled: false, userId: KEYCLOAK_SUBJECT }])
     expect(repository.removeMembershipCalls).toHaveLength(1)
+    expect(whatsappPhones.unbindCalls).toEqual([
+      {
+        audit: { actorUserId, companyId: COMPANY_ID, correlationId: CORRELATION_ID },
+        userId: TARGET_USER_ID,
+      },
+    ])
   })
 
-  test('remover um vínculo entre vários não desabilita o usuário no provedor', async () => {
+  test('remover um vínculo entre vários não desabilita o usuário no provedor nem desfaz o número', async () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake({
       activeMembershipCompanyIds: [COMPANY_ID, ANOTHER_COMPANY_ID],
     })
+    const whatsappPhones = createWhatsAppPhonesFake()
 
     await createRemoveCompanyUserMembershipUseCase({
       identityGateway: gateway,
       repository,
+      whatsappPhones,
     }).execute({
       context: { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000aa' },
+      correlationId: CORRELATION_ID,
       userId: TARGET_USER_ID,
     })
 
     expect(gateway.setEnabledCalls).toEqual([])
     expect(repository.removeMembershipCalls).toHaveLength(1)
+    expect(whatsappPhones.unbindCalls).toEqual([])
   })
 })

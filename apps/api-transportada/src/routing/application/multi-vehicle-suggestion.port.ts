@@ -36,12 +36,28 @@ export type AcceptedMultiVehicleTrip = Readonly<{
   documentCount: number
   /** Quem dirige esta viagem, ou `null` quando o par não trouxe motorista. */
   driverId: string | null
+  /**
+   * Spec 107 D3: **quando este caminhão fica livre** — o ETA mais tardio das paradas que o
+   * planejamento acabou de gravar. É o que a frase da sobra imprime, e `null` quando o planejamento
+   * não calculou hora nenhuma: hora inventada ali é pior que silêncio.
+   */
+  estimatedFinishAt: string | null
   stopCount: number
   tripId: string
   vehicleId: string
 }>
 
+/**
+ * Spec 107 D1: a nota que ficou de fora, **nomeada**. Vazio é o normal; não-vazio é o que a tela
+ * abre numa lista, porque "56 notas" sem quais manda o operador procurar numa tela de 345.
+ */
+export type SkippedMultiVehicleDocument = Readonly<{
+  nfeDocumentId: string
+  reason: 'already_linked'
+}>
+
 export type AcceptedMultiVehicleSuggestion = Readonly<{
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   suggestion: RouteSuggestion
   trips: readonly AcceptedMultiVehicleTrip[]
 }>
@@ -54,8 +70,37 @@ export type AcceptedMultiVehicleSuggestion = Readonly<{
  * Daí a única diferença de desenho que importa: o aceite aqui **cria**. E como criar viagem, vincular
  * nota e ordenar parada já são casos de uso da 056, ele os chama — não reimplementa nenhum (D4).
  */
+/**
+ * Spec 110 D5a: **aceitar parte.** `vehicleIds` ausente é a proposta inteira — o corpo de sempre.
+ *
+ * ⚠️ O que não é aceito **não vira nada**: as notas voltam ao maço porque nunca saíram dele. Manter
+ * a sugestão `ready` para aceitar o resto depois foi recusado — entre os dois aceites o maço muda, e
+ * a segunda metade descreveria uma distribuição que já não existe.
+ */
+export type AcceptMultiVehicleSuggestionInput = ReadMultiVehicleSuggestionInput &
+  Readonly<{
+    /**
+     * A ordem escolhida à mão, por veículo. Ausente é a ordem do solver.
+     *
+     * ⚠️ **Sem isto as setas da proposta mentem**: o operador reordena, a carreta e o pedágio
+     * recalculam na tela, e a viagem nascia com a ordem de `route_suggestion_stops.sequence`.
+     */
+    stopOrderByVehicle?: readonly Readonly<{
+      orderedAddressKeys: readonly string[]
+      vehicleId: string
+    }>[]
+    vehicleIds?: readonly string[]
+    /** Spec 148 T7: o rastro da auditoria de quem soltou; só vem com `releaseUnplacedFromLayoutIds`. */
+    correlationId?: string
+    /**
+     * Spec 148 T7 (D10): as plantas da prévia de onde soltar as notas que não couberam — cada uma
+     * casa com o caminhão cujas notas ela desenhou. Ausente é o aceite de sempre.
+     */
+    releaseUnplacedFromLayoutIds?: readonly string[]
+  }>
+
 export type MultiVehicleSuggestionUseCase = Readonly<{
-  accept: (input: ReadMultiVehicleSuggestionInput) => Promise<AcceptedMultiVehicleSuggestion>
+  accept: (input: AcceptMultiVehicleSuggestionInput) => Promise<AcceptedMultiVehicleSuggestion>
   create: (input: CreateMultiVehicleSuggestionInput) => Promise<RouteSuggestion>
   read: (input: ReadMultiVehicleSuggestionInput) => Promise<RouteSuggestion>
   reject: (input: ReadMultiVehicleSuggestionInput) => Promise<RouteSuggestion>

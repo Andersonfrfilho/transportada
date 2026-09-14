@@ -1,6 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  DatabaseQueryAbortedError,
+  DatabaseUnavailableError,
+  findDatabaseFailure,
+} from '../database/database-unavailable.error'
 import { CORRELATION_ID_HEADER, HTTP_ERROR, JSON_CONTENT_TYPE } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { ApiLogger, ErrorResponse } from '../shared/api.types'
@@ -21,6 +26,19 @@ export function createErrorResponse({
   error,
   logger,
 }: ErrorResponseParams): Response {
+  const databaseFailure = findDatabaseFailure(error)
+  if (databaseFailure instanceof DatabaseQueryAbortedError) {
+    return knownErrorResponse({ correlationId, error: HTTP_ERROR.requestAborted })
+  }
+  if (databaseFailure instanceof DatabaseUnavailableError) {
+    safeLogError({
+      logger,
+      message: 'database_unavailable',
+      metadata: { correlationId, reason: databaseFailure.reason },
+    })
+    captureError?.(databaseFailure)
+    return knownErrorResponse({ correlationId, error: HTTP_ERROR.databaseUnavailable })
+  }
   if (error instanceof ApiError) {
     return jsonResponse({
       body: {
@@ -79,6 +97,18 @@ export function createServerErrorHandler({
     response.headers.set(CORRELATION_ID_HEADER, correlationId)
     return response
   }
+}
+
+type KnownErrorResponseParams = {
+  readonly correlationId: string
+  readonly error: { readonly code: string; readonly message: string; readonly status: number }
+}
+
+function knownErrorResponse({ correlationId, error }: KnownErrorResponseParams): Response {
+  return jsonResponse({
+    body: { error: { code: error.code, correlationId, message: error.message } },
+    status: error.status,
+  })
 }
 
 type JsonResponseParams = {

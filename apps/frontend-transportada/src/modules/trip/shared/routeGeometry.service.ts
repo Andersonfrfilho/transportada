@@ -24,11 +24,171 @@ export type RouteGeometryLeg = Readonly<{
   durationSeconds: number
 }>
 
-export type RouteGeometry = Readonly<{
-  /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado. */
+/** De onde saiu a contagem de eixos — declarada na ficha, ou estimada pelo tipo (spec 090 D2). */
+export const AXLE_COUNT_SOURCES = ['declared', 'estimated'] as const
+export type AxleCountSource = (typeof AXLE_COUNT_SOURCES)[number]
+
+export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
+
+/**
+ * Uma praça que a rota passou, na ordem de passagem (spec 090 T7/T8).
+ *
+ * ⚠️ `latitude`/`longitude` existem só para o mapa desenhar o ícone sobre a praça **do trajeto**
+ * (spec 096 D3/T4) — nunca para casar a praça pela coordenada, que continua sendo a identidade do
+ * nó no backend.
+ */
+export type RouteGeometryTollBooth = Readonly<{
+  chargeCar: null | string
+  chargePerAxle: null | string
+  /**
+   * O que **esta** praça custou por eixo neste veículo — a tarifa da tag quando ele a tem e ela
+   * existe, a manual no resto. ⚠️ É este valor que o extrato imprime, nunca o `chargePerAxle` cru:
+   * com tag o cru é a tarifa que o veículo não pagou, e linhas que não somam o total fazem duvidar
+   * do total. `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca.
+   */
+  effectiveChargePerAxle: null | string
+  /** Esta praça não tem tarifa de tag e caiu para a manual (spec 095 D3). */
+  fellBackToManual: boolean
+  /** `effectiveChargePerAxle × eixos`, e `null` pela mesma razão. */
+  total: null | string
+  latitude: string
+  longitude: string
+  /**
+   * Em que trecho da rota o caminhão cruza esta praça — `0` é o primeiro trecho enviado ao
+   * roteirizador, barracão incluído. É o índice que põe a praça entre as paradas certas na lista.
+   *
+   * ⚠️ Sai da anotação de nós do OSRM, **agrupada por trecho** — nunca de casar a coordenada da
+   * praça com a polilinha: a polilinha publicada é simplificada, e num roteiro que fecha no barracão
+   * a ida e a volta correm sobre a mesma rodovia. Duas cancelas gêmeas ("sentido Norte" e "sentido
+   * Sul") caíam as duas no mesmo trecho, e a volta ficava sem pedágio nenhum.
+   *
+   * ⚠️ `null`/ausente é desconhecimento — API que ainda não publica o campo, ou rota sem anotação —
+   * e a tela cai no extrato de sempre em vez de pendurar a praça num trecho por palpite.
+   */
+  legIndex?: null | number
+  name: null | string
+  operator: null | string
+  osmNodeId: number
+}>
+
+/** Se o veículo paga com tag ou não — a base que decide qual tarifa de cada praça vale (spec 095 D3). */
+export const TOLL_PAYMENT_MODES = ['automatic', 'manual'] as const
+export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
+
+/**
+ * O pedágio da rota, vindo na **mesma** resposta que a geometria (spec 090 D4) — nunca de uma
+ * segunda chamada, que poderia discordar do traço desenhado.
+ */
+export type RouteGeometryToll = Readonly<{
+  axles: AxleCount
+  /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * ⚠️ Furgão de dois eixos paga 1×, e caminhão de dois eixos paga 2×: é a rodagem que decide, e
+   * imprimir "× 2 eixos" para os dois explicava uma conta que a cancela não faz.
+   */
+  multiplierLabel: string
+  booths: readonly RouteGeometryTollBooth[]
+  /** Quantas das praças acima não têm tarifa conhecida — o total sozinho seria número crível e
+   *  possivelmente falso (medido: 4 das 166 praças declaram `0.00`, campo não mapeado). */
+  boothsWithoutCharge: number
+  /** Quantas praças caíram para a manual por falta de tarifa automática (spec 095 D3) — só
+   *  existe quando `paymentMode` é `automatic`. Nunca se aplica desconto estimado. */
+  boothsFallenBackToManual: number
+  chargePerAxle: string
+  /** Se o veículo paga com tag — a base que a tela mostra ao lado do total. */
+  paymentMode: TollPaymentMode
+  /** A mais antiga entre as praças cobradas; `null` quando a rota não passou por praça nenhuma. */
+  tariffObservedOn: null | string
+  total: string
+}>
+
+/**
+ * Por que não há rota mais barata — as duas razões são ausência de dado, nunca empate (spec 096
+ * D1): o rótulo simplesmente não é atribuído, e a tela diz qual das duas faltou.
+ */
+export const ROUTE_COST_GAPS = ['NO_FUEL_BASELINE', 'TOLL_UNKNOWN'] as const
+export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
+
+/**
+ * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
+ * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.
+ */
+export type RouteGeometryOption = Readonly<{
+  distanceMeters: number
+  durationSeconds: number
+  /** `null` quando o veículo não declara consumo/preço, ou quando o pedágio é desconhecido. */
+  fuelTotal: null | string
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
+  toll: null | RouteGeometryToll
+  totalCost: null | string
+}>
+
+/**
+ * Spec 097: por que a perna do barracão ficou de fora. As duas razões são separadas porque o
+ * remédio é diferente — uma pede cadastro do endereço, a outra pede que a geocodificação o alcance.
+ */
+export const ROUTE_DEPOT_ABSENCES = ['not_configured', 'not_geocoded'] as const
+export type RouteDepotAbsence = (typeof ROUTE_DEPOT_ABSENCES)[number]
+
+/**
+ * A perna do barracão nesta rota. `leadingLegs`/`trailingLegs` dizem quantos trechos de `legs` são
+ * dela — ⚠️ sem esses dois números a tela casaria trecho com a parada errada, ou descartaria todos.
+ */
+/**
+ * Quem é o barracão, para a perna dizer de onde o caminhão sai.
+ *
+ * ⚠️ É o endereço **da empresa**, não uma leitura do ponto de partida: a origem do roteirizador é
+ * uma chave com coordenada e nenhum endereço escrito, e descobrir a rua a partir dela seria
+ * geocodificação reversa (ADR-0044). Por isso a tela nomeia a empresa em vez de afirmar a rua do
+ * galpão — quem cadastrou uma origem diferente da sede leria uma mentira plausível.
+ */
+export type DepotDescription = Readonly<{
+  address: string
+  legalName: string
+  /** `null` quando a empresa não cadastrou telefone: a linha some, nunca vira traço. */
+  phone: null | string
+  tradeName: string
+}>
+
+export type RouteGeometryDepot = Readonly<{
+  absence: null | RouteDepotAbsence
+  description: null | DepotDescription
+  leadingLegs: number
+  /**
+   * Spec 097 D4: onde o barracão está, para o mapa marcá-lo com **forma própria** — nunca o pino
+   * numerado das entregas. `null` quando a perna não entrou.
+   */
+  origin: null | Readonly<{ latitude: string; longitude: string }>
+  trailingLegs: number
+}>
+
+export type RouteGeometry = Readonly<{
+  /**
+   * Spec 097: a perna do barracão. Ausente ou `null` é "esta rota não pediu barracão" — distinto
+   * de "pediu e não achou", que vem com `absence` preenchida e é o que a tela anuncia (D2).
+   */
+  depot?: null | RouteGeometryDepot
+  /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado.
+   *  ⚠️ Sempre os da rota **principal** — ver `options[0]` para as alternativas (spec 096 T1). */
+  legs: readonly RouteGeometryLeg[]
+  points: readonly Readonly<{ latitude: string; longitude: string }>[]
+  /** `null` quando ninguém pediu pedágio (sem veículo escolhido) ou a rota não anotou os nós. */
+  toll: null | RouteGeometryToll
   source: RouteGeometrySource
+  /**
+   * As rotas que o roteirizador ofereceu, a principal em `[0]` (spec 096 T1). Campo opcional para
+   * não quebrar literal antigo desta tela — ausente é tratado igual a lista vazia.
+   */
+  options?: readonly RouteGeometryOption[]
+  /** Índice em `options` da rota mais barata. `null` quando `costGap` diz por que não há uma. */
+  cheapestIndex?: null | number
+  /** Por que não há mais barata — ausência de dado, nunca empate. */
+  costGap?: null | RouteCostGap
+  /** Índice em `options` da rota mais rápida. */
+  fastestIndex?: null | number
+  /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor. */
+  hasChoice?: boolean
 }>
 
 export type ProjectedPoint = Readonly<{ x: number; y: number }>

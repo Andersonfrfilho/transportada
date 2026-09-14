@@ -39,6 +39,7 @@ export type IconName =
   | 'link'
   | 'logout'
   | 'menu'
+  | 'message'
   | 'page-first'
   | 'page-last'
   | 'page-next'
@@ -56,6 +57,8 @@ export type IconName =
   | 'moon'
   | 'trash'
   | 'truck'
+  | 'map-pin'
+  | 'organization'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
   | 'vehicle-utility'
@@ -96,7 +99,7 @@ export type IconProps = {
 }
 
 /** Traçados de 24×24, sem preenchimento: a cor vem do botão que hospeda o ícone. */
-const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
+export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   add: ['M12 5v14', 'M5 12h14'],
   /** Afastar o mapa. É o "menos" do par com `add`, e por isso tem o mesmo traço horizontal. */
   minus: ['M5 12h14'],
@@ -142,6 +145,8 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
+  /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
+  message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
   'page-first': ['M17 6l-6 6 6 6', 'M7 6v12'],
   'page-last': ['M7 6l6 6-6 6', 'M17 6v12'],
   'page-next': ['M10 6l6 6-6 6'],
@@ -167,6 +172,32 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M18 6l1.8-1.8',
   ],
   moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
+  /**
+   * O alfinete de mapa: a gota com o furo, apoiada no ponto que ela marca.
+   *
+   * ⚠️ Ele existe porque o emoji 📍 **não pode** entrar em produto (`web.md` §9): renderiza
+   * diferente em cada sistema, não herda `currentColor` e não escala com o token de tipografia. A
+   * forma é a mesma; o desenho é nosso, e acompanha cor e tamanho como todo ícone daqui.
+   */
+  'map-pin': [
+    'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
+    'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  ],
+  /**
+   * A organização: o prédio da empresa, com anexo, janelas e portão, assentado na linha do chão.
+   *
+   * ⚠️ Ele nomeia um **lugar**, e por isso não repete o glifo de `truck`, que já nomeia a perna
+   * rodada — o mesmo desenho para a origem e para o percurso apagaria a diferença entre os dois na
+   * única linha em que ela importa.
+   */
+  organization: [
+    'M4 21V5.6a.6.6 0 0 1 .6-.6h8.8a.6.6 0 0 1 .6.6V21',
+    'M14 21V11h5.4a.6.6 0 0 1 .6.6V21',
+    'M7.4 8.6h3.2',
+    'M7.4 12.4h3.2',
+    'M7.6 21v-4.4h2.8V21',
+    'M3 21h18',
+  ],
   truck: [
     'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
     'M13 10h4l3 3v4h-7z',

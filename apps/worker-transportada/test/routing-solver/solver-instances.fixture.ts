@@ -23,6 +23,9 @@ export function buildEuclideanProblem(input: {
   readonly demands?: readonly number[]
   readonly duty?: RouteProblem['duty']
   readonly endIndex?: number | null
+  readonly maxStopsPerRoute?: number | null
+  /** Spec 106: por veículo, os índices de parada que ele cobre. `null` é sem restrição. */
+  readonly coverage?: readonly (readonly number[] | null)[]
   readonly points: readonly Point[]
   readonly seed?: number
   readonly serviceTimeSeconds?: number
@@ -59,16 +62,25 @@ export function buildEuclideanProblem(input: {
     distancesMeters,
     durationsSeconds,
     duty: input.duty ?? null,
+    maxStopsPerRoute: input.maxStopsPerRoute ?? null,
     endIndex: input.endIndex === undefined ? 0 : input.endIndex,
     seed: input.seed ?? 42,
     stagnationLimit: input.stagnationLimit ?? 40,
     stops,
     timeBudgetMilliseconds: input.timeBudgetMilliseconds ?? 3_000,
-    vehicles: Array.from({ length: vehicleCount }, (_value, index) => ({
-      capacityKilograms: input.capacityKilograms ?? Number.MAX_SAFE_INTEGER,
-      costPerMeterMicros: 1,
-      id: `vehicle-${index + 1}`,
-    })),
+    vehicles: Array.from({ length: vehicleCount }, (_value, index) => {
+      const covered = input.coverage?.[index]
+
+      return {
+        capacityKilograms: input.capacityKilograms ?? Number.MAX_SAFE_INTEGER,
+        costPerMeterMicros: 1,
+        id: `vehicle-${index + 1}`,
+        servableStopIndexes:
+          input.coverage === undefined || covered === null || covered === undefined
+            ? null
+            : new Set(covered),
+      }
+    }),
   }
 }
 

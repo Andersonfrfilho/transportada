@@ -35,6 +35,8 @@ describe('fleet driver schema', () => {
       'linked_legal_name',
       // ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo, desligado por padrão
       'location_sharing_consent_at',
+      /** Spec 100: se o motorista amarra a carga — libera a planta a empilhar até o teto do baú. */
+      'secures_cargo',
       /** ADR-0049 §3: como este motorista é pago — o agregado por rota, o da casa por quinzena. */
       'payment_model',
       'fixed_amount',
@@ -68,6 +70,11 @@ describe('fleet driver schema', () => {
       'district',
       'city',
       'state',
+      // Spec 097 D6: onde a casa fica, e quando alguém procurou — "achou" e "procurou" são coisas
+      // diferentes, e a segunda é o que impede a busca de repetir a cada leitura.
+      'home_latitude',
+      'home_longitude',
+      'home_geocoded_at',
       'linked_postal_code',
       'linked_street',
       'linked_number',
@@ -106,6 +113,11 @@ describe('fleet driver schema', () => {
       'payment_closing_day',
       // Nulo é ausência de aceite — e enquanto for nulo, o portal não mostra posição nenhuma
       'location_sharing_consent_at',
+      // Ficha sem coordenada é o normal: o par só nasce de endereço escolhido na busca, e a marca
+      // de "já procurei" só nasce depois da primeira tentativa.
+      'home_latitude',
+      'home_longitude',
+      'home_geocoded_at',
     ]
 
     expect(requiredColumnNames(fleetDrivers)).toEqual(

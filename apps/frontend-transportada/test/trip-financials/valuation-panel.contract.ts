@@ -55,6 +55,7 @@ describe('a avaliação prevista da viagem', () => {
         costParcels: [
           {
             amount: '0.0000',
+            basis: null,
             detail: null,
             gap: 'NO_FUEL_BASELINE',
             kind: 'fuel',

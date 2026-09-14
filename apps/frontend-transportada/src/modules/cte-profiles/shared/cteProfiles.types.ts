@@ -40,9 +40,18 @@ export const CTE_PROFILE_PICKUP_INDICATOR = ['0', '1'] as const
  */
 export const CTE_PROFILE_MUNICIPAL_SERVICE_POLICY = ['allow', 'block'] as const
 
+/**
+ * Qual documento a nota que casa com o perfil gera (spec 144 D3). ⚠️ Cópia por valor de
+ * `CTE_OUTPUT_DOCUMENTS` da API. Em `nfse` tomador, regra de frete, CFOP e ICMS vêm do perfil NFS-e.
+ */
+export const CTE_PROFILE_OUTPUT_DOCUMENT = ['cte', 'nfse'] as const
+export type CteProfileOutputDocument = (typeof CTE_PROFILE_OUTPUT_DOCUMENT)[number]
+
 export type CteProfileSettings = Readonly<{
   cargoInsuranceDeclared: boolean
   municipalServicePolicy: (typeof CTE_PROFILE_MUNICIPAL_SERVICE_POLICY)[number]
+  nfseEmissionProfileId: null | string
+  outputDocument: CteProfileOutputDocument
   cfopInternal: string
   cfopInterstate: string
   chargeComponentLabel: string

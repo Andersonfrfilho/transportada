@@ -73,6 +73,10 @@ export function createFieldReportUnitOfWork(
       const stop = state.stops.get(input.stopId)
       if (stop !== undefined) state.stops.set(input.stopId, { ...stop, arrivedAt: input.at })
     },
+    /** Spec 109 D3: o dublê registra o deslocamento com o tamanho dele — é o que o contrato lê. */
+    shiftPendingStops: async (input) => {
+      state.calls.push(`shiftPendingStops:${input.tripId}:${String(input.shiftMilliseconds)}`)
+    },
     markTripInTransit: async (input) => {
       state.calls.push(`markTripInTransit:${input.tripId}`)
     },

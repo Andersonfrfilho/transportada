@@ -151,6 +151,8 @@ export const TRIP_TABLES = [
   /** Spec 082 / ADR-0057: a configuração do comprovante, geral e por CNPJ do destinatário. */
   'company_delivery_proof_settings',
   'delivery_proof_setting_overrides',
+  /** Spec 148 T7: a fila de revisão das notas que não couberam. */
+  'trip_document_reviews',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
@@ -189,6 +191,21 @@ export const MULTI_VEHICLE_SUGGESTION_TABLES = [
 
 /** Spec 062: a credencial do WhatsApp, por empresa e com o token selado. */
 export const WHATSAPP_CHANNEL_TABLES = ['whatsapp_channels'] as const
+
+/** Spec 144: o número verificado como credencial e o pedido que o verifica. */
+export const WHATSAPP_PHONE_TABLES = [
+  'user_whatsapp_phones',
+  'whatsapp_phone_verification_requests',
+] as const
+
+/** Spec 144 T008: o histórico append-only da conversa publicada. */
+export const WHATSAPP_FLOW_GRAPH_TABLES = ['whatsapp_flow_graph_versions'] as const
+
+/** Spec 144 T011: a prévia congelada do comando e o diário de passos da confirmação. */
+export const WHATSAPP_COMMAND_TABLES = [
+  'whatsapp_command_requests',
+  'whatsapp_command_documents',
+] as const
 
 /** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
 export const CONTRACTOR_PORTAL_TABLES = [
@@ -260,6 +277,9 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...CONTRACTOR_PORTAL_TABLES,
     ...MULTI_VEHICLE_SUGGESTION_TABLES,
     ...WHATSAPP_CHANNEL_TABLES,
+    ...WHATSAPP_PHONE_TABLES,
+    ...WHATSAPP_FLOW_GRAPH_TABLES,
+    ...WHATSAPP_COMMAND_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
@@ -272,11 +292,19 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
   return tables.map((row) => row.table_name)
 }
 
+/**
+ * ⚠️ O desempate por `name` não é enfeite: `created_at` sai do **prefixo do nome da pasta**, não do
+ * relógio, então duas migrations do mesmo timestamp — hoje as duas de `20260903200000` — gravam o
+ * mesmo valor. Sem o desempate a leitura sai na ordem física da tabela, que muda quando qualquer
+ * linha nova entra: acrescentar uma migration no fim reprovava a asserção por causa de duas que
+ * ninguém tocou. `name` é o mesmo critério que `listMigrationDirectories` usa, e é o que a
+ * convenção de prefixo já promete.
+ */
 export async function readMigrationNames(database: SQL): Promise<readonly string[]> {
   const migrations = await database<Array<{ readonly name: string }>>`
     select name
     from drizzle.__drizzle_migrations
-    order by created_at
+    order by created_at, name
   `
 
   return migrations.map((migration) => migration.name)

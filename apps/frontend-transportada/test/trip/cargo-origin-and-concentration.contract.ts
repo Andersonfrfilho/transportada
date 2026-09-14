@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import { createTripResponseAdapters } from '@/modules/trip/shared/tripResponse.validation'
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
 const validation = createTripResponseAdapters()
 
@@ -48,9 +52,13 @@ describe('a ocupação com origem medida (spec 085 G006)', () => {
         cargoLayout: null,
         cargoWeight: null,
         occupancy: null,
-        weightConcentration: { share: 0.72, stopId: 'porta-1' },
+        weightConcentration: {
+          label: 'AVENIDA 04, 50, ORLANDIA, SP',
+          share: 0.72,
+          stopId: 'porta-1',
+        },
       }).weightConcentration,
-    ).toEqual({ share: 0.72, stopId: 'porta-1' })
+    ).toEqual({ label: 'AVENIDA 04, 50, ORLANDIA, SP', share: 0.72, stopId: 'porta-1' })
   })
 
   /** Ausência é o normal — carga equilibrada é a maioria das viagens. */
@@ -83,5 +91,22 @@ describe('o alerta chega à tela de montagem', () => {
     expect(panel).toContain("t('occupancy.weightConcentration'")
     /** A origem parcial tem marca própria: dizer "estimado" nela seria mentir para o outro lado. */
     expect(panel).toContain("t('occupancy.partial')")
+  })
+})
+
+/**
+ * ⚠️ O aviso de peso concentrado imprime o **rótulo** da parada, nunca a chave que a agrupa. Ele
+ * saía com `3534302|14620000|50` — o `buildStopAddressKey` cru, que é código IBGE, CEP e número —, e
+ * quem lê não descobre de qual parada se trata justamente no aviso que pede uma ação.
+ */
+describe('rótulo do aviso de concentração', () => {
+  it('imprime o endereço da parada, não a chave que a agrupa', () => {
+    const source = readFileSync(
+      new URL('src/modules/trip/components/TripCargoPanel.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+
+    expect(source).toContain('stop: weightConcentration.label')
+    expect(source).not.toContain('stop: weightConcentration.stopId')
   })
 })

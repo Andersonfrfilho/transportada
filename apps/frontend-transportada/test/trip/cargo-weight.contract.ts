@@ -34,7 +34,7 @@ describe('peso da carga na tela (spec 079 T002)', () => {
    * afirmação passa — foi o que aconteceu na primeira escrita, e a mutação revelou.
    */
   it('não esconde a marca atrás de segunda condição', () => {
-    const inicio = source.indexOf('isWeightEstimated')
+    const inicio = source.indexOf("cargoWeight.source === 'estimated'")
     expect(inicio).toBeGreaterThan(-1)
 
     const trecho = source.slice(inicio, source.indexOf('cargoWeight.estimated', inicio))
@@ -55,11 +55,27 @@ describe('peso da carga na tela (spec 079 T002)', () => {
   })
 
   /**
-   * ⚠️ Sem percentual. A ficha do veículo não guarda capacidade em massa, e um teto inventado para
-   * produzir porcentagem é exatamente o número que faria alguém parar de carregar, ou continuar.
+   * ⚠️ **Spec 093 revoga a premissa da 079.** A ficha guarda capacidade em massa desde sempre —
+   * `fleet_vehicles.capacity_kg`, o `capKG` do MDF-e —, e o que faltava era alguém lê-la fora da
+   * emissão fiscal. O percentual passa a existir, e as duas medidas da carga (volume e peso) têm o
+   * **mesmo peso visual**: o de peso vivia numa linha de rodapé enquanto o de volume era o número
+   * grande, e quem carrega olhava só um dos dois.
    */
-  it('não anuncia percentual de peso', () => {
-    expect(trip.cargoWeight).not.toHaveProperty('ratio')
-    expect(source).not.toInclude('weightPercent')
+  it('anuncia o percentual de peso com a mesma forma do de volume', () => {
+    expect(trip.cargoWeight.ratio).toInclude('{{percent}}%')
+    expect(trip.cargoWeight.loaded).toInclude('{{capacity}}')
+    expect(source).toInclude('styles.cargoMeasureValue')
+    expect(source).toInclude("t('cargoWeight.ratio'")
+  })
+
+  /**
+   * ⚠️ Ausência é ausência: **nunca 0%, nunca 100%**. Veículo sem carga máxima cadastrada com carga
+   * dentro é o caso em que um número inventado faz alguém parar de carregar, ou continuar — e o
+   * lugar do percentual passa a ser o número absoluto, com o aviso de onde preencher o teto.
+   */
+  it('troca o percentual pelo número absoluto quando não há teto cadastrado', () => {
+    expect(source).toInclude('cargoWeight.payloadRatio === null')
+    expect(source).toInclude("t('cargoWeight.withoutCeiling')")
+    expect(trip.cargoWeight.withoutCeiling).toInclude('Carga máxima')
   })
 })

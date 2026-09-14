@@ -97,6 +97,32 @@ const ownerSchema = z
   })
   .strict()
 
+/**
+ * ⚠️ Os mesmos pisos e tetos dos CHECKs `fleet_vehicles_cargo_{length,width,height}_check`. Sem
+ * eles a fronteira aceita os 2,5 cm que a spec 088 cita como caso extremo, o `INSERT` estoura o
+ * CHECK e o Exception Filter devolve **500 genérico** — nenhum campo marcado, e a separação dos
+ * três CHECKs (feita justamente para nomear qual medida está fora) sem leitor nenhum.
+ *
+ * Zero continua passando: é ausência de medida, e é o estado da frota que ainda não mediu.
+ */
+const CARGO_DIMENSION_BOUNDS = {
+  cargoHeightMeters: { max: 5, min: 0.3 },
+  cargoLengthMeters: { max: 30, min: 0.3 },
+  cargoWidthMeters: { max: 4, min: 0.3 },
+} as const
+
+function buildCargoDimensionSchema(key: keyof typeof CARGO_DIMENSION_BOUNDS) {
+  const { max, min } = CARGO_DIMENSION_BOUNDS[key]
+
+  return z
+    .string()
+    .regex(MEASURE_DECIMAL)
+    .refine((value) => {
+      const metres = Number(value)
+      return metres === 0 || (metres >= min && metres <= max)
+    })
+}
+
 const vehicleFieldsSchema = z.object({
   acquisitionAmount: z.string().regex(MONEY_DECIMAL),
   annualInsuranceAmount: z.string().regex(MONEY_DECIMAL),
@@ -108,12 +134,14 @@ const vehicleFieldsSchema = z.object({
   brand: z.string().trim().max(VEHICLE_BRAND_MAX_LENGTH),
   capacityCubicMeters: z.string().regex(MEASURE_DECIMAL),
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
-  cargoHeightMeters: z.string().regex(MEASURE_DECIMAL),
-  cargoLengthMeters: z.string().regex(MEASURE_DECIMAL),
-  cargoWidthMeters: z.string().regex(MEASURE_DECIMAL),
+  cargoHeightMeters: buildCargoDimensionSchema('cargoHeightMeters'),
+  cargoLengthMeters: buildCargoDimensionSchema('cargoLengthMeters'),
+  cargoWidthMeters: buildCargoDimensionSchema('cargoWidthMeters'),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
+  /** Spec 095 D3: default `false` — sem marcar, o pedágio segue sempre pela tarifa manual. */
+  hasAutomaticTollPayment: z.boolean().default(false),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
   monthlyInstallmentAmount: z.string().regex(MONEY_DECIMAL),
@@ -142,9 +170,32 @@ const driverAddressSchema = z
   })
   .strict()
 
+/**
+ * A coordenada da casa corrigida à mão no mapa da ficha (spec 097 D6).
+ *
+ * ⚠️ A caixa é a do Brasil continental, a mesma do CHECK do banco: coordenada trocada de ordem cai
+ * fora dela e é recusada **na fronteira**, não descoberta no mapa. Meia coordenada não existe — o
+ * objeto tem as duas metades ou não vem.
+ */
+const homeCoordinateSchema = z
+  .object({
+    latitude: z.coerce.number().min(-34).max(6),
+    longitude: z.coerce.number().min(-74).max(-34),
+  })
+  .strict()
+  .transform((value) => ({
+    latitude: value.latitude.toFixed(7),
+    longitude: value.longitude.toFixed(7),
+  }))
+
 const driverFieldsSchema = z.object({
   address: driverAddressSchema,
   anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
+  /**
+   * Spec 100: o motorista amarra a carga com cinta. ⚠️ `default(false)` e não opcional na leitura:
+   * ausência é **não amarra**, e supor cinta desenharia pilha alta para quem não amarra.
+   */
+  securesCargo: z.boolean().default(false),
   licenseCategory: z.literal('').or(z.enum(LICENSE_CATEGORIES)),
   // Teto no Zod, e não em CHECK: `current_date` é função volátil e quebraria o restore do dump
   birthCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
@@ -227,6 +278,14 @@ export const replaceDriverVehiclesSchema = z
 export const updateDriverSchema = driverFieldsSchema
   .extend({
     expectedVersion: z.string().regex(POSITIVE_BIGINT),
+    /**
+     * ⚠️ Só na atualização, e não na criação: o mapa que permite mover o alfinete só existe numa
+     * ficha que já foi salva e procurada. Aceitá-la na criação seria oferecer a correção de uma
+     * coordenada que ainda não existe.
+     *
+     * Ausente é "não mexeram nela" — a ficha é salva inteira, e omissão não pode apagar o gravado.
+     */
+    homeCoordinate: homeCoordinateSchema.nullish(),
     status: z.enum(FLEET_DRIVER_STATUSES),
   })
   .strict()

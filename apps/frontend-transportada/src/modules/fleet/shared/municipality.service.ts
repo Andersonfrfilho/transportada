@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isRecord, isString } from './fleetGuards.validation'
+import { readCachedMunicipalities, writeCachedMunicipalities } from './municipalityCache.service'
 import { BRAZIL_STATE, FLEET_FIELD_ENTRY_MODE, type FleetFieldEntryMode } from './fleet.types'
 
 /**
@@ -106,9 +107,20 @@ export async function listMunicipalities(
   const state = input.state.trim().toUpperCase()
   if (!BRAZIL_STATE.some((candidate) => candidate === state)) return []
 
+  /**
+   * ⚠️ O cache vem **antes** da rede: a lista de municípios de uma UF muda de década em década — a
+   * última alteração no país foi em 2013 —, e pedi-la a cada troca de estado é ida à rede por um
+   * dado que não muda. Ausência no cache é o caminho de sempre, nunca erro.
+   */
+  const cached = readCachedMunicipalities({ at: Date.now(), state })
+  if (cached !== null) return cached
+
   const response = await input.fetch(`${IBGE_MUNICIPALITY_URL}/${state}`, { signal: input.signal })
   if (!response.ok) throw new Error('FLEET_MUNICIPALITY_REQUEST_FAILED')
-  return await readMunicipalityNames(response)
+
+  const names = await readMunicipalityNames(response)
+  writeCachedMunicipalities({ at: Date.now(), names, state })
+  return names
 }
 
 /**

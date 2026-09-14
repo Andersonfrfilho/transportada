@@ -9,6 +9,13 @@ import type { TripFilters, TripStatus } from '../shared/trip.types'
 import { clearTripFilterField, type TripPillField } from '../shared/tripFilterPills.service'
 import { navigateToTrip } from '../shared/tripRoute.service'
 import {
+  cancellableSelection,
+  pruneSelection,
+  selectAllOnPage,
+  selectAllState,
+  toggleSelection,
+} from '../shared/tripSelection.service'
+import {
   canGoToPreviousTripPage,
   countActiveTripFilters,
   nextTripPage,
@@ -47,12 +54,32 @@ export function useTripTable(input: UseTripTableInput) {
   const nextCursor = tripsQuery.data?.nextCursor ?? null
   const visibleItems = sortTrips(items, sort)
 
+  /**
+   * Spec 102: a marcação vive aqui, e é **podada contra a página**. Paginação por cursor troca o
+   * conjunto inteiro, e manter id invisível faria o operador cancelar o que não está vendo.
+   */
+  const [rawSelection, setRawSelection] = useState<readonly string[]>([])
+  const selectedIds = pruneSelection({ selectedIds: rawSelection, trips: visibleItems })
+
   function restartPagination(): void {
     setPage(TRIP_FIRST_PAGE)
   }
 
   return {
     activeFilterCount: countActiveTripFilters(filters),
+    /** As marcadas que **ainda podem** ser canceladas — nunca a marcação crua (spec 102). */
+    cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
+    clearSelection: () => setRawSelection([]),
+    selectedIds,
+    selectAllState: selectAllState({ selectedIds, trips: visibleItems }),
+    toggleSelectAll: () =>
+      setRawSelection((current) =>
+        selectAllState({ selectedIds: current, trips: visibleItems }) === 'all'
+          ? []
+          : selectAllOnPage(visibleItems),
+      ),
+    toggleSelection: (tripId: string) =>
+      setRawSelection((current) => toggleSelection({ selectedIds: current, tripId })),
     canGoToPreviousPage: canGoToPreviousTripPage(page),
     clearFilterField: (field: TripPillField) => {
       setFilters((current) => clearTripFilterField({ field, filters: current }))

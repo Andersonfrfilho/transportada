@@ -44,6 +44,17 @@ describe('cte emission profile tenant safety', () => {
     })
   })
 
+  test('reaches the NFS-e profile through the tenant, never by id alone', () => {
+    expect(foreignKeys(cteEmissionProfiles)).toContainEqual({
+      columns: ['company_id', 'nfse_emission_profile_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'nfse_emission_profiles',
+      name: 'cte_emission_profiles_company_nfse_profile_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
   test('makes a matcher unable to point at another tenant profile', () => {
     expect(foreignKeys(cteEmissionProfileMatchers)).toContainEqual({
       columns: ['company_id', 'profile_id'],

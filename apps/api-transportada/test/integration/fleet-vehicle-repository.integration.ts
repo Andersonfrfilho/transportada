@@ -40,6 +40,7 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: 0,
   monthlyInstallmentAmount: '0.0000',

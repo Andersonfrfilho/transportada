@@ -115,3 +115,38 @@ que a T008 acrescenta onde a CSP for montada.
   contrato que a T008 pedir passa a poder afirmar `frame-src 'none'`, que é verificável.
 - Se um dia o produto quiser mapa de verdade — rota, geocerca, rastreamento —, a decisão a tomar é
   provedor contratado com chave e DPA, não `iframe` público. Voltar atrás é ADR nova.
+
+## Adendo — 2026-09-08: o mapa volta, e por um caminho que esta ADR não previu
+
+A última linha acima diz que voltar atrás é ADR nova, e ela oferece duas saídas: `iframe` público ou
+provedor contratado com chave e DPA. **Existe uma terceira, e é a que a spec 097 D6 tomou** — o
+basemap vetorial **nosso**, o mesmo PMTiles que o mapa da montagem da viagem já serve da nossa
+origem. Ele não é nenhuma das duas: não há terceiro renderizando dentro da nossa página, não há host
+de terceiro, e o `frame-src 'none'` **continua intacto**.
+
+Fica registrado que esta ADR pediu ADR nova para a reversão. Isto não é a reversão que ela descreveu:
+nenhuma das três razões que a motivaram — o endereço saindo inteiro do navegador, a moldura de
+terceiro, e o `User-Agent` que o navegador não manda — é reintroduzida. O termo digitado continua
+indo ao Photon pela busca textual, que esta ADR manteve de propósito; o que mudou é que a coordenada
+que ele já devolvia **para de ser descartada**.
+
+**Por que o mapa voltou a ter função.** A ADR o removeu porque ele era a única coisa que consumia
+latitude e longitude — sem consumidor, o custo não se pagava. Agora há consumidor: o retorno da
+viagem à casa do agregado (spec 097 D6) precisa da coordenada, e ela é gravada em
+`fleet_drivers.home_latitude`/`home_longitude`.
+
+⚠️ **E o mapa é a única defesa contra o modo de falha que a medição revelou.** Medido em 2026-09-08
+contra o Photon real, com os seis motoristas desta base: `Rua Sete de Setembro, 990, Pontal, SP`
+voltou como `-23.468, -46.527` — **Guarulhos, a 250 km**. O nome da rua existe em quase toda cidade
+do Brasil e o provedor casa a mais famosa; a coordenada é plausível, o número não tem nada de errado.
+O portão de cidade recusa esse caso; o mapa é o que deixa o operador ver os que o portão não pega.
+
+**O que segue proibido, e agora com contrato:** moldura embutida de terceiro, host de mapa de
+terceiro e o provedor que esta ADR recusou. `test/fleet/address-map-removed.contract.ts` manteve a
+lista inteira e ganhou uma trava a mais — mapa no módulo da frota só existe pelo basemap próprio, e
+o segundo mapa que alguém desenhar não abre uma segunda porta.
+
+⚠️ **O que esta decisão custa, e é preciso dizer:** o endereço residencial passa a ser desenhado na
+tela de quem monta a viagem, e a coordenada é PII mais precisa que a rua em texto. As duas colunas
+entram no envelope da ADR-0039 junto do endereço, e o item 3 do D6 da spec 097 — "ele apareceria na
+tela do escritório" — foi decidido pelo usuário, por escrito, em 2026-09-08.

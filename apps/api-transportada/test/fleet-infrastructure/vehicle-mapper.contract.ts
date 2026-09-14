@@ -36,6 +36,7 @@ const RECORD: VehicleRecord = {
   createdAt: TIMESTAMP,
   fleetNumber: '',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   id: '00000000-0000-4000-8000-000000000911',
   model: '',
   modelYear: 0,

@@ -96,3 +96,126 @@
 .recalculate > * {
   min-height: 2.75rem;
 }
+
+/**
+ * Spec 110 D7: o razão de uma coluna. A largura sai de `min()` porque `max-width` é proibido nas
+ * folhas do app (web.md §10) — e a coluna precisa parar de crescer, senão o rótulo e o valor ficam
+ * a meia tela um do outro e ninguém lê a linha inteira.
+ */
+.ledger {
+  display: grid;
+  gap: 0;
+  width: min(100%, 46rem);
+  margin: 0;
+}
+
+.ledgerRow {
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  font-size: 0.85rem;
+}
+
+.ledgerRow dt {
+  color: var(--color-fog);
+}
+
+.ledgerRow dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledgerGroup {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A derivação: por que aquele número é aquele número. */
+.ledgerDetail {
+  margin: 0 0 var(--space-1);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+/* A parcela sem valor fica na lista: o motivo ocupa o lugar do número. */
+.ledgerGap {
+  color: var(--color-copper);
+  font-size: 0.8rem;
+}
+
+/**
+ * Spec 122: risco visual para a lacuna `FEATURE_ABSENT` — o recurso não existe no produto ainda,
+ * e não é um cadastro esquecido. O texto continua no lugar (o leitor de tela lê a mesma frase);
+ * o risco é só o reforço visual de que a linha não é acionável hoje.
+ */
+.ledgerGapAbsent {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-copper);
+}
+
+/* Spec 124: projeção sai marcada ao lado do número — ela conta no total, mas não é apuração. */
+.ledgerEstimated {
+  margin-right: var(--space-2);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Spec 124: o aviso é a ação a fazer, logo abaixo do número que continua valendo. */
+.ledgerAdvisory {
+  margin: 0 0 var(--space-1);
+  color: var(--color-copper);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.ledgerRevenue {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+/**
+ * ⚠️ **Verde é o que entra, vermelho é o que sai.** A receita era a única linha de total sem cor,
+ * entre uma despesa vermelha e um lucro verde — e o olho lia a conta pela metade.
+ */
+.ledgerRevenue dd {
+  color: var(--color-ready);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ledgerTotal {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  font-size: 0.95rem;
+}
+
+/* Despesa sai em vermelho e lucro em verde: os dois se distinguem antes do rótulo ser lido. */
+.ledgerExpenses {
+  color: var(--color-alert);
+  font-weight: 600;
+}
+
+.ledgerProfit {
+  color: var(--color-ready);
+  font-weight: 600;
+}
+
+.ledgerIncomplete {
+  margin: var(--space-2) 0 0;
+  color: var(--color-copper);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}

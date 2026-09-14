@@ -18,6 +18,8 @@ import {
 
 import { freightRules } from './freight.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
+// Ciclo de import com nfse.schema.ts: seguro porque as duas referências vivem no callback da tabela.
+import { nfseEmissionProfiles } from './nfse.schema.js'
 import { inList } from './schema-check.constant.js'
 
 export const CTE_EMISSION_PROFILE_STATUSES = ['draft', 'active', 'inactive'] as const
@@ -38,6 +40,14 @@ export type CteEmissionProfileMatchMode = (typeof CTE_EMISSION_PROFILE_MATCH_MOD
  */
 export const CTE_MUNICIPAL_SERVICE_POLICIES = ['allow', 'block'] as const
 export type CteMunicipalServicePolicy = (typeof CTE_MUNICIPAL_SERVICE_POLICIES)[number]
+
+/**
+ * Qual documento fiscal a nota que casa com este perfil gera (spec 144 D3). `cte` é o padrão e o
+ * comportamento de sempre; `nfse` aponta para um perfil de NFS-e, e aí tomador, regra de frete e
+ * alíquota vêm de lá — os campos de CT-e deste perfil ficam sem efeito.
+ */
+export const CTE_OUTPUT_DOCUMENTS = ['cte', 'nfse'] as const
+export type CteOutputDocument = (typeof CTE_OUTPUT_DOCUMENTS)[number]
 
 export const CTE_EMISSION_GROUPING_MODES = ['per_invoice', 'sender_recipient'] as const
 export type CteEmissionGroupingMode = (typeof CTE_EMISSION_GROUPING_MODES)[number]
@@ -129,6 +139,8 @@ export const cteEmissionProfiles = pgTable(
       .$type<CteMunicipalServicePolicy>()
       .notNull()
       .default('allow'),
+    outputDocument: text('output_document').$type<CteOutputDocument>().notNull().default('cte'),
+    nfseEmissionProfileId: uuid('nfse_emission_profile_id'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdByUserId: uuid('created_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -156,6 +168,13 @@ export const cteEmissionProfiles = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfseEmissionProfileId],
+      foreignColumns: [nfseEmissionProfiles.companyId, nfseEmissionProfiles.id],
+      name: 'cte_emission_profiles_company_nfse_profile_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('cte_emission_profiles_company_id_id_unique').on(table.companyId, table.id),
     unique('cte_emission_profiles_company_id_name_unique').on(table.companyId, table.name),
     index('cte_emission_profiles_company_status_priority_idx').on(
@@ -170,6 +189,19 @@ export const cteEmissionProfiles = pgTable(
     check(
       'cte_emission_profiles_municipal_service_policy_check',
       sql`${table.municipalServicePolicy} in (${sql.raw(inList(CTE_MUNICIPAL_SERVICE_POLICIES))})`,
+    ),
+    check(
+      'cte_emission_profiles_output_document_check',
+      sql`${table.outputDocument} in (${sql.raw(inList(CTE_OUTPUT_DOCUMENTS))})`,
+    ),
+    check(
+      'cte_emission_profiles_nfse_profile_check',
+      sql`(${table.outputDocument} = 'nfse') = (${table.nfseEmissionProfileId} is not null)`,
+    ),
+    // Bloquear serviço municipal no lote de CT-e não significa nada num perfil que já emite NFS-e.
+    check(
+      'cte_emission_profiles_output_municipal_check',
+      sql`${table.outputDocument} = 'cte' or ${table.municipalServicePolicy} = 'allow'`,
     ),
     check(
       'cte_emission_profiles_match_mode_check',

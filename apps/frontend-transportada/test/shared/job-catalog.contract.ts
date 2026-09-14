@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
@@ -15,78 +17,61 @@ import {
 import { DISTRIBUTION_INELIGIBILITY_REASONS } from '@/modules/nfe-workspace/shared/scheduledDistribution.constant'
 
 /**
- * Cópia por valor entre quatro apps que não importam código umas das outras: a lista literal se
- * repete aqui de propósito, para a paridade ser assertada em vez de suposta.
+ * A paridade é contra o **fonte da API**, não contra uma lista restatada aqui: a lista local
+ * envelheceu junto com a constante e deixou `geocoding.refine` de fora das duas sem reprovar nada.
  */
-const CATALOG = [
-  {
-    failureOutcomes: [
-      'company_disabled',
-      'not_opted_in',
-      'missing_synthetic_membership',
-      'certificate_missing',
-      'certificate_not_yet_valid',
-      'certificate_expired',
-      'cooldown_active',
-    ],
-    job: 'nfe.distribution.pull',
-    minimumIntervalSeconds: 300,
-  },
-  {
-    failureOutcomes: [
-      'anp_unreachable',
-      'anp_week_not_published',
-      'anp_malformed_workbook',
-      'aneel_unreachable',
-      'aneel_empty_slice',
-    ],
-    job: 'fuel.price.pull',
-    minimumIntervalSeconds: 86_400,
-  },
-  {
-    failureOutcomes: [
-      'provider_unreachable',
-      'malformed_response',
-      'credential_missing',
-      'document_unavailable',
-    ],
-    job: 'nfse.status.pull',
-    minimumIntervalSeconds: 300,
-  },
-  {
-    failureOutcomes: ['queue_unreachable', 'template_missing'],
-    job: 'notification.schedules.run',
-    minimumIntervalSeconds: 300,
-  },
-  {
-    /** Spec 057: a rotina só toca o próprio banco — o que pode dar errado é o imprevisto, e o
-     * invólucro já tem nome para ele. */
-    failureOutcomes: [],
-    job: 'trip.location.purge',
-    minimumIntervalSeconds: 86_400,
-  },
-  {
-    /** O provedor é o único de fora que ela toca, e é a única coisa que pode faltar. */
-    failureOutcomes: ['identity_provider_unreachable'],
-    job: 'identity.document.backfill',
-    minimumIntervalSeconds: 86_400,
-  },
-  {
-    failureOutcomes: [],
-    job: 'geocoding.backfill',
-    minimumIntervalSeconds: 3600,
-  },
-] as const
+const API_CATALOG_SOURCE = readFileSync(
+  new URL('../../../api-transportada/src/shared/job-catalog.constant.ts', import.meta.url),
+  'utf8',
+).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
+
+type ApiCatalogEntry = {
+  readonly failureOutcomes: readonly string[]
+  readonly job: string
+  readonly minimumIntervalSeconds: number
+}
+
+function readApiNumber(name: string): number {
+  const match = new RegExp(`export const ${name} = ([0-9_]+)`).exec(API_CATALOG_SOURCE)
+  if (match?.[1] === undefined) throw new Error(`${name} not found in the API catalog`)
+  return Number(match[1].replaceAll('_', ''))
+}
+
+function resolveApiInterval(token: string): number {
+  if (/^[0-9_]+$/.test(token)) return Number(token.replaceAll('_', ''))
+  return readApiNumber(token)
+}
+
+function readApiCatalog(): readonly ApiCatalogEntry[] {
+  const block = API_CATALOG_SOURCE.split('export const JOB_CATALOG = [')[1]?.split('] as const')[0]
+  if (block === undefined) throw new Error('JOB_CATALOG not found in the API catalog')
+  const entryPattern =
+    /failureOutcomes:\s*\[([^\]]*)\],\s*job:\s*'([^']+)',\s*minimumIntervalSeconds:\s*([A-Z_0-9]+)/g
+  const entries = [...block.matchAll(entryPattern)].map((match) => ({
+    failureOutcomes: [...(match[1] ?? '').matchAll(/'([^']+)'/g)].map(
+      (outcome) => outcome[1] ?? '',
+    ),
+    job: match[2] ?? '',
+    minimumIntervalSeconds: resolveApiInterval(match[3] ?? ''),
+  }))
+  const declaredJobs = [...block.matchAll(/\bjob:\s*'/g)].length
+  if (entries.length === 0 || entries.length !== declaredJobs) {
+    throw new Error('the API catalog changed shape; the parity parser needs to follow it')
+  }
+  return entries
+}
+
+const CATALOG = readApiCatalog()
 
 describe('frontend job catalog', () => {
   test('matches the API catalog: same routines, same order, same floors, same vocabularies', () => {
-    expect(JOB_CATALOG).toEqual(CATALOG)
-    expect(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
+    expect<readonly ApiCatalogEntry[]>(JOB_CATALOG).toEqual(CATALOG)
+    expect<readonly string[]>(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
   })
 
   test('agrees with the API on the tick and on the ceiling that keeps interval from becoming a pause', () => {
-    expect(JOB_TICK_INTERVAL_SECONDS).toBe(300)
-    expect(JOB_MAXIMUM_INTERVAL_SECONDS).toBe(7_776_000)
+    expect(JOB_TICK_INTERVAL_SECONDS).toBe(readApiNumber('JOB_TICK_INTERVAL_SECONDS'))
+    expect(JOB_MAXIMUM_INTERVAL_SECONDS).toBe(readApiNumber('JOB_MAXIMUM_INTERVAL_SECONDS'))
     for (const entry of JOB_CATALOG) {
       expect(entry.minimumIntervalSeconds).toBeGreaterThanOrEqual(JOB_TICK_INTERVAL_SECONDS)
       expect(entry.minimumIntervalSeconds).toBeLessThanOrEqual(JOB_MAXIMUM_INTERVAL_SECONDS)
@@ -103,7 +88,7 @@ describe('frontend job catalog', () => {
   })
 
   test('offers each routine the lifecycle codes plus its own failures, and nothing else', () => {
-    for (const entry of CATALOG) {
+    for (const entry of JOB_CATALOG) {
       expect(JOB_FAILURE_OUTCOMES[entry.job]).toEqual(entry.failureOutcomes)
       expect(JOB_OUTCOMES[entry.job]).toEqual([...JOB_WRAPPER_OUTCOMES, ...entry.failureOutcomes])
     }

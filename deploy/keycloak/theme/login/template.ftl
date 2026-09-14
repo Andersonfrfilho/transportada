@@ -16,8 +16,22 @@
     <meta name="robots" content="noindex, nofollow">
     <title>${msg("loginTitle",(realm.displayName!'TransportAdA'))}</title>
     <#-- O ícone é cópia por valor de `apps/frontend-transportada/public/icons/`: o tema não serve
-         arquivo da app, e sem ele a aba do login abre com o desenho genérico do navegador. -->
+         arquivo da app, e sem ele a aba do login abre com o desenho genérico do navegador.
+
+         Fora de produção ele troca pela variante com 🚧, como a app faz — a tela de login é a
+         primeira do produto, e era a única que não avisava o ambiente. A comparação é com a lista
+         fechada de ambientes sem produção: `appEnvironment` carrega o **literal** `${r"${env...}"}`
+         quando ninguém declarou a variável, então testar vazio deixaria o aviso ligado em produção. -->
+    <#-- ⚠️ Comparação direta, e não `?seq_contains`: o FreeMarker do Keycloak não aceita o método
+         sobre sequência literal, e a condição saía sempre falsa — o ícone de produção em todo
+         ambiente, que é exatamente o defeito. Medido em container de sonda. -->
+    <#assign appEnvironment = properties.appEnvironment!"" />
+    <#assign workInProgress = (appEnvironment == "local" || appEnvironment == "staging") />
+    <#if workInProgress>
+    <link rel="icon" href="${url.resourcesPath}/img/icon-work-in-progress.svg" type="image/svg+xml" />
+    <#else>
     <link rel="icon" href="${url.resourcesPath}/img/icon.svg" type="image/svg+xml" />
+    </#if>
     <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png" />
     <#-- ⚠️ Sem `defer` e **antes** da folha de estilo: o `data-theme` tem de existir no `<html>`
          na primeira pintura, senão a tela pisca no tema errado antes de corrigir. É por isso que

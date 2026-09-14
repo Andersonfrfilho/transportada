@@ -125,8 +125,8 @@ routing-fixture: ## 🗺️  Processa a grade sintética em deploy/osrm/data (pa
 # verdade.
 bench: up ## 🧪 Prepara a bancada local inteira (migrations, sementes e OSRM da grade sintética)
 	@$(MAKE) --no-print-directory identity-bootstrap
+	@$(MAKE) --no-print-directory migrate
 	@set -a; . "./$(ENV_FILE)"; set +a; \
-		bun run --cwd apps/api-transportada db:migrate; \
 		bun run --cwd apps/api-transportada db:seed:fleet; \
 		bun run --cwd apps/api-transportada db:seed:trip
 	@if [ ! -f deploy/osrm/data/fixture.osrm ]; then $(MAKE) --no-print-directory routing-fixture; fi
@@ -145,7 +145,13 @@ down: config ## 🛑 Encerra a infraestrutura local
 ps: config ## 📋 Exibe os serviços locais
 	@$(COMPOSE) ps $(SERVICES)
 
-dev: identity-bootstrap up ## 💻 Inicia somente frontend, API e worker Bun
+# ⚠️ **As migrations pendentes são aplicadas antes de subir os processos.** O boot da aplicação não
+# migra — e não deve: com réplicas subindo juntas, N processos correriam a mesma migration ao mesmo
+# tempo, e uma destrutiva rodaria sozinha num restart automático. Mas aqui é uma máquina, um
+# desenvolvedor e um banco descartável, e deixar isso manual produzia o defeito silencioso de sempre:
+# a coluna nova não existe, toda consulta da tabela quebra, e a tela mostra lista vazia com 200 na
+# rede. Em deploy quem migra é o `preDeployCommand` do Railway, que falha o deploy sem publicar.
+dev: identity-bootstrap up migrate ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
 		export FRONTEND_LANDING_PORT="$(FRONTEND_LANDING_PORT)"; \
@@ -180,6 +186,11 @@ worktree: ## 🌱 Cria um worktree isolado para outra sessão trabalhar sem cruz
 
 check: config ## ✅ Executa todos os gates locais
 	@bun run check
+
+# Aplica o que estiver pendente. Idempotente: sem migration nova ele não faz nada e não custa nada.
+migrate: postgres-up ## 🗃️ Aplica as migrations pendentes no banco local
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		bun run --cwd apps/api-transportada db:migrate
 
 migration-test: postgres-up ## 🗃️ Valida migration e rollback em PostgreSQL descartável
 	@set -a; . "./$(ENV_FILE)"; set +a; \

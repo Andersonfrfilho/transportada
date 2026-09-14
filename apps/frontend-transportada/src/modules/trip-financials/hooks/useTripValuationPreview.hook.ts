@@ -28,29 +28,48 @@ export type TripValuationPreviewController = Readonly<{
  *
  * A chave inclui as notas ordenadas porque a escolha muda a cada clique e o resultado é dela; sem a
  * ordenação, a mesma seleção em ordem diferente viraria uma consulta nova a cada render.
+ *
+ * `stopOrder` (spec 090 D3) é a mesma ordem que `useTripCargoPreview` recebe — a que o mapa numerou.
+ * O combustível e os outros-por-quilômetro passam a somar essa mesma rota, nunca uma recalculada por
+ * conta própria: mandar a ordem diferente faria o painel e o mapa contarem duas histórias.
  */
 export function useTripValuationPreview(
   input: Readonly<{
     driverIds: readonly string[]
+    /**
+     * ⚠️ Pausa a consulta e segura o **último número medido** enquanto há rascunho aberto na tela
+     * (specs 111/112): cada toque de seta ou movimento ia ao servidor, e o operador só queria ver o
+     * número depois de salvar.
+     */
+    isPaused?: boolean
     nfeDocumentIds: readonly string[]
     permissions: readonly string[]
+    stopOrder: readonly string[]
     vehicleId: string
   }>,
 ): TripValuationPreviewController {
   const canRead = input.permissions.includes(FINANCIALS_PERMISSION)
   const documentKey = [...input.nfeDocumentIds].sort().join(',')
   const driverKey = [...input.driverIds].sort().join(',')
+  /** ⚠️ **Sem `sort`**: aqui a ordem *é* o dado — ordenar a chave esconderia a reordenação. */
+  const orderKey = input.stopOrder.join('>')
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
-    enabled: canRead && input.nfeDocumentIds.length > 0 && input.vehicleId !== '',
+    enabled:
+      input.isPaused !== true &&
+      canRead &&
+      input.nfeDocumentIds.length > 0 &&
+      input.vehicleId !== '',
     queryFn: () =>
       getTripFinancialsClient().previewValuation({
         driverIds: input.driverIds,
         nfeDocumentIds: input.nfeDocumentIds,
+        stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
       }),
-    queryKey: [TRIP_VALUATION_PREVIEW_QUERY_KEY, documentKey, driverKey, input.vehicleId],
+    placeholderData: (previous) => (input.isPaused === true ? previous : undefined),
+    queryKey: [TRIP_VALUATION_PREVIEW_QUERY_KEY, documentKey, driverKey, orderKey, input.vehicleId],
   })
 
   const valuation = query.data ?? null

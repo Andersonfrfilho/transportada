@@ -20,8 +20,10 @@ import { summarizeTripValuation, type TripValuation } from '../shared/tripValuat
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
+  isError: boolean
   isLoading: boolean
   onRecalculate: (reason: string) => Promise<void>
+  onRetry: () => void
   result: TripFinancialResult | null
   /** A conta prevista da viagem aberta — é ela que aparece enquanto não há congelada. */
   valuation: TripValuation | null
@@ -33,8 +35,10 @@ type TripFinancialPanelProps = Readonly<{
  * avaliação prevista, que não mostra o que se paga ao agregado (ADR-0049 §6).
  */
 export function TripFinancialPanel({
+  isError,
   isLoading,
   onRecalculate,
+  onRetry,
   result,
   valuation,
 }: TripFinancialPanelProps) {
@@ -47,6 +51,21 @@ export function TripFinancialPanel({
       <SkeletonGroup label={t('panel.loading')}>
         <Skeleton height="10rem" />
       </SkeletonGroup>
+    )
+  }
+
+  if (isError) {
+    return (
+      <section className={styles.panel}>
+        <h2>{t('panel.title')}</h2>
+        <p className={styles.hint} role="alert">
+          {t('panel.error')}
+        </p>
+        <Button onClick={onRetry} size="sm" type="button" variant="ghost">
+          <Icon name="refresh" />
+          {t('panel.retry')}
+        </Button>
+      </section>
     )
   }
 

@@ -9,14 +9,29 @@ import {
   buildTripValuation,
   costOverDistance,
   fuelCost,
+  fuelLitres,
   VALUATION_GAPS,
   type TripCostParcel,
   type TripRevenueLine,
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
+import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
+import {
+  resolveDocumentIcms,
+  type IcmsEmissionProfile,
+} from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
+import {
+  readRouteGeometry,
+  type ReadRouteGeometryDepotPort,
+  type ReadRouteGeometryTollBoothsPort,
+  type RouteGeometryToll,
+} from './read-route-geometry.use-case.js'
+import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
+import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import type { RouteGeometryPort } from './route-geometry.port.js'
 
 const ZERO = '0.0000'
 
@@ -34,11 +49,34 @@ export type TripValuationDocument = {
   readonly measuredAmount: null | string
   readonly nfeDocumentId: null | string
   readonly nfeTotalAmount: null | string
+  /**
+   * Spec 125: o CNPJ do destinatário, porque o perfil de emissão casa pelos **dois** participantes
+   * — é assim que a projeção do ICMS escolhe o mesmo perfil que a emissão vai usar.
+   */
+  readonly recipientTaxId?: null | string
   readonly senderTaxId: null | string
   readonly tripDocumentId: string
 }
 
 export type TripValuationVehicle = {
+  /**
+   * Spec 090 T9: quantos eixos o veículo tem, e de onde o número veio (T6). `undefined` na viagem
+   * já criada — ela ainda não calcula pedágio (ver nota no fim do arquivo); `null` na prévia
+   * quando a ficha não tem eixo declarado nem tipo reconhecido para estimar.
+   */
+  readonly axles?: AxleCount | null
+  /**
+   * Spec 090: quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem
+   * de eixos. Ela viaja junto de `axles` porque as duas saem do mesmo veículo: separá-las deixaria
+   * a margem somar com um multiplicador e o mapa com outro, para a mesma viagem.
+   */
+  readonly multiplier?: TollMultiplier | null
+  /**
+   * Spec 095 D4: com tag, a parcela usa a tarifa automática da praça quando ela é conhecida — a
+   * mesma regra que a montagem já aplica. Sem isto, mapa e margem mostram pedágios diferentes para
+   * a mesma viagem.
+   */
+  readonly hasAutomaticTollPayment?: boolean
   readonly kilometersPerLiter: null | string
   readonly otherCostsPerKilometer: null | string
 }
@@ -51,11 +89,29 @@ export type TripValuationContext = {
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
   readonly distanceMeters: null | number
   readonly documents: readonly TripValuationDocument[]
+  /**
+   * Spec 125: os perfis ativos de emissão, uma leitura por conta. É deles que sai a projeção do
+   * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
+   */
+  readonly emissionProfiles?: readonly IcmsEmissionProfile[]
   /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
+  /**
+   * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
+   * `distanceMeters` na prévia; congelada no momento do planejamento na viagem já criada (T11), e
+   * nunca recalculada aqui, porque parear a rota de hoje com a distância congelada de ontem é a
+   * divergência da D4 dentro do mesmo painel. `tollTotal` abaixo é o **lançamento real**, e ele
+   * vence sempre que existir (ver `resolveTollParcel`). `undefined`/`null` é "sem projeção".
+   */
+  readonly toll?: null | TollRouteCost
   /** Pedágio e avulsos lançados na viagem. `null` quando ninguém lançou nada. */
   readonly tollTotal?: null | string
+  /**
+   * Spec 101 D2: **por que** não há projeção de pedágio, quando a razão não é "ninguém lançou".
+   * Hoje só a sugestão multi-veículo a preenche. Ausente é o comportamento de sempre.
+   */
+  readonly tollUnavailableReason?: 'suggestion'
   readonly vehicle: TripValuationVehicle
 }
 
@@ -114,7 +170,7 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
   const context = await input.repository.readContext(input)
   if (context === null) throw new TripNotFoundError()
 
-  return valuationOf({
+  return buildValuationFromContext({
     companyId: input.companyId,
     context,
     repository: input.repository,
@@ -134,13 +190,35 @@ export type TripValuationPreviewPort = TripValuationPort & {
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   }): Promise<TripValuationContext | null>
+  /**
+   * Spec 090 D3: as coordenadas ordenadas da prévia, agrupadas pela mesma chave de parada que
+   * `buildCargoPreviewStops` usa — a mesma que o mapa numerou. `stopOrder` vazio é ordem de
+   * chegada da nota, igual à prévia de carga.
+   */
+  readPreviewStopCoordinates(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly stopOrder: readonly string[]
+  }): Promise<readonly RouteGeometryPoint[]>
 }
 
 export type PreviewTripValuationInput = {
   readonly companyId: string
+  /**
+   * O barracão da empresa (spec 097). A prévia usa a **mesma** rota da montagem, então a perna do
+   * barracão entra na distância dela também — duas contas diferentes sobre a mesma viagem é o
+   * defeito que a 097 existe para acabar. ⚠️ A **carga** não muda: o barracão não ocupa baú (D3).
+   */
+  readonly depot?: null | ReadRouteGeometryDepotPort
   readonly driverIds: readonly string[]
+  /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
+  readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripValuationPreviewPort
+  /** A ordem que o operador montou no mapa. Vazia é ordem de chegada — a prévia não inventa roteiro. */
+  readonly stopOrder: readonly string[]
+  /** O catálogo de praças — spec 090 T9, a mesma porta que `/route-geometry` já usa (T7). */
+  readonly tollBooths: ReadRouteGeometryTollBoothsPort
   readonly vehicleId: string
 }
 
@@ -151,6 +229,11 @@ export type PreviewTripValuationInput = {
  * ⚠️ Sem roteiro planejado não há distância, e sem distância não há combustível. Nada é inventado —
  * a parcela sobe marcada como falta e a tela imprime a marca, que é o que distingue "custo baixo"
  * de "custo que ainda não dá para saber".
+ *
+ * Spec 090 D3: até aqui a distância vinha sempre `null` — a viagem não existe, então não havia
+ * `trip_stops` para somar. Agora ela sai da mesma rota que o mapa da montagem já pediu ao
+ * roteirizador, resolvida de novo aqui pelas mesmas paradas (`stopOrder` + agrupamento por
+ * endereço), nunca lida de uma resposta que o cliente poderia adulterar.
  */
 export async function previewTripValuation(
   input: PreviewTripValuationInput,
@@ -163,36 +246,128 @@ export async function previewTripValuation(
   })
   if (context === null) throw new TripNotFoundError()
 
-  return valuationOf({
+  /**
+   * ⚠️ D4/T9: o pedágio precisa do eixo do veículo, que só se conhece **depois** de ler o
+   * contexto — por isso esta chamada não corre em paralelo com a de cima como a do combustível
+   * corria antes desta task. `readRouteGeometry` continua sendo a **única** chamada ao
+   * roteirizador: distância e pedágio saem da mesma resposta, nunca de duas rotas que poderiam
+   * discordar (D4).
+   */
+  const road = await resolvePreviewRoad({
+    axles: context.vehicle.axles ?? null,
+    multiplier: context.vehicle.multiplier ?? null,
+    hasAutomaticTollPayment: context.vehicle.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
-    context,
+    depot: input.depot ?? null,
+    geometry: input.geometry,
+    nfeDocumentIds: input.nfeDocumentIds,
+    repository: input.repository,
+    stopOrder: input.stopOrder,
+    tollBooths: input.tollBooths,
+  })
+
+  return buildValuationFromContext({
+    companyId: input.companyId,
+    context: { ...context, distanceMeters: road.distanceMeters, toll: road.toll },
     repository: input.repository,
   })
 }
 
-async function valuationOf(input: {
+/**
+ * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) a distância é `null`, e o gap de
+ * `noPlannedDistance` continua valendo — nada muda no que já existia antes desta task. O pedágio
+ * segue a mesma regra de `readRouteGeometry`: `null` é "não calculei", nunca zero inventado.
+ */
+async function resolvePreviewRoad(input: {
+  readonly axles: AxleCount | null
+  readonly multiplier: TollMultiplier | null
+  readonly companyId: string
+  readonly hasAutomaticTollPayment: boolean
+  readonly depot: null | ReadRouteGeometryDepotPort
+  readonly geometry: RouteGeometryPort
+  readonly nfeDocumentIds: readonly string[]
+  readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
+  readonly stopOrder: readonly string[]
+  readonly tollBooths: ReadRouteGeometryTollBoothsPort
+}): Promise<{ readonly distanceMeters: null | number; readonly toll: null | RouteGeometryToll }> {
+  const points = await input.repository.readPreviewStopCoordinates({
+    companyId: input.companyId,
+    nfeDocumentIds: input.nfeDocumentIds,
+    stopOrder: input.stopOrder,
+  })
+
+  const road = await readRouteGeometry({
+    axles: input.axles,
+    multiplier: input.multiplier,
+    depot: input.depot,
+    hasAutomaticTollPayment: input.hasAutomaticTollPayment,
+    geometry: input.geometry,
+    stops: points,
+    tollBooths: input.tollBooths,
+  })
+  if (road.legs.length === 0) return { distanceMeters: null, toll: road.toll }
+
+  return {
+    distanceMeters: road.legs.reduce((total, leg) => total + leg.distanceMetres, 0),
+    toll: road.toll,
+  }
+}
+
+/**
+ * A conta em si, a partir de um contexto **já resolvido** — receita por nota, parcelas de custo,
+ * imposto sobre a receita apurada.
+ *
+ * ⚠️ **Exportada de propósito, e é a única conta de margem do produto.** Quem monta o contexto varia
+ * — a viagem existente soma `trip_stops`, a prévia vai ao roteirizador, e a sugestão multi-veículo
+ * (spec 101 D1) soma as paradas que o solver já escolheu —, mas a conta é uma só. Uma segunda
+ * implementação da margem divergiria **calada**: foi exatamente assim que o preço do combustível
+ * passou meses lendo só o ajuste manual enquanto a ficha do veículo lia o efetivo (spec 100).
+ *
+ * Quem chamar isto é responsável por `context.distanceMeters` e `context.toll`: ausência é `null`,
+ * e a política já a traduz em lacuna nomeada. Nunca zero.
+ */
+export async function buildValuationFromContext(input: {
   readonly companyId: string
   readonly context: TripValuationContext
   readonly repository: TripValuationPort
 }): Promise<TripValuation> {
   const { context } = input
 
-  const revenueLines = await Promise.all(
-    context.documents.map((document) =>
-      resolveRevenueLine({ companyId: input.companyId, document, repository: input.repository }),
-    ),
+  /** A nota e a receita dela andam juntas: é a receita **da nota** que é base do ICMS dela. */
+  const priced = await Promise.all(
+    context.documents.map(async (document) => ({
+      document,
+      revenue: await resolveRevenueLine({
+        companyId: input.companyId,
+        document,
+        repository: input.repository,
+      }),
+    })),
   )
+  const revenueLines = priced.map((entry) => entry.revenue)
 
   const valuation = buildTripValuation({ costParcels: buildCostParcels(context), revenueLines })
 
   /**
    * O imposto entra **depois** da receita apurada, porque os federais incidem sobre ela. Ele não é
    * custo de operação — desce da receita —, e a tela separa as duas naturezas.
+   *
+   * Spec 125: o ICMS de cada nota é o do CT-e autorizado ou, antes dele, a projeção pelo perfil que
+   * rege a nota — pela mesma regra de base do CT-e.
    */
   const taxParcels = buildTripTaxParcels({
-    documents: context.documents.map((document) => ({ icmsAmount: document.icmsAmount ?? null })),
+    documents: priced.map(({ document, revenue }) => ({
+      icms: resolveDocumentIcms({
+        measuredIcms: document.icmsAmount ?? null,
+        profiles: context.emissionProfiles ?? [],
+        recipientTaxId: document.recipientTaxId ?? null,
+        revenue,
+        senderTaxId: document.senderTaxId,
+      }),
+    })),
     federalRates: context.federalRates ?? null,
     revenueAmount: valuation.totalRevenue,
+    revenueSource: valuation.revenueSource,
   })
 
   return buildTripValuation({
@@ -284,17 +459,68 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
     buildTripDriverCost(context.crew ?? []),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
-    resolveRecordedParcel({
-      amount: context.tollTotal ?? null,
-      gap: VALUATION_GAPS.notRecorded,
-      kind: 'toll',
-    }),
+    resolveTollParcel(context),
     resolveRecordedParcel({
       amount: context.deliveryChargesTotal ?? null,
       gap: VALUATION_GAPS.featureAbsent,
       kind: 'delivery_charges',
     }),
   ]
+}
+
+/**
+ * Spec 090 T9: **lançamento manual sempre vence o calculado.** `tollTotal` é um pagamento real já
+ * registrado; `context.toll` é uma projeção sobre o catálogo do OSM — a mesma inversão que a
+ * receita proíbe entre `measured` e `estimated` (ADR-0049 §2 / spec 065 D7) valeria aqui: deixar a
+ * projeção sobrescrever um valor pago de verdade esconderia dinheiro que já saiu do caixa.
+ *
+ * O calculado entra como `estimated` mesmo quando o eixo é `declared` — ele continua sendo uma
+ * projeção sobre a rota, não um pagamento conferido; a marca de eixo estimado é responsabilidade
+ * da tela da montagem (T7), não desta parcela. Fora da prévia (`context.toll === undefined`) o
+ * comportamento é idêntico ao de antes desta task.
+ */
+function resolveTollParcel(context: TripValuationContext): TripCostParcel {
+  const recorded = resolveRecordedParcel({
+    amount: context.tollTotal ?? null,
+    gap: VALUATION_GAPS.notRecorded,
+    kind: 'toll',
+  })
+  if (recorded.gap === null) return recorded
+
+  const calculated = context.toll ?? null
+  if (calculated === null) {
+    /**
+     * ⚠️ Sem projeção, a causa importa: na viagem é falta de lançamento (acionável), e na sugestão
+     * é falta de dado para calcular (não acionável ali). Colapsá-las mandaria o operador procurar
+     * um botão de lançar pedágio numa tela onde viagem nenhuma existe.
+     */
+    if (context.tollUnavailableReason === 'suggestion') {
+      return {
+        amount: ZERO,
+        detail: null,
+        gap: VALUATION_GAPS.tollNotAvailableInSuggestion,
+        kind: 'toll',
+        source: 'missing',
+      }
+    }
+
+    return recorded
+  }
+
+  /**
+   * ⚠️ Praça sem tarifa no trajeto torna o total **incompleto**, e ele precisa dizer isso: quem lê
+   * a margem decide aceitar ou recusar carga, e um número que soma três cancelas de cinco parece
+   * uma estimativa fechada. `detail` nomeia quantas ficaram de fora, no molde de `CITY_WITHOUT_REGION`.
+   */
+  const partial = calculated.boothsWithoutCharge > 0
+
+  return {
+    amount: calculated.total,
+    detail: partial ? String(calculated.boothsWithoutCharge) : null,
+    gap: partial ? VALUATION_GAPS.tollPartial : null,
+    kind: 'toll',
+    source: 'estimated',
+  }
 }
 
 /**
@@ -329,11 +555,26 @@ function resolveFuelParcel(input: {
   }
   const consumption = context.vehicle.kilometersPerLiter
   const price = context.fuelPricePerLiter
-  if (consumption === null || price === null) {
+  /**
+   * ⚠️ As duas ausências são lacunas distintas porque se resolvem em telas distintas: o consumo é
+   * campo da ficha do veículo e o preço é a aba Combustível da frota. Uma lacuna só — "consumo do
+   * veículo ou preço do combustível" — obrigava o operador a conferir as duas para descobrir qual
+   * faltava, e a conta continuava sem combustível enquanto ele procurava.
+   */
+  if (consumption === null) {
     return {
       amount: ZERO,
       detail: null,
-      gap: VALUATION_GAPS.noFuelBaseline,
+      gap: VALUATION_GAPS.noFuelConsumption,
+      kind: 'fuel',
+      source: 'missing',
+    }
+  }
+  if (price === null) {
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noFuelPrice,
       kind: 'fuel',
       source: 'missing',
     }
@@ -350,7 +591,20 @@ function resolveFuelParcel(input: {
     }
   }
 
-  return { amount, detail: null, gap: null, kind: 'fuel', source: 'estimated' }
+  return {
+    amount,
+    /** Spec 110 D7: os insumos sobem crus; a frase que a tela imprime é dela. */
+    basis: {
+      kilometersPerLiter: consumption,
+      litres: fuelLitres({ distanceMeters, kilometersPerLiter: consumption }) ?? ZERO,
+      of: 'fuel',
+      pricePerLiter: price,
+    },
+    detail: null,
+    gap: null,
+    kind: 'fuel',
+    source: 'estimated',
+  }
 }
 
 function resolveOtherPerKilometer(input: {

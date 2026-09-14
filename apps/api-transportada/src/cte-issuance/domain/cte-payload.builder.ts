@@ -12,7 +12,6 @@ import {
   FISCAL_MONEY_SCALE,
   MONEY_SCALE,
   PERCENTAGE_SCALE,
-  applyRate,
   formatScaledDecimal,
   parseScaledDecimal,
   rescaleHalfUp,
@@ -20,6 +19,7 @@ import {
 import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
 
 import { composeCargoQuantities, resolvePredominantProduct } from './cte-cargo.service.js'
+import { computeIcms } from './cte-icms.policy.js'
 import {
   CtePayloadEmptySelectionError,
   CtePayloadInconsistentPartiesError,
@@ -52,10 +52,6 @@ function parseMoney(value: string): bigint {
 
 function toMoney(value: bigint): number {
   return Number(formatScaledDecimal(value, FISCAL_MONEY_SCALE))
-}
-
-function parseRate(value: string): bigint {
-  return parseScaledDecimal({ errorCodePrefix: ERROR_CODE_PREFIX, scale: PERCENTAGE_SCALE, value })
 }
 
 function toPercentage(rateScaled: bigint): number {
@@ -96,41 +92,27 @@ function toMunicipio(party: CtePayloadParty): CteMunicipio {
 function composeIcms(
   input: Readonly<{ profile: CtePayloadProfile; totalScaled: bigint }>,
 ): CteIcms {
-  const { profile, totalScaled } = input
-  const rateScaled = parseRate(profile.icmsRate)
+  /** Spec 125 D1: a regra de base mora em `computeIcms`; aqui ela só vira o grupo do XML. */
+  const icms = computeIcms(input)
 
-  if (profile.icmsCst === '60') throw new CtePayloadUnsupportedIcmsError(profile.icmsCst)
-  if (profile.icmsCst === '40' || profile.icmsCst === '41' || profile.icmsCst === '51') {
-    return { cst: profile.icmsCst }
-  }
-  if (profile.icmsCst === '90') {
-    if (rateScaled === 0n) return { cst: '90' }
+  if (icms.kind === 'unsupported') throw new CtePayloadUnsupportedIcmsError(icms.cst)
+  if (icms.kind === 'untaxed') return { cst: icms.cst }
+  if (icms.kind === 'reduced') {
     return {
-      cst: '90',
-      pICMS: toPercentage(rateScaled),
-      vBC: toMoney(totalScaled),
-      vICMS: toMoney(applyRate({ amountScaled: totalScaled, rateScaled })),
-    }
-  }
-  if (profile.icmsCst === '00') {
-    return {
-      cst: '00',
-      pICMS: toPercentage(rateScaled),
-      vBC: toMoney(totalScaled),
-      vICMS: toMoney(applyRate({ amountScaled: totalScaled, rateScaled })),
+      cst: '20',
+      pICMS: toPercentage(icms.rateScaled),
+      pRedBC: toPercentage(icms.reductionScaled),
+      vBC: toMoney(icms.baseScaled),
+      vICMS: toMoney(icms.amountScaled),
     }
   }
 
-  const reductionScaled = parseRate(profile.icmsBaseReductionRate)
-  const baseScaled =
-    totalScaled - applyRate({ amountScaled: totalScaled, rateScaled: reductionScaled })
-  return {
-    cst: '20',
-    pICMS: toPercentage(rateScaled),
-    pRedBC: toPercentage(reductionScaled),
-    vBC: toMoney(baseScaled),
-    vICMS: toMoney(applyRate({ amountScaled: baseScaled, rateScaled })),
+  const taxed = {
+    pICMS: toPercentage(icms.rateScaled),
+    vBC: toMoney(icms.baseScaled),
+    vICMS: toMoney(icms.amountScaled),
   }
+  return icms.cst === '90' ? { cst: '90', ...taxed } : { cst: '00', ...taxed }
 }
 
 function assertConsistentParties(invoices: readonly CtePayloadInvoice[]): CtePayloadInvoice {

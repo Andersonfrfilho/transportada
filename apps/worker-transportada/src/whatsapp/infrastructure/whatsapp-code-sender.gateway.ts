@@ -3,12 +3,21 @@
  */
 import { WhatsAppMessageProvider } from '@adatechnology/meta-whatsapp-provider'
 
+import { toWhatsAppPhone } from '../domain/whatsapp-phone.policy.js'
 import type { DrizzleWhatsAppChannelRepository } from './drizzle-whatsapp-channel.repository.js'
 
 export class WhatsAppChannelNotConfiguredError extends Error {
   constructor(companyId: string) {
     super(`No active WhatsApp channel for company ${companyId}`)
     this.name = 'WhatsAppChannelNotConfiguredError'
+  }
+}
+
+/** O endereço é PII (`security.md` §1): a recusa nomeia a empresa, nunca o número. */
+export class WhatsAppRecipientInvalidError extends Error {
+  constructor(companyId: string) {
+    super(`WhatsApp recipient is not a Brazilian phone for company ${companyId}`)
+    this.name = 'WhatsAppRecipientInvalidError'
   }
 }
 
@@ -61,6 +70,14 @@ export function createWhatsAppCodeSender(input: {
 }): WhatsAppCodeSender {
   return {
     async send(request) {
+      /**
+       * O cadastro guarda 10 ou 11 dígitos sem o `55`, e a Meta quer E.164 sem o `+`: sem o país o
+       * código sai para outro número. Número que não é telefone brasileiro para aqui, antes de abrir
+       * o segredo.
+       */
+      const to = toWhatsAppPhone(request.address)
+      if (to === undefined) throw new WhatsAppRecipientInvalidError(request.companyId)
+
       const credential = await input.channels.findActiveCredential({ companyId: request.companyId })
       if (credential === undefined) throw new WhatsAppChannelNotConfiguredError(request.companyId)
 
@@ -76,7 +93,6 @@ export function createWhatsAppCodeSender(input: {
         ...(input.baseUrl === undefined ? {} : { baseUrl: input.baseUrl }),
       })
 
-      const to = toMetaRecipient(request.address)
       if (input.template === undefined) {
         await provider.sendText(to, request.body)
 
@@ -91,12 +107,4 @@ export function createWhatsAppCodeSender(input: {
       })
     },
   }
-}
-
-/**
- * A Meta quer E.164 **sem o `+`** e sem pontuação, e o contato do cadastro é digitado por gente.
- * Mandá-lo cru faz a Graph API recusar com um erro que parece de credencial.
- */
-function toMetaRecipient(phone: string): string {
-  return phone.replaceAll(/[^0-9]/gu, '')
 }

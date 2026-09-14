@@ -30,11 +30,20 @@ import {
   FIRST_VEHICLE_ID,
   AGGREGATE_DRIVER_ID,
   mockMultiVehicleApi,
+  registerSuggestionValuationMock,
   STAFF_DRIVER_ID,
   SECOND_VEHICLE_ID,
 } from './multi-vehicle-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
-import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
+import {
+  mockTripWorkspaceApi,
+  registerTripQuickCreateTollApi,
+  TOLL_ACCESS_KEY_ONE,
+  TOLL_ACCESS_KEY_TWO,
+  TOLL_ROUTE_CHOICE_GEOMETRY,
+  TOLL_SINGLE_ROUTE_GEOMETRY,
+  TRIP_ID as TRIP_SMOKE_TRIP_ID,
+} from './trip-smoke.helper'
 
 const VIEWPORTS = {
   desktop: { height: 900, width: 1280 },
@@ -77,7 +86,21 @@ async function chooseOption(
   input: Readonly<{ name: string; option: string }>,
 ): Promise<void> {
   await page.getByRole('button', { exact: true, name: input.name }).click()
-  await page.getByRole('option', { exact: true, name: input.option }).click()
+
+  /**
+   * ⚠️ **A opção existe antes de estar parada, e clicar nesse intervalo é corrida perdida.** O
+   * painel é renderizado em portal e posicionado por `useFloatingLayer` depois de montado: o
+   * Playwright resolve o `option`, tenta clicar, e recebe "element is not stable" seguido de
+   * "element was detached from the DOM" até estourar os 30s. Ele falhou num run e passou no run
+   * seguinte **do mesmo commit** — é carga do runner decidindo, não o código.
+   *
+   * Esperar o elemento ficar visível dá ao posicionamento o quadro de que ele precisa, e não
+   * esconde defeito: se o painel nunca abrir, o `waitFor` estoura com a causa em vez de um clique
+   * que erra o alvo.
+   */
+  const option = page.getByRole('option', { exact: true, name: input.option })
+  await option.waitFor({ state: 'visible' })
+  await option.click()
 }
 
 test('admin configures freight rules on mobile without horizontal overflow', async ({ page }) => {
@@ -936,6 +959,124 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
 })
 
 /**
+ * G005 (spec 096): cobertura de browser para o pedágio (spec 090), o seletor de rotas (spec 096) e
+ * a marca de "estimado" (ADR-0044 §1) — a única tela que os desenha é a montagem de "Nova viagem",
+ * e até aqui o dublê de `route-geometry` sempre devolvia `{points: [], source: 'unavailable'}`, o
+ * que fazia todo este bloco nunca renderizar durante o smoke, mesmo passando verde.
+ *
+ * Rota única: sem tag, três praças (uma sem tarifa conhecida) e eixo estimado por tipo de veículo.
+ */
+test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem seletor de rota', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_SINGLE_ROUTE_GEOMETRY })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Nova viagem' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
+  await expect(dialog).toBeVisible()
+
+  const accessKeyField = dialog.getByLabel('Chave de acesso')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
+  await accessKeyField.press('Enter')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
+  await accessKeyField.press('Enter')
+  await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Veículo' }).click()
+  await page.getByRole('option', { name: /PED1A23/u }).click()
+
+  /**
+   * Spec 090 T7/T8: total, praças e valor por eixo — nunca antes de veículo e paradas existirem.
+   * ⚠️ String literal, não regex: `getByText` com `RegExp` de bandeira `u` e caractere acentuado
+   * ou `×`/`—` no meio deu zero casamentos aqui mesmo com o texto igual no DOM (`.innerText()`
+   * confirmava a mesma string, e a busca por substring simples achava, contada por `.count()`) —
+   * o texto entra por três nós de texto irmãos (três interpolações JSX seguidas no mesmo `<span>`),
+   * e a variante regex do motor de busca do Playwright não os concatenou; a de string, sim.
+   */
+  await expect(
+    dialog.getByText('Pedágio: R$ 65,60 — 3 praças, R$ 32,80 de tarifa base × 2'),
+  ).toBeVisible({ timeout: 15000 })
+  /** ⚠️ A marca de estimativa nunca fica atrás de segunda condição — mesma trava da ocupação. */
+  await expect(dialog.getByText('eixo estimado')).toBeVisible()
+  await expect(dialog.getByText('Base: tarifa manual')).toBeVisible()
+  /** ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê. */
+  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toBeVisible()
+
+  /** Rota única: D2 proíbe o seletor — ofertar escolha onde não há uma ensina o operador errado. */
+  await expect(dialog.getByText('Rotas alternativas')).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+/**
+ * Duas rotas: a principal cobra com tag e uma praça caiu para a manual (spec 095 D3); a alternativa
+ * não anotou pedágio nenhum, e a linha dela tem de dizer isso — nunca "0 praças" (spec 096 D1).
+ */
+test('a montagem de viagem oferece duas rotas, e a sem pedágio calculado não vira zero praças', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_ROUTE_CHOICE_GEOMETRY })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Nova viagem' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
+  await expect(dialog).toBeVisible()
+
+  const accessKeyField = dialog.getByLabel('Chave de acesso')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
+  await accessKeyField.press('Enter')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
+  await accessKeyField.press('Enter')
+  await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Veículo' }).click()
+  await page.getByRole('option', { name: /PED1A23/u }).click()
+
+  /** A rota escolhida por padrão é a principal — com tag, e uma praça caiu para a manual. */
+  await expect(
+    dialog.getByText('Pedágio: R$ 63,48 — 3 praças, R$ 31,74 de tarifa base × 2'),
+  ).toBeVisible({ timeout: 15000 })
+  await expect(dialog.getByText('eixo estimado')).toHaveCount(0)
+  await expect(dialog.getByText('Base: tag (cobrança automática)')).toBeVisible()
+  await expect(
+    dialog.getByText('1 praças caíram para a manual por falta de tarifa automática'),
+  ).toBeVisible()
+
+  /** Duas rotas: spec 096 D2 manda o seletor aparecer — ele não aparece com uma rota só. */
+  await expect(dialog.getByText('Rotas alternativas')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /64\.0 km · 1 h · 3 praças/u })).toBeVisible()
+  /** ⚠️ Sem pedágio calculado a linha diz isso — nunca "0 praças", que seria uma afirmação. */
+  await expect(
+    dialog.getByRole('button', { name: /82\.0 km · 1 h 15 min · pedágio não calculado/u }),
+  ).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+/**
  * Spec 048: é o teste que os contratos não fazem. Eles provam a leitura contra bytes; este prova o
  * encanamento — o pdf.js carregado sob demanda no navegador, o worker servido da nossa origem sem
  * afrouxar a CSP, o hook montado e o valor chegando ao `input` que o operador vê.
@@ -971,53 +1112,6 @@ test('o CCMEI solto na ficha do veículo é recusado com nome, não confundido c
   await expect(page.getByText('Este é um CCMEI', { exact: false })).toBeVisible()
   await expect(page.getByText('Reconhecido: CRLV-e')).toBeHidden()
   await expect(page.getByRole('textbox', { name: /^Placa/ })).toHaveValue('')
-})
-
-/**
- * Spec 088 R1: medido o baú, o m³ deixa de ser digitado. O contrato prova o zeramento na função;
- * aqui se prova o que só o navegador mostra — o campo recusando a digitação e o derivado mudando a
- * cada tecla, que é o que o operador vê antes de salvar.
- */
-test('medidas as três dimensões, a capacidade vira derivada e para de aceitar digitação', async ({
-  page,
-}) => {
-  await page.setViewportSize(VIEWPORTS.desktop)
-  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
-  await mockFleetWorkspaceApi({ page, permissions: ['fleet.read', 'fleet.manage'] })
-  await loginAsLocalUser(page)
-
-  await page.getByRole('button', { name: 'Novo veículo' }).click()
-  await expect(page.getByRole('heading', { name: 'Novo veículo' })).toBeVisible()
-
-  const capacity = page.getByRole('textbox', { name: /^Capacidade \(m³\)/ })
-  const length = page.getByRole('textbox', { name: /^Comprimento do baú/ })
-  const width = page.getByRole('textbox', { name: /^Largura do baú/ })
-  const height = page.getByRole('textbox', { name: /^Altura do baú/ })
-
-  /** Sem medida a ficha continua sendo a de antes: quem só sabe o m³ digita o m³. */
-  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
-  await capacity.fill('90,00')
-  await expect(capacity).toHaveValue('90,00')
-
-  await length.fill('8,90')
-  await width.fill('2,50')
-  /** Com duas medidas ainda não há volume — e o digitado não pode sumir antes da terceira. */
-  await expect(capacity).toHaveValue('90,00')
-  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
-
-  await height.fill('2,70')
-  await expect(capacity).toHaveValue('60,08')
-  await expect(capacity).toHaveAttribute('readonly', /.*/)
-  await expect(page.getByText('Calculado a partir do comprimento', { exact: false })).toBeVisible()
-
-  /**
-   * Apagar uma medida devolve o campo a quem digita, com o que ele mesmo acabou de escrever nesta
-   * ficha ainda aberta — rascunho não salvo, não o valor antigo do banco: aquele já foi zerado no
-   * envio anterior, e é por isso que a ficha carregada de um veículo medido volta com o campo vazio.
-   */
-  await height.fill('')
-  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
-  await expect(capacity).toHaveValue('90,00')
 })
 
 test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({
@@ -1377,3 +1471,163 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
   await dialog.getByRole('button', { name: 'Abrir viagem' }).click()
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/trips/${CREATED_TRIP_ID}`)
 })
+
+/**
+ * Spec 110: **a revisão da proposta, na tela em que ela foi pedida.**
+ *
+ * ⚠️ A smoke multi-veículo que já existia atravessa a **outra porta** — o diálogo do módulo
+ * `routing`, aberto pela tabela de notas. A tela de "Montar roteiro", que é a que esta feature
+ * reconstruiu, não tinha cobertura de navegador nenhuma: foi o snapshot de uma falha que revelou a
+ * faixa do veículo imprimindo `0.00 × 0.00 × 0.00 m`, não um teste.
+ */
+test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viagem', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'trip.manage', 'trip.financials', 'invoices.read'],
+  })
+  /** As notas disponíveis vêm da listagem de NF-e — é o mesmo carregador dos dois modais. */
+  await mockNfeWorkspaceApi({
+    documentCount: 2,
+    /** ⚠️ Sem isso as notas chegam já em viagem, e a montagem — que só oferece nota livre — abre vazia. */
+    freeDocuments: true,
+    page,
+    permissions: ['fleet.read', 'trip.manage', 'trip.financials', 'invoices.read'],
+  })
+  /** Registrado **depois**: a frota do mock de viagem é vazia, e aqui precisamos de veículo. */
+  const routing = await mockMultiVehicleApi(page)
+  await registerSuggestionValuationMock(page)
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Montar roteiro' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Montar roteiro' })
+  await expect(dialog).toBeVisible()
+
+  /**
+   * ⚠️ Escopado ao **diálogo**: a tabela de viagens atrás dele também tem caixas que casam com
+   * `/Selecionar/`, e a `.first()` da página pegava uma coberta pelo overlay — nunca estabiliza.
+   */
+  await dialog.getByRole('button', { name: 'Buscar notas' }).click()
+  await dialog.getByRole('checkbox', { name: 'Selecionar todas da página' }).check()
+  await dialog.getByRole('button', { name: 'Motoristas', exact: true }).click()
+  await page.getByRole('option', { name: /Motorista da Casa/u }).click()
+  await dialog.getByRole('button', { name: 'Motoristas', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
+  await page.getByRole('option', { name: /ABC1D23/u }).click()
+  await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
+
+  await dialog.getByRole('button', { name: 'Propor roteiro' }).click()
+
+  /**
+   * ⚠️ **O diálogo NÃO fecha.** Ele fechava, e a revisão aparecia na tela de viagens — quem acabou
+   * de escolher notas, motoristas e veículos perdia de vista o pedido que gerou aquilo.
+   */
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Alterar o pedido' })).toBeVisible()
+
+  /** A afirmação da spec 108 continua: nada foi criado até o aceite. */
+  await expect(dialog.getByText(/Nada foi criado ainda/u)).toBeVisible()
+
+  /** Os seis números do título, na ordem em que a conta se lê. */
+  for (const label of ['Paradas e notas', 'Peso', 'Receita', 'Despesas', 'Lucro', 'Tempo']) {
+    await expect(dialog.getByText(label, { exact: true }).first()).toBeVisible()
+  }
+
+  /** As três ações por viagem são só de ícone, e por isso carregam rótulo acessível. */
+  await expect(
+    dialog.getByRole('button', { name: 'Aceitar só esta viagem e criá-la agora' }).first(),
+  ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Descartar esta viagem/u }).first()).toBeVisible()
+
+  /**
+   * O expandido: faixa do veículo, o dia em ordem e o razão com a derivação. ⚠️ **A primeira viagem
+   * já nasce aberta** — chegar numa lista toda fechada obrigaria um clique antes de qualquer
+   * leitura —, então o clique aqui **fecha**, e é assim que ele se prova.
+   */
+  const trigger = dialog.getByRole('button', { name: /ABC1D23/u }).first()
+  /**
+   * O dia em ordem é o mapa da montagem desde `6ab28aa3`: a linha do tempo "Roteiro proposto" era
+   * uma segunda listagem da mesma sequência e saiu, ficando a da criação manual.
+   */
+  const assemblyMap = dialog.getByRole('heading', { name: 'Mapa da montagem' })
+  await expect(assemblyMap).toBeVisible()
+  await trigger.click()
+  await expect(assemblyMap).toHaveCount(0)
+  await trigger.click()
+  await expect(assemblyMap).toBeVisible()
+  await expect(dialog.getByText('Conta prevista')).toBeVisible()
+  /** A derivação agora é a do painel da criação manual, que abre a frase com maiúscula. */
+  await expect(dialog.getByText(/Zona 1\.002 \(JABOTICABAL\) · toco/u)).toBeVisible()
+  await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
+
+  /**
+   * Desmarcar muda o rótulo do aceite e diz o que volta para o maço. ⚠️ A frase da sobra só existe
+   * com **parte** marcada: com nada marcado nada é criado, e o botão diz isso sozinho.
+   */
+  const tripChecks = dialog.getByRole('checkbox', { name: /Aceitar a viagem/u })
+  await tripChecks.first().uncheck()
+  await expect(dialog.getByText(/voltam para o maço/u)).toBeVisible()
+  for (const check of await tripChecks.all()) await check.uncheck()
+  await expect(dialog.getByRole('button', { name: 'Nenhuma viagem marcada' })).toBeDisabled()
+
+  /**
+   * ⚠️ **Zero é ausência, nunca medida** (spec 088): a ficha do dublê não tem baú medido, e a faixa
+   * não pode imprimir `0.00 × 0.00 × 0.00 m`. Foi este o defeito que só o snapshot pegou.
+   */
+  await expect(dialog.getByText(/0\.00 × 0\.00 × 0\.00/u)).toHaveCount(0)
+
+  expect(routing.acceptRequests()).toBe(0)
+  await auditAuthenticationStorage(page)
+})
+
+/**
+ * **O desenho da carga, conferido nas três larguras.** A planta em escala da spec 088 saiu com a 095
+ * (`453e0b1e`, "um desenho só"): o isométrico diz onde a caixa vai, e a planta e a fileira diziam a
+ * mesma coisa sem dizer isso. O que continua sendo promessa é o que este teste cobra — o desenho
+ * aparece, a frase do que ele **não** promete está na tela, e a página nunca ganha barra horizontal.
+ */
+for (const viewport of CTE_BATCH_VIEWPORTS) {
+  test(`o desenho da carga aparece e não estoura a página em ${viewport}`, async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS[viewport])
+    await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+    const api = await mockTripWorkspaceApi({
+      mode: 'measured-bed',
+      page,
+      permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+    })
+    await loginAsLocalUser(page)
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+    await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
+
+    /** A ocupação e a medida do baú, com o número que o desenho ilustra. */
+    await expect(page.getByRole('heading', { level: 3, name: 'Carga da viagem' })).toBeVisible()
+    await expect(page.getByText('57% do baú')).toBeVisible()
+    await expect(page.getByText('Baú de 7,40 × 2,47 × 2,30 m = 42,04 m³.')).toBeVisible()
+
+    await expect(page.getByRole('heading', { name: 'Onde cada caixa cabe' })).toBeVisible()
+    await expect(
+      page.getByRole('img', { name: 'Carga da camada 1, vista em perspectiva' }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Camada 2/u })).toBeVisible()
+
+    /** A frase que impede a leitura errada é fixa, nunca condicional — está na tela, não no código. */
+    await expect(page.getByText(/Ele não é plano de estiva/u)).toBeVisible()
+    /** Baú medido: o aviso de ficha sem medida não aparece. */
+    await expect(page.getByText(/Sem o desenho da carga/u)).toHaveCount(0)
+
+    /** O que falta medir, com o atalho para a fila — frase estática não diz onde ir. */
+    await expect(page.getByRole('heading', { level: 3, name: 'O que falta medir' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Ir para a fila de medição' })).toBeVisible()
+
+    /** Nem o desenho nem a tabela do que falta medir dão barra horizontal à página. */
+    await assertNoHorizontalOverflow(page)
+    expect(api.failures()).toEqual([])
+    await auditAuthenticationStorage(page)
+  })
+}

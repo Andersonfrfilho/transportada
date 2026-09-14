@@ -22,6 +22,8 @@ export const STORAGE_OBJECT_PURPOSES = [
   'delivery_proof',
   /** Spec 066 T023: anexo enviado antes do formulário, quando ainda não há candidatura nem conta. */
   'aggregate_application_attachment',
+  /** Spec 143 T010 (ADR-0063 §5): o MIME bruto de todo e-mail recebido da contratante, evidência. */
+  'contractor_mail_raw',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 

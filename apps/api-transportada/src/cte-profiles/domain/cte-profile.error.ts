@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import type { ApiErrorDetail } from '../../shared/api.types.js'
 
 export class CteEmissionProfileNotFoundError extends ApiError {
   public constructor() {
@@ -78,6 +79,37 @@ export class CteEmissionProfileNotActivatableError extends ApiError {
     super({
       code: 'CTE_PROFILE_NOT_ACTIVATABLE',
       message: 'An automatic CT-e emission profile needs at least one tax identifier matcher',
+      status: 422,
+    })
+  }
+}
+
+export class CteEmissionProfileOutputDocumentIncoherentError extends ApiError {
+  public constructor(details: readonly ApiErrorDetail[]) {
+    super({
+      code: 'CTE_PROFILE_OUTPUT_DOCUMENT_INCOHERENT',
+      details,
+      message: 'Output document, NFS-e profile and municipal service policy do not agree',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Uma fonte só para dois vocabulários: o erro da rota que grava o perfil e o motivo de bloqueio da
+ * classificação da nota (spec 144 D3) dizem a mesma coisa, e duas grafias divergiriam em silêncio.
+ */
+export const CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE = 'CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE'
+
+/** Perfil NFS-e de outra empresa responde igual ao inativo: o 404 diria que ele existe em algum lugar. */
+export class CteEmissionProfileNfseProfileNotActiveError extends ApiError {
+  public constructor() {
+    super({
+      code: CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE,
+      details: [
+        { field: 'nfseEmissionProfileId', message: 'must point to an active NFS-e profile' },
+      ],
+      message: 'The NFS-e emission profile is not active',
       status: 422,
     })
   }

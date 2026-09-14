@@ -2,15 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  LngLatBounds,
-  Map as MapLibreMap,
-  Marker,
-  addProtocol,
-  type GeoJSONSource,
-  setWorkerUrl,
-} from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
+import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -21,25 +13,36 @@ import { Icon } from '@/components/ui/icon'
  * `.maplibregl-marker` e recorta o canvas; sem ela os pinos escapam do quadro e aparecem por cima
  * dos elementos da página ao aproximar. Foi exatamente o defeito relatado.
  */
-import 'maplibre-gl/dist/maplibre-gl.css'
 /** `?url` faz o Vite resolver o especificador de pacote e servir o arquivo da nossa origem. */
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 import {
   BASEMAP_THEMES,
   RADAR_SOURCE,
   buildBasemapStyle,
+  configureVectorBasemap,
+  resolveBasemapBackground,
   resolveBasemapOutline,
+  resolveBasemapTollColor,
   type BasemapTheme,
-} from '../shared/vectorBasemap.service'
-import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+} from '@/modules/shared/vectorBasemap.service'
+import { ICON_PATHS } from '@/components/ui/icon'
+
+import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
+import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
 import { resolveStopColor } from '../shared/stopColor.service'
+import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
+  /**
+   * ⚠️ Não desenha linha nenhuma — só os pinos. Serve ao rascunho de ordem (spec 111 D8): sem a
+   * geometria, `resolveRouteLegs` liga as paradas em **reta tracejada**, e reta sobre uma ordem que
+   * ninguém mediu parece um caminho que não existe.
+   */
+  hideRoute?: boolean | undefined
   nearby: readonly AssemblyMapPoint[]
   onBasemapMissing: () => void
   points: readonly AssemblyMapPoint[]
@@ -59,6 +62,11 @@ type RouteCollection = {
   }[]
 }
 const NEARBY_SOURCE = 'fora-da-selecao'
+/**
+ * Spec 096 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
+ * pela camada `cabine-de-pedagio` do basemap: aquela é toda cabine da região, sem valor.
+ */
+const TOLL_BOOTH_SOURCE = 'pracas-do-trajeto'
 /** Onde o operador deixou o mapa da última vez. Preferência de leitura, não dado de operação. */
 const THEME_STORAGE_KEY = 'transportada.trip-assembly-map-theme'
 
@@ -88,13 +96,6 @@ function readStoredTheme(): BasemapTheme | null {
  * cima: nada falha em voz alta, e a tela parece só "não ter mapa". O Vite só reescreve `new URL`
  * para caminho **relativo**; para especificador de pacote quem resolve é o `import`.
  */
-let workerConfigured = false
-function configureWorker(): void {
-  if (workerConfigured) return
-  setWorkerUrl(maplibreWorkerUrl)
-  addProtocol('pmtiles', new Protocol().tile)
-  workerConfigured = true
-}
 
 /**
  * O mapa de rua do painel de montagem (ADR-0044 §6). O fundo é o nosso PMTiles; os pinos e a linha
@@ -111,6 +112,7 @@ function readToken(token: string): string {
 
 export function AssemblyVectorMap({
   geometry,
+  hideRoute,
   nearby,
   onBasemapMissing,
   points,
@@ -204,20 +206,34 @@ export function AssemblyVectorMap({
     const container = containerRef.current
     if (container === null) return
 
-    configureWorker()
-    const map = new MapLibreMap({
-      /** Sem atribuição automática: ela é nossa, e já está impressa ao lado do mapa. */
-      attributionControl: false,
-      center: [-47.81, -21.17],
-      container,
-      /**
-       * ⚠️ **Zero, e não o padrão de 300 ms.** O cross-fade do MapLibre redesenha o quadro inteiro
-       * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
-       */
-      fadeDuration: 0,
-      style: buildBasemapStyle(readToken, theme),
-      zoom: 8,
-    })
+    configureVectorBasemap()
+    /**
+     * ⚠️ **Sem WebGL2 o construtor lança na hora, não num evento** — e um `throw` síncrono dentro
+     * de `useEffect` sobe cru pelo React: sem um Error Boundary aqui, ele derruba a árvore inteira
+     * (o diálogo inteiro, não só o mapa), que é exatamente o que a ADR-0044 §6 proíbe para o
+     * arquivo `.pmtiles` ausente. Navegador sem aceleração de vídeo (medido: Chromium headless sem
+     * flag de WebGL por software) é o mesmo "sem como desenhar o mapa" — cai para a lista.
+     */
+    let map: MapLibreMap
+    try {
+      map = new MapLibreMap({
+        /** Sem atribuição automática: ela é nossa, e já está impressa ao lado do mapa. */
+        attributionControl: false,
+        center: [-47.81, -21.17],
+        container,
+        /**
+         * ⚠️ **Zero, e não o padrão de 300 ms.** O cross-fade do MapLibre redesenha o quadro inteiro
+         * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
+         */
+        fadeDuration: 0,
+        style: buildBasemapStyle(readToken, theme),
+        zoom: 8,
+      })
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('[basemap]', error)
+      onBasemapMissing()
+      return
+    }
     mapRef.current = map
     map.on('load', () => {
       basemapLoaded.current = true
@@ -345,6 +361,12 @@ export function AssemblyVectorMap({
     map.once('style.load', aoTerminar)
   }, [chosenTheme, theme])
 
+  /**
+   * Spec 097 D4: onde o barracão está. Sai da mesma resposta que desenhou o traçado — pedir a
+   * coordenada por outro caminho abriria a porta para marcar um ponto e rotear por outro.
+   */
+  const depotOrigin = geometry?.depot?.origin ?? null
+
   /** A parada é marcador de DOM: são poucas, e assim herdam o mesmo CSS da bolinha da lista. */
   useEffect(() => {
     const map = mapRef.current
@@ -353,6 +375,7 @@ export function AssemblyVectorMap({
     for (const marker of markersRef.current) marker.remove()
     markersRef.current = []
 
+    const markerOffsets = resolveMarkerOffsets(points)
     for (const point of points) {
       markersRef.current.push(
         new Marker({
@@ -362,8 +385,26 @@ export function AssemblyVectorMap({
             outline: resolveBasemapOutline(readToken, theme),
             sequence: point.sequence ?? 1,
           }),
+          offset: (markerOffsets.get(point.stopKey) ?? [0, 0]) as [number, number],
         })
           .setLngLat([point.longitude, point.latitude])
+          .addTo(map),
+      )
+    }
+
+    /**
+     * Spec 097 D4: o barracão, marcado **uma vez** — ele abre e fecha o traçado, e é o mesmo lugar.
+     */
+    if (depotOrigin !== null) {
+      markersRef.current.push(
+        new Marker({
+          element: depotElement({
+            /** O trecho que parte do barracão leva à parada 1: a cor dele é a cor dela. */
+            color: stopColor(1),
+            outline: resolveBasemapOutline(readToken, theme),
+          }),
+        })
+          .setLngLat([Number(depotOrigin.longitude), Number(depotOrigin.latitude)])
           .addTo(map),
       )
     }
@@ -400,8 +441,62 @@ export function AssemblyVectorMap({
       void nearbySource.setData(nearbyData)
     }
 
-    fitToStops(map, points)
-  }, [isReady, nearby, points, stopColor, theme])
+    fitToTrip(map, points, geometry)
+    /**
+     * ⚠️ `geometry` entra nas dependências porque o quadro depende dela: a rota e o barracão chegam
+     * **depois** da primeira pintura, e sem isto o enquadramento ficaria o das paradas para sempre —
+     * exatamente o defeito que `fitToTrip` veio corrigir. Trocar de opção no seletor também reenquadra,
+     * que é o certo: a alternativa tem outra extensão.
+     */
+  }, [geometry, isReady, nearby, points, stopColor, theme])
+
+  /**
+   * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 096 D3):
+   * `geometry` já é a opção ativa (`activeGeometry` em `TripAssemblyMap`), então trocar de opção no
+   * seletor da T3 redesenha o traço **e** estas praças juntos.
+   *
+   * ⚠️ **Camada, não `Marker` de DOM.** São poucas por rota, mas o motivo aqui não é volume — é não
+   * competir com o pino da parada: o WebGL fica sempre atrás dos marcadores de DOM, contanto que a
+   * ordem entre camadas continue implícita (ver `vector-basemap.contract.ts`).
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null || !isReady) return
+
+    const marcadores = resolveTollBoothMarkers(geometry?.toll ?? null)
+    const data = {
+      type: 'FeatureCollection' as const,
+      features: marcadores.map((marcador) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [marcador.longitude, marcador.latitude] },
+        properties: { label: marcador.label },
+      })),
+    }
+
+    const source: GeoJSONSource | undefined = map.getSource(TOLL_BOOTH_SOURCE)
+    if (source === undefined) {
+      map.addSource(TOLL_BOOTH_SOURCE, { data, type: 'geojson' })
+      map.addLayer({
+        id: 'praca-do-trajeto',
+        layout: {
+          /** Mesmo glifo de `cabine-de-pedagio` — é a mesma praça, só que com o valor ao lado. */
+          'text-field': ['concat', '● ', ['get', 'label']],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 10,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': resolveBasemapTollColor(readToken, theme),
+          'text-halo-color': resolveBasemapBackground(readToken, theme),
+          'text-halo-width': 1.4,
+        },
+        source: TOLL_BOOTH_SOURCE,
+        type: 'symbol',
+      })
+    } else {
+      void source.setData(data)
+    }
+  }, [geometry, isReady, theme])
 
   /**
    * A linha da estrada. Ela é **fonte de dado**, atualizada no lugar: recriar a camada a cada
@@ -417,15 +512,18 @@ export function AssemblyVectorMap({
      * perdia no meio deles. A cor vem da mesma paleta da listagem, que é o que a pessoa está lendo
      * ao lado do mapa.
      */
-    const legs = resolveRouteLegs({
-      geometry,
-      /** Aqui não há projeção: o MapLibre recebe grau, e o corte por proximidade é no próprio grau. */
-      project: (point: { readonly latitude: number; readonly longitude: number }) => ({
-        x: point.longitude,
-        y: point.latitude,
-      }),
-      stops: points.map((point) => ({ x: point.longitude, y: point.latitude })),
-    })
+    const legs =
+      hideRoute === true
+        ? []
+        : resolveRouteLegs({
+            geometry,
+            /** Aqui não há projeção: o MapLibre recebe grau, e o corte por proximidade é no próprio grau. */
+            project: (point: { readonly latitude: number; readonly longitude: number }) => ({
+              x: point.longitude,
+              y: point.latitude,
+            }),
+            stops: points.map((point) => ({ x: point.longitude, y: point.latitude })),
+          })
     const data = {
       type: 'FeatureCollection' as const,
       features: legs.map((leg) => ({
@@ -435,7 +533,7 @@ export function AssemblyVectorMap({
           coordinates: leg.points.map((point) => [point.x, point.y]),
         },
         properties: {
-          color: resolveStopColor(leg.toSequence, document.documentElement),
+          color: resolveStopColor(leg.toSequence),
           dashed: leg.dashed,
         },
       })),
@@ -454,7 +552,7 @@ export function AssemblyVectorMap({
 
     routeRef.current = { dashArray, data }
     applyRoute(map)
-  }, [applyRoute, geometry, isReady, points, theme])
+  }, [applyRoute, geometry, hideRoute, isReady, points, theme])
 
   return (
     <div className={styles.vectorMap}>
@@ -478,12 +576,12 @@ export function AssemblyVectorMap({
         >
           <Icon name="minus" />
         </Button>
-        {/* Recentrar é a saída de quem se perdeu arrastando — devolve o enquadramento das paradas. */}
+        {/* Recentrar é a saída de quem se perdeu arrastando — devolve o enquadramento da viagem. */}
         <Button
           aria-label={t('assemblyMap.recenter')}
           onClick={() => {
             const map = mapRef.current
-            if (map !== null) fitToStops(map, points)
+            if (map !== null) fitToTrip(map, points, geometry)
           }}
           size="sm"
           type="button"
@@ -520,6 +618,53 @@ export function AssemblyVectorMap({
  * O que **precisa** vir daqui é a cor: o tom da parada casa o pino com a bolinha da lista, e o anel
  * casa o pino com o papel do tema do mapa. Nenhum dos dois é conhecido pela folha de estilo.
  */
+/**
+ * O ponto de partida (spec 097 D4). Sem número e com forma própria: ele não é parada, não está na
+ * sequência de entregas e não recebe carga.
+ *
+ * ⚠️ Com `end_policy = 'depot'` o barracão é o primeiro **e** o último ponto do traçado, e é o mesmo
+ * lugar — por isso quem chama desenha **um** marcador. Dois idênticos sobrepostos sugeririam dois
+ * pontos distintos, e a volta já está dita pela linha.
+ */
+function depotElement(input: { readonly color: string; readonly outline: string }): HTMLElement {
+  const element = document.createElement('span')
+  element.className = `${styles.tilePin ?? ''} ${styles.tileDepot ?? ''}`
+  /**
+   * ⚠️ **A cor é a do traço que sai daqui**, não uma cor própria: o marcador é o começo da linha
+   * desenhada, e o cobre de antes o fazia parecer um ponto alheio ao roteiro. Quem separa origem de
+   * entrega continua sendo a **forma** — glifo, sem número —, que é o que o contrato do marcador
+   * cobra e o que sobrevive ao mapa impresso e ao daltonismo.
+   */
+  element.style.background = input.color
+  element.style.borderColor = input.outline
+  element.title = 'Ponto de partida'
+
+  /**
+   * ⚠️ O losango dizia "não é parada" e mais nada — quem olhava o mapa via um quadrado girado e
+   * tinha de adivinhar. O glifo é o **mesmo** do resumo, e vem de `ICON_PATHS` do design system:
+   * dois desenhos para a mesma ideia divergiriam no dia em que alguém mexesse num só.
+   *
+   * ⚠️ Construído por `createElementNS` e não por JSX porque o marcador do MapLibre é `HTMLElement`,
+   * fora da árvore do React. O glifo continua sendo o do design system — o que é imperativo aqui é a
+   * montagem do nó, não o desenho.
+   */
+  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+  glyph.setAttribute('viewBox', '0 0 24 24')
+  glyph.setAttribute('fill', 'none')
+  glyph.setAttribute('stroke', 'currentColor')
+  glyph.setAttribute('stroke-width', '2')
+  glyph.setAttribute('stroke-linecap', 'round')
+  glyph.setAttribute('stroke-linejoin', 'round')
+  glyph.setAttribute('aria-hidden', 'true')
+  for (const definition of ICON_PATHS.organization) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path')
+    path.setAttribute('d', definition)
+    glyph.append(path)
+  }
+  element.append(glyph)
+  return element
+}
+
 function stopElement(input: {
   readonly approximate: boolean
   readonly color: string
@@ -541,16 +686,32 @@ function stopElement(input: {
   return element
 }
 
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+
 /** Cicla claro → escuro → contraste → claro. Um botão diz mais que três disputando o mesmo canto. */
 function nextTheme(current: BasemapTheme): BasemapTheme {
   const index = BASEMAP_THEMES.indexOf(current)
   return BASEMAP_THEMES[(index + 1) % BASEMAP_THEMES.length] ?? 'claro'
 }
 
-/** O enquadramento das paradas, usado na montagem e no botão de recentrar — a mesma conta. */
-function fitToStops(map: MapLibreMap, points: readonly AssemblyMapPoint[]): void {
-  if (points.length === 0) return
-  const bounds = new LngLatBounds()
-  for (const point of points) bounds.extend([point.longitude, point.latitude])
+/**
+ * O enquadramento da viagem, usado na montagem e no botão de recentrar — a mesma conta.
+ *
+ * ⚠️ Ele enquadra **tudo que a viagem desenha**: as paradas, o barracão e o traçado. Antes saía só
+ * das paradas, e o ponto de partida ficava fora da tela. Quem decide o envelope é
+ * `resolveAssemblyMapBounds`, que é onde essa fronteira está escrita e coberta por contrato.
+ */
+function fitToTrip(
+  map: MapLibreMap,
+  points: readonly AssemblyMapPoint[],
+  geometry: null | RouteGeometry,
+): void {
+  const box = resolveAssemblyMapBounds({
+    depotOrigin: geometry?.depot?.origin ?? null,
+    routePoints: geometry?.points ?? [],
+    stops: points,
+  })
+  if (box === null) return
+  const bounds = new LngLatBounds([box.west, box.south], [box.east, box.north])
   map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 48 })
 }

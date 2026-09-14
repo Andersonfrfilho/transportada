@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-const SERVICE = new URL('../../src/modules/trip/shared/vectorBasemap.service.ts', import.meta.url)
+const SERVICE = new URL('../../src/modules/shared/vectorBasemap.service.ts', import.meta.url)
 const ASSEMBLY = new URL(
   '../../src/modules/trip/components/AssemblyVectorMap.component.tsx',
   import.meta.url,

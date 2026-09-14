@@ -34,7 +34,14 @@ import {
   PHYSICAL_DESTINATION_ORIGINS,
 } from '../domain/physical-destination.policy.js'
 import { resolveDeliveryWindow } from '../domain/delivery-window.policy.js'
+import {
+  fleetDriverRegions,
+  freightRegionCities,
+  freightRegions,
+} from '../../database/freight-region.schema.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
+import { buildRegionCityKey } from '../domain/region-coverage.policy.js'
+import type { DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import { resolveStopWeight } from '../domain/stop-weight.policy.js'
 import type { StopWeightDocument } from '../domain/stop-weight.policy.js'
 import type {
@@ -57,6 +64,8 @@ const SECONDS_PER_DAY = 86_400
 /** O mesmo padrão que a API aplica a empresa sem configuração — as duas leem a mesma ausência. */
 const DEFAULT_SETTINGS = {
   defaultServiceTimeSeconds: 600,
+  /** Spec 109: 08:00 local — a hora em que a operação abre. Empresa sem linha sai no padrão. */
+  departureTimeSeconds: 28_800,
   endAddressKey: '',
   endPolicy: 'depot',
   fallbackWeightKilograms: '0.00',
@@ -122,6 +131,17 @@ export function createDrizzleRouteOptimizationRepository(
        * mesma origem, senão a parada abriria às 8h de um dia e o percurso contaria a partir de outro.
        */
       const dayStartSeconds = startOfUtcDaySeconds(new Date())
+      /**
+       * Spec 109: **a origem do relógio é a partida, não a meia-noite.** A meia-noite UTC são 21h
+       * de Brasília do dia anterior: toda rota partia à noite e as chegadas caíam de madrugada
+       * (medido em 2026-09-09: cinco viagens terminando entre 03:04 e 07:03).
+       *
+       * A hora de saída é local, e o mesmo deslocamento que converte a janela do cliente a converte.
+       */
+      const departureEpochSeconds =
+        dayStartSeconds +
+        settings.departureTimeSeconds +
+        utcOffsetSeconds({ date: toUtcDate(dayStartSeconds), timezone: settings.timezone })
 
       /**
        * Spec 058 P2: **as duas origens do problema.** Sugestão de viagem lê as paradas que já
@@ -136,6 +156,7 @@ export function createDrizzleRouteOptimizationRepository(
               database,
               date: toUtcDate(dayStartSeconds),
               dayStartSeconds,
+              departureTimeSeconds: settings.departureTimeSeconds,
               timezone: settings.timezone,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
               defaultVolumeWeight,
@@ -145,6 +166,7 @@ export function createDrizzleRouteOptimizationRepository(
           : await readStops({
               companyId: job.companyId,
               database,
+              departureEpochSeconds,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
               defaultVolumeWeight,
               fallbackWeightKilograms: settings.fallbackWeightKilograms,
@@ -165,14 +187,32 @@ export function createDrizzleRouteOptimizationRepository(
 
       const depot = await readPoint({ addressKey: settings.originAddressKey, database })
 
+      /**
+       * Spec 106: o cadastro de cobertura. Duas consultas por execução, e só quando há motorista
+       * pareado — a sugestão da véspera, sem escala, não paga por elas.
+       */
+      const driverIds = [
+        ...new Set(
+          vehicles.flatMap((vehicle) => (vehicle.driverId === null ? [] : [vehicle.driverId])),
+        ),
+      ]
+      const [driverCoverage, regionCodeByCityKey] = await Promise.all([
+        readDriverCoverage({ companyId: job.companyId, database, driverIds }),
+        driverIds.length === 0
+          ? new Map<string, string>()
+          : readRegionCityCodes({ companyId: job.companyId, database }),
+      ])
+
       return {
         companyId: job.companyId,
+        driverCoverage,
+        regionCodeByCityKey,
         /**
-         * A janela da parada é absoluta no banco e relativa no solver. A meia-noite UTC do dia da
-         * sugestão é a origem: qualquer outra escolha faria a mesma viagem produzir janelas
-         * diferentes conforme a hora em que alguém apertou o botão.
+         * A janela da parada é absoluta no banco e relativa no solver, e a origem das duas é a
+         * **partida do dia da sugestão** — nunca o instante do clique, que faria a mesma viagem
+         * produzir janelas diferentes conforme a hora em que alguém apertou o botão.
          */
-        dayStartEpochSeconds: dayStartSeconds,
+        departureEpochSeconds,
         depot,
         duty: {
           breakEverySeconds: settings.breakEverySeconds,
@@ -223,6 +263,7 @@ export function createDrizzleRouteOptimizationRepository(
                 estimatedArrivalAt: stop.estimatedArrivalAt,
                 excludedFromOptimization: stop.excludedFromOptimization,
                 label: stop.label,
+                leftoverReason: stop.leftoverReason,
                 sequence: BigInt(stop.sequence),
                 serviceTimeSeconds: stop.serviceTimeSeconds,
                 serviceTimeSource: 'default',
@@ -256,12 +297,46 @@ export function createDrizzleRouteOptimizationRepository(
           }
         }
 
+        /**
+         * A volta de cada veículo (decisão 2026-09-13). Zerada antes, para um recálculo com a política
+         * trocada para `last_stop` não herdar a volta do cálculo anterior. Sugestão de viagem única
+         * não tem linha em `route_suggestion_vehicles`, e as duas escritas alcançam zero linhas.
+         */
+        await transaction
+          .update(routeSuggestionVehicles)
+          .set({ returnDistanceMeters: null, returnDurationSeconds: null })
+          .where(
+            and(
+              eq(routeSuggestionVehicles.companyId, job.companyId),
+              eq(routeSuggestionVehicles.suggestionId, job.suggestionId),
+            ),
+          )
+        await Promise.all(
+          outcome.returnLegs.map((leg) =>
+            transaction
+              .update(routeSuggestionVehicles)
+              .set({
+                returnDistanceMeters: leg.distanceMeters,
+                returnDurationSeconds: leg.durationSeconds,
+              })
+              .where(
+                and(
+                  eq(routeSuggestionVehicles.companyId, job.companyId),
+                  eq(routeSuggestionVehicles.suggestionId, job.suggestionId),
+                  eq(routeSuggestionVehicles.vehicleId, leg.vehicleId),
+                ),
+              ),
+          ),
+        )
+
         await transaction
           .update(routeSuggestions)
           .set({
             estimatedCostAmount: outcome.estimatedCostAmount,
             estimatedDistanceMeters: outcome.estimatedDistanceMeters,
             estimatedDurationSeconds: outcome.estimatedDurationSeconds,
+            /** Spec 109 D2: a premissa sob a qual o operador aceita — e a âncora do ETA. */
+            plannedDepartureAt: outcome.plannedDepartureAt,
             solverMetrics: outcome.solverMetrics,
             status: 'ready',
             truncated: outcome.truncated,
@@ -327,6 +402,7 @@ async function readSettings(input: {
       ? {}
       : {
           defaultServiceTimeSeconds: row.defaultServiceTimeSeconds,
+          departureTimeSeconds: row.departureTimeSeconds,
           endAddressKey: row.endAddressKey,
           endPolicy: row.endPolicy,
           fallbackWeightKilograms: row.fallbackWeightKilograms,
@@ -397,6 +473,8 @@ async function readStops(input: {
   readonly database: RouteOptimizationDatabase
   readonly defaultServiceTimeSeconds: number
   readonly defaultVolumeWeight: string | null
+  /** Spec 109: a partida — a origem do relógio, e ela chega pronta em vez de ser relida aqui. */
+  readonly departureEpochSeconds: number
   readonly fallbackWeightKilograms: string
   readonly tripId: string
 }): Promise<readonly RouteOptimizationStop[]> {
@@ -444,8 +522,6 @@ async function readStops(input: {
     documentsByStop.set(link.stopId, current)
   }
 
-  const dayStart = startOfUtcDaySeconds(new Date())
-
   return rows.map((row) => {
     const weight = resolveStopWeight({
       defaultWeightPerVolume: input.defaultVolumeWeight,
@@ -471,10 +547,16 @@ async function readStops(input: {
        * saindo daqui, e ela é do **pior caso** — uma nota sem massa entre outras torna a parada
        * estimativa, e o conferente precisa saber disso antes de aceitar.
        */
+      /**
+       * ⚠️ Spec 106: a viagem já existe e o motorista dela também — a cobertura é conferida na
+       * montagem, não aqui. Cidade e UF vazias mantêm este caminho sem restrição.
+       */
+      city: '',
+      state: '',
       weightEstimated: weight.estimated,
       weightKilograms: weight.weightKilograms,
-      windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, dayStart),
-      windowStartSeconds: toRelativeSeconds(row.deliveryWindowStart, dayStart),
+      windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, input.departureEpochSeconds),
+      windowStartSeconds: toRelativeSeconds(row.deliveryWindowStart, input.departureEpochSeconds),
     }
   })
 }
@@ -500,6 +582,12 @@ async function readVehicles(input: {
 
   return rows.map((row) => ({
     capacityKilograms: Number(row.capacityKilograms),
+    /**
+     * Spec 106: a viagem já existe e o motorista dela também — a cobertura de região é resolvida na
+     * montagem, não aqui. `null` nos dois mantém o comportamento de sempre neste caminho.
+     */
+    driverId: null,
+    servableStopIndexes: null,
     /**
      * O custo por metro em micros: o solver soma milhares de vezes, e somar decimal em ponto
      * flutuante acumula erro que muda a ordem escolhida. Inteiro não acumula.
@@ -562,6 +650,8 @@ async function readPoolVehicles(input: {
   const rows = await input.database
     .select({
       capacityKilograms: fleetVehicles.capacityKilograms,
+      /** Spec 106: quem dirige decide onde o veículo pode ir. Nulo é sem restrição (ADR-0055). */
+      driverId: routeSuggestionVehicles.driverId,
       id: fleetVehicles.id,
       otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
     })
@@ -586,8 +676,102 @@ async function readPoolVehicles(input: {
     costPerMeterMicros: Math.round(
       (Number(row.otherCostsPerKilometer) / METRES_PER_KILOMETRE) * MICROS_PER_UNIT,
     ),
+    driverId: row.driverId,
     id: row.id,
+    /**
+     * Spec 106: preenchido pelo efeito, que é quem conhece as paradas — aqui só se lê o veículo, e
+     * a cobertura é uma relação entre motorista e parada.
+     */
+    servableStopIndexes: null,
   }))
+}
+
+/** ⚠️ Zona inativada pela reimportação não cobre nada: ela saiu da tabela do cliente. */
+const ACTIVE_REGION_STATUS = 'active'
+
+/**
+ * Spec 106: o cadastro de cobertura, **uma consulta por execução**.
+ *
+ * ⚠️ Motorista **sem linha** não aparece no mapa, e o chamador traduz ausência em "serve tudo" — a
+ * regra de fallback: quem não declarou não restringiu.
+ */
+export async function readDriverCoverage(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+  readonly driverIds: readonly string[]
+}): Promise<ReadonlyMap<string, readonly DriverCoverageEntry[]>> {
+  const byDriver = new Map<string, DriverCoverageEntry[]>()
+  if (input.driverIds.length === 0) return byDriver
+
+  const rows = await input.database
+    .select({
+      city: fleetDriverRegions.city,
+      driverId: fleetDriverRegions.driverId,
+      regionCode: freightRegions.code,
+      scope: fleetDriverRegions.scope,
+      state: fleetDriverRegions.state,
+    })
+    .from(fleetDriverRegions)
+    .innerJoin(
+      freightRegions,
+      and(
+        eq(freightRegions.companyId, fleetDriverRegions.companyId),
+        eq(freightRegions.id, fleetDriverRegions.regionId),
+      ),
+    )
+    .where(
+      and(
+        eq(fleetDriverRegions.companyId, input.companyId),
+        inArray(fleetDriverRegions.driverId, [...input.driverIds]),
+      ),
+    )
+
+  for (const row of rows) {
+    const entries = byDriver.get(row.driverId) ?? []
+    entries.push({
+      city: row.city,
+      regionCode: row.regionCode,
+      scope: row.scope === 'city' ? 'city' : 'region',
+      state: row.state,
+    })
+    byDriver.set(row.driverId, entries)
+  }
+
+  return byDriver
+}
+
+/**
+ * Spec 106: cidade dobrada + UF → código da zona. Uma consulta por execução, nunca por parada — um
+ * pool de trezentas notas viraria trezentas idas ao banco na rotina mais pesada do worker.
+ */
+export async function readRegionCityCodes(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+}): Promise<ReadonlyMap<string, string>> {
+  const rows = await input.database
+    .select({
+      city: freightRegionCities.city,
+      code: freightRegions.code,
+      state: freightRegionCities.state,
+    })
+    .from(freightRegionCities)
+    .innerJoin(
+      freightRegions,
+      and(
+        eq(freightRegions.companyId, freightRegionCities.companyId),
+        eq(freightRegions.id, freightRegionCities.regionId),
+      ),
+    )
+    .where(
+      and(
+        eq(freightRegionCities.companyId, input.companyId),
+        eq(freightRegions.status, ACTIVE_REGION_STATUS),
+      ),
+    )
+
+  return new Map(
+    rows.map((row) => [buildRegionCityKey({ city: row.city, state: row.state }), row.code]),
+  )
 }
 
 /**
@@ -600,6 +784,8 @@ async function readPoolStops(input: {
   readonly database: RouteOptimizationDatabase
   readonly date: string
   readonly dayStartSeconds: number
+  /** Spec 109: a hora de saída, local — é dela que a janela do cliente passa a ser medida. */
+  readonly departureTimeSeconds: number
   readonly defaultServiceTimeSeconds: number
   readonly defaultVolumeWeight: string | null
   readonly fallbackWeightKilograms: string
@@ -616,6 +802,8 @@ async function readPoolStops(input: {
       /** Spec 060: o cliente de entrega é resolvido pelo documento do destinatário. */
       recipientTaxId: nfeParticipants.taxId,
       role: nfeParticipants.role,
+      /** Spec 106: a UF fecha a chave de casamento da cidade com a tabela de regiões. */
+      state: nfeAddresses.state,
     })
     .from(routeSuggestionDocuments)
     .innerJoin(
@@ -677,7 +865,13 @@ async function readPoolStops(input: {
 
   const grouped = new Map<
     string,
-    { city: string | null; cityCode: string | null; documentIds: string[]; taxIds: Set<string> }
+    {
+      city: string | null
+      cityCode: string | null
+      documentIds: string[]
+      state: string | null
+      taxIds: Set<string>
+    }
   >()
   for (const { address: row, recipientTaxId } of destinations.values()) {
     const addressKey = buildStopAddressKey(row)
@@ -689,6 +883,7 @@ async function readPoolStops(input: {
       grouped.set(addressKey, {
         city: row.city,
         cityCode: row.cityCode,
+        state: row.state,
         documentIds: [row.nfeDocumentId],
         taxIds: new Set(recipientTaxId === null ? [] : [recipientTaxId]),
       })
@@ -730,7 +925,11 @@ async function readPoolStops(input: {
   return [...grouped.entries()].map(([addressKey, group]) => {
     const point = byKey.get(addressKey)
     const window = resolvePoolWindow({
-      offsetSeconds: utcOffsetSeconds({ date: input.date, timezone: input.timezone }),
+      /**
+       * Spec 109: a janela é relativa à **partida**, e as duas são hora local — o deslocamento de
+       * fuso se cancela na subtração. "Abre às 8h e saímos às 8h" é zero, em qualquer fuso.
+       */
+      offsetSeconds: -input.departureTimeSeconds,
       taxIds: [...group.taxIds],
       windows,
     })
@@ -760,6 +959,9 @@ async function readPoolStops(input: {
        * viagem usa, porque é o mesmo agrupamento. A marca segue viajando junto, e a tela a mostra
        * antes do aceite (ADR-0044 §5).
        */
+      /** Spec 106: cidade e UF viajam com a parada — é como a cobertura do motorista casa com ela. */
+      city: group.city ?? '',
+      state: group.state ?? '',
       weightEstimated: weight.estimated,
       weightKilograms: weight.weightKilograms,
       windowEndSeconds: window.endSeconds,
