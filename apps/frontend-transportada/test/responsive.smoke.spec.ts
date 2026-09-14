@@ -1533,7 +1533,7 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   await expect(dialog.getByText(/Nada foi criado ainda/u)).toBeVisible()
 
   /** Os seis números do título, na ordem em que a conta se lê. */
-  for (const label of ['Entregas', 'Peso', 'Receita', 'Despesas', 'Lucro', 'Tempo']) {
+  for (const label of ['Paradas e notas', 'Peso', 'Receita', 'Despesas', 'Lucro', 'Tempo']) {
     await expect(dialog.getByText(label, { exact: true }).first()).toBeVisible()
   }
 
@@ -1609,7 +1609,6 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await expect(page.getByRole('heading', { level: 3, name: 'Carga da viagem' })).toBeVisible()
     await expect(page.getByText('57% do baú')).toBeVisible()
     await expect(page.getByText('Baú de 7,40 × 2,47 × 2,30 m = 42,04 m³.')).toBeVisible()
-
 
     await expect(page.getByRole('heading', { name: 'Onde cada caixa cabe' })).toBeVisible()
     await expect(

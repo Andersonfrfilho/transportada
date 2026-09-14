@@ -340,6 +340,20 @@ async function registerEmptyListMock(
 }
 
 /**
+ * Spec 148 T7: o painel de carga abre a fila de revisão da viagem. A rota real devolve só
+ * `{ data: [...] }`, sem `page` — fila vazia não pede `swap-suggestions`.
+ */
+async function registerEmptyReviewQueueMock(page: Page): Promise<void> {
+  await page.route(/\/trip-document-reviews(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+}
+
+/**
  * Spec 059: o detalhe da viagem consulta a prontidão ao abrir. Sem este mock a requisição escapa
  * para a API real, que não sobe no smoke — e o `requestfailed` entra em `failures()`.
  */
@@ -504,6 +518,7 @@ export async function mockTripWorkspaceApi(
     registerMdfeManifestMocks({ page: input.page, state }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/vehicles(?:\?.*)?$/ }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/drivers(?:\?.*)?$/ }),
+    registerEmptyReviewQueueMock(input.page),
   ])
   return {
     failures: () => state.failures,
