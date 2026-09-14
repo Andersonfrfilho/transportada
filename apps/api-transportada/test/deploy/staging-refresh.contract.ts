@@ -133,6 +133,20 @@ describe('contrato do serviço staging-refresh', () => {
   })
 
   /**
+   * O realm de staging pode não ter o papel `transportada-service` — o refresh de 14/09/2026 morreu
+   * no 404 dele depois de restaurar produção, e parou antes de tirar a emissão e o certificado.
+   * Papel ausente é "nenhuma conta de serviço", não motivo para abandonar o ciclo no meio.
+   */
+  test('segue sem contas de serviço quando o papel não existe no realm', async () => {
+    const fetchUsers = functionBody(await readScript(), 'fetch_realm_users')
+
+    expect(fetchUsers).toMatch(
+      /if service_accounts="\$\(keycloak_admin_get [^\n]*roles\/transportada-service/,
+    )
+    expect(fetchUsers).toContain('staging_refresh_service_role_missing')
+  })
+
+  /**
    * Um refresh cujo `KEYCLOAK_ISSUER` aponta para o de produção religaria os usuários do realm de
    * staging no issuer de produção — e o restore recém-feito já traz esse issuer. Achar o issuer
    * alvo nos dados restaurados é o sinal de configuração trocada, e a regra é parar.

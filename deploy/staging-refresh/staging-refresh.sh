@@ -224,9 +224,15 @@ keycloak_admin_get() {
 # máquina), não da listagem: o `GET /users` do Keycloak não devolve usuário de service account.
 # Uma página basta ali — é um cliente por serviço, não uma lista que cresce com gente.
 fetch_realm_users() {
-  local token="$1" output="$2" first=0 page count
-  keycloak_admin_get "$token" "roles/transportada-service/users?first=0&max=${REALM_PAGE_SIZE}" \
-    | jq -r '.[] | [.id, (.username // ""), (.email // ""), "t"] | @tsv' >"$output"
+  local token="$1" output="$2" first=0 page count service_accounts
+  # Realm sem o papel responde 404: é "nenhuma conta de serviço", não motivo para parar o ciclo
+  # depois do restore e antes de tirar a emissão.
+  if service_accounts="$(keycloak_admin_get "$token" "roles/transportada-service/users?first=0&max=${REALM_PAGE_SIZE}")"; then
+    jq -r '.[] | [.id, (.username // ""), (.email // ""), "t"] | @tsv' <<<"$service_accounts" >"$output"
+  else
+    log warn staging_refresh_service_role_missing ''
+    : >"$output"
+  fi
   while :; do
     page="$(keycloak_admin_get "$token" "users?briefRepresentation=true&first=${first}&max=${REALM_PAGE_SIZE}")"
     jq -r '.[] | [.id, (.username // ""), (.email // ""), "f"] | @tsv' <<<"$page" >>"$output"
