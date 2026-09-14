@@ -65,7 +65,7 @@
       as caixas de fora por planta (`trip_cargo_layouts.layout->'placement'->'unplaced'`) e conferir com o
       usuário, no mapa 3D, que nenhuma pilha alta ficou isolada (G4).
 
-- [ ] T7 🧠 — D7: fila de revisão das notas que não couberam. No pacote/app, depois de D1–D6, as notas com
+- [x] T7 🧠 (2026-09-14, commits `2a14520b` · `d42fad16` · tela; evidência em `evidence.md` § T7) — D7: fila de revisão das notas que não couberam. No pacote/app, depois de D1–D6, as notas com
       caixa sem lugar saem da viagem (marcação, não exclusão; `released_at`) e entram na fila com o motivo do
       `classify.ts`. Na tela da viagem e da proposta, a fila com as ações "trocar por outra nota" (a nota trocada
       volta para a fila) e "mover para outro entregador" (outra viagem/caminhão, com validação de carga no

@@ -178,6 +178,10 @@ export function TripRouteAssemblyDialog({
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}
                   permissions={permissions}
+                  releaseUnplaced={{
+                    isMarked: (layoutId) => assembly.isReleaseMarked(view.vehicleId, layoutId),
+                    onToggle: (layoutId) => assembly.toggleRelease(view.vehicleId, layoutId),
+                  }}
                   valuation={valuationByVehicle.get(view.vehicleId) ?? null}
                   vehicle={vehicles.find((vehicle) => vehicle.id === view.vehicleId)}
                   view={view}

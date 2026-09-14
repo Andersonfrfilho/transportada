@@ -236,6 +236,8 @@ export type TripDetail = Trip & {
   readonly cargoLayout: TripCargoLayoutView | null
   /** Spec 145 D10: de onde veio a planta servida — pronta, antiga (`stale`), pendente ou impossível. */
   readonly cargoLayoutState: TripCargoLayoutState
+  /** Spec 148 T7: a planta pronta do hash atual — por ela a tela tira as notas que não couberam. */
+  readonly cargoLayoutId?: string | null
   /**
    * Spec 145 D7 (lazy): presente só quando a planta do hash atual falta, falhou ou parou além do
    * lease — a rota pede o cálculo com ela depois da leitura. ⚠️ Nunca serializado: carrega rótulo de

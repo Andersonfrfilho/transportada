@@ -142,6 +142,16 @@ describeWithPostgres('fila de revisão das notas que não couberam (spec 148 T7)
     expect(audits).toEqual([{ action: 'trip_document.released', actor: seeded.userId }])
   })
 
+  /** A tela só tira nota pela planta pronta do hash atual: o detalhe da viagem diz qual é. */
+  test('o detalhe da viagem serve o id da planta pronta do hash atual', async () => {
+    const seeded = await seedTrip(database)
+    const layoutId = await insertCurrentLayout(database, seeded, [])
+
+    const detail = await new DrizzleTripRepository(database.db).findById(seeded)
+
+    expect(detail?.cargoLayoutId).toBe(layoutId)
+  })
+
   test('repetir a saída pela mesma planta devolve as mesmas entradas, sem duplicar', async () => {
     const seeded = await seedTrip(database)
     const { layoutId, result } = await releaseFirst(seeded)

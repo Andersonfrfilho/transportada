@@ -78,6 +78,10 @@ engano:
 - Tirar destino é marcação (riscar + desfazer), nunca destruição; mover destino entre caminhões não
   existe hoje.
 - Aceite parcial de proposta **consome** a sugestão inteira.
+- A nota que não coube sai por botão, nunca sozinha (spec 148 T7): `TripReviewQueue` no painel de
+  carga da viagem e da proposta, só com `trip.manage` e viagem não despachada. Mover/trocar esperam a
+  planta do destino (`runReviewChange`) e só gravam com ela; na proposta o botão marca e o aceite
+  leva `releaseUnplacedFromLayoutIds`. Contrato: `test/trip/review-queue.contract.ts`.
 - O roteirizador tem teto de paradas e marca a qualidade da otimização (`optimizationQuality`);
   10 mil paradas numa instância só segue fora de alcance (memória da matriz).
 

@@ -36,6 +36,7 @@ import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.c
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
+import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
 import { TripRouteMap } from './TripRouteMap.component'
@@ -423,6 +424,17 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
         layout={trip.cargoLayout}
         layoutView={workspace.cargoLayoutView}
         occupancy={trip.occupancy}
+        reviewQueue={
+          <TripReviewQueue
+            canManage={canManage}
+            isEditable={isEditable}
+            layoutId={trip.cargoLayoutId ?? null}
+            target={{ kind: 'trip', tripId: trip.id, vehicles }}
+            unplaced={
+              (workspace.cargoLayoutView?.layout ?? trip.cargoLayout)?.placement?.unplaced ?? []
+            }
+          />
+        }
         vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />
 

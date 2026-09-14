@@ -866,17 +866,21 @@ async function readTripDetail(
     securesCargo,
     stops: layoutStops,
   }
-  const { pendingCargoLayoutInput, ...cargoLayoutReading } = await readTripCargoLayout(queryable, {
-    companyId: input.companyId,
-    input: cargoLayoutInput,
-    leaseMs: input.cargoLayoutLeaseMs,
-    tripId: input.tripId,
-  })
+  const { layoutId, pendingCargoLayoutInput, ...cargoLayoutReading } = await readTripCargoLayout(
+    queryable,
+    {
+      companyId: input.companyId,
+      input: cargoLayoutInput,
+      leaseMs: input.cargoLayoutLeaseMs,
+      tripId: input.tripId,
+    },
+  )
 
   return {
     ...mapTrip(record),
     cargoLayout: cargoLayoutReading.cargoLayout,
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
+    cargoLayoutId: layoutId,
     ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
     cargoWeight: cargoWeightWithCeiling,
     documents,

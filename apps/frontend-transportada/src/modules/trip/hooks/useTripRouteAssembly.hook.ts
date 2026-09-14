@@ -120,6 +120,13 @@ export function useTripRouteAssembly(
    * distribuição, só o caminho daquele caminhão — e por isso ela não trava o aceite nem pede
    * recálculo da proposta. Quem recalcula é a prévia daquela viagem, que já recebe a ordem.
    */
+  /**
+   * Spec 148 T7 (D10): por caminhão, a planta da prévia de onde o aceite solta as notas que não
+   * couberam. Marcado aqui, solto no aceite — na mesma transação que vincula.
+   */
+  const [releaseLayoutByVehicle, setReleaseLayoutByVehicle] = useState<ReadonlyMap<string, string>>(
+    new Map(),
+  )
   const [orderByVehicle, setOrderByVehicle] = useState<ReadonlyMap<string, readonly string[]>>(
     new Map(),
   )
@@ -238,6 +245,7 @@ export function useTripRouteAssembly(
       /** A proposta nova já nasce sem o que foi removido: a marcação cumpriu o papel dela. */
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
+      setReleaseLayoutByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
       setStopMoves(new Map())
       setDraftStopMoves(new Map())
@@ -284,9 +292,14 @@ export function useTripRouteAssembly(
        * Spec 110 D5a: sem lista, a proposta inteira — o aceite de sempre. Com ela, só os marcados
        * viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
        */
+      /** Só a planta de caminhão aceito: a de outro caminhão seria recusada como carga alheia. */
+      const releaseUnplacedFromLayoutIds = [...releaseLayoutByVehicle]
+        .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
+        .map(([, layoutId]) => layoutId)
       const accepted = await getTripClient().acceptMultiVehicleSuggestion({
         suggestionId,
         ...(vehicleIds === undefined ? {} : { vehicleIds }),
+        ...(releaseUnplacedFromLayoutIds.length === 0 ? {} : { releaseUnplacedFromLayoutIds }),
         /**
          * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
          * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
@@ -307,6 +320,7 @@ export function useTripRouteAssembly(
       setOpenVehicleId(null)
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
+      setReleaseLayoutByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
       setStopMoves(new Map())
       setDraftStopMoves(new Map())
@@ -321,6 +335,17 @@ export function useTripRouteAssembly(
 
   return {
     pool,
+    /** Spec 148 T7: a planta marcada é a de agora — outra planta do mesmo caminhão não conta. */
+    isReleaseMarked: (vehicleId: string, layoutId: string) =>
+      releaseLayoutByVehicle.get(vehicleId) === layoutId,
+    toggleRelease: (vehicleId: string, layoutId: string) => {
+      setReleaseLayoutByVehicle((current) => {
+        const next = new Map(current)
+        if (next.get(vehicleId) === layoutId) next.delete(vehicleId)
+        else next.set(vehicleId, layoutId)
+        return next
+      })
+    },
     /** A escolha da busca **é** o lote: não há segundo passo entre marcar a nota e ela contar. */
     setPool,
     close: () => setIsOpen(false),

@@ -186,6 +186,8 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoLayout',
   /** Spec 145 D17: aceito antes de a API servir (T10), para o detalhe não cair na janela de deploy. */
   'cargoLayoutState',
+  /** Spec 148 T7: a planta do hash atual — é por ela que o botão tira as notas que não couberam. */
+  'cargoLayoutId',
   'cargoWeight',
   'occupancy',
 ] as const
@@ -202,6 +204,10 @@ export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
 export const TRIP_CARGO_LAYOUT_POLL_KEYS = ['cargoLayout', 'layoutId', 'state'] as const
 
 export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
+
+/** Spec 148 T7: a fila de revisão das notas que não couberam — fora da árvore `/trips/:id`. */
+export const TRIP_DOCUMENT_REVIEWS_PATH = '/trip-document-reviews'
+export const TRIP_REVIEW_QUERY_KEY = 'trip-document-reviews'
 
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade

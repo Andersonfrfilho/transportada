@@ -6,7 +6,17 @@ import {
   TRIP_ERROR,
   TRIPS_PATH,
   TRIP_CARGO_LAYOUTS_PATH,
+  TRIP_DOCUMENT_REVIEWS_PATH,
 } from './trip.constant'
+import { createTripReviewAdapters } from './tripReview.validation'
+import type {
+  TripDocumentReview,
+  TripDocumentReviewStatus,
+  TripReviewPreview,
+  TripReviewPreviewInput,
+  TripReviewRelease,
+  TripSwapSuggestions,
+} from './tripReview.types'
 import {
   acceptedMultiVehicleSuggestionFromApi,
   multiVehicleProposalFromApi,
@@ -93,6 +103,8 @@ export type TripClient = Readonly<{
       }>[]
       suggestionId: string
       vehicleIds?: readonly string[]
+      /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
+      releaseUnplacedFromLayoutIds?: readonly string[]
     }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
@@ -130,6 +142,22 @@ export type TripClient = Readonly<{
   readCargoLayout: (
     input: Readonly<{ layoutId: string; signal?: AbortSignal }>,
   ) => Promise<TripCargoLayoutPoll>
+  /** Spec 148 T7: a fila das notas que não couberam, por viagem de origem. */
+  listTripDocumentReviews: (
+    input: Readonly<{ status?: TripDocumentReviewStatus; tripId: string }>,
+  ) => Promise<readonly TripDocumentReview[]>
+  /** D10: o botão "Tirar do caminhão as N notas que não couberam". Repetir devolve as mesmas. */
+  releaseUnplacedDocuments: (
+    input: Readonly<{ layoutId: string; tripId: string }>,
+  ) => Promise<TripReviewRelease>
+  readSwapSuggestions: (input: Readonly<{ reviewId: string }>) => Promise<TripSwapSuggestions>
+  previewReviewChange: (input: TripReviewPreviewInput) => Promise<TripReviewPreview>
+  moveReview: (
+    input: Readonly<{ reviewId: string; targetTripId: string; validatedLayoutId: string }>,
+  ) => Promise<TripDocumentReview>
+  swapReview: (
+    input: Readonly<{ outTripDocumentId: string; reviewId: string; validatedLayoutId: string }>,
+  ) => Promise<Readonly<{ review: TripDocumentReview; swappedOut: TripDocumentReview }>>
   readPointsRouteGeometry: (
     input: Readonly<{
       points: readonly Readonly<{ latitude: number; longitude: number }>[]
@@ -284,6 +312,7 @@ function buildSearch(
 
 export function createTripClient(dependencies: ClientDependencies): TripClient {
   const adapters = createTripResponseAdapters()
+  const reviewAdapters = createTripReviewAdapters()
 
   function documentPath(input: TripDocumentActionInput): string {
     return `${TRIPS_PATH}/${input.tripId}/documents/${input.documentId}`
@@ -336,10 +365,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
          * ausência de `content-type`, e mandar `{}` faria toda instalação anterior a esta spec
          * passar por um caminho novo sem precisar.
          */
-        ...(input.vehicleIds === undefined && input.stopOrderByVehicle === undefined
+        ...(input.vehicleIds === undefined &&
+        input.stopOrderByVehicle === undefined &&
+        input.releaseUnplacedFromLayoutIds === undefined
           ? {}
           : {
               body: JSON.stringify({
+                ...(input.releaseUnplacedFromLayoutIds === undefined
+                  ? {}
+                  : { releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds }),
                 ...(input.stopOrderByVehicle === undefined
                   ? {}
                   : { stopOrderByVehicle: input.stopOrderByVehicle }),
@@ -558,6 +592,74 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       return adapters.tripCargoLayoutPollFromApi(readEnvelopeData(response))
+    },
+    async listTripDocumentReviews(input) {
+      const search = new URLSearchParams({
+        status: input.status ?? 'pending',
+        tripId: input.tripId,
+      })
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}?${search.toString()}`,
+      })
+      return reviewAdapters.reviewsFromApi(readEnvelopeData(response))
+    },
+    async releaseUnplacedDocuments(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${encodeURIComponent(input.tripId)}/cargo-layouts/${encodeURIComponent(input.layoutId)}/release-unplaced`,
+      })
+      return reviewAdapters.releaseFromApi(readEnvelopeData(response))
+    },
+    async readSwapSuggestions(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/swap-suggestions`,
+      })
+      return reviewAdapters.swapSuggestionsFromApi(readEnvelopeData(response))
+    },
+    async previewReviewChange(input) {
+      const { reviewId, ...change } = input
+      const response = await authorizedRequest({
+        body: JSON.stringify(change),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(reviewId)}/move-preview`,
+      })
+      return reviewAdapters.previewFromApi(readEnvelopeData(response))
+    },
+    async moveReview(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          targetTripId: input.targetTripId,
+          validatedLayoutId: input.validatedLayoutId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/move`,
+      })
+      return reviewAdapters.reviewFromApi(readEnvelopeData(response))
+    },
+    async swapReview(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          outTripDocumentId: input.outTripDocumentId,
+          validatedLayoutId: input.validatedLayoutId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIP_DOCUMENT_REVIEWS_PATH}/${encodeURIComponent(input.reviewId)}/swap`,
+      })
+      const data = readEnvelopeData(response)
+      if (typeof data !== 'object' || data === null) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      const swapped = data as { review?: unknown; swappedOut?: unknown }
+      return {
+        review: reviewAdapters.reviewFromApi(swapped.review),
+        swappedOut: reviewAdapters.reviewFromApi(swapped.swappedOut),
+      }
     },
     async readPointsRouteGeometry(input) {
       const response = await authorizedRequest({

@@ -478,6 +478,8 @@ export type TripDetail = Trip &
     cargoLayout: TripCargoLayout | null
     /** Spec 145 D17: opcional até a T10 servir a chave; ainda sem leitor na tela. */
     cargoLayoutState?: TripCargoLayoutState
+    /** Spec 148 T7: a planta pronta do hash atual; `null` enquanto ela não está pronta. */
+    cargoLayoutId?: null | string
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]

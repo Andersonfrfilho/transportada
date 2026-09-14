@@ -34,6 +34,8 @@ import type { TripQueryable } from './trip-queryable.type.js'
 export type TripCargoLayoutReading = {
   readonly cargoLayout: ResolvedCargoLayout | null
   readonly cargoLayoutState: TripCargoLayoutState
+  /** Spec 148 T7: a planta pronta do hash atual — a única de onde o botão pode soltar nota. */
+  readonly layoutId: string | null
   /** A entrada que a rota pede para calcular depois da leitura (D7 lazy); `null` quando não precisa. */
   readonly pendingCargoLayoutInput: BuildCargoLayoutInputParams | null
 }
@@ -155,6 +157,7 @@ export async function readTripCargoLayout(
     return {
       cargoLayout: resolveCargoLayout({ ...params.input, bedDimensions: null }),
       cargoLayoutState: UNAVAILABLE_CARGO_LAYOUT_STATE,
+      layoutId: null,
       pendingCargoLayoutInput: null,
     }
   }
@@ -172,6 +175,7 @@ export async function readTripCargoLayout(
     cargoLayout:
       reading.cargoLayout === null ? null : relabelCargoLayout(reading.cargoLayout, params.input),
     cargoLayoutState: reading.cargoLayoutState,
+    layoutId: current?.status === CARGO_LAYOUT_STATUS.ready ? current.id : null,
     pendingCargoLayoutInput: reading.shouldRequest ? params.input : null,
   }
 }

@@ -25,8 +25,10 @@ import {
 } from '../shared/proposalTripDistance.service'
 import { describeProposalTripTime } from '../shared/proposalTripTime.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
+import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
+import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import styles from '../styles/trip.module.css'
@@ -55,6 +57,11 @@ type TripProposalDetailProps = Readonly<{
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
   permissions: readonly string[]
+  /** Spec 148 T7 (D10): marcar as notas que não couberam para o aceite soltá-las. */
+  releaseUnplaced: Readonly<{
+    isMarked: (layoutId: string) => boolean
+    onToggle: (layoutId: string) => void
+  }>
   valuation: null | SuggestionVehicleValuation
   vehicle: FleetVehicleDetail | undefined
   view: ProposalVehicleView
@@ -82,6 +89,7 @@ export function TripProposalDetail({
   onUndoRemoveStop,
   pendingRemovals,
   permissions,
+  releaseUnplaced,
   valuation,
   vehicle,
   view,
@@ -184,6 +192,10 @@ export function TripProposalDetail({
 
   const occupancy = cargo.preview?.occupancy ?? null
   const cargoWeight = cargo.preview?.cargoWeight ?? null
+  /** A planta pronta vem do polling; a prévia só a traz quando já estava calculada. */
+  const layoutId = cargo.preview?.layoutId ?? null
+  const unplaced =
+    (cargo.cargoLayoutView?.layout ?? cargo.preview?.cargoLayout ?? null)?.placement?.unplaced ?? []
 
   /**
    * Para onde esta parada pode ir, como opções do select.
@@ -310,6 +322,21 @@ export function TripProposalDetail({
           layoutView={cargo.cargoLayoutView}
           occupancy={occupancy}
           onLoadingMove={handleLoadingMove}
+          reviewQueue={
+            <TripReviewQueue
+              canManage={permissions.includes(TRIP_MANAGE_PERMISSION)}
+              isEditable
+              layoutId={layoutId}
+              target={{
+                isMarked: layoutId !== null && releaseUnplaced.isMarked(layoutId),
+                kind: 'proposal',
+                onToggle: () => {
+                  if (layoutId !== null) releaseUnplaced.onToggle(layoutId)
+                },
+              }}
+              unplaced={unplaced}
+            />
+          }
           vehicleType={view.vehicleType}
           weightConcentration={cargo.preview?.weightConcentration ?? null}
         />

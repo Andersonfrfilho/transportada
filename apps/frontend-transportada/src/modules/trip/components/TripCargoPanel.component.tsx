@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CargoVehicle } from '@/components/ui/cargo-vehicle'
@@ -31,6 +32,8 @@ type TripCargoPanelProps = {
   vehicleType?: VehicleType | ''
   /** A parada que carrega mais que a própria fatia do peso; o desenho é de volume e não a mostra. */
   weightConcentration?: TripWeightConcentration | null
+  /** Spec 148 T7: a fila das notas que não couberam, logo abaixo do desenho que as deixou de fora. */
+  reviewQueue?: ReactNode
 }
 
 const PERCENT_SCALE = 100
@@ -79,6 +82,7 @@ export function TripCargoPanel({
   layoutView,
   occupancy,
   onLoadingMove,
+  reviewQueue = null,
   vehicleType = '',
   weightConcentration = null,
 }: TripCargoPanelProps) {
@@ -178,6 +182,7 @@ export function TripCargoPanel({
         onLoadingMove={onLoadingMove}
         view={layoutView ?? null}
       />
+      {reviewQueue}
     </section>
   )
 }

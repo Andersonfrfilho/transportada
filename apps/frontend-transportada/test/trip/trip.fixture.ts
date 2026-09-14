@@ -106,6 +106,8 @@ export type TripDetailContract = TripContract &
       }>[]
       stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
     }> | null
+    /** Spec 148 T7: a planta pronta do hash atual; ausente na API anterior à T7. */
+    cargoLayoutId?: null | string
     /** Spec 145 D10: o estado da planta calculada pelo worker; ausente na API anterior à T10. */
     cargoLayoutState?: Readonly<{
       computedAt: null | string
@@ -191,6 +193,8 @@ export const TRIP_DETAIL = {
     },
   ],
   cargoLayout: null,
+  /** Spec 148 T7: a planta pronta do hash atual — por ela a tela tira as notas que não couberam. */
+  cargoLayoutId: null,
   cargoLayoutState: {
     computedAt: '2026-09-12T12:00:00.000Z',
     errorCode: null,

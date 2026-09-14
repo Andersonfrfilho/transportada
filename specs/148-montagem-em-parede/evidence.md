@@ -457,3 +457,81 @@ cargoOverEarlier.service`), depois 8 / 8:
 Worker do worktree reiniciado com o `dist/` novo (os dois antigos, 80360 e 89824, parados); novo pid **71729**.
 
 Commits: `e7ed7870` (contratos da API e do worker) · `9bcec7ad` (tela).
+
+## T7 — Fila de revisão das notas que não couberam · 2026-09-14
+
+Modelo: `opus` (o `sonnet` estava sem cota). Desenho: `t7-design.md` (D10–D13).
+
+### Contratos, vermelhos antes do código
+
+| Contrato                                                                                                                                       | Vermelho                                                              | Verde                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| Domínio `test/trip-document-review/policy.contract.ts`                                                                                         | `Cannot find module trip-document-review.policy`                      | 15 / 15                                  |
+| Schema `test/trip-schema/document-review.contract.ts` + lista de `static-migration`                                                            | `preserves baseline … additive migrations` e o schema sem a tabela    | verdes                                   |
+| Migration `trip-document-review-constraints.assertion.ts` (único pendente por nota, único por vínculo solto, CHECKs de estado, troca e planta) | `status_check` casava antes com `resolution_check` (ajustado o teste) | `make migration-test` 91 / 91            |
+| Rotas HTTP `test/trip-document-review/routes.contract.ts`                                                                                      | `Cannot find module trip-document-review.routes`                      | 11 / 11                                  |
+| Postgres real `test/integration/trip-document-review.integration.ts`                                                                           | `Cannot find module drizzle-trip-document-review.repository`          | 14 / 14                                  |
+| Aceite (`routing-application` 2, `routing-http` 1)                                                                                             | 3 falhas                                                              | verdes                                   |
+| `separator-role.contract.test.ts`                                                                                                              | —                                                                     | as 6 rotas novas listadas, com a decisão |
+| Tela `test/trip/review-queue.contract.ts`                                                                                                      | `Cannot find module tripReview.validation`                            | 11 / 11                                  |
+
+A integração prova, contra o banco: soltar marca `released_at` (a linha fica), cria a entrada `pending`
+com o motivo e grava `trip_document.released` em `audit_logs`; repetir pela mesma planta devolve as
+mesmas entradas sem duplicar; outro tenant é 404 (viagem, fila, sugestão e move); viagem despachada é
+409; planta com hash velho é 409; `time_budget` e sem medida ficam; **CT-e autorizado não trava** (D13);
+mover grava o vínculo no destino, repetir o mesmo corpo é 200 e outro destino é 409; mover sem caber é
+409 e desfaz o vínculo; destino despachado é 409; a troca põe a nota no caminhão e devolve a outra à
+fila como `pending` (`swapped_out`); vincular por `linkDocument` fecha a entrada como `relinked` (D12); o
+aceite vincula e solta na mesma transação; o detalhe da viagem serve `cargoLayoutId`.
+
+### O que foi feito
+
+- **Domínio** (`trip-document-review.policy.ts`): transições `pending → moved | swapped_in | relinked`
+  (repetir é `unchanged`, outro destino 409); uma linha por nota com o motivo dominante; nota com
+  qualquer caixa `time_budget` ou `notMeasured` fica (D11); hash diferente é 409; sugestão de troca com
+  Δ% de peso (NF-e) e de volume (caixas), primeiro as que liberam espaço bastante.
+- **Migration** `20260914120000_trip_document_reviews`: aditiva, `text` + CHECK (sem ENUM), único parcial
+  `(company_id, nfe_document_id) where status = 'pending'`, único `(company_id, source_trip_document_id)`,
+  FKs compostas com `company_id` (nota, viagens, vínculos, entrada trocada, autores via membership).
+  ⚠️ `layout_id` **sem FK**: a planta é derivada e o expurgo a apaga — a fila é prova histórica.
+- **Rotas** (`trip-document-review.routes.ts`): as seis do desenho; `move-preview` aceita
+  `{targetTripId}` (mover) **ou** `{outTripDocumentId}` (a prévia da troca — a troca exige planta
+  validada e o desenho não nomeava a rota dela). A prévia aplica **a mesma mudança** da ação numa
+  transação desfeita e pede a planta sem viagem (D3); a ação reaplica, confere o hash e o `unplaced` e
+  só então grava. Trava: `checkTripAcceptsLinkage` na origem e no destino.
+- **D12**: `closePendingReviewsOnLink` em `linkDocument` e no lote — o aceite passa por eles.
+- **Aceite**: `releaseUnplacedFromLayoutIds`; cada planta casa com o caminhão pelo conjunto de notas que
+  ela desenhou, e outra carga é 409 **antes** de consumir a sugestão; a nota que não coube nasce na
+  viagem já solta, com a entrada pendente.
+- **Tela**: `TripReviewQueue` / `TripReviewEntry` no `TripCargoPanel` da viagem e da proposta — "Notas
+  fora do caminhão (N)", motivo por nota, "Tirar do caminhão as N notas que não couberam", "Trocar por
+  outra nota" (sugestões com Δ% de peso e espaço) e "Mover para outro caminhão"; só com `trip.manage` e
+  viagem não despachada. Mover/trocar esperam a planta do destino e só gravam com ela. Na proposta o
+  botão marca e o aceite solta. O detalhe da viagem ganhou `cargoLayoutId` (opcional no validador).
+  Textos nos dois locales.
+
+### Achado
+
+O teste contra Postgres com `createDrizzleProvider` cru deixava a transação da prévia **ociosa para
+sempre** (`idle in transaction` no `pg_stat_activity`): é o defeito das instruções preparadas do Bun SQL
+da spec 137. A integração usa `createDatabaseProvider` (`prepare: false`), como a API.
+
+A migration foi aplicada no banco local (`make migrate`, aditiva): sem a tabela, o gancho D12 quebraria
+o vínculo de nota no ambiente de dev que está rodando.
+
+### Gates
+
+| Gate                                                     | Resultado                                                                                |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz)                               | sem erro                                                                                 |
+| `bun run lint` (raiz)                                    | sem erro                                                                                 |
+| API `bun run --cwd apps/api-transportada test`           | 5134 pass, **0** linhas `(fail)`                                                         |
+| worker `bun run --cwd apps/worker-transportada test`     | 1053 pass, **0** linhas `(fail)`                                                         |
+| frontend `bun run --cwd apps/frontend-transportada test` | 3494 pass, **15** linhas `(fail)` — as 15 do design-system que já existiam; nenhuma nova |
+| integração `trip-document-review.integration.ts`         | 14 / 14                                                                                  |
+| `make migration-test`                                    | 91 pass, 0 fail (migration + rollback)                                                   |
+| build do frontend                                        | ok                                                                                       |
+
+Commits: `2a14520b` (domínio e migration) · `d42fad16` (rotas) · tela (o commit desta seção).
+
+Pendente: conferir a fila no navegador com o usuário (a tela não foi aberta nesta sessão).
