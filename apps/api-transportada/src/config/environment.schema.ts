@@ -5,6 +5,11 @@ import { z } from 'zod'
 
 import { DATABASE_POOL_DEFAULTS } from '../database/database-pool.constant'
 import { REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
+import {
+  CLIENT_IP_SOURCES,
+  DEFAULT_CLIENT_IP_POLICY,
+  MAX_TRUSTED_PROXY_HOPS,
+} from '../shared/client-ip.constant'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
@@ -124,6 +129,17 @@ const environmentSchema = z.object({
     })
     .optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  // ADR-0065: de qual cabeçalho sai o IP do cliente (a chave do rate limit anônimo). O padrão é a
+  // topologia medida — só o edge do Railway, que escreve `x-real-ip`. Cloudflare com proxy ligado
+  // na frente pede `cf-connecting-ip`; outro proxy que anexa a `x-forwarded-for` pede a cadeia com
+  // `TRUSTED_PROXY_HOPS` saltos contados do fim.
+  CLIENT_IP_SOURCE: z.enum(CLIENT_IP_SOURCES).default(DEFAULT_CLIENT_IP_POLICY.source),
+  TRUSTED_PROXY_HOPS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_TRUSTED_PROXY_HOPS)
+    .default(DEFAULT_CLIENT_IP_POLICY.trustedProxyHops),
   // Endereço público desta instalação, por onde a prefeitura devolve o postback de NFS-e. Vazio
   // significa callback não publicado, e aí a rota anônima nem é registrada. Não é segredo — o
   // segredo é o token opaco por empresa, que vive no banco e nunca sai em variável de ambiente.
@@ -271,6 +287,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
   return {
     appEnv: parsed.APP_ENV,
     bootstrapToken: parsed.BOOTSTRAP_TOKEN,
+    clientIpPolicy: {
+      source: parsed.CLIENT_IP_SOURCE,
+      trustedProxyHops: parsed.TRUSTED_PROXY_HOPS,
+    },
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,

@@ -141,6 +141,7 @@ import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/d
 import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
+import { createClientIpResolver } from './http/client-ip.service.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
@@ -884,6 +885,7 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    resolveClientIp: createClientIpResolver(config.clientIpPolicy),
     moduleRouters: [
       // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
       // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
@@ -1153,6 +1155,7 @@ function createAnonymousRoutes({
             repository: createDrizzleAggregateAccountRepository(database),
             userModule,
           }),
+          resolveClientIp: createClientIpResolver(config.clientIpPolicy),
         })
   if (config.companyId === undefined) {
     return [

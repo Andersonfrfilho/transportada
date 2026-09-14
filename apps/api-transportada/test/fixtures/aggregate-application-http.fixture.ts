@@ -41,7 +41,7 @@ export function aggregateApplicationRequest(input: {
       ...(input.authenticated === false
         ? {}
         : { authorization: 'Bearer aggregate-application-contract' }),
-      ...(input.clientIp === undefined ? {} : { 'x-forwarded-for': input.clientIp }),
+      ...(input.clientIp === undefined ? {} : { 'x-real-ip': input.clientIp }),
     },
     method: input.method,
   })
