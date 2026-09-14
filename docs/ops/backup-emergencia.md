@@ -6,6 +6,10 @@ feature 029 entregar o serviço `backup` quanto depois, quando ele existir e est
 > ⚠️ Estado em 08/08/2026: **staging** tem ciclo automático (serviço `backup`, 06:00 UTC).
 > **Production ainda não** — até a T018 da feature 029 subir o serviço lá, este documento é o
 > único backup que production tem.
+>
+> Emenda de 14/09/2026: **staging não tem mais backup** — o serviço foi removido de lá, e staging é
+> reposta a partir da cópia de production pelo `staging-refresh`. O ciclo automático é só de
+> production. Os passos abaixo que citam staging registram o que foi medido lá, não um ciclo vivo.
 
 ## Quando usar
 

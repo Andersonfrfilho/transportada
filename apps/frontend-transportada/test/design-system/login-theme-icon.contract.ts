@@ -14,6 +14,13 @@ const COMPOSE = 'compose.yaml'
 const RAILWAY_CONFIG = '.railway/railway.ts'
 const THEME_TOUCH_ICON = 'deploy/keycloak/theme/login/resources/img/icon-192.png'
 const THEME_TEMPLATE = 'deploy/keycloak/theme/login/template.ftl'
+const THEME_STYLESHEET = 'deploy/keycloak/theme/login/resources/css/login.css'
+const THEME_MESSAGE_BUNDLES = [
+  'deploy/keycloak/theme/login/messages/messages_en.properties',
+  'deploy/keycloak/theme/login/messages/messages_pt_BR.properties',
+] as const
+const APPLICATION_ENVIRONMENT_BANNER =
+  'apps/frontend-transportada/src/modules/foundation/components/EnvironmentBanner.component.tsx'
 
 function repositoryFile(filePath: string) {
   return Bun.file(new URL(filePath, REPOSITORY_ROOT))
@@ -107,5 +114,74 @@ describe('login theme tab identity contract', () => {
     const railway = await repositoryFile(RAILWAY_CONFIG).text()
 
     expect(railway).toContain("TRANSPORTADA_APP_ENV: isProduction ? 'production' : 'staging'")
+  })
+})
+
+function readApplicationBannerLabel(source: string, environment: 'local' | 'staging'): string {
+  const match = new RegExp(`${environment}:\\s*'([^']+)'`).exec(source)
+  if (match?.[1] === undefined) {
+    throw new Error(`EnvironmentBanner sem rótulo para ${environment}`)
+  }
+  return match[1]
+}
+
+/**
+ * O ícone sozinho avisava só quem olha a aba. A faixa é o mesmo aviso que a app mostra no topo, e o
+ * `template.ftl` é o layout de **toda** página do tema — login, troca de senha, erro, sessão expirada.
+ */
+describe('login theme environment banner contract', () => {
+  test('shows the banner under the same closed list that swaps the icon', async () => {
+    const template = await repositoryFile(THEME_TEMPLATE).text()
+    const bannerStart = template.indexOf('class="environment-banner"')
+
+    expect(bannerStart).toBeGreaterThan(template.indexOf('<body'))
+    const guardBeforeBanner = template.lastIndexOf('<#if workInProgress>', bannerStart)
+    expect(guardBeforeBanner).toBeGreaterThan(template.indexOf('<body'))
+    expect(template).toContain('appEnvironment == "local" || appEnvironment == "staging"')
+  })
+
+  test('announces the banner to screen readers without hiding the message', async () => {
+    const template = await repositoryFile(THEME_TEMPLATE).text()
+    const bannerStart = template.indexOf('class="environment-banner"')
+    const bannerMarkup = template.slice(bannerStart, template.indexOf('</div>', bannerStart))
+
+    expect(bannerMarkup).toContain('role="status"')
+    expect(bannerMarkup).toContain('<span aria-hidden="true">🚧</span>')
+    expect(bannerMarkup).toContain('<span>${msg("environmentBanner')
+    expect(bannerMarkup.match(/aria-hidden/g)?.length).toBe(1)
+  })
+
+  test('says what the application banner says, in both message bundles', async () => {
+    const [applicationBanner, ...bundles] = await Promise.all([
+      repositoryFile(APPLICATION_ENVIRONMENT_BANNER).text(),
+      ...THEME_MESSAGE_BUNDLES.map((bundle) => repositoryFile(bundle).text()),
+    ])
+
+    for (const bundle of bundles) {
+      expect(bundle).toContain(
+        `environmentBannerLocal=${readApplicationBannerLabel(applicationBanner, 'local')}\n`,
+      )
+      expect(bundle).toContain(
+        `environmentBannerStaging=${readApplicationBannerLabel(applicationBanner, 'staging')}\n`,
+      )
+    }
+  })
+
+  /** A cor vem dos tokens do tema, que já invertem no claro; cor literal quebraria um dos dois. */
+  test('paints the banner with the copied copper tokens and wraps on small screens', async () => {
+    const stylesheet = await repositoryFile(THEME_STYLESHEET).text()
+    const ruleStart = stylesheet.indexOf('.environment-banner {')
+    const rule = stylesheet.slice(ruleStart, stylesheet.indexOf('}', ruleStart))
+
+    expect(ruleStart).toBeGreaterThan(-1)
+    expect(rule).toContain(
+      'border: 1px solid color-mix(in srgb, var(--transportada-copper) 55%, transparent)',
+    )
+    expect(rule).toContain(
+      'background: color-mix(in srgb, var(--transportada-copper) 18%, transparent)',
+    )
+    expect(rule).toContain('color: var(--transportada-fog)')
+    expect(rule).toContain('flex-wrap: wrap')
+    expect(rule).not.toMatch(/#[0-9a-f]{3,6}\b/i)
   })
 })

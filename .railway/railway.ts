@@ -319,8 +319,8 @@ export default defineRailway((ctx) => {
    * o bucket — em staging isso custaria armazenamento para proteger dado que o `staging-refresh`
    * repõe da própria produção. É decisão de economia, tomada por escrito.
    *
-   * ⚠️ O serviço **existe** em staging hoje. Aplicar este arquivo lá o **destrói** — é a única
-   * remoção intencional daqui, e ela precisa de `--confirm-destructive`.
+   * O serviço foi **removido** de staging em 14/09/2026, e com ele os monitores `backup` e `restore`
+   * de staging no Gatus — o arquivo e o ambiente agora concordam.
    */
   const backup = service('backup', {
     source: transportada,
@@ -340,6 +340,37 @@ export default defineRailway((ctx) => {
       BACKUP_S3_SECRET_ACCESS_KEY: preserve(),
       KEYCLOAK_DATABASE_URL: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+    },
+  })
+
+  /**
+   * **O teste mensal de restore da cópia de produção** — restaura o último ciclo do manifesto num
+   * Postgres efêmero dentro do próprio contêiner e empurra o monitor `production_restore` do Gatus.
+   *
+   * Roda aqui, e não num runner do GitHub como até 14/09/2026, pelo mesmo motivo do
+   * `staging-refresh`: o dump decifrado tem dado pessoal e fiscal de terceiros. Só existe em
+   * produção porque só produção tem backup. Nenhuma URL de banco entra aqui, de propósito: o
+   * script recusa rodar se encontrar uma.
+   */
+  const restoreTest = service('restore-test', {
+    source: transportada,
+    build: {
+      builder: 'DOCKERFILE',
+      dockerfilePath: 'deploy/restore-test/Dockerfile',
+      watchPatterns: ['deploy/restore-test/**'],
+    },
+    deploy: { cronSchedule: '0 7 5 * *', restartPolicyType: 'NEVER' },
+    replicas: { sfo: 1 },
+    env: {
+      BACKUP_ENCRYPTION_KEY: preserve(),
+      BACKUP_ENVIRONMENT: preserve(),
+      BACKUP_S3_ACCESS_KEY_ID: preserve(),
+      BACKUP_S3_BUCKET: preserve(),
+      BACKUP_S3_ENDPOINT: preserve(),
+      BACKUP_S3_REGION: preserve(),
+      BACKUP_S3_SECRET_ACCESS_KEY: preserve(),
+      RESTORE_HEARTBEAT_TOKEN: preserve(),
+      RESTORE_HEARTBEAT_URL: preserve(),
     },
   })
 
@@ -469,6 +500,10 @@ export default defineRailway((ctx) => {
       FISCAL_SOURCE_S3_BUCKET: preserve(),
       FISCAL_SOURCE_S3_ENDPOINT: preserve(),
       FISCAL_SOURCE_S3_REGION: preserve(),
+      // Os do Keycloak **de staging** — os mesmos da API de staging —, para religar as identidades.
+      KEYCLOAK_ADMIN_CLIENT_ID: preserve(),
+      KEYCLOAK_ADMIN_CLIENT_SECRET: preserve(),
+      KEYCLOAK_ISSUER: preserve(),
       PRODUCTION_DATABASE_HOST: preserve(),
       SOURCE_BACKUP_ENVIRONMENT: preserve(),
       STAGING_API_SERVICE_ID: preserve(),
@@ -547,7 +582,7 @@ export default defineRailway((ctx) => {
 
   return project('transportada', {
     resources: isProduction
-      ? [...shared, backup, aggregateDocumentOcr, mapTiles, osrm]
+      ? [...shared, backup, restoreTest, aggregateDocumentOcr, mapTiles, osrm]
       : [...shared, mailpit, mapTiles, osrm, stagingRefresh],
   })
 })

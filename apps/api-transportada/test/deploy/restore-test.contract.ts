@@ -4,227 +4,269 @@
 import { describe, expect, test } from 'bun:test'
 
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
-const WORKFLOW_PATH = new URL('.github/workflows/restore-test.yml', REPOSITORY_ROOT)
+const SERVICE_DIRECTORY = new URL('deploy/restore-test/', REPOSITORY_ROOT)
+const SCRIPT_PATH = new URL('restore-test.sh', SERVICE_DIRECTORY)
+const DOCKERFILE_PATH = new URL('Dockerfile', SERVICE_DIRECTORY)
+const BACKUP_DOCKERFILE_PATH = new URL('deploy/backup/Dockerfile', REPOSITORY_ROOT)
+const RAILWAY_PROJECT_PATH = new URL('.railway/railway.ts', REPOSITORY_ROOT)
+const RETIRED_WORKFLOW_PATH = new URL('.github/workflows/restore-test.yml', REPOSITORY_ROOT)
 
-const JOB_NAME = 'restore-test'
+/** Dia 5 de cada mês, 04:00 BRT — a cadência que o workflow do GitHub tinha. */
+const CRON_SCHEDULE = '0 7 5 * *'
 /** Os mesmos parâmetros do `deploy/backup/backup.sh`: decifrar com outros é não decifrar. */
 const DECIPHER_ARGUMENTS = '-aes-256-cbc -pbkdf2 -iter 100000'
+/** Qualquer uma destas no ambiente do serviço é um caminho até banco de verdade. */
+const REAL_DATABASE_VARIABLES = [
+  'DATABASE_URL',
+  'APP_DATABASE_URL',
+  'KEYCLOAK_DATABASE_URL',
+  'STAGING_DATABASE_URL',
+] as const
 
-type Step = Readonly<{ if?: string; name?: string; run?: string }>
-
-type Workflow = Readonly<{
-  jobs: Readonly<Record<string, Readonly<Record<string, unknown>>>>
-  on: Readonly<Record<string, unknown>>
-  permissions: Readonly<Record<string, string>>
-}>
-
-async function readWorkflow(): Promise<string> {
-  return Bun.file(WORKFLOW_PATH).text()
+async function readScript(): Promise<string> {
+  return Bun.file(SCRIPT_PATH).text()
 }
 
-async function parseWorkflow(): Promise<Workflow> {
-  return Bun.YAML.parse(await readWorkflow()) as Workflow
+function positionOf(script: string, needle: string): number {
+  const index = script.indexOf(needle)
+  if (index < 0) {
+    throw new Error(`Trecho ausente no restore-test.sh: ${needle}`)
+  }
+  return index
 }
 
-async function readSteps(): Promise<readonly Step[]> {
-  const workflow = await parseWorkflow()
-  return workflow.jobs[JOB_NAME]?.steps as readonly Step[]
+function sliceFunction(script: string, name: string): string {
+  const start = positionOf(script, `${name}() {`)
+  const end = script.indexOf('\n}\n', start)
+  return script.slice(start, end < 0 ? undefined : end)
 }
 
-describe('contrato do teste mensal de restore', () => {
-  test('roda todo mês sozinho, e à mão quando alguém precisar', async () => {
-    const workflow = await parseWorkflow()
-    const schedule = workflow.on.schedule as readonly Readonly<{ cron: string }>[]
+function fromLineOf(dockerfile: string): string {
+  return dockerfile.split('\n').find((line) => line.startsWith('FROM ')) ?? ''
+}
 
-    expect(schedule).toHaveLength(1)
-    expect(schedule[0]?.cron).toMatch(/^\S+ \S+ \d+ \* \*$/)
-    expect(workflow.on).toHaveProperty('workflow_dispatch')
+async function readServiceDeclaration(): Promise<string> {
+  const project = await Bun.file(RAILWAY_PROJECT_PATH).text()
+  const start = positionOf(project, "service('restore-test', {")
+  return project.slice(start, project.indexOf('\n  })', start))
+}
+
+async function readResourceLists(): Promise<Readonly<{ production: string; staging: string }>> {
+  const project = await Bun.file(RAILWAY_PROJECT_PATH).text()
+  return {
+    production: project.match(/\?\s*\[\.\.\.shared,[^\]]*\]/)?.[0] ?? '',
+    staging: project.match(/:\s*\[\.\.\.shared,[^\]]*\]/)?.[0] ?? '',
+  }
+}
+
+describe('contrato do serviço restore-test', () => {
+  /**
+   * O dump decifrado tem dado pessoal e fiscal de terceiros. Num runner hospedado ele atravessaria
+   * infraestrutura que não é nossa — a mesma razão que pôs o `staging-refresh` dentro do Railway.
+   */
+  test('o teste de restore não roda mais num runner do GitHub', async () => {
+    expect(await Bun.file(RETIRED_WORKFLOW_PATH).exists()).toBe(false)
+  })
+
+  /** Cliente mais velho que o servidor recusa o dump; imagem que muda sem aviso não prova nada. */
+  test('a imagem é a mesma do backup, pinada por digest', async () => {
+    const dockerfile = await Bun.file(DOCKERFILE_PATH).text()
+    const backupDockerfile = await Bun.file(BACKUP_DOCKERFILE_PATH).text()
+
+    expect(fromLineOf(dockerfile)).toMatch(/^FROM postgres:18-alpine@sha256:[0-9a-f]{64}$/)
+    expect(fromLineOf(dockerfile)).toBe(fromLineOf(backupDockerfile))
+    expect(dockerfile).toContain('COPY deploy/restore-test/restore-test.sh')
+    expect(dockerfile).toContain('USER postgres')
+  })
+
+  test('o script morre no primeiro erro, com o trap valendo dentro das funções', async () => {
+    const script = await readScript()
+
+    expect(script).toContain('set -Eeuo pipefail')
+    expect(script).toContain("trap 'report_failure $LINENO' ERR")
+    expect(script).not.toContain('set -x')
   })
 
   /**
-   * Cliente mais novo que o servidor recusa a conexão, e cliente mais velho recusa o dump: casar as
-   * duas versões no mesmo contêiner é o que faz o teste medir o restore, não a versão do runner.
-   *
-   * O digest vem junto porque a tag é ponteiro móvel: um teste de restauração que roda numa imagem
-   * diferente a cada mês não prova que o backup restaura, prova que restaurou naquela imagem.
+   * O serviço só existe em production e só lê a cópia de production. Rodando em qualquer outro
+   * ambiente ele empurraria o monitor de production com o resultado de outra coisa.
    */
-  test('o alvo é um Postgres efêmero da versão do servidor, pinado por digest', async () => {
-    const workflow = await parseWorkflow()
-    const job = workflow.jobs[JOB_NAME]
-    const services = job?.services as Readonly<Record<string, Readonly<{ image: string }>>>
-    const content = await readWorkflow()
+  test('a guarda de ambiente vem antes de qualquer download', async () => {
+    const script = await readScript()
+    const guard = sliceFunction(script, 'refuse_non_production_environment')
 
-    expect(services?.postgres?.image).toMatch(/^postgres:18@sha256:[0-9a-f]{64}$/)
-    expect(content).toContain('job.services.postgres.id')
-    expect(job?.['timeout-minutes']).toBeGreaterThan(0)
+    expect(guard).toContain('RAILWAY_ENVIRONMENT_NAME')
+    expect(guard).toContain('production')
+    expect(guard).toContain('return 1')
+    expect(positionOf(script, '\n  refuse_non_production_environment')).toBeLessThan(
+      positionOf(script, '\n  download_cycle'),
+    )
   })
 
   /**
-   * O contexto `job` só existe dentro de `steps`. No `env` do job os contextos são `github`,
-   * `needs`, `strategy`, `matrix`, `vars`, `secrets` e `inputs` — usar `job` ali invalida o arquivo
-   * inteiro, e o GitHub responde com um run sem job nenhum, que é ruído difícil de ler. Só o
-   * servidor pega isso: localmente o YAML continua parseando.
+   * O alvo é o Postgres que o próprio script sobe. Uma URL de banco real no ambiente do serviço é o
+   * primeiro passo para a edição de amanhã transformar um teste de leitura num restore por cima de
+   * banco vivo — então a presença dela, sozinha, já é falha.
    */
-  test('o contexto `job` fica nos steps, nunca no `env` do job', async () => {
-    const jobEnv = ((await parseWorkflow()).jobs[JOB_NAME]?.env ?? {}) as Readonly<
-      Record<string, string>
-    >
+  test('recusa rodar com credencial de banco real no ambiente', async () => {
+    const script = await readScript()
+    const guard = sliceFunction(script, 'refuse_real_database_credentials')
 
-    for (const [name, value] of Object.entries(jobEnv)) {
-      expect(`${name}=${value}`).not.toContain('job.')
+    for (const name of REAL_DATABASE_VARIABLES) {
+      expect(script.slice(0, positionOf(script, 'CURRENT_STEP=boot'))).toContain(name)
     }
+    expect(guard).toContain('return 1')
+    expect(positionOf(script, '\n  refuse_real_database_credentials')).toBeLessThan(
+      positionOf(script, '\n  download_cycle'),
+    )
+  })
+
+  test('o Postgres efêmero nasce no contêiner e não abre porta nenhuma', async () => {
+    const script = await readScript()
+    const startup = sliceFunction(script, 'start_ephemeral_postgres')
+
+    expect(startup).toContain('initdb')
+    expect(startup).toContain('pg_ctl')
+    expect(startup).toContain("listen_addresses=''")
+    expect(script).not.toMatch(/postgres(ql)?:\/\//)
+  })
+
+  test('o ciclo vem da última linha do manifesto do ambiente, e tem os dois bancos', async () => {
+    const script = await readScript()
+
+    expect(script).toContain('db-backups/${BACKUP_ENVIRONMENT}/manifest.jsonl')
+    expect(script).toContain('tail -n 1')
+    expect(script).toMatch(/-eq 2\b/)
+    expect(script).not.toContain('list-type=2')
+  })
+
+  test('confere o sha256 e decifra com os mesmos parâmetros com que o backup cifrou', async () => {
+    const script = await readScript()
+
+    expect(script).toContain('sha256sum -c')
+    expect(script).toContain(`openssl enc -d ${DECIPHER_ARGUMENTS}`)
+    expect(script).toContain('-pass env:BACKUP_ENCRYPTION_KEY')
+    expect(positionOf(script, 'sha256sum -c')).toBeLessThan(positionOf(script, 'openssl enc -d'))
   })
 
   /**
-   * Um ciclo que morreu entre o upload da aplicação e o do Keycloak deixa `.enc` órfão no bucket e
-   * nenhuma linha no manifesto. Escolher pelo objeto mais novo restauraria justamente esse.
+   * Sem `--exit-on-error` o `pg_restore` segue depois do primeiro erro e sai com "errors ignored on
+   * restore" — o banco restaurado pela metade ainda passaria na contagem de tabelas.
    */
-  test('o backup vem da última linha do manifesto, não do objeto mais novo do bucket', async () => {
-    const content = await readWorkflow()
+  test('restaura parando no primeiro erro, sem dono e sem privilégio', async () => {
+    const restore = sliceFunction(await readScript(), 'restore_database')
 
-    expect(content).toContain('manifest.jsonl')
-    expect(content).toContain('tail -n 1')
-    expect(content).not.toContain('aws s3 ls')
+    expect(restore).toMatch(/pg_restore\b[^\n]*--exit-on-error/)
+    expect(restore).toContain('--no-owner')
+    expect(restore).toContain('--no-privileges')
   })
 
-  /**
-   * O bucket guarda os dois ambientes. Sem o ambiente no caminho o job lê o manifesto errado, e
-   * ler o de staging para dizer que production restaura é pior do que não testar. Vazio colapsa
-   * o caminho para `db-backups//manifest.jsonl`, que existe em ambiente nenhum: falha fechada.
-   */
-  test('o manifesto lido é o do ambiente declarado, e sem ele o job para', async () => {
-    const content = await readWorkflow()
-    const guard = (await readSteps())[0]?.run ?? ''
-
-    expect(content).toContain('BACKUP_ENVIRONMENT: ${{ vars.BACKUP_ENVIRONMENT }}')
-    expect(content).toContain('db-backups/${BACKUP_ENVIRONMENT}/manifest.jsonl')
-    expect(guard).toContain('BACKUP_ENVIRONMENT')
-  })
-
-  test('o ciclo restaurado é o dos dois bancos, não só o da aplicação', async () => {
-    const content = await readWorkflow()
-
-    expect(content).toContain('pg_restore')
-    expect(content).toMatch(/-eq 2\b/)
-  })
-
-  /** A guarda vem antes de tudo: um alvo errado descoberto depois do `pg_restore` é tarde. */
-  test('recusa qualquer alvo que não seja o contêiner efêmero', async () => {
-    const steps = await readSteps()
-    const guard = steps[0]?.run ?? ''
-
-    expect(guard).toContain('localhost')
-    expect(guard).toContain('exit 1')
-  })
-
-  test('decifra com os mesmos parâmetros com que o backup cifrou', async () => {
-    const content = await readWorkflow()
-
-    expect(content).toContain(`openssl enc -d ${DECIPHER_ARGUMENTS}`)
-    expect(content).toContain('-pass env:BACKUP_ENCRYPTION_KEY')
-    expect(content).toContain('sha256sum -c')
-  })
-
-  /** Restaurar sem conferir prova que o arquivo abre, não que ele é o banco. */
-  test('compara o restaurado com o manifesto nos três campos', async () => {
-    const content = await readWorkflow()
+  /** Restaurar prova que o arquivo abre; comparar com o manifesto prova que ele é o banco. */
+  test('compara com o manifesto e roda consultas de sanidade nos dois bancos', async () => {
+    const script = await readScript()
 
     for (const field of ['sha256', 'tableCount', 'lastMigration']) {
-      expect(content).toContain(field)
+      expect(script).toContain(`.${field}`)
     }
+    expect(script).toContain('[app]=companies')
+    expect(script).toContain('[keycloak]=realm')
   })
 
-  test('nenhuma credencial de escrita em production entra no job', async () => {
-    const workflow = await parseWorkflow()
-    const content = await readWorkflow()
+  /**
+   * O erro do `pg_restore` cita a linha do COPY que falhou — com o conteúdo dela. Ecoado, o dado de
+   * terceiro que o serviço existe para não expor iria parar no log da plataforma.
+   */
+  test('o dump decifrado nunca chega ao log, e o disco é limpo na saída', async () => {
+    const script = await readScript()
+    const restore = sliceFunction(script, 'restore_database')
+    const cleanup = sliceFunction(script, 'discard_workspace')
 
-    expect(workflow.permissions).toEqual({ contents: 'read' })
-    for (const forbidden of ['RAILWAY_TOKEN', 'APP_DATABASE_URL', 'KEYCLOAK_DATABASE_URL']) {
-      expect(content).not.toContain(forbidden)
-    }
+    expect(restore).toMatch(/pg_restore[\s\S]*2>"\$\{WORK_DIRECTORY\}/)
+    expect(restore).toContain('rm -f "$plain"')
+    expect(cleanup).toContain('pg_ctl')
+    expect(cleanup).toContain('rm -rf "$WORK_DIRECTORY"')
+    expect(script).toContain('trap discard_workspace EXIT')
   })
 
-  test('a chave, a credencial do bucket e o heartbeat saem de secrets', async () => {
-    const content = await readWorkflow()
+  test('nenhum segredo literal, e a URL do heartbeat fica fora do log', async () => {
+    const script = await readScript()
 
     for (const name of [
       'BACKUP_ENCRYPTION_KEY',
-      'BACKUP_S3_ACCESS_KEY_ID',
       'BACKUP_S3_SECRET_ACCESS_KEY',
-      'RESTORE_HEARTBEAT_URL',
       'RESTORE_HEARTBEAT_TOKEN',
     ]) {
-      expect(`${name}=${content}`).toContain(`${name}: \${{ secrets.${name} }}`)
+      expect(`${name}=${new RegExp(`^\\s*(readonly\\s+)?${name}=`, 'm').test(script)}`) //
+        .toBe(`${name}=false`)
+    }
+    expect(script).not.toMatch(/\blog\s+[^\n]*\$\{?RESTORE_HEARTBEAT_(URL|TOKEN)/)
+  })
+
+  /**
+   * Ao contrário do backup, aqui a falta de heartbeat é falha declarada: restore que não avisa
+   * ninguém não vale como teste. Por isso as duas variáveis são obrigatórias desde o boot.
+   */
+  test('o heartbeat é obrigatório, e é um POST autenticado que insiste na borda', async () => {
+    const script = await readScript()
+    const required = script.slice(
+      positionOf(script, 'REQUIRED_VARIABLES=('),
+      positionOf(script, 'CURRENT_STEP=boot'),
+    )
+    const push = sliceFunction(script, 'push_heartbeat')
+
+    expect(required).toContain('RESTORE_HEARTBEAT_URL')
+    expect(required).toContain('RESTORE_HEARTBEAT_TOKEN')
+    expect(push).toContain('--request POST')
+    expect(push).toContain('Authorization: Bearer')
+    expect(push).toContain('RESTORE_HEARTBEAT_TOKEN')
+    expect(push).toContain('--fail')
+    expect(push).toContain('--retry')
+  })
+
+  /** Heartbeat verde no caminho de falha é o alerta que nunca dispara. */
+  test('success=true só depois do ciclo inteiro; a falha avisa na hora com success=false', async () => {
+    const script = await readScript()
+    const failure = sliceFunction(script, 'report_failure')
+
+    expect(script.match(/^\s*push_heartbeat true$/gm)?.length).toBe(1)
+    expect(positionOf(script, 'push_heartbeat true')).toBeGreaterThan(
+      positionOf(script, 'log info restore_test_completed'),
+    )
+    expect(failure).toContain('push_heartbeat false')
+    expect(failure).not.toContain('push_heartbeat true')
+    // O ciclo já está vermelho: o push recusado vira aviso, não troca a causa da falha.
+    expect(failure).toMatch(/push_heartbeat false \|\|/)
+  })
+
+  /** Serviço novo não pode optar por `railway.json` — ele nasce no `.railway/railway.ts`. */
+  test('é one-shot mensal declarado no railway.ts, sem railway.json', async () => {
+    const declaration = await readServiceDeclaration()
+
+    expect(await Bun.file(new URL('railway.json', SERVICE_DIRECTORY)).exists()).toBe(false)
+    expect(declaration).toContain("dockerfilePath: 'deploy/restore-test/Dockerfile'")
+    expect(declaration).toContain("watchPatterns: ['deploy/restore-test/**']")
+    expect(declaration).toContain(`cronSchedule: '${CRON_SCHEDULE}'`)
+    expect(declaration).toContain("restartPolicyType: 'NEVER'")
+    expect(declaration).not.toContain('healthcheckPath')
+  })
+
+  test('as variáveis são preserve(), e nenhuma aponta para banco real', async () => {
+    const declaration = await readServiceDeclaration()
+    const variables = [...declaration.matchAll(/^\s+([A-Z][A-Z0-9_]*):\s*(.+),$/gm)]
+
+    expect(variables.length).toBeGreaterThan(0)
+    for (const [, name = '', value = ''] of variables) {
+      expect(`${name}: ${value}`).toBe(`${name}: preserve()`)
+    }
+    for (const name of REAL_DATABASE_VARIABLES) {
+      expect(declaration).not.toContain(name)
     }
   })
 
-  /** Heartbeat que pinga mesmo com o passo anterior vermelho é o alerta que nunca dispara. */
-  test('só os dois últimos passos falam com o monitor, e cada um no seu desfecho', async () => {
-    const steps = await readSteps()
-    const [success, failure] = steps.slice(-2)
+  test('existe em production e não em staging', async () => {
+    const { production, staging } = await readResourceLists()
 
-    expect(success?.if).toBe('success()')
-    expect(failure?.if).toBe('failure()')
-    for (const step of steps.slice(0, -2)) {
-      expect(step.run ?? '').not.toContain('RESTORE_HEARTBEAT_URL')
-    }
-  })
-
-  /**
-   * `GET` na URL do Gatus é 404, e 404 com `--fail` é o job vermelho depois de o restore ter dado
-   * certo — indistinguível de um restore que quebrou. Aqui, ao contrário do backup, a ausência de
-   * URL ou de token é falha declarada: restore que não avisa ninguém não vale como teste.
-   */
-  test('o push do restore é POST autenticado e falha fechado sem URL ou token', async () => {
-    const steps = await readSteps()
-    const run = steps.at(-2)?.run ?? ''
-
-    expect(run).toContain('RESTORE_HEARTBEAT_TOKEN')
-    expect(run).toMatch(/--request POST/)
-    expect(run).toMatch(/Authorization: Bearer \$\{?RESTORE_HEARTBEAT_TOKEN\}?/)
-    expect(run).toContain('success=true')
-  })
-
-  /**
-   * A ausência do ping não serve de alerta aqui. O Gatus avalia heartbeat num tique de intervalo
-   * contado a partir do start do processo dele, não do último push: a janela de 32 dias só é olhada
-   * 32 dias depois de o Gatus subir, e cada redeploy zera essa contagem. Um restore que quebrou hoje
-   * viraria notificação em setembro, se virasse. Quem falha avisa que falhou; a janela fica sendo o
-   * que ela sabe fazer — pegar o mês em que ninguém rodou.
-   */
-  test('o restore que quebra avisa o monitor na hora, com success=false', async () => {
-    const run = (await readSteps()).at(-1)?.run ?? ''
-
-    expect(run).toMatch(/--request POST/)
-    expect(run).toMatch(/Authorization: Bearer \$\{?RESTORE_HEARTBEAT_TOKEN\}?/)
-    expect(run).toContain('success=false')
-  })
-
-  /**
-   * `curl` sem `--fail` sai com código 0 quando o edge devolve 502, e o `|| true` engole o resto: o
-   * push some sem rastro no log do run e sem chegar ao monitor. Foi assim que o primeiro push
-   * vermelho do drick se perdeu — o job ficou vermelho, o Gatus nunca soube, ninguém foi avisado.
-   * Uma tentativa só também não basta: a recusa do edge aqui é intermitente, não permanente.
-   */
-  test('push recusado vira aviso no run, e não silêncio', async () => {
-    const steps = await readSteps()
-
-    for (const step of steps.slice(-2)) {
-      expect(step.run ?? '').toContain('--fail')
-      expect(step.run ?? '').toContain('--retry')
-    }
-    expect(steps.at(-1)?.run ?? '').toContain('::warning::')
-  })
-
-  /**
-   * O job já está vermelho quando este passo roda. Faltando configuração ou caindo o push, insistir
-   * em falhar só troca a causa que aparece no resumo do run pela última que aconteceu.
-   */
-  test('o aviso de falha não tem como piorar o desfecho do job', async () => {
-    const run = (await readSteps()).at(-1)?.run ?? ''
-
-    expect(run).not.toContain('exit 1')
-    // O mesmo `||` que absorve o push recusado é o que impede este passo de trocar a causa do run.
-    expect(run).toMatch(/\|\|\s*\n?\s*echo "::warning::/)
+    expect(production).toMatch(/\brestoreTest\b/)
+    expect(staging).not.toMatch(/\brestoreTest\b/)
   })
 })

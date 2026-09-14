@@ -95,3 +95,30 @@ que já passou pelo redator, e o painel é o do operador da instalação.
   mais senha para digitar no painel.
 - A licença do conjunto de observabilidade continua inteiramente open source: Apache-2.0 no lugar de
   MIT.
+
+## Emenda — 14/09/2026: staging sem backup
+
+Staging deixou de ter backup: o serviço `backup` saiu do ambiente, e staging é reposta a partir da
+cópia de production pelo `staging-refresh`. Os heartbeats `staging_backup` e `staging_restore` saem
+do `config.yaml` — o restore mensal lia `db-backups/staging/`, que não recebe mais ciclo. O §5 segue
+valendo para production, que é agora o único grupo com heartbeat de push; o
+`.github/workflows/restore-test.yml` precisa apontar para production (`BACKUP_ENVIRONMENT` e o par
+`RESTORE_HEARTBEAT_*`).
+
+## Emenda — 14/09/2026: o restore sai do GitHub e roda dentro do Railway
+
+A emenda anterior mandava repontar o workflow para production. Não foi feito, e não será: o teste de
+restore de production **não roda em runner hospedado**. O dump decifrado tem dado pessoal e fiscal de
+terceiros, e num runner do GitHub ele atravessaria infraestrutura que não é nossa — a mesma razão que
+já tinha posto o `staging-refresh` dentro do Railway.
+
+- `.github/workflows/restore-test.yml` foi **removido**. No lugar dele, o serviço cron `restore-test`
+  (`deploy/restore-test/`, declarado só em production no `.railway/railway.ts`, `0 7 5 * *`).
+- O Postgres que recebe o restore é efêmero, sobe **dentro do contêiner** por `initdb` e só escuta em
+  socket Unix. O serviço não recebe URL de banco nenhuma, e recusa rodar se encontrar uma — nem o
+  banco de production nem o de staging são tocados.
+- O contrato do push do §5 continua o mesmo: `POST` com Bearer no monitor `production_restore`,
+  `success=true` só depois do ciclo inteiro, `success=false` na hora em que qualquer passo quebra.
+  URL e token passam de secrets do GitHub para variáveis do serviço.
+- Os secrets e a variável `BACKUP_ENVIRONMENT` do repositório no GitHub ficam sem consumidor e devem
+  ser apagados — a chave de cifra do backup não tem mais razão de existir fora do Railway.

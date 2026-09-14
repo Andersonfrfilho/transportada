@@ -568,3 +568,30 @@ a:focus-visible {
     }
   }
 }
+
+/*
+ * Faixa de ambiente fora de produção: cópia por valor de `.application-environment-banner` do
+ * painel. Os tokens já invertem no tema claro, então a faixa acompanha os dois sem regra própria.
+ * O `body` vira coluna para a faixa empurrar o `.gate` em vez de somar uma rolagem de 100vh a mais.
+ */
+body:has(> .environment-banner) {
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(> .environment-banner) > .gate {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.environment-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--transportada-space-2);
+  padding: var(--transportada-space-2) var(--transportada-space-4);
+  border: 1px solid color-mix(in srgb, var(--transportada-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--transportada-copper) 18%, transparent);
+  color: var(--transportada-fog);
+  overflow-wrap: anywhere;
+}

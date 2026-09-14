@@ -15,11 +15,21 @@ const RAILWAY_PATH = new URL('railway.json', GATUS_DIRECTORY)
  * e cada monitor é cobrado dos dois lados, não de um.
  */
 const ENVIRONMENTS = ['staging', 'production'] as const
-/** `backup`, `restore`, `api`, `frontend` e `keycloak`. Número fechado: monitor que sai some sem barulho. */
-const MONITORS_PER_ENVIRONMENT = 5
+/** Todo ambiente é vigiado de fora pelos mesmos três. */
+const HTTP_MONITORS = ['api', 'frontend', 'keycloak'] as const
+/**
+ * Staging não tem backup desde 14/09/2026 — o `staging-refresh` a repõe da cópia de production —, e
+ * sem cópia não há o que restaurar. Heartbeat de ambiente sem ciclo é vermelho eterno que ensina a
+ * ignorar o painel. Lista fechada: monitor que sai some sem barulho.
+ */
+const HEARTBEATS_BY_ENVIRONMENT = {
+  staging: [],
+  production: ['backup', 'restore'],
+} as const satisfies Record<(typeof ENVIRONMENTS)[number], readonly string[]>
+const ENVIRONMENTS_WITH_BACKUP = ['production'] as const
 /** `0 6 * * *` no `deploy/backup/railway.json`: a janela real é 24h, e a folga é o que sobra. */
 const BACKUP_SCHEDULE_HOURS = 24
-/** `0 7 5 * *` no `restore-test.yml`: entre 5 de janeiro e 5 de fevereiro cabem 31 dias. */
+/** `0 7 5 * *` do `restore-test` no `.railway/railway.ts`: entre 5/jan e 5/fev cabem 31 dias. */
 const RESTORE_SCHEDULE_HOURS = 31 * 24
 
 type ExternalEndpoint = Readonly<{
@@ -131,16 +141,29 @@ describe('contrato do serviço gatus', () => {
     const configuration = await readConfiguration()
 
     const tokens = new Set<string>()
-    for (const environment of ENVIRONMENTS) {
-      for (const name of ['backup', 'restore']) {
+    for (const environment of ENVIRONMENTS_WITH_BACKUP) {
+      for (const name of HEARTBEATS_BY_ENVIRONMENT[environment]) {
         const endpoint = externalEndpoint(configuration, name, environment)
         expect(endpoint.token ?? '').toMatch(/^\$\{[A-Z_]+\}$/)
         tokens.add(endpoint.token ?? '')
       }
     }
 
-    // Token repetido entre ambientes é o push de staging fechando o monitor de production.
-    expect(tokens.size).toBe(ENVIRONMENTS.length * 2)
+    // Token repetido entre monitores é o push de um ciclo fechando o monitor de outro.
+    expect(tokens.size).toBe(ENVIRONMENTS_WITH_BACKUP.length * 2)
+  })
+
+  /** Staging não gera cópia: um heartbeat dela só poderia ficar vermelho, e nunca por um motivo novo. */
+  test('staging não tem monitor de backup nem de restore', async () => {
+    const configuration = await readConfiguration()
+    const content = await Bun.file(CONFIGURATION_PATH).text()
+
+    const stagingHeartbeats = (configuration['external-endpoints'] ?? []).filter(
+      (entry) => entry.group === 'staging',
+    )
+    expect(stagingHeartbeats).toBeEmpty()
+    expect(content).not.toContain('GATUS_BACKUP_STAGING_TOKEN')
+    expect(content).not.toContain('GATUS_RESTORE_STAGING_TOKEN')
   })
 
   /**
@@ -149,7 +172,7 @@ describe('contrato do serviço gatus', () => {
    */
   test('a janela de cada heartbeat tem folga sobre o agendamento real', async () => {
     const configuration = await readConfiguration()
-    for (const environment of ENVIRONMENTS) {
+    for (const environment of ENVIRONMENTS_WITH_BACKUP) {
       const backup = hoursOf(
         externalEndpoint(configuration, 'backup', environment).heartbeat?.interval,
       )
@@ -172,7 +195,12 @@ describe('contrato do serviço gatus', () => {
       ...(configuration.endpoints ?? []),
     ]
 
-    expect(monitors.length).toBeGreaterThanOrEqual(ENVIRONMENTS.length * MONITORS_PER_ENVIRONMENT)
+    const declared = ENVIRONMENTS.reduce(
+      (total, environment) =>
+        total + HTTP_MONITORS.length + HEARTBEATS_BY_ENVIRONMENT[environment].length,
+      0,
+    )
+    expect(monitors.length).toBeGreaterThanOrEqual(declared)
     for (const monitor of monitors) {
       expect(monitor.alerts ?? []).not.toBeEmpty()
     }
@@ -195,7 +223,7 @@ describe('contrato do serviço gatus', () => {
     }
     for (const environment of ENVIRONMENTS) {
       expect(monitors.filter((monitor) => monitor.group === environment)).toHaveLength(
-        MONITORS_PER_ENVIRONMENT,
+        HTTP_MONITORS.length + HEARTBEATS_BY_ENVIRONMENT[environment].length,
       )
     }
   })

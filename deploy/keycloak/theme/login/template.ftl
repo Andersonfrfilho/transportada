@@ -72,6 +72,14 @@
 </head>
 
 <body class="${bodyClass}" data-page-id="login-${pageId}">
+<#-- A mesma faixa da app (`EnvironmentBanner.component.tsx`), sob a mesma lista fechada do ícone:
+     este é o layout de toda página do tema, então o aviso chega também às páginas herdadas. -->
+<#if workInProgress>
+<div class="environment-banner" data-environment="${appEnvironment}" role="status" aria-live="polite">
+    <span aria-hidden="true">🚧</span>
+    <span>${msg("environmentBanner" + appEnvironment?cap_first)}</span>
+</div>
+</#if>
 <main class="gate">
     <section class="brand" aria-label="${realm.displayName!'TransportAdA'}">
         <#-- ADR-0021: cada deploy é de uma transportadora só, e é a marca dela que assina a porta.

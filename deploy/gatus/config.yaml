@@ -40,35 +40,11 @@ alerting:
 # outro lado: o padrão espera dois ciclos verdes, o que faria o "voltou" do backup chegar dois dias
 # depois e o do restore, dois meses. Repetição serve para desconfiar do que oscila, e push não
 # oscila: ou o ciclo fechou, ou não fechou.
+#
+# Só production: staging não tem backup desde 14/09/2026 (o `staging-refresh` a repõe da cópia de
+# production), e sem cópia não há restore para vigiar. Um segredo por monitor é o que impede um
+# ciclo de fechar o monitor do outro e esconder a janela que ficou sem cópia.
 external-endpoints:
-  - name: backup
-    group: staging
-    token: ${GATUS_BACKUP_STAGING_TOKEN}
-    heartbeat:
-      interval: 26h
-    alerts:
-      - type: ntfy
-        description: staging ficou um dia sem ciclo de backup verde
-        failure-threshold: 1
-        success-threshold: 1
-        send-on-resolved: true
-
-  # Mensal, a janela sozinha avisaria em setembro que o restore de agosto não fechou — por isso o
-  # workflow também empurra `success=false` quando quebra, e a janela sobra para o mês sem execução.
-  - name: restore
-    group: staging
-    token: ${GATUS_RESTORE_STAGING_TOKEN}
-    heartbeat:
-      interval: 768h
-    alerts:
-      - type: ntfy
-        description: o teste mensal de restore de staging não fechou
-        failure-threshold: 1
-        success-threshold: 1
-        send-on-resolved: true
-
-  # Production repete a forma de staging e não repete o segredo. Um por monitor é o que impede o
-  # ciclo de um ambiente de fechar o monitor do outro e esconder a janela que ficou sem cópia.
   - name: backup
     group: production
     token: ${GATUS_BACKUP_PRODUCTION_TOKEN}
@@ -81,6 +57,9 @@ external-endpoints:
         success-threshold: 1
         send-on-resolved: true
 
+  # Mensal, a janela sozinha avisaria em setembro que o restore de agosto não fechou — por isso o
+  # serviço `restore-test` (`deploy/restore-test/`, dentro do Railway) também empurra `success=false`
+  # quando quebra, e a janela sobra para o mês sem execução.
   - name: restore
     group: production
     token: ${GATUS_RESTORE_PRODUCTION_TOKEN}

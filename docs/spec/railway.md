@@ -309,6 +309,39 @@ derruba o job em `FAILED`/`CRASHED`, imprimindo os últimos 100 logs.
 Os serviços **não** têm o repositório GitHub conectado no Railway. É deliberado:
 auto-deploy nativo dispararia sem passar pelo gate.
 
+## Teste mensal de restore
+
+O serviço cron `restore-test` (`deploy/restore-test/`, só em production, `0 7 5 * *`) restaura uma
+vez por mês o ciclo mais recente de `db-backups/${BACKUP_ENVIRONMENT}/manifest.jsonl` e empurra o
+monitor `production_restore` do Gatus (`success=true`, ou `success=false` no passo que quebrar).
+
+Até 14/09/2026 isso era o `.github/workflows/restore-test.yml`, num runner do GitHub. Saiu de lá
+pelo mesmo motivo que pôs o `staging-refresh` aqui dentro: o dump decifrado tem dado pessoal e
+fiscal de terceiros e não atravessa infraestrutura que não é nossa.
+
+O ciclo, na ordem em que o script o executa:
+
+1. **Guardas.** Variáveis obrigatórias presentes; `RAILWAY_ENVIRONMENT_NAME` igual a `production`;
+   **nenhuma** URL de banco no ambiente (`DATABASE_URL`, `APP_DATABASE_URL`, `KEYCLOAK_DATABASE_URL`,
+   `STAGING_DATABASE_URL`, `PGHOST`…). Encontrou uma, para — o alvo é só o Postgres efêmero.
+2. **Download** do ciclo apontado pela **última linha** do manifesto (duas linhas: `app` e
+   `keycloak`), nunca do objeto mais novo do bucket.
+3. **Postgres efêmero** por `initdb` dentro do contêiner, só em socket Unix — sem porta TCP.
+4. Para cada banco: `sha256sum -c` do cifrado, decifra, `pg_restore --exit-on-error --no-owner
+--no-privileges`, e compara `tableCount`/`lastMigration` com o manifesto. Sanidade: `companies`
+   (app) e `realm` (Keycloak) precisam ter linha.
+5. Heartbeat. O stderr do `pg_restore` fica no disco efêmero — o erro de COPY cita a linha com o
+   conteúdo dela —, e o diretório de trabalho é apagado na saída, com ou sem erro.
+
+> ⚠️ **Serviço novo não pode usar `railway.json`**, então este nasce direto no `.railway/railway.ts`
+> — sem o passo de limpar ponteiro de config. As variáveis são `preserve()`: preencha-as no painel
+> do serviço antes do primeiro disparo. Para testar sem esperar o dia 5, dispare o cron à mão pelo
+> painel e confira o monitor no Gatus.
+
+Disco: o contêiner guarda, no pico, o cifrado e o decifrado de um banco mais os dois bancos
+restaurados. Se o volume da base crescer a ponto de faltar disco efêmero, a falha aparece como
+`restore_test_failed` com o `step` do banco — e o monitor fica vermelho, que é o certo.
+
 ## Pendências operacionais
 
 Passos que exigem o dashboard ou uma decisão humana:
@@ -325,8 +358,10 @@ Passos que exigem o dashboard ou uma decisão humana:
    do painel, num arquivo `600`, e os onze campos estão no Chaveiro do macOS sob o serviço
    `TransportAdA production` — gravados via stdin, conferidos por leitura de volta, e o arquivo de
    transferência destruído com `rm -P`. Onde vive e como se lê está em
-   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Staging tem ciclo
-   automático diário desde a feature 029; production ganha o dele junto com o primeiro deploy.
+   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. O ciclo automático
+   diário é só de production: staging teve o dele desde a feature 029 até **14/09/2026**, quando o
+   serviço `backup` saiu de lá (staging é reposta da cópia de production pelo `staging-refresh`), e
+   os monitores `backup`/`restore` de staging saíram do Gatus junto.
 5. **Domínios e volume de production**: a instância do serviço só existe depois
    do primeiro deploy — comprovado, não suposto: `serviceDomainCreate` responde
    `ServiceInstance not found`, e `serviceInstanceUpdate` no par sem instância
