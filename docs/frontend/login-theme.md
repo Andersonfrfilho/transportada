@@ -132,6 +132,33 @@ arquivos e cobra o `<link>` no template.
 O título da aba é `loginTitle` com `realm.displayName`, e o padrão é `TransportAdA` — realm cujo
 `KEYCLOAK_REALM_DISPLAY_NAME` não resolveu produziria `Entrar em ` na aba.
 
+## Fora de produção: 🚧 na aba e faixa de ambiente
+
+Fora de produção o tema avisa o ambiente como a app: o ícone da aba troca por
+`img/icon-work-in-progress.svg`, e **toda** página do tema, inclusive as herdadas do `base`, porque
+todas passam pelo `template.ftl`, abre com a faixa `.environment-banner` no topo. O texto é cópia
+por valor de `EnvironmentBanner.component.tsx`, nas chaves `environmentBannerLocal` e
+`environmentBannerStaging` dos dois pacotes de mensagens. As cores são as do
+`.application-environment-banner` do painel, escritas com os tokens `--transportada-*`, então a
+faixa acompanha os temas claro e escuro sem regra própria. O 🚧 sai com `aria-hidden` e o texto
+não: a faixa é `role="status"`, e o leitor de tela lê a mensagem sem anunciar o emoji.
+
+A decisão vem de `appEnvironment=${env.TRANSPORTADA_APP_ENV}` no `theme.properties`, e o ícone e
+a faixa usam a **mesma** condição, `workInProgress`: lista fechada, `local` ou `staging`, e mais
+nada.
+
+⚠️ **A variável `TRANSPORTADA_APP_ENV` precisa estar configurada no serviço Keycloak de cada
+ambiente**: `staging` em staging; ausente ou `production` em produção. Sem ela, o Keycloak deixa o
+literal `${env.TRANSPORTADA_APP_ENV}` na propriedade, e esse literal cai em produção. Em staging,
+isso quer dizer a tela de homologação se passando por produção, sem erro nenhum. Hoje quem declara o
+valor é o `.railway/railway.ts`, não o painel. No dev local, o `compose.yaml` passa
+`TRANSPORTADA_APP_ENV: ${VITE_APP_ENV}` (`local` no `.env.example`).
+
+Conferido em container de sonda com `quay.io/keycloak/keycloak:26.5.2` e o tema montado:
+com `staging` e com `local`, a tela de login renderiza o ícone 🚧 e a faixa com o texto do
+ambiente; sem a variável, o ícone normal e nenhuma faixa. Contrato em
+`login-theme-icon.contract.ts` (bloco `login theme environment banner contract`).
+
 ## O texto vive no pacote de mensagens
 
 Os realms não ligam internacionalização, então o Keycloak resolve tudo pelo pacote `en` — é por
