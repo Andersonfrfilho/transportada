@@ -36,6 +36,9 @@ describe('cargo placement package surface (spec 145)', () => {
     expect(cargoPlacement.MIN_SUPPORTED_BASE_FRACTION).toBeDefined()
     expect(cargoPlacement.STABLE_STACK_SLENDERNESS).toBeDefined()
     expect(cargoPlacement.UNPLACED_REASONS).toBeDefined()
+    /** Spec 148 T4: a caixa por cima de entrega anterior tem motivo próprio, e segue do complemento. */
+    expect(cargoPlacement.PLACEMENT_REASONS).toContain('overEarlierDelivery')
+    expect(cargoPlacement.PLACEMENT_REASONS).toContain('needsRehandling')
     expect(cargoPlacement.LOADING_ACCESS_KINDS).toEqual(['rear', 'rear_and_side', 'open'])
   })
 

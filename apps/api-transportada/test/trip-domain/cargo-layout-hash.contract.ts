@@ -241,6 +241,25 @@ describe('hashCargoLayoutInput', () => {
     expect(hashOf(changed)).not.toBe(hashOf(BASE_PARAMS))
   })
 
+  /**
+   * Spec 148 T4: a versão que entra no hash é a do pacote instalado — subir o pacote invalida as
+   * plantas guardadas. Não fixa o número: vale para qualquer versão que o pacote publique.
+   */
+  test('sem policyVersion, o hash é o da versão do pacote instalado, e outra versão o invalida', () => {
+    const withInstalled: BuildCargoLayoutInputParams = {
+      ...BASE_PARAMS,
+      policyVersion: CARGO_LAYOUT_POLICY_VERSION,
+    }
+    const withPrevious: BuildCargoLayoutInputParams = {
+      ...BASE_PARAMS,
+      policyVersion: `before-${CARGO_LAYOUT_POLICY_VERSION}`,
+    }
+
+    expect(hashOf(BASE_PARAMS)).toBe(hashOf(withInstalled))
+    expect(buildStoredCargoLayoutInput(BASE_PARAMS).policyVersion).toBe(CARGO_LAYOUT_POLICY_VERSION)
+    expect(hashOf(withPrevious)).not.toBe(hashOf(BASE_PARAMS))
+  })
+
   test('caixa medida e caixa presumida do mesmo tamanho produzem hash diferente', () => {
     const singleStop = {
       boxes: [{ count: 1, documentId: 'doc-1', heightMm: 300, lengthMm: 400, widthMm: 300 }],

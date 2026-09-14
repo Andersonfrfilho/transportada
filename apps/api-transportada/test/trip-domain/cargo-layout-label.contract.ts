@@ -83,6 +83,48 @@ describe('a etiqueta servida é a de agora (spec 145 D20)', () => {
     ])
   })
 
+  /**
+   * Spec 148 T4: a planta da passada final traz a caixa por cima de entrega anterior
+   * (`overEarlierDelivery` + `coversStops`) e o `unplaced` por nota (`documentId`). A leitura troca a
+   * etiqueta e deixa os dois campos como o worker os gravou.
+   */
+  test('mantém coversStops, overEarlierDelivery e o documentId do unplaced', () => {
+    const placement = oldLayout.placement as NonNullable<ResolvedCargoLayout['placement']>
+    const [firstLayer, ...otherLayers] = placement.layers
+    const [firstBox, ...otherBoxes] = firstLayer?.boxes ?? []
+    if (firstLayer === undefined || firstBox === undefined) throw new Error('fixture sem caixa')
+    const withFinalPass = {
+      ...oldLayout,
+      placement: {
+        ...placement,
+        layers: [
+          {
+            ...firstLayer,
+            boxes: [
+              {
+                ...firstBox,
+                coversStops: [1],
+                reasons: [...firstBox.reasons, 'needsRehandling', 'overEarlierDelivery'],
+              },
+              ...otherBoxes,
+            ],
+          },
+          ...otherLayers,
+        ],
+        unplaced: [{ count: 2, documentId: 'doc-2', label: 'Rua Velha, 1', reason: 'bedFull' }],
+      },
+    } as ResolvedCargoLayout
+
+    const relabeled = relabelCargoLayout(withFinalPass, NEW_INPUT).placement
+    const box = relabeled?.layers[0]?.boxes[0]
+
+    expect(box?.coversStops).toEqual([1])
+    expect(box?.reasons).toContain('overEarlierDelivery')
+    expect(relabeled?.unplaced).toEqual([
+      { count: 2, documentId: 'doc-2', label: 'Rua Nova, 10', reason: 'bedFull' },
+    ])
+  })
+
   test('não altera a planta recebida', () => {
     const before = structuredClone(oldLayout)
 

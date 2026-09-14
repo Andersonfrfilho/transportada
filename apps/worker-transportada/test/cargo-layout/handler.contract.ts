@@ -149,6 +149,39 @@ describe('handler da planta de carga (spec 145 D9, D13–D15)', () => {
     expect(ports.released).toBe(0)
   })
 
+  /**
+   * Spec 148 T4: a passada final marca a caixa por cima de entrega anterior (`overEarlierDelivery` +
+   * `coversStops`) e o `unplaced` vem por nota (`documentId`). O worker grava a planta como veio.
+   */
+  test('grava a caixa por cima de entrega anterior e o unplaced por nota como vieram', async () => {
+    const base = buildLayout()
+    const layout = {
+      ...base,
+      placement: {
+        layers: [
+          {
+            boxes: [
+              {
+                coversStops: [1, 2],
+                documentId: 'doc-7',
+                reasons: ['needsRehandling', 'overEarlierDelivery'],
+                stopSequence: 3,
+              },
+            ],
+            heightM: 0.5,
+            index: 0,
+          },
+        ],
+        source: 'measured',
+        unplaced: [{ count: 2, documentId: 'doc-9', label: 'NF 1001', reason: 'bedFull' }],
+      },
+    } as unknown as ResolvedCargoLayout
+    const ports = buildPorts({ compute: async () => layout })
+
+    expect(await run(ports, 1)).toBe('ack')
+    expect(ports.completed.map((entry) => entry.layout)).toEqual([layout])
+  })
+
   /** D13: a escada dobra o orçamento a cada tentativa — 120 s, 240 s, 480 s. */
   test.each([
     [1, 120_000],
