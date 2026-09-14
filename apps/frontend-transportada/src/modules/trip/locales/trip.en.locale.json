@@ -141,12 +141,20 @@
       "split": "Red outline: split cargo, on top of the inner region.",
       "complement": "Copper dashed outline: complement box, outside the recommended map.",
       "complementStrong": "Thicker copper line: complement box that also breaks the unloading order.",
+      "overEarlier": "Solid light outline: box on top of a delivery that unloads earlier — the \"Boxes on top\" list says at which stop it moves out of the way.",
       "reusedColors": "{{count}} invoices reuse another invoice colour: this trip has more invoices than the palette has colours.",
       "select": "Tap a box to light up its whole invoice; tap a lit box again to switch off just that one."
     },
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
     "missingBedLink": "Open the vehicle record",
     "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
+    "overEarlier": {
+      "row": "{{count}} {{label}} box of {{note}}, delivery {{stop}}: on top of delivery {{covers}} — move it out of the way at stop {{clearAt}}.",
+      "row_other": "{{count}} {{label}} boxes of {{note}}, delivery {{stop}}: on top of delivery {{covers}} — move them out of the way at stop {{clearAt}}.",
+      "rowWithoutStop": "{{count}} {{label}} box of {{note}}, delivery {{stop}}: on top of an earlier delivery.",
+      "rowWithoutStop_other": "{{count}} {{label}} boxes of {{note}}, delivery {{stop}}: on top of an earlier delivery.",
+      "title": "Boxes on top of an earlier delivery ({{count}}): the invoice is split, check it before closing the delivery."
+    },
     "pan": "Move",
     "panTo": {
       "down": "Move down",

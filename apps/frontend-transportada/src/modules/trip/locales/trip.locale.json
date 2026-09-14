@@ -192,6 +192,7 @@
       "split": "Contorno vermelho: carga dividida, no topo do lado de dentro.",
       "complement": "Contorno tracejado cor de cobre: caixa do complemento, fora do mapa recomendado.",
       "complementStrong": "Traço de cobre mais grosso: caixa do complemento que também fura a ordem de descarga.",
+      "overEarlier": "Contorno cheio claro: caixa por cima de uma entrega que desce antes — veja na lista \"Caixas por cima\" a parada em que ela sai do caminho.",
       "reusedColors": "{{count}} notas repetem a cor de outra: a viagem tem mais notas do que cores na lista.",
       "select": "Toque numa caixa para acender a nota dela inteira; toque de novo numa caixa acesa para apagar só ela."
     },
@@ -205,6 +206,13 @@
       "stackSecured": "O motorista amarra a carga, então a pilha sobe até o teto do baú — a cinta prende o que a forma sozinha não seguraria.",
       "stackStability": "Na borda solta da carga a pilha para em três vezes a menor medida da base: acima disso ela tomba numa curva forte.",
       "title": "Por que o desenho ficou assim"
+    },
+    "overEarlier": {
+      "row": "{{count}} caixa {{label}} da {{note}}, entrega {{stop}}: por cima da entrega {{covers}} — tirar do caminho na parada {{clearAt}}.",
+      "row_other": "{{count}} caixas {{label}} da {{note}}, entrega {{stop}}: por cima da entrega {{covers}} — tirar do caminho na parada {{clearAt}}.",
+      "rowWithoutStop": "{{count}} caixa {{label}} da {{note}}, entrega {{stop}}: por cima de uma entrega anterior.",
+      "rowWithoutStop_other": "{{count}} caixas {{label}} da {{note}}, entrega {{stop}}: por cima de uma entrega anterior.",
+      "title": "Caixas por cima de entrega anterior ({{count}}): a nota fica dividida, confira antes de dar a entrega por encerrada."
     },
     "pan": "Mover",
     "panTo": {

@@ -13,7 +13,7 @@ import styles from './cargo-isometric.module.css'
  * motivo mais forte antes de chegar aqui: o componente de UI não decide qual dos dois pesa mais, só
  * pinta o que já foi decidido — o mesmo motivo pelo qual ele não importa tipo de módulo de domínio.
  */
-export type IsometricBoxComplement = 'needsRehandling' | 'outOfReach' | null
+export type IsometricBoxComplement = 'needsRehandling' | 'outOfReach' | 'overEarlierDelivery' | null
 
 /** Uma caixa no espaço do baú, em metros: `xM` do fundo, `yM` da parede, `zM` do piso. */
 export type IsometricBox = Readonly<{
@@ -408,8 +408,13 @@ function IsometricSolid({
 }>): JSX.Element {
   const { box } = solid
   const shades = [styles.faceTop, styles.faceFront, styles.faceSide]
+  /** Spec 148 D5: a caixa por cima de entrega anterior tem traço próprio, cheio e fora do cobre. */
   const complementClass =
-    box.complement === 'needsRehandling' ? styles.faceComplementStrong : styles.faceComplement
+    box.complement === 'overEarlierDelivery'
+      ? styles.faceOverEarlier
+      : box.complement === 'needsRehandling'
+        ? styles.faceComplementStrong
+        : styles.faceComplement
   const isSelectable = onBoxSelect !== undefined
 
   function handleClick(): void {
@@ -490,7 +495,13 @@ export function CargoNoteSwatch({
   return <span aria-hidden className={cn(styles.swatch, className)} style={{ color }} />
 }
 
-export type CargoLegendMark = 'complement' | 'complementStrong' | 'measured' | 'presumed' | 'split'
+export type CargoLegendMark =
+  | 'complement'
+  | 'complementStrong'
+  | 'measured'
+  | 'overEarlier'
+  | 'presumed'
+  | 'split'
 
 /** O quadrado da amostra é 8 de 10 unidades do `viewBox`, com 1 unidade de margem em cada lado. */
 const LEGEND_SAMPLE_VIEW_BOX = '0 0 10 10'
@@ -522,7 +533,9 @@ export function CargoLegendSample({ mark }: Readonly<{ mark: CargoLegendMark }>)
         ? styles.faceSplit
         : mark === 'complement'
           ? styles.faceComplement
-          : styles.faceComplementStrong
+          : mark === 'overEarlier'
+            ? styles.faceOverEarlier
+            : styles.faceComplementStrong
 
   return (
     <svg

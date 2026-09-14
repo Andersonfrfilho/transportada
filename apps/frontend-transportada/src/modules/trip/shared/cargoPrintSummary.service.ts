@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveCargoComplement } from './cargoComplement.service'
+import { resolveCargoComplement, type CargoComplementKind } from './cargoComplement.service'
 
 /** Em que eixo as paradas se dividem — cópia por valor do vocabulário da API (spec 100). */
 /** `grid` (spec 113) é lida como profundidade: dentro de cada faixa a ordem é a de sempre. */
@@ -9,7 +9,7 @@ export type StopArrangement = 'depth' | 'grid' | 'lanes'
 
 type PrintableBox = Readonly<{
   /** Spec 120: caixa do complemento — mesma exclusão de faixa que a dividida já tinha. */
-  complement?: 'needsRehandling' | 'outOfReach' | null
+  complement?: CargoComplementKind | null
   isEstimated: boolean
   isSplit: boolean
   stopSequence: number
@@ -85,11 +85,13 @@ export function buildCargoPrintSummary(
       toM: 0,
     }
     const isComplement = (box.complement ?? null) !== null
+    /** Spec 148 D5: a caixa por cima de entrega anterior deixa a nota dela dividida. */
+    const isSplit = box.isSplit || box.complement === 'overEarlierDelivery'
     /**
      * ⚠️ **A dividida e a do complemento moram fora da própria fatia**, as duas mais fundas que o
      * resto da parada — a fatia dela promete só o que está dentro dela.
      */
-    const excluded = box.isSplit || isComplement
+    const excluded = isSplit || isComplement
     const start = lanes ? box.yM : box.xM
     const end = lanes ? box.yM + box.widthM : box.xM + box.depthM
     rows.set(box.stopSequence, {
@@ -105,7 +107,7 @@ export function buildCargoPrintSummary(
       excludedToM: excluded ? Math.max(current.excludedToM, end) : current.excludedToM,
       fromM: excluded ? current.fromM : Math.min(current.fromM, start),
       presumed: current.presumed + (box.isEstimated ? 1 : 0),
-      split: current.split + (box.isSplit ? 1 : 0),
+      split: current.split + (isSplit ? 1 : 0),
       toM: excluded ? current.toM : Math.max(current.toM, end),
     })
   }
@@ -154,7 +156,7 @@ export function buildCargoComplementSummary(
   let outOfReach = 0
   for (const box of boxes) {
     const kind = resolveCargoComplement(box)
-    if (kind === 'needsRehandling') needsRehandling += 1
+    if (kind === 'needsRehandling' || kind === 'overEarlierDelivery') needsRehandling += 1
     else if (kind === 'outOfReach') outOfReach += 1
   }
   const complement = needsRehandling + outOfReach

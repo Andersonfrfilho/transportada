@@ -108,6 +108,17 @@
 }
 
 /**
+ * Spec 148 D5: a caixa por cima de entrega que desce antes. Traço cheio na cor da tinta — nem o
+ * tracejado de cobre do complemento, nem o vermelho da dividida —, porque ela sai do caminho numa
+ * parada certa e o conferente precisa achá-la de longe.
+ */
+.faceOverEarlier {
+  fill: none;
+  stroke: var(--color-fog);
+  stroke-width: 2;
+}
+
+/**
  * A amostra da legenda (spec 122): mesma escala em todas as marcas, para o quadrado ficar do
  * tamanho de uma letra ao lado do texto que ele explica.
  */

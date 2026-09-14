@@ -4,7 +4,7 @@
 
 type LegendBox = Readonly<{
   /** Spec 120: caixa do complemento — mesma exclusão da divisa que a dividida já tinha. */
-  complement?: 'needsRehandling' | 'outOfReach' | null
+  complement?: 'needsRehandling' | 'outOfReach' | 'overEarlierDelivery' | null
   isEstimated: boolean
   isSplit: boolean
   stopSequence: number

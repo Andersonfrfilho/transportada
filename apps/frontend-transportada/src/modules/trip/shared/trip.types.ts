@@ -234,6 +234,11 @@ export type TripOccupancy = Readonly<{
  * a NF-e não traz dimensão de volume, e não há como dizer onde cada caixa vai.
  */
 export type TripPlacedBox = Readonly<{
+  /**
+   * Spec 148 D5: as entregas anteriores que a caixa cobre (`overEarlierDelivery`). Opcional: planta
+   * anterior à 148 não traz, e a caixa sem ele segue desenhada.
+   */
+  coversStops?: readonly number[] | undefined
   depthM: number
   /**
    * Spec 119: a nota de origem e o número impresso dela. Opcionais: API anterior à 119 não os serve,
@@ -285,7 +290,13 @@ export type TripCargoPlacement = Readonly<{
    * de forma tolerante — item malformado é ignorado, nunca derruba a planta inteira.
    */
   splitNotes?: readonly Readonly<{ documentId: string; pieces: number }>[]
-  unplaced: readonly Readonly<{ count: number; label: string; reason: string }>[]
+  /** Spec 148 (T7): uma linha por nota, com `documentId`; ausente em planta antiga. */
+  unplaced: readonly Readonly<{
+    count: number
+    documentId?: string | null | undefined
+    label: string
+    reason: string
+  }>[]
 }>
 
 /**

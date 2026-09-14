@@ -17,6 +17,7 @@ import {
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import { resolveCargoComplement } from '../shared/cargoComplement.service'
+import { buildOverEarlierDeliveryRows } from '../shared/cargoOverEarlier.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
 import {
   buildCargoChipFacts,
@@ -51,6 +52,7 @@ import {
 import type { TripCargoLayout, TripOccupancy } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { TripCargoLayoutWait } from './TripCargoLayoutWait.component'
+import { TripCargoOverEarlierList } from './TripCargoOverEarlierList.component'
 
 /** Spec 145 T13: as fases em que a planta está sendo (ou não pôde ser) calculada pelo worker. */
 const WAITING_PHASES: ReadonlySet<CargoLayoutPhase> = new Set(['pending', 'failed', 'timedOut'])
@@ -591,6 +593,10 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
           <CargoLegendSample mark="complementStrong" />
           {t('cargoLayers.legend.complementStrong')}
         </li>
+        <li>
+          <CargoLegendSample mark="overEarlier" />
+          {t('cargoLayers.legend.overEarlier')}
+        </li>
         {/*
           ⚠️ **Spec 121: cor repetida é dita, nunca calada.** A lista de cores tem 128 itens e a
           viagem real mais cheia tem 94 notas, então esta linha não aparece hoje; se a viagem passar
@@ -869,10 +875,15 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
         <p className={styles.hint}>{t('cargoLayers.estimated')}</p>
       ) : null}
 
+      <TripCargoOverEarlierList
+        rows={buildOverEarlierDeliveryRows(placement.layers.flatMap((layer) => layer.boxes))}
+      />
+
       {placement.unplaced.length === 0 ? null : (
         <ul className={styles.cargoUnplaced} role="list">
+          {/* Spec 148 (T7): o unplaced vem por nota — o mesmo rótulo e motivo repetem entre notas. */}
           {placement.unplaced.map((entry) => (
-            <li key={`${entry.label}-${entry.reason}`}>
+            <li key={`${entry.documentId ?? ''}-${entry.label}-${entry.reason}`}>
               {t(`cargoLayers.unplaced.${entry.reason}`, {
                 count: entry.count,
                 label: entry.label,
