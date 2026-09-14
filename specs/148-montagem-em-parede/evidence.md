@@ -178,3 +178,16 @@ fração; com `FRAC` igual à fração usada, zero violação em todas):
   violações (Atego 19, Iveco 27 6, Iveco antiga 13, Sprinter 5, Accelo 3); com `0.15`, nenhuma.
 - `classify.ts` na Atego: a 15%, as 21 são pilha alta (D23); a 50%, 45 pilha alta + 3 sem assento com 80%
   de apoio.
+
+### T3 fechada · 2026-09-13
+
+Decisão do usuário: manter as regras (80%, D23/D25) e alinhar o juiz do `enclosed-body` à D25 aprovada, só
+no baú fechado. Pacote `feat/cargo-placement` @ **`2121e2b`** (pai `401a05d`), sem push.
+
+- Juiz do `enclosed-body.contract.ts`: no baú fechado, a vizinha escora cobrindo 80% da borda — o lado da
+  porta e a borda de até 25 cm seguem exigindo a borda inteira (o mesmo critério do `tall.ts`). Fora do
+  baú fechado, a borda inteira como antes. Nenhuma outra expectativa mudou.
+- `bunx tsc --noEmit`: sem erro. `bun test ./test/cargo-placement.contract.test.ts` sozinho: **218 pass, 0
+  `(fail)`** (inclui `brace-edge-fraction`, `wall-building`, `complement`, `exact-edges`,
+  `brace-rises-alongside` e `enclosed-body`).
+- Números da T3 (acima): Atego 91, os outros cinco 0, zero violação, Atego em 89,7 s.

@@ -32,7 +32,7 @@
       antes: com `enclosedBody`, a primeira pilha de cada fileira fica no canto (cabeceira + lateral) e cada
       pilha alta tem encosto no sentido da cabeceira + lateral; sem `enclosedBody` o desenho é idêntico ao
       de `0925c14`.
-- [ ] T3 🧠 — Medir base / parede / parede + D25 nas 6 entradas (caixas de fora, tempo, retrabalho),
+- [x] T3 🧠 — Medir base / parede / parede + D25 nas 6 entradas (caixas de fora, tempo, retrabalho),
       `classify.ts` no que sobrar, e adotar como padrão do baú fechado o que medir melhor sem violação (D2).
       Suíte do pacote sem falha nova (G3); `exact-edges` e `complement` verdes. Se não zerar sem regra
       protegida, parar e levar ao usuário o que sobra, a regra e o número (D3).
