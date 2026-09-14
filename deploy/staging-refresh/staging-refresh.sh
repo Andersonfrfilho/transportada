@@ -217,14 +217,19 @@ keycloak_admin_get() {
       "${issuer%%/realms/*}/admin/realms/${issuer##*/realms/}/${path}"
 }
 
-# Um TSV `subject, username, email` por usuário do realm. O arquivo é dado pessoal: mora no
-# diretório de trabalho, que o `cleanup` apaga, e nunca é impresso.
+# Um TSV `subject, username, email, is_service` por usuário do realm. O arquivo é dado pessoal: mora
+# no diretório de trabalho, que o `cleanup` apaga, e nunca é impresso.
+#
+# As contas de serviço vêm do papel `transportada-service` (o mesmo que a API exige do token de
+# máquina), não da listagem: o `GET /users` do Keycloak não devolve usuário de service account.
+# Uma página basta ali — é um cliente por serviço, não uma lista que cresce com gente.
 fetch_realm_users() {
   local token="$1" output="$2" first=0 page count
-  : >"$output"
+  keycloak_admin_get "$token" "roles/transportada-service/users?first=0&max=${REALM_PAGE_SIZE}" \
+    | jq -r '.[] | [.id, (.username // ""), (.email // ""), "t"] | @tsv' >"$output"
   while :; do
     page="$(keycloak_admin_get "$token" "users?briefRepresentation=true&first=${first}&max=${REALM_PAGE_SIZE}")"
-    jq -r '.[] | [.id, (.username // ""), (.email // "")] | @tsv' <<<"$page" >>"$output"
+    jq -r '.[] | [.id, (.username // ""), (.email // ""), "f"] | @tsv' <<<"$page" >>"$output"
     count="$(jq 'length' <<<"$page")"
     if [ "$count" -lt "$REALM_PAGE_SIZE" ]; then
       break
@@ -262,13 +267,13 @@ SQL
   fi
   fetch_realm_users "$token" "$users"
 
-  local counts realm_users service_accounts by_username by_email ambiguous unmatched
+  local counts realm_users skipped by_username by_email by_service ambiguous unmatched
   counts="$(psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet --field-separator ' ' \
     --set ON_ERROR_STOP=1 --set issuer="$KEYCLOAK_ISSUER" \
     --file "$REBIND_SQL_PATH" <"$users")"
   rm -f "$users"
-  read -r realm_users service_accounts by_username by_email ambiguous unmatched <<<"$counts"
-  log info staging_refresh_identities_rebound ",\"realmUsers\":${realm_users},\"serviceAccounts\":${service_accounts},\"linkedByUsername\":${by_username},\"linkedByEmail\":${by_email},\"ambiguous\":${ambiguous},\"unmatched\":${unmatched}"
+  read -r realm_users skipped by_username by_email by_service ambiguous unmatched <<<"$counts"
+  log info staging_refresh_identities_rebound ",\"realmUsers\":${realm_users},\"serviceAccountsSkipped\":${skipped},\"linkedByUsername\":${by_username},\"linkedByEmail\":${by_email},\"linkedServiceAccounts\":${by_service},\"ambiguous\":${ambiguous},\"unmatched\":${unmatched}"
 }
 
 # "As notas, sem emissão alguma": o dump traz a base inteira, e o que **não** pode atravessar sai

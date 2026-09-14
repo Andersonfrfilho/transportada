@@ -761,8 +761,10 @@ antes de baixar qualquer coisa.
 respondia 401. O passo `rebind_identities` casa cada usuário do realm de staging com a pessoa do
 sistema pelo username (e, na falta dele, pelo e-mail do perfil), e grava o vínculo no issuer de
 staging. Consequência declarada: **quem tem conta no realm de staging passa a entrar como a pessoa
-de produção com o mesmo username ou e-mail**, com as memberships dela. O casamento ambíguo (um
-e-mail em mais de um perfil) fica de fora, `service-account-*` fica de fora, e o log registra só
+de produção com o mesmo username ou e-mail**, com as memberships dela. A conta de serviço com o papel
+`transportada-service` é ligada ao ator sintético com membership `automation` (ADR-0047) — sem isso
+o worker de staging levaria 401. O casamento ambíguo (um e-mail em mais de um perfil, ou mais de um
+ator `automation`) fica de fora, as demais `service-account-*` ficam de fora, e o log registra só
 contagens. O passo recusa rodar se o issuer configurado já estiver nos dados restaurados — é o sinal
 de que a variável aponta para o Keycloak de produção. O serviço passa a guardar o client secret de
 admin do realm de staging.

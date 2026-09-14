@@ -167,6 +167,24 @@ describe('contrato do serviço staging-refresh', () => {
     expect(sql).toContain('commit;')
   })
 
+  /**
+   * A conta de serviço do worker não tem perfil nem e-mail, e o vínculo dela vinha de produção como os
+   * outros: sem religar, o worker de staging leva 401 da API. Quem diz que um usuário do realm é o
+   * serviço é o papel `transportada-service` (o mesmo que a API exige), e quem diz qual pessoa do
+   * sistema ele é, a membership com papel `automation` — nunca o nome do cliente.
+   */
+  test('religa a conta de serviço pela role do realm e pela membership automation', async () => {
+    const fetchUsers = functionBody(await readScript(), 'fetch_realm_users')
+    const sql = await Bun.file(REBIND_SQL_PATH).text()
+
+    expect(fetchUsers).toContain('roles/transportada-service/users')
+    expect(sql).toContain("role = 'automation'")
+    expect(sql).toContain('is_service')
+    expect(functionBody(await readScript(), 'rebind_staging_identities')).toContain(
+      'linkedServiceAccounts',
+    )
+  })
+
   /** E-mail, username e subject são dado pessoal ou chave de conta: o log leva só as contagens. */
   test('o log do religamento tem só contagens, sem PII nem segredo', async () => {
     const script = await readScript()

@@ -2,17 +2,19 @@
 --
 -- Religa os usuários do realm de staging às pessoas do sistema, depois do restore de produção.
 --
--- Entrada: um TSV `subject, username, email` por usuário do realm, lido de `pstdin`, e a variável
--- `:issuer` (o issuer do Keycloak de staging). Saída: uma linha só, com as contagens —
--- `realm_users service_accounts linked_by_username linked_by_email ambiguous unmatched`.
+-- Entrada: um TSV `subject, username, email, is_service` por usuário do realm, lido de `pstdin`, e a
+-- variável `:issuer` (o issuer do Keycloak de staging). `is_service` marca quem tem o papel de realm
+-- `transportada-service`. Saída: uma linha só, com as contagens —
+-- `realm_users skipped linked_by_username linked_by_email linked_service ambiguous unmatched`.
 --
 -- Regras do casamento:
 --   1. username primeiro: é único no realm e em `identity_user_profiles`, e é o que a pessoa digita;
 --   2. e-mail só para quem o username não casou — o e-mail do perfil **não** é único;
---   3. casamento que cai em mais de um usuário do sistema é ambíguo e fica de fora: vínculo errado
---      entrega a conta de uma pessoa a outra, e ficar sem vínculo só a deixa sem entrar;
---   4. `service-account-*` fica de fora, como na sincronização da API: conta de serviço não é gente
---      e não tem perfil.
+--   3. a conta de serviço (papel `transportada-service`) casa com a pessoa do sistema que tem
+--      membership ativa com papel `automation` (ADR-0047): ela não tem perfil nem e-mail;
+--   4. casamento que cai em mais de uma pessoa é ambíguo e fica de fora: vínculo errado entrega a
+--      conta de alguém a outro, e ficar sem vínculo só a deixa sem entrar;
+--   5. `service-account-*` sem o papel do serviço fica de fora, como na sincronização da API.
 --
 -- Tudo numa transação: ou o realm inteiro é religado, ou nada é.
 begin;
@@ -20,34 +22,59 @@ begin;
 create temporary table realm_users (
   subject text not null,
   username text not null,
-  email text not null
+  email text not null,
+  is_service boolean not null
 ) on commit drop;
 
 \copy realm_users from pstdin
 
+-- A conta de serviço pode vir da listagem e do papel ao mesmo tempo: fica a linha que diz serviço.
+create temporary table realm_accounts on commit drop as
+select distinct on (subject)
+  subject,
+  lower(btrim(username)) as username,
+  lower(btrim(email)) as email,
+  is_service
+from realm_users
+where subject <> ''
+order by subject, is_service desc;
+
 create temporary table candidate_links on commit drop as
-with realm as (
-  select subject, lower(btrim(username)) as username, lower(btrim(email)) as email
-  from realm_users
-  where subject <> '' and username not like 'service-account-%'
+with people as (
+  select * from realm_accounts
+  where not is_service and username not like 'service-account-%'
 ),
 by_username as (
   select r.subject, p.user_id, 'username' as matched_by
-  from realm r
+  from people r
   join identity_user_profiles p on lower(btrim(p.username)) = r.username
   where r.username <> ''
 ),
 by_email as (
   select r.subject, p.user_id, 'email' as matched_by
-  from realm r
+  from people r
   join identity_user_profiles p on lower(btrim(p.email)) = r.email
   where r.email <> ''
     and not exists (select 1 from by_username u where u.subject = r.subject)
+),
+automation_users as (
+  select distinct m.user_id
+  from user_company_memberships m
+  join membership_roles mr on mr.membership_id = m.id
+  where mr.role = 'automation' and m.status = 'active'
+),
+by_service as (
+  select r.subject, a.user_id, 'service' as matched_by
+  from realm_accounts r
+  cross join automation_users a
+  where r.is_service
 ),
 candidates as (
   select * from by_username
   union all
   select * from by_email
+  union all
+  select * from by_service
 )
 select
   subject,
@@ -66,21 +93,24 @@ on conflict (issuer, subject) do update
 
 select
   total.realm_users,
-  total.service_accounts,
+  total.skipped,
   links.by_username,
   links.by_email,
+  links.by_service,
   links.ambiguous,
-  total.realm_users - total.service_accounts - links.by_username - links.by_email - links.ambiguous
+  total.realm_users - total.skipped
+    - links.by_username - links.by_email - links.by_service - links.ambiguous
 from (
   select
     count(*) as realm_users,
-    count(*) filter (where username like 'service-account-%') as service_accounts
-  from realm_users
+    count(*) filter (where not is_service and username like 'service-account-%') as skipped
+  from realm_accounts
 ) as total
 cross join (
   select
     count(*) filter (where users = 1 and matched_by = 'username') as by_username,
     count(*) filter (where users = 1 and matched_by = 'email') as by_email,
+    count(*) filter (where users = 1 and matched_by = 'service') as by_service,
     count(*) filter (where users > 1) as ambiguous
   from candidate_links
 ) as links;
