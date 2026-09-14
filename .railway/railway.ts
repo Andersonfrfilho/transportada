@@ -343,6 +343,37 @@ export default defineRailway((ctx) => {
     },
   })
 
+  /**
+   * **O teste mensal de restore da cópia de produção** — restaura o último ciclo do manifesto num
+   * Postgres efêmero dentro do próprio contêiner e empurra o monitor `production_restore` do Gatus.
+   *
+   * Roda aqui, e não num runner do GitHub como até 14/09/2026, pelo mesmo motivo do
+   * `staging-refresh`: o dump decifrado tem dado pessoal e fiscal de terceiros. Só existe em
+   * produção porque só produção tem backup. Nenhuma URL de banco entra aqui, de propósito: o
+   * script recusa rodar se encontrar uma.
+   */
+  const restoreTest = service('restore-test', {
+    source: transportada,
+    build: {
+      builder: 'DOCKERFILE',
+      dockerfilePath: 'deploy/restore-test/Dockerfile',
+      watchPatterns: ['deploy/restore-test/**'],
+    },
+    deploy: { cronSchedule: '0 7 5 * *', restartPolicyType: 'NEVER' },
+    replicas: { sfo: 1 },
+    env: {
+      BACKUP_ENCRYPTION_KEY: preserve(),
+      BACKUP_ENVIRONMENT: preserve(),
+      BACKUP_S3_ACCESS_KEY_ID: preserve(),
+      BACKUP_S3_BUCKET: preserve(),
+      BACKUP_S3_ENDPOINT: preserve(),
+      BACKUP_S3_REGION: preserve(),
+      BACKUP_S3_SECRET_ACCESS_KEY: preserve(),
+      RESTORE_HEARTBEAT_TOKEN: preserve(),
+      RESTORE_HEARTBEAT_URL: preserve(),
+    },
+  })
+
   /** SMTP de mentira: em produção o e-mail sai de verdade, e um Mailpit ali seria caixa cega. */
   const mailpit = service('mailpit', {
     source: image('axllent/mailpit:latest'),
@@ -547,7 +578,7 @@ export default defineRailway((ctx) => {
 
   return project('transportada', {
     resources: isProduction
-      ? [...shared, backup, aggregateDocumentOcr, mapTiles, osrm]
+      ? [...shared, backup, restoreTest, aggregateDocumentOcr, mapTiles, osrm]
       : [...shared, mailpit, mapTiles, osrm, stagingRefresh],
   })
 })

@@ -29,7 +29,7 @@ const HEARTBEATS_BY_ENVIRONMENT = {
 const ENVIRONMENTS_WITH_BACKUP = ['production'] as const
 /** `0 6 * * *` no `deploy/backup/railway.json`: a janela real é 24h, e a folga é o que sobra. */
 const BACKUP_SCHEDULE_HOURS = 24
-/** `0 7 5 * *` no `restore-test.yml`: entre 5 de janeiro e 5 de fevereiro cabem 31 dias. */
+/** `0 7 5 * *` do `restore-test` no `.railway/railway.ts`: entre 5/jan e 5/fev cabem 31 dias. */
 const RESTORE_SCHEDULE_HOURS = 31 * 24
 
 type ExternalEndpoint = Readonly<{

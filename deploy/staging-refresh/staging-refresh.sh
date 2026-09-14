@@ -59,9 +59,9 @@ require_variables() {
   fi
 }
 
-# A guarda vem antes de tudo, inclusive do download. É a imagem espelhada da do `restore-test.yml`:
-# aquele recusa qualquer alvo que **não** seja o Postgres efêmero; este recusa rodar em qualquer
-# ambiente que **não** seja staging. Alvo errado descoberto depois do `pg_restore --clean` é tarde —
+# A guarda vem antes de tudo, inclusive do download. É a imagem espelhada da do
+# `deploy/restore-test/`: aquele recusa rodar fora de production e com qualquer URL de banco real no
+# ambiente; este recusa rodar em qualquer ambiente que **não** seja staging. Alvo errado descoberto depois do `pg_restore --clean` é tarde —
 # os objetos já caíram.
 #
 # Quem responde "que ambiente é este" é o `RAILWAY_ENVIRONMENT_NAME`, injetado pela plataforma. A
