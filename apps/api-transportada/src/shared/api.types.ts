@@ -6,6 +6,7 @@ import type { LogLevel } from '@adatechnology/logger'
 import type { CryptographicConfiguration } from '../config/cryptographic-configuration.schema'
 import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
+import type { ClientIpPolicy } from './client-ip.constant'
 
 export type DatabasePoolConfiguration = {
   readonly connectTimeoutSeconds: number
@@ -21,6 +22,8 @@ export type ApiEnvironment = {
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
   readonly bootstrapToken: string | undefined
+  /** ADR-0065: de onde sai o IP do cliente — a chave do rate limit das rotas anônimas. */
+  readonly clientIpPolicy: ClientIpPolicy
   /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration

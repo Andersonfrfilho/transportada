@@ -21,7 +21,11 @@ import {
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
-import { resolveClientIp } from './client-ip.service'
+import {
+  type ClientIpResolver,
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from './client-ip.service'
 import { createRateLimiter, type RateLimitPolicy } from './rate-limiter.service'
 import { resolveLogPathname } from './request-path.service'
 
@@ -147,6 +151,8 @@ type CreateRouterParams = {
   readonly authorization: RouteAuthorizationPort
   readonly companyFiscalEnvironment: CompanyFiscalEnvironmentPort
   readonly healthService: HealthService
+  /** Ausente, vale `DEFAULT_CLIENT_IP_POLICY` — o mesmo padrão do ambiente (ADR-0065). */
+  readonly resolveClientIp?: ClientIpResolver
   /**
    * Módulos plugáveis servidos pelos próprios adaptadores: cada um resolve a autenticação dele
    * (`authResolver`) e devolve `Response` pronta. Entram depois das rotas nossas e antes do 404
@@ -170,6 +176,7 @@ export function createRouter({
   companyFiscalEnvironment,
   healthService,
   moduleRouters = [],
+  resolveClientIp = createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
   routes,
   tenantContext,
 }: CreateRouterParams): HttpRouter {

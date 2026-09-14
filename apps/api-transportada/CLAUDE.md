@@ -29,6 +29,11 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `context.companyId` e filtra por ele. Testes de isolamento em
 `test/*-schema/tenant-safety.contract.ts` são **obrigatórios** em qualquer mudança de query.
 
+**O IP do cliente vem do salto conhecido** (ADR-0065): `createClientIpResolver` lê só o cabeçalho de
+`CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido). Nunca o começo
+de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare obrigatória (hoje ela é
+só DNS). Ausente ou não-IP vira o balde único `unknown`. O limitador tem teto de 50 000 baldes.
+
 ## Banco
 
 Schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL versionadas

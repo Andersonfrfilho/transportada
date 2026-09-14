@@ -15,38 +15,50 @@ export type RateLimitOutcome = Readonly<
 
 export type RateLimiter = Readonly<{
   consume: (input: { readonly key: string; readonly policy: RateLimitPolicy }) => RateLimitOutcome
+  size: () => number
 }>
 
-type Bucket = { count: number; windowStartedAt: number }
+type CreateRateLimiterParams = Readonly<{
+  maxEntries?: number
+  now?: () => number
+}>
 
-/** Acima disto, cada `consume()` aproveita para varrer baldes expirados antes de crescer mais. */
-const SWEEP_THRESHOLD_ENTRIES = 10_000
+type Bucket = { count: number; windowMs: number; windowStartedAt: number }
+
+/** Teto do mapa: cada balde custa uma chave curta e três números — 50 mil cabem em poucos MB. */
+const DEFAULT_MAX_ENTRIES = 50_000
 
 /**
  * Janela fixa por chave (`rota:método:IP`), em memória do próprio processo — não sobrevive a
- * restart nem soma entre réplicas, e é exatamente o que a instrução do usuário pediu (sem Redis
- * novo agora). Baldes expirados morrem quando alguém bate neles de novo (o `if` de baixo já
- * substitui); a varredura só entra quando o mapa passa de `SWEEP_THRESHOLD_ENTRIES` — sem ela, um
- * IP que bateu uma vez e nunca mais voltou ocuparia memória para sempre.
+ * restart nem soma entre réplicas. O mapa tem teto (ADR-0065): chegando nele, varre os expirados,
+ * cada balde pela **própria** janela (a do chamador apagaria balde vivo de rota com janela mais
+ * longa), e se ainda estiver cheio despeja o mais antigo. Despejar zera o contador de alguém; o
+ * contrário — recusar chave nova — negaria a rota a todo cliente novo.
  */
-export function createRateLimiter(): RateLimiter {
+export function createRateLimiter({
+  maxEntries = DEFAULT_MAX_ENTRIES,
+  now = Date.now,
+}: CreateRateLimiterParams = {}): RateLimiter {
   const buckets = new Map<string, Bucket>()
 
-  function sweepExpired(now: number, maxWindowMs: number): void {
-    if (buckets.size < SWEEP_THRESHOLD_ENTRIES) return
+  function makeRoom(currentTime: number): void {
+    if (buckets.size < maxEntries) return
     for (const [key, bucket] of buckets) {
-      if (now - bucket.windowStartedAt >= maxWindowMs) buckets.delete(key)
+      if (currentTime - bucket.windowStartedAt >= bucket.windowMs) buckets.delete(key)
     }
+    const oldest = buckets.keys().next()
+    if (buckets.size >= maxEntries && oldest.done !== true) buckets.delete(oldest.value)
   }
 
   return {
     consume({ key, policy }): RateLimitOutcome {
-      const now = Date.now()
-      sweepExpired(now, policy.windowMs)
+      const currentTime = now()
       const existing = buckets.get(key)
 
-      if (existing === undefined || now - existing.windowStartedAt >= policy.windowMs) {
-        buckets.set(key, { count: 1, windowStartedAt: now })
+      if (existing === undefined || currentTime - existing.windowStartedAt >= policy.windowMs) {
+        buckets.delete(key)
+        makeRoom(currentTime)
+        buckets.set(key, { count: 1, windowMs: policy.windowMs, windowStartedAt: currentTime })
         return { allowed: true }
       }
 
@@ -55,9 +67,10 @@ export function createRateLimiter(): RateLimiter {
         return { allowed: true }
       }
 
-      const elapsedMs = now - existing.windowStartedAt
+      const elapsedMs = currentTime - existing.windowStartedAt
       const retryAfterSeconds = Math.max(1, Math.ceil((policy.windowMs - elapsedMs) / 1000))
       return { allowed: false, retryAfterSeconds }
     },
+    size: () => buckets.size,
   }
 }

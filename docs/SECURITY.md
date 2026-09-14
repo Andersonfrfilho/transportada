@@ -5,6 +5,33 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-14 — o rate limit anônimo confiava no IP que o cliente escreve
+
+**Onde:** `apps/api-transportada/src/http/client-ip.service.ts` e `http/rate-limiter.service.ts` —
+toda rota anônima com `rateLimit`, e o `ipAddress` gravado no cadastro de conta do agregado.
+
+**O que é:** `resolveClientIp` pegava o **primeiro** valor de `x-forwarded-for`, que é escolhido pelo
+cliente (proxy anexa ao fim). Trocar o cabeçalho a cada requisição contornava todo limite por IP, e
+cada chave falsa criava um balde novo num `Map` que só varria expirados — memória sem teto dentro
+da janela.
+
+**O que passou a valer (código, 2026-09-14, ADR-0065):** topologia medida — Cloudflare só como DNS,
+um salto confiável, o edge do Railway, que escreve `x-real-ip`. O IP sai só do cabeçalho de
+`CLIENT_IP_SOURCE` (padrão `x-real-ip`; `cf-connecting-ip` só com Cloudflare obrigatória;
+`x-forwarded-for` com `TRUSTED_PROXY_HOPS` contados do fim); valor ausente ou que não é IP cai no
+balde único `unknown`. O mapa tem teto de 50 000 baldes, varrendo expirados pela janela de cada
+balde antes de despejar o mais antigo. Contratos em `test/client-ip/` e
+`test/fleet-http/aggregate-applications.contract.ts` (XFF rotativo continua levando `429`).
+
+**Medido em 2026-09-14:** o edge do Railway **sobrescreve** o `X-Real-IP` que o cliente manda —
+quatorze requisições a `/public/cnpj-info` em staging, cada uma com `X-Real-IP` forjado diferente,
+levaram 429 a partir da 13ª (limite 12). Receita completa na ADR-0065.
+
+**O que falta para fechar:** o deploy. Até lá produção segue lendo o começo de `x-forwarded-for`;
+depois dele, repetir a receita com `X-Forwarded-For` rotativo e confirmar o 429.
+
+**Origem:** revisão de segurança da spec 146.
+
 ### 2026-09-13 — `audit_logs` não guarda IP
 
 **Onde:** `audit_logs` (todo o produto, não só `contractor-mail`) — sem coluna de endereço de

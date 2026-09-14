@@ -66,6 +66,7 @@ const server = startApiServer({
     driverAddressLookupUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
+    clientIpPolicy: { source: 'x-real-ip', trustedProxyHops: 1 },
     companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
