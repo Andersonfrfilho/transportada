@@ -113,6 +113,11 @@ export function assertCargoLayoutCurrent(params: {
   if (params.currentInputHash !== params.layoutInputHash) throw new TripCargoLayoutOutdatedError()
 }
 
+/** Duas mudanças opostas (A→B e B→A) travando na mesma ordem não formam ciclo: sem 40P01. */
+export function orderTripLocks(tripIds: readonly string[]): readonly string[] {
+  return [...new Set(tripIds)].sort()
+}
+
 export type SwapCandidate = {
   readonly nfeDocumentId: string
   readonly nfeNumber: string | null

@@ -333,6 +333,51 @@ describeWithPostgres('fila de revisão das notas que não couberam (spec 148 T7)
     )
   })
 
+  test('mover A→B e B→A ao mesmo tempo: as duas passam, sem deadlock (40P01)', async () => {
+    const tripA = await seedTrip(database)
+    const tripB = await seedTrip(database, { companyId: tripA.companyId, userId: tripA.userId })
+    // Same cargo in the same company means the same layout hash, and release would reuse A's entry.
+    const [vehicleOfB] = await database.db
+      .select({ vehicleId: trips.vehicleId })
+      .from(trips)
+      .where(eq(trips.id, tripB.tripId))
+    await database.db
+      .update(fleetVehicles)
+      .set({ cargoLengthM: '9.000' })
+      .where(eq(fleetVehicles.id, vehicleOfB?.vehicleId ?? ''))
+    const [reviewA] = (await releaseFirst(tripA)).result.reviews
+    const [reviewB] = (await releaseFirst(tripB)).result.reviews
+    expect([reviewA?.sourceTripId, reviewB?.sourceTripId]).toEqual([tripA.tripId, tripB.tripId])
+    const changes = [
+      { reviewId: reviewA?.id ?? '', targetTripId: tripB.tripId },
+      { reviewId: reviewB?.id ?? '', targetTripId: tripA.tripId },
+    ]
+    const bodies = await Promise.all(
+      changes.map(async (change) => {
+        const preview = await reviews.previewChange({
+          companyId: tripA.companyId,
+          correlationId: CORRELATION_ID,
+          ...change,
+        })
+        await markLayoutReady(database, preview.layoutId, [])
+        return {
+          companyId: tripA.companyId,
+          correlationId: CORRELATION_ID,
+          userId: tripA.userId,
+          validatedLayoutId: preview.layoutId ?? '',
+          ...change,
+        }
+      }),
+    )
+
+    const settled = await Promise.allSettled(bodies.map((body) => reviews.move(body)))
+
+    const outcomes = settled.map((outcome) =>
+      outcome.status === 'fulfilled' ? 'fulfilled' : describeRejection(outcome.reason),
+    )
+    expect(outcomes).toEqual(['fulfilled', 'fulfilled'])
+  })
+
   test('mover sem caber responde 409 e desfaz o vínculo', async () => {
     const seeded = await seedTrip(database)
     const { first, result } = await releaseFirst(seeded)
@@ -690,4 +735,12 @@ async function seedNfeDocument(
     xmlSha256: sha,
   })
   return documentId
+}
+
+function describeRejection(reason: unknown): string {
+  if (!(reason instanceof Error)) return String(reason)
+  const cause = reason.cause instanceof Error ? ` <- ${reason.cause.message}` : ''
+  const code = 'code' in reason ? ` [${String(reason.code)}]` : ''
+  const details = 'details' in reason ? ` ${JSON.stringify(reason.details)}` : ''
+  return `${reason.name}: ${reason.message}${code}${details}${cause}`
 }

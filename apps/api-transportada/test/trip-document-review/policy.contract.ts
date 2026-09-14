@@ -13,6 +13,7 @@ import {
   assertCargoLayoutCurrent,
   buildSwapSuggestions,
   checkTripDocumentReviewTransition,
+  orderTripLocks,
   selectReleasableDocuments,
 } from '../../src/trips/domain/trip-document-review.policy.js'
 import {
@@ -229,5 +230,25 @@ describe('sugestão de troca com Δ% (D10)', () => {
 
     expect(suggestion?.volumeDeltaPercent).toBeNull()
     expect(suggestion?.weightDeltaPercent).toBeNull()
+  })
+})
+
+describe('ordem de trava das viagens na mudança da fila', () => {
+  const first = '0b6c1f5e-0000-4000-8000-000000000001'
+  const second = 'f3a2d9c4-0000-4000-8000-000000000002'
+
+  test('mover A→B e B→A travam as viagens na mesma ordem, por id crescente', () => {
+    expect(orderTripLocks([second, first])).toEqual([first, second])
+    expect(orderTripLocks([first, second])).toEqual([first, second])
+  })
+
+  test('a mesma viagem na origem e no destino é travada uma vez só', () => {
+    expect(orderTripLocks([first, first])).toEqual([first])
+  })
+
+  test('segue a ordem do uuid no Postgres (dígito antes de letra), não a do idioma', () => {
+    const letter = 'a0000000-0000-4000-8000-000000000000'
+    const digit = '90000000-0000-4000-8000-000000000000'
+    expect(orderTripLocks([letter, digit])).toEqual([digit, letter])
   })
 })

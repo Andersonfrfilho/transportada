@@ -6,7 +6,7 @@
  * depois do vínculo. A trava é só o despacho, na origem e no destino (D13): CT-e não trava.
  */
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
-import { assertCargoLayoutCurrent } from '../domain/trip-document-review.policy.js'
+import { assertCargoLayoutCurrent, orderTripLocks } from '../domain/trip-document-review.policy.js'
 import { TripDocumentReviewDoesNotFitError } from '../domain/trip-document-review.error.js'
 import { readCargoLayoutInputParams } from './trip-cargo-layout-input.support.js'
 import {
@@ -43,12 +43,15 @@ export async function applyReviewChange(
   },
 ): Promise<AppliedReviewChange> {
   const { change, companyId, review } = params
-  await lockOpenTrip(transaction, { companyId, tripId: review.sourceTripId })
+  const lockedTripIds = orderTripLocks(
+    change.kind === 'move' ? [review.sourceTripId, change.targetTripId] : [review.sourceTripId],
+  )
+  for (const tripId of lockedTripIds) {
+    // Sequential on purpose: row locks must be taken in this exact order.
+    await lockOpenTrip(transaction, { companyId, tripId })
+  }
 
   if (change.kind === 'move') {
-    if (change.targetTripId !== review.sourceTripId) {
-      await lockOpenTrip(transaction, { companyId, tripId: change.targetTripId })
-    }
     const linkedTripDocumentId = await insertLiveLink(transaction, {
       companyId,
       nfeDocumentId: review.nfeDocumentId,

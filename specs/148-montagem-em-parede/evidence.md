@@ -591,3 +591,11 @@ Pendente: conferir a fila no navegador com o usuário (a tela não foi aberta ne
 **Peso por eixo.** Implementação separada, com spec própria. Hoje `capacity_kg` existe na ficha de veículo mas não alimenta nem CT-e nem MDF-e. A carga tem peso, o veículo tem teto, o que falta é a regra de distribuição entre eixos e a rota de validação.
 
 **Re-leitura da montagem em parede.** A D1 estabeleceu pilhas em fileira pela largura, cada uma subindo ao teto; alternativas mais sofisticadas (comprimento variável por fileira, pilhas a diferentes alturas no mesmo bloco) foram medidas e rejeitadas por pior resultado sem regra alterada — ficam anotadas na seção T3b de diagnóstico.
+
+### Revisão final — deadlock na fila de revisão (mover A→B e B→A)
+
+`applyReviewChange` travava a viagem de origem e depois a de destino; duas mudanças opostas simultâneas davam `40P01` e chegavam ao usuário como 500. Agora as viagens são travadas em ordem fixa, por `id` crescente (`orderTripLocks`, `trip-document-review.policy.ts`).
+
+- Contrato: `test/trip-document-review/policy.contract.ts` § "ordem de trava das viagens na mudança da fila" (3 casos).
+- Integração: `test/integration/trip-document-review.integration.ts` § "mover A→B e B→A ao mesmo tempo". Sem a correção: `40P01 deadlock detected` em 5 de 5 execuções; com a correção: 5 de 5 passam.
+- Gates: `bun run typecheck` exit 0; `bun run lint` exit 0; `bun run --cwd apps/api-transportada test` 5137 pass, 0 linhas `(fail)`; integração da fila 15 pass, 0 `(fail)`.
