@@ -431,3 +431,29 @@ roteirização, não por tabela de processados — a planta é derivada que reca
 
 Quem for mexer no empacotador lê **aqui**, a seção correspondente de `docs/ai-context/api-transportada.md`,
 e **ADR-0063** antes de tocar em código da API ou do worker.
+
+---
+
+## Montagem em parede: fileira sempre na mesma lateral — spec 148 (2026-09-13/14)
+
+**Medido em 2026-09-13 nas seis viagens reais:** a entrega se espalhava pelo piso de comprimento (as primeiras paradas ocupavam os 7,4 m do Atego a 0,7 m de altura), deixando as últimas caixas das entregas iniciais só com lugar acima dela. Caixas que cabem fisicamente ficavam de fora com `bedFull` enquanto sobrava espaço: Atego 162, Iveco 27 paradas 11, Sprinter 6, Fiorino 4, Accelo 0, Iveco antiga 0.
+
+**D23/D25 — nenhuma pilha alta isolada.** A pilha alta — acima de `STABLE_STACK_SLENDERNESS` × a menor base — precisa estar encostada no **sentido da cabeceira** (parede do fundo ou pilha vizinha nessa direção) e em **pelo menos uma lateral** (parede ou pilha vizinha). Já estava em vigor; a montagem em parede foi a forma que a respeitou sem usar apenas profundidade.
+
+**D25 — a vizinha escora com 80% da borda.** Medida em comprimento de borda coberta; só no baú fechado (`enclosedBody: true`). A primeira aplicação a todo veículo derrubava `complement` (Daily 1 caixa) e `exact-edges` (RTC-4H67, 480 < 481), porque `enclosed-body.contract.ts` exigia a borda inteira. A trava virou 80% no baú fechado — onde o deslocamento para a porta e o acesso mantêm a escora válida —, e a borda inteira fora dele (spec 146 D1 reversão).
+
+**D1 — Montagem em parede, do canto.** A primeira pilha vai no canto, encostada na cabeceira e numa parede lateral. A seguinte encosta na cabeceira e na pilha anterior, que passa a ser a lateral dela, e a fileira atravessa a largura do baú. Cada pilha sobe até o teto dentro das regras antes de avançar para a porta. Adotada a mesma lateral para todas as fileiras (4 caixas de fora a menos que zigue-zague em Atego e empatada no resto). Resultado na Atego: 138 caixas fora (antes 162); Daily 0 (antes 11); Sprinter 0 (antes 6); Fiorino 0 (antes 4). Tempo: Atego 95,9 s, dentro do orçamento de 120 s.
+
+**D4 — Reorganização depois de encher.** Fase de melhoria: mapear os espaços vazios livres (os altos acima das colunas, primeiro) e escolher entre as caixas de fora a que melhor preenche cada vão, compactando vãos e reabrindo regiões. Subir caixas para cima de colunas com altura livre. Uma troca é aceita só se deixar menos caixas de fora e respeitar 80% de apoio, D23/D25, ordem de descarga e alcance de 2 m. Medido com prazo de 120 s: Atego 82 de fora (depois de D1), rodadas trouxe 3 a menos (79 final). Nenhuma caixa foi realmente movida pela reorganização — a geometria do alcance as bloqueia.
+
+**D5 — Passada final por cima, marcada.** Depois de D1 e D4, última passada: as caixas ainda de fora tentam todos os vãos, inclusive **por cima de entrega anterior**, até não haver mais espaço. Marcadas com `overEarlierDelivery` + `coversStops` (qual entrega cobre). Medido: Atego 6 caixas por cima. Retrabalho para o conferente: paradas 3, 7, 11 (nas três tem caixa anterior que precisa ser tirada do caminho).
+
+**D6 — Escolher a caixa pelo vão.** Inverter a busca: mapear os espaços vazios restantes (os altos primeiro) e para cada um escolher a melhor caixa entre as de fora que caiba nas regras. Repetir enquanto alguma entrar ou enquanto o prazo não vencer.
+
+**D7 — Fila de revisão.** Se depois de D1–D6 alguma caixa ainda não tem lugar, a **nota inteira** sai da viagem (marcação `released_at`, nunca apagar) e entra na fila de revisão com o motivo (`classify.ts`): qual regra barrou cada caixa. No app, o operador monta a viagem e um botão "Tirar do caminhão as N notas que não couberam" as leva para a fila, onde pode **trocar** (a nota entra no lugar de outra do caminhão e a outra volta à fila) ou **mover** (para outro entregador/viagem). Trava: só CT-e não emitido (CT-e autorizado não bloqueia a ação; MDF-e é derivado da viagem).
+
+**Tabela final — Atego 2426, 84 paradas:** de 162 caixas de fora para 79. As 79 só entram mudando regra: 66 dependem do alcance de 2 m (D24), 13 da D23/D25 (escora abaixo de 80%). Sem regra alterada, elas vão para a fila de revisão e o operador as valida um a um. Fila de revisão com 20 notas de fora, todas com `documentId` gravado para rastreabilidade.
+
+**Fila de revisão (`trip_document_reviews`):** tabela aditiva com `id`, `company_id`, `nfe_document_id`, `source_trip_id`, `source_trip_document_id`, `reason`, `layout_id`, `input_hash`, `status` (`pending → moved|swapped_in|relinked`), `resolution_trip_id`, `created_by`, `resolved_by`, `created_at`, `resolved_at`. Única parcial em `(company_id, nfe_document_id) where status='pending'`. Rotas: `POST /trips/:id/cargo-layouts/:layoutId/release-unplaced` (solta as notas de fora para a fila); `GET /trip-document-reviews` (lista da fila); `GET /trip-document-reviews/:id/swap-suggestions` (candidatas com Δ% peso/volume); `POST /trip-document-reviews/:id/move-preview` e `/move` (simulação e ação); `POST .../swap` (troca).
+
+Quem for mexer na montagem em parede lê **aqui**, o pacote `@adatechnology/cargo-placement` (branch `feat/cargo-placement`, commit `ae1e74c` + posteriores T7), `CARGO_LAYOUT_POLICY_VERSION` '6', e **ADR-0063** para a fila de revisão.

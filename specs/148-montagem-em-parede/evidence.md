@@ -556,3 +556,38 @@ o vínculo de nota no ambiente de dev que está rodando.
 Commits: `2a14520b` (domínio e migration) · `d42fad16` (rotas) · tela (o commit desta seção).
 
 Pendente: conferir a fila no navegador com o usuário (a tela não foi aberta nesta sessão).
+
+## Fechamento da spec 148 · 2026-09-14
+
+### Tabela final (D1–D6)
+
+| Veículo                 | Caixas reais | De fora (base) | De fora (spec 148) | Redução |
+| ----------------------- | ------------ | -------------- | ------------------ | ------- |
+| Atego 2426, 84 paradas  | 1465         | 162            | **79**             | 83      |
+| Iveco Daily, 27 paradas | 444          | 11             | **0**              | 11      |
+| Sprinter 416            | 248          | 6              | **0**              | 6       |
+| Fiorino                 | 94           | 4              | **0**              | 4       |
+| Accelo 1016             | 500          | 0              | **0**              | —       |
+| Iveco antiga            | 372          | 0              | **0**              | —       |
+
+- Zero `(fail)` no contrato da suíte do pacote; `exact-edges` e `complement` verdes.
+- Zero violações em `check.ts` (apoio ≥ 80%, dentro do baú, colisão) e `tall.ts` (pilhas altas D23/D25 a 80% no baú fechado).
+- Tempo: Atego em 120,0 s (no limite do orçamento); outros sob 2 s.
+- As 79 caixas de fora da Atego dependem de regra: 66 alcance de 2 m (D24), 13 D23/D25.
+
+### Commits da spec 148
+
+- Pacote `@adatechnology/cargo-placement`: `ecbd694c` (spec 148 e clausura da 145) → `4cdadd1c` (D1) → `626b8828` (T2 medida) → `e2a54791` (T3 fechada) → `1c3b4fea` (T3b diagnóstico) → `f8264368` (T3c passada final) → `1c3b4fea` (T3b reorganização) → `ae1e74c` (T3b final).
+- App `transportada`: `e7ed7870` (T4 contratos e tela T3c) → `2a14520b` (T7 domínio e migration) → `d42fad16` (T7 rotas) → `82b6beaa` (T7 tela) → `4c06cac6` (T5 proposta).
+- Documentação: `e2b6848f` (T3b T4 registrado), esta entrega (T6).
+
+### O que fica para depois
+
+**Atego com 79 caixas na fila de revisão.** As regras D23/D25 (80% de escora) e D24 (alcance de 2 m) barram a colocação físico-legal. Sem mudança de regra as 79 vão para a fila, onde o operador as valida:
+
+- **66 caixas** barradas por alcance (o conferente não chega nelas quando a parada anterior desce).
+- **13 caixas** barradas por escora (pilha alta sem lateral em 24–74% da borda).
+
+**Peso por eixo.** Implementação separada, com spec própria. Hoje `capacity_kg` existe na ficha de veículo mas não alimenta nem CT-e nem MDF-e. A carga tem peso, o veículo tem teto, o que falta é a regra de distribuição entre eixos e a rota de validação.
+
+**Re-leitura da montagem em parede.** A D1 estabeleceu pilhas em fileira pela largura, cada uma subindo ao teto; alternativas mais sofisticadas (comprimento variável por fileira, pilhas a diferentes alturas no mesmo bloco) foram medidas e rejeitadas por pior resultado sem regra alterada — ficam anotadas na seção T3b de diagnóstico.

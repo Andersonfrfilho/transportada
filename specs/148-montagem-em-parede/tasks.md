@@ -77,7 +77,7 @@
 
 > 🤖 Modelo: `haiku`
 
-- [ ] T6 — Atualizar `docs/domain/cargo-placement-defects.md`, `docs/ai-context/api-transportada.md` e a
+- [x] T6 — Atualizar `docs/domain/cargo-placement-defects.md`, `docs/ai-context/api-transportada.md` e a
       ADR-0063 com a montagem em parede e as regras D23–D26; fechar `evidence.md`.
 
 ## Prompt de execução

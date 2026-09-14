@@ -77,3 +77,13 @@ O upsert só reabre uma linha `failed`/`queued`/`running` quando o `updated_at` 
 - **Migração de toda planta guardada quando `policyVersion` muda** — aí é decisão por escrito, não automático. Hoje cada consulta recalcula sob demanda.
 - **Publicação do `@adatechnology/cargo-placement` além do link de desenvolvimento** — fora desta spec; registrado como pendência.
 - **Capacidade de baú desconhecida que hoje não enfileira** (D15) — spec separada sobre carroceria `00` e cavalo sem capacidade está em andamento. Reduz entrada inválida que o worker rejeitaria.
+
+## Atualização — spec 148: montagem em parede e fila de revisão
+
+**Montagem em parede (D1–D6).** A política D1 (organiza pilhas em fileiras a partir de um canto, com cada pilha subindo até o teto antes de avançar para a porta) entrou como estratégia padrão do baú fechado, reduzindo caixas de fora na Atego de 162 para 79. D23/D25 (nenhuma pilha alta isolada, vizinha escora com 80% da borda) já valiam; D1 foi a forma de respeitá-las sem apenas profundidade. D4/D6 (reorganização dirigida por vãos) e D5 (passada final por cima de entrega anterior, marcada) entram no pacote, com as mesmas regras sobre apoio e D23/D25.
+
+**Notas que não couberam — D7 e fila de revisão.** Se depois de D1–D6 uma nota ainda tem caixa de fora, a nota inteira sai da viagem (marcação `released_at` em `trip_documents`, nunca exclusão) e entra em `trip_document_reviews` (`status: 'pending'`) com o motivo. A tela da viagem ganha `TripReviewQueue` — "Notas fora do caminhão (N)", motivo por nota, botões "Trocar por outra nota" (com sugestões Δ%) e "Mover para outro caminhão". Operador sob `trip.manage`, viagem não despachada.
+
+**Ações da fila (D10–D13).** `POST /trips/:id/cargo-layouts/:layoutId/release-unplaced` solta as notas para a fila. `POST /trip-document-reviews/:id/move-preview {targetTripId}` simula, recalcula a planta do destino. `POST .../move {targetTripId, validatedLayoutId}` aplica — marca `moved`, vincula no destino, idempotente por corpo. `POST .../swap {outTripDocumentId, validatedLayoutId}` troca de lugar, a que sai volta à fila `pending` em `swapped_out`. CT-e não trava as ações (D13); despacho sim. Aceite da proposta (D12) vincula e fecha `pending → relinked` na mesma transação (`closePendingReviewsOnLink`). Auditoria em `audit_logs`.
+
+**Versão da política.** `CARGO_LAYOUT_POLICY_VERSION` passou a '6' (T4). Planta com versão velha é 409 (hash diverge porque entrada recalculada com versão nova do pacote).

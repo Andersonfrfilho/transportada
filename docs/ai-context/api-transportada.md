@@ -1505,3 +1505,20 @@ min (soma 60+120+240 s das escalas + 30 s por retry ×2, com folga), depois "nã
 agora". Tipo `cargoLayoutState: { status, computedAt, errorCode, stale, truncated? }` opcional
 (janela de deploy: front novo com API velha), ausência significa `unavailable`. Truncado é derivado na
 leitura (T10) de `unplaced[].reason === 'time_budget'`, sem `truncated: true` gravado.
+
+**A fila de revisão das notas que não couberam — spec 148 (T7).**
+
+Depois que a montagem em parede (D1), reorganização (D4), passada final (D5) e escolha pelo vão (D6) tentam colocar as caixas, se alguma nota ainda tiver caixa sem lugar, a **nota inteira** sai da viagem (marcação `released_at`, nunca exclusão) e entra em `trip_document_reviews` com o motivo em `reason` (do `classify.ts`: `UNPLACED_REASONS`). A linha fica `pending` até resolução.
+
+Tabela `trip_document_reviews`: `id uuid`, `company_id`, `nfe_document_id`, `source_trip_id`, `source_trip_document_id`, `reason varchar`, `layout_id`, `input_hash`, `status varchar` (`pending → moved|swapped_in|relinked`), `resolution_trip_id`, `resolution_trip_document_id`, `swapped_review_id`, `created_by`, `resolved_by`, `created_at`, `resolved_at`. Único parcial `(company_id, nfe_document_id) where status='pending'` — uma nota só tem uma entrada pendente; resolver já na mesma transação do linkage (D12, `closePendingReviewsOnLink`) fecha a entrada como `relinked`. A fila não trava CT-e autorizado (D13): viagens são independentes do documento fiscal.
+
+Rotas sob `trip.manage`, todo request trava se viagem despachada:
+
+- `POST /trips/:id/cargo-layouts/:layoutId/release-unplaced` — solta as notas de fora para a fila com o motivo, valida o `inputHash` contra a planta gravada (409 se divergir).
+- `GET /trip-document-reviews?status=pending&tripId=` — lista da fila.
+- `GET /trip-document-reviews/:id/swap-suggestions` — candidatas do caminhão com Δ% peso (NF-e) e de volume (caixas).
+- `POST /trip-document-reviews/:id/move-preview {targetTripId}` → `{layoutId}` — simula mover para outro caminhão, retorna a planta do destino se aceita, 409 se não cabe ou destino despachado.
+- `POST /trip-document-reviews/:id/move {targetTripId, validatedLayoutId}` — aplica a mudança, idempotente por corpo (mesmo corpo 200, outro corpo 409), vincula no destino e marca `moved`.
+- `POST /trip-document-reviews/:id/swap {outTripDocumentId, validatedLayoutId}` — troca de lugar, a nota que sai volta à fila como `pending` em `swapped_out`.
+
+Trilha em `audit_logs`: ator, nota, viagem de origem e destino. `CARGO_LAYOUT_POLICY_VERSION` '6'.
