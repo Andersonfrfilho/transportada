@@ -37,7 +37,9 @@
       Suíte do pacote sem falha nova (G3); `exact-edges` e `complement` verdes. Se não zerar sem regra
       protegida, parar e levar ao usuário o que sobra, a regra e o número (D3).
 
-- [ ] T3b 🧠 — D4 + D6: fase de reorganização depois da montagem em parede, dirigida pelos vãos (mapear os
+- [x] T3b 🧠 (fechada no melhor resultado seguro: Atego com **79** caixas de fora, pacote `ae1e74c`) — decisão
+      do usuário (2026-09-13): as 79 só entram mudando uma regra (66 pelo alcance de 2 m, D24; 13 pela escora,
+      D23/D25); elas vão para a fila de revisão (D7/T7) e as regras ficam como estão. — D4 + D6: fase de reorganização depois da montagem em parede, dirigida pelos vãos (mapear os
       espaços livres, os altos primeiro, e escolher para cada um a caixa restante que melhor o preenche; subir caixas sobre colunas com
       altura livre, compactar vãos, reabrir regiões e rearrumar com as caixas de fora), aceitando só trocas
       que diminuem as caixas de fora sem violar D23/D25, apoio de 80%, ordem de descarga e alcance; parar no
@@ -45,7 +47,7 @@
       e `tall.ts` em zero violações. Separar no relatório as caixas que não cabem pelas regras (`classify.ts`:
       sem assento com 80% de apoio) das que o algoritmo deixou escapar — a meta é zerar as segundas.
 
-- [x] T3c (parte do pacote; tela, locale e lista "caixas por cima" pendentes) — D5 + D6: passada final no pacote, também dirigida pelos vãos, que coloca as caixas restantes onde couberem, inclusive por cima de
+- [x] T3c (pacote `2e3aa67`/`863bdf5`; tela, locale e lista "caixas por cima" na T4, 2026-09-13) — D5 + D6: passada final no pacote, também dirigida pelos vãos, que coloca as caixas restantes onde couberem, inclusive por cima de
       entrega anterior, com apoio de 80% e sem pilha alta isolada. Marca cada uma com um motivo próprio (ex.:
       `overEarlierDelivery`) e com a entrega que ela cobre. Medir caixas de fora e retrabalho por parada.
       No app: marca própria no mapa 3D e lista "caixas por cima" (caixa, nota, entrega coberta, parada em que
@@ -56,7 +58,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4 — Commitar o pacote, `pnpm run build`, e no app confirmar que `CARGO_LAYOUT_POLICY_VERSION` novo
+- [x] T4 — Commitar o pacote, `pnpm run build`, e no app confirmar que `CARGO_LAYOUT_POLICY_VERSION` novo
       invalida os hashes (as plantas se recalculam); gate completo de API e worker com zero linhas `(fail)`.
 - [ ] T5 — Reiniciar o worker do worktree, refazer no navegador a proposta ("Montar roteiro pela busca de
       notas" → 342 notas, 6 motoristas, 6 veículos → "Propor roteiro"), abrir cada caminhão, contar no banco

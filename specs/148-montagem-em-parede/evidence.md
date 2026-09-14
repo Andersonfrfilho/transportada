@@ -400,3 +400,60 @@ continua a mais de 2 m da mão. A troca não alcança essas caixas sem mexer no 
 
 A meta (zero caixa de fora) **não fecha sem mexer em regra**: 66 dependem do alcance de 2 m e 13 da D23/D25.
 Nada foi afrouxado; a T3b segue aberta.
+
+### T3b fechada no melhor resultado seguro · 2026-09-13
+
+Decisão do usuário (2026-09-13): as **79** caixas de fora da Atego só entram mudando uma regra (66 pelo alcance
+de 2 m, D24; 13 pela escora, D23/D25). Elas vão para a fila de revisão (D7/T7) e as regras ficam como estão. A
+T3b fecha com o pacote `ae1e74c`.
+
+## T4 — pacote no app, versão '6' e a tela da T3c · 2026-09-13
+
+Modelo: `opus` (fallback do `sonnet`, sem cota). Pacote `feat/cargo-placement` @ `ae1e74c`, sem publicar.
+
+### Pacote
+
+`pnpm run build` sem erro. O `dist/` tem `CARGO_LAYOUT_POLICY_VERSION = "6"`, `overEarlierDelivery` em
+`PLACEMENT_REASONS`, `coversStops?` em `PlacedBox` e `documentId?` em `UnplacedBox`.
+
+### O que o app recusava
+
+- **API e worker: nada.** A API lê a planta com o tipo do pacote e a reetiquetagem espalha a caixa e a linha do
+  `unplaced` (`...box`, `...item`); o worker grava a planta que o pacote devolve. Contratos novos, verdes já na
+  primeira execução: `cargo-layout-hash.contract.ts` (sem `policyVersion` o hash é o da versão do pacote
+  instalado e outra versão o invalida — sem fixar o número), `cargo-layout-label.contract.ts` (mantém
+  `coversStops`, `overEarlierDelivery` e o `documentId` do `unplaced`), `package-surface.contract.ts`
+  (`PLACEMENT_REASONS` tem `overEarlierDelivery`) e, no worker, `handler.contract.ts` (grava como veio).
+- **Frontend:** a validação é tolerante (valida a forma), mas os tipos não tinham `coversStops` nem o
+  `documentId` do `unplaced`; a caixa `overEarlierDelivery` saía com o traço de cobre do `needsRehandling`; a
+  chave da lista do `unplaced` (`label-reason`) repetia com o `unplaced` por nota; não existia lista "caixas por
+  cima". Não há locale por motivo de posição (os motivos não viram texto), só a legenda das marcas.
+
+### Tela da T3c
+
+Contrato `test/trip/cargo-over-earlier.contract.ts` vermelho antes (`Cannot find module
+cargoOverEarlier.service`), depois 8 / 8:
+
+- `resolveCargoComplement`: `overEarlierDelivery` vence `needsRehandling`.
+- Mapa 3D: `.faceOverEarlier`, traço cheio em `--color-fog` (sem tracejado, sem cobre, sem vermelho), com
+  amostra na legenda (`CargoLegendSample mark="overEarlier"`).
+- Lista "Caixas por cima" (`TripCargoOverEarlierList.component.tsx`, `buildOverEarlierDeliveryRows`): caixa,
+  nota, entrega, entrega coberta e a parada em que sai do caminho (a primeira coberta), agrupada por caixa igual.
+- Carga dividida: a caixa por cima conta na coluna "Divididas" e nas fichas (`buildCargoPrintSummary`), e fica
+  fora da faixa da parada; a nota dividida em pedaços continua pelo `splitNotes` do pacote.
+- Textos em `trip.locale.json` e `trip.en.locale.json`.
+
+### Gates
+
+| Gate                                                     | Resultado                                                                    |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz)                               | sem erro                                                                     |
+| API `bun run --cwd apps/api-transportada test`           | 5121 testes, **0** linhas `(fail)`                                           |
+| worker `bun run --cwd apps/worker-transportada test`     | 1053 pass, **0** linhas `(fail)`                                             |
+| frontend `bun run --cwd apps/frontend-transportada test` | **15** linhas `(fail)`, as 15 do design-system que já existiam; nenhuma nova |
+| `bun run lint`                                           | sem erro                                                                     |
+| build do frontend                                        | ok                                                                           |
+
+Worker do worktree reiniciado com o `dist/` novo (os dois antigos, 80360 e 89824, parados); novo pid **71729**.
+
+Commits: `e7ed7870` (contratos da API e do worker) · `9bcec7ad` (tela).
