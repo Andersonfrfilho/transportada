@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 
 import {
   createKeycloakAuthProvider,
@@ -167,6 +167,100 @@ describe('KeycloakAuthProvider', () => {
 
     expect(client.clearToken).not.toHaveBeenCalled()
     expect(client.logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost' })
+  })
+})
+
+/**
+ * ⚠️ **A verificação do app vem sempre antes do Keycloak.** A pessoa entra por qualquer contato
+ * cadastrado — e-mail, CPF, CNPJ, telefone —, e quem traduz isso em login é a nossa tela; o
+ * Keycloak sozinho só entende o username. Reautenticar direto nele pula essa porta: quem entrou por
+ * CPF cai numa tela que não aceita CPF.
+ */
+describe('KeycloakAuthProvider with the identifier step on', () => {
+  const IDENTIFIER_FLAG = 'VITE_IDENTIFIER_FIRST_LOGIN'
+  let previousFlag: string | undefined
+
+  beforeEach(() => {
+    previousFlag = process.env[IDENTIFIER_FLAG]
+    process.env[IDENTIFIER_FLAG] = 'true'
+  })
+
+  afterEach(() => {
+    if (previousFlag === undefined) delete process.env[IDENTIFIER_FLAG]
+    else process.env[IDENTIFIER_FLAG] = previousFlag
+  })
+
+  test('an expired session goes back to the identifier screen, never straight to the provider', async () => {
+    const client = createClient({
+      token: tokenFor({ preferred_username: 'anderson.filho' }),
+      updateToken: mock(() => Promise.reject(new Error('remote refresh detail'))),
+    })
+    const reloadApplication = mock(() => undefined)
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL, { reloadApplication })
+
+    await provider.getAccessToken().catch(() => undefined)
+    await provider.restartAuthentication()
+
+    expect(client.login).not.toHaveBeenCalled()
+    expect(reloadApplication).toHaveBeenCalledTimes(1)
+  })
+
+  test('initialization without a session hands over to the identifier screen', async () => {
+    const client = createClient({ init: mock(() => Promise.resolve(false)) })
+    const reloadApplication = mock(() => undefined)
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL, { reloadApplication })
+
+    expect(await provider.initialize()).toBe(false)
+    expect(client.login).not.toHaveBeenCalled()
+    expect(reloadApplication).not.toHaveBeenCalled()
+  })
+
+  /** Recarregar aqui repetiria o mesmo erro para sempre: a tela de identificação é o destino. */
+  test('the third party iframe failure hands over to the identifier screen', async () => {
+    const client = createClient({
+      init: mock(() =>
+        Promise.reject(new Error('Timeout when waiting for 3rd party check iframe message.')),
+      ),
+    })
+    const reloadApplication = mock(() => undefined)
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL, { reloadApplication })
+
+    expect(await provider.initialize()).toBe(false)
+    expect(client.login).not.toHaveBeenCalled()
+    expect(reloadApplication).not.toHaveBeenCalled()
+  })
+
+  test('the identifier screen still reaches the provider with the resolved login', async () => {
+    const client = createClient()
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+
+    await provider.loginWith('anderson.filho')
+
+    expect(client.login).toHaveBeenCalledWith({
+      loginHint: 'anderson.filho',
+      redirectUri: 'http://localhost/auth/callback',
+    })
+  })
+})
+
+describe('KeycloakAuthProvider with the identifier step off', () => {
+  test('the third party iframe failure restarts at the provider, as before', async () => {
+    const client = createClient({
+      init: mock(() =>
+        Promise.reject(new Error('Timeout when waiting for 3rd party check iframe message.')),
+      ),
+      token: tokenFor({ preferred_username: 'anderson.filho' }),
+    })
+    const reloadApplication = mock(() => undefined)
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL, { reloadApplication })
+
+    await provider.initialize().catch(() => undefined)
+
+    expect(client.login).toHaveBeenCalledWith({
+      loginHint: 'anderson.filho',
+      redirectUri: 'http://localhost/auth/callback',
+    })
+    expect(reloadApplication).not.toHaveBeenCalled()
   })
 })
 

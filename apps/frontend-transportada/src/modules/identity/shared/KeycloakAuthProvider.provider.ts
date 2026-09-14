@@ -240,9 +240,19 @@ async function loginAgain(keycloak: KeycloakClient, redirectUri: string): Promis
   await keycloak.login(loginHint === undefined ? { redirectUri } : { loginHint, redirectUri })
 }
 
+export type AuthenticationNavigation = {
+  /** Recarregar devolve o boot ao `check-sso`, e sem sessão ele termina na tela de identificação. */
+  readonly reloadApplication: () => void
+}
+
+const BROWSER_NAVIGATION: AuthenticationNavigation = {
+  reloadApplication: () => window.location.reload(),
+}
+
 export function createKeycloakAuthProvider(
   keycloak: KeycloakClient,
   redirectUri: string,
+  navigation: AuthenticationNavigation = BROWSER_NAVIGATION,
 ): KeycloakAuthProvider {
   const sessionExpiryListeners = new Set<() => void>()
 
@@ -302,6 +312,8 @@ export function createKeycloakAuthProvider(
         return true
       } catch (error: unknown) {
         if (error instanceof Error && error.message.includes('3rd party check iframe')) {
+          /** Recarregar repetiria o mesmo erro: a tela de identificação é o destino, não o provedor. */
+          if (identifierFirst) return false
           await restartAuthentication(keycloak, redirectUri)
         }
 
@@ -318,8 +330,19 @@ export function createKeycloakAuthProvider(
         sessionExpiryListeners.delete(listener)
       }
     },
+    /**
+     * ⚠️ Com a etapa ligada, reautenticar **nunca** vai direto ao provedor: a pessoa pode ter
+     * entrado por CPF ou telefone, e o Keycloak só entende o username. A página recarrega no mesmo
+     * endereço, o `initialize` guarda o caminho de volta e, sem sessão, a tela de identificação
+     * aparece — o contato não viaja por URL nem por armazenamento.
+     */
     async restartAuthentication(): Promise<void> {
       persistPostAuthenticationPath()
+      if (isIdentifierFirstLoginEnabled()) {
+        keycloak.clearToken()
+        navigation.reloadApplication()
+        return
+      }
       await loginAgain(keycloak, redirectUri)
     },
   }

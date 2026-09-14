@@ -428,6 +428,18 @@ a:focus-visible {
   text-decoration: underline;
 }
 
+/* Quem a tela do app já identificou: o username é leitura, não campo, e o link volta para lá. */
+.identified-user-name {
+  color: var(--transportada-fog);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.identified-user .panel-link {
+  justify-self: start;
+  text-align: left;
+}
+
 .panel-footnote {
   color: var(--transportada-slate);
   font-size: 0.875rem;
