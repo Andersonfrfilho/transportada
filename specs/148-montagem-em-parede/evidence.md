@@ -191,3 +191,69 @@ no baú fechado. Pacote `feat/cargo-placement` @ **`2121e2b`** (pai `401a05d`), 
   `(fail)`** (inclui `brace-edge-fraction`, `wall-building`, `complement`, `exact-edges`,
   `brace-rises-alongside` e `enclosed-body`).
 - Números da T3 (acima): Atego 91, os outros cinco 0, zero violação, Atego em 89,7 s.
+
+## T3b — diagnóstico das 91 da Atego e enchimento progressivo · 2026-09-13 · ⚠️ não fechou
+
+Pacote em `2121e2b` (T3), sem mudança commitada. Modelo: `opus`.
+
+### Onde e por que sobram as caixas da Atego
+
+Empacotador instrumentado numa cópia (motivo de cada assento recusado + ordem de colocação), relevo
+reconstruído no instante da recusa. Tentativa vencedora: montagem em parede, 1331 caixas no mapa recomendado,
+134 recusas (o complemento resgata parte; final 91).
+
+- **O baú está cheio até a porta**: a frente da carga está em 7,40 m, o comprimento inteiro. As caixas de
+  fora são das primeiras paradas a descer (1–16; mais recusas na 7, 45, na 9, 20, e na 15, 15), que entram
+  por último e só achariam lugar **em cima** da carga.
+- **98 das 134 recusas são gêmeas** (a memória de formato: o mesmo formato já falhou naquele instante e
+  falharia de novo).
+- **As 36 buscadas falham todas por falta de cabeceira**, e a lateral fica sempre boa:
+  - **33**: a face atrás (de uma entrega posterior) é alta o bastante, mas cobre só **42–55%** da borda: o
+    topo das entregas anteriores fica irregular com tamanhos misturados;
+  - **3**: degrau de verdade (face atrás mais baixa que a contenção);
+  - posição: 23 no topo (base ≥ 1,5 m), 12 no meio, 1 na fileira da frente.
+- O rótulo "pilha alta (D23)" do `classify.ts` só quer dizer que o melhor assento seria de pilha alta; não
+  distingue cabeceira de lateral nem degrau de cobertura parcial.
+
+### Enchimento progressivo (tentativa extra no baú fechado)
+
+Implementado numa árvore de trabalho e revertido (diff guardado no scratchpad da sessão,
+`t3b-progressive.patch`):
+
+- `reachedTopM` no mapa de apoio: a altura que as vizinhas alcançam em ≥ 80% da borda, no sentido da
+  cabeceira e na lateral mais alta (a parede conta como teto);
+- na busca da parede, a pilha só passa da altura estável até essa altura;
+- é mais uma tentativa depois da parede.
+
+Contrato `progressive-fill.contract.ts`: vermelho antes (7 fail, `reachedTopM` não existia), verde depois
+(7/7).
+
+| Medição                             | Atego   | Iveco 27 | Sprinter | Fiorino | Accelo | Iveco antiga | Atego (tempo) |
+| ----------------------------------- | ------- | -------- | -------- | ------- | ------ | ------------ | ------------- |
+| parede (T3, `2121e2b`)              | 91      | 0        | 0        | 0       | 0      | 0            | 89,7 s        |
+| parede + progressiva (a que vencer) | 91      | 0        | 0        | 0       | 0      | 0            | **128,2 s**   |
+| progressiva sozinha                 | **142** | 0        | 0        | 0       | —      | —            | 53,7 s        |
+
+- `check.ts` e `tall.ts` com zero violação na rodada parede + progressiva; nela a progressiva nunca venceu (o
+  desenho é o da T3).
+- Sozinha ela piora a Atego (142, retrabalho 475, fora do alcance 264) e **espalha a entrega pelo
+  comprimento**:
+
+| Veículo  | Comprimento médio por entrega (parede → progressiva) | Altura máxima média do bloco (parede → progressiva) |
+| -------- | ---------------------------------------------------- | --------------------------------------------------- |
+| Atego    | 0,91 m → **2,09 m**                                  | 1,77 m → 1,45 m                                     |
+| Iveco 27 | 0,77 m → 1,03 m                                      | 1,54 m → 1,33 m                                     |
+| Sprinter | 0,75 m → 0,83 m                                      | 1,22 m → 1,08 m                                     |
+| Fiorino  | 0,69 m → 0,90 m                                      | 1,16 m → 1,16 m                                     |
+
+Accelo (0,76 m / 1,73 m) e Iveco antiga (0,94 m / 1,51 m) medidos só na parede.
+
+- **Por que não fecha**: limitar a pilha à altura que as vizinhas já alcançaram faz a caixa recusada ir para
+  a próxima fileira — a entrega avança para a porta em vez de subir, o oposto do bloco compacto que o usuário
+  pediu. Com o bloco compacto obrigatório (a entrega não pode ocupar mais comprimento que na parede, com a
+  exceção da entrega pequena que só cabe no piso), o que sobra é a própria montagem em parede, que já pega o
+  assento aceito mais perto da cabeceira e sobe antes de avançar. Além disso, a tentativa extra estoura o
+  tempo da Atego (128 s > 120 s) e deixa o "Accelo misto" do `enclosed-body` acima de 5 s (5,6 s), sem ganhar
+  nenhuma caixa.
+- **O que sobra não é degrau**: 33 das 36 recusas buscadas são cobertura parcial (42–55%) da face de trás,
+  no topo da carga, com o baú cheio até a porta. Nenhuma regra foi mexida; a T3b segue aberta.
