@@ -325,8 +325,10 @@ Passos que exigem o dashboard ou uma decisão humana:
    do painel, num arquivo `600`, e os onze campos estão no Chaveiro do macOS sob o serviço
    `TransportAdA production` — gravados via stdin, conferidos por leitura de volta, e o arquivo de
    transferência destruído com `rm -P`. Onde vive e como se lê está em
-   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. Staging tem ciclo
-   automático diário desde a feature 029; production ganha o dele junto com o primeiro deploy.
+   `docs/ops/backup-emergencia.md` § _Copiar a keyring_ — o local, nunca o valor. O ciclo automático
+   diário é só de production: staging teve o dele desde a feature 029 até **14/09/2026**, quando o
+   serviço `backup` saiu de lá (staging é reposta da cópia de production pelo `staging-refresh`), e
+   os monitores `backup`/`restore` de staging saíram do Gatus junto.
 5. **Domínios e volume de production**: a instância do serviço só existe depois
    do primeiro deploy — comprovado, não suposto: `serviceDomainCreate` responde
    `ServiceInstance not found`, e `serviceInstanceUpdate` no par sem instância

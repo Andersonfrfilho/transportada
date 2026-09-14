@@ -95,3 +95,12 @@ que já passou pelo redator, e o painel é o do operador da instalação.
   mais senha para digitar no painel.
 - A licença do conjunto de observabilidade continua inteiramente open source: Apache-2.0 no lugar de
   MIT.
+
+## Emenda — 14/09/2026: staging sem backup
+
+Staging deixou de ter backup: o serviço `backup` saiu do ambiente, e staging é reposta a partir da
+cópia de production pelo `staging-refresh`. Os heartbeats `staging_backup` e `staging_restore` saem
+do `config.yaml` — o restore mensal lia `db-backups/staging/`, que não recebe mais ciclo. O §5 segue
+valendo para production, que é agora o único grupo com heartbeat de push; o
+`.github/workflows/restore-test.yml` precisa apontar para production (`BACKUP_ENVIRONMENT` e o par
+`RESTORE_HEARTBEAT_*`).

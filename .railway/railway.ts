@@ -319,8 +319,8 @@ export default defineRailway((ctx) => {
    * o bucket — em staging isso custaria armazenamento para proteger dado que o `staging-refresh`
    * repõe da própria produção. É decisão de economia, tomada por escrito.
    *
-   * ⚠️ O serviço **existe** em staging hoje. Aplicar este arquivo lá o **destrói** — é a única
-   * remoção intencional daqui, e ela precisa de `--confirm-destructive`.
+   * O serviço foi **removido** de staging em 14/09/2026, e com ele os monitores `backup` e `restore`
+   * de staging no Gatus — o arquivo e o ambiente agora concordam.
    */
   const backup = service('backup', {
     source: transportada,
