@@ -247,6 +247,7 @@ describe('Drizzle migrations', () => {
       '20260913150000_route_suggestion_return_leg',
       '20260913191809_contractor_mail_message_recipient',
       '20260913200255_contractor_mail_inbound_webhook',
+      '20260914120000_trip_document_reviews',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

@@ -151,6 +151,8 @@ export const TRIP_TABLES = [
   /** Spec 082 / ADR-0057: a configuração do comprovante, geral e por CNPJ do destinatário. */
   'company_delivery_proof_settings',
   'delivery_proof_setting_overrides',
+  /** Spec 148 T7: a fila de revisão das notas que não couberam. */
+  'trip_document_reviews',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

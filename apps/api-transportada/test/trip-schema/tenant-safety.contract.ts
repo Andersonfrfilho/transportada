@@ -10,6 +10,7 @@ import {
   tripCargoLayouts,
   tripDeliveryProofs,
   tripDocumentEvents,
+  tripDocumentReviews,
   tripDocuments,
   tripDrivers,
   tripStopEvents,
@@ -33,6 +34,8 @@ const TRIP_TABLES = [
   { name: 'trip_delivery_proofs', table: tripDeliveryProofs },
   /** Spec 145 T10: o detalhe da viagem passa a ler a planta daqui — rótulo de parada é dado de cliente. */
   { name: 'trip_cargo_layouts', table: tripCargoLayouts },
+  /** Spec 148 T7: a fila de revisão guarda qual nota saiu de qual viagem, e quem decidiu. */
+  { name: 'trip_document_reviews', table: tripDocumentReviews },
 ] as const
 
 describe('trip tenant safety', () => {
