@@ -5,7 +5,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20260912165331_nfe_company_document_and_measured_indexes';
+    WHERE "name" = '20260913210000_nfe_company_document_and_measured_indexes';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

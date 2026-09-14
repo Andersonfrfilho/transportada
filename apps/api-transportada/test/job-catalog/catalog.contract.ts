@@ -118,7 +118,7 @@ const SEED_MIGRATIONS = [
   '20260902003000_geocoding_backfill_hourly',
   '20260905130000_geocoded_address_paid_refinement',
   '20260912153407_whatsapp_command_settlement',
-  '20260913120000_trip_cargo_layout_purge_job',
+  '20260913210300_trip_cargo_layout_purge_job',
 ] as const
 
 describe('job catalog', () => {

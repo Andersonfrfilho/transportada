@@ -17,7 +17,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20260912200000_trip_cargo_layout_outbox';
+    WHERE "name" = '20260913210200_trip_cargo_layout_outbox';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN
