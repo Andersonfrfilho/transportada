@@ -17,7 +17,7 @@
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
-        "@adatechnology/fiscal-provider": "0.3.1",
+        "@adatechnology/fiscal-provider": "0.3.2",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/keycloak-admin": "1.0.0-rc.3",
         "@adatechnology/keycloak-jwt": "0.1.1",
@@ -180,7 +180,7 @@
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
-        "@adatechnology/fiscal-provider": "0.3.1",
+        "@adatechnology/fiscal-provider": "0.3.2",
         "@adatechnology/keycloak-admin": "1.0.0-rc.3",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/meta-whatsapp-provider": "0.1.0",
@@ -219,7 +219,7 @@
 
     "@adatechnology/email-provider": ["@adatechnology/email-provider@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" }, "peerDependencies": { "@aws-sdk/client-sesv2": ">=3 <4", "nodemailer": ">=6.9.0 <10", "resend": ">=4 <7" }, "optionalPeers": ["@aws-sdk/client-sesv2", "nodemailer", "resend"] }, "sha512-W2dbLcUq/QF7xwv5cqACVNU7ZKauqLaSshhK+8q4rEZmmDRoxFLNgMQzbhbR8atADvr2dN4POTW3EbnxV/q7sA=="],
 
-    "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.3.1", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-Ah/qqY7LXL0V6Bu3n2K4Nm+Mmbt+Hg4bg1LRnwkIVPrrUeCvTaWw8oKj3ItYeaGzHO+nV5WVLiP+Rlh5SPSNVg=="],
+    "@adatechnology/fiscal-provider": ["@adatechnology/fiscal-provider@0.3.2", "", { "dependencies": { "fast-xml-parser": "^4.5.3", "node-forge": "^1.3.1", "pdfkit": "^0.19.1", "qrcode": "^1.5.4", "xml-crypto": "^6.0.1" } }, "sha512-5nUi/R21/OXoEc+lSXQXV+W83qpUe1BAtrcnbvhSyWtbyuPlWMbYK9ch7rS0ERotu3rq2Udy2UI9cOtkHq+vhw=="],
 
     "@adatechnology/identity-reconciliation": ["@adatechnology/identity-reconciliation@0.1.0-rc.1", "", {}, "sha512-NHrTJmub5Fwk7kbS5+j3Yz6hNXgungnq5tQtV+ZBrH/PINnmq3u1pti8tDnMjn9lf4gXNQ9jjLRlB3KRICFgcw=="],
 
