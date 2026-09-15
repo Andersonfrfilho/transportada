@@ -97,10 +97,14 @@ export type NfeDocumentSummary = {
 
 export type NfeDocumentDetail = NfeDocumentSummary
 
-export type NfeDocumentEventActor = {
-  readonly id: string
-  readonly name: string
-}
+export type NfeDocumentEventActor =
+  | {
+      readonly id: string
+      readonly name: string
+    }
+  | {
+      readonly removed: true
+    }
 
 export type NfeDocumentEventEntry = {
   readonly correctionText: string | null

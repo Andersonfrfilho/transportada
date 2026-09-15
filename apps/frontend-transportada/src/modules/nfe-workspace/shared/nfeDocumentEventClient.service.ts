@@ -6,10 +6,14 @@ export type NfeDocumentEventStatus = 'authorized' | 'cancelled' | 'denied' | 'un
 export type NfeDocumentEventKind = 'event' | 'statusChange'
 export type NfeDocumentEventOrigin = 'automatic' | 'manual' | 'unknown'
 
-export type NfeDocumentEventActor = Readonly<{
-  id: string
-  name: string
-}>
+/**
+ * Spec 149 D16/H13 — `{ id, name }` quando o nome foi resolvido; `{ removed: true }` quando havia um
+ * id gravado sem membership ativa na empresa (sem id, sem nome). `null` (fora deste tipo, no campo
+ * que o usa) é reservado para "não havia ninguém gravado" — as duas formas nunca se confundem.
+ */
+export type NfeDocumentEventActor =
+  | Readonly<{ id: string; name: string }>
+  | Readonly<{ removed: true }>
 
 export type NfeDocumentEventEntry = Readonly<{
   actor: NfeDocumentEventActor | null
@@ -71,7 +75,9 @@ function isNullableString(value: unknown): value is null | string {
 }
 
 function isEventActor(value: unknown): value is NfeDocumentEventActor {
-  return isRecord(value) && isString(value.id) && isString(value.name)
+  if (!isRecord(value)) return false
+  if (value.removed === true) return true
+  return isString(value.id) && isString(value.name)
 }
 
 function isEventActorOrNull(value: unknown): value is NfeDocumentEventActor | null {

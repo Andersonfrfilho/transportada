@@ -656,17 +656,20 @@ series })`. `Esc` fecha e o foco volta ao próprio botão da linha — `useModal
 
 ### Duas decisões que o D14/D16 deixam por conta do executor
 
-1. **"Sistema (distribuição agendada)" vs "usuário removido" são indistinguíveis pela resposta da
-   API.** `SYSTEM_DISTRIBUTION_ACTOR_USER_ID` não tem linha em `identity_user_profiles`
-   (`ensureSystemActor` só grava `identityUsers`, sem perfil) — o `buildActor` da H3
-   (`drizzle-nfe-document-event.repository.ts:276-282`) devolve `null` tanto para o ator de sistema
-   quanto para um usuário removido, porque os dois não têm nome resolvível. Sem outro sinal no
-   payload, a distinção implementada é pela **origem**: `origin === 'manual'` com `actor: null` é
-   "usuário removido" (D16 — manual sempre tem um humano por trás); `origin === 'automatic'` com
-   `requestedBy: null` é "Sistema (distribuição agendada)" (D14 — é o caso comum da distribuição
-   agendada, sem pedido humano). Registrado como comentário em `nfeDocumentEventHistory.service.ts`.
-   Corrigir isso de verdade exigiria a API devolver um sinal explícito (ex.: `requestedBy: 'system'`
-   em vez de `null`) — fora do escopo desta task (frontend), fica de follow-up.
+1. ~~**"Sistema (distribuição agendada)" vs "usuário removido" são indistinguíveis pela resposta da
+   API.**~~ **Resolvido em 2026-09-15 (follow-up desta task, worktree `ordem-notas`).** O contrato
+   mudou: `NfeDocumentEventActor` (`nfe-document-event.port.ts`) agora é `{ id, name } | { removed:
+true }`; `buildActor` (`drizzle-nfe-document-event.repository.ts`) devolve `null` só quando não
+   havia `user_id` gravado (não havia ninguém) e `{ removed: true }` quando havia id mas a membership
+   não está mais ativa nesta empresa — nunca mais os dois casos como `null`. `SYSTEM_DISTRIBUTION_ACTOR_USER_ID`
+   não tem linha em `identity_user_profiles`, mas ele nunca é gravado como `requested_by_user_id`
+   (só como `actor_user_id` de evento `automatic`, e `actor` já não é exibido para eventos
+   automáticos) — "Sistema (distribuição agendada)" continua sendo `requestedBy === null` de verdade
+   ("ninguém pediu"), agora sem ambiguidade com o solicitante removido. No frontend,
+   `nfeDocumentEventHistory.service.ts:displayFor` passou a ler o sinal explícito (`'removed' in
+actor`) em vez da heurística por origem; `nfeDocumentEventClient.service.ts` aceita as duas formas
+   no type guard. Testes: `test/integration/nfe-document-events.integration.ts` (API, Postgres real)
+   e `test/nfe-workspace/document-event-history.contract.ts` (frontend).
 2. **Botão do histórico sem checagem própria de permissão.** A tabela inteira já exige
    `invoices.read` para existir (`useNfeWorkspace.hook.ts:READ_PERMISSION`); quem vê a linha já tem
    a mesma permissão que H3 exige (D19 — "a mesma do detalhe"). Igual ao botão de download de XML,
@@ -871,14 +874,34 @@ em `test/cte-batch-application/list-items.contract.ts` (`GROUPED_ITEM`, `PENDING
 - Prettier `--check` nos 7 arquivos alterados → limpo (depois de `--write` em
   `derived-status.integration.ts`, formatado fora do padrão do editor).
 
-### O que falta para o frontend (H4, fora desta task)
+### O que faltava para o frontend — concluído em 2026-09-15 (worktree `ordem-notas`)
 
-- Aviso "NF-e cancelada após a emissão" na tela do CT-e autorizado: já há dado suficiente na
-  resposta (`CteBatchItemDocument.nfeStatus`) — a tela só precisa ler `nfeStatus !== 'authorized'`
-  (ou comparar com os terminais `cancelled`/`denied`) por documento do item e mostrar o aviso ao
-  lado do CT-e.
-- Aviso equivalente na nota da viagem: o dado já existe em `TripDocumentDetail.fiscalStatus`
-  (`'cancelled'`/`'denied'` entre os valores possíveis) — mesma leitura, campo já nomeado
-  diferente (`fiscalStatus`, não `status`, porque também cobre frete sem nota vinculada).
-- Textos em `*.locale.json` e contrato de tela ficam por conta de quem fechar a H4 — não foram
-  tocados aqui para não colidir com o trabalho em andamento em `../ordem-notas`.
+- **Aviso "NF-e cancelada após a emissão" no lote de CT-e.** `CteBatchItemDocument.nfeStatus`
+  (`nfe-documents/T5`) chegou ao frontend: `cteBatchItem.types.ts` ganhou o campo (tipo
+  `CteBatchItemDocumentNfeStatus`, cópia por valor de `nfe_documents.status`) e
+  `cteBatchItem.validation.ts` passou a exigi-lo e validar contra os quatro valores. `describeItemDocuments`
+  (`cteBatchItemActions.service.ts`) repassa o campo, e a nova `hasCteBatchDocumentNfeWarning`
+  decide o aviso (`cancelled`/`denied`, nunca `authorized`/`unsigned`). `CteBatchItemsPanel.component.tsx`
+  mostra o aviso ao lado da etiqueta da nota, dentro do próprio item do lote — texto **e** ícone
+  (`Icon name="alert"`), nunca só a cor (D20). Textos em `cteBatch.locale.json`/`cteBatch.en.locale.json`
+  (`items.documentNfeWarning.cancelled|denied`). Contrato vermelho antes: teste novo em
+  `test/cte-batch/table-and-items.contract.ts` referenciava `hasCteBatchDocumentNfeWarning` e o
+  fixture `CTE_BATCH_AUTHORIZED_ITEM_WITH_CANCELLED_DOCUMENT`, inexistentes — falhava por módulo/campo
+  ausente antes do código.
+- **Aviso equivalente na nota da viagem: já existia.** `TripDocumentDetail.fiscalStatus` já é lido
+  por `hasTripDocumentFiscalWarning`/`TRIP_FISCAL_WARNING_STATUSES` (spec 027,
+  `tripDocument.service.ts`) e renderizado em `TripStopList.component.tsx` com texto próprio
+  (`detail.fiscalWarning`, "Documento fiscal inválido — confira a situação antes de seguir") — o
+  mesmo aviso genérico já cobre `cancelled`/`denied`/`rejected`. Nada foi alterado aqui; a T5 (API)
+  só confirmou que `fiscalStatus` chega correto com a nota cancelada pela política de status (spec
+  149), o que já estava coberto por `test/integration/trip-repository.integration.ts`.
+
+### Gates (conclusão da T5, frontend)
+
+- `bun run typecheck` (raiz, as 6 apps) → exit 0.
+- `bun run lint` (raiz, as 6 apps) → exit 0.
+- `bun run --cwd apps/frontend-transportada test` → **3641 pass, 0 fail**, 29 arquivos, 34550
+  `expect()`. Linhas `(fail)`: 0.
+- `bun run --cwd apps/frontend-transportada build` → sucesso (PWA gerado, 128 entradas de precache).
+- Prettier `--check` nos arquivos tocados → limpo, sem `--write`.
+- Marcado no `tasks.md`: T5 concluída (API + tela).

@@ -349,7 +349,9 @@ function serializeDocumentEvent(entry: NfeDocumentEventEntry): object {
 }
 
 function serializeEventActor(actor: NfeDocumentEventActor | null): object | null {
-  return actor === null ? null : { id: actor.id, name: actor.name }
+  if (actor === null) return null
+  if ('removed' in actor) return { removed: true }
+  return { id: actor.id, name: actor.name }
 }
 
 /** A chave de emitente com CNPJ alfanumérico tem letra: guarda só de dígito recusaria o nome real. */

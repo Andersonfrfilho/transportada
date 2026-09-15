@@ -65,14 +65,16 @@ describe('nfe document events integration (spec 149 D19, H9-H14)', () => {
         const documentInsert = page.items[1]!
         expect(documentInsert.kind).toBe('statusChange')
         expect(documentInsert.origin).toBe('automatic')
+        // Sem id gravado (`actorUserId` nulo): não havia ninguém — nunca `{ removed: true }`.
         expect(documentInsert.actor).toBeNull()
-        expect(documentInsert.requestedBy).toBeNull()
+        // Solicitante com id gravado mas sem membership ativa: "usuário removido", nunca "Sistema".
+        expect(documentInsert.requestedBy).toEqual({ removed: true })
 
         const correction = page.items[0]!
         expect(correction.eventType).toBe('110110')
         expect(correction.correctionText).toBe('Corrigir o bairro do destinatário')
-        // Ator sem membership ativa na empresa: nunca o id cru (D16, H13).
-        expect(correction.actor).toBeNull()
+        // Ator com id gravado mas sem membership ativa na empresa: nunca o id cru (D16, H13).
+        expect(correction.actor).toEqual({ removed: true })
 
         const serialized = JSON.stringify(page)
         expect(serialized).not.toContain('xmlObjectId')
@@ -273,6 +275,8 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
   )
 
   // A entrada de `document_insert` fica entre as duas — a nota nasceu cancelada por este evento (D5).
+  // `requestedByUserId` aponta para o usuário removido: prova que "solicitante removido" e "Sistema
+  // (distribuição agendada)" são sinais diferentes na resposta (nunca os dois como `null`).
   await database.db.insert(nfeDocumentStatusChanges).values({
     actorUserId: null,
     cause: 'document_insert',
@@ -282,7 +286,7 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
     id: documentInsertChangeId,
     importId,
     origin: 'automatic',
-    requestedByUserId: null,
+    requestedByUserId: removedUserId,
     statusAfter: 'cancelled',
     statusBefore: 'authorized',
   })

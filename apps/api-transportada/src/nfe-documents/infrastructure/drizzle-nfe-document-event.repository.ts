@@ -272,12 +272,17 @@ function decodeCursor(value: string | null): EventCursor | null {
   return { id, registeredAt }
 }
 
-/** Sem membership ativa na mesma empresa: nunca o id cru (D16, H13) — o autor vira `null` por inteiro. */
+/**
+ * `null` só quando não havia ninguém gravado (`userId === null`). Com id gravado mas sem membership
+ * ativa nesta empresa (nome não resolvido pelo `left join`), vira `{ removed: true }` — nunca o id
+ * cru (D16, H13), e nunca confundido com "não havia ninguém".
+ */
 function buildActor(
   userId: string | null,
   name: string | null | undefined,
 ): NfeDocumentEventActor | null {
-  if (userId === null || name === null || name === undefined) return null
+  if (userId === null) return null
+  if (name === null || name === undefined) return { removed: true }
   return { id: userId, name }
 }
 

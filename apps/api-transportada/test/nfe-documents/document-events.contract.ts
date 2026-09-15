@@ -50,6 +50,32 @@ describe('GET /v1/nfe-documents/:id/events', () => {
     expect(JSON.stringify(body)).not.toContain('storage')
   })
 
+  /**
+   * Spec 149 H13 — a rota repassa o que o repositório resolveu; distinguir "não havia ninguém" de
+   * "havia id mas sem membership ativa" é responsabilidade do repositório, não da rota — aqui só
+   * prova que a serialização não perde a distinção (nunca vaza o id cru em nenhum dos dois casos).
+   */
+  test('serializes a removed actor/requester as { removed: true }, never leaking the raw id', async () => {
+    const fixture = await createNfeHttpFixture({
+      documentEvents: {
+        items: [{ ...DOCUMENT_EVENT, actor: { removed: true }, requestedBy: { removed: true } }],
+        nextCursor: null,
+      },
+    })
+
+    const response = await fixture.handle(documentEventsRequest())
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: Array<{ actor: unknown; requestedBy: unknown }>
+    }
+    expect(body.data[0]?.actor).toEqual({ removed: true })
+    expect(body.data[0]?.requestedBy).toEqual({ removed: true })
+    // O evento padrão da fixture tem ator com id/nome resolvidos — nada disso pode vazar aqui.
+    expect(JSON.stringify(body)).not.toContain('Fiscal Teste')
+    expect(JSON.stringify(body)).not.toContain('00000000-0000-4000-8000-000000000901')
+  })
+
   test('answers 404 when the repository does not find the document in this company', async () => {
     const notFound = new ApiError({
       code: 'NFE_DOCUMENT_NOT_FOUND',

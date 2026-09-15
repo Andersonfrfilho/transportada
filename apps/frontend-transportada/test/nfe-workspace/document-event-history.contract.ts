@@ -24,6 +24,7 @@ function readApplicationFile(filePath: string): Promise<string> {
 }
 
 const NAMED_ACTOR = { id: 'user-1', name: 'Ana Operadora' } as const
+const REMOVED_ACTOR = { removed: true } as const
 
 const CANCELLATION_EVENT = {
   actor: NAMED_ACTOR,
@@ -85,6 +86,14 @@ describe('cliente de histórico fiscal da nota (spec 149 H4)', () => {
     expect(
       client.listDocumentEvents({ cursor: null, documentId: 'other-company-document', limit: 20 }),
     ).rejects.toThrow('NFE_DOCUMENT_NOT_FOUND')
+  })
+
+  test('aceita ator/solicitante como { removed: true }, distinto de ausente (spec 149 H13)', async () => {
+    const page = await listWith([
+      { ...CANCELLATION_EVENT, actor: { removed: true }, requestedBy: { removed: true } },
+    ])
+    expect(page.items[0]?.actor).toEqual({ removed: true })
+    expect(page.items[0]?.requestedBy).toEqual({ removed: true })
   })
 
   test('entrada sem evento (mudança de situação) e ator ausente também são aceitos', async () => {
@@ -159,7 +168,7 @@ describe('quem fez / quem solicitou (D14/D16)', () => {
     expect(withActor.requestedBy).toBeNull()
 
     const removedActor = describeNfeEventActors({
-      actor: null,
+      actor: REMOVED_ACTOR,
       origin: 'manual',
       requestedBy: null,
     })
@@ -183,6 +192,21 @@ describe('quem fez / quem solicitou (D14/D16)', () => {
     })
     expect(scheduled.requestedBy).toEqual({ kind: 'system' })
     expect(actorDisplayLabelKey({ kind: 'system' })).toBe('documents.eventHistory.actorSystem')
+  })
+
+  /**
+   * O defeito que esta task corrige: antes, `requestedBy: null` cobria tanto "ninguém pediu" quanto
+   * "o solicitante saiu da empresa", e a tela mostrava "Sistema" para os dois. Com `{ removed: true
+   * }` explícito da API, o automático com solicitante removido mostra "usuário removido".
+   */
+  test('automática com solicitante removido mostra "usuário removido", nunca "Sistema"', () => {
+    const removedRequester = describeNfeEventActors({
+      actor: null,
+      origin: 'automatic',
+      requestedBy: REMOVED_ACTOR,
+    })
+    expect(removedRequester.requestedBy).toEqual({ kind: 'removed' })
+    expect(actorDisplayLabelKey({ kind: 'removed' })).toBe('documents.eventHistory.actorRemoved')
   })
 
   test('origem desconhecida (evento anterior à spec) não mostra ator nem solicitante', () => {

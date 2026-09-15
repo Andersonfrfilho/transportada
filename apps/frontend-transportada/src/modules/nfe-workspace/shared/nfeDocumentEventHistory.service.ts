@@ -59,16 +59,26 @@ export type NfeDocumentEventActorPresentation = Readonly<{
   requestedBy: NfeDocumentEventActorDisplay | null
 }>
 
-function displayFor(actor: NfeDocumentEventActor | null): NfeDocumentEventActorDisplay {
-  return actor === null ? { kind: 'removed' } : { kind: 'named', name: actor.name }
+/**
+ * `null` é "não havia ninguém gravado" — o rótulo depende de quem pergunta (`whenNobody`): para
+ * "quem fez" (manual) isso não deveria acontecer, mas cai em "removido" por segurança; para "quem
+ * solicitou" (automática) é o caso comum, "Sistema (distribuição agendada)". `{ removed: true }` é
+ * sinal explícito da API (D16, H13): havia um id gravado sem membership ativa na empresa — sempre
+ * "usuário removido", em qualquer coluna.
+ */
+function displayFor(
+  actor: NfeDocumentEventActor | null,
+  whenNobody: 'removed' | 'system',
+): NfeDocumentEventActorDisplay {
+  if (actor === null) return { kind: whenNobody }
+  if ('removed' in actor) return { kind: 'removed' }
+  return { kind: 'named', name: actor.name }
 }
 
 /**
- * Spec 149 D14/D16 — manual só tem "quem fez"; automática só tem "quem solicitou", e sem
- * solicitante resolvido é a distribuição agendada (`SYSTEM_DISTRIBUTION_ACTOR_USER_ID`), nunca um
- * usuário removido: o gatilho automático sem pedido humano é o caso comum dessa coluna, e o
- * endpoint já filtra o id cru do sistema do mesmo jeito que filtra o de um removido (D16, H13) —
- * sem outro sinal, a distinção correta aqui é pela origem, não pelo id.
+ * Spec 149 D14/D16 — manual só tem "quem fez"; automática só tem "quem solicitou". A API distingue
+ * "não havia ninguém" (`null`) de "havia id sem membership ativa" (`{ removed: true }`), então um
+ * evento automático cujo solicitante saiu da empresa mostra "usuário removido", nunca "Sistema".
  */
 export function describeNfeEventActors(
   entry: Readonly<{
@@ -78,13 +88,10 @@ export function describeNfeEventActors(
   }>,
 ): NfeDocumentEventActorPresentation {
   if (entry.origin === 'manual') {
-    return { actor: displayFor(entry.actor), requestedBy: null }
+    return { actor: displayFor(entry.actor, 'removed'), requestedBy: null }
   }
   if (entry.origin === 'automatic') {
-    return {
-      actor: null,
-      requestedBy: entry.requestedBy === null ? { kind: 'system' } : displayFor(entry.requestedBy),
-    }
+    return { actor: null, requestedBy: displayFor(entry.requestedBy, 'system') }
   }
   return { actor: null, requestedBy: null }
 }
