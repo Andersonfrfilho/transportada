@@ -2350,3 +2350,248 @@ task por instrução (só documentação).
   `apps/worker-transportada/CLAUDE.md`
 - `specs/150-pedido-de-correcao-de-endereco/tasks.md` (`[x]` na T407)
 - Este arquivo (`evidence.md`)
+
+## Correções da revisão da Fase 4
+
+Rodada de correção pós-T407, um item por vez, teste antes de cada correção de comportamento.
+Commits: `e218b096`, `e95d9d2b`, `03d36d5e`, `fab9a18a`, `77390e50`, `d213bef7`, `dad811ad`,
+`7fe74030`, `c8bca7eb`, `f5783acc`, `a8e54839`, `86ac6f9e`, `79bddff1`.
+
+### 1 — Verificação zerada por erro de rede (T401)
+
+`contractor-mail-settings.use-case.ts`: `checkProvider` passou a devolver um terceiro veredito,
+`sendingVerificationOutcome: 'verified' | 'rejected' | 'transient'` — `rejected` só quando o
+provedor recusou de fato (chave, `sender_domain_not_found`/`not_verified`); `transient` cobre rede
+indisponível, resposta fora do esperado e o cofre local não abrindo (`credential_unavailable`, que
+não é decisão do Resend). `runChecks` só chama `recordSendingVerification` fora de `transient`.
+
+**Vermelho**: três testes novos em `test/contractor-mail/settings-use-case.contract.ts`
+(`ResendProviderUnreachableError`, `ResendProviderUnexpectedResponseError`, cofre quebrado) —
+`recordSendingVerificationCalls` esperado vazio, recebido com um `isSendingVerified: false` (a
+implementação anterior zerava em qualquer falha). **Verde**: `185 pass, 0 fail` em
+`test/contractor-mail.contract.test.ts`.
+
+### 2 — Modelo diferente da prévia (T405 revertido)
+
+`addressCorrectionMailTemplateIdForRequest` (frontend) sempre devolve o `selectedTemplateId`
+(exceto `null`), nunca mais omite quando bate com o padrão do servidor — decisão da T402/T405
+revertida: a prévia confirmada é sempre a do modelo **selecionado**, e o padrão do servidor pode
+mudar entre a prévia e a confirmação.
+
+**Vermelho**: teste reescrito em `test/nfe-workspace/address-correction-mail.contract.ts` esperando
+`'template-default'` de volta em vez de `undefined` quando selecionado = padrão. **Verde**:
+`28 pass, 0 fail`.
+
+### 3 — Deadlock no envio completo × unitário
+
+`.orderBy(addressCorrectionRequests.id)` antes dos dois `for('update')` de `findSendableRequests`
+(`drizzle-address-correction-mail.repository.ts`) — sem ordem, o envio completo (trava por
+contratante) e o unitário (trava por lista de ids) podiam travar os mesmos rascunhos em ordem
+oposta sob concorrência. Teste de integração novo cruzando as duas formas de envio sobre os mesmos
+3 rascunhos concorrentemente — reproduzir o deadlock de propósito é inerentemente instável
+(confirmado: a mesma suíte passou mesmo sem a correção numa execução isolada), então o teste prova
+ausência de erro cru/500 e o estado final consistente, não o deadlock em si. **Verde**:
+`9 pass, 0 fail` em `test/integration/address-correction-mail-repository.integration.ts`.
+
+### 4 — Funções com mais de um parâmetro posicional
+
+`requireActiveTemplate`, `assertValidContent` (`contractor-mail-templates.use-case.ts`),
+`acquireDefaultLock`, `activeDefaultFilter` (`drizzle-contractor-mail-template.repository.ts`) e
+`canConfirmAddressCorrectionMail` (frontend) passam a receber um objeto. `'active'`/`'archived'`
+soltos no repositório de modelos viram `const [ACTIVE_STATUS, ARCHIVED_STATUS] =
+CONTRACTOR_MAIL_TEMPLATE_STATUSES`. Mecânico — sem vermelho/verde de comportamento, só
+`typecheck`/`lint`/testes existentes continuando verdes (`185 pass` contractor-mail, `302 pass`
+nfe-workspace).
+
+### 5 — Paridade do tokenizador (front × API)
+
+`test/delivery-clients/mail-template-variable-parity.contract.ts`, novo, molde de
+`mail-send-readiness-parity.contract.ts`: lê o texto-fonte de `VARIABLE_NAME` de
+`mail-template-render.policy.ts` (API) por caminho relativo entre apps (nunca `import` de código) e
+compara com a constante do front (`contractorMailTemplate.validation.ts`, agora `export`ada só para
+este contrato); mais 9 casos idênticos (variável válida, mais de uma variável, chave solta dos dois
+lados, nome vazio, maiúscula, dígito, chave aninhada) rodados contra o `tokenizeTemplate` real do
+front. **Verde**: `2 pass, 0 fail`.
+
+### 6 — Tamanho no front medido como o banco
+
+`validateMailTemplateName`/`validateMailTemplateContent` (`contractorMailTemplate.validation.ts`)
+passam a medir `raw.length` (cru) contra o teto, não `raw.trim().length` — a CHECK do banco
+(`length(coluna) <= limite`, sem `btrim` no lado do teto) opera sobre o texto cru armazenado; medir
+o aparado deixava o front aceitar um valor que o `PATCH` recusaria depois. O requisito de
+"obrigatório" continua olhando o aparado (só espaço continua vazio).
+
+**Vermelho**: dois testes novos em `test/delivery-clients/contractor-mail-templates-validation.contract.ts`
+(nome e `closing` com espaços de borda que empurram o cru acima do teto, mas o aparado fica dentro)
+— esperado `TEXT_TOO_LONG`/`NAME_TOO_LONG`, recebido `[]`/`undefined`. **Verde**: `17 pass, 0 fail`.
+
+### 7 — `new Error` cru
+
+`http/drizzle-rate-limiter.repository.ts`: `RateLimitWindowUpsertMissingRowError` (novo,
+`DiagnosableError`) no lugar do `new Error('rate limit upsert returned no row')`.
+`http/router.service.ts`: o `if (rateLimitWindows === undefined) throw new Error(...)` dentro de
+`assertWithinRouteRateLimit` era comprovadamente inalcançável (o próprio comentário já dizia "só
+estreita o tipo" — `assertPostgresRateLimitHasStore` recusa o boot antes) — virou asserção não-nula
+documentada, sem `throw`. Sem comportamento novo a testar (o `if` nunca disparava); `32 pass, 0
+fail` em `rate-limit`/`router`/`rate-limited-routes` confirma que nada regrediu.
+
+### 8 — Arquivar o padrão sob o mesmo lock
+
+`update()` (`drizzle-contractor-mail-template.repository.ts`) passa a rodar em transação e segurar
+`acquireDefaultLock({ companyId, mailType })` **quando arquiva** — mesmo lock de `create`/
+`setDefault` — antes só o `UPDATE` avulso, sem lock, corria risco de um `create` concorrente ler
+"já existe padrão" um instante antes de este `UPDATE` desmarcá-lo. Nunca promove outro modelo
+sozinho (decisão de produto fora do escopo); a checklist/confirmação já comunicavam "sem padrão"
+(`contractorMail.sendReadiness.reasonTemplateMissing`,
+`addressReport.correction.mail.error.templateMissing`) — conferido, sem mudança de texto.
+
+Teste de integração reforçado (`o primeiro modelo ativo nasce padrão, e arquivar o padrão tira o
+padrão`): depois de arquivar, confere explicitamente que o segundo modelo **continua** sem padrão e
+que nenhum modelo ativo do tipo está marcado como padrão. **Verde**: `9 pass, 0 fail`.
+
+### 9 — Segurança L2: teto de modelos ativos e rate limit na prévia
+
+`CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE = 50`: `create()` conta os modelos ativos de
+`(companyId, mailType)` sob o mesmo advisory lock da troca de padrão e recusa a criação além do
+teto com `409 CONTRACTOR_MAIL_TEMPLATE_LIMIT_REACHED` (arquivar libera vaga).
+`POST /contractor-mail-templates/preview` ganha `rateLimit: { store: 'memory', maxRequests: 60,
+windowMs: 60_000 }` — por usuário, por instância (prévia acompanha cada troca de modelo na tela, não
+é trilha compartilhada como o envio). `test/rate-limited-routes.contract.test.ts` só lista rotas com
+`store: 'postgres'` explicitamente, então não precisou de atualização (conferido).
+
+**Vermelho**: teste de integração novo (`a 51ª criação ativa do mesmo tipo é recusada...`) — cria 50,
+a 51ª esperada `ContractorMailTemplateLimitReachedError`, recebido `undefined` (sem teto ainda).
+**Verde**: `9 pass, 0 fail`.
+
+### 10 — Migrations com CHECK ampliado/novo
+
+Confirmado por `git log origin/staging -- <caminho>` que nenhuma das duas migrations está em
+`origin/staging` — seguro editar. `20260915210000_contractor_contact_email_length_check` e
+`20260915233000_rate_limit_windows`: `ADD CONSTRAINT ... CHECK (...) NOT VALID` seguido de
+`ALTER TABLE ... VALIDATE CONSTRAINT ...` (a segunda roda sob lock mais fraco, sem bloquear escrita
+concorrente durante a validação). `bun run db:generate --name` continua respondendo `no_changes`
+(schema/snapshot inalterados); `rollback.sql` segue igual (um `DROP CONSTRAINT` desfaz os dois
+jeitos igual). **Verde**: `58 pass, 1 fail` (a falha é a `cte-profile-output-constraints` alheia,
+documentada na T101) em `database-migration.contract.test.ts`.
+
+### 11 — 429 na tela com Retry-After
+
+Novo `src/modules/shared/retryAfter.service.ts`
+(`resolveRetryAfterMinutes`/`readRetryAfterSecondsHeader`, testado isoladamente). O cliente HTTP
+expunha o header? Não — `AddressCorrectionRequestError` (nfe-workspace) e a nova
+`ContractorMailSettingsRequestError` (delivery-clients) passam a carregar `retryAfterSeconds`, lido
+de `response.headers.get('retry-after')` no `429`. A tela do envio de correção
+(`AddressCorrectionMailDialog`) e o e-mail de teste (`ContractorMailSettingsPanel`) mostram "tente
+de novo em N min" em vez do código cru quando o erro é `TOO_MANY_REQUESTS`. Locale pt/en acentuado.
+
+**Vermelho/Verde**: `resolveRetryAfterMinutes`/`readRetryAfterSecondsHeader` com teste próprio (`2
+pass`); o teste de client `429 do limitador carrega o Retry-After no erro`
+(`test/nfe-workspace/address-correction.contract.ts`) já nasceu verde porque a plumbing de
+`AddressCorrectionRequestError` foi implementada antes do teste rodar pela primeira vez — confirmado
+por leitura: sem `retryAfterSeconds` na assinatura anterior, `error.retryAfterSeconds` seria sempre
+`undefined`. **Verde**: `3819 pass, 0 fail` no frontend inteiro, build ok.
+
+### 12 — Atalho para a aba "E-mail"
+
+`DeliveryClientWorkspace.page.tsx` ganha `readDeliveryClientTabFromLocation`
+(`resolveDeliveryClientTab` exportado, mesmo mecanismo de `readTabFromLocation` do
+`NfeWorkspace.page.tsx`): lê `?tab=` na montagem, `useState` com inicializador preguiçoso.
+`navigateToDeliveryClients` (T305/T405) passa a empurrar `/clientes?tab=mail`, então os três
+atalhos ("sem contato ativo", "configurar e-mail" × 2) abrem direto na aba certa.
+
+**Vermelho**: `resolveDeliveryClientTab`/`navigateToDeliveryClients` ainda não tratavam `?tab=`
+(a rota não carregava o parâmetro, e o `pushPath` só mandava `/clientes`) — testes novos
+escritos contra o comportamento alvo, verdes assim que a implementação foi trocada (a
+função-alvo não existia antes: `ReferenceError`/`undefined` seria o vermelho de um `import`
+que falha). **Verde**: `3 pass, 0 fail` nos dois contratos novos; build ok.
+
+### 13 — Spec e SECURITY.md
+
+`spec.md` RF14 ganha `{clientes}` (já implementado no catálogo, não citado na spec).
+`docs/SECURITY.md` ganha três entradas em "Abertos": **M1** (texto livre do modelo pode carregar
+URL — pendente auditoria de edição e aviso antes de produção), **L1** (teto do limitador por
+usuário, não por empresa — decisão consciente, instalação dedicada por transportadora, ADR-0021),
+**L4** (rotas anônimas seguem só com limitador em memória; `password-resets` é a candidata natural
+a migrar primeiro). Só documentação — `prettier --check` verde nos dois arquivos.
+
+### Gates finais (saída fresca, toda a rodada)
+
+```
+bun run typecheck   # 6 apps, verde
+bun run lint        # 6 apps, verde
+bun run format:check
+```
+
+Resultado do `format:check`: **1 arquivo com aviso**, `specs/150-pedido-de-correcao-de-endereco/email-template.html`
+— pré-existente (commit `656951b0`, antes desta rodada), não tocado por nenhuma das 13 correções
+(`git diff --stat HEAD` confirma). Não corrigido aqui por não ser parte do pedido (evitar escopo
+fora do combinado); registrado para quem for tocar o arquivo depois.
+
+```
+bun run --cwd apps/api-transportada test        # 6002 pass, 23 skip, 0 fail
+bun run --cwd apps/worker-transportada test     # 1352 pass, 0 fail
+bun run --cwd apps/cron-transportada test       # 94 pass, 0 fail
+bun run --cwd apps/frontend-transportada test   # 3821 pass, 0 fail
+bun run --cwd apps/frontend-transportada build  # ok, PWA gerado
+```
+
+Integrações (Postgres nativo `127.0.0.1:65433`, dentro de `apps/api-transportada`):
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test \
+  ./test/integration/address-correction-repository.integration.ts \
+  ./test/integration/address-correction-mail-repository.integration.ts \
+  ./test/integration/contractor-mail-template-repository.integration.ts \
+  ./test/integration/contractor-contacts-repository.integration.ts \
+  ./test/integration/address-report-repository.integration.ts \
+  --timeout 120000
+```
+
+Resultado: **31 pass, 0 fail**.
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts --timeout 120000
+```
+
+Resultado: **58 pass, 1 fail** — a falha conhecida e alheia `cte-profile-output-constraints`
+(Postgres 18 local devolve `23001` onde a asserção espera `23503`), já documentada na T101; nada
+relacionado às migrations tocadas nesta rodada (item 10).
+
+Worker, dentro de `apps/worker-transportada`, banco `worker_t302`:
+
+```
+DATABASE_URL=postgresql://postgres@127.0.0.1:65433/worker_t302 \
+  bun test ./test/contractor-mail-outbound-outbox.integration.test.ts --timeout 120000
+```
+
+Resultado: **3 pass, 0 fail** — os dois testes de reivindicação de outbox que a T302 registrou como
+falha alheia (`claims a due unpublished row…`, `does not let a second claim…`) passaram nesta
+execução; nada nesta rodada tocou o worker.
+
+### Arquivos alterados (por commit, ver hashes acima)
+
+- API: `contractor-mail-settings.use-case.ts`, `settings-use-case.contract.ts` (item 1);
+  `drizzle-address-correction-mail.repository.ts`,
+  `address-correction-mail-repository.integration.ts` (item 3);
+  `contractor-mail-templates.use-case.ts`, `drizzle-contractor-mail-template.repository.ts` (item 4
+  e item 8); `drizzle-rate-limiter.repository.ts`, `rate-limit-window.error.ts` (novo),
+  `router.service.ts` (item 7); `mail-template-catalog.constant.ts`,
+  `contractor-mail-template.error.ts`, `contractor-mail-templates.routes.ts`,
+  `contractor-mail-template-repository.integration.ts` (item 9);
+  `drizzle/20260915210000_contractor_contact_email_length_check/migration.sql`,
+  `drizzle/20260915233000_rate_limit_windows/migration.sql` (item 10).
+- Frontend: `addressCorrectionMail.service.ts`,
+  `hooks/useAddressCorrectionMailDialog.hook.ts` (itens 2 e 4);
+  `contractorMailTemplate.validation.ts`,
+  `contractor-mail-templates-validation.contract.ts` (item 6);
+  `mail-template-variable-parity.contract.ts` (novo, item 5);
+  `shared/retryAfter.service.ts` (novo), `addressCorrectionRequestError.service.ts`,
+  `nfeWorkspaceClient.service.ts`, `AddressCorrectionMailDialog.component.tsx`,
+  `contractorMailSettingsClient.service.ts`, `DeliveryClientWorkspace.page.tsx`,
+  `ContractorMailSettingsPanel.component.tsx`, locales pt/en (item 11);
+  `DeliveryClientWorkspace.page.tsx`, `deliveryClientsNavigation.service.ts`,
+  `tab-from-location.contract.ts` (novo), `delivery-clients-navigation.contract.ts` (novo) (item
+  12).
+- Docs: `specs/150-pedido-de-correcao-de-endereco/spec.md`, `docs/SECURITY.md` (item 13).
