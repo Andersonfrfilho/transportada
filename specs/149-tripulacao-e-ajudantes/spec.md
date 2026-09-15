@@ -40,6 +40,8 @@ acompanha o motorista, e a conta da viagem não tem a diária dele.
   `Σ(diária de cada ajudante) × dias`, com `dias = max(1, ceil(jornada estimada com a volta / 24 h))` na
   proposta e na viagem planejada. Diária ausente (nem própria nem geral) → parcela `missing` com lacuna
   `HELPER_DAILY_RATE_MISSING`, nunca zero silencioso. Sem ajudante → parcela zero, sem lacuna.
+  A viagem congela a jornada (ida + volta da proposta) junto com o ETA; sem volta conhecida, a
+  parcela sai estimada com aviso (decisão do usuário, 15/09/2026).
 - **D8 — Score 0–100, janela de 90 dias, só como motorista (`role = driver`).**
 
   | Componente             | Peso | Medida                                                                                                                     |

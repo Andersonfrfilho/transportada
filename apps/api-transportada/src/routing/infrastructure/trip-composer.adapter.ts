@@ -40,6 +40,8 @@ export type TripComposerDependencies = Readonly<{
     readonly context: MultiVehicleScope
     /** Spec 109 D2: a âncora do ETA — a saída sob a qual estas horas foram calculadas. */
     readonly plannedDepartureAt: string | null
+    /** Spec 149 T6: a perna de volta da proposta, quando gravada — sem nova chamada ao roteirizador. */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }) => Promise<void>
   planRoute: (input: {
@@ -132,6 +134,7 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       context,
       estimatedArrivalByAddressKey,
       plannedDepartureAt,
+      returnLegSeconds,
       tripId,
     }) {
       if (estimatedArrivalByAddressKey.size === 0) return
@@ -144,7 +147,13 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       })
       if (arrivals.length === 0) return
 
-      await dependencies.writeEstimatedArrivals({ arrivals, context, plannedDepartureAt, tripId })
+      await dependencies.writeEstimatedArrivals({
+        arrivals,
+        context,
+        plannedDepartureAt,
+        returnLegSeconds: returnLegSeconds ?? null,
+        tripId,
+      })
     },
 
     async reorderStops({ context, orderedAddressKeys, tripId }) {

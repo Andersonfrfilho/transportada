@@ -789,6 +789,89 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         estimatedArrivalByAddressKey: arrivals,
         plannedDepartureAt: PLANNED_DEPARTURE,
+        /** Spec 149 T6: sem `vehicleRoads` nesta fixture, a volta é desconhecida. */
+        returnLegSeconds: null,
+        tripId: 'trip-1',
+      },
+    ])
+  })
+
+  /**
+   * Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada congela junto do ETA, e a volta vem da
+   * proposta — **sem** nova chamada ao roteirizador. `endPolicy` decide se a volta é esperada.
+   */
+  test('leva a perna de volta da proposta para o congelamento da jornada', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
+      vehicleRoads: [
+        {
+          endPolicy: 'depot',
+          returnDistanceMeters: 12_000,
+          returnDurationSeconds: 1_800,
+          stops: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.arrivals).toEqual([
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        returnLegSeconds: 1_800,
+        tripId: 'trip-1',
+      },
+    ])
+  })
+
+  /** `last_stop` fecha o dia onde está — a volta não é esperada, e não entra no congelamento. */
+  test('sem política de volta, a jornada congela só de ida', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
+      vehicleRoads: [
+        {
+          endPolicy: 'last_stop',
+          returnDistanceMeters: null,
+          returnDurationSeconds: null,
+          stops: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.arrivals).toEqual([
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        returnLegSeconds: null,
         tripId: 'trip-1',
       },
     ])

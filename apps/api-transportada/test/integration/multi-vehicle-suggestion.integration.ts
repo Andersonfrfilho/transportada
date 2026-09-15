@@ -307,7 +307,7 @@ async function countTrips(database: TestDatabase, companyId: string): Promise<nu
   return rows.length
 }
 
-function buildUseCase(database: TestDatabase) {
+function buildUseCase(database: TestDatabase, options: { readonly freezesEta?: boolean } = {}) {
   const tripRepository = new DrizzleTripRepository(database.db)
   const routeRepository = new DrizzleTripRouteRepository(database.db)
   const stopRepository = new DrizzleTripStopLookupRepository(database.db)
@@ -336,8 +336,22 @@ function buildUseCase(database: TestDatabase) {
       link: (input) => tripUseCase.linkDocument(input),
       listStops: async (input) =>
         (await listTripStops({ ...input, repository: stopRepository })).stops,
-      /** Spec 107 D3: a integração não confere ETA; o contrato de unidade faz isso. */
-      writeEstimatedArrivals: async () => undefined,
+      /**
+       * Spec 107 D3: a integração não confere ETA por padrão; o contrato de unidade faz isso.
+       * Spec 149 T6: quem prova o congelamento da jornada contra Postgres pede o repositório real
+       * (`freezesEta: true`) — sem ele `trips.planned_journey_seconds` nunca sairia de `null`.
+       */
+      writeEstimatedArrivals:
+        options.freezesEta === true
+          ? (input) =>
+              routeRepository.writeEstimatedArrivals({
+                arrivals: input.arrivals,
+                companyId: input.context.companyId,
+                plannedDepartureAt: input.plannedDepartureAt,
+                returnLegSeconds: input.returnLegSeconds ?? null,
+                tripId: input.tripId,
+              })
+          : async () => undefined,
       planRoute: (input) => lifecycle.planRoute.execute(input),
       reorder: (input) => lifecycle.reorderStops.execute(input),
     }),
@@ -649,9 +663,96 @@ describe('aceite com motorista e ajudantes contra Postgres (spec 149 T5)', () =>
 })
 
 /**
- * Um veículo só, um motorista e dois ajudantes — o mínimo que prova o critério de aceite 3 da spec.
+ * Spec 149 T6 (decisão do usuário, 15/09/2026): a viagem congela a jornada no mesmo instante do
+ * ETA — ida + volta quando a proposta grava a volta, só ida quando não grava.
  */
-async function seedSuggestionWithCrew(database: TestDatabase): Promise<World> {
+describe('a jornada congela junto do ETA (spec 149 T6)', () => {
+  testWithPostgres('com volta gravada, grava ida + volta e includesReturn = true', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'with-return' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      /** 09:00 de ida (08h → 17h) + 00:30 de volta gravada = 09:30. */
+      expect(trip?.plannedJourneySeconds).toBe(9 * 3600 + 1_800)
+      expect(trip?.plannedJourneyIncludesReturn).toBe(true)
+    })
+  })
+
+  testWithPostgres('sem volta gravada, grava só a ida e includesReturn = false', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'without-return' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      expect(trip?.plannedJourneySeconds).toBe(9 * 3600)
+      expect(trip?.plannedJourneyIncludesReturn).toBe(false)
+    })
+  })
+
+  testWithPostgres('sem saída planejada nem ETA, a jornada fica nula nos dois campos', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestionWithCrew(database, { journey: 'none' })
+      const useCase = buildUseCase(database, { freezesEta: true })
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      const tripId = accepted.trips[0]?.tripId ?? ''
+
+      const [trip] = await database.db
+        .select({
+          plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+          plannedJourneySeconds: trips.plannedJourneySeconds,
+        })
+        .from(trips)
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, tripId)))
+
+      expect(trip?.plannedJourneySeconds).toBeNull()
+      expect(trip?.plannedJourneyIncludesReturn).toBeNull()
+    })
+  })
+})
+
+/**
+ * Um veículo só, um motorista e dois ajudantes — o mínimo que prova o critério de aceite 3 da spec.
+ *
+ * `journey`: spec 149 T6 — `'none'` (padrão) não grava saída/ETA/volta, `'with-return'` grava as
+ * três (a jornada congela ida + volta), `'without-return'` grava saída/ETA sem a perna de volta (a
+ * jornada congela só de ida).
+ */
+async function seedSuggestionWithCrew(
+  database: TestDatabase,
+  options: { readonly journey?: 'none' | 'with-return' | 'without-return' } = {},
+): Promise<World> {
+  const journey = options.journey ?? 'none'
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()
   const membershipId = crypto.randomUUID()
@@ -773,6 +874,8 @@ async function seedSuggestionWithCrew(database: TestDatabase): Promise<World> {
     },
     companyId,
     id: suggestionId,
+    /** Spec 149 T6: a âncora do congelamento — `null` fora de `'none'`. */
+    plannedDepartureAt: journey === 'none' ? null : new Date('2026-08-10T08:00:00.000Z'),
     seed: 7,
     status: 'ready',
     tripId: null,
@@ -785,6 +888,9 @@ async function seedSuggestionWithCrew(database: TestDatabase): Promise<World> {
     driverId,
     driverSource: 'manual',
     position: 0n,
+    /** Spec 149 T6: a perna de volta ao barracão, só quando o cenário a grava. */
+    returnDistanceMeters: journey === 'with-return' ? 12_000 : null,
+    returnDurationSeconds: journey === 'with-return' ? 1_800 : null,
     suggestionId,
     vehicleId,
   })
@@ -797,6 +903,7 @@ async function seedSuggestionWithCrew(database: TestDatabase): Promise<World> {
     .values({
       addressKey: FIRST_ADDRESS_KEY,
       companyId,
+      estimatedArrivalAt: journey === 'none' ? null : new Date('2026-08-10T17:00:00.000Z'),
       excludedFromOptimization: false,
       label: 'Rua Um',
       sequence: 1n,

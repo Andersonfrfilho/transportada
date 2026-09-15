@@ -2875,6 +2875,7 @@ function createApplicationRoutes({
                   arrivals: input.arrivals,
                   companyId: input.context.companyId,
                   plannedDepartureAt: input.plannedDepartureAt,
+                  returnLegSeconds: input.returnLegSeconds ?? null,
                   tripId: input.tripId,
                 }),
             }),

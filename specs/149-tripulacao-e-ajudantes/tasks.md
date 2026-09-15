@@ -35,7 +35,7 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T6 — `trip-helper-cost.policy.ts` (D7) e parcela `helper` em `TRIP_COST_KINDS` pelo seam único.
+- [x] T6 — `trip-helper-cost.policy.ts` (D7) e parcela `helper` em `TRIP_COST_KINDS` pelo seam único.
       Critérios 4 e 5.
 - [ ] T7 — Mesma parcela na valuation da sugestão (`suggestion-valuation.policy.ts`), sem segunda conta.
 

@@ -221,6 +221,11 @@ export class DrizzleTripRouteRepository
    * ⚠️ O valor sem o carimbo é uma hora sem idade. O ETA congela no instante do planejamento e
    * envelhece — às 14h ele ainda diz o que achava às 7h —, e é `estimated_arrival_frozen_at` que
    * permite à tela dizer isso em vez de mostrar uma previsão que parece de agora.
+   *
+   * Spec 149 T6 (decisão do usuário, 15/09/2026): **a jornada congela no mesmo instante** —
+   * `última chegada estimada − saída planejada`, mais a perna de volta quando quem chamou a
+   * conhece (da proposta que planejou a viagem, sem nova chamada ao roteirizador). Sem saída
+   * planejada não há como medir a ida, e a jornada fica `null` — nunca inventada.
    */
   public async writeEstimatedArrivals(input: {
     readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
@@ -230,9 +235,26 @@ export class DrizzleTripRouteRepository
      * esta spec: as horas ficam, e o despacho não as desloca por âncora inventada.
      */
     readonly plannedDepartureAt: string | null
+    /**
+     * Spec 149 T6: a perna de volta ao barracão, em segundos, quando a proposta que planejou a
+     * viagem a conhece — `null`/`undefined` é "sem volta gravada", e a jornada congela só de ida.
+     */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }): Promise<void> {
     if (input.arrivals.length === 0) return
+
+    const lastArrivalMs = Math.max(
+      ...input.arrivals.map((arrival) => new Date(arrival.estimatedArrivalAt).getTime()),
+    )
+    const departureMs =
+      input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt).getTime()
+    const outboundSeconds =
+      departureMs === null ? null : Math.max(0, Math.round((lastArrivalMs - departureMs) / 1000))
+    const returnLegSeconds = input.returnLegSeconds ?? null
+    const plannedJourneySeconds =
+      outboundSeconds === null ? null : outboundSeconds + (returnLegSeconds ?? 0)
+    const plannedJourneyIncludesReturn = outboundSeconds === null ? null : returnLegSeconds !== null
 
     await this.database.transaction(async (transaction) => {
       for (const arrival of input.arrivals) {
@@ -254,6 +276,8 @@ export class DrizzleTripRouteRepository
           estimatedArrivalFrozenAt: sql`now()`,
           etaDepartureAt:
             input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt),
+          plannedJourneyIncludesReturn,
+          plannedJourneySeconds,
         })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     })

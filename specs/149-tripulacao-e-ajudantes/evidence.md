@@ -386,3 +386,153 @@ Decisões:
 - **`driver_source` grava `null` sem motorista**, mesmo que o corpo mande `driverSource` — o check do
   banco (`route_suggestion_vehicles_driver_source_check`, da T1) já exige isso; o repositório só
   espelha a regra.
+
+## T6 — jornada congelada e diária do ajudante
+
+Decisão do usuário (15/09/2026), "Congelar com volta": D7 continua como estava
+(`dias = max(1, ceil(jornada com volta / 24h))`). A viagem passa a **congelar a jornada no mesmo
+instante/transação em que o ETA congela** (`writeEstimatedArrivals`):
+`jornada = (última chegada estimada − saída planejada) + duração da perna de volta`, com a volta
+vinda da proposta que planejou a viagem, sem nova chamada ao roteirizador. Sem volta gravada (ou sem
+saída planejada) a jornada congela só de ida, e a parcela do ajudante sai `estimated` com o aviso
+`HELPER_JOURNEY_WITHOUT_RETURN`. Sem jornada nenhuma (roteiro nunca planejado) e com ajudante na
+tripulação, a parcela é `missing` com `HELPER_JOURNEY_UNKNOWN` — nunca zero.
+
+### De onde vem a volta em cada caminho de planejamento
+
+Investigado ponto a ponto (não assumido): `writeEstimatedArrivals`
+(`src/trips/infrastructure/drizzle-trip-route.repository.ts:145-206`) tem **um único chamador em
+produção** — `TripComposer.applyEstimatedArrivals` (`trip-composer.adapter.ts`), chamado só pelo
+aceite da proposta multi-veículo (`multi-vehicle-suggestion.use-case.ts` `accept()`). O outro
+caminho citado no pedido original, `POST /trips/:id/route-suggestions` (sugestão de rota para
+viagem já existente, `routing/application/route-suggestion.use-case.ts` `accept()`), **nunca
+chamou `writeEstimatedArrivals`** — ele só reordena `trip_stops` e marca a sugestão `accepted`;
+não existe ETA congelado nesse caminho hoje, spec 149 à parte. Confirmado por grep negativo
+(`writeEstimatedArrivals`/`applyEstimatedArrivals` não aparecem em `route-suggestion.use-case.ts`)
+e por leitura completa do `accept()` desse arquivo. Como não há ETA ali, também não há jornada para
+congelar — comportamento consistente (nada se congela em nenhum dos dois campos), não uma lacuna
+nova desta task. Registrado aqui para quem for estender o congelamento a esse segundo caminho no
+futuro: ele precisa de infraestrutura de ETA que ainda não existe, e a sugestão de rota de viagem
+única não tem colunas de perna de volta (`route_suggestion_stops`/`route_suggestions`) — só
+`route_suggestion_vehicles` (P2) tem `return_distance_meters`/`return_duration_seconds`.
+
+No único caminho real (aceite multi-veículo): `multi-vehicle-suggestion.use-case.ts` `accept()`
+passou a buscar `dependencies.multiVehicle.readVehicleRoads({ companyId, suggestionId })` (a
+mesma consulta que T7/`read-suggestion-valuation.use-case.ts` já usa) **em paralelo** com
+`readGroups`, monta `returnLegSecondsByVehicle` com `isReturnPlanned(road.endPolicy)` (de
+`suggestion-valuation.policy.ts`) e passa `returnLegSeconds` para `applyEstimatedArrivals` →
+`writeEstimatedArrivals`, que calcula `jornada = (max(chegadas) − saída planejada) + volta` na
+mesma transação que já grava `estimated_arrival_frozen_at`/`eta_departure_at`. Ordem manual
+(`isManualOrder`) não confia nas horas do solver — nem na jornada: `returnLegSeconds` sai `null`
+nesse caso, igual ao comportamento de `arrivals` vazio já existente.
+
+### Arquivos
+
+- **Migration 1** — `apps/api-transportada/drizzle/20260915110144_trip_planned_journey/`
+  (`bun run db:generate --name trip_planned_journey`; pasta maior que a última da T5,
+  `20260915022856_trip_crew_helpers`; `snapshot.json` com `prevIds` = id do snapshot anterior,
+  conferido). Aditiva: 2 `ADD COLUMN` nulas (`trips.planned_journey_seconds bigint`,
+  `trips.planned_journey_includes_return boolean`) + 2 `CHECK` (par nasce/morre junto; segundos
+  `>= 0`). `rollback.sql` à mão, molde da T1.
+- **Migration 2** — `apps/api-transportada/drizzle/20260915110748_trip_helper_financial_kind/`.
+  Não estava no plano original — apareceu ao rodar `bun run typecheck`: o congelamento do
+  resultado financeiro (`freezeTripFinancialResult`, ADR-0049 §5) tem o próprio catálogo fechado
+  de `kind` (`TRIP_FINANCIAL_PARCEL_KINDS`, `trip-financial.schema.ts`, com `CHECK` no banco em
+  `trip_financial_parcels`), **separado** de `TRIP_COST_KINDS` da valuation — sem acrescentar
+  `'helper'` ali, fechar uma viagem com ajudante quebraria em runtime com violação de `CHECK`
+  (`trip_financial_parcels_kind_check`), não em tempo de compilação. Migration só alarga o `IN
+(...)` do `CHECK` (`DROP CONSTRAINT` + `ADD CONSTRAINT` com a lista +1) — aditiva no sentido do
+  padrão do repo (nenhum dado apagado, só um valor novo passa a ser aceito); `rollback.sql`
+  registra o aviso de que reverter com linha `'helper'` já gravada quebra a constraint estreitada.
+- `apps/api-transportada/src/database/trip.schema.ts`: as duas colunas novas + os dois `check`.
+- `apps/api-transportada/src/database/trip-financial.schema.ts`: `'helper'` em
+  `TRIP_FINANCIAL_PARCEL_KINDS`.
+- `apps/api-transportada/src/trips/domain/trip-valuation.policy.ts`: `'helper'` em
+  `TRIP_COST_KINDS`; três gaps novos (`HELPER_DAILY_RATE_MISSING`, `HELPER_JOURNEY_WITHOUT_RETURN`
+  — entra em `ADVISORY_GAPS`, `HELPER_JOURNEY_UNKNOWN`).
+- `apps/api-transportada/src/trips/domain/trip-helper-cost.policy.ts` (novo, puro):
+  `buildTripHelperCost` — Σ(própria ?? geral) × dias, `resolveHelperDayCount` exportada (D7,
+  reuso previsto pela T7). Partial (parte com diária, parte sem) segue o padrão
+  `ausentes/total` de `buildIcmsParcel` (`trip-tax.policy.ts`): soma só quem tem valor, `detail`
+  é a razão crua.
+- `apps/api-transportada/src/trips/application/read-trip-valuation.use-case.ts`: `helperCrew`,
+  `helperCompanyDailyRate`, `journeySeconds`, `journeyIncludesReturn` em `TripValuationContext`;
+  `buildCostParcels` chama `buildTripHelperCost` pelo seam único `buildValuationFromContext`.
+- `apps/api-transportada/src/trips/infrastructure/trip-valuation.query.ts`: `readHelperCrew`
+  (espelha `readCrew`, filtra `role = 'helper'`, lê `fleet_drivers.helper_daily_rate`) e
+  `readHelperCompanyDailyRate` (uma linha de `company_crew_settings`, sem N+1) — as duas entram
+  no `Promise.all` de `readContext`, tenant-filtradas pelo mesmo `companyId` do resto do arquivo.
+  `readPreviewContext` (prévia sem viagem) não foi tocada: sem `trip_drivers`, não há ajudante
+  nem jornada ainda — fora do escopo desta task (T13 decide o que a montagem manda para lá).
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip-route.repository.ts`:
+  `writeEstimatedArrivals` ganha `returnLegSeconds?` e calcula/grava `plannedJourneySeconds`/
+  `plannedJourneyIncludesReturn` na mesma transação do ETA.
+- `apps/api-transportada/src/routing/infrastructure/trip-composer.adapter.ts`,
+  `src/routing/application/multi-vehicle-suggestion.use-case.ts`, `src/main.ts`: `returnLegSeconds`
+  atravessa `TripComposer.applyEstimatedArrivals` → `TripComposerDependencies.writeEstimatedArrivals`
+  → repositório real, calculado no `accept()` via `readVehicleRoads` + `isReturnPlanned`.
+
+### Testes novos/alterados
+
+- `test/trip-financial/helper-cost.contract.ts` (novo): critérios 4 e 5, 0 ajudantes, parcial
+  (`ausentes/total`), jornada desconhecida (`HELPER_JOURNEY_UNKNOWN`), sem volta (`estimated` +
+  `HELPER_JOURNEY_WITHOUT_RETURN`), `resolveHelperDayCount` (9h→1, 24h→1, 24h01→2).
+- `test/trip-valuation/read-valuation.contract.ts`: parcela `helper` pelo seam
+  `buildValuationFromContext` (própria vencendo geral, e zero sem ajudante).
+- `test/trip-valuation/driver-zone-table-price.contract.ts`: `ADVISORY_GAPS` atualizado (3 itens).
+- `test/database-migration/static-migration.contract.ts`: as duas pastas novas na lista por
+  extenso.
+- `test/database-migration/trip-constraints.assertion.ts`: os dois `CHECK` novos de
+  `trips.planned_journey_*` (par nasce/morre junto; `>= 0`).
+- `test/routing-application/multi-vehicle-suggestion.contract.ts`: `returnLegSeconds` chega a
+  `applyEstimatedArrivals` (com e sem `endPolicy` de volta) e sai `null` sem `vehicleRoads`.
+- `test/integration/multi-vehicle-suggestion.integration.ts` (contra Postgres): 3 casos novos —
+  com volta gravada (`planned_journey_seconds` = ida + volta, `includes_return = true`), sem volta
+  gravada (só ida, `includes_return = false`), sem saída planejada nem ETA (os dois campos `null`).
+  `buildUseCase` ganhou `{ freezesEta: true }` para religar o repositório real de
+  `writeEstimatedArrivals` nestes três casos — por padrão a integração continua sem conferir ETA
+  (comentário original da spec 107), e os outros testes do arquivo não foram afetados.
+- Frontend (`apps/frontend-transportada`): `parcel.helper`/`gap.HELPER_*` em
+  `trip-financials/locales/tripFinancials(.en).locale.json` **e** em
+  `trip/locales/trip(.en).locale.json` (o contrato `valuation-gap-labels.contract.ts` cobra as
+  duas telas); `ADVISORY_GAPS` em `valuationLedger.service.ts` (cópia por valor, conferida contra
+  o fonte da API por `valuation-ledger-advisory.contract.ts`). A validação de resposta
+  (`tripValuationResponse.validation.ts` e a cópia em `routing/shared/`) já é permissiva — `kind`/
+  `gap` desconhecidos não eram rejeitados, então nenhuma mudança de tipo foi necessária ali. Tela
+  completa (select de ajudantes, painel) é T14, fora do escopo.
+
+### Gates (todos em primeiro plano, com o resultado esperado no próprio comando)
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0.
+- `bun run db:check` → "Everything's fine".
+- Contratos da T6 (`trip-financial`, `trip-valuation`, `routing-application`,
+  `database-migration`) → 312 pass / 4 skip / 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000` (API, lista completa) → 5853 pass / 23
+  skip / 0 fail (era 5840 na T5; +13 = os contratos novos desta task).
+- `bun --env-file=../../.env.test test --timeout 120000` nos três arquivos de integração tocados
+  (`multi-vehicle-suggestion`, `trip-financial-end-to-end`, `trip-repository`) → 14 pass / 0 fail.
+- `make migration-test` (Postgres descartável, as duas migrations + rollback) → 95 pass / 0 fail,
+  exit 0.
+- `bun run lint` (raiz, 6 apps) → exit 0.
+- `bun run format:check` (raiz) → exit 0.
+- `bun run --cwd apps/frontend-transportada test` → 3620 pass / 0 fail.
+- `bun run --cwd apps/frontend-transportada typecheck` → exit 0 (incluído no `bun run typecheck`
+  da raiz acima).
+
+Decisões:
+
+- **Segunda migration não planejada**: o typecheck pegou a lacuna antes de qualquer teste rodar
+  (`TripFinancialParcel.kind` não aceitava `'helper'`) — sinal de que o congelamento do resultado
+  financeiro (fase de fechamento da viagem, ADR-0049 §5) tem um catálogo de `kind` **próprio**,
+  não o mesmo `TRIP_COST_KINDS` da valuation ao vivo. Widening de `CHECK IN (...)` é aditivo no
+  padrão já usado neste repo (não apaga dado, só aceita um valor novo); ficou em pasta própria
+  (não dentro de `trip_planned_journey`) porque toca tabela e motivo diferentes.
+- **A fórmula da jornada usa `última chegada − saída planejada`, não a soma das pernas do
+  roteirizador** (`sumVehicleTrip`, usado por T7/`read-suggestion-valuation.use-case.ts`): o pedido
+  original é explícito nessa fórmula, e ela reaproveita dado que `writeEstimatedArrivals` já
+  recebe (`arrivals`, `plannedDepartureAt`) sem precisar buscar `trip_stops`/pernas de novo — só a
+  duração da volta (`returnLegSeconds`) veio de fora, de `readVehicleRoads`.
+- **`resolveHelperDayCount` foi exportada** de `trip-helper-cost.policy.ts` de propósito: a T7
+  (parcela na valuation da sugestão) precisa da mesma conta de dias sem reimplementá-la.
+- **`readPreviewContext` não ganhou `helperCrew`/jornada**: a prévia (antes de a viagem existir)
+  não tem `trip_drivers` nem `writeEstimatedArrivals`; T13 decide o que a montagem manda para lá.

@@ -241,6 +241,37 @@ export async function assertTripConstraints(
     where id = ${tripId}
   `
 
+  // Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada e a marca da volta nascem e morrem juntas.
+  await expectQueryToFail(
+    database`update trips set planned_journey_seconds = 3600 where id = ${tripId}`,
+    '23514',
+    'trips_planned_journey_check',
+  )
+  await expectQueryToFail(
+    database`update trips set planned_journey_includes_return = true where id = ${tripId}`,
+    '23514',
+    'trips_planned_journey_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_journey_seconds = -1, planned_journey_includes_return = false
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_journey_seconds_check',
+  )
+  await database`
+    update trips
+    set planned_journey_seconds = 108000, planned_journey_includes_return = true
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set planned_journey_seconds = null, planned_journey_includes_return = null
+    where id = ${tripId}
+  `
+
   await database`
     insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position)
     values (${companyId}, ${tripId}, ${driverId}, 'Motorista Titular', '12345678901', 1)

@@ -115,14 +115,17 @@ describe('the driver zone no longer prices the trip (spec 143 D1)', () => {
   })
 
   /**
-   * ⚠️ Os dois avisos **permanecem** na lista, mesmo sem ninguém os produzir: o frontend copia
+   * ⚠️ Os avisos **permanecem** na lista, mesmo sem ninguém os produzir: o frontend copia
    * `ADVISORY_GAPS` por valor, e uma parcela congelada com o aviso precisa continuar sendo lida como
    * conta completa.
+   *
+   * Spec 149 T6: a jornada do ajudante sem a volta entrou como terceiro aviso — o número existe.
    */
-  test('the advisory gaps stay exactly as they were', () => {
+  test('only the table-priced zone, the priced route tie and the helper journey without return are advisory', () => {
     expect(ADVISORY_GAPS).toEqual([
       VALUATION_GAPS.driverZonePricedFromTable,
       VALUATION_GAPS.driverRouteTieHighestRate,
+      VALUATION_GAPS.helperJourneyWithoutReturn,
     ])
   })
 

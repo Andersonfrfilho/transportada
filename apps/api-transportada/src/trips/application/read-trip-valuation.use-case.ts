@@ -25,6 +25,10 @@ import {
   type TripCrewMember,
   type TripDriverCostDays,
 } from '../domain/trip-driver-cost.policy.js'
+import {
+  buildTripHelperCost,
+  type TripHelperCostMember,
+} from '../domain/trip-helper-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
@@ -106,6 +110,17 @@ export type TripValuationContext = {
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
   readonly distanceMeters: null | number
   readonly documents: readonly TripValuationDocument[]
+  /**
+   * Spec 149 T6 (D7): `company_crew_settings.helper_daily_rate` — vence quando o ajudante não tem
+   * valor próprio na ficha. `null` é "ainda não parametrizada".
+   */
+  readonly helperCompanyDailyRate?: null | string
+  /** Spec 149 T6: quem acompanha o motorista sem dirigir (`role = 'helper'`), com a diária própria. */
+  readonly helperCrew?: readonly TripHelperCostMember[]
+  /** Spec 149 T6: se a jornada congelada inclui a volta. `null` acompanha `journeySeconds` nulo. */
+  readonly journeyIncludesReturn?: null | boolean
+  /** Spec 149 T6: a jornada congelada no mesmo momento do ETA. `null` é "roteiro nunca planejado". */
+  readonly journeySeconds?: null | number
   /**
    * Spec 125: os perfis ativos de emissão, uma leitura por conta. É deles que sai a projeção do
    * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
@@ -525,6 +540,12 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
 
   return [
     buildDriverParcel(context),
+    buildTripHelperCost({
+      companyDailyRate: context.helperCompanyDailyRate ?? null,
+      helpers: context.helperCrew ?? [],
+      journeyIncludesReturn: context.journeyIncludesReturn ?? null,
+      journeySeconds: context.journeySeconds ?? null,
+    }),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),

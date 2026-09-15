@@ -43,6 +43,8 @@ export const STRUCK_THROUGH_GAPS: readonly string[] = ['FEATURE_ABSENT']
 export const ADVISORY_GAPS: readonly string[] = [
   'DRIVER_ZONE_PRICED_FROM_TABLE',
   'DRIVER_ROUTE_TIE_HIGHEST_RATE',
+  /** Spec 149 T6: a jornada do ajudante sem a volta — a parcela tem valor, só falta uma perna. */
+  'HELPER_JOURNEY_WITHOUT_RETURN',
 ]
 
 /**

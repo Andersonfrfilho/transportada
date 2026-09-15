@@ -269,6 +269,15 @@ export const trips = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closedByUserId: uuid('closed_by_user_id'),
     closeReason: text('close_reason'),
+    /**
+     * Spec 149 T6 (decisão do usuário, 15/09/2026): a jornada congelada **no mesmo momento** em
+     * que o ETA congela — ida + volta ao barracão, quando a volta veio conhecida da proposta que
+     * planejou a viagem. `null` é "roteiro nunca planejado", nunca zero; `plannedJourneyIncludesReturn`
+     * diz se a volta entrou na soma (sem volta conhecida, a jornada é só de ida e a parcela do
+     * ajudante avisa a lacuna).
+     */
+    plannedJourneySeconds: bigint('planned_journey_seconds', { mode: 'number' }),
+    plannedJourneyIncludesReturn: boolean('planned_journey_includes_return'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -340,6 +349,15 @@ export const trips = pgTable(
     check(
       'trips_daily_allowance_days_check',
       sql`${table.dailyAllowanceDays} is null or ${table.dailyAllowanceDays} >= 1`,
+    ),
+    /** Meia gravação (jornada sem saber se a volta entrou, ou o contrário) é o que faz o leitor inventar. */
+    check(
+      'trips_planned_journey_check',
+      sql`(${table.plannedJourneySeconds} is null) = (${table.plannedJourneyIncludesReturn} is null)`,
+    ),
+    check(
+      'trips_planned_journey_seconds_check',
+      sql`${table.plannedJourneySeconds} is null or ${table.plannedJourneySeconds} >= 0`,
     ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],

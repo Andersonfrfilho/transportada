@@ -24,6 +24,8 @@ import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-sna
 import type { ApiLogger } from '../../shared/api.types.js'
 import { orderCrewByRequest } from '../domain/trip-crew-order.policy.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import type { TripHelperCostMember } from '../domain/trip-helper-cost.policy.js'
+import { companyCrewSettings } from '../../database/company-crew-settings.schema.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { resolvePreviewStopKeys } from '../domain/cargo-preview.policy.js'
@@ -208,6 +210,8 @@ export class DrizzleTripValuationQuery {
         plannedDistanceMeters: trips.plannedDistanceMeters,
         /** Spec 143 D4 sobre a 153 RF5: os segundos crus vêm congelados com a distância, nunca somados das paradas. */
         plannedDurationSeconds: trips.plannedDurationSeconds,
+        plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+        plannedJourneySeconds: trips.plannedJourneySeconds,
         plannedToll: trips.plannedToll,
         /**
          * ⚠️ A coluna que distingue os dois nulos: veículo **não escolhido** (`null`) de veículo
@@ -234,6 +238,8 @@ export class DrizzleTripValuationQuery {
       fuelPrice,
       documents,
       crew,
+      helperCrew,
+      helperCompanyDailyRate,
       tollTotal,
       manualCostTotal,
       deliveryChargesTotal,
@@ -244,6 +250,8 @@ export class DrizzleTripValuationQuery {
       this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
       this.readDocuments(input),
       this.readCrew(input),
+      this.readHelperCrew(input),
+      this.readHelperCompanyDailyRate({ companyId: input.companyId }),
       this.readTollTotal(input),
       this.readManualCostTotal(input),
       this.readDeliveryChargesTotal(input),
@@ -264,6 +272,10 @@ export class DrizzleTripValuationQuery {
       estimatedDurationSeconds: trip.plannedDurationSeconds,
       federalRates,
       fuelPricePerLiter: fuelPrice,
+      helperCompanyDailyRate,
+      helperCrew,
+      journeyIncludesReturn: trip.plannedJourneyIncludesReturn,
+      journeySeconds: trip.plannedJourneySeconds,
       manualCostTotal,
       /**
        * Spec 090 T11: o congelado do momento do planejamento — nunca recalculado aqui (ver o
@@ -444,6 +456,49 @@ export class DrizzleTripValuationQuery {
         /** `position` é a ordem que a viagem gravou; sem ela o `SELECT` devolve o que quiser. */
         .orderBy(asc(tripDrivers.position))
     )
+  }
+
+  /**
+   * Spec 149 T6: quem acompanha o motorista sem dirigir, com a diária própria da ficha —
+   * `fleet_drivers.helper_daily_rate` vence a geral quando não é nula (D2). Espelha `readCrew`,
+   * trocando só o papel filtrado: motorista não paga diária de ajudante, e vice-versa.
+   */
+  private async readHelperCrew(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly TripHelperCostMember[]> {
+    const rows = await this.database
+      .select({ driverId: fleetDrivers.id, ownDailyRate: fleetDrivers.helperDailyRate })
+      .from(tripDrivers)
+      .innerJoin(
+        fleetDrivers,
+        and(
+          eq(fleetDrivers.companyId, tripDrivers.companyId),
+          eq(fleetDrivers.id, tripDrivers.driverId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripDrivers.companyId, input.companyId),
+          eq(tripDrivers.tripId, input.tripId),
+          eq(tripDrivers.role, 'helper'),
+        ),
+      )
+
+    return rows
+  }
+
+  /** A diária geral parametrizada — uma linha por empresa, lida uma vez por conta (D2). */
+  private async readHelperCompanyDailyRate(input: {
+    readonly companyId: string
+  }): Promise<null | string> {
+    const [row] = await this.database
+      .select({ helperDailyRate: companyCrewSettings.helperDailyRate })
+      .from(companyCrewSettings)
+      .where(eq(companyCrewSettings.companyId, input.companyId))
+      .limit(1)
+
+    return row?.helperDailyRate ?? null
   }
 
   /** `null` quando ninguém lançou pedágio — ausência de lançamento, não gratuidade. */

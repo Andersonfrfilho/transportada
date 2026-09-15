@@ -34,6 +34,7 @@ import {
   resolveAcceptReleasePlans,
   type AcceptReleaseEntry,
 } from './accept-release-plan.service.js'
+import { isReturnPlanned } from '../domain/suggestion-valuation.policy.js'
 
 /**
  * O que o aceite usa para transformar a proposta em viagem. São os casos de uso da 056 vistos de
@@ -74,6 +75,11 @@ export type TripComposer = Readonly<{
     readonly estimatedArrivalByAddressKey: ReadonlyMap<string, string>
     /** Spec 109 D2: a saída suposta, que vira a âncora do ETA na viagem. */
     readonly plannedDepartureAt: string | null
+    /**
+     * Spec 149 T6 (decisão do usuário, 15/09/2026): a perna de volta desta proposta, quando
+     * `isReturnPlanned(endPolicy)` e o worker a gravou — a jornada congela com ela, sem recalcular.
+     */
+    readonly returnLegSeconds?: null | number
     readonly tripId: string
   }) => Promise<void>
   reorderStops: (input: {
@@ -157,10 +163,21 @@ export function createMultiVehicleSuggestionUseCase(
       vehicleIds,
     }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
-      const proposed = await dependencies.multiVehicle.readGroups({
-        companyId: context.companyId,
-        suggestionId,
-      })
+      const [proposed, roads] = await Promise.all([
+        dependencies.multiVehicle.readGroups({ companyId: context.companyId, suggestionId }),
+        dependencies.multiVehicle.readVehicleRoads({ companyId: context.companyId, suggestionId }),
+      ])
+      /**
+       * Spec 149 T6 (decisão do usuário, 15/09/2026): a perna de volta por veículo, pronta para
+       * congelar a jornada junto do ETA — sem chamar o roteirizador de novo (D1 da 101 continua
+       * valendo: a distância/duração da proposta não se recalcula aqui).
+       */
+      const returnLegSecondsByVehicle = new Map(
+        roads.map((road) => [
+          road.vehicleId,
+          isReturnPlanned(road.endPolicy) ? (road.returnDurationSeconds ?? null) : null,
+        ]),
+      )
 
       /**
        * Spec 110 D5a: **a recusa vem antes da reivindicação.** Um veículo que esta distribuição
@@ -296,6 +313,10 @@ export function createMultiVehicleSuggestionUseCase(
             context,
             estimatedArrivalByAddressKey: arrivals,
             plannedDepartureAt: found.plannedDepartureAt,
+            /** Ordem manual não confia nas horas do solver (comentário acima) — a jornada também não. */
+            returnLegSeconds: group.isManualOrder
+              ? null
+              : (returnLegSecondsByVehicle.get(group.vehicleId) ?? null),
             tripId,
           })
 

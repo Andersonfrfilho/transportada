@@ -253,6 +253,8 @@ describe('Drizzle migrations', () => {
       '20260915021812_nfe_event_history',
       '20260915022856_trip_crew_helpers',
       '20260915025926_nfe_document_protocol_presence',
+      '20260915110144_trip_planned_journey',
+      '20260915110748_trip_helper_financial_kind',
       '20260915162953_address_correction_requests',
       '20260915200000_contractor_mail_body_html',
       '20260915210000_contractor_contact_email_length_check',
