@@ -122,7 +122,8 @@ Uma NF-e importada nasce com status `authorized` ou `unsigned` e fica nesse esta
 - `nfe_events.protocol` só é gravado com 15 dígitos (`nProt`) e `statusCode` presente; senão `null`.
 - Antes da **primeira transmissão** de um CT-e, o worker relê o status de **todas** as notas do item
   em `cte_batch_item_documents` (item agrupado por remetente/destinatário tem N notas), por
-  `company_id`: alguma não `authorized`, ou item sem nota nenhuma, falha o item com
+  `company_id` (item de lote anterior à composição, sem linhas ali, confere a nota da ponte
+  `cte_batch_items.nfe_document_id`): alguma não `authorized`, ou nem composição nem ponte, falha o item com
   `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED` sem chamar a SEFAZ. A checagem é pulada quando a tentativa pode
   já ter chegado à SEFAZ (`in_flight` em redelivery, ou `retry_scheduled` por erro/timeout com o mesmo
   número): o gateway reconcilia a duplicidade, e a tela mostra "NF-e cancelada após a emissão". Retry

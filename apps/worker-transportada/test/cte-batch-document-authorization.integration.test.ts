@@ -209,15 +209,34 @@ describeDatabase('CT-e batch item document authorization (integration)', () => {
     expect(await repository.isAuthorized({ batchItemId: item.batchItemId, companyId })).toBe(true)
   })
 
-  it('blocks an item whose notes are not in cte_batch_item_documents at all', async () => {
-    const primary = await seedDocument('authorized')
-    const item = await seedItem({ documentIds: [primary] })
+  /** Lote criado antes da migration 20260727133210: sem composição, só a ponte do item. */
+  async function seedLegacyItem(status: 'authorized' | 'cancelled'): Promise<SeededItem> {
+    const item = await seedItem({ documentIds: [await seedDocument(status)] })
     await database.execute(
       sql`delete from cte_batch_item_documents
            where company_id = ${companyId} and item_id = ${item.batchItemId}`,
     )
+    return item
+  }
+
+  it('lets a legacy item (bridge only) with an authorized note proceed', async () => {
+    const item = await seedLegacyItem('authorized')
+
+    expect(await repository.isAuthorized({ batchItemId: item.batchItemId, companyId })).toBe(true)
+  })
+
+  it('blocks a legacy item (bridge only) whose note was cancelled', async () => {
+    const item = await seedLegacyItem('cancelled')
 
     expect(await repository.isAuthorized({ batchItemId: item.batchItemId, companyId })).toBe(false)
+  })
+
+  it('never answers for the legacy item of another company', async () => {
+    const item = await seedLegacyItem('authorized')
+
+    expect(
+      await repository.isAuthorized({ batchItemId: item.batchItemId, companyId: otherCompanyId }),
+    ).toBe(false)
   })
 
   it('never answers for the item of another company', async () => {

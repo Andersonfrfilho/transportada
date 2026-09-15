@@ -1099,15 +1099,24 @@ Worktree `spec149-t4` (branch `work/spec149-t4`, alinhada em `work/ordem-notas` 
 
 - Cópia por valor de `cte_batch_item_documents` em `src/database/cte-issuance-execution.schema.ts`.
 - `DrizzleCteBatchDocumentAuthorizationRepository.isAuthorized`: lê `cte_batch_item_documents`
-  `left join nfe_documents`, os dois por `company_id`; bloqueia se o item não tem nota nenhuma ou se
-  alguma nota não é `authorized` (nota sumida no `left join` também bloqueia).
+  `left join nfe_documents`, os dois por `company_id`; bloqueia se alguma nota não é `authorized`
+  (nota sumida no `left join` também bloqueia).
 - Confirmado na API: `cte-batch-persistence.service.ts` grava uma linha por nota de **todo** item
   (`per_document` inclusive) desde a migration `20260727133210_cte_batch_item_composition`, que
-  **não** fez backfill — item criado antes dela não tem linha e passa a ser bloqueado (falha fechada,
-  como pedido).
-- Integração nova `test/cte-batch-document-authorization.integration.test.ts` (Postgres, na lista
+  **não** fez backfill.
+- **Ajuste do coordenador (commit próprio):** item sem composição não pode bloquear só por isso —
+  seria regressão para lote anterior à migration. Regra: com composição, confere todas as notas; sem
+  nenhuma linha, confere a nota da ponte `cte_batch_items.nfe_document_id`; só bloqueia por "sem
+  nota" se não houver nem composição nem ponte. Tudo por `company_id`.
+- Integração `test/cte-batch-document-authorization.integration.test.ts` (Postgres, na lista
   `test:integration`): item de duas notas com uma cancelada → bloqueia; duas autorizadas → segue;
-  item sem linha → bloqueia; item de outra empresa → bloqueia; mais o estado da tentativa (item 2).
+  legado (só ponte) com nota autorizada → segue; legado com nota cancelada → bloqueia; item (novo ou
+  legado) de outra empresa → bloqueia; mais o estado da tentativa (item 2).
+- Vermelho do ajuste: 6 pass, 1 fail (legado com nota autorizada bloqueava). Verde: 7 pass, 0 fail.
+- Gates do ajuste: Prettier `--check` exit 0; `bun run typecheck` exit 0; `bun run lint` exit 0;
+  testes do worker **1325 pass, 0 fail** (`(fail)`: 0); `make worker-integration ENV_FILE=.env.test`
+  **109 pass, 4 skip, 2 fail** (+18 pass do bloco RabbitMQ) — as 2 `(fail)` são as conhecidas do
+  anexo CCMEI/CRLV (`ObjectStorageError: Object storage is unavailable`).
 
 ### Item 2 — Reenvio [MÉDIO]
 

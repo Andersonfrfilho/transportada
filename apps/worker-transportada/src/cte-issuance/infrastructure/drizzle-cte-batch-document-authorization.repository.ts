@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   cteBatchItemDocuments,
+  cteBatchItems,
   cteIssuanceAttempts,
 } from '../../database/cte-issuance-execution.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
@@ -28,11 +29,48 @@ export class DrizzleCteBatchDocumentAuthorizationRepository
     this.#database = database
   }
 
-  /** Todas as notas do item, não só a principal. Item sem nota nenhuma: falha fechada, nunca aberta. */
+  /**
+   * Com composição, todas as notas do item. Sem composição — lote anterior à migration
+   * 20260727133210, que não fez backfill —, a nota da ponte `cte_batch_items.nfe_document_id`. Nem
+   * uma nem outra: falha fechada, nunca aberta.
+   */
   async isAuthorized(input: {
     readonly batchItemId: string
     readonly companyId: string
   }): Promise<boolean> {
+    const composition = await this.#readCompositionStatuses(input)
+    const statuses = composition.length > 0 ? composition : await this.#readBridgeStatuses(input)
+
+    return (
+      statuses.length > 0 && statuses.every((status) => status === NFE_DOCUMENT_AUTHORIZED_STATUS)
+    )
+  }
+
+  async #readBridgeStatuses(input: {
+    readonly batchItemId: string
+    readonly companyId: string
+  }): Promise<ReadonlyArray<string | null>> {
+    const rows = await this.#database
+      .select({ status: nfeDocuments.status })
+      .from(cteBatchItems)
+      .leftJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.companyId, cteBatchItems.companyId),
+          eq(nfeDocuments.id, cteBatchItems.nfeDocumentId),
+        ),
+      )
+      .where(
+        and(eq(cteBatchItems.companyId, input.companyId), eq(cteBatchItems.id, input.batchItemId)),
+      )
+      .limit(1)
+    return rows.map((row) => row.status)
+  }
+
+  async #readCompositionStatuses(input: {
+    readonly batchItemId: string
+    readonly companyId: string
+  }): Promise<ReadonlyArray<string | null>> {
     const rows = await this.#database
       .select({ status: nfeDocuments.status })
       .from(cteBatchItemDocuments)
@@ -50,7 +88,7 @@ export class DrizzleCteBatchDocumentAuthorizationRepository
         ),
       )
 
-    return rows.length > 0 && rows.every((row) => row.status === NFE_DOCUMENT_AUTHORIZED_STATUS)
+    return rows.map((row) => row.status)
   }
 
   async mayHaveReachedSefaz(input: {
