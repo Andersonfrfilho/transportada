@@ -219,6 +219,7 @@
       "slow": "Large trips take a few minutes. The plan will show up here on its own.",
       "stale": "Outdated plan: this is the last one calculated.",
       "failed": "Could not calculate the cargo plan right now.",
+      "errorCode": "Error code: {{code}} — share it with support.",
       "truncated": "Incomplete plan — some boxes were left out for time.",
       "ghostLabel": "Previous cargo plan, outdated",
       "skeletonLabel": "Truck body outline while the plan is calculated"
