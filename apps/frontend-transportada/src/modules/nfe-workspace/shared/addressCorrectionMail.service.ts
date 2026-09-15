@@ -90,16 +90,18 @@ export function initialAddressCorrectionMailTemplateId(
 }
 
 /**
- * O `templateId` só viaja no corpo quando difere do padrão do servidor (T402: "o envio pelo padrão
- * mantém o fingerprint de antes") — inclusive quando não há padrão marcado, porque aí o servidor
- * não tem como resolver um modelo sozinho e precisa do id explícito.
+ * O `templateId` selecionado sempre viaja no corpo — decisão revertida na rodada de correção da
+ * Fase 4 (a T402 omitia o id quando ele batia com o padrão do servidor, presumindo que o servidor
+ * resolveria o mesmo modelo sozinho). A prévia que o operador confirma é sempre a do modelo
+ * **selecionado** na tela; se o padrão mudar entre a prévia e a confirmação (outra aba, outro
+ * operador mexendo na página de modelos), omitir o id manda um e-mail com um modelo diferente do
+ * que a prévia mostrou. `defaultTemplateId` só entra na assinatura para o chamador não precisar
+ * remontar o input — não influencia mais a decisão.
  */
 export function addressCorrectionMailTemplateIdForRequest(
   input: Readonly<{ defaultTemplateId: string | null; selectedTemplateId: string | null }>,
 ): string | undefined {
-  if (input.selectedTemplateId === null) return undefined
-  if (input.selectedTemplateId === input.defaultTemplateId) return undefined
-  return input.selectedTemplateId
+  return input.selectedTemplateId ?? undefined
 }
 
 /** Só o contato ativo entra na lista marcável — inativo nunca alcança o envio (RF5). */

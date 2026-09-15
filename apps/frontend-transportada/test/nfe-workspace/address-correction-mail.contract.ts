@@ -142,13 +142,18 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(defaultAddressCorrectionMailTemplateId([OTHER_ACTIVE_TEMPLATE])).toBeNull()
   })
 
-  test('o templateId só viaja no corpo quando difere do padrão do servidor (T402)', () => {
+  test('o templateId selecionado sempre viaja no corpo, mesmo quando é o padrão (T405 revertido)', () => {
+    // Decisão revertida na rodada de correção da Fase 4: a T402 assumia que o servidor resolveria
+    // "sem templateId" para o modelo marcado como padrão no momento do envio, mas a prévia que o
+    // operador confirma é sempre a do modelo **selecionado** na tela — se o padrão mudar entre a
+    // prévia e o envio (outra aba, outro operador), omitir o id manda o e-mail com um modelo
+    // diferente do que a prévia mostrou. Enviar sempre o id selecionado fecha esse descompasso.
     expect(
       addressCorrectionMailTemplateIdForRequest({
         defaultTemplateId: 'template-default',
         selectedTemplateId: 'template-default',
       }),
-    ).toBeUndefined()
+    ).toBe('template-default')
     expect(
       addressCorrectionMailTemplateIdForRequest({
         defaultTemplateId: 'template-default',
@@ -161,7 +166,6 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
         selectedTemplateId: null,
       }),
     ).toBeUndefined()
-    // Sem padrão marcado, o servidor não resolve modelo sozinho — o id explícito sempre viaja.
     expect(
       addressCorrectionMailTemplateIdForRequest({
         defaultTemplateId: null,
