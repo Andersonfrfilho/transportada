@@ -27,6 +27,9 @@ import {
 } from '@/modules/shared/vectorBasemap.service'
 import { ICON_PATHS } from '@/components/ui/icon'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { MAP_BADGE_IDS } from '@/modules/shared/mapBadge.constant'
+import { resolveMapBadgeColors, resolveMapBadgeKind } from '@/modules/shared/mapBadge.service'
+import { drawMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
@@ -205,6 +208,11 @@ export function AssemblyVectorMap({
    * continua persistindo; o seletor de tema continua com os três.
    */
   const theme = chosenTheme ?? 'claro'
+  /** O tema que o selo lê ao ser desenhado: o `styleimagemissing` vive o mapa inteiro, o tema muda. */
+  const themeRef = useRef(theme)
+  useEffect(() => {
+    themeRef.current = theme
+  }, [theme])
 
   useEffect(() => {
     const container = containerRef.current
@@ -242,6 +250,23 @@ export function AssemblyVectorMap({
     map.on('load', () => {
       basemapLoaded.current = true
       setIsReady(true)
+    })
+    /**
+     * Os selos de radar e de pedágio são imagens desenhadas aqui, com as cores do tema do mapa — o
+     * estilo só os nomeia. Toda troca de tema passa por `setStyle`, que descarta as imagens, e o
+     * MapLibre as pede de novo por este evento: é ele que mantém o selo no tom do tema escolhido.
+     */
+    map.on('styleimagemissing', (event: { readonly id: string }) => {
+      const kind = resolveMapBadgeKind(event.id)
+      if (kind === null || map.hasImage(event.id)) return
+
+      const pixelRatio = Math.max(1, Math.round(globalThis.devicePixelRatio ?? 1))
+      const colors = resolveMapBadgeColors({
+        kind,
+        resolveToken: readToken,
+        theme: themeRef.current,
+      })
+      map.addImage(event.id, drawMapBadge({ colors, kind, pixelRatio }), { pixelRatio })
     })
     /**
      * ⚠️ **A rede de segurança do traço, e ela é para a vida inteira do mapa.** Toda troca de tema
@@ -483,10 +508,14 @@ export function AssemblyVectorMap({
       map.addLayer({
         id: 'praca-do-trajeto',
         layout: {
-          /** Mesmo glifo de `cabine-de-pedagio` — é a mesma praça, só que com o valor ao lado. */
-          'text-field': ['concat', '● ', ['get', 'label']],
+          /** O mesmo selo de `cabine-de-pedagio` — é a mesma praça, só que com o valor ao lado. */
+          'icon-image': MAP_BADGE_IDS.toll,
+          'icon-allow-overlap': true,
+          'text-field': ['get', 'label'],
           'text-font': ['Noto Sans Regular'],
           'text-size': 10,
+          'text-anchor': 'left',
+          'text-offset': [1.2, 0],
           'text-allow-overlap': true,
         },
         paint: {
