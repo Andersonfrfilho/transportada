@@ -26,6 +26,7 @@ function opcao(input: {
         ? null
         : {
             axles: { count: 2, source: 'declared' },
+            catalog: { observedOn: '2026-07-01', status: 'current' },
             booths: Array.from({ length: input.boothCount }, (_unused, index) => ({
               chargeCar: null,
               chargePerAxle: null,
@@ -176,6 +177,7 @@ describe('opção sem pedágio calculado (revisão de 2026-09-07)', () => {
           points: [],
           toll: {
             axles: { count: 2, source: 'declared' },
+            catalog: { observedOn: '2026-07-01', status: 'current' },
             booths: [],
             boothsFallenBackToManual: 0,
             multiplierLabel: '2',

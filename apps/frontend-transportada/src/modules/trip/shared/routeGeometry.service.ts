@@ -76,11 +76,28 @@ export const TOLL_PAYMENT_MODES = ['automatic', 'manual'] as const
 export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
 
 /**
+ * Se o catálogo de praças está carregado e em dia. `empty` não é "sem pedágio na rota" — é ausência
+ * de dado, e confundir as duas coisas faz a tela mentir dizendo que o trajeto não tem pedágio quando
+ * o extract do OSM nunca foi importado nesta instalação.
+ */
+export const TOLL_CATALOG_STATUSES = ['empty', 'stale', 'current'] as const
+export type TollCatalogStatus = (typeof TOLL_CATALOG_STATUSES)[number]
+
+export type TollCatalogView = Readonly<{
+  /** A data mais recente do catálogo — `null` quando `status` é `empty`. */
+  observedOn: null | string
+  status: TollCatalogStatus
+}>
+
+/**
  * O pedágio da rota, vindo na **mesma** resposta que a geometria (spec 090 D4) — nunca de uma
  * segunda chamada, que poderia discordar do traço desenhado.
  */
 export type RouteGeometryToll = Readonly<{
   axles: AxleCount
+  /** Leitura fresca do catálogo, nunca congelada — staging pode ter o catálogo vazio hoje mesmo
+   *  numa viagem antiga que já tinha pedágio calculado. */
+  catalog: TollCatalogView
   /**
    * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
    * ⚠️ Furgão de dois eixos paga 1×, e caminhão de dois eixos paga 2×: é a rodagem que decide, e

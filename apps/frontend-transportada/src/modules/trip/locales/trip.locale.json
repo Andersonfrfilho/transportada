@@ -87,6 +87,8 @@
       },
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "praça sem nome",
+      "catalogEmpty": "Pedágio não calculado: o catálogo de praças não foi carregado neste ambiente.",
+      "catalogStale": "Catálogo de praças de {{month}} — as tarifas podem ter reajustado; atualize o catálogo.",
       "estimated": "· eixo estimado",
       "fallenBackToManual": "{{count}} praças caíram para a manual por falta de tarifa automática",
       "none": "Sem pedágio no trajeto.",
@@ -286,6 +288,7 @@
       "slow": "Viagens grandes levam alguns minutos. A planta aparece aqui sozinha.",
       "stale": "Planta desatualizada: é a última que foi calculada.",
       "failed": "Não foi possível calcular a planta agora.",
+      "errorCode": "Código do erro: {{code}} — informe ao suporte.",
       "truncated": "Planta incompleta — algumas caixas ficaram de fora por tempo.",
       "ghostLabel": "Planta anterior da carga, desatualizada",
       "skeletonLabel": "Esqueleto do baú enquanto a planta é calculada"

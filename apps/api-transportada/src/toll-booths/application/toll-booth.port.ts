@@ -22,6 +22,15 @@ export type TollBoothSeedRecord = Readonly<{
  */
 export type TollBoothRouteRecord = TollBoothRecord & Readonly<{ observedOn: string }>
 
+/**
+ * O tamanho do catálogo e a data mais recente observada nele — sem ler as praças uma a uma. É o que
+ * permite à tela distinguir "não há pedágio nesta rota" de "o catálogo nunca foi carregado".
+ */
+export type TollCatalogSummary = Readonly<{
+  boothCount: number
+  latestObservedOn: null | string
+}>
+
 export type TollBoothRepository = Readonly<{
   /** Idempotente por `osm_node_id`: reexecutar o seed não duplica praça (D1). */
   saveMany: (booths: readonly TollBoothSeedRecord[]) => Promise<number>
@@ -31,4 +40,9 @@ export type TollBoothRepository = Readonly<{
    * consulta.
    */
   readByNodeIds: (nodeIds: readonly number[]) => Promise<readonly TollBoothRouteRecord[]>
+  /**
+   * `count(*)` e `max(observed_on)` numa consulta só — nunca a tabela inteira. É o que permite à
+   * tela avisar catálogo vazio ou desatualizado, sem custo de ler cada praça para isso.
+   */
+  readCatalogSummary: () => Promise<TollCatalogSummary>
 }>

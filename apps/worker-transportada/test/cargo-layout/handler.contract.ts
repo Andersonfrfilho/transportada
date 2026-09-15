@@ -11,6 +11,10 @@ import {
   type CargoLayoutHandlerPorts,
 } from '../../src/cargo-layout/application/cargo-layout-handler.service.js'
 import { resolveCargoLayoutLeaseMs } from '../../src/cargo-layout/application/cargo-layout-budget.policy.js'
+import {
+  CargoLayoutThreadError,
+  readSafeErrorCode,
+} from '../../src/cargo-layout/application/cargo-layout-thread.error.js'
 import { CargoLayoutTimeoutError } from '../../src/cargo-layout/application/cargo-layout-timeout.error.js'
 import type { WorkerLogger } from '../../src/shared/worker.types.js'
 import { buildStoredCargoLayoutInput } from '../fixtures/cargo-layout-input.fixture.js'
@@ -294,6 +298,60 @@ describe('handler da planta de carga (spec 145 D9, D13–D15)', () => {
         metadata: { layoutId: JOB.layoutId, reason: 'TypeError' },
       },
     ])
+  })
+
+  /** Diagnóstico de staging (15/09/2026): `failed` sem motivo no log não se investiga. */
+  test('entrada recusada pelo schema registra código e caminho de cada campo, sem o valor', async () => {
+    const logger = buildLogger()
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+    const ports = buildPorts({
+      claim: async () => ({
+        attempt: 1,
+        input: { ...input, stops: [{ ...input.stops[0], extraField: 'Cliente 1' }] },
+      }),
+    })
+
+    expect(await run(ports, 1, logger)).toBe('ack')
+    expect(ports.failed).toEqual([CARGO_LAYOUT_ERROR.failed])
+    expect(logger.warnings).toEqual([
+      {
+        message: 'cargo_layout_input_rejected',
+        metadata: {
+          issues: [{ code: 'unrecognized_keys', keys: ['extraField'], path: 'stops.0' }],
+          layoutId: JOB.layoutId,
+        },
+      },
+    ])
+    expect(JSON.stringify(logger.warnings)).not.toContain('Cliente 1')
+  })
+
+  test('exceção do empacotador registra o nome e o código estável, nunca a mensagem', async () => {
+    const logger = buildLogger()
+    const ports = buildPorts({
+      compute: async () => {
+        throw new CargoLayoutThreadError('RangeError', 'CARGO_CAPACITY_INVALID_DECIMAL_FORMAT')
+      },
+    })
+
+    expect(await run(ports, 1, logger)).toBe('ack')
+    expect(ports.failed).toEqual([CARGO_LAYOUT_ERROR.failed])
+    expect(logger.warnings).toEqual([
+      {
+        message: 'cargo_layout_compute_failed',
+        metadata: {
+          code: 'CARGO_CAPACITY_INVALID_DECIMAL_FORMAT',
+          layoutId: JOB.layoutId,
+          reason: 'RangeError',
+        },
+      },
+    ])
+  })
+
+  test('o código só atravessa a thread quando tem a forma de constante', () => {
+    expect(readSafeErrorCode({ code: 'CARGO_STOP_INVALID' })).toBe('CARGO_STOP_INVALID')
+    expect(readSafeErrorCode({ code: 'Rua das Flores, 10' })).toBeUndefined()
+    expect(readSafeErrorCode(new Error('sem código'))).toBeUndefined()
+    expect(readSafeErrorCode(null)).toBeUndefined()
   })
 
   test('falha transitória do banco na última tentativa grava FAILED', async () => {

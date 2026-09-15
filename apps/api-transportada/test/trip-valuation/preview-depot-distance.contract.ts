@@ -66,7 +66,10 @@ function run(input: { readonly depot?: null | RouteDepot; readonly road: RouteGe
         readPreviewStopCoordinates: () => Promise.resolve(PARADAS),
       },
       stopOrder: [],
-      tollBooths: { readByNodeIds: () => Promise.resolve([]) },
+      tollBooths: {
+        readByNodeIds: () => Promise.resolve([]),
+        readCatalogSummary: () => Promise.resolve({ boothCount: 0, latestObservedOn: null }),
+      },
       vehicleId: VEHICLE_ID,
     }),
   }

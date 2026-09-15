@@ -55,6 +55,12 @@ export function TripCargoLayoutWait({ bedDimensions, view }: TripCargoLayoutWait
             {isPending ? t('cargoLayers.wait.reorganizing') : t('cargoLayers.wait.failed')}
           </p>
           {isLong ? <p className={styles.hint}>{t('cargoLayers.wait.slow')}</p> : null}
+          {/* O código é o que o suporte busca no log do worker — "falhou" sozinho não se investiga. */}
+          {!isPending && view.errorCode !== null ? (
+            <p className={styles.hint}>
+              {t('cargoLayers.wait.errorCode', { code: view.errorCode })}
+            </p>
+          ) : null}
         </div>
         {elapsedMs === undefined ? null : (
           <p aria-live="off" className={styles.cargoWaitElapsed}>

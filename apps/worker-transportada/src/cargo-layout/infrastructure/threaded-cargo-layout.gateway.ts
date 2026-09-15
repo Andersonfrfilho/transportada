@@ -9,21 +9,23 @@ import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
 import { CARGO_LAYOUT_THREAD_CEILING_MARGIN_MS } from '../application/cargo-layout-budget.policy.js'
 import type { CargoLayoutHandlerPorts } from '../application/cargo-layout-handler.service.js'
+import { CargoLayoutThreadError } from '../application/cargo-layout-thread.error.js'
 import { CargoLayoutTimeoutError } from '../application/cargo-layout-timeout.error.js'
 import type { StoredCargoLayoutInput } from '../application/stored-cargo-layout-input.schema.js'
 
 /**
- * A extensão sai do próprio módulo: em desenvolvimento roda `src/*.ts`, em produção `dist/*.js`, e
- * `new Worker(url)` é caminho de arquivo de verdade — o runtime não reescreve a extensão.
+ * Em desenvolvimento este módulo é `src/**` e a thread mora ao lado; empacotado ele vira
+ * `dist/main.js`, e a thread fica onde o `bun build --root ./src` a gravou. `new Worker(url)` é
+ * caminho de arquivo de verdade — o bundler não reescreve este `URL`. Contrato:
+ * `test/build-entrypoints.contract.test.ts`.
  */
-const WORKER_URL = new URL(
-  import.meta.url.endsWith('.ts') ? './cargo-layout.worker.ts' : './cargo-layout.worker.js',
-  import.meta.url,
-)
+const WORKER_URL = import.meta.url.endsWith('.ts')
+  ? new URL('./cargo-layout.worker.ts', import.meta.url)
+  : new URL('./cargo-layout/infrastructure/cargo-layout.worker.js', import.meta.url)
 
 type WorkerMessage =
   | { readonly layout: ResolvedCargoLayout | null; readonly ok: true }
-  | { readonly ok: false; readonly reason: string }
+  | { readonly code: string | undefined; readonly ok: false; readonly reason: string }
 
 export function createThreadedCargoLayoutGateway(
   options: { readonly ceilingMarginMs?: number } = {},
@@ -61,7 +63,7 @@ function runInThread(input: {
       settle(() =>
         message.ok
           ? resolve(message.layout)
-          : reject(new Error(`cargo layout thread failed: ${message.reason}`)),
+          : reject(new CargoLayoutThreadError(message.reason, message.code)),
       )
     })
     worker.on('error', (error: Error) => {
