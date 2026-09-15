@@ -1793,3 +1793,117 @@ Arquivos:
     contractor-mail (exporta o roteador de teste) e a integração `address-correction-mail-repository`.
 - **Frontend**: `addressCorrectionMail.service.ts`, `nfeWorkspace{,.en}.locale.json` e
   `test/nfe-workspace/address-correction-mail.contract.ts`.
+
+## T403
+
+Seção "Modelos" na página "E-mail com contratantes" (módulo `delivery-clients`, aba "mail" ao lado
+da configuração da 143 e dos contatos da T301), consumindo o contrato HTTP da T402.
+
+- **Cópia por valor do catálogo/tipo/status/tetos** em
+  `shared/contractorMailTemplates.types.ts` — o bundle não importa `mail-template-catalog.constant.ts`
+  da API, no mesmo padrão de `contractorMailSettings.types.ts`.
+- **Client HTTP** `shared/contractorMailTemplatesClient.service.ts`: `getCatalog`, `listTemplates`,
+  `getTemplate`, `createTemplate`, `updateTemplate`, `setDefault`, `preview`. `ContractorMailTemplatesRequestError`
+  carrega `details: ReadonlyMap<field, message>` do `error.details[]` (`web.md` §11), no mesmo molde de
+  `ContractorContactsRequestError`.
+- **Validação de resposta** `shared/contractorMailTemplatesResponse.validation.ts`: `hasExactKeys` em
+  catálogo, modelo (único e lista) e prévia — recusa campo a mais ou a menos com
+  `ContractorMailTemplatesResponseError` explícito, em vez de deixar passar em silêncio.
+- **Validação client-side** `shared/contractorMailTemplate.validation.ts`, puro, espelhando
+  `mail-template-render.policy.ts#validateMailTemplate` (T402) e os tetos do schema HTTP: mesmo
+  tokenizador de `{variavel}` (chave solta recusada), variável de item só em `itemText`, variável
+  desconhecida recusada, nome até 120, assunto até 200 sem quebra de linha, demais campos até 4000.
+  O servidor continua sendo a verdade — esta validação só adianta o aviso antes do `POST`/`PATCH`.
+- **Inserção de variável** `shared/mailTemplateVariableInsertion.service.ts`: `insertMailTemplateVariable`
+  é pura (recebe `text`/`selectionStart`/`selectionEnd`/`name`, devolve `{text, cursorPosition}`) — o
+  componente só lê `selectionStart`/`selectionEnd` do campo com foco e repassa; `setSelectionRange`
+  depois do insert usa `requestAnimationFrame` para caber no próximo paint. `isItemVariableEnabled`
+  decide o habilitar/desabilitar das variáveis de item pelo campo com foco (RF14: só em "Texto de
+  cada endereço"; nos demais, desabilitadas com `mailTemplates.itemVariablesDisabledHint`).
+- **Mapa de erro→locale** `shared/contractorMailTemplateErrors.service.ts`: os códigos do T402
+  (`…_ARCHIVED`, `…_NAME_TAKEN`, `…_VERSION_CONFLICT`, `…_NOT_FOUND`, `INVALID_REQUEST`) e um genérico
+  com `{{code}}` para o resto.
+- **Hooks**: `useContractorMailTemplates.hook.ts` (TanStack: `catalogQuery`, `templatesQuery` por
+  `mailType`, mutações `create`/`update`/`setDefault` invalidando a lista, `preview` sem invalidação
+  — não persiste nada) e `useContractorMailTemplateEditor.hook.ts` (estado do editor: rascunho, campo
+  com foco, `registerField`/`insertVariable`/`attemptSubmit`, erros por campo). `seed` (padrão
+  sugerido ou em branco) entra como valor inicial do `useState` — nunca com `setState` durante o
+  render — e só vale para criação; editar sempre parte do `template`.
+- **`ContractorMailTemplatesPanel`**: lista com selo "Padrão"/"Arquivado" e ação "Editar"; seletor de
+  tipo (`Select`) só aparece quando o catálogo tem mais de um tipo — hoje sempre 1, sem texto de tipo
+  fixo no front além do rótulo que o catálogo devolve; "Criar a partir do padrão"/"Novo em branco";
+  diálogo de confirmação de arquivamento (`useModalDialog` + `createPortal`, mesmo molde do
+  `CompanyUserRemoveDialog` da identity). O tipo efetivo (`effectiveMailType`) é derivado do catálogo
+  a cada render — sem `setState` condicional durante o render — porque o catálogo (uma chamada da
+  hook) precisa resolver antes da lista de modelos (outra chamada da mesma hook, cache compartilhado
+  pela `queryKey`) poder ser habilitada com o tipo certo.
+- **`ContractorMailTemplateEditor`**: nome + `subject`/`intro`/`itemText`/`closing` (textareas),
+  painel de variáveis com `Tooltip` (descrição) e botão "Inserir"; erro de validação client-side por
+  campo (`showErrors` só depois do primeiro `attemptSubmit`, igual ao padrão de `touchedEmail` da
+  T301); lista de campos recusados pelo servidor com atalho que rola e foca
+  (`focusFieldByLabel` + `useRevealedPanel`, `web.md` §11 — mesmo padrão do `InvalidFieldsHint` da
+  fleet, reescrito aqui porque aquele componente é `fleet`-locale-only); "Tornar padrão" (só ativo e
+  não padrão) e "Arquivar" (só ativo) desaparecem no modelo arquivado, que também desabilita os
+  campos. Conflito de versão (`CONTRACTOR_MAIL_TEMPLATE_VERSION_CONFLICT`) só mostra a mensagem —
+  nunca limpa o rascunho, o texto digitado não se perde.
+- **Prévia**: "Ver prévia" chama `POST /preview` com o conteúdo não salvo (`{mailType, ...content}`),
+  mostra o assunto, um `<iframe sandbox="" srcDoc={html}>` (nunca `dangerouslySetInnerHTML`, sem
+  `allow-scripts`) e o texto puro abaixo, sempre visível — sem aba escondendo um dos dois, por
+  simplicidade (o pedido permitia "aba ou alternância").
+- **CSP**: `frame-src` era `'none'` desde a ADR-0037 (nenhum `iframe` no bundle). A prévia abre o
+  primeiro — `contentSecurityPolicy.service.ts` mudou para `frame-src 'self'`: `about:srcdoc` de um
+  iframe sandbox é resolvido contra a origem do documento que o criou, então `'self'` basta, e
+  terceiro continua fora (nenhuma diretiva nova, só o valor desta). `frame-ancestors` e `object-src`
+  continuam `'none'`. Contrato ajustado:
+  `test/shared/content-security-policy.contract.ts` ("allows only same-origin frames, and forbids
+  embedding this app in any frame").
+- **Locale**: `mailTemplates.*` em `deliveryClients{,.en}.locale.json` — título, rótulos de campo,
+  variáveis, prévia, ações, diálogo de arquivamento, mensagens de validação e de erro do servidor.
+  Acentuação conferida pelo `locale-accents.contract.ts` (dentro do `design-system.contract.test.ts`).
+- **Estilos**: `styles/contractorMailSettings.module.css` ganhou as classes da seção (lista, selos,
+  editor, painel de variáveis, prévia, diálogo). `min-height` de textarea usa o valor de exceção
+  `5rem` do `field-metrics.contract.ts` (não há token de altura para textarea multilinha); o ponto de
+  quebra do layout de duas colunas usa `64rem` (um dos quatro do `responsive.contract.ts`, não `60rem`
+  como na primeira tentativa).
+- **Página**: `DeliveryClientWorkspace.page.tsx` — `ContractorMailTemplatesPanel` entra na aba "mail",
+  entre a configuração (143) e os contatos (T301).
+
+### Vermelho→verde
+
+Sem vermelho formal (task `sonnet`, serviço puro sem caso de uso de domínio) — os testes foram
+escritos junto com cada serviço e falharam com o serviço ausente até a implementação. Gates finais:
+
+- `bun run typecheck` (raiz, todas as apps) → ok.
+- `bun run lint` (raiz, todas as apps) → ok, depois de ajustar dois testes do client HTTP que
+  usavam `async` sem `await` (`@typescript-eslint/require-await`) e um `await expect(...).rejects`
+  desnecessário (`@typescript-eslint/await-thenable`) — corrigido para o padrão já usado em
+  `fuel-prices.contract.ts` (`expect(promise).rejects...` sem `await`/`return`).
+- `bun run --cwd apps/frontend-transportada test` → **3784 pass, 0 fail** (29 arquivos; eram 3743 na
+  T402 do evidence.md, mais os 5 arquivos novos desta task). Novas suítes:
+  `contractor-mail-templates-validation.contract.ts` (nome, conteúdo, tokenizador),
+  `contractor-mail-templates-variable-insertion.contract.ts` (inserção na posição do cursor,
+  seleção, limites de índice, habilitação por campo focado),
+  `contractor-mail-templates-response.contract.ts` (catálogo/modelo/lista/prévia, campo a mais ou
+  status desconhecido recusados), `contractor-mail-templates-errors.contract.ts` (mapa completo +
+  genérico) e `contractor-mail-templates-client.contract.ts` (rota e corpo de cada método com
+  `fetch` fake, token no header, `details` do erro, falha de transporte).
+- `bun run --cwd apps/frontend-transportada build` → ok (`dist/assets/DeliveryClientWorkspace.page-*.js`
+  53.16 kB gzip 13.45 kB; nenhum novo aviso de tamanho além do que já existia).
+- `prettier --check` dos arquivos tocados → ok, depois de `--write` nos 7 que faltavam.
+
+### Arquivos
+
+- **Novos**: `shared/{contractorMailTemplates.types,contractorMailTemplatesClient.service,
+contractorMailTemplatesResponse.validation,contractorMailTemplate.validation,
+mailTemplateVariableInsertion.service,contractorMailTemplateErrors.service}.ts`,
+  `hooks/{useContractorMailTemplates,useContractorMailTemplateEditor}.hook.ts`,
+  `components/{ContractorMailTemplatesPanel,ContractorMailTemplateEditor}.component.tsx`.
+- **Testes novos**: `test/delivery-clients/contractor-mail-templates-{validation,
+variable-insertion,response,errors,client}.contract.ts`, importados em
+  `test/delivery-clients.contract.test.ts`.
+- **Ajustados**: `pages/DeliveryClientWorkspace.page.tsx`,
+  `styles/contractorMailSettings.module.css`, `locales/deliveryClients{,.en}.locale.json`,
+  `shared/contentSecurityPolicy.service.ts`, `test/shared/content-security-policy.contract.ts`.
+
+Commit: `feat(delivery-clients): a página de e-mail ganha os modelos, com variáveis e prévia (spec
+150 T403)`, sobre `5f110d25` (staging).

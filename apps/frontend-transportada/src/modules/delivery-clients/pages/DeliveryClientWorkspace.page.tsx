@@ -13,6 +13,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { ContractorContactsPanel } from '../components/ContractorContactsPanel.component'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
+import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
 import { useContractorMailSettings } from '../hooks/useContractorMailSettings.hook'
@@ -87,6 +88,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           testEmailPending={contractorMail.sendTestEmailMutation.isPending}
           testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
         />
+        <ContractorMailTemplatesPanel isDisabled={!canManageContractorMail} />
         <ContractorContactsPanel isDisabled={!canManageContractorMail} />
       </>
     ),

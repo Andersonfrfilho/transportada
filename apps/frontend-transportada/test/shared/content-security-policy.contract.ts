@@ -123,10 +123,11 @@ describe('content security policy', () => {
     expect(connectSource).not.toContain('/auth')
   })
 
-  // O `iframe` do mapa saiu pela ADR-0037 e o Keycloak roda com `checkLoginIframe: false`: não há
-  // moldura nenhuma no bundle, e é isso que a diretiva declara.
-  test('forbids frames in both directions', () => {
-    expect(SERVED_POLICY).toContain("frame-src 'none'")
+  // O `iframe` do mapa saiu pela ADR-0037 e o Keycloak roda com `checkLoginIframe: false`. Spec 150
+  // T403: a prévia do modelo de e-mail é um `<iframe sandbox="">` com `srcdoc` do próprio bundle —
+  // `'self'` basta, e continua proibindo moldura de terceiro; nenhuma página embeda a nossa.
+  test('allows only same-origin frames, and forbids embedding this app in any frame', () => {
+    expect(SERVED_POLICY).toContain("frame-src 'self'")
     expect(SERVED_POLICY).toContain("frame-ancestors 'none'")
     expect(SERVED_POLICY).toContain("object-src 'none'")
   })

@@ -111,8 +111,10 @@ export function buildContentSecurityPolicy({
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
     // O `iframe` do mapa do endereço era o único do bundle, e saiu pela ADR-0037; o Keycloak roda
-    // com `checkLoginIframe: false`, então não há um segundo.
-    `frame-src ${NONE}`,
+    // com `checkLoginIframe: false`. Spec 150 T403 abriu o segundo: a prévia do modelo de e-mail é
+    // um `<iframe sandbox="">` com `srcdoc` (nunca `dangerouslySetInnerHTML`), sem `allow-scripts` —
+    // `'self'` basta para permitir `about:srcdoc` do próprio bundle; terceiro continua fora.
+    `frame-src ${SELF}`,
     /**
      * `blob:` é a foto de perfil. Ela desce por rota autenticada — `<img src>` não manda o token —,
      * então a tela busca os bytes e desenha uma URL de objeto. Sem esta palavra a imagem é

@@ -70,7 +70,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       envio usa o modelo padrão ou o `templateId`, e sem modelo recusa com
       `CONTRACTOR_MAIL_TEMPLATE_MISSING`. Evidência: contrato de tenant, contratos de rota, de
       renderização e integração.
-- [ ] **T403** Seção "Modelos" na página "E-mail com contratantes": lista por tipo, criar a partir
+- [x] **T403** Seção "Modelos" na página "E-mail com contratantes": lista por tipo, criar a partir
       do padrão, editar com as variáveis, prévia, marcar como padrão e arquivar. Evidência:
       contratos de serviço e de validação.
 - [ ] **T404** A lista de verificação mostra "Pronto para enviar", com o motivo quando não está.
