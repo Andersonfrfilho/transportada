@@ -70,6 +70,10 @@ export function useNfeDocumentEventHistory(input: UseNfeDocumentEventHistoryInpu
     isFetchingNextPage: query.isFetchingNextPage,
     isLoading: query.isLoading,
     open: (openTarget: NfeDocumentEventHistoryTarget) => setTarget(openTarget),
+    /** Reexecuta a página inicial — usado pelo estado de erro sem nenhuma entrada carregada ainda. */
+    retry: () => {
+      void query.refetch()
+    },
     target,
   }
 }

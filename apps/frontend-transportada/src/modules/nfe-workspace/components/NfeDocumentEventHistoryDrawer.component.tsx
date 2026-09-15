@@ -93,10 +93,13 @@ export function NfeDocumentEventHistoryDrawer({ controller }: NfeDocumentEventHi
               </div>
             ))}
           </SkeletonGroup>
-        ) : controller.errorCode !== null ? (
-          <p className={styles.cardError} role="alert">
-            {t('documents.eventHistory.error')}
-          </p>
+        ) : controller.entries.length === 0 && controller.errorCode !== null ? (
+          <div className={styles.cardError} role="alert">
+            <p>{t('documents.eventHistory.error')}</p>
+            <button className={styles.ghostAction} onClick={controller.retry} type="button">
+              {t('documents.eventHistory.retry')}
+            </button>
+          </div>
         ) : controller.entries.length === 0 ? (
           <p className={styles.emptyState}>{t('documents.eventHistory.empty')}</p>
         ) : (
@@ -107,22 +110,33 @@ export function NfeDocumentEventHistoryDrawer({ controller }: NfeDocumentEventHi
           </ol>
         )}
 
-        {controller.hasNextPage && (
+        {controller.entries.length > 0 && controller.errorCode !== null ? (
           <div className={styles.eventHistoryFooter}>
-            <button
-              className={styles.ghostAction}
-              disabled={controller.isFetchingNextPage}
-              onClick={controller.fetchNextPage}
-              type="button"
-            >
-              {controller.isFetchingNextPage
-                ? t('documents.eventHistory.loadingMore')
-                : t('documents.eventHistory.loadMore')}
+            <p className={styles.cardError} role="alert">
+              {t('documents.eventHistory.errorMore')}
+            </p>
+            <button className={styles.ghostAction} onClick={controller.fetchNextPage} type="button">
+              {t('documents.eventHistory.retry')}
             </button>
-            <span aria-live="polite" className={styles.srOnly}>
-              {controller.isFetchingNextPage ? t('documents.eventHistory.loadingMore') : ''}
-            </span>
           </div>
+        ) : (
+          controller.hasNextPage && (
+            <div className={styles.eventHistoryFooter}>
+              <button
+                className={styles.ghostAction}
+                disabled={controller.isFetchingNextPage}
+                onClick={controller.fetchNextPage}
+                type="button"
+              >
+                {controller.isFetchingNextPage
+                  ? t('documents.eventHistory.loadingMore')
+                  : t('documents.eventHistory.loadMore')}
+              </button>
+              <span aria-live="polite" className={styles.srOnly}>
+                {controller.isFetchingNextPage ? t('documents.eventHistory.loadingMore') : ''}
+              </span>
+            </div>
+          )
         )}
       </div>
     </div>,
@@ -146,12 +160,29 @@ function EventHistoryItem({ entry }: Readonly<{ entry: NfeDocumentEventEntry }>)
             ? t(eventType.key)
             : t(eventType.key, { code: eventType.code })}
         </strong>
-        <time className={styles.eventHistoryTime} dateTime={entry.registeredAt}>
-          {formatDateTime(entry.occurredAt ?? entry.registeredAt)}
-        </time>
       </div>
 
       <dl className={styles.eventHistoryMeta}>
+        <div>
+          <dt>{t('documents.eventHistory.eventDate')}</dt>
+          <dd>
+            {entry.occurredAt === null ? (
+              formatDateTime(null)
+            ) : (
+              <time className={styles.eventHistoryTime} dateTime={entry.occurredAt}>
+                {formatDateTime(entry.occurredAt)}
+              </time>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{t('documents.eventHistory.registeredDate')}</dt>
+          <dd>
+            <time className={styles.eventHistoryTime} dateTime={entry.registeredAt}>
+              {formatDateTime(entry.registeredAt)}
+            </time>
+          </dd>
+        </div>
         {entry.sequence !== null && (
           <div>
             <dt>{t('documents.eventHistory.sequence')}</dt>

@@ -457,6 +457,13 @@
   overflow-wrap: anywhere;
 }
 
+div.cardError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
 .feedbackSuccess {
   color: var(--color-ready);
   font-size: 0.85rem;
@@ -1667,5 +1674,12 @@
 
 .eventHistoryFooter {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.eventHistoryFooter .cardError {
+  margin: 0;
+  text-align: center;
 }
