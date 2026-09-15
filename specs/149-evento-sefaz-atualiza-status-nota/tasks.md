@@ -97,9 +97,9 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
       montado), filtrando por `company_id`.
 - [x] T5 — API: contrato de `GET /nfe-documents` (nota cancelada sobe ao topo — H1) e das respostas de
       lote/CT-e e viagem expondo o status da nota (reaproveitar `cte-batch-selection.query.ts:215` e
-      `drizzle-trip.repository.ts:694`), com contrato negativo de tenant. **Parte de API fechada nesta
-      task; a parte de tela ("NF-e cancelada após a emissão", `*.locale.json`, contrato de tela) ficou
-      fora, ver `evidence.md` § T5.**
+      `drizzle-trip.repository.ts:694`), com contrato negativo de tenant. Parte de tela concluída em
+      2026-09-15 (worktree `ordem-notas`): aviso "NF-e cancelada após a emissão" no lote de CT-e
+      (`CteBatchItemsPanel.component.tsx`) e aviso equivalente na nota da viagem (já existia, spec 027) — ver `evidence.md` § T5.
 
 ## Fase 4 — Backfill (parada obrigatória)
 

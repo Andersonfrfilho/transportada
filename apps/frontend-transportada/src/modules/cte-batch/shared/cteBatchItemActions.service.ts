@@ -5,6 +5,7 @@ import {
   type CompanyCteItem,
   type CteBatchItem,
   type CteBatchItemDocumentLabel,
+  type CteBatchItemDocumentNfeStatus,
   type CteBatchItemsSummary,
 } from './cteBatchItem.types'
 
@@ -166,7 +167,16 @@ export function describeItemDocuments(item: CteBatchItem): readonly CteBatchItem
     accessKey: document.accessKey,
     id: document.id,
     label: `${document.series}/${document.number}`,
+    nfeStatus: document.nfeStatus,
   }))
+}
+
+/**
+ * Spec 149 H8 — o CT-e continua válido na SEFAZ; é a nota que mudou de situação depois da emissão,
+ * e é isso que a tela precisa avisar (plan.md § "API e tela": "NF-e cancelada após a emissão").
+ */
+export function hasCteBatchDocumentNfeWarning(nfeStatus: CteBatchItemDocumentNfeStatus): boolean {
+  return nfeStatus === 'cancelled' || nfeStatus === 'denied'
 }
 
 /** Dinheiro fiscal só soma em inteiro escalado — float binário jamais toca o valor do CT-e. */

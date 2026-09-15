@@ -39,7 +39,21 @@ const DUPLICATE_NUMBER_REASON = 'sefaz_duplicate_number'
 
 const CHARGE_KEYS = ['amount', 'baseAmount', 'calculationType', 'label', 'ordinal', 'rate'] as const
 
-const DOCUMENT_KEYS = ['accessKey', 'id', 'number', 'position', 'series', 'totalAmount'] as const
+const DOCUMENT_KEYS = [
+  'accessKey',
+  'id',
+  'nfeStatus',
+  'number',
+  'position',
+  'series',
+  'totalAmount',
+] as const
+
+const NFE_STATUS_VALUES = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
+
+function isNfeStatus(value: unknown): value is CteBatchItemDocument['nfeStatus'] {
+  return isString(value) && (NFE_STATUS_VALUES as readonly string[]).includes(value)
+}
 
 const COMPANY_ITEM_KEYS = [...ITEM_KEYS, 'batchId', 'batchName', 'createdAt'] as const
 
@@ -103,6 +117,7 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   if (
     !isString(input.accessKey) ||
     !isString(input.id) ||
+    !isNfeStatus(input.nfeStatus) ||
     !isString(input.number) ||
     !isString(input.position) ||
     !isString(input.series) ||
@@ -113,6 +128,7 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   return {
     accessKey: input.accessKey,
     id: input.id,
+    nfeStatus: input.nfeStatus,
     number: input.number,
     position: input.position,
     series: input.series,

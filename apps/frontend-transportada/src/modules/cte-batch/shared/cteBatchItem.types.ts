@@ -18,9 +18,17 @@ export type CteBatchItemCharge = Readonly<{
   rate: null | string
 }>
 
+/**
+ * Spec 149 H8/T5 — o mesmo domínio de `nfe_documents.status`, cópia por valor (a app não importa
+ * código de outra). CT-e autorizado com nota `cancelled`/`denied` continua válido na SEFAZ, mas a
+ * tela mostra o aviso — a nota é quem mudou de situação, não o CT-e.
+ */
+export type CteBatchItemDocumentNfeStatus = 'authorized' | 'cancelled' | 'denied' | 'unsigned'
+
 export type CteBatchItemDocument = Readonly<{
   accessKey: string
   id: string
+  nfeStatus: CteBatchItemDocumentNfeStatus
   number: string
   position: string
   series: string
@@ -87,6 +95,7 @@ export type CteBatchItemDocumentLabel = Readonly<{
   accessKey: string
   id: string
   label: string
+  nfeStatus: CteBatchItemDocumentNfeStatus
 }>
 
 export type CteBatchItemsSummary = Readonly<{

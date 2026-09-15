@@ -104,7 +104,11 @@
     "protocol": "Protocolo",
     "lastError": "Rejeição",
     "actions": "Ações",
-    "summary": "{{authorized}} autorizado(s) · {{pending}} em andamento · {{rejected}} rejeitado(s) · {{documents}} nota(s) · total {{total}}"
+    "summary": "{{authorized}} autorizado(s) · {{pending}} em andamento · {{rejected}} rejeitado(s) · {{documents}} nota(s) · total {{total}}",
+    "documentNfeWarning": {
+      "cancelled": "NF-e cancelada após a emissão",
+      "denied": "NF-e denegada após a emissão"
+    }
   },
   "itemStatus": {
     "authorized": "Autorizado",

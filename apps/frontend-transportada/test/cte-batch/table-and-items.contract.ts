@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   CTE_BATCH,
   CTE_BATCH_AUTHORIZED_ITEM,
+  CTE_BATCH_AUTHORIZED_ITEM_WITH_CANCELLED_DOCUMENT,
   CTE_BATCH_CANCELLED_ITEM,
   CTE_BATCH_ID,
   CTE_BATCH_ITEMS,
@@ -38,6 +39,7 @@ const BATCHES = [CTE_BATCH, CTE_DONE_BATCH] as const
 const REFERENCE_DOCUMENT = {
   accessKey: CTE_REFERENCE_ACCESS_KEY,
   id: CTE_DOCUMENT_ID,
+  nfeStatus: 'authorized',
   number: '000000022',
   position: '1',
   series: '001',
@@ -423,8 +425,33 @@ describe('CT-e batch table and items contract', () => {
     )
 
     expect(describeItemDocuments(CTE_BATCH_AUTHORIZED_ITEM)).toEqual([
-      { accessKey: CTE_REFERENCE_ACCESS_KEY, id: CTE_DOCUMENT_ID, label: '001/000000022' },
-      { accessKey: CTE_SECOND_ACCESS_KEY, id: CTE_SECOND_DOCUMENT_ID, label: '001/000000023' },
+      {
+        accessKey: CTE_REFERENCE_ACCESS_KEY,
+        id: CTE_DOCUMENT_ID,
+        label: '001/000000022',
+        nfeStatus: 'authorized',
+      },
+      {
+        accessKey: CTE_SECOND_ACCESS_KEY,
+        id: CTE_SECOND_DOCUMENT_ID,
+        label: '001/000000023',
+        nfeStatus: 'authorized',
+      },
+    ])
+
+    expect(describeItemDocuments(CTE_BATCH_AUTHORIZED_ITEM_WITH_CANCELLED_DOCUMENT)).toEqual([
+      {
+        accessKey: CTE_REFERENCE_ACCESS_KEY,
+        id: CTE_DOCUMENT_ID,
+        label: '001/000000022',
+        nfeStatus: 'cancelled',
+      },
+      {
+        accessKey: CTE_SECOND_ACCESS_KEY,
+        id: CTE_SECOND_DOCUMENT_ID,
+        label: '001/000000023',
+        nfeStatus: 'authorized',
+      },
     ])
 
     expect(summarizeBatchItems(CTE_BATCH_ITEMS)).toEqual({
@@ -441,6 +468,36 @@ describe('CT-e batch table and items contract', () => {
       rejectedCount: 0,
       totalAmount: '0.00',
     })
+  })
+
+  /**
+   * Spec 149 H8/T5 — o CT-e continua válido na SEFAZ; a nota é quem mudou de situação depois da
+   * emissão, e a tela avisa com texto e ícone (D20), nunca só a cor.
+   */
+  test('warns when a linked note was cancelled or denied after an authorized CT-e was issued', async () => {
+    const { hasCteBatchDocumentNfeWarning } =
+      await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
+
+    expect(hasCteBatchDocumentNfeWarning('authorized')).toBe(false)
+    expect(hasCteBatchDocumentNfeWarning('unsigned')).toBe(false)
+    expect(hasCteBatchDocumentNfeWarning('cancelled')).toBe(true)
+    expect(hasCteBatchDocumentNfeWarning('denied')).toBe(true)
+
+    const [panel, ptLocale, enLocale] = await Promise.all([
+      readModule('src/modules/cte-batch/components/CteBatchItemsPanel.component.tsx'),
+      readModule('src/modules/cte-batch/locales/cteBatch.locale.json'),
+      readModule('src/modules/cte-batch/locales/cteBatch.en.locale.json'),
+    ])
+    expect(panel).toContain('hasCteBatchDocumentNfeWarning')
+    expect(panel).toContain('items.documentNfeWarning.')
+    expect(panel).toContain('<Icon name="alert"')
+    for (const locale of [ptLocale, enLocale]) {
+      const dictionary = JSON.parse(locale) as {
+        items: { documentNfeWarning: Record<string, unknown> }
+      }
+      expect(dictionary.items.documentNfeWarning.cancelled).toBeString()
+      expect(dictionary.items.documentNfeWarning.denied).toBeString()
+    }
   })
 
   test('groups the selection by batch and allows transmitting what is still open', async () => {
@@ -648,6 +705,7 @@ type CteBatchActionsModule = {
     readonly permissions: readonly string[]
   }) => boolean
   readonly describeItemDocuments: (item: unknown) => readonly unknown[]
+  readonly hasCteBatchDocumentNfeWarning: (nfeStatus: string) => boolean
   readonly groupSelectionByBatch: (input: {
     readonly items: readonly unknown[]
     readonly selectedIds: readonly string[]
