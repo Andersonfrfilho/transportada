@@ -5,6 +5,61 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-15 — texto livre do modelo de e-mail pode carregar URL (M1, revisão final da Fase 4)
+
+**Onde:** `api-transportada`/`frontend-transportada`, `contractor-mail-templates` (spec 150, RF13/RF14).
+
+**O que é:** `intro`, `closing`, `itemText` e `subject` são texto livre — quem tem `settings.manage`
+pode cadastrar um modelo com uma URL dentro (legítima ou não). O e-mail sai como transacional da
+transportadora, então um link malicioso ali tem a credibilidade do remetente de verdade; nada na
+rota `POST`/`PATCH /contractor-mail-templates` detecta ou avisa sobre URL no texto, e não há trilha
+de quem editou o quê (o mesmo buraco do M2, agora aplicado à edição de modelo, não só ao envio).
+
+**O que falta:** duas frentes, as duas **pendentes antes de produção**: (1) a auditoria de edição de
+modelo — quem mudou o texto e quando — que o M2 já cobre para o resto do fluxo; (2) um aviso na tela
+(e, opcionalmente, na fronteira HTTP) quando o texto salvo contém uma URL, para quem revisa o modelo
+decidir se ela é esperada. RF12 (escapar toda variável interpolada) já protege contra injeção de
+HTML/script — este achado é sobre **conteúdo intencionalmente digitado**, que RF12 não cobre.
+
+**Origem:** spec 150, revisão de segurança final da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — teto do limitador de e-mail é por usuário, não por empresa (L1)
+
+**Onde:** `api-transportada`, `POST /address-correction-requests/mail` e
+`POST /contractor-mail-settings/test-email` (mesmo par do M1 fechado abaixo).
+
+**O que é:** a janela do Postgres (`rate_limit_windows`) tem chave `scope:companyId:userId` — o teto
+é por usuário dentro da empresa, não agregado por `companyId`. N operadores da mesma transportadora
+multiplicam o volume total em N × teto/h.
+
+**Por que fica assim:** decisão consciente, não lacuna esquecida — a distribuição é **instalação
+dedicada por transportadora** (ADR-0021): não existe o cenário de uma empresa hostil compartilhando
+banco com outra para inflar custo alheio, e o teto por usuário já limita o dano de uma única
+credencial comprometida ou de um operador em loop. Um teto agregado por empresa é reavaliado se o
+produto deixar de ser instalação dedicada.
+
+**Origem:** spec 150, RF18, revisão de segurança final da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — rotas anônimas seguem só com limitador em memória, por processo (L4)
+
+**Onde:** `api-transportada`, todas as rotas sem autenticação: `POST`/`.../confirm
+/password-resets`, `POST /public/aggregate-application-attachments`, o webhook do WhatsApp, o
+inbound do Resend (`contractor-mail`), o CEP/geocodificação públicos.
+
+**O que é:** o limitador com estado compartilhado (`rate_limit_windows`, Postgres) só cobre as duas
+rotas de e-mail autenticadas da spec 150 (M1, fechado); toda rota anônima continua só com o
+limitador em memória do processo — sob múltiplas réplicas, o teto real é `N réplicas × teto/janela`,
+não o teto declarado. `POST /password-resets` já tem uma marcação própria (`api-transportada/CLAUDE.md`,
+"⚠️ Sem rate limit") por ser a rota que mais se presta a enumeração/abuso sem credencial nenhuma — é
+a **candidata natural** a migrar para o limitador com estado compartilhado primeiro, pelo mesmo
+desenho de `DrizzleRateLimiterRepository`/`rate_limit_windows` que a spec 150 já construiu.
+
+**O que falta:** decidir se/quando estender o limitador com estado compartilhado às rotas anônimas,
+começando por `password-resets`. Fora do escopo desta spec.
+
+**Origem:** spec 150, RF18, revisão de segurança final da Fase 4 (achado geral já citado no M1
+fechado, registrado aqui com identidade própria). Decidido pelo usuário em 2026-09-15.
+
 ### 2026-09-15 — trilha de auditoria do envio de e-mail e do CRUD de contatos da contratante (M2)
 
 **Onde:** `api-transportada`, módulos `contractor-mail` e `address-correction` (spec 150, Fase 4).

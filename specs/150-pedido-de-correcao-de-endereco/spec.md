@@ -89,7 +89,9 @@ era recusado.
 - **RF14** — **Variáveis por tipo**, de uma lista fechada. A página lista as variáveis do tipo, cada
   uma com descrição e botão de inserir. Há dois níveis:
   - **Do e-mail**, usadas em assunto, abertura e assinatura. Para `address_correction`:
-    `{contratante}`, `{quantidade}`, `{transportadora}` e `{operador}`.
+    `{contratante}`, `{quantidade}`, `{clientes}` (o mesmo número, já com a palavra no singular ou
+    plural — "1 cliente"/"3 clientes", para o assunto aprovado, que precisa da concordância),
+    `{transportadora}` e `{operador}`.
   - **De cada item enviado**, usadas no campo "Texto de cada endereço", que se repete uma vez por
     endereço. Para `address_correction`: `{cliente}`, `{endereco_como_veio}`, `{endereco_correto}`,
     `{motivo}`, `{cep_como_veio}`, `{cep_correto}`, `{municipio}` e `{uf}`.
