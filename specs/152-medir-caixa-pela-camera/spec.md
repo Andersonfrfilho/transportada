@@ -66,11 +66,11 @@ própria origem e margem.
 
 Pesquisa completa com fontes em `plan.md` § "Pesquisa". Três abordagens comparadas:
 
-| Abordagem                                                                                                     | Precisão esperada (caixa 30–80 cm)                                                                                                         | Aparelhos                                                                                                             | Dependência / CSP                                                                                                  | Veredito               |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| **A. Marcador impresso de tamanho conhecido (ArUco) + OpenCV.js**, foto oblíqua, cantos confirmados por toque | ±0,5–1 cm no plano do marcador (C, L); ±1–2 cm na altura, pela projeção da aresta vertical com a pose do marcador. **A validar no spike.** | Qualquer navegador com câmera: Chrome Android, Samsung Internet, Safari iOS, Firefox                                  | `@techstark/opencv-js` (OpenCV 5, WASM de vários MB, carregado sob demanda). A CSP **já tem** `'wasm-unsafe-eval'` | **Recomendada**        |
-| B. WebXR `immersive-ar` + `hit-test` (+ `depth-sensing`)                                                      | ~1–3 cm em boa luz e textura, sem número oficial. Piora em superfície lisa                                                                 | Só Chrome/Samsung Internet Android com ARCore certificado. **Nenhum iPhone** (Safari não expõe AR imersivo em iPhone) | Nenhuma lib. Precisa de `xr-spatial-tracking` na Permissions-Policy                                                | Descartada no MVP (D2) |
-| C. Profundidade monocular por rede neural (ONNX/TF.js)                                                        | Não é métrica: a escala é ambígua sem referência                                                                                           | Universal em tese, pesado na prática                                                                                  | Modelo de dezenas a centenas de MB                                                                                 | Descartada             |
+| Abordagem                                                                                                     | Precisão esperada (caixa 30–80 cm)                                                                                                         | Aparelhos                                                                                                             | Dependência / CSP                                                                                                                    | Veredito               |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| **A. Marcador impresso de tamanho conhecido (ArUco) + OpenCV.js**, foto oblíqua, cantos confirmados por toque | ±0,5–1 cm no plano do marcador (C, L); ±1–2 cm na altura, pela projeção da aresta vertical com a pose do marcador. **A validar no spike.** | Qualquer navegador com câmera: Chrome Android, Samsung Internet, Safari iOS, Firefox                                  | OpenCV 5 em **build próprio** sem execução dinâmica (ADR-0065; o `@techstark/opencv-js` pede `'unsafe-eval'`), carregado sob demanda | **Recomendada**        |
+| B. WebXR `immersive-ar` + `hit-test` (+ `depth-sensing`)                                                      | ~1–3 cm em boa luz e textura, sem número oficial. Piora em superfície lisa                                                                 | Só Chrome/Samsung Internet Android com ARCore certificado. **Nenhum iPhone** (Safari não expõe AR imersivo em iPhone) | Nenhuma lib. Precisa de `xr-spatial-tracking` na Permissions-Policy                                                                  | Descartada no MVP (D2) |
+| C. Profundidade monocular por rede neural (ONNX/TF.js)                                                        | Não é métrica: a escala é ambígua sem referência                                                                                           | Universal em tese, pesado na prática                                                                                  | Modelo de dezenas a centenas de MB                                                                                                   | Descartada             |
 
 Referência de expectativa: apps nativos com **LiDAR** chegam a ±0,5–1 cm, mas a web não tem API de
 LiDAR nem de profundidade (`mediacapture-depth` foi descontinuada em 2022). Por isso o teto realista
@@ -281,11 +281,16 @@ o valor que a câmera leu, e a validação (e a observabilidade de depois) não 
 comparar. O cliente manda a proposta no bloco `camera`; a API não confia nela para nada além de
 guardar (ela não entra na caixa).
 
-**D18 — Desempenho num celular médio.** 3,5 MB gzip de WASM (3,9 MB gzip no chunk do Vite, 15,5 MB
-brutos) é caro numa rede de galpão. Por isso:
+**D18 — Desempenho num celular médio (revista na T1, ADR-0065).** O pacote npm do OpenCV não
+inicia sob a CSP (o embind usa `new Function`) e pesa 3,9 MB gzip no chunk do Vite. O OpenCV é
+**build próprio** (`deploy/opencv-build/`, `-s DYNAMIC_EXECUTION=0`, só os módulos do aruco): chunk
+de **3,05 MB brutos; 0,89 MB com compressão (T8)** — o `server.ts` não comprime hoje —, artefato
+versionado em `apps/frontend-transportada/vendor/opencv/`. Ainda é caro numa rede de galpão. Por
+isso:
 
 1. **Nunca no carregamento da página**: o chunk do OpenCV fica fora do `index` e fora do precache do
-   PWA (mesmo precedente do `background-removal`, que tem 16 MB e está em `globIgnores`).
+   PWA (mesmo precedente do `background-removal`, que tem 16 MB e está em `globIgnores`), e o
+   artefato mora fora de `public/`.
 2. **Pré-carga ao abrir o fluxo**: com a função ligada e `WebAssembly` presente, o worker começa a
    baixar e compilar o OpenCV quando o conferente abre "Ler etiqueta", em paralelo com a leitura da
    etiqueta. Com `navigator.connection.saveData`, a pré-carga espera o toque em "Medir esta caixa".
@@ -296,8 +301,8 @@ brutos) é caro numa rede de galpão. Por isso:
    comprime, a T8 acrescenta (não é CSP nem Permissions-Policy).
 5. **Digitar enquanto carrega**: a etapa Medida mostra `Skeleton` na forma do vídeo, o progresso, e
    "Digitar medida" ativo. Carga acima de 15 s → `engineFailed` → formulário digitado (D11).
-6. Build próprio do OpenCV (só `core` + `imgproc` + `objdetect`, sem `calib3d`) fica registrado na
-   ADR como alternativa, a medir se a validação mostrar carga ruim no Android médio.
+6. O build próprio já é o caminho (ADR-0065). Emagrecer mais (`-Oz`, whitelist menor) só se a
+   validação mostrar carga ruim no Android médio.
 
 **D19 — Uma sessão de câmera exige extrair o stream do leitor.** Confirmado em `origin/staging`:
 `useBarcodeScanner` abre o stream dentro do efeito e para as trilhas quando `isActive` vira `false`,
@@ -425,11 +430,14 @@ false`, **Then** `GET /nfe-package-boxes/measurement-settings` devolve
   teto do leitor). Captura → proposta de cantos em até 1,5 s num Android médio.
 - **Peso:** o chunk do OpenCV é carregado sob demanda (pré-carga ao abrir o fluxo com a função
   ligada, D18) e fica em cache no service worker depois do primeiro uso (runtime cache `CacheFirst`,
-  fora do precache). O tamanho medido vai para o `evidence.md` (spike: 3,90 MB gzip no chunk do
-  Vite; carga de ~0,7 s e 4,3 ms/quadro 720p no desktop — o celular médio é medido na T15).
-- **CSP:** sem diretiva nova. `script-src` já tem `'wasm-unsafe-eval'`, o `.wasm` vem de `'self'` e
-  o worker é `new Worker(new URL(…), { type: 'module' })`, nunca por `blob:` (ADR-0042). Dependência
-  nova com WASM exige ADR (T2).
+  fora do precache). Build próprio (ADR-0065): chunk de 3,05 MB brutos; 0,89 MB com compressão
+  (T8 — o `server.ts` não comprime hoje) e carga de
+  70–83 ms no worker (desktop, sob a CSP real); o pacote npm do spike eram 3,90 MB gzip e ~0,7 s. O
+  celular médio é medido na T15.
+- **CSP:** sem diretiva nova — **revisto na T1**: `'wasm-unsafe-eval'` sozinho **não** basta para o
+  pacote npm, cujo embind usa `new Function` (`EvalError` na sonda). Basta para o build próprio com
+  `-s DYNAMIC_EXECUTION=0` (ADR-0065), com o WASM embutido no JS e o worker em
+  `new Worker(new URL(…), { type: 'module' })`, nunca por `blob:` (ADR-0042).
 - **Permissions-Policy:** continua `camera=(self)`. Nenhuma permissão nova.
 - **LGPD:** imagem não sai do aparelho (D10). O log da API não leva a medida inteira além do id da
   caixa e da origem.
@@ -472,8 +480,8 @@ false`, **Then** `GET /nfe-package-boxes/measurement-settings` devolve
 - **Validação contaminada:** conferente que aceita a proposta sem digitar a fita faz o erro parecer
   zero. Protocolo explícito de D16, export filtrado pelo período da sessão, e a T15 descarta linhas
   `camera` sem fita anotada à parte.
-- **Peso do OpenCV em aparelho fraco:** carregamento sob demanda + cache. Um build customizado só com
-  `imgproc`, `calib3d` e `objdetect` fica como alternativa no spike.
+- **Peso do OpenCV em aparelho fraco:** carregamento sob demanda + cache, e o build próprio da
+  ADR-0065 (3,05 MB brutos; 0,89 MB com compressão (T8), contra 15,5 MB / 3,9 MB do pacote npm).
 - **Cartão impresso fora de escala:** régua de controle, instrução de 100% e o spike mede o efeito.
 - **Dependência do leitor em paralelo:** resolvida — o leitor novo já está em `staging` (T0).
 

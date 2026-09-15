@@ -41,7 +41,8 @@ vai **sobre** a face superior.
 `@techstark/opencv-js` é mantido (OpenCV 5.0.0, Emscripten 4). O WASM tem vários MB e o tamanho
 exato vai ser medido no spike. Um build próprio só com `imgproc` + `calib3d` + `objdetect` é a
 alternativa. Na CSP, precisa de `'wasm-unsafe-eval'` e não de `'unsafe-eval'`, e esta app já tem a
-diretiva.
+diretiva — **corrigido na T1**: o pacote npm também precisa de `'unsafe-eval'` (o embind usa
+`new Function`), e por isso o OpenCV virou build próprio com `DYNAMIC_EXECUTION=0` (ADR-0065).
 
 ### Profundidade monocular (abordagem C)
 
@@ -115,9 +116,11 @@ câmera e medida mora aqui.
   primeiro `postMessage`. Detecta o marcador (`ArucoDetector`), calcula pose, estatísticas do quadro
   e proposta de cantos. Transfere `ImageData` e luminância como `Transferable`. Criado via
   `new Worker(new URL('./boxDimension.worker.ts', import.meta.url), { type: 'module' })`.
-  Dependência fixada `@techstark/opencv-js@5.0.0-release.1` (a do spike; o detector é
-  `cv.aruco_ArucoDetector`, e o tipo mínimo do aruco vem do `src/opencv.types.ts` do spike). O
-  arquivo é único (`SINGLE_FILE`: o WASM vai embutido no JS), então o que se cacheia é o chunk.
+  O OpenCV é o **build próprio** da ADR-0065 (`apps/frontend-transportada/vendor/opencv/opencv.js`,
+  gerado por `deploy/opencv-build/build.sh`, OpenCV 5.0.0 com `-s DYNAMIC_EXECUTION=0`): o
+  `@techstark/opencv-js` do spike não inicia sob a CSP. O detector é `cv.aruco_ArucoDetector`, e o
+  tipo mínimo vem do `src/opencv.types.ts` do spike. O arquivo é único (`SINGLE_FILE`: o WASM vai
+  embutido no JS), então o que se cacheia é o chunk. Função fora da whitelist não existe no `cv`.
   A pose e a margem **não** usam `cv.solvePnP`: o motor puro portado do spike faz isso em TS.
 - **Carga e cache (D18)**:
   - o worker expõe `preload()`; o fluxo chama ao abrir "Ler etiqueta" com a função ligada, salvo
