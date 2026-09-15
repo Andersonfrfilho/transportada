@@ -221,6 +221,91 @@ describe('os cabeçalhos que cada método manda', () => {
  * `unidades por caixa` voltando a `1`, gravar por cima **apagava** a medida em silêncio, e a
  * ocupação da viagem passava a contar cada unidade como uma caixa inteira.
  */
+/**
+ * ⚠️ O leitor abre em camada de tela cheia (primitivo `BarcodeScanner`) e precisa continuar montado
+ * enquanto a fila reconsulta a API por causa de um bipe — senão o retorno ao estado de
+ * carregamento (`loading`) desmontava a câmera no meio da leitura. O ciclo bipar → achar a caixa →
+ * abrir a medição é a ponte para a medição por câmera (spec separada em andamento); o defeito
+ * relatado era o leitor nascer atrás da lista sem preview algum.
+ */
+describe('o leitor de etiqueta continua montado em toda situação da fila', () => {
+  it('o scanner é renderizado nos estados negado, carregando e falho — não só no corpo principal', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('if (denied)')
+    expect(panel).toContain('if (loading)')
+    expect(panel).toContain('if (failed)')
+    /** As três saídas antecipadas devolvem o mesmo elemento `scanner`, não uma cópia. */
+    const scannerReturns = panel.match(/\{scanner\}/g) ?? []
+    expect(scannerReturns.length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+/**
+ * ⚠️ Bipar substitui procurar na lista: achando a caixa, a medição dela abre sozinha — o
+ * conferente não caça a linha certa numa fila que pode ter dezenas. Não achando, o leitor avisa e
+ * continua lendo, porque a próxima etiqueta pode ser a certa.
+ */
+describe('bipar leva direto à medição da caixa achada', () => {
+  it('acertar a fila abre a edição da caixa achada, com feedback visual e vibração', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('function openMeasurementForScannedBox(id: string): void {')
+    expect(panel).toContain("kind: 'found'")
+    expect(panel).toContain('setEditingId(id)')
+    expect(panel).toContain('setCameFromScan(true)')
+  })
+
+  it('não achar mantém o leitor aberto e lendo, com aviso', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("kind: 'notFound'")
+    /** Não achar não fecha o leitor — o bloco que trata a ausência de caixa não chama `setIsScannerOpen`. */
+    const notFoundBlock = panel.split('if (match === undefined) {')[1]?.split('}')[0]
+    expect(notFoundBlock).toBeDefined()
+    expect(notFoundBlock).not.toContain('setIsScannerOpen')
+  })
+
+  it('o ponto de entrada da medição é isolado — a câmera de medida (spec separada) entra por ali', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('Ponto de entrada isolado de propósito')
+    expect(panel).toContain('medição por câmera')
+  })
+
+  it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+    expect(hook).toContain('isMatching: query.isFetching')
+
+    const page = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx', import.meta.url),
+    ).text()
+    expect(page).toContain('matching={packageBoxes.isMatching}')
+  })
+})
+
 describe('editar a medida de uma caixa já medida', () => {
   it('abre com o que está gravado, convertido de volta para centímetro', async () => {
     const panel = await Bun.file(

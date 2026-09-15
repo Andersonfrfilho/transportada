@@ -648,6 +648,7 @@ export function NfeWorkspacePage() {
                     denied={!canMeasureCargo}
                     failed={packageBoxes.failed}
                     loading={packageBoxes.isLoading}
+                    matching={packageBoxes.isMatching}
                     onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
                     onScan={packageBoxes.setScanned}
                     onSearchChange={packageBoxes.setSearch}

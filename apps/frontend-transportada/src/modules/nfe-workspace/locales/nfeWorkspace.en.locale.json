@@ -349,10 +349,12 @@
     "scanner": {
       "title": "Scan the box label",
       "close": "Close",
-      "reading": "Reading…",
+      "reading": "Point the camera at the barcode on the label",
       "starting": "Opening the camera…",
       "denied": "Camera permission denied. Type the code in the search field.",
-      "unavailable": "The camera is unavailable on this device. Type the code in the search field."
+      "unavailable": "The camera is unavailable on this device. Type the code in the search field.",
+      "found": "Label read",
+      "notFound": "No box in the queue matches this label. Keep scanning or type the code in the search field."
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box",

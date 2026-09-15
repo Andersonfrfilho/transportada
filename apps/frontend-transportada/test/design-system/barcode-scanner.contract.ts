@@ -190,3 +190,93 @@ describe('convenção do leitor de etiqueta', () => {
     expect(claudeMd).toContain('docs/frontend/barcode-scanner.md')
   })
 })
+
+/**
+ * ⚠️ O defeito relatado: "Ler etiqueta" pedia a permissão da câmera, mas nenhum preview aparecia —
+ * o componente nascia depois da lista inteira de caixas, fora da área visível, e nada rolava até
+ * ele. A correção é estrutural: o primitivo se desenha em camada por cima da página, nunca como
+ * conteúdo inline no fluxo de quem o hospeda.
+ */
+describe('a câmera abre em camada por cima da página, não atrás da lista', () => {
+  it('usa portal para o body — nasce fora do fluxo de quem o hospeda', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain("from 'react-dom'")
+    expect(component).toContain('createPortal')
+    expect(component).toContain('document.body')
+  })
+
+  it('usa o diálogo modal compartilhado — foco entra ao abrir, Esc fecha, foco volta ao fechar', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain("from '@/modules/shared/useModalDialog.hook'")
+    expect(component).toContain('useModalDialog')
+    expect(component).toContain('handleKeyDown')
+  })
+
+  it('declara papel de diálogo modal com rótulo', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain('role="dialog"')
+    expect(component).toContain('aria-modal="true"')
+    expect(component).toContain('aria-labelledby={TITLE_ID}')
+  })
+
+  it('é mobile-first: tela cheia no celular, caixa centralizada só a partir de tablet: (40rem)', async () => {
+    const css = await readApplicationFile('src/components/ui/barcode-scanner.module.css')
+    expect(css).not.toContain('max-width')
+    expect(css).toMatch(/@media \(min-width: 40rem\)/)
+    expect(css).toContain('position: fixed')
+    expect(css).toContain('inset: 0')
+  })
+})
+
+describe('a moldura de mira sobre o vídeo', () => {
+  it('tem cantos marcados, faixa de leitura e escurece o que fica fora dela', async () => {
+    const css = await readApplicationFile('src/components/ui/barcode-scanner.module.css')
+    expect(css).toContain('.corner')
+    expect(css).toContain('.guideBand')
+    expect(css).toContain('box-shadow')
+  })
+
+  it('a faixa de leitura anima, mas trava parada sob prefers-reduced-motion: reduce', async () => {
+    const css = await readApplicationFile('src/components/ui/barcode-scanner.module.css')
+    expect(css).toContain('@keyframes barcodeScannerSweep')
+    expect(css).toContain('animation: barcodeScannerSweep')
+    const reducedMotionBlock = css.split('@media (prefers-reduced-motion: reduce)')[1]
+    expect(reducedMotionBlock).toBeDefined()
+    expect(reducedMotionBlock).toContain('animation: none')
+  })
+
+  it('o texto de instrução não depende só de cor — aparece como texto sobre a moldura', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain('readingMessage')
+    expect(component).toContain('styles.instruction')
+  })
+})
+
+/**
+ * ⚠️ Quem decide se a leitura serve é o módulo que hospeda o leitor (achou a caixa? achou a
+ * nota?) — o primitivo só mostra o resultado dessa decisão e não para de ler sozinho.
+ */
+describe('resultado da leitura decidido por quem hospeda', () => {
+  it('o laço de decodificação não cancela mais no primeiro acerto', async () => {
+    const hook = await readApplicationFile('src/components/ui/useBarcodeScanner.hook.ts')
+    /** Só resta uma atribuição — a do cleanup de desmontagem, não a de cada leitura bem-sucedida. */
+    expect(hook.match(/isCancelled = true/g)).toHaveLength(1)
+    expect(hook).toContain('REPEAT_ANNOUNCE_COOLDOWN_MS')
+  })
+
+  it('a prop feedback pinta achou de --color-ready e não achou de --color-alert', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain('BarcodeScannerFeedback')
+    expect(component).toContain("feedback?.kind !== 'found'")
+    const css = await readApplicationFile('src/components/ui/barcode-scanner.module.css')
+    expect(css).toContain("[data-feedback='found']")
+    expect(css).toContain('var(--color-ready)')
+    expect(css).toContain("[data-feedback='notFound']")
+    expect(css).toContain('var(--color-alert)')
+  })
+
+  it('vibra uma vez por acerto quando o aparelho suporta', async () => {
+    const component = await readApplicationFile('src/components/ui/barcode-scanner.tsx')
+    expect(component).toContain('navigator.vibrate?.(FOUND_VIBRATION_MS)')
+  })
+})

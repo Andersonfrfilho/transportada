@@ -1,8 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BarcodeScanner } from '@/components/ui/barcode-scanner'
+import { BarcodeScanner, type BarcodeScannerFeedback } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
@@ -28,6 +28,8 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   denied: boolean
   failed: boolean
   loading: boolean
+  /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
+  matching: boolean
   onMeasure: (input: PackageBoxMeasurement & { id: string }) => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
@@ -37,6 +39,9 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   search: string
   status: PackageBoxStatusFilter
 }>
+
+const FOUND_FEEDBACK_DELAY_MS = 900
+const NOT_FOUND_FEEDBACK_DELAY_MS = 2500
 
 /**
  * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
@@ -100,6 +105,7 @@ export function PackageBoxMeasurementPanel({
   denied,
   failed,
   loading,
+  matching,
   onMeasure,
   onScan,
   onSearchChange,
@@ -118,10 +124,93 @@ export function PackageBoxMeasurementPanel({
    * outra mão. Quem chegou digitando fica na busca — ali ele está procurando, não varrendo.
    */
   const [cameFromScan, setCameFromScan] = useState(false)
+  const [scanFeedback, setScanFeedback] = useState<BarcodeScannerFeedback | undefined>(undefined)
+  /** `true` do bipe até a fila responder — é o sinal que diz quando avaliar achou/não achou. */
+  const [awaitingScan, setAwaitingScan] = useState(false)
+  const closeScanTimer = useRef<number | undefined>(undefined)
 
-  if (denied) return <p className={styles.notice}>{t('packageBoxes.denied')}</p>
-  if (loading) return <QueueSkeleton />
-  if (failed) return <p className={styles.notice}>{t('packageBoxes.failed')}</p>
+  useEffect(() => {
+    return () => window.clearTimeout(closeScanTimer.current)
+  }, [])
+
+  /**
+   * ⚠️ Ponto de entrada isolado de propósito: quando a medição por câmera (spec em andamento)
+   * chegar, ela entra por aqui — bipar já leva direto à edição da caixa achada, só falta o
+   * formulário de medida também vir da câmera em vez do teclado.
+   */
+  function openMeasurementForScannedBox(id: string): void {
+    setScanFeedback({ kind: 'found', message: t('packageBoxes.scanner.found') })
+    setEditingId(id)
+    setCameFromScan(true)
+    closeScanTimer.current = window.setTimeout(() => {
+      setIsScannerOpen(false)
+      setScanFeedback(undefined)
+    }, FOUND_FEEDBACK_DELAY_MS)
+  }
+
+  /** A resposta da fila chegou: acertou uma caixa, abre a medição; não achou, segue lendo. */
+  useEffect(() => {
+    if (!awaitingScan || matching) return
+    setAwaitingScan(false)
+    const [match] = queue?.items ?? []
+    if (match === undefined) {
+      setScanFeedback({ kind: 'notFound', message: t('packageBoxes.scanner.notFound') })
+      return
+    }
+    openMeasurementForScannedBox(match.id)
+  }, [awaitingScan, matching, queue, t, openMeasurementForScannedBox])
+
+  useEffect(() => {
+    if (scanFeedback?.kind !== 'notFound') return
+    const timer = window.setTimeout(() => setScanFeedback(undefined), NOT_FOUND_FEEDBACK_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [scanFeedback])
+
+  const scanner = (
+    <BarcodeScanner
+      closeLabel={t('packageBoxes.scanner.close')}
+      deniedMessage={t('packageBoxes.scanner.denied')}
+      feedback={scanFeedback}
+      isOpen={isScannerOpen}
+      onClose={() => {
+        window.clearTimeout(closeScanTimer.current)
+        setIsScannerOpen(false)
+        setScanFeedback(undefined)
+        setAwaitingScan(false)
+      }}
+      onRead={(text) => {
+        setScanFeedback(undefined)
+        setAwaitingScan(true)
+        onScan(text)
+      }}
+      readingMessage={t('packageBoxes.scanner.reading')}
+      startingMessage={t('packageBoxes.scanner.starting')}
+      title={t('packageBoxes.scanner.title')}
+      unavailableMessage={t('packageBoxes.scanner.unavailable')}
+    />
+  )
+
+  if (denied)
+    return (
+      <>
+        {scanner}
+        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
+      </>
+    )
+  if (loading)
+    return (
+      <>
+        {scanner}
+        <QueueSkeleton />
+      </>
+    )
+  if (failed)
+    return (
+      <>
+        {scanner}
+        <p className={styles.notice}>{t('packageBoxes.failed')}</p>
+      </>
+    )
 
   const items = queue?.items ?? []
 
@@ -187,21 +276,7 @@ export function PackageBoxMeasurementPanel({
         </ul>
       )}
 
-      <BarcodeScanner
-        closeLabel={t('packageBoxes.scanner.close')}
-        deniedMessage={t('packageBoxes.scanner.denied')}
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onRead={(text) => {
-          onScan(text)
-          setCameFromScan(true)
-          setIsScannerOpen(false)
-        }}
-        readingMessage={t('packageBoxes.scanner.reading')}
-        startingMessage={t('packageBoxes.scanner.starting')}
-        title={t('packageBoxes.scanner.title')}
-        unavailableMessage={t('packageBoxes.scanner.unavailable')}
-      />
+      {scanner}
     </section>
   )
 }

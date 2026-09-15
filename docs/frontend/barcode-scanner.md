@@ -31,6 +31,34 @@ largura declarada. O 1D sobrevive a isso — a razão entre as larguras das barr
 Code-128 continua lendo e **só o QR quebra**, que é o defeito mais caro de achar. A conversão é
 `toLuminance` em `barcodeScanner.service.ts`, e o contrato a fixa.
 
+## A câmera abre em camada, nunca no fluxo da página
+
+`BarcodeScanner` se desenha num portal (`createPortal(…, document.body)`), tela cheia no celular e
+janela centralizada a partir de `tablet:` (40rem) — nunca como conteúdo inline no meio de uma lista.
+Nascer depois de uma lista longa deixava o preview fora da área visível e ninguém rolava até ele: o
+defeito custava a câmera acesa sem nada para mirar. O diálogo usa o `useModalDialog` compartilhado
+— `Esc` fecha, o foco entra ao abrir e volta a quem clicou ao fechar, `role="dialog"` +
+`aria-modal`.
+
+Sobre o vídeo há uma moldura com cantos marcados e uma faixa horizontal que varre de cima a baixo
+enquanto a câmera lê (`prefers-reduced-motion: reduce` trava a faixa parada no meio, sem animação).
+A área fora da moldura escurece — a mira é a única coisa nítida na tela. O texto de instrução
+(`readingMessage`) aparece acima da moldura enquanto não há leitura ainda avaliada.
+
+## O leitor não para sozinho no primeiro acerto
+
+O laço de decodificação continua rodando depois de uma leitura — quem decide se o texto lido serve
+é o módulo que hospeda o leitor (achou a caixa na fila? achou a nota?), e ele pode responder "não
+achei, continue lendo" sem reabrir a câmera. O primitivo só evita anunciar o **mesmo** texto duas
+vezes seguidas por 1,5s, para a etiqueta parada na frente da câmera não disparar `onRead` a cada
+quadro.
+
+A prop `feedback` (opcional) é como o módulo hospedeiro devolve o resultado dessa decisão: `{ kind:
+'found', message }` pinta a moldura de `--color-ready`, mostra o ícone de check e vibra
+200ms (`navigator.vibrate`, quando o aparelho tem); `{ kind: 'notFound', message }` pinta de
+`--color-alert` e mostra a mensagem, sem fechar nada — a câmera segue lendo. Sem `feedback`, a
+moldura mostra só a faixa de varredura e o texto de instrução.
+
 ## Câmera impossível é resposta, não exceção
 
 `openCameraStream` devolve `unavailable` quando não há `getUserMedia` (navegador antigo, página
@@ -49,7 +77,8 @@ celular denunciando o vazamento — e é bateria do separador.
 | Prop                 | Tipo                     | Papel                                            |
 | -------------------- | ------------------------ | ------------------------------------------------ |
 | `isOpen`             | `boolean`                | Abre a câmera; `false` desmonta e apaga.         |
-| `onRead`             | `(text: string) => void` | Recebe o texto lido, uma vez por leitura.        |
+| `onRead`             | `(text: string) => void` | Recebe o texto lido; o leitor continua rodando.  |
+| `feedback`           | `{ kind, message }?`     | Resultado da leitura, decidido por quem hospeda. |
 | `onClose`            | `() => void`             | Fechar pelo botão só de ícone.                   |
 | `title`              | `string`                 | Rótulo da seção e do vídeo.                      |
 | `closeLabel`         | `string`                 | `aria-label` do botão só de ícone — obrigatório. |

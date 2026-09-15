@@ -523,10 +523,12 @@
     "scanner": {
       "title": "Ler etiqueta da caixa",
       "close": "Fechar",
-      "reading": "Lendo…",
+      "reading": "Aponte para o código de barras da etiqueta",
       "starting": "Abrindo a câmera…",
       "denied": "Permissão de câmera negada. Digite o código na busca.",
-      "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca."
+      "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca.",
+      "found": "Etiqueta lida",
+      "notFound": "Nenhuma caixa da fila corresponde a esta etiqueta. Continue lendo ou digite o código na busca."
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa",
