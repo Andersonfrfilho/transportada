@@ -290,12 +290,52 @@
     "chooseYear": "Escolher o ano",
     "openCalendar": "Abrir calendário",
     "tripLink": "Esta nota está em viagem",
-    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}"
+    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}",
+    "eventHistoryButton": "Histórico fiscal",
+    "eventHistory": {
+      "title": "Histórico fiscal",
+      "subtitle": "NF-e {{number}}/{{series}}",
+      "close": "Fechar histórico",
+      "loading": "Carregando histórico fiscal",
+      "loadingMore": "Carregando mais eventos",
+      "loadMore": "Carregar mais",
+      "empty": "Nenhum evento fiscal registrado para esta nota",
+      "error": "Não foi possível carregar o histórico fiscal",
+      "sequence": "Sequência",
+      "protocol": "Protocolo",
+      "statusCode": "Código de retorno",
+      "statusChangeLabel": "Situação",
+      "statusUnknown": "Situação anterior não registrada",
+      "actorLabel": "Feito por",
+      "requestedByLabel": "Solicitado por",
+      "actorRemoved": "Usuário removido",
+      "actorSystem": "Sistema (distribuição agendada)",
+      "correctionText": "Texto da correção",
+      "origin": {
+        "label": "Origem",
+        "automatic": "Automática",
+        "manual": "Manual",
+        "unknown": "Origem desconhecida"
+      },
+      "eventType": {
+        "correction": "Carta de correção",
+        "cancellation": "Cancelamento",
+        "cancellationSubstitution": "Cancelamento por substituição",
+        "manifestConfirmation": "Manifestação: confirmação da operação",
+        "manifestAwareness": "Manifestação: ciência da operação",
+        "manifestUnaware": "Manifestação: desconhecimento da operação",
+        "manifestNotDone": "Manifestação: operação não realizada",
+        "statusChange": "Mudança de situação",
+        "unknownEvent": "Evento fiscal",
+        "unknown": "Evento fiscal ({{code}})"
+      }
+    }
   },
   "documentStatus": {
     "authorized": "Autorizada",
     "cancelled": "Cancelada",
-    "denied": "Denegada"
+    "denied": "Denegada",
+    "unsigned": "Não assinada"
   },
   "cteEmission": {
     "title": "Gerar CT-es",

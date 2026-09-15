@@ -606,6 +606,92 @@ Vermelho antes: a suíte referenciava `DrizzleNfeDocumentEventRepository`, inexi
 2. Permissão e "usuário removido" — ver seção de decisões acima.
 3. OpenAPI — não aplicável, repositório não tem geração de OpenAPI (ver acima).
 
+## H4 — Drawer "Histórico fiscal" na linha da `NfeDocumentTable` · 2026-09-15
+
+Escopo do D20/D13: consumir `GET /nfe-documents/:id/events` (H3) num drawer aberto pela linha da
+tabela de Notas, com a linha do tempo, paginação por cursor e os textos em pt-BR (e em inglês, por
+paridade com o resto do módulo).
+
+### O que foi criado
+
+- `src/modules/nfe-workspace/shared/nfeDocumentEventClient.service.ts`: cliente HTTP próprio
+  (`createNfeDocumentEventClient`), no molde de `tripOccurrenceFeedClient.service.ts` — tipos
+  (`NfeDocumentEventEntry`, `NfeDocumentEventPage`) e type guards que espelham a resposta real da
+  H3 (`{ data: [...], page: { nextCursor } }`, confirmado lendo `nfe-documents.routes.ts:190-211` e
+  `serializeDocumentEvent`), não o `nfe-document-event.port.ts` da API (a app não importa código de
+  outra). Arquivo isolado em vez de crescer `nfeWorkspaceClient.service.ts` (já com 796 linhas) —
+  um concern por arquivo.
+- `src/modules/nfe-workspace/shared/nfeDocumentEventHistory.service.ts`: funções puras que
+  traduzem a entrada da API em chaves de locale — `describeNfeEventType` (mapa dos `tpEvento`
+  reconhecidos: `110110`/`110111`/`110112`/`210200`/`210210`/`210220`/`210240`, cai no código cru
+  para o que a UI ainda não conhece), `describeNfeEventStatus` (D17 — `null` vira "status anterior
+  não registrado", nunca recalculado), `describeNfeEventActors` e `describeNfeEventOrigin` (D14).
+- `src/modules/nfe-workspace/hooks/useNfeDocumentEventHistory.hook.ts`: estado de abertura/fechamento
+  (`target: {documentId, number, series}`) + `useInfiniteQuery` (`getNextPageParam` lendo
+  `page.nextCursor`), no molde de `tripOccurrenceFeed.query.ts`.
+- `src/modules/nfe-workspace/components/NfeDocumentEventHistoryDrawer.component.tsx`: `useModalDialog`
+  - `createPortal` (mesmo idioma de `NfseInvoiceDetailDialog.component.tsx`), `role="dialog"` +
+    `aria-modal="true"`; a lista é um `<ol>` com `<time dateTime>`; status anterior→novo não depende só
+    de cor (badge com texto + `Icon name="chevron-right"` de separador); "carregar mais" tem
+    `aria-live="polite"` anunciando o carregamento; estado vazio e de erro com texto próprio
+    (`role="alert"` no erro).
+- `NfeDocumentTable.component.tsx`: botão de ícone (`clock`, tooltip "Histórico fiscal") na célula
+  de ações de cada linha, ao lado do download do XML; abre `eventHistory.open({ documentId, number,
+series })`. `Esc` fecha e o foco volta ao próprio botão da linha — `useModalDialog` já devolve o
+  foco a quem estava focado antes de abrir, que é sempre esse botão (nunca outro elemento da linha).
+- Locale: `documents.eventHistoryButton` + `documents.eventHistory.*` em
+  `nfeWorkspace.locale.json` e `nfeWorkspace.en.locale.json`; `documentStatus.unsigned` acrescentado
+  aos dois (a linha do tempo pode mostrar `unsigned` como status anterior, status que a listagem
+  hoje não exibe).
+- CSS: bloco `.eventHistory*` em `nfeWorkspace.module.css`, drawer fixo à direita (`min(28rem,
+100%)` a partir de 40rem, tela cheia abaixo disso) — reaproveita `.badge`/`.badgeReady/Muted/Danger`,
+  `.iconAction`, `.ghostAction`, `.cardError`, `.emptyState` e `.srOnly` já existentes no módulo, em
+  vez de duplicar.
+- `test/nfe-workspace/document-event-history.contract.ts` (16 casos): cliente (envelope real da H3,
+  entrada fora do formato recusada, código de erro do envelope, `statusChange` sem evento e ator
+  ausente aceitos), as funções puras de tradução por tabela, e contrato estrutural do drawer/tabela/hook
+  (`useModalDialog`, `createPortal`, `role="dialog"`, `<ol>`/`<time dateTime>`,
+  `aria-live="polite"`, `role="alert"`, presença dos textos nos dois locales). Registrado em
+  `test/nfe-workspace.contract.test.ts`.
+
+### Duas decisões que o D14/D16 deixam por conta do executor
+
+1. **"Sistema (distribuição agendada)" vs "usuário removido" são indistinguíveis pela resposta da
+   API.** `SYSTEM_DISTRIBUTION_ACTOR_USER_ID` não tem linha em `identity_user_profiles`
+   (`ensureSystemActor` só grava `identityUsers`, sem perfil) — o `buildActor` da H3
+   (`drizzle-nfe-document-event.repository.ts:276-282`) devolve `null` tanto para o ator de sistema
+   quanto para um usuário removido, porque os dois não têm nome resolvível. Sem outro sinal no
+   payload, a distinção implementada é pela **origem**: `origin === 'manual'` com `actor: null` é
+   "usuário removido" (D16 — manual sempre tem um humano por trás); `origin === 'automatic'` com
+   `requestedBy: null` é "Sistema (distribuição agendada)" (D14 — é o caso comum da distribuição
+   agendada, sem pedido humano). Registrado como comentário em `nfeDocumentEventHistory.service.ts`.
+   Corrigir isso de verdade exigiria a API devolver um sinal explícito (ex.: `requestedBy: 'system'`
+   em vez de `null`) — fora do escopo desta task (frontend), fica de follow-up.
+2. **Botão do histórico sem checagem própria de permissão.** A tabela inteira já exige
+   `invoices.read` para existir (`useNfeWorkspace.hook.ts:READ_PERMISSION`); quem vê a linha já tem
+   a mesma permissão que H3 exige (D19 — "a mesma do detalhe"). Igual ao botão de download de XML,
+   que também não repete a checagem.
+
+### Gates
+
+- `bun run typecheck` (raiz, as seis apps) → exit 0.
+- `bun run lint` (raiz, as seis apps) → exit 0.
+- `bun run --cwd apps/frontend-transportada test` → **3638 pass, 0 fail**, 29 arquivos, 34534
+  `expect()`. Linhas `(fail)`: 0. `document-event-history.contract.ts` entrou pelo
+  `test/nfe-workspace.contract.test.ts`, já na lista do `package.json` — nada novo a adicionar lá.
+- `bun run --cwd apps/frontend-transportada build` → sucesso (PWA gerado, 128 entradas de precache).
+- Prettier `--check` nos arquivos tocados por esta task → limpo, sem `--write`.
+
+### Desvios do D20/tasks.md
+
+1. **"Drawer com `shadcn/ui` (`Sheet`)" não existe neste repositório** — não há `shadcn/ui`
+   instalado; o design system daqui é caseiro (`src/components/ui/`, ver `apps/frontend-transportada/
+CLAUDE.md`). Implementado com o mesmo idioma dos diálogos existentes (`useModalDialog` +
+   `createPortal`, ex. `NfseInvoiceDetailDialog.component.tsx`), com CSS próprio que ancora o painel
+   à direita da tela para ler como drawer, em vez de modal centralizado.
+2. Sem ícone específico de "histórico" no catálogo (`icon.tsx`); usado `clock`, o mais próximo
+   semanticamente (linha do tempo).
+
 ## T4 — CT-e não emite sobre nota cancelada depois da seleção · 2026-09-15
 
 Escopo do plano: a seleção do lote de CT-e (API) confere elegibilidade uma vez, mas o item pode

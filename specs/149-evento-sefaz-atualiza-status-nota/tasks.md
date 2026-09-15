@@ -61,7 +61,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
       400 no excesso), e para a **ausência** de `xmlObjectId`/chave de storage/XML na resposta. Depois
       use case, repositório, schema Zod e rota com `nfe.read`; OpenAPI gerado inclui a rota (teste de
       presença). Integração com `--env-file=../../.env.test`.
-- [ ] H4 — Tela: drawer "Histórico fiscal" na linha da `NfeDocumentTable` (D20). Contrato de tela
+- [x] H4 — Tela: drawer "Histórico fiscal" na linha da `NfeDocumentTable` (D20). Contrato de tela
       vermelho antes: entradas na ordem, tipo em pt-BR, status anterior→novo com texto (não só cor),
       origem manual/automática com ator/solicitante, "Sistema (distribuição agendada)", "usuário
       removido", "origem desconhecida", texto da CC-e, estado vazio e de erro, "carregar mais", `Esc`

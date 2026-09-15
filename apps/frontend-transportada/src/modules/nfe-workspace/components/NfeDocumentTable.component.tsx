@@ -31,6 +31,7 @@ import {
   type SortDirection,
 } from '../hooks/useNfeDocumentTable.hook'
 import { useCteEmissionDialog } from '../hooks/useCteEmissionDialog.hook'
+import { useNfeDocumentEventHistory } from '../hooks/useNfeDocumentEventHistory.hook'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences.hook'
 import {
   createViewPreferencesClient,
@@ -44,6 +45,7 @@ import { navigateToTrip } from '@/modules/trip/shared/tripRoute.service'
 
 import { CopyButton } from '@/components/ui/copy-button'
 import { CteEmissionDialog } from './CteEmissionDialog.component'
+import { NfeDocumentEventHistoryDrawer } from './NfeDocumentEventHistoryDrawer.component'
 
 type NfeDocumentTableProps = Readonly<{
   readonly documents: readonly NfeDocumentListItem[]
@@ -168,6 +170,9 @@ export function NfeDocumentTable({
     groupKeyByDocumentId,
     onEmitted: table.clearSelection,
     permissions,
+  })
+  const eventHistory = useNfeDocumentEventHistory({
+    ...(companyId === undefined ? {} : { companyId }),
   })
 
   const visibleColumns = table.columnOrder.filter((column) => table.isColumnVisible(column))
@@ -550,6 +555,7 @@ export function NfeDocumentTable({
       )}
 
       <CteEmissionDialog dialog={cteEmission} />
+      <NfeDocumentEventHistoryDrawer controller={eventHistory} />
 
       {documents.length === 0 ? (
         loading ? (
@@ -635,6 +641,22 @@ export function NfeDocumentTable({
                         <RenderCellSlot key={column}>{renderCell(column, document)}</RenderCellSlot>
                       ))}
                       <td>
+                        <Tooltip label={t('documents.eventHistoryButton')}>
+                          <button
+                            aria-label={t('documents.eventHistoryButton')}
+                            className={styles.iconAction}
+                            onClick={() =>
+                              eventHistory.open({
+                                documentId: document.id,
+                                number: document.number,
+                                series: document.series,
+                              })
+                            }
+                            type="button"
+                          >
+                            <Icon name="clock" />
+                          </button>
+                        </Tooltip>
                         <Tooltip
                           label={
                             downloading
