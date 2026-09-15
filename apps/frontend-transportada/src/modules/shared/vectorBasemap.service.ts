@@ -64,6 +64,8 @@ const SOURCE = 'basemap'
  */
 export const OVERLAY_URL = BASEMAP_URL.replace(/area\.pmtiles$/u, 'overlay.pmtiles')
 export const RADAR_SOURCE = 'radar-overlay'
+/** Tem de ser o `min_zoom` do `deploy/map-tiles/overlay.yml`: abaixo dele o arquivo não tem radar. */
+export const RADAR_MIN_ZOOM = 8
 /** A pilha embarcada no serviço de mapa. Trocar o nome aqui sem trocar a imagem apaga todo rótulo. */
 const FONT_STACK = 'Noto Sans Regular'
 
@@ -568,16 +570,16 @@ export function buildBasemapStyle(
       },
       /**
        * ⚠️ Feature 089 (fase 2) — vem do arquivo separado (`RADAR_SOURCE`), nunca do basemap: o
-       * esquema OpenMapTiles não tem `speed_camera`. Zoom 11, o mesmo patamar em que `poi` existe
-       * no basemap. Glifo **diferente** da cabine de pedágio (▲, não ●) — as duas linguagens
-       * visuais de pedágio e radar não podem se confundir na mesma tela.
+       * esquema OpenMapTiles não tem `speed_camera`. Zoom 8, a vista do roteiro inteiro — o mesmo
+       * `min_zoom` do `overlay.yml`: em 11 a rota abria sem radar nenhum. Glifo **diferente** da
+       * cabine de pedágio (▲, não ●) — as duas linguagens visuais não podem se confundir na tela.
        */
       {
         id: 'radar',
         type: 'symbol',
         source: RADAR_SOURCE,
         'source-layer': 'radar',
-        minzoom: 11,
+        minzoom: RADAR_MIN_ZOOM,
         layout: {
           /**
            * Feature 096 T5 — a velocidade permitida ao lado do triângulo.

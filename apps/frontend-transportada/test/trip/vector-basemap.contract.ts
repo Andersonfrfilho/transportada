@@ -8,6 +8,7 @@ import {
   BASEMAP_THEMES,
   BASEMAP_URL,
   OVERLAY_URL,
+  RADAR_MIN_ZOOM,
   RADAR_SOURCE,
   buildBasemapStyle,
   resolveBasemapOutline,
@@ -190,11 +191,19 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
     expect((source as { url?: string })?.url).toBe(`pmtiles://${OVERLAY_URL}`)
   })
 
-  it('marca o radar a partir do zoom em que a camada poi já existe no basemap', () => {
+  /** Em 11 uma rota de centenas de km abria sem radar nenhum: o roteiro inteiro cabe no zoom 8. */
+  it('marca o radar já na vista do roteiro inteiro, no mesmo zoom em que o overlay o grava', () => {
     const layer = symbolLayerById('claro', 'radar')
     expect(layer.source).toBe(RADAR_SOURCE)
     expect(layer['source-layer']).toBe('radar')
-    expect(layer.minzoom ?? 0).toBeGreaterThanOrEqual(11)
+    expect(layer.minzoom).toBe(RADAR_MIN_ZOOM)
+    expect(RADAR_MIN_ZOOM).toBeLessThanOrEqual(8)
+
+    const overlaySchema = readFileSync(
+      new URL('../../../../deploy/map-tiles/overlay.yml', import.meta.url),
+      'utf8',
+    )
+    expect(overlaySchema).toMatch(new RegExp(`min_zoom: ${RADAR_MIN_ZOOM}\\b`, 'u'))
   })
 
   /**
