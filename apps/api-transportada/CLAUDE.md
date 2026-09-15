@@ -49,6 +49,13 @@ correção de causa medida (instruções preparadas do Bun SQL travavam sob conc
 religar exige medir de novo numa versão nova do Bun. Detalhe completo (armadilhas de `idleTimeout` e
 `cancel()`): docs/ai-context § "O banco falha rápido".
 
+**Perfil fiscal sem sequência de CT-e é leitura válida** (15/09/2026): o refresh de staging trunca
+`fiscal_sequences` e mantém `company_fiscal_profiles`. `GET /company-settings` respondia 500 com
+`Error` genérico, e a causa não chegava ao log. Hoje `findCompanySettings` devolve a linha que o
+PATCH gravaria (ambiente do perfil, série 1, número 1, versão 1). Falha de persistência das
+configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), então a mensagem sai no
+`http_request_failed`. ⚠️ `new Error` cru no caminho de uma rota perde o motivo no log.
+
 ## Identidade e permissões
 
 - **Recuperação de senha** (`POST /password-resets`, `.../confirm`) são as únicas rotas anônimas;

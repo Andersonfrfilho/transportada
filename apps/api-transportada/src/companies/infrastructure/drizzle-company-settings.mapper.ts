@@ -12,6 +12,7 @@ import {
 import {
   ACTIVATION_CHANNELS,
   DEFAULT_ACTIVATION_CHANNEL,
+  type FiscalEnvironment,
 } from '../../database/company-fiscal-profile.schema.js'
 import { companyFiscalProfiles, fiscalSequences } from '../../database/database.schema.js'
 import type {
@@ -105,6 +106,7 @@ const settingsSelection = {
     series: fiscalSequences.series,
     version: fiscalSequences.version,
   },
+  profileEnvironment: companyFiscalProfiles.environment,
   cteRetry: {
     backoffSeconds: companyFiscalProfiles.cteRetryBackoffSeconds,
     maxAttempts: companyFiscalProfiles.cteRetryMaxAttempts,
@@ -159,18 +161,20 @@ export async function findCompanySettings(
     .orderBy(desc(fiscalSequences.updatedAt), desc(fiscalSequences.id))
     .limit(1)
   if (settings === undefined) return null
-  const cte = settings.cte
-  if (cte === null) {
-    throw new Error('Company fiscal settings are inconsistent')
-  }
   return {
     activation: settings.activation,
     billing: settings.billing,
-    cte,
+    cte: settings.cte ?? createUnpersistedSequence(settings.profileEnvironment),
     cteRetry: createCteRetryPolicy(settings.cteRetry),
     mdfe: settings.mdfe,
     profile: settings.profile,
   }
+}
+
+// O refresh de staging trunca `fiscal_sequences` e mantém o perfil; o próximo PATCH grava a linha.
+// Os valores são os da linha que ele gravaria: numeração do começo e a versão padrão da coluna.
+function createUnpersistedSequence(environment: FiscalEnvironment): CompanySettingsResult['cte'] {
+  return { environment, nextNumber: 1n, series: 1n, version: 1n }
 }
 
 export function createCompanySettingsResult(
