@@ -513,6 +513,7 @@ uma troca de versão. ⚠️ O `server.ts` responde **404** a arquivo inexistent
 fallback do SPA com 200 foi o que escondeu o asset faltando. Contrato:
 `test/shared/maplibre-worker-assets.contract.ts`, que lê o worker real do pacote e exige que todo
 import relativo dele seja um arquivo gravado ao lado.
+
 ## "Clientes a atualizar" — pedido de correção de endereço (spec 150, realiza a 084 T20)
 
 Na aba de endereços não geocodificados do Workspace NF-e (`AddressReportPanel.component.tsx`), cada
