@@ -605,3 +605,75 @@ Vermelho antes: a suíte referenciava `DrizzleNfeDocumentEventRepository`, inexi
    ordenado, e nenhum outro repositório de NF-e usa `UNION ALL` do drizzle nesta base.
 2. Permissão e "usuário removido" — ver seção de decisões acima.
 3. OpenAPI — não aplicável, repositório não tem geração de OpenAPI (ver acima).
+
+## T4 — CT-e não emite sobre nota cancelada depois da seleção · 2026-09-15
+
+Escopo do plano: a seleção do lote de CT-e (API) confere elegibilidade uma vez, mas o item pode
+esperar na fila até a SEFAZ ser chamada — nesse intervalo a nota pode ter sido cancelada ou
+denegada por um evento fiscal (T2/T3). O worker relê `nfe_documents.status` **imediatamente antes**
+de montar a chamada à SEFAZ, e falha o item sem emitir se a nota não estiver mais `authorized`.
+Nada fiscal é cancelado automaticamente: a falha só impede a emissão, ela não toca o CT-e nem a
+nota.
+
+### O que foi criado
+
+- `apps/worker-transportada/src/cte-issuance/domain/cte-batch-block-reason.constant.ts`: cópia por
+  valor de `CTE_BATCH_BLOCK_REASON.notAuthorized`
+  (`apps/api-transportada/src/cte-batches/domain/cte-batch-eligibility.policy.ts`), só o código que
+  esta task usa (`CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`) — app não importa código de outra.
+- `apps/worker-transportada/src/cte-issuance/infrastructure/drizzle-cte-batch-document-authorization.repository.ts`
+  (`DrizzleCteBatchDocumentAuthorizationRepository.isAuthorized`): `inner join` de `cte_batch_items`
+  (cópia já existente no worker, `nfeDocumentId` é 1:1 por item) com `nfe_documents`, os dois lados
+  filtrados por `company_id`. Item ou nota inexistentes (linha não encontrada) contam como **não**
+  autorizado — falha fechada, nunca aberta.
+- `apps/worker-transportada/src/cte-issuance/application/cte-issuance-consumer.effect.ts`: novo tipo
+  `CteBatchDocumentAuthorizationCheck` e parâmetro opcional `documentAuthorizationCheck` em
+  `createCteIssuanceWorkerEffect`. Dentro de `issueDocument`, logo depois do `recordInFlight` e
+  **antes** de montar `command`/chamar `recordDiagnostics`/`gateway.issue`: se a checagem devolver
+  `false`, grava `writeBack.recordRejected({ errorCode: CTE_BATCH_DOCUMENT_NOT_AUTHORIZED })` e
+  lança `CteIssuanceFatalError` (não-retentável, mesmo padrão já usado para `outcome.status ===
+'rejected'`). Sem checagem configurada (`undefined`), o comportamento não muda — só a cancelação
+  (`executeCancellation`) não é tocada, porque o plano (H8) só cobre a emissão.
+- `apps/worker-transportada/src/main.ts`: injeta
+  `new DrizzleCteBatchDocumentAuthorizationRepository(database.db)` como
+  `documentAuthorizationCheck` na composição real do efeito.
+- `apps/worker-transportada/test/cte-issuance-document-authorization.contract.test.ts` (2 casos):
+  nota não autorizada falha com `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`, grava `recordRejected` e
+  **nunca** chama `emit` do provedor fake; nota ainda `authorized` segue até `emit` e
+  `recordAuthorized` normalmente. Entrou na lista explícita `test` do `package.json` do worker,
+  logo depois de `cte-cancellation.contract.test.ts`.
+
+### Vermelho antes
+
+```
+error: Cannot find module '../src/cte-issuance/domain/cte-batch-block-reason.constant.js' from
+'.../test/cte-issuance-document-authorization.contract.test.ts'
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file.
+```
+
+Depois de criar a constante e a checagem (sem fiar `documentAuthorizationCheck` no efeito ainda), o
+segundo caso (nota ainda `authorized`) falhava porque a checagem nunca era chamada; depois de
+fiar a chamada no `issueDocument`, os dois casos passaram.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz) → exit 0.
+- `bun run --cwd apps/worker-transportada test` → **1304 pass, 0 fail**, 89 arquivos (1302 da H2' +
+  2 desta task). Linhas `(fail)`: 0.
+- `make worker-integration ENV_FILE=.env.test` → **99 pass, 4 skip, 2 fail**, rodado duas vezes
+  (a segunda para descartar concorrência com a outra sessão no mesmo `.env.test`, spec H3/API). As
+  duas falhas, nas duas rodadas, são as mesmas conhecidas do anexo do agregado (CCMEI e CRLV,
+  `ObjectStorageError: Object storage is unavailable`), já registradas na T3 e na H2' com o mesmo
+  `.env.test` — arquivo não tocado por esta task, mesmo erro, mesma contagem.
+- Prettier `--check` nos 6 arquivos alterados/criados → limpo (após `--write` em dois arquivos
+  novos, formatados fora do padrão do editor).
+
+### Desvios do plano
+
+Nenhum. O plano cita "reaproveitar a constante" da API — como o worker não importa código da API,
+a cópia trouxe só o valor usado (`notAuthorized`), sem redeclarar o `CTE_BATCH_BLOCK_REASON`
+inteiro, que hoje não tem outro consumidor no worker.

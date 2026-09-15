@@ -16,6 +16,7 @@ import { createCteFiscalGateway } from '../infrastructure/cte-fiscal-gateway.js'
 
 import type { MdfeAutoIssueTrigger } from '../../mdfe-auto-issue/application/mdfe-auto-issue.port.js'
 
+import { CTE_BATCH_DOCUMENT_NOT_AUTHORIZED } from '../domain/cte-batch-block-reason.constant.js'
 import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
 import type {
   CteIssuanceDiagnostics,
@@ -113,6 +114,17 @@ export type CteSettledAttemptGuard = {
   isSettled(input: { readonly attemptId: string; readonly companyId: string }): Promise<boolean>
 }
 
+/**
+ * Spec 149 T4: a elegibilidade da nota é conferida de novo, sob o `company_id` do envelope,
+ * imediatamente antes de montar a chamada à SEFAZ — a seleção do lote pode ter ficado velha.
+ */
+export type CteBatchDocumentAuthorizationCheck = {
+  isAuthorized(input: {
+    readonly batchItemId: string
+    readonly companyId: string
+  }): Promise<boolean>
+}
+
 export type CteFiscalNumberProbeResult =
   | { readonly nextNumber: number; readonly outcome: 'advanced' }
   | { readonly outcome: 'exhausted' }
@@ -140,6 +152,7 @@ export function createCteIssuanceWorkerEffect(input: {
   readonly cancellationDocumentStorage?: CteCancellationDocumentStorage
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
   readonly diagnostics?: CteIssuanceDiagnostics
+  readonly documentAuthorizationCheck?: CteBatchDocumentAuthorizationCheck
   readonly fiscalNumberProbe?: CteFiscalNumberProbe
   /** Ausente é o gatilho desligado — instalação sem crachá emite MDF-e à mão (ADR-0047). */
   readonly mdfeAutoIssue?: MdfeAutoIssueTrigger
@@ -245,6 +258,21 @@ export function createCteIssuanceWorkerEffect(input: {
 
     const createKey = (): CteIssuanceWriteBackKey => createWriteBackKey(envelope)
     await input.writeBack?.recordInFlight(createKey())
+
+    const isDocumentAuthorized =
+      input.documentAuthorizationCheck === undefined ||
+      (await input.documentAuthorizationCheck.isAuthorized({
+        batchItemId: envelope.payload.batchItemId,
+        companyId: envelope.companyId,
+      }))
+
+    if (!isDocumentAuthorized) {
+      await input.writeBack?.recordRejected({
+        ...createKey(),
+        errorCode: CTE_BATCH_DOCUMENT_NOT_AUTHORIZED,
+      })
+      throw new CteIssuanceFatalError(CTE_BATCH_DOCUMENT_NOT_AUTHORIZED)
+    }
 
     const command = {
       tenantId: executionInput.tenantId,

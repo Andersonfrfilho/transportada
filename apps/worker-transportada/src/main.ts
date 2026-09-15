@@ -41,6 +41,7 @@ import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-is
 import { createMdfeAutoIssueTrigger } from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
 import { createAutomaticManifestApiGateway } from './mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
 import { createDrizzleTripByBatchItemRepository } from './mdfe-auto-issue/infrastructure/drizzle-trip-by-batch-item.repository.js'
+import { DrizzleCteBatchDocumentAuthorizationRepository } from './cte-issuance/infrastructure/drizzle-cte-batch-document-authorization.repository.js'
 import { DrizzleCteFiscalNumberProbeRepository } from './cte-issuance/infrastructure/drizzle-cte-fiscal-number-probe.repository.js'
 import { DrizzleCteIssuanceDiagnosticsRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-diagnostics.repository.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
@@ -797,6 +798,9 @@ export async function startWorkerRuntime(
         cancellationDocumentStorage: cteFiscalDocumentStorage,
         createProvider: createAdatechnologyCteFiscalProvider,
         diagnostics: new DrizzleCteIssuanceDiagnosticsRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        documentAuthorizationCheck: new DrizzleCteBatchDocumentAuthorizationRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         fiscalNumberProbe: new DrizzleCteFiscalNumberProbeRepository(

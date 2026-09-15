@@ -91,7 +91,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4 — Contrato vermelho: emissão de CT-e com nota cancelada depois da seleção falha o item com
+- [x] T4 — Contrato vermelho: emissão de CT-e com nota cancelada depois da seleção falha o item com
       `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`, não-retentável, **sem** chamar o gateway fiscal fake (H8).
       Depois a releitura de `nfe_documents.status` em `cte-issuance-consumer.effect.ts` (ou onde o item é
       montado), filtrando por `company_id`.
