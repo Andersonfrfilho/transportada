@@ -9,6 +9,7 @@ import {
   activeAddressCorrectionMailContacts,
   canConfirmAddressCorrectionMail,
   initialAddressCorrectionMailContactIds,
+  resolveAddressCorrectionMailIdempotencyKey,
 } from '../shared/addressCorrectionMail.service'
 import type { AddressCorrectionMailSendResult } from '../shared/addressCorrectionMail.validation'
 import { AddressCorrectionRequestError } from '../shared/addressCorrectionRequestError.service'
@@ -32,8 +33,7 @@ export type AddressCorrectionMailTarget = Readonly<{
 
 export type UseAddressCorrectionMailDialogResult = ReturnType<typeof useAddressCorrectionMailDialog>
 
-const CONTRACTOR_QUERY_KEY = 'address-correction-mail-contractor'
-const CONTACTS_QUERY_KEY = 'address-correction-mail-contacts'
+const RECIPIENTS_QUERY_KEY = 'address-correction-mail-recipients'
 
 function createClient() {
   return createNfeWorkspaceClient({
@@ -60,28 +60,44 @@ export function useAddressCorrectionMailDialog() {
   const [selectedContactIdsOverride, setSelectedContactIdsOverride] = useState<
     readonly string[] | null
   >(null)
+  /** `null` marca "sem tentativa em andamento" — força uma chave nova na próxima renderização. */
+  const [contactSelectionSnapshot, setContactSelectionSnapshot] = useState<
+    readonly string[] | null
+  >(null)
   const [idempotencyKey, setIdempotencyKey] = useState('')
   const [result, setResult] = useState<AddressCorrectionMailSendResult | null>(null)
 
   const isOpen = target !== null
 
-  const contractorQuery = useQuery({
+  const recipientsQuery = useQuery({
     enabled: isOpen,
-    queryFn: () => client.getAddressCorrectionContractor({ taxId: target?.contractorTaxId ?? '' }),
-    queryKey: [CONTRACTOR_QUERY_KEY, target?.contractorTaxId],
+    queryFn: () =>
+      client.findAddressCorrectionRecipients({
+        contractorTaxId: target?.contractorTaxId ?? '',
+      }),
+    queryKey: [RECIPIENTS_QUERY_KEY, target?.contractorTaxId],
   })
 
-  const contractorId = contractorQuery.data?.id
-
-  const contactsQuery = useQuery({
-    enabled: isOpen && contractorId !== undefined,
-    queryFn: () => client.listAddressCorrectionContacts({ contractorId: contractorId ?? '' }),
-    queryKey: [CONTACTS_QUERY_KEY, contractorId],
-  })
-
-  const contacts = activeAddressCorrectionMailContacts(contactsQuery.data ?? [])
+  const contacts = activeAddressCorrectionMailContacts(recipientsQuery.data?.contacts ?? [])
   const selectedContactIds =
     selectedContactIdsOverride ?? initialAddressCorrectionMailContactIds(contacts)
+
+  /**
+   * Ajusta o estado durante a renderização (padrão oficial do React para "resetar estado quando
+   * outro valor muda", sem `useEffect`): a chave só muda quando a seleção muda de fato —
+   * `resolveAddressCorrectionMailIdempotencyKey` decide, `contactSelectionSnapshot === null`
+   * (`open()`) força a troca mesmo que a seleção calculada seja igual à da sessão anterior.
+   */
+  const resolvedIdempotency = resolveAddressCorrectionMailIdempotencyKey({
+    currentContactIds: selectedContactIds,
+    generateKey: () => crypto.randomUUID(),
+    previousContactIds: contactSelectionSnapshot,
+    previousIdempotencyKey: idempotencyKey,
+  })
+  if (resolvedIdempotency.idempotencyKey !== idempotencyKey) {
+    setContactSelectionSnapshot(resolvedIdempotency.contactIds)
+    setIdempotencyKey(resolvedIdempotency.idempotencyKey)
+  }
 
   const sendMutation = useMutation({
     mutationFn: () => {
@@ -111,7 +127,7 @@ export function useAddressCorrectionMailDialog() {
   function open(next: AddressCorrectionMailTarget): void {
     setTarget(next)
     setSelectedContactIdsOverride(null)
-    setIdempotencyKey(crypto.randomUUID())
+    setContactSelectionSnapshot(null)
     setResult(null)
     sendMutation.reset()
   }
@@ -140,14 +156,13 @@ export function useAddressCorrectionMailDialog() {
     close,
     confirm,
     contacts,
-    contactsFailed: contactsQuery.isError,
-    contactsLoading: isOpen && (contractorQuery.isFetching || contactsQuery.isFetching),
-    contractorFailed: contractorQuery.isError,
     canConfirm: canConfirmAddressCorrectionMail(selectedContactIds.length),
-    errorCode: readErrorCode(sendMutation.error ?? contractorQuery.error ?? contactsQuery.error),
+    errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error),
     isOpen,
     isSending: sendMutation.isPending,
     open,
+    recipientsFailed: recipientsQuery.isError,
+    recipientsLoading: isOpen && recipientsQuery.isFetching,
     result,
     selectedContactIds,
     target,

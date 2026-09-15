@@ -80,3 +80,37 @@ const MAIL_ERROR_MESSAGE_KEY: Readonly<Record<string, string>> = {
 export function addressCorrectionMailErrorMessageKey(code: string): string {
   return MAIL_ERROR_MESSAGE_KEY[code] ?? 'addressReport.correction.mail.error.generic'
 }
+
+export type ResolveAddressCorrectionMailIdempotencyKeyResult = Readonly<{
+  contactIds: readonly string[]
+  idempotencyKey: string
+}>
+
+/**
+ * Revisão final (T305 seguia gerando a chave só em `open()`, fixa até fechar): reusar a mesma
+ * `Idempotency-Key` com uma seleção de contatos diferente manda um corpo diferente para o mesmo
+ * fingerprint, e o servidor recusa com `IDEMPOTENCY_KEY_REUSED` (409). A chave fica estável
+ * enquanto a seleção não muda (retry da mesma tentativa) e muda assim que ela muda — a ordem da
+ * seleção não importa, só o conjunto.
+ */
+export function resolveAddressCorrectionMailIdempotencyKey(input: {
+  readonly currentContactIds: readonly string[]
+  readonly generateKey: () => string
+  readonly previousContactIds: readonly string[] | null
+  readonly previousIdempotencyKey: string
+}): ResolveAddressCorrectionMailIdempotencyKeyResult {
+  if (
+    input.previousContactIds !== null &&
+    sameContactSelection(input.previousContactIds, input.currentContactIds)
+  ) {
+    return { contactIds: input.previousContactIds, idempotencyKey: input.previousIdempotencyKey }
+  }
+  return { contactIds: input.currentContactIds, idempotencyKey: input.generateKey() }
+}
+
+function sameContactSelection(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((id, index) => id === sortedB[index])
+}
