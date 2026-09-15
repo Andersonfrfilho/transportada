@@ -34,7 +34,9 @@ Contrato/aceite **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` 🧠 (validar com `architect` antes de fechar)
 
-- [ ] **T1 🧠 — ADR da medida pela câmera e dependência.** `docs/adr/0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md`
+- [x] **T1 🧠 — ADR da medida pela câmera e dependência.** Feito (evidence.md § T1). Revista na
+      execução: o pacote npm não inicia sob a CSP, e a dependência virou build próprio versionado
+      (`deploy/opencv-build/` + `vendor/opencv/`, ADR-0065 §2–§3), sem `@techstark/opencv-js`. `docs/adr/0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md`
       (0065 é o próximo livre em `origin/staging`; conferir de novo, porque 0063 já saiu duplicado).
       Registra:
   - abordagem A vs WebXR vs monocular, com os números medidos no spike (WASM 11,96 MB / 3,50 MB
@@ -49,10 +51,11 @@ Contrato/aceite **antes** da implementação em toda task de código.
   - experimental + interruptor por empresa + validação posterior (D13, D14, D16);
   - imagem não sai do aparelho; origem, margem e proposta gravadas.
 
-  Instalar a dependência em `apps/frontend-transportada` com versão exata.
+  Instalar a dependência em `apps/frontend-transportada` com versão exata — **substituído** pelo
+  build próprio versionado (o pacote npm falha sob a CSP com `EvalError`).
   **Aceite:** ADR com Status, Contexto, Decisão, Alternativas e Consequências;
-  `bun install --frozen-lockfile` verde depois do lock atualizado; `make check` verde; nenhum import
-  da dependência ainda no código.
+  `bun install --frozen-lockfile` verde; `make check` verde; nenhum import do OpenCV ainda no código;
+  sonda com a CSP real carregando o build no worker e detectando o ArUco id 0.
 
 ## Fase 2 — API: origem, margem, histórico, interruptor e export
 
@@ -118,6 +121,17 @@ Contrato/aceite **antes** da implementação em toda task de código.
       precache, regra de runtime cache presente, vídeo apagado ao desmontar, nenhuma chamada de rede
       com imagem, props de texto obrigatórias; contrato de CSP e de headers **inalterados**;
       `make check` verde. Qualquer necessidade de mudar CSP/Permissions-Policy → **parar**.
+      **Pré-requisitos vindos da revisão da T1 (architect):**
+  - o `server.ts` **não comprime** hoje: servir o chunk do OpenCV com gzip/brotli (pré-comprimido
+    no build ou na hora), com `Content-Encoding` e `Vary: Accept-Encoding` — sem isso são 3,05 MB
+    pela rede;
+  - `worker: { format: 'es' }` no `vite.config.ts` (o worker é `type: 'module'` e faz `import()`);
+  - fallback: WASM ou worker que falha (iOS < 16 sem `'wasm-unsafe-eval'`, CSP, memória) cai no
+    formulário digitado com aviso, e nada grava;
+  - `test/shared/opencv-build.contract.ts`: trocar a asserção negativa do `vite.config.ts` (linha
+    85, `not.toContain('vendor/opencv')`) por positiva — `globIgnores` com o chunk do OpenCV e a
+    regra `CacheFirst` `transportada-opencv` — e trocar "só o worker importa" (linhas 75–80) por
+    "o worker importa o artefato" (lista exata, não subconjunto).
 
 ## Fase 4 — Fluxo do conferente em `nfe-workspace`
 

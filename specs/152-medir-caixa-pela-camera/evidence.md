@@ -375,3 +375,190 @@ Fatos conferidos em `origin/staging` para a revisão: CSP já tem `'wasm-unsafe-
 `GET /company-settings/cargo` exige `settings.manage`; `useBarcodeScanner` fecha o stream ao
 desativar (por isso D19); última migration `20260915025926_nfe_document_protocol_presence`; próximo
 ADR livre 0065. Nenhum `[NEEDS CLARIFICATION]` aberto.
+
+---
+
+## T1 — ADR-0065 e o OpenCV sob a CSP
+
+ADR: `docs/adr/0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md` (0065 conferido livre em
+`origin/staging`).
+
+### O pacote npm não inicia sob a CSP (parada obrigatória)
+
+`@techstark/opencv-js@5.0.0-release.1` é o pacote oficial (Apache-2.0, `latest`, publicado em
+2026-06-24, repositório TechStark/opencv-js com 783 estrelas, ativo; o nome sem escopo `opencv-js`
+foi despublicado em 2017). Mas o embind do Emscripten monta invocadores com `new Function`.
+
+Sonda descartável (scratchpad): Vite 7.3.6, worker `type: 'module'` que carrega o OpenCV, cria o
+`aruco_ArucoDetector` e detecta um marcador id 0 gerado pelo próprio OpenCV; `Bun.serve` com a CSP
+de `buildContentSecurityPolicy` em toda resposta (como o `server.ts`); Chromium headless do
+Playwright 1.58.2.
+
+| Artefato                 | CSP servida                            | Resultado                                                             |
+| ------------------------ | -------------------------------------- | --------------------------------------------------------------------- |
+| pacote npm               | a de hoje                              | `EvalError: … 'unsafe-eval' is not an allowed source of script`       |
+| pacote npm               | nenhuma (controle)                     | ok, carga 229 ms, id 0                                                |
+| pacote npm               | `'unsafe-eval'` no app todo            | ok                                                                    |
+| pacote npm               | `'unsafe-eval'` só no script do worker | ok, carga 232 ms, id 0                                                |
+| build próprio, 1ª versão | a de hoje                              | inicia; falha no binding (`unbound types: cv::Algorithm`) — whitelist |
+| **build próprio final**  | **a de hoje, sem mudança**             | **ok, carga 101 / 73 / 71 ms, id 0, zero violação (página e worker)** |
+
+A dependência foi instalada, conferida (`bun install --frozen-lockfile` verde) e desfeita. Decisão
+do usuário: opção 1, build próprio com a CSP intacta.
+
+### Build próprio
+
+`deploy/opencv-build/build.sh` + `opencv_js.config.py`, emsdk nativo (o Docker local travou):
+Emscripten 4.0.20 (emsdk `33aee63c`), OpenCV 5.0.0 (`40738fb1`), `--build_wasm`, `SINGLE_FILE=1`,
+`-s DYNAMIC_EXECUTION=0`, `-DCMAKE_CXX_STANDARD=17`, `SOURCE_DATE_EPOCH` = data do commit.
+
+- Módulos: `core`, `imgproc`, `objdetect` + dependências `geometry`, `features`, `flann`, e `photo`
+  (o `core_bindings.cpp` do 5.0.0 faz `using namespace cv::segmentation` sem condição, e o namespace
+  mora em `photo`; o primeiro build sem ele falhou em `bindings.cpp:128`). Fora: `3d`, `calib`,
+  `dnn`, `stereo`, `video`, `ml`, testes, perf, exemplos.
+- Whitelist: `copyMakeBorder`, `meanStdDev`, `cvtColor`, `resize`, `Laplacian`,
+  `getPerspectiveTransform`, `warpPerspective`, `getPredefinedDictionary`, `generateImageMarker`,
+  `Algorithm` (base do detector), `aruco_Dictionary`, `aruco_DetectorParameters`,
+  `aruco_RefineParameters`, `aruco_ArucoDetector.detectMarkers` — tudo o que o spike chama.
+- Pós-build: wrapper UMD com `globalThis` e `var Module`; o script recusa `new Function`/`eval(`.
+  Varredura do artefato: `new Function` 0, `eval(` 0.
+
+| Tamanho                  | Bruto        | gzip -9     | brotli -q 11 |
+| ------------------------ | ------------ | ----------- | ------------ |
+| pacote npm `opencv.js`   | 13.298.869 B | 3.747.048 B | 2.672.690 B  |
+| pacote npm, chunk Vite   | 15.515.064 B | 3.894.739 B | 2.785.688 B  |
+| **build próprio**        | 2.672.625 B  | 868.423 B   | 675.009 B    |
+| **build próprio, chunk** | 3.066.378 B  | 893.029 B   | 697.438 B    |
+
+Reprodutibilidade: dois builds limpos antes do `SOURCE_DATE_EPOCH` diferiram em 4 bytes (offset
+2.187.723, o `Timestamp` do `getBuildInformation()`). Com ele, dois builds limpos seguidos (218 s e
+223 s) deram o mesmo sha256 `9b6f16038c9a4d4664a52e201d8b9e376c852e520a4038509d3fa8a38d02198b`
+(`cmp` idêntico), com `Timestamp: 2026-06-05T18:50:05Z`.
+
+### Onde o artefato mora
+
+Opção (a): script versionado em `deploy/opencv-build/` e artefato versionado em
+`apps/frontend-transportada/vendor/opencv/opencv.js` (+ `LICENSE` Apache-2.0), fora de `public/`
+(fora do precache), marcado `binary` no `.gitattributes` (213.784 bytes NUL no literal do WASM), no
+`.prettierignore` e nos `ignores` do eslint. Nada publicado. Trade-off na ADR-0065 §3.
+
+### Contrato (antes da implementação)
+
+`test/shared/opencv-build.contract.ts` (importado em `test/shared.contract.test.ts`, já listado no
+`package.json`): sha256 do artefato, sem `new Function`/`eval(`, wrapper UMD ajustado, versões e
+`DYNAMIC_EXECUTION=0` no script, `@techstark/opencv-js` fora do `package.json`, só o worker de medida
+pode importar o OpenCV (hoje ninguém), fora de `public/` e do `vite.config.ts`, e CSP com
+`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self'` e sem `'unsafe-eval'`.
+
+```
+$ bun test test/shared.contract.test.ts -t "OpenCV"
+ 8 pass · 256 filtered out · 0 fail
+```
+
+### Build do frontend
+
+Nenhum import do OpenCV ainda (T8): o `dist` não tem arquivo `*opencv*`, o `sw.js` não o menciona e
+nenhum `.js` do `dist` contém `aruco_ArucoDetector` (precache de 128 entradas, 4296,79 KiB, como
+antes). `dist/content-security-policy.txt`: `script-src 'self' 'wasm-unsafe-eval'` e
+`worker-src 'self'`, inalterados. Na sonda, o artefato sai como chunk próprio (`assets/opencv-*.js`)
+separado do `index` e do worker; o `globIgnores` + `CacheFirst` desse chunk é da T8.
+
+### Gates
+
+| Gate                            | Resultado                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --check .`       | verde                                                                                                     |
+| `bun install --frozen-lockfile` | verde, sem mudança no lock                                                                                |
+| `bun run typecheck`             | verde                                                                                                     |
+| `bun run lint`                  | verde                                                                                                     |
+| `make check`                    | verde, 0 `(fail)`: api 5824 · worker 1354 · cron 94 · frontend 3721 · client 31 · landing 111 · 18 (raiz) |
+
+---
+
+## T1 — ajustes do architect
+
+Revisão do architect: T1 aprovada com ajustes. Commit de correção isolado sobre `4591d0c0`.
+
+### 1. Procedência
+
+- `deploy/opencv-build/build-in-docker.sh`: roda o `build.sh` em
+  `emscripten/emsdk@sha256:460fff8f8ac87e11b16447fbd66538a686eafa0e4fb977aa0989ed19fe2079f7` (lista
+  de manifestos da tag `4.0.20`, conferida na API do registry: amd64 `33e99236…`, arm64 `9bcd8da8…`).
+  A imagem já traz `emcc` 4.0.20, `cmake`, `make`, `git` e `python3`; o `build.sh` usa o `emcc` do
+  PATH quando a versão bate e só baixa o emsdk fora dela.
+- `.github/workflows/opencv-reproducibility.yml`: `workflow_dispatch`, `cron` mensal
+  (`0 6 1 * *`), `pull_request`/`push` em `deploy/opencv-build/**` e
+  `apps/frontend-transportada/vendor/opencv/**`; recompila no contêiner, sobe o resultado como
+  `opencv-js-rebuild` (sempre) e falha se o sha256 do contrato divergir do versionado ou do
+  recompilado. YAML validado com `Bun.YAML.parse` (sem `actionlint` na máquina); `bash -n` nos dois
+  scripts (sem `shellcheck`).
+- **Build no contêiner: não rodou.** `docker info` sem resposta em 20 s; não insisti. O artefato
+  versionado é do build nativo — macOS 26.5.1 (25F80) arm64, cmake 4.4.3, Python 3.14.6, GNU Make
+  3.81, emsdk 4.0.20 (`33aee63c`, emcc `6913738e`). Pendência na ADR-0065 §2: o hash canônico passa
+  a ser o do contêiner na primeira execução do workflow.
+
+**Achado durante o ajuste:** o artefato de `4591d0c0` levava **77 caminhos absolutos da máquina
+local** (o `__FILE__` dos `CV_Error`, com o diretório de trabalho e o nome do usuário) e o
+`getBuildInformation()` com host e ferramentas. Sem corrigir, nem o contêiner reproduziria o sha256.
+Correção no `build.sh`: `-ffile-prefix-map=<trabalho>=/opencv-build` e `=<emsdk>=/emsdk`, e o
+`version_string.inc` trocado por uma linha fixa entre `--config_only` e `--skip_config`; o script
+recusa a saída se o caminho de trabalho sobrar, e o contrato ganhou a asserção. ⚠️ O blob antigo
+continua no histórico de `4591d0c0` (não publicado).
+
+Build nativo novo, duas vezes do zero (207 s e 197 s): sha256
+`0299ef7bd89155591f8d8fb100354100030a8af916e5221b4e172da30d824d5d` nas duas (`cmp` idêntico).
+Varredura: `scratchpad` 0, `/private/` 0, `/Users/` 0, nome do usuário 0, `Darwin` 0, `Timestamp` 0;
+`/opencv-build/` 75 e `/emsdk/` 1 (caminhos neutros).
+
+| Tamanho       | Bruto       | gzip -9   | brotli -q 11 |
+| ------------- | ----------- | --------- | ------------ |
+| `opencv.js`   | 2.657.964 B | 866.519 B | 671.870 B    |
+| chunk do Vite | 3.053.658 B | 891.150 B | 697.642 B    |
+
+Sonda com a CSP real (`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self'`): ok, carga
+82,6 / 71,5 / 70,5 ms, ArUco id 0 detectado, zero violação.
+
+### 2. Licenças
+
+`vendor/opencv/`: `LICENSE` (Apache-2.0), `COPYRIGHT` (da tag 5.0.0), `NOTICE` (build modificado:
+flags, módulos, whitelist, patch UMD, build info neutralizado; fonte em `deploy/opencv-build/NOTICE`)
+e `third-party-licenses/` — `SoftFloat-COPYING.txt`, `annoylib-LICENSE`, `dlpack-LICENSE`,
+`flatbuffers-LICENSE.txt`, `fonts-Rubik_OFL.txt`, `mscr-chi_table_LICENSE.txt`, `protobuf-LICENSE`,
+`protobuf-README.md`, `zlib-LICENSE` e `emscripten-LICENSE`. O `build_js.py` não roda `install`,
+então não existe `build_js/etc/licenses`: o `build.sh` usa `cmake --install build_js --component
+licenses` e copia tudo sozinho.
+
+### 3. Compressão, pré-requisitos da T8 e fallback
+
+ADR-0065 §4 e Consequências, e D18/Peso/Riscos do `spec.md`: "3,05 MB brutos; 0,89 MB com
+compressão (T8)" — o `server.ts` não comprime hoje. Pré-requisitos anotados na T8 do `tasks.md`:
+gzip/brotli no `server.ts`, `worker: { format: 'es' }` no `vite.config.ts`, e fallback (WASM/worker
+que falha → formulário digitado com aviso, nada grava).
+
+### 4. Checagem endurecida
+
+`build.sh` e contrato usam `/(?<![A-Za-z0-9_$.])(new\s+)?Function\s*\(|(?<![A-Za-z0-9_$.])eval\s*\(/`.
+O artefato atual passa (0 ocorrências, conferido em JS e em Python antes de trocar).
+
+### 5. Contrato
+
+O cabeçalho de copyright já era o de `content-security-policy.contract.ts:1`. Pendências na T8:
+trocar a asserção negativa do `vite.config.ts` por positiva (`globIgnores` + `CacheFirst`
+`transportada-opencv`) e "só o worker importa" por "o worker importa o artefato".
+
+```
+$ bun test test/shared.contract.test.ts -t "OpenCV"
+ 10 pass · 256 filtered out · 0 fail
+```
+
+### Gates dos ajustes
+
+| Gate                                            | Resultado                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `bunx prettier --check .`                       | verde                                                                     |
+| `bun install --frozen-lockfile`                 | verde, sem mudança no lock                                                |
+| `bun run typecheck` / `bun run lint`            | verdes                                                                    |
+| `bun run --cwd apps/frontend-transportada test` | 3723 pass, 0 fail, 0 `(fail)`                                             |
+| build do frontend                               | verde; `dist` sem `*opencv*`, `sw.js` sem OpenCV, precache 128 entradas   |
+| `dist/content-security-policy.txt`              | `script-src 'self' 'wasm-unsafe-eval'` · `worker-src 'self'` (inalterada) |
+| workflow                                        | YAML válido (`Bun.YAML.parse`); `actionlint` indisponível                 |
