@@ -23,6 +23,8 @@ export type AddressCorrectionState = 'draft' | 'none' | 'sent'
 export type AddressCorrectionStatus = Readonly<{
   lastSentAt: null | string
   proposedSummary: null | string
+  /** H3 ("para quem", revisão final): só preenchido quando `state` é `sent`. */
+  recipientCount: null | number
   sentAt: null | string
   state: AddressCorrectionState
 }>
@@ -30,6 +32,7 @@ export type AddressCorrectionStatus = Readonly<{
 const NONE_STATUS: AddressCorrectionStatus = {
   lastSentAt: null,
   proposedSummary: null,
+  recipientCount: null,
   sentAt: null,
   state: 'none',
 }
@@ -65,13 +68,20 @@ export function resolveAddressCorrectionStatus(
     return {
       lastSentAt: sent?.sentAt ?? null,
       proposedSummary: summarizeProposed(draft.proposed),
+      recipientCount: null,
       sentAt: null,
       state: 'draft',
     }
   }
 
   if (sent !== undefined) {
-    return { lastSentAt: null, proposedSummary: null, sentAt: sent.sentAt, state: 'sent' }
+    return {
+      lastSentAt: null,
+      proposedSummary: null,
+      recipientCount: sent.recipientCount,
+      sentAt: sent.sentAt,
+      state: 'sent',
+    }
   }
 
   return NONE_STATUS

@@ -4,7 +4,11 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
-import { addressCorrectionRequests, contractors } from '../../database/database.schema.js'
+import {
+  addressCorrectionRequests,
+  contractorMailMessages,
+  contractors,
+} from '../../database/database.schema.js'
 import type {
   AddressCorrectionContractor,
   AddressCorrectionRepositoryPort,
@@ -53,7 +57,10 @@ function toEditableColumns(params: UpsertAddressCorrectionDraftParams): Editable
   }
 }
 
-function toAddressCorrectionRequest(row: AddressCorrectionRow): AddressCorrectionRequest {
+function toAddressCorrectionRequest(
+  row: AddressCorrectionRow,
+  recipientCount: number | null = null,
+): AddressCorrectionRequest {
   return {
     actorUserId: row.actorUserId,
     addressKey: row.addressKey,
@@ -61,6 +68,7 @@ function toAddressCorrectionRequest(row: AddressCorrectionRow): AddressCorrectio
     contractorId: row.contractorId,
     createdAt: row.createdAt,
     id: row.id,
+    recipientCount,
     proposed: {
       city: row.proposedCity,
       cityCode: row.proposedCityCode,
@@ -119,8 +127,7 @@ export class DrizzleAddressCorrectionRepository implements AddressCorrectionRepo
       .onConflictDoUpdate({
         set: { ...editable, updatedAt: sql`now()` },
         target: [addressCorrectionRequests.companyId, addressCorrectionRequests.addressKey],
-        // Literal, not a bind parameter: Postgres only infers the partial index from a constant.
-        targetWhere: sql`${addressCorrectionRequests.status} = ${sql.raw(`'${DRAFT_STATUS}'`)}`,
+        targetWhere: eq(addressCorrectionRequests.status, DRAFT_STATUS),
       })
       .returning()
     if (row === undefined) throw new Error('address correction draft was not persisted')
@@ -161,14 +168,30 @@ export class DrizzleAddressCorrectionRepository implements AddressCorrectionRepo
     return rows.map(toAddressCorrectionRequest)
   }
 
+  /**
+   * H3 ("vejo... quando e para quem"): `recipientCount` nunca é uma coluna própria — ele é lido da
+   * mensagem `outbound` gravada na mesma transação do envio (`recordMail`), pelo `thread_id`. Um
+   * pedido `sent` tem exatamente uma mensagem de saída nessa conversa (`address_correction` nunca
+   * reabre), então o `left join` nunca duplica linha.
+   */
   async listByCompany(
     params: ListAddressCorrectionRequestsByCompanyParams,
   ): Promise<readonly AddressCorrectionRequest[]> {
     const rows = await this.database
-      .select()
+      .select({
+        recipientCount: sql<number | null>`array_length(${contractorMailMessages.toAddresses}, 1)`,
+        request: addressCorrectionRequests,
+      })
       .from(addressCorrectionRequests)
+      .leftJoin(
+        contractorMailMessages,
+        and(
+          eq(contractorMailMessages.threadId, addressCorrectionRequests.threadId),
+          eq(contractorMailMessages.direction, 'outbound'),
+        ),
+      )
       .where(eq(addressCorrectionRequests.companyId, params.companyId))
       .orderBy(asc(addressCorrectionRequests.addressKey))
-    return rows.map(toAddressCorrectionRequest)
+    return rows.map((row) => toAddressCorrectionRequest(row.request, row.recipientCount))
   }
 }

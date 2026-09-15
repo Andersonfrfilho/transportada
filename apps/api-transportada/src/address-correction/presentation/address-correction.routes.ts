@@ -9,10 +9,15 @@ import { defineRoute } from '../../http/router.service.js'
 import {
   API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_PATH,
+  API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type { SendAddressCorrectionMailResult } from '../application/address-correction-mail.port.js'
 import type { SendAddressCorrectionMailUseCase } from '../application/send-address-correction-mail.use-case.js'
+import type {
+  AddressCorrectionRecipients,
+  FindAddressCorrectionRecipientsUseCase,
+} from '../application/find-address-correction-recipients.use-case.js'
 import type { SaveAddressCorrectionDraftUseCase } from '../application/save-address-correction-draft.use-case.js'
 import type { ListAddressCorrectionRequestsUseCase } from '../application/list-address-correction-requests.use-case.js'
 import type {
@@ -22,6 +27,7 @@ import type {
 import {
   parseAddressCorrectionRequestKey,
   parsePostAddressCorrectionMailBody,
+  parsePostAddressCorrectionRecipientsBody,
   parsePutAddressCorrectionRequestBody,
 } from './address-correction-request.schema.js'
 
@@ -30,6 +36,7 @@ const ADDRESS_CORRECTION_REQUEST_PATH = `${API_ADDRESS_CORRECTION_REQUESTS_PATH}
 const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE }
 
 type Dependencies = Readonly<{
+  findRecipients: FindAddressCorrectionRecipientsUseCase
   listRequests: ListAddressCorrectionRequestsUseCase
   saveDraft: SaveAddressCorrectionDraftUseCase
   sendMail: SendAddressCorrectionMailUseCase
@@ -47,6 +54,8 @@ type SendMailInput = Readonly<{
   idempotencyKey: string
   requestIds: readonly string[] | undefined
 }>
+
+type RecipientsInput = Readonly<{ contractorTaxId: string }>
 
 export function createAddressCorrectionRoutes(
   dependencies: Dependencies,
@@ -119,6 +128,22 @@ export function createAddressCorrectionRoutes(
       pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
+    defineRoute<RecipientsInput>({
+      async handle({ context, input }): Promise<Response> {
+        const recipients = await dependencies.findRecipients.find({
+          context: context.scope,
+          contractorTaxId: input.contractorTaxId,
+        })
+        return jsonResponse({ data: serializeAddressCorrectionRecipients(recipients) })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parsePostAddressCorrectionRecipientsBody(request)
+        return { contractorTaxId: body.contractorTaxId }
+      },
+      pathname: API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
   ]
 }
 
@@ -135,6 +160,20 @@ function serializeSendAddressCorrectionMailResult(result: SendAddressCorrectionM
   }
 }
 
+/** Nunca `companyId`: chave interna, não algo que a tela de confirmação precisa. */
+function serializeAddressCorrectionRecipients(recipients: AddressCorrectionRecipients): object {
+  return {
+    contacts: recipients.contacts.map((contact) => ({
+      canDecide: contact.canDecide,
+      email: contact.email,
+      id: contact.id,
+      receivesOccurrences: contact.receivesOccurrences,
+      status: contact.status,
+    })),
+    contractor: { displayName: recipients.contractor.displayName, id: recipients.contractor.id },
+  }
+}
+
 /**
  * Nunca `companyId`, `contractorId` nem `actorUserId`: são chaves internas, não algo que a tela
  * precisa. RF8: nada de endereço/CEP em log, mas na resposta HTTP autenticada eles são o produto.
@@ -146,6 +185,7 @@ function serializeAddressCorrectionRequest(request: AddressCorrectionRequest): o
     proposed: request.proposed,
     reasonDistanceMetres: request.reasonDistanceMetres,
     reasonMatchLevel: request.reasonMatchLevel,
+    recipientCount: request.recipientCount,
     recipientName: request.recipientName,
     reported: request.reported,
     sentAt: request.sentAt,

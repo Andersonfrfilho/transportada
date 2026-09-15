@@ -120,3 +120,23 @@ export async function parsePostAddressCorrectionMailBody(
 ): Promise<PostAddressCorrectionMailBody> {
   return parseBody(postAddressCorrectionMailSchema, request)
 }
+
+/**
+ * Revisão final (item de segurança B3): o CNPJ do emitente vem do **corpo**, nunca do caminho da
+ * URL — é o que tira o documento fiscal de log de acesso, proxy e APM.
+ */
+const postAddressCorrectionRecipientsSchema = z
+  .object({
+    contractorTaxId: buildTaxIdSchema(TAX_ID_PATTERN),
+  })
+  .strict()
+
+export type PostAddressCorrectionRecipientsBody = z.infer<
+  typeof postAddressCorrectionRecipientsSchema
+>
+
+export async function parsePostAddressCorrectionRecipientsBody(
+  request: Request,
+): Promise<PostAddressCorrectionRecipientsBody> {
+  return parseBody(postAddressCorrectionRecipientsSchema, request)
+}

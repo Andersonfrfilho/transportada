@@ -347,6 +347,8 @@
       "stateNone": "No request",
       "stateDraft": "Draft saved",
       "stateSent": "Sent on {{date}}",
+      "stateSentWithCount": "Sent to {{count}} contact on {{date}}",
+      "stateSentWithCount_other": "Sent to {{count}} contacts on {{date}}",
       "lastSentAt": "Last sent on {{date}}",
       "statusUnavailable": "Could not load the request status.",
       "mail": {

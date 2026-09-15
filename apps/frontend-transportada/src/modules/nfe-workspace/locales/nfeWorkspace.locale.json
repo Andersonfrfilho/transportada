@@ -521,6 +521,8 @@
       "stateNone": "Sem pedido",
       "stateDraft": "Rascunho salvo",
       "stateSent": "Enviado em {{date}}",
+      "stateSentWithCount": "Enviado a {{count}} contato em {{date}}",
+      "stateSentWithCount_other": "Enviado a {{count}} contatos em {{date}}",
       "lastSentAt": "Último envio em {{date}}",
       "statusUnavailable": "Não foi possível carregar o estado dos pedidos.",
       "mail": {

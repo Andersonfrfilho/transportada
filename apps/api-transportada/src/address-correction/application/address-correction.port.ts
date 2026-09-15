@@ -25,6 +25,8 @@ export type AddressCorrectionRequest = {
   /** `numeric` do banco, em texto — nunca float binário. */
   readonly reasonDistanceMetres: string | null
   readonly recipientName: string | null
+  /** H3: só um pedido `sent` tem valor — lido da mensagem da conversa ligada, nunca gravado à parte. */
+  readonly recipientCount: number | null
   readonly status: AddressCorrectionRequestStatus
   readonly threadId: string | null
   readonly actorUserId: string | null

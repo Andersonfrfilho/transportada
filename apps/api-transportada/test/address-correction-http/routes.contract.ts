@@ -47,6 +47,7 @@ describe('address correction requests http contract', () => {
           proposed: ADDRESS_CORRECTION_REQUEST.proposed,
           reasonDistanceMetres: ADDRESS_CORRECTION_REQUEST.reasonDistanceMetres,
           reasonMatchLevel: ADDRESS_CORRECTION_REQUEST.reasonMatchLevel,
+          recipientCount: ADDRESS_CORRECTION_REQUEST.recipientCount,
           recipientName: ADDRESS_CORRECTION_REQUEST.recipientName,
           reported: ADDRESS_CORRECTION_REQUEST.reported,
           sentAt: ADDRESS_CORRECTION_REQUEST.sentAt,
@@ -54,6 +55,23 @@ describe('address correction requests http contract', () => {
         },
       ])
       expect(fixture.listCalls).toEqual([{ companyId: fixture.companyId }])
+    })
+
+    /**
+     * H3 ("vejo... quando e para quem", revisão final): `recipientCount` vem do repositório, que o
+     * lê da mensagem `outbound` da conversa ligada — a rota só repassa o que o caso de uso devolveu.
+     */
+    test('exposes recipientCount for a sent request', async () => {
+      const fixture = await createAddressCorrectionHttpFixture({
+        listResult: [{ ...ADDRESS_CORRECTION_REQUEST, recipientCount: 3, status: 'sent' }],
+      })
+
+      const response = await fixture.handle(
+        jsonRequest({ method: 'GET', path: ADDRESS_CORRECTION_REQUESTS_PATH }),
+      )
+
+      const [row] = (await responseData(response)) as readonly { recipientCount: number | null }[]
+      expect(row?.recipientCount).toBe(3)
     })
 
     test('never lets the answer be cached', async () => {
@@ -254,6 +272,108 @@ describe('address correction requests http contract', () => {
 
       expect(response.status).toBe(403)
       expect(fixture.saveCalls).toEqual([])
+    })
+  })
+
+  /**
+   * Revisão final, item de segurança B3: substitui `GET /contractors/by-tax-id/:taxId` +
+   * `GET /contractors/:id/contacts` no frontend — o CNPJ vai no corpo, nunca na URL, sob a mesma
+   * `settings.manage` do resto do fluxo (nunca `fleet.read`).
+   */
+  describe('POST /address-correction-requests/recipients', () => {
+    const RECIPIENTS_PATH = '/address-correction-requests/recipients'
+
+    test('answers the contractor and its active contacts, resolved from the body', async () => {
+      const fixture = await createAddressCorrectionHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { contractorTaxId: '30290856000160' },
+          method: 'POST',
+          path: RECIPIENTS_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(200)
+      expect(await responseData(response)).toEqual({
+        contacts: [
+          {
+            canDecide: false,
+            email: 'financeiro@contratante.example',
+            id: '00000000-0000-4000-8000-000000000c01',
+            receivesOccurrences: true,
+            status: 'active',
+          },
+        ],
+        contractor: {
+          displayName: 'Contratante Exemplo',
+          id: ADDRESS_CORRECTION_REQUEST.contractorId,
+        },
+      })
+      expect(fixture.findRecipientsCalls).toHaveLength(1)
+      expect(fixture.findRecipientsCalls[0]?.contractorTaxId).toBe('30290856000160')
+    })
+
+    test('never lets the answer be cached', async () => {
+      const fixture = await createAddressCorrectionHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { contractorTaxId: '30290856000160' },
+          method: 'POST',
+          path: RECIPIENTS_PATH,
+        }),
+      )
+
+      expect(response.headers.get('cache-control')).toBe('no-store')
+    })
+
+    test('rejects a body with a malformed tax id', async () => {
+      const fixture = await createAddressCorrectionHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { contractorTaxId: 'not-a-tax-id' },
+          method: 'POST',
+          path: RECIPIENTS_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.findRecipientsCalls).toEqual([])
+    })
+
+    test('propagates the stable 404 when no contractor is registered for the tax id', async () => {
+      const fixture = await createAddressCorrectionHttpFixture({
+        findRecipientsError: new AddressCorrectionContractorNotFoundError(),
+      })
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { contractorTaxId: '30290856000160' },
+          method: 'POST',
+          path: RECIPIENTS_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(404)
+      const error = await responseApiError(response)
+      expect(error.code).toBe('ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND')
+    })
+
+    test('rejects a caller without settings.manage', async () => {
+      const fixture = await createAddressCorrectionHttpFixture({ permissions: new Set() })
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { contractorTaxId: '30290856000160' },
+          method: 'POST',
+          path: RECIPIENTS_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(403)
+      expect(fixture.findRecipientsCalls).toEqual([])
     })
   })
 })

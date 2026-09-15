@@ -17,6 +17,12 @@ export type AddressCorrectionMailContact = Readonly<{
 
 export type AddressCorrectionMailContractor = Readonly<{ id: string }>
 
+/** `POST /address-correction-requests/recipients` (revisão final, item de segurança B3). */
+export type AddressCorrectionRecipients = Readonly<{
+  contacts: readonly AddressCorrectionMailContact[]
+  contractor: AddressCorrectionMailContractor
+}>
+
 export type AddressCorrectionMailSendResult = Readonly<{
   messageId: string
   recipientCount: number
@@ -49,7 +55,9 @@ export function mapAddressCorrectionMailContractor(
 }
 
 /** Contato que esta versão não reconhece some da lista, não a lista inteira. */
-function mapAddressCorrectionMailContact(value: unknown): AddressCorrectionMailContact | null {
+export function mapAddressCorrectionMailContact(
+  value: unknown,
+): AddressCorrectionMailContact | null {
   if (
     !isRecord(value) ||
     !isString(value.id) ||
@@ -75,6 +83,21 @@ export function mapAddressCorrectionMailContactList(
   return data
     .map(mapAddressCorrectionMailContact)
     .filter((contact): contact is AddressCorrectionMailContact => contact !== null)
+}
+
+/** `POST /address-correction-requests/recipients` — a resposta única que substitui as duas rotas
+ * antigas (`GET /contractors/by-tax-id/:taxId` + `GET /contractors/:id/contacts`). */
+export function mapAddressCorrectionRecipients(value: unknown): AddressCorrectionRecipients | null {
+  const data = isRecord(value) ? value.data : undefined
+  if (!isRecord(data)) return null
+  const contractor = mapAddressCorrectionMailContractor(data.contractor)
+  if (contractor === null) return null
+  const contacts = Array.isArray(data.contacts)
+    ? data.contacts
+        .map(mapAddressCorrectionMailContact)
+        .filter((contact): contact is AddressCorrectionMailContact => contact !== null)
+    : []
+  return { contacts, contractor }
 }
 
 export function mapAddressCorrectionMailSendResult(

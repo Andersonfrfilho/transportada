@@ -33,10 +33,7 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
   const isUnit = target.requestIds !== undefined
   const isFinished = dialog.result !== null
   const hasNoActiveContact =
-    !dialog.contactsLoading &&
-    !dialog.contractorFailed &&
-    !dialog.contactsFailed &&
-    dialog.contacts.length === 0
+    !dialog.recipientsLoading && !dialog.recipientsFailed && dialog.contacts.length === 0
 
   // Fora de `document.body` o overlay herdaria o `transform` da transição de página, e o
   // `position: fixed` deixaria de se referir à viewport — mesmo cuidado de `BillingBulkCancelDialog`.
@@ -94,13 +91,13 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
             {t('addressReport.correction.mail.contactsTitle')}
           </h3>
 
-          {dialog.contractorFailed || dialog.contactsFailed ? (
+          {dialog.recipientsFailed ? (
             <p className={styles.mailWarning} role="alert">
               {t('addressReport.correction.mail.contactsUnavailable')}
             </p>
           ) : null}
 
-          {dialog.contactsLoading ? (
+          {dialog.recipientsLoading ? (
             <SkeletonGroup label={t('addressReport.correction.mail.contactsTitle')}>
               <Skeleton height="1.2rem" variant="text" width="70%" />
               <Skeleton height="1.2rem" variant="text" width="50%" />

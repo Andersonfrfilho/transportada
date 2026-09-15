@@ -24,6 +24,11 @@ import type {
   SendAddressCorrectionMailUseCase,
 } from '../../src/address-correction/application/send-address-correction-mail.use-case.js'
 import type { SendAddressCorrectionMailResult } from '../../src/address-correction/application/address-correction-mail.port.js'
+import type {
+  AddressCorrectionRecipients,
+  FindAddressCorrectionRecipientsInput,
+  FindAddressCorrectionRecipientsUseCase,
+} from '../../src/address-correction/application/find-address-correction-recipients.use-case.js'
 import { COMPANY_CONTEXT } from './fleet-http.fixture'
 import { CORRELATION_ID, FRONTEND_ORIGIN } from './fleet-http-payload.fixture'
 
@@ -54,6 +59,7 @@ export const ADDRESS_CORRECTION_REQUEST: AddressCorrectionRequest = {
   proposed: PROPOSED_ADDRESS,
   reasonDistanceMetres: '820.00',
   reasonMatchLevel: 'street',
+  recipientCount: null,
   recipientName: null,
   reported: {
     city: 'São Paulo',
@@ -78,7 +84,22 @@ export const SEND_MAIL_RESULT: SendAddressCorrectionMailResult = {
   threadId: '00000000-0000-4000-8000-000000000b10',
 }
 
+export const ADDRESS_CORRECTION_RECIPIENTS: AddressCorrectionRecipients = {
+  contacts: [
+    {
+      canDecide: false,
+      email: 'financeiro@contratante.example',
+      id: '00000000-0000-4000-8000-000000000c01',
+      receivesOccurrences: true,
+      status: 'active',
+    },
+  ],
+  contractor: { displayName: 'Contratante Exemplo', id: ADDRESS_CORRECTION_REQUEST.contractorId },
+}
+
 type CreateFixtureParams = {
+  readonly findRecipientsError?: Error
+  readonly findRecipientsResult?: AddressCorrectionRecipients
   readonly listResult?: readonly AddressCorrectionRequest[]
   readonly permissions?: CompanyContext['permissions']
   readonly saveError?: Error
@@ -91,6 +112,7 @@ export async function createAddressCorrectionHttpFixture(
   params: CreateFixtureParams = {},
 ): Promise<{
   readonly companyId: string
+  readonly findRecipientsCalls: FindAddressCorrectionRecipientsInput[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: { readonly companyId: string }[]
   readonly logCalls: { readonly message: string; readonly metadata: unknown }[]
@@ -100,6 +122,7 @@ export async function createAddressCorrectionHttpFixture(
   const listCalls: { readonly companyId: string }[] = []
   const saveCalls: SaveAddressCorrectionDraftInput[] = []
   const sendMailCalls: SendAddressCorrectionMailInput[] = []
+  const findRecipientsCalls: FindAddressCorrectionRecipientsInput[] = []
 
   const listRequests: ListAddressCorrectionRequestsUseCase = {
     list: async (input) => {
@@ -124,10 +147,18 @@ export async function createAddressCorrectionHttpFixture(
     },
   }
 
+  const findRecipients: FindAddressCorrectionRecipientsUseCase = {
+    find: async (input) => {
+      findRecipientsCalls.push(structuredClone(input))
+      if (params.findRecipientsError !== undefined) throw params.findRecipientsError
+      return params.findRecipientsResult ?? ADDRESS_CORRECTION_RECIPIENTS
+    },
+  }
+
   const logCalls: { readonly message: string; readonly metadata: unknown }[] = []
   const router = createTestRouter({
     context: authenticatedContext(params.permissions ?? SETTINGS_MANAGE_PERMISSIONS),
-    routes: await loadRoutes({ listRequests, saveDraft, sendMail }),
+    routes: await loadRoutes({ findRecipients, listRequests, saveDraft, sendMail }),
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
@@ -143,6 +174,7 @@ export async function createAddressCorrectionHttpFixture(
 
   return {
     companyId: COMPANY_CONTEXT.companyId,
+    findRecipientsCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
     logCalls,
@@ -152,6 +184,7 @@ export async function createAddressCorrectionHttpFixture(
 }
 
 async function loadRoutes(input: {
+  readonly findRecipients: FindAddressCorrectionRecipientsUseCase
   readonly listRequests: ListAddressCorrectionRequestsUseCase
   readonly saveDraft: SaveAddressCorrectionDraftUseCase
   readonly sendMail: SendAddressCorrectionMailUseCase
@@ -160,6 +193,7 @@ async function loadRoutes(input: {
     '../../src/address-correction/presentation/address-correction.routes.js'
   )) as {
     createAddressCorrectionRoutes(dependencies: {
+      readonly findRecipients: FindAddressCorrectionRecipientsUseCase
       readonly listRequests: ListAddressCorrectionRequestsUseCase
       readonly saveDraft: SaveAddressCorrectionDraftUseCase
       readonly sendMail: SendAddressCorrectionMailUseCase

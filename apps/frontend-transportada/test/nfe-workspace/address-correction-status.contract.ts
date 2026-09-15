@@ -36,6 +36,7 @@ function buildRequest(
     proposed: PROPOSED_FIELDS,
     reasonDistanceMetres: null,
     reasonMatchLevel: 'unresolved',
+    recipientCount: null,
     recipientName: null,
     reported: REPORTED_FIELDS,
     sentAt: null,
@@ -64,6 +65,7 @@ describe('estado do pedido de correção por endereço (spec 150, T202)', () => 
     expect(resolveAddressCorrectionStatus([])).toEqual({
       lastSentAt: null,
       proposedSummary: null,
+      recipientCount: null,
       sentAt: null,
       state: 'none',
     })
@@ -77,13 +79,14 @@ describe('estado do pedido de correção por endereço (spec 150, T202)', () => 
     expect(status.proposedSummary).toBe('R DAS AMERICAS, 540 — RIBEIRAO PRETO/SP · 14010-100')
   })
 
-  test('só um envio: estado "sent" com a data do envio', () => {
+  test('só um envio: estado "sent" com a data do envio e para quantos contatos', () => {
     const status = resolveAddressCorrectionStatus([
-      buildRequest({ sentAt: '2026-09-10T12:00:00.000Z', status: 'sent' }),
+      buildRequest({ recipientCount: 3, sentAt: '2026-09-10T12:00:00.000Z', status: 'sent' }),
     ])
     expect(status).toEqual({
       lastSentAt: null,
       proposedSummary: null,
+      recipientCount: 3,
       sentAt: '2026-09-10T12:00:00.000Z',
       state: 'sent',
     })
@@ -98,6 +101,7 @@ describe('estado do pedido de correção por endereço (spec 150, T202)', () => 
     expect(status.state).toBe('draft')
     expect(status.lastSentAt).toBe('2026-09-01T09:00:00.000Z')
     expect(status.sentAt).toBeNull()
+    expect(status.recipientCount).toBeNull()
   })
 
   test('mais de um envio: o último envio é o mais recente', () => {
@@ -115,6 +119,7 @@ describe('estado do pedido de correção por endereço (spec 150, T202)', () => 
     expect(resolveAddressCorrectionStatus(matches)).toEqual({
       lastSentAt: null,
       proposedSummary: null,
+      recipientCount: null,
       sentAt: null,
       state: 'none',
     })

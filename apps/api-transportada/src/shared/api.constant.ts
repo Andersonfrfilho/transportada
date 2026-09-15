@@ -89,6 +89,12 @@ export const API_ADDRESS_REPORT_PATH = '/address-report'
 export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-requests'
 /** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */
 export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH = '/address-correction-requests/mail'
+/**
+ * Revisão final (item de segurança B3): resolve a contratante e os contatos ativos dela a partir
+ * do CNPJ do corpo — nunca do caminho da URL, e nunca mais via `GET /contractors/by-tax-id/:taxId`.
+ */
+export const API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH =
+  '/address-correction-requests/recipients'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'

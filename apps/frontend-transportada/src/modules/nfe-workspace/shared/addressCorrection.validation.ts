@@ -63,6 +63,8 @@ export type AddressCorrectionRequestRecord = Readonly<{
   proposed: AddressCorrectionFields
   reasonDistanceMetres: null | string
   reasonMatchLevel: string
+  /** H3 (revisão final): só um pedido `sent` traz valor — lido da mensagem da conversa ligada. */
+  recipientCount: null | number
   recipientName: null | string
   reported: AddressCorrectionFields
   sentAt: null | string
@@ -92,6 +94,10 @@ function text(value: unknown): string {
 
 function nullableText(value: unknown): null | string {
   return isString(value) ? value : null
+}
+
+function nullableNumber(value: unknown): null | number {
+  return typeof value === 'number' ? value : null
 }
 
 function isRequestStatus(value: unknown): value is AddressCorrectionRequestStatus {
@@ -129,6 +135,7 @@ export function mapAddressCorrectionRequest(value: unknown): AddressCorrectionRe
     proposed: mapFields(value.proposed),
     reasonDistanceMetres: nullableText(value.reasonDistanceMetres),
     reasonMatchLevel: text(value.reasonMatchLevel),
+    recipientCount: nullableNumber(value.recipientCount),
     recipientName: nullableText(value.recipientName),
     reported: mapFields(value.reported),
     sentAt: nullableText(value.sentAt),

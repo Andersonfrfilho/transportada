@@ -260,6 +260,7 @@ import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.
 import { createAddressReportRoutes } from './addresses/presentation/address-report.routes.js'
 import { createSaveAddressCorrectionDraftUseCase } from './address-correction/application/save-address-correction-draft.use-case.js'
 import { createListAddressCorrectionRequestsUseCase } from './address-correction/application/list-address-correction-requests.use-case.js'
+import { createFindAddressCorrectionRecipientsUseCase } from './address-correction/application/find-address-correction-recipients.use-case.js'
 import { createSendAddressCorrectionMailUseCase } from './address-correction/application/send-address-correction-mail.use-case.js'
 import { DrizzleAddressCorrectionRepository } from './address-correction/infrastructure/drizzle-address-correction.repository.js'
 import { DrizzleAddressCorrectionMailRepository } from './address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
@@ -1676,6 +1677,14 @@ function createApplicationRoutes({
     secretService: contractorMailCredentialSecretService,
     unitOfWork: new DrizzleAddressCorrectionMailRepository(database),
   })
+  /**
+   * Revisão final (item de segurança B3): resolve contratante + contatos ativos a partir do CNPJ
+   * do corpo, sem passar pelo CNPJ na URL nem pedir `fleet.read` de `GET /contractors/by-tax-id`.
+   */
+  const findAddressCorrectionRecipients = createFindAddressCorrectionRecipientsUseCase({
+    contractorLookup: addressCorrectionRepository,
+    listContacts: { execute: (input) => contractorContacts.list(input) },
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -2094,6 +2103,7 @@ function createApplicationRoutes({
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
     ...createAddressReportRoutes({ readReport: readAddressReport }),
     ...createAddressCorrectionRoutes({
+      findRecipients: findAddressCorrectionRecipients,
       listRequests: listAddressCorrectionRequests,
       saveDraft: saveAddressCorrectionDraft,
       sendMail: sendAddressCorrectionMail,

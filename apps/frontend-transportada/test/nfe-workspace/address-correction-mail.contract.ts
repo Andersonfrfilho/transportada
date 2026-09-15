@@ -8,6 +8,7 @@ import {
   buildAddressCorrectionMailRequestBody,
   canConfirmAddressCorrectionMail,
   initialAddressCorrectionMailContactIds,
+  resolveAddressCorrectionMailIdempotencyKey,
 } from '../../src/modules/nfe-workspace/shared/addressCorrectionMail.service'
 import {
   mapAddressCorrectionMailContactList,
@@ -164,45 +165,48 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(mapAddressCorrectionMailSendResult({ data: { messageId: 'message-1' } })).toBeNull()
   })
 
-  test('o client resolve o contratante pelo CNPJ e lista os contatos dele', async () => {
+  /**
+   * Revisão final, item de segurança B3: o CNPJ vai no corpo do `POST`, nunca no caminho da URL —
+   * substitui `GET /contractors/by-tax-id/:taxId` + `GET /contractors/:id/contacts`.
+   */
+  test('o client resolve o contratante e os contatos ativos num POST só, com o CNPJ no corpo', async () => {
     const requests: Request[] = []
     const client = createNfeWorkspaceClient({
       apiUrl: 'https://api.example.test',
       fetch: (input, init) => {
         const request = new Request(input, init)
         requests.push(request)
-        if (request.url.endsWith('/contractors/by-tax-id/30290856000160')) {
-          return Promise.resolve(
-            Response.json({ data: { id: 'contractor-1', taxId: '30290856000160' } }),
-          )
-        }
         return Promise.resolve(
           Response.json({
-            data: [
-              {
-                email: 'financeiro@contratante.example',
-                id: 'contact-1',
-                receivesOccurrences: true,
-                status: 'active',
-              },
-            ],
+            data: {
+              contacts: [
+                {
+                  email: 'financeiro@contratante.example',
+                  id: 'contact-1',
+                  receivesOccurrences: true,
+                  status: 'active',
+                },
+              ],
+              contractor: { id: 'contractor-1' },
+            },
           }),
         )
       },
       getAccessToken: () => Promise.resolve('synthetic-access-token'),
     })
 
-    const contractor = await client.getAddressCorrectionContractor({ taxId: '30290856000160' })
-    expect(contractor).toEqual({ id: 'contractor-1' })
-    const contacts = await client.listAddressCorrectionContacts({ contractorId: 'contractor-1' })
-    expect(contacts).toEqual([ACTIVE_SUBSCRIBED])
+    const recipients = await client.findAddressCorrectionRecipients({
+      contractorTaxId: '30290856000160',
+    })
+    expect(recipients.contractor).toEqual({ id: 'contractor-1' })
+    expect(recipients.contacts).toEqual([ACTIVE_SUBSCRIBED])
 
-    const [contractorRequest, contactsRequest] = requests
-    if (contractorRequest === undefined || contactsRequest === undefined) {
-      throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
-    }
-    expect(contractorRequest.method).toBe('GET')
-    expect(contactsRequest.url).toBe('https://api.example.test/contractors/contractor-1/contacts')
+    const [request] = requests
+    if (request === undefined) throw new Error('ADDRESS_CORRECTION_MAIL_CONTRACT_REQUEST_MISSING')
+    expect(request.method).toBe('POST')
+    expect(request.url).toBe('https://api.example.test/address-correction-requests/recipients')
+    expect(request.url).not.toContain('30290856000160')
+    expect(await request.clone().json()).toEqual({ contractorTaxId: '30290856000160' })
   })
 
   test('o client monta o POST com o header e o corpo unitário', async () => {
@@ -285,5 +289,46 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect((caught as AddressCorrectionRequestError).message).toBe(
       'ADDRESS_CORRECTION_NO_ACTIVE_CONTACT',
     )
+  })
+})
+
+/**
+ * Revisão final, item [BAIXO]: a `Idempotency-Key` precisa mudar quando a seleção de contatos
+ * muda — do contrário um reenvio depois de marcar/desmarcar um contato reusaria a chave com um
+ * corpo diferente, e o servidor recusa isso com `IDEMPOTENCY_KEY_REUSED` (409). Regra extraída
+ * para função pura porque o hook (`useAddressCorrectionMailDialog.hook.ts`) não tem infraestrutura
+ * de teste de hook neste repo (sem `renderHook`/`@testing-library/react`).
+ */
+describe('chave de idempotência do envio (spec 150, revisão final)', () => {
+  test('estável entre retries com a mesma seleção, em qualquer ordem', () => {
+    const generateKey = () => 'should-not-be-called'
+    const resolved = resolveAddressCorrectionMailIdempotencyKey({
+      currentContactIds: ['contact-2', 'contact-1'],
+      generateKey,
+      previousContactIds: ['contact-1', 'contact-2'],
+      previousIdempotencyKey: 'key-from-open',
+    })
+    expect(resolved.idempotencyKey).toBe('key-from-open')
+  })
+
+  test('nova chave ao reabrir (sem seleção anterior)', () => {
+    const resolved = resolveAddressCorrectionMailIdempotencyKey({
+      currentContactIds: ['contact-1'],
+      generateKey: () => 'fresh-key-on-open',
+      previousContactIds: null,
+      previousIdempotencyKey: 'stale-key-from-last-session',
+    })
+    expect(resolved.idempotencyKey).toBe('fresh-key-on-open')
+  })
+
+  test('nova chave quando a seleção de contatos muda', () => {
+    const resolved = resolveAddressCorrectionMailIdempotencyKey({
+      currentContactIds: ['contact-1', 'contact-2'],
+      generateKey: () => 'fresh-key-on-change',
+      previousContactIds: ['contact-1'],
+      previousIdempotencyKey: 'key-from-open',
+    })
+    expect(resolved.idempotencyKey).toBe('fresh-key-on-change')
+    expect(resolved.contactIds).toEqual(['contact-1', 'contact-2'])
   })
 })

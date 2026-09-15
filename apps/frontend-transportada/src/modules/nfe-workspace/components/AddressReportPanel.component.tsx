@@ -338,11 +338,15 @@ function AddressCorrectionStatusBadge({
   }
 
   if (status.state === 'sent') {
+    const date = status.sentAt === null ? '' : formatNfeImportMoment(status.sentAt)
     return (
       <Badge variant="success">
-        {t('addressReport.correction.stateSent', {
-          date: status.sentAt === null ? '' : formatNfeImportMoment(status.sentAt),
-        })}
+        {status.recipientCount === null
+          ? t('addressReport.correction.stateSent', { date })
+          : t('addressReport.correction.stateSentWithCount', {
+              count: status.recipientCount,
+              date,
+            })}
       </Badge>
     )
   }

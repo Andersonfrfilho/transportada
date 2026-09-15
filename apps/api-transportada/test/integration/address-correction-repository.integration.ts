@@ -231,4 +231,52 @@ describeDatabase('o pedido de correção não atravessa empresa (spec 150 T102)'
       }),
     ).toEqual([])
   })
+
+  /**
+   * H3 ("vejo... quando e para quem", revisão final): `recipientCount` nunca é uma coluna própria
+   * — só se prova lendo de verdade a mensagem `outbound` da conversa ligada pelo `thread_id`.
+   */
+  test('listByCompany lê recipientCount da mensagem outbound da conversa ligada', async () => {
+    if (database === undefined) throw new Error('A disposable database is required')
+    const threadId = crypto.randomUUID()
+    const sentAddressKey = '3543402|14076988|9001'
+
+    await database.db.execute(sql`
+      insert into contractor_mail_threads
+        (id, company_id, contractor_id, subject_id, subject_type, reply_token_hash)
+      values (${threadId}, ${companyA}, ${contractorA}, ${threadId}, 'address_correction', ${'e'.repeat(64)})
+    `)
+    await database.db.execute(sql`
+      insert into address_correction_requests
+        (company_id, contractor_id, address_key,
+         reported_street, reported_number, reported_city_code, reported_city, reported_state,
+         reported_postal_code,
+         proposed_street, proposed_number, proposed_city_code, proposed_city, proposed_state,
+         proposed_postal_code,
+         reason_match_level, status, thread_id, sent_at)
+      values (
+        ${companyA}, ${contractorA}, ${sentAddressKey},
+        'Rua Um', '9001', '3543402', 'Ribeirão Preto', 'SP', '14076988',
+        'Rua Dois', '9001', '3543402', 'Ribeirão Preto', 'SP', '14076900',
+        'rooftop', 'sent', ${threadId}, now()
+      )
+    `)
+    await database.db.execute(sql`
+      insert into contractor_mail_messages
+        (company_id, thread_id, direction, from_address, to_addresses, subject, body_text,
+         delivery_status)
+      values (
+        ${companyA}, ${threadId}, 'outbound', 'no-reply@transportada.test',
+        array['um@example.com', 'dois@example.com', 'tres@example.com'],
+        'Correção de endereço de entrega — 1 cliente', 'texto', 'queued'
+      )
+    `)
+
+    const rows = await repository().listByCompany({ companyId: companyA })
+    const sentRow = rows.find((row) => row.addressKey === sentAddressKey)
+    expect(sentRow?.recipientCount).toBe(3)
+
+    const draftRow = rows.find((row) => row.status === 'draft')
+    expect(draftRow?.recipientCount).toBeNull()
+  })
 })
