@@ -698,6 +698,7 @@ export async function startWorkerRuntime(
         }),
         repository: new DrizzleNfeImportConsumerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          { logger },
         ),
         sourceStorage: createNfeImportSourceStorage({
           bucket: storageBucket,
@@ -735,6 +736,7 @@ export async function startWorkerRuntime(
           logger,
           repository: new DrizzleNfeDistributionRepository(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            { logger },
           ),
           xmlImporter: createNfeXmlImporter(),
         }),

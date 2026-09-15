@@ -9,6 +9,9 @@ export const NFE_STATUS_CHANGING_EVENT_TYPES = {
   '110112': 'cancelled',
 } as const satisfies Record<string, NfeDocumentStatus>
 
+/** D8 — prefixo do lock; colisão de hash com outro advisory lock só gera espera, nunca erro. */
+export const NFE_DOCUMENT_STATUS_LOCK_NAMESPACE = 'nfe-document-status'
+
 /** D2 — o evento só vale se a SEFAZ o registrou (MOC 7.0, tabela de códigos do `retEvento`). */
 export const NFE_EVENT_REGISTERED_STATUS_CODES = ['135', '136', '155'] as const
 

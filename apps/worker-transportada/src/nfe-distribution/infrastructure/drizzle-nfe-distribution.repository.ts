@@ -9,11 +9,25 @@ import {
   type NfeFiscalEnvironment,
   type NfeItemVariant,
   nfeDocuments,
-  nfeEvents,
   nfeImportItems,
   nfeImports,
   storedObjects,
 } from '../../database/nfe.schema.js'
+import { resolveSummaryStatusChange } from '../../nfe-documents/domain/nfe-document-status-transition.policy.js'
+import { resolveNfeEventOrigin } from '../../nfe-documents/domain/nfe-event-origin.policy.js'
+import { lockAccessKey } from '../../nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.js'
+import {
+  applySummaryStatus,
+  logNfeStatusWriteResult,
+  recordDocumentInsertChange,
+  resolveInitialDocumentStatus,
+  writeEventWithStatus,
+} from '../../nfe-documents/infrastructure/nfe-document-status-write.persistence.js'
+import type {
+  NfeDocumentStatusLogger,
+  NfeStatusProvenance,
+  NfeStatusWriteResult,
+} from '../../nfe-documents/types/nfe-document-status.types.js'
 import {
   type NfeWriteTransaction,
   writeDocumentChildren,
@@ -67,6 +81,7 @@ export type PersistPageResult = {
 }
 
 type DrizzleNfeDistributionRepositoryOptions = {
+  readonly logger: NfeDocumentStatusLogger
   readonly storageProvider?: string
 }
 
@@ -74,6 +89,7 @@ type ItemOutcome = {
   readonly accepted: boolean
   readonly document: boolean
   readonly event: boolean
+  readonly status: NfeStatusWriteResult | null
   readonly summary: boolean
 }
 
@@ -81,15 +97,28 @@ const SKIPPED_OUTCOME: ItemOutcome = {
   accepted: false,
   document: false,
   event: false,
+  status: null,
   summary: false,
+}
+
+type ItemWriteContext = {
+  readonly companyId: string
+  readonly createdByUserId: string
+  readonly environment: NfeFiscalEnvironment
+  readonly importId: string
+  readonly item: DistributionPersistItem
+  readonly provenance: NfeStatusProvenance
+  readonly tx: NfeWriteTransaction
 }
 
 export class DrizzleNfeDistributionRepository {
   readonly #database: Database
+  readonly #logger: NfeDocumentStatusLogger
   readonly #storageProvider: string
 
-  constructor(database: Database, options: DrizzleNfeDistributionRepositoryOptions = {}) {
+  constructor(database: Database, options: DrizzleNfeDistributionRepositoryOptions) {
     this.#database = database
+    this.#logger = options.logger
     this.#storageProvider = options.storageProvider ?? DEFAULT_STORAGE_PROVIDER
   }
 
@@ -144,13 +173,18 @@ export class DrizzleNfeDistributionRepository {
 
   async persistPage(input: PersistPageInput): Promise<PersistPageResult> {
     const [run] = await this.#database
-      .select({ requestedByUserId: nfeImports.requestedByUserId })
+      .select({ requestedByUserId: nfeImports.requestedByUserId, source: nfeImports.source })
       .from(nfeImports)
       .where(and(eq(nfeImports.companyId, input.companyId), eq(nfeImports.id, input.importId)))
       .limit(1)
     if (run === undefined) {
       throw new Error('NFE_DISTRIBUTION_RUN_NOT_FOUND')
     }
+    const provenance = resolveNfeEventOrigin({
+      importId: input.importId,
+      requestedByUserId: run.requestedByUserId,
+      source: run.source,
+    })
 
     let acceptedCount = 0
     let documentCount = 0
@@ -165,6 +199,12 @@ export class DrizzleNfeDistributionRepository {
         environment: input.environment,
         importId: input.importId,
         item,
+        provenance,
+      })
+      logNfeStatusWriteResult({
+        companyId: input.companyId,
+        logger: this.#logger,
+        result: outcome.status,
       })
 
       if (!outcome.accepted) {
@@ -192,16 +232,20 @@ export class DrizzleNfeDistributionRepository {
     return { acceptedCount, documentCount, duplicatedCount, eventCount, summaryCount }
   }
 
-  async #persistItem(params: {
-    readonly companyId: string
-    readonly createdByUserId: string
-    readonly environment: NfeFiscalEnvironment
-    readonly importId: string
-    readonly item: DistributionPersistItem
-  }): Promise<ItemOutcome> {
-    const { companyId, createdByUserId, environment, importId, item } = params
+  async #persistItem(params: Omit<ItemWriteContext, 'tx'>): Promise<ItemOutcome> {
+    const { companyId, environment, importId, item } = params
+    const accessKey = resolveAccessKey(item)
+    const summaryChanges =
+      item.variant === 'summary' &&
+      accessKey !== undefined &&
+      resolveSummaryStatusChange({ situation: item.summary?.situacao ?? '' }).kind === 'change'
 
     return this.#database.transaction(async (tx) => {
+      // A3: o lock é o primeiro comando — antes do `existingItem` e do `stored_objects`
+      if (accessKey !== undefined && (item.variant !== 'summary' || summaryChanges)) {
+        await lockAccessKey({ accessKey, companyId, tx })
+      }
+
       const [existingItem] = await tx
         .select({ id: nfeImportItems.id })
         .from(nfeImportItems)
@@ -219,17 +263,26 @@ export class DrizzleNfeDistributionRepository {
 
       await this.#insertStoredObject({ companyId, item, tx })
 
-      const accessKey = resolveAccessKey(item)
-      let document = false
-      let event = false
-      let summary = false
-
+      const context: ItemWriteContext = { ...params, tx }
+      let outcome: Omit<ItemOutcome, 'accepted'>
       if (item.variant === 'summary') {
-        summary = true
+        const status =
+          summaryChanges && accessKey !== undefined
+            ? await applySummaryStatus({
+                accessKey,
+                companyId,
+                provenance: params.provenance,
+                situation: item.summary?.situacao ?? '',
+                tx,
+              })
+            : null
+        outcome = { document: false, event: false, status, summary: true }
       } else if (item.variant === 'event') {
-        event = await this.#insertEvent({ companyId, environment, item, tx })
+        const written = await this.#insertEvent(context)
+        outcome = { document: false, event: written.inserted, status: written, summary: false }
       } else {
-        document = await this.#insertDocument({ companyId, createdByUserId, importId, item, tx })
+        const status = await this.#insertDocument(context)
+        outcome = { document: status !== null, event: false, status, summary: false }
       }
 
       await tx.insert(nfeImportItems).values({
@@ -247,7 +300,7 @@ export class DrizzleNfeDistributionRepository {
         variant: item.variant,
       })
 
-      return { accepted: true, document, event, summary }
+      return { accepted: true, ...outcome }
     })
   }
 
@@ -281,57 +334,38 @@ export class DrizzleNfeDistributionRepository {
       })
   }
 
-  async #insertEvent(params: {
-    readonly companyId: string
-    readonly environment: NfeFiscalEnvironment
-    readonly item: DistributionPersistItem
-    readonly tx: NfeWriteTransaction
-  }): Promise<boolean> {
-    const { companyId, environment, item, tx } = params
-    const normalizedXml = item.normalizedXml
+  async #insertEvent(context: ItemWriteContext): ReturnType<typeof writeEventWithStatus> {
+    const normalizedXml = context.item.normalizedXml
     if (normalizedXml === undefined || normalizedXml.kind !== 'nfe-event') {
       throw new Error('NFE_DISTRIBUTION_EVENT_MISSING_XML')
     }
 
-    const inserted = await tx
-      .insert(nfeEvents)
-      .values({
-        companyId,
-        environment,
-        eventSequence: BigInt(normalizedXml.event.sequence),
-        eventType: normalizedXml.event.type,
-        occurredAt: new Date(normalizedXml.event.occurredAt),
-        sourceNsu: item.nsu,
-        targetAccessKey: normalizedXml.event.accessKey,
-        xmlObjectId: item.finalObject.objectId,
-      })
-      .onConflictDoNothing({
-        target: [
-          nfeEvents.companyId,
-          nfeEvents.targetAccessKey,
-          nfeEvents.eventType,
-          nfeEvents.eventSequence,
-        ],
-      })
-      .returning({ id: nfeEvents.id })
-
-    return inserted.length > 0
+    return writeEventWithStatus({
+      companyId: context.companyId,
+      environment: context.environment,
+      event: normalizedXml.event,
+      provenance: context.provenance,
+      sourceNsu: context.item.nsu,
+      tx: context.tx,
+      xmlObjectId: context.item.finalObject.objectId,
+    })
   }
 
-  async #insertDocument(params: {
-    readonly companyId: string
-    readonly createdByUserId: string
-    readonly importId: string
-    readonly item: DistributionPersistItem
-    readonly tx: NfeWriteTransaction
-  }): Promise<boolean> {
-    const { companyId, createdByUserId, importId, item, tx } = params
+  /** `null` quando a nota já existia: conflito não muda nada, como antes. */
+  async #insertDocument(context: ItemWriteContext): Promise<NfeStatusWriteResult | null> {
+    const { companyId, createdByUserId, importId, item, provenance, tx } = context
     const normalizedXml = item.normalizedXml
     if (normalizedXml === undefined || normalizedXml.kind === 'nfe-event') {
       throw new Error('NFE_DISTRIBUTION_DOCUMENT_MISSING_XML')
     }
 
     const document = normalizedXml.document
+    const initial = await resolveInitialDocumentStatus({
+      accessKey: document.accessKey,
+      companyId,
+      tx,
+      xmlStatus: document.status,
+    })
     const [created] = await tx
       .insert(nfeDocuments)
       .values({
@@ -353,20 +387,30 @@ export class DrizzleNfeDistributionRepository {
         productsValue: document.totals.products,
         series: document.series,
         source: DISTRIBUTION_SOURCE,
-        status: document.status,
+        status: initial.status,
         totalValue: document.totals.invoice,
         xmlObjectId: item.finalObject.objectId,
         xmlSha256: item.finalObject.sha256,
       })
       .onConflictDoNothing({ target: [nfeDocuments.companyId, nfeDocuments.accessKey] })
-      .returning({ id: nfeDocuments.id })
+      .returning({ createdAt: sql<string>`${nfeDocuments.createdAt}::text`, id: nfeDocuments.id })
 
     if (created === undefined) {
-      return false
+      return null
     }
 
+    const change = await recordDocumentInsertChange({
+      companyId,
+      createdAt: created.createdAt,
+      documentId: created.id,
+      pendingEventId: initial.pendingEventId,
+      provenance,
+      status: initial.status,
+      tx,
+      xmlStatus: document.status,
+    })
     await writeDocumentChildren({ companyId, document, documentId: created.id, tx })
-    return true
+    return { change, warning: null }
   }
 }
 

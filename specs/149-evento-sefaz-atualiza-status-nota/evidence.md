@@ -282,3 +282,115 @@ error: NF-e protocol presence migration is required
   **5790 pass, 23 skip, 0 fail**, 172 arquivos. Linhas `(fail)`: 0. Nenhum skip novo.
 - Prettier `--check` nos arquivos alterados → limpo (o `.sql` não tem parser no Prettier).
 - `static-migration.contract.ts`: a pasta nova na lista explícita de migrations.
+
+## T3 — o evento e o resumo mudam a situação da nota · 2026-09-15
+
+Seguiu o `t3-parecer-architect.md` (aprovado com ajustes A1–A7), com o escopo do A5/A6: grava também
+`status_code`, `protocol`, origem, ator, solicitante e snapshot. A H2 ficou reduzida à H2' do A7. A
+T3 parou uma vez e reportou o CHECK de protocolo que contradizia a D4 (resolvido pela H1b, commit
+`aee6dfab`).
+
+### O que foi criado
+
+- `src/nfe-documents/domain/system-distribution-actor.constant.ts` (cópia do cron) e
+  `nfe-event-origin.policy.ts` (`resolveNfeEventOrigin`, as três linhas da D14).
+- `src/nfe-documents/types/nfe-document-status.types.ts`: provenance, mudança, avisos, resultado e os
+  `*Params`/`*Result`.
+- `NFE_DOCUMENT_STATUS_LOCK_NAMESPACE = 'nfe-document-status'` em `nfe-document-status.constant.ts`.
+- `src/nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.ts`:
+  - `lockAccessKey`: `pg_advisory_xact_lock(hashtextextended('nfe-document-status:<empresa>:<chave>', 0))`,
+    com a chave como parâmetro;
+  - `readDocumentStatus` (sem `FOR UPDATE`);
+  - `applyStatusChange`: `WHERE` com `ALLOWED_ORIGIN_STATUSES` e `updated_at = clock_timestamp()`;
+  - `recordStatusChange`, com `onConflictDoNothing` na unique `(empresa, nota, status_after)`;
+  - `findPendingStatusFromEvents`: o `cStat` é filtrado pela política, não pelo SQL.
+- `src/nfe-documents/infrastructure/nfe-document-status-write.persistence.ts`: `writeEventWithStatus`,
+  `resolveInitialDocumentStatus`, `recordDocumentInsertChange`, `applySummaryStatus` e
+  `logNfeStatusWriteResult`, na ordem do A5.
+- Fiação nos dois repositórios, com o lock como primeiro comando da transação e `logger` obrigatório;
+  o log roda **depois** do commit. `main.ts` passa o `logger`.
+- A1: `storeItemOrSkip` não pula o resumo com situação `'2'`/`'3'` de chave já gravada.
+
+### Vermelho antes
+
+- `bun run typecheck` (worker) → 10 erros (módulos e opção `logger` inexistentes).
+- `test/nfe-distribution.contract.test.ts` → **1 fail**: "never skips a summary of a stored note when it
+  carries a status change".
+- `test/nfe-event-origin.contract.test.ts` → falha de módulo inexistente.
+- Integração nova com o domínio já criado e os repositórios ainda sem fiação: **18 fail, 4 pass**. Os 4
+  que passavam não dependem do código novo: isolamento sem lock, chave desconhecida e os dois "nunca
+  loga chave".
+- A primeira rodada com a fiação mostrou 1 fail real, a H6 `unsigned` → `denied` pelo CHECK de
+  protocolo (ver H1b). As outras falhas daquela rodada eram do fixture (unique de `nfe_import_items`),
+  corrigido.
+
+### Integração (`test/nfe-document-status.integration.test.ts`, 22 casos)
+
+Entrypoint fino com quatro suítes em `test/nfe-document-status/` e um fixture. Usa os dois repositórios
+reais e um logger falso:
+
+- **H1**, nos dois trilhos: upload → `manual` com ator; distribuição agendada → `automatic` sem ator e
+  sem solicitante; "buscar agora" → `automatic` com solicitante. O `updated_at` sobe, e `changed_at`
+  é igual a `updated_at` em microssegundos.
+- **H2**, nos dois trilhos: `110111` e `110112` antes da nota deixam o evento `null`/`null`; a nota
+  nasce `cancelled`, com filhos; a linha `document_insert` aponta para o evento de menor `created_at, id`.
+- **H3**:
+  - reprocessamento com nova importação não muda `updated_at` e mantém o snapshot original;
+  - o segundo cancelamento grava `cancelled`→`cancelled`, sem linha nova;
+  - `findExistingDocument` acha a nota;
+  - o evento legado (colunas novas nulas) cancela quando chega de novo, e a linha dele fica intocada.
+- **H4**, nos dois trilhos:
+  - CC-e, `210200`, `cStat 573`, evento sem `statusCode` e `statusCode` fora do formato não mudam nada;
+  - há `warn` só nos três últimos;
+  - `status_code` e `protocol` ficam nulos quando o código não é válido.
+- **H5**:
+  - o cancelamento em A não toca a mesma chave em B;
+  - com o controle segurando `(A,K)`, as escritas `(B,K)` e `(A,K2)` terminam em menos de 2 s.
+- **H6**:
+  - `unsigned` + `'3'` → `denied`, linha `summary` sem `event_id`;
+  - `authorized` + `'3'` → nada, com `warn nfe_summary_status_inconsistent`;
+  - `authorized` + `'2'` → `cancelled`;
+  - chave desconhecida → nada.
+- **H7**:
+  - lock de sessão numa conexão de controle (`max: 1`), com espera medida em `pg_locks`;
+  - nas duas ordens, uma única mudança (`event` em uma, `document_insert` na outra) e
+    `updated_at >= created_at`;
+  - mais 20 rodadas em `Promise.all` com chaves novas.
+- Nenhum log contém chave de acesso.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0. `bun run lint` (raiz) → exit 0.
+- `bun run --cwd apps/worker-transportada test` → **1301 pass, 0 fail**, 88 arquivos. Linhas `(fail)`: 0.
+  - 1295 da T2, mais 5 da origem e 1 da A1.
+  - `nfe-event-origin.contract.test.ts` entrou na lista `test`.
+- `make worker-integration ENV_FILE=.env.test` → **95 pass, 4 skip, 2 fail**. Linhas `(fail)`: 2, as duas
+  no anexo do agregado (CCMEI e CRLV), com `ObjectStorageError: Object storage is unavailable`.
+  - Não vêm da T3. Em A/B, num worktree temporário em `aee6dfab` (sem nenhum código da T3), a mesma
+    suíte, com o mesmo `.env.test`, falhou igual: 0 pass, 2 fail, mesmo erro.
+  - A suíte não importa arquivo tocado pela T3.
+  - Repeti a execução sem recriação do MinIO e as falhas continuaram. São do MinIO do `.env.test`.
+  - O osrm pula nesse ambiente.
+- `make worker-integration` (`.env`, a condição da H1) → **100 pass, 1 fail**. A única falha é a mesma
+  do osrm (`osrm-routing-matrix.integration.test.ts`, esperado `4511.2`, recebido `237538.9`), igual
+  à registrada na H1.
+  - O JUnit da mesma lista confirma que `nfe-document-status.integration.test.ts` rodou dentro do gate:
+    22 casos, 0 falhas, 0 skips; na raiz, 101 testes e 1 falha.
+  - O total não se compara direto com o 97 registrado na H1.
+- `make migration-test` → **95 pass, 0 fail** (junto com a H1b).
+- Contratos da API (`--env-file=../../.env.test`) → **5790 pass, 23 skip, 0 fail** (junto com a H1b).
+- Prettier `--check` nos arquivos alterados → limpo.
+
+### Desvios do parecer
+
+1. `changedAt`/`createdAt` trafegam como texto do Postgres (`DatabaseTimestamp`, `::text`) e são gravados
+   com `::timestamptz`, em vez de `Date`. Um `Date` corta em milissegundos, e aí `changed_at` deixaria de
+   ser igual a `updated_at`.
+2. `writeEventWithStatus` devolve `NfeEventWriteResult`, que é `NfeStatusWriteResult` mais `inserted`.
+   A distribuição conta os eventos novos à parte dos repetidos.
+3. A integração ficou dividida em entrypoint, quatro suítes e um fixture, e não num arquivo único. O
+   controle de lock usa `createDrizzleProvider` com `max: 1`, para o lock de sessão ficar numa conexão só.
+4. Os dois testes de integração antigos (`nfe-import-repository`, `nfe-distribution-repository`)
+   passaram a receber um `logger` vazio, porque a opção virou obrigatória.
+5. Achado fora do parecer: o CHECK `nfe_documents_authorization_protocol_presence_check` contradizia a
+   D4. Resolvido pela migration da H1b, por decisão do usuário.

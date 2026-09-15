@@ -20,8 +20,8 @@ T3 grava.
 | H    | H3    | `sonnet`           | `opus`              |
 | H    | H4    | `sonnet`           | `opus`              |
 
-Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot) → H2 → H3 → H4 → T4 → T5 → T6
-→ T7.
+Ordem de execução: T1 → H1 → T2 → H1b → T3 (grava também `status_code`, protocolo, origem, ator,
+solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H4 → T4 → T5 → T6 → T7.
 
 ## Fase 1 — Fiscal gate
 
@@ -49,13 +49,13 @@ Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot
       usuário): `nfe_documents_authorization_protocol_presence_check` passa a exigir protocolo só da
       nota `authorized`, para a `unsigned` poder ser cancelada ou denegada (D4). Rollback falha se já
       houver `cancelled`/`denied` sem protocolo — roll-forward.
-- [ ] H2 — Worker, junto da T3 ou logo depois dela: `resolveNfeEventOrigin` pura (as três linhas da D14,
-      com cópia de `SYSTEM_DISTRIBUTION_ACTOR_USER_ID` no worker), gravação de origem/ator/solicitante,
-      `status_code`, `protocol`, `correction_text` e snapshot `before`/`after` em todo evento, e linha em
-      `nfe_document_status_changes` a cada mudança efetiva (`event`, `summary`, `document_insert`).
-      Integração vermelha antes: upload (manual, ator), distribuição agendada (automática, sem
-      solicitante), "buscar agora" (automática, solicitante), evento antes da nota (H11), reprocessamento
-      sem linha duplicada. Nenhum nome/texto de CC-e em log.
+- [ ] H2' — Reduzida pelo A7 do `t3-parecer-architect.md` (origem, ator, solicitante, `status_code`,
+      `protocol`, snapshot e `nfe_document_status_changes` foram para a T3). Resta, em commit isolado
+      depois da T3: (1) subir `@adatechnology/fiscal-provider` de `0.3.0-rc.7` para `0.3.1` no worker,
+      com lockfile e `--frozen-lockfile`, alinhando API e cron se fixarem a mesma versão; (2) em
+      `writeEventWithStatus`, gravar `correctionText` só em `110110`, cortado em 1000 caracteres;
+      (3) inverter o teste de lacuna da T1 (`nfe-event-fields.contract.ts`); (4) integração: a CC-e
+      grava o texto e o texto não aparece em nenhum log.
 - [ ] H3 — API `GET /v1/nfe-documents/:id/events` (D19): contrato de rota vermelho antes para H9, H10,
       H12, H13 (404 entre empresas; "usuário removido" com `actor: null`) e H14 (cursor, `limit` teto 100,
       400 no excesso), e para a **ausência** de `xmlObjectId`/chave de storage/XML na resposta. Depois
@@ -75,13 +75,17 @@ Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot
       `nfe-document-status.constant.ts` (D1–D4). Teste de tabela: todos os tipos × `cStat` (com e sem
       `statusCode`), `situacao` 1/2/3, todas as origens × destinos; `cancelled`/`denied` terminais.
       Arquivo novo na lista de testes do `package.json` do worker.
-- [ ] T3 🧠 — Integração vermelha (Postgres real, `.env.test`) para H1–H7 nos **dois** trilhos
-      (importação de XML e distribuição), incluindo o negativo entre empresas (H5) e a corrida (H7, duas
-      conexões, as duas ordens de commit). Depois: `drizzle-nfe-document-status.persistence.ts`
-      (`lockAccessKey`, `applyStatusChange`, `findPendingStatusFromEvents`), `status_code` (coluna da H1) no
-      insert do evento, fiação em `drizzle-nfe-import-consumer.repository.ts` e
-      `drizzle-nfe-distribution.repository.ts` (evento, nota e resumo). Logs do plano, sem XML.
-      `updated_at` só muda quando `changed: true`.
+- [x] T3 🧠 — Escopo do `t3-parecer-architect.md` (A1–A6). Integração vermelha (Postgres real,
+      `.env.test`) para H1–H7 nos **dois** trilhos (importação de XML e distribuição): origem, ator e
+      solicitante coerentes nos três casos da D14, evento antes da nota, reprocessamento, evento
+      legado, CC-e/manifestação/`cStat` fora do conjunto, negativo entre empresas e isolamento do lock
+      (H5), resumo (H6), corrida determinística nas duas ordens mais 20 rodadas em `Promise.all` (H7).
+      Depois: A1 (resumo com situação passa pelo adapter); `resolveNfeEventOrigin` e a cópia de
+      `SYSTEM_DISTRIBUTION_ACTOR_USER_ID`; `drizzle-nfe-document-status.persistence.ts` (lock com
+      namespace, `applyStatusChange` com `clock_timestamp()`, `recordStatusChange`,
+      `findPendingStatusFromEvents`); `nfe-document-status-write.persistence.ts` (ordem do A5); fiação
+      nos dois repositórios com `logger` injetado e log depois do commit. Grava `status_code`,
+      `protocol`, origem, ator, solicitante e snapshot. `updated_at` só muda quando `changed: true`.
 
 ## Fase 3 — Uso da nota: CT-e, API e tela
 

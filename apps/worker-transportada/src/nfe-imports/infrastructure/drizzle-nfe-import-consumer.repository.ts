@@ -3,14 +3,13 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { ImportedNfeXml, NfeXmlDocument, NfeXmlParty } from '@adatechnology/fiscal-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyFiscalProfiles,
   type NfeImportSource,
   nfeAddresses,
   nfeDocuments,
-  nfeEvents,
   nfeImportItems,
   nfeImports,
   nfeParticipants,
@@ -19,6 +18,18 @@ import {
   nfeVolumes,
   storedObjects,
 } from '../../database/nfe.schema.js'
+import { resolveNfeEventOrigin } from '../../nfe-documents/domain/nfe-event-origin.policy.js'
+import { lockAccessKey } from '../../nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.js'
+import {
+  logNfeStatusWriteResult,
+  recordDocumentInsertChange,
+  resolveInitialDocumentStatus,
+  writeEventWithStatus,
+} from '../../nfe-documents/infrastructure/nfe-document-status-write.persistence.js'
+import type {
+  NfeDocumentStatusLogger,
+  NfeStatusWriteResult,
+} from '../../nfe-documents/types/nfe-document-status.types.js'
 import { buildPackageBoxRows, deriveBoxGrossWeightGrams } from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
@@ -85,15 +96,18 @@ type CompleteItemInput = {
 }
 
 type DrizzleNfeImportConsumerRepositoryOptions = {
+  readonly logger: NfeDocumentStatusLogger
   readonly storageProvider?: string
 }
 
 export class DrizzleNfeImportConsumerRepository {
   readonly #database: Database
+  readonly #logger: NfeDocumentStatusLogger
   readonly #storageProvider: string
 
-  constructor(database: Database, options: DrizzleNfeImportConsumerRepositoryOptions = {}) {
+  constructor(database: Database, options: DrizzleNfeImportConsumerRepositoryOptions) {
     this.#database = database
+    this.#logger = options.logger
     this.#storageProvider = options.storageProvider ?? DEFAULT_STORAGE_PROVIDER
   }
 
@@ -228,8 +242,18 @@ export class DrizzleNfeImportConsumerRepository {
 
     const normalizedXml = input.normalizedXml
     const finalObject = input.finalObject
+    const provenance = resolveNfeEventOrigin({
+      importId: item.importId,
+      requestedByUserId: importRow.requestedByUserId,
+      source: importRow.source,
+    })
 
-    await this.#database.transaction(async (tx) => {
+    const statusResult = await this.#database.transaction(async (tx) => {
+      await lockAccessKey({
+        accessKey: resolveAccessKey(normalizedXml),
+        companyId: item.companyId,
+        tx,
+      })
       await tx
         .insert(storedObjects)
         .values({
@@ -253,27 +277,23 @@ export class DrizzleNfeImportConsumerRepository {
           ],
         })
 
+      let result: NfeStatusWriteResult | null = null
       if (normalizedXml.kind === 'nfe-event') {
-        await tx
-          .insert(nfeEvents)
-          .values({
-            companyId: item.companyId,
-            eventSequence: BigInt(normalizedXml.event.sequence),
-            eventType: normalizedXml.event.type,
-            occurredAt: new Date(normalizedXml.event.occurredAt),
-            targetAccessKey: normalizedXml.event.accessKey,
-            xmlObjectId: finalObject.objectId,
-          })
-          .onConflictDoNothing({
-            target: [
-              nfeEvents.companyId,
-              nfeEvents.targetAccessKey,
-              nfeEvents.eventType,
-              nfeEvents.eventSequence,
-            ],
-          })
+        result = await writeEventWithStatus({
+          companyId: item.companyId,
+          event: normalizedXml.event,
+          provenance,
+          tx,
+          xmlObjectId: finalObject.objectId,
+        })
       } else {
         const document = normalizedXml.document
+        const initial = await resolveInitialDocumentStatus({
+          accessKey: document.accessKey,
+          companyId: item.companyId,
+          tx,
+          xmlStatus: document.status,
+        })
         const [created] = await tx
           .insert(nfeDocuments)
           .values({
@@ -295,15 +315,29 @@ export class DrizzleNfeImportConsumerRepository {
             productsValue: document.totals.products,
             series: document.series,
             source: importRow.source as NfeImportSource,
-            status: document.status,
+            status: initial.status,
             totalValue: document.totals.invoice,
             xmlObjectId: finalObject.objectId,
             xmlSha256: finalObject.sha256,
           })
           .onConflictDoNothing({ target: [nfeDocuments.companyId, nfeDocuments.accessKey] })
-          .returning({ id: nfeDocuments.id })
+          .returning({
+            createdAt: sql<string>`${nfeDocuments.createdAt}::text`,
+            id: nfeDocuments.id,
+          })
 
         if (created !== undefined) {
+          const change = await recordDocumentInsertChange({
+            companyId: item.companyId,
+            createdAt: created.createdAt,
+            documentId: created.id,
+            pendingEventId: initial.pendingEventId,
+            provenance,
+            status: initial.status,
+            tx,
+            xmlStatus: document.status,
+          })
+          result = { change, warning: null }
           await writeDocumentChildren({
             companyId: item.companyId,
             document,
@@ -322,6 +356,13 @@ export class DrizzleNfeImportConsumerRepository {
           variant: input.variant ?? (normalizedXml.kind === 'nfe-event' ? 'event' : 'complete'),
         })
         .where(eq(nfeImportItems.id, input.itemId))
+      return result
+    })
+
+    logNfeStatusWriteResult({
+      companyId: item.companyId,
+      logger: this.#logger,
+      result: statusResult,
     })
   }
 

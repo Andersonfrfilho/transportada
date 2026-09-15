@@ -106,7 +106,10 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
 
   const provider = createDrizzleProvider({ connection: databaseUrl! })
   const db = provider.db
-  const repository = new DrizzleNfeDistributionRepository(db, { storageProvider: 'minio' })
+  const repository = new DrizzleNfeDistributionRepository(db, {
+    logger: { info: () => undefined, warn: () => undefined },
+    storageProvider: 'minio',
+  })
 
   const page: readonly DistributionPersistItem[] = [
     {
