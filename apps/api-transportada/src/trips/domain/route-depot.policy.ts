@@ -17,6 +17,7 @@
  * divergência que este defeito é.
  */
 import type { RouteEndPolicy } from '../../database/route-suggestion.schema.js'
+import type { DepotOriginSource } from './depot-origin.policy.js'
 import type { RouteGeometryPoint } from './route-geometry.policy.js'
 
 /**
@@ -38,9 +39,16 @@ export type RouteDepot =
   | Readonly<{
       end: null | RouteGeometryPoint
       origin: RouteGeometryPoint
+      /** De onde a origem veio (D7). Ausente é o barracão configurado, como sempre foi. */
+      originSource?: DepotOriginSource
       status: 'resolved'
     }>
-  | Readonly<{ reason: RouteDepotAbsence; status: 'absent' }>
+  | Readonly<{
+      /** `not_geocoded` diz qual endereço falta geocodificar — o configurado ou o da empresa. */
+      originSource?: DepotOriginSource
+      reason: RouteDepotAbsence
+      status: 'absent'
+    }>
 
 export type RouteDepotPlan = Readonly<{
   /**

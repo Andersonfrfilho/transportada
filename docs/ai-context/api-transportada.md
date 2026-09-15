@@ -1526,3 +1526,14 @@ Trilha em `audit_logs`: ator, nota, viagem de origem e destino. `CARGO_LAYOUT_PO
 ## Histórico fiscal de cada nota (spec 149, D13–D20)
 
 `GET /v1/nfe-documents/:id/events` (permissão `invoices.read`): retorna cursorpage `{ data: [...], page: { nextCursor } }` (mesmo padrão de `GET /nfe-documents`) de eventos e mudanças de status com origem (`manual`|`automatic`), ator/solicitante (id + nome resolvido por membership), snapshot anterior/novo, protocolo, `cStat`, texto da CC-e, timestamps. Acesso 404 entre empresas. Ator removido (sem membership ativa) devolve `{ removed: true }` sem id/nome. Paginado por cursor `(registered_at, id)` com microssegundos, limite padrão 20, teto 100. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida" e "status anterior não registrado" — snapshots nunca são recalculados. Detalhe: spec 149 (D13–D20), `h1-parecer-architect.md` (§3 índice, §9 ator removido).
+
+## O barracão sem configuração é o endereço da empresa (spec 097 D7, 2026-09-15)
+
+Staging tinha `company_route_optimization_settings` vazia — nada grava essa tabela — e a montagem
+avisava "nenhuma origem cadastrada" para empresa com endereço fiscal completo. `readDepot`
+(`trips/infrastructure/route-depot.query.ts`) passou a resolver a origem por `resolveDepotOrigin`
+(`trips/domain/depot-origin.policy.ts`): configuração vence; sem ela, a chave de parada do perfil
+fiscal. A política de fim sem linha é `DEFAULT_ROUTE_END_POLICY` (padrão da coluna). ⚠️ A regra tem
+cópia por valor no worker com contrato de paridade — mudou aqui, mude lá. A resposta de geometria
+publica `depot.originSource`; a coordenada vem do `geocoding.backfill` do worker, então até ele
+rodar a tela mostra `not_geocoded` com o texto próprio do endereço da empresa.

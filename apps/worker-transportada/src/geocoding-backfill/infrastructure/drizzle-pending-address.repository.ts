@@ -41,24 +41,30 @@ export function createDrizzlePendingAddressSource(
   return {
     async list(input) {
       const rows = (await database.execute(sql`
-        select distinct
-          concat_ws('|', coalesce(a."city_code", ''), regexp_replace(a."postal_code", '\\D', '', 'g'),
-            upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) as address_key,
-          coalesce(a."city_code", '') as city_code,
-          regexp_replace(a."postal_code", '\\D', '', 'g') as postal_code
-        from nfe_addresses a
-        join nfe_participants p
-          on p."id" = a."participant_id" and p."company_id" = a."company_id"
-        where p."role" in ('recipient', 'delivery')
-          and length(regexp_replace(a."postal_code", '\\D', '', 'g')) = 8
-          and not exists (
-            select 1 from geocoded_addresses g
-            where g."address_key" = concat_ws('|', coalesce(a."city_code", ''),
-              regexp_replace(a."postal_code", '\\D', '', 'g'),
-              upper(coalesce(nullif(trim(a."number"), ''), 'S/N')))
-          )
-          ${input.after === undefined ? sql`` : sql`and concat_ws('|', coalesce(a."city_code", ''), regexp_replace(a."postal_code", '\\D', '', 'g'), upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) > ${input.after}`}
-        order by address_key
+        with candidates as (
+          select n."city_code", n."postal_code", n."number"
+          from nfe_addresses n
+          join nfe_participants p
+            on p."id" = n."participant_id" and p."company_id" = n."company_id"
+          where p."role" in ('recipient', 'delivery')
+          union all
+          -- Spec 097 D7: o barracão sem configuração é o endereço fiscal da empresa.
+          select f."city_ibge_code", f."postal_code", f."number"
+          from company_fiscal_profiles f
+        ), keyed as (
+          select
+            concat_ws('|', coalesce(a."city_code", ''), regexp_replace(a."postal_code", '\\D', '', 'g'),
+              upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) as address_key,
+            coalesce(a."city_code", '') as city_code,
+            regexp_replace(a."postal_code", '\\D', '', 'g') as postal_code
+          from candidates a
+          where length(regexp_replace(a."postal_code", '\\D', '', 'g')) = 8
+        )
+        select distinct k.address_key, k.city_code, k.postal_code
+        from keyed k
+        where not exists (select 1 from geocoded_addresses g where g."address_key" = k.address_key)
+          ${input.after === undefined ? sql`` : sql`and k.address_key > ${input.after}`}
+        order by k.address_key
         limit ${input.limit}
       `)) as unknown as {
         readonly address_key: string

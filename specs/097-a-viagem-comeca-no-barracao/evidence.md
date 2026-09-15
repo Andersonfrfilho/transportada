@@ -228,3 +228,21 @@ pedágio num toco, com 209 km em vez de 48,4.
 sido feita por quem configurou — e o defeito era a montagem ter uma política implícita própria
 ("começa na primeira entrega e acaba na última"), que ninguém decidiu e que não estava escrita em
 lugar nenhum.
+
+## D7 — a origem cai no endereço cadastrado da empresa (2026-09-15)
+
+Staging (só leitura): `company_route_optimization_settings` com 0 linhas; perfil fiscal completo; a
+chave `city_ibge_code|CEP|número` do endereço ausente de `geocoded_addresses`.
+
+- Contrato da regra (API `test/trip-domain/depot-origin.contract.ts`) e paridade por valor (worker
+  `test/routing/depot-origin-parity.contract.ts`) — verdes.
+- `test/trip-application/route-geometry-depot.contract.ts`: `originSource` chega à resposta, resolvido
+  e em `not_geocoded`.
+- Integração da API (`test/integration/route-depot-query.integration.ts`, Postgres descartável):
+  **4 pass / 0 fail** — sem perfil → `not_configured`; perfil sem coordenada → `not_geocoded` com
+  `originSource: company_address`; geocodificado → ida e volta pelo padrão, e `last_stop` respeitado
+  numa linha com origem vazia; origem configurada vence.
+- Integração do worker (`test/depot-company-address.integration.test.ts` + as três de roteirização):
+  **8 pass / 0 fail** — o endereço entra uma vez na fila do `geocoding.backfill` e sai depois de
+  geocodificado; sem coordenada o solver fica sem barracão; com ela parte e volta à empresa; a
+  configuração vence.

@@ -122,6 +122,11 @@ _lugar_ segue esse seam (parada, solver, MDF-e, geocoding); quem decide _quem_ c
 destinatário (CT-e, NFS-e, faturamento, regra de frete, portal do contratante — inclusive
 `delivery-clients`, que **não** foi convertido de propósito).
 
+**Sem barracão configurado, a rota parte do endereço fiscal da empresa** (spec 097 D7):
+`resolveDepotOrigin` decide (configuração vence), com cópia por valor no worker e contrato de
+paridade; a resposta de geometria diz a fonte em `depot.originSource`. Nada grava
+`company_route_optimization_settings` hoje. Detalhe: docs/ai-context § "O barracão sem configuração".
+
 **Chave de acesso é filtro de listagem, não rota nova** — `GET /nfe-documents?accessKey=` dentro do
 `companyId` do contexto, padrão alfanumérico (`^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$`, nunca `\d{44}`).
 

@@ -148,6 +148,31 @@ medido.** A casa do motorista **não tem como virar coordenada hoje**:
 encanamento de dado com migration e uma rodada no worker, e isso é spec própria — não é acréscimo a
 esta.
 
+### D7 — Sem barracão configurado, a origem é o endereço cadastrado da empresa (2026-09-15)
+
+Medido em staging (só leitura): `company_route_optimization_settings` com **0 linhas** — nenhuma
+rota nem tela grava essa tabela, ela só é lida —, e `company_fiscal_profiles` com endereço completo.
+A tela dizia "nenhum endereço de origem foi cadastrado" para uma empresa com endereço. O usuário
+pediu: _"puxe das informações da empresa"_.
+
+1. **A regra é uma função pura, copiada por valor**: `resolveDepotOrigin` em
+   `api/src/trips/domain/depot-origin.policy.ts` e `worker/src/routing/domain/depot-origin.policy.ts`,
+   com contrato de paridade (`test/routing/depot-origin-parity.contract.ts`). A origem configurada
+   **sempre vence**; sem linha, ou com `origin_address_key = ''`, a origem é
+   `buildStopAddressKey(city_ibge_code, postal_code, number)` do perfil fiscal — a chave das paradas.
+   A política de fim sem linha é o padrão da coluna (`DEFAULT_ROUTE_END_POLICY`, `depot`): ida e volta.
+2. **Geocodifica pelo mesmo caminho das paradas**: a fila do `geocoding.backfill` (worker, hora em
+   hora, BrasilAPI por CEP, sem centroide) passou a incluir os endereços de `company_fiscal_profiles`.
+   Nada de ponto inventado (D2): enquanto a chave não está em `geocoded_addresses`, a montagem avisa
+   `not_geocoded` e o solver roda sem barracão, como antes.
+3. **A tela diz de onde veio**: a resposta de geometria ganhou `depot.originSource`
+   (`route_settings` | `company_address` | `null`). Com `company_address`, a nota da perna diz que a
+   rota parte do endereço cadastrado da empresa, e o `not_geocoded` diz que é esse endereço que
+   espera coordenada.
+
+⚠️ A precisão é a do CEP (`postal_code`), não de porta. Quem precisar do galpão exato grava a origem
+na configuração — que continua vencendo —, e isso ainda não tem tela.
+
 ## Fora de escopo
 
 - **Barracão por veículo ou por viagem.** A origem é da empresa; frota que sai de mais de um ponto é

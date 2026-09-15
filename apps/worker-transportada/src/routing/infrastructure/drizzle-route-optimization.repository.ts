@@ -40,6 +40,7 @@ import {
   freightRegions,
 } from '../../database/freight-region.schema.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
+import { readDepotOriginAddressKey } from './drizzle-depot-origin.query.js'
 import { buildRegionCityKey } from '../domain/region-coverage.policy.js'
 import type { DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import { resolveStopWeight } from '../domain/stop-weight.policy.js'
@@ -185,7 +186,13 @@ export function createDrizzleRouteOptimizationRepository(
               tripId: suggestion.tripId,
             })
 
-      const depot = await readPoint({ addressKey: settings.originAddressKey, database })
+      /** Spec 097 D7: sem origem configurada, o endereço cadastrado da empresa — a regra da API. */
+      const originAddressKey = await readDepotOriginAddressKey({
+        companyId: job.companyId,
+        configuredAddressKey: settings.originAddressKey,
+        database,
+      })
+      const depot = await readPoint({ addressKey: originAddressKey, database })
 
       /**
        * Spec 106: o cadastro de cobertura. Duas consultas por execução, e só quando há motorista

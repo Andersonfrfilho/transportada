@@ -244,6 +244,8 @@ export const routeSuggestionStops = pgTable(
 /** ADR-0044 §5: como a otimização termina. O motorista que fecha o dia perto de casa é caso real. */
 export const ROUTE_END_POLICIES = ['depot', 'last_stop', 'address'] as const
 export type RouteEndPolicy = (typeof ROUTE_END_POLICIES)[number]
+/** O padrão da coluna — e o que vale para empresa sem linha de configuração (spec 097 D7). */
+export const DEFAULT_ROUTE_END_POLICY: RouteEndPolicy = 'depot'
 
 /**
  * Spec 058 RF-7. **Todo limite de jornada é anulável, e nulo significa "não é restrição aqui"** —
@@ -273,7 +275,10 @@ export const companyRouteOptimizationSettings = pgTable(
       .notNull()
       .default(28_800),
     originAddressKey: text('origin_address_key').notNull().default(''),
-    endPolicy: text('end_policy').$type<RouteEndPolicy>().notNull().default('depot'),
+    endPolicy: text('end_policy')
+      .$type<RouteEndPolicy>()
+      .notNull()
+      .default(DEFAULT_ROUTE_END_POLICY),
     endAddressKey: text('end_address_key').notNull().default(''),
     solverTimeBudgetSeconds: bigint('solver_time_budget_seconds', { mode: 'number' })
       .notNull()

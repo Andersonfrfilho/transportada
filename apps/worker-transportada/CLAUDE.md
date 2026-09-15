@@ -53,6 +53,10 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   sync vira `failed` no decode Zod). Tabela `trip_cargo_layouts`, outbox `trip_cargo_layout_outbox`,
   reivindicação nula/hash superado → ack; lease em `updated_at` para recuperar `running` órfão. Detalhe:
   docs/ai-context § "A planta sai do event loop", ADR-0063 §1–7, spec 145 T7–T9.
+- **Sem origem configurada, o barracão do solver é o endereço fiscal da empresa** (spec 097 D7):
+  `resolveDepotOrigin` é cópia por valor da API com contrato de paridade, e a fila do
+  `geocoding.backfill` inclui `company_fiscal_profiles`. Detalhe: docs/ai-context § "O barracão sem
+  configuração".
 - `FISCAL_ENVIRONMENT` (`homologation`|`production`, padrão `production`) só é lido pela
   reconciliação de NFS-e; a distribuição de NF-e usa o ambiente por empresa
   (`company_fiscal_profiles`).

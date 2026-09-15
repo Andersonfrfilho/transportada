@@ -17,6 +17,7 @@ import type {
 import {
   AXLE_COUNT_SOURCES,
   ROUTE_COST_GAPS,
+  DEPOT_ORIGIN_SOURCES,
   ROUTE_DEPOT_ABSENCES,
   ROUTE_GEOMETRY_SOURCES,
   TOLL_CATALOG_STATUSES,
@@ -154,6 +155,9 @@ function isGeometryDepot(value: unknown): value is RouteGeometryDepot {
   return (
     isRecord(value) &&
     (value.absence === null || isOneOf(value.absence, ROUTE_DEPOT_ABSENCES)) &&
+    (value.originSource === undefined ||
+      value.originSource === null ||
+      isOneOf(value.originSource, DEPOT_ORIGIN_SOURCES)) &&
     /**
      * ⚠️ Tolerante à ausência, como o `origin` ao lado — e ao contrário do extrato de pedágio, onde
      * o campo é obrigatório. A diferença é deliberada: a perna do barracão já funcionava sem a

@@ -120,3 +120,13 @@ Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. 
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
 `billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`, `aggregate-attachment`), e
 outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
+
+## O barracão sem configuração é o endereço da empresa (spec 097 D7, 2026-09-15)
+
+`readContext` do roteirizador resolve a origem por `readDepotOriginAddressKey`
+(`routing/infrastructure/drizzle-depot-origin.query.ts`) → `resolveDepotOrigin`
+(`routing/domain/depot-origin.policy.ts`, cópia por valor da API, paridade em
+`test/routing/depot-origin-parity.contract.ts`): configuração vence; sem ela, a chave
+`city_ibge_code|CEP|número` de `company_fiscal_profiles`. A fila do `geocoding.backfill`
+(`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
+coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).
