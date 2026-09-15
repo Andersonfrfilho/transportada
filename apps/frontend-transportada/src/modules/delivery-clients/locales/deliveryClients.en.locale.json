@@ -63,7 +63,21 @@
     "sendingTestEmail": "Sending…",
     "testEmailSent": "Test email sent. The reply closes the pending items.",
     "testEmailError": "Could not send the test email: {{code}}",
-    "refreshChecks": "Check again"
+    "refreshChecks": "Check again",
+    "sendReadiness": {
+      "title": "Ready to send",
+      "loading": "Checking whether sending is ready…",
+      "ready": "Ready to send.",
+      "reasonNotConfigured": "The configuration has not been saved yet.",
+      "reasonSendingNotVerified": "The API key and the sender domain have not been accepted yet.",
+      "reasonTemplateMissing": "There is no active default template for this email type.",
+      "shortcut": {
+        "checklist": "Go to the checklist",
+        "templates": "Go to Templates"
+      },
+      "roundTripReady": "Contractor replies: configured. Sending does not depend on this.",
+      "roundTripPending": "Contractor replies: not configured yet. Sending does not depend on this."
+    }
   },
   "mailTemplates": {
     "title": "Templates",

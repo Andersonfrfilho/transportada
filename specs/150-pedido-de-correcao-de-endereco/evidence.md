@@ -1907,3 +1907,90 @@ variable-insertion,response,errors,client}.contract.ts`, importados em
 
 Commit: `feat(delivery-clients): a página de e-mail ganha os modelos, com variáveis e prévia (spec
 150 T403)`, sobre `5f110d25` (staging).
+
+## T404
+
+"Pronto para enviar" na página "E-mail com contratantes" — um resumo que espelha
+`resolveMailSendReadiness` da API (RF16/RF17, T401/T402) sem importar código de lá.
+
+- **`shared/mailSendReadiness.service.ts`** (novo, puro): `resolveMailSendReadinessView({ checks,
+mailType, settings, templates })` devolve `{ ready: true }` ou `{ ready: false, reason,
+failingChecklistKeys }`. `settings === null` (nunca salvo) → `not_configured`;
+  `settings.sendingVerifiedAt === null` → `sending_not_verified`, com `failingChecklistKeys`
+  apontando qual dos dois itens da lista (`api_key`/`sender_domain`, RF12) ainda não está `ok` —
+  os dois que juntos liberam `sendingVerifiedAt` na T401; sem modelo **ativo e marcado como
+  padrão** do `mailType` → `template_missing` (arquivado, de outro tipo ou sem marca de padrão não
+  contam, RF17/T402). O `status` da ida e volta (143) nunca entra nesta função —
+  `isMailRoundTripConfigured(settings)` é uma checagem à parte (`status === 'active'`), só
+  informativa.
+- **Atalho por motivo**: `resolveMailSendReadinessShortcutTarget(reason)` — `not_configured` e
+  `sending_not_verified` apontam para `'checklist'`, `template_missing` para `'templates'`. O
+  componente resolve o alvo por `id` de seção (`contractor-mail-checklist-section` em
+  `ContractorMailSettingsPanel`, `contractor-mail-templates-section` em
+  `ContractorMailTemplatesPanel` — os dois ganharam o atributo `id`, sem mudar comportamento) e
+  reaproveita `revealPanel` de `useRevealedPanel.hook.ts` (rola + foca o primeiro campo), o mesmo
+  mecanismo que a T403 já usa para o painel do editor — chamado aqui por clique, não só na
+  montagem.
+- **`components/MailSendReadinessSummary.component.tsx`** (novo): busca `settings`/`checks`
+  (`useContractorMailSettings`, já existente) e o catálogo + a lista de modelos do primeiro tipo do
+  catálogo (`useContractorMailTemplates`, já existente — mesma `queryKey` da T403, sem requisição
+  duplicada). `Skeleton`/`SkeletonGroup` enquanto qualquer uma das quatro consultas carrega ou o
+  catálogo ainda não resolveu o `mailType`. Pronto: ícone `check` + texto; não pronto: ícone
+  `alert` + o motivo em locale + botão (`.invalidField`, mesmo estilo dos atalhos da T403) com o
+  atalho. Linha separada, sempre visível, com o estado do round-trip (RF16: "o envio não depende
+  disso" no próprio texto).
+- **`DeliveryClientWorkspace.page.tsx`**: `MailSendReadinessSummary` entra na aba "mail", antes do
+  `ContractorMailSettingsPanel` — é o primeiro resumo que o operador vê ao abrir a aba.
+- **Locale**: `contractorMail.sendReadiness.*` em `deliveryClients{,.en}.locale.json` (título,
+  carregando, pronto, um texto por motivo, os dois atalhos, e as duas linhas do round-trip).
+  Acentuação conferida pelo `locale-accents.contract.ts`.
+
+### Contrato de paridade dos motivos
+
+`test/delivery-clients/mail-send-readiness-parity.contract.ts` lê o **arquivo da API**
+(`api-transportada/src/contractor-mail/domain/mail-send-readiness.policy.ts`, caminho relativo
+entre apps do mesmo monorepo dentro de um teste — nunca um `import` de código, que é o que a
+arquitetura proíbe) e compara `MAIL_SEND_READINESS_REASONS` do frontend contra a união de motivos
+que `resolveMailSendReadiness` da API pode devolver, no mesmo molde de
+`nfe-workspace/address-correction-mail.contract.ts` (specs 148/150 anteriores).
+
+### Testes
+
+`test/delivery-clients/mail-send-readiness.contract.ts` (novo, importado em
+`test/delivery-clients.contract.test.ts`):
+
+- cada motivo (`not_configured` sem cadastro, `sending_not_verified` sem a verificação — com o
+  `failingChecklistKeys` batendo com o item que falha —, `template_missing` sem modelo algum) e o
+  `ready` com tudo certo;
+- modelo arquivado não conta, modelo de outro tipo não conta (cast simulando um segundo tipo, já
+  que o catálogo de hoje só tem `address_correction`), modelo sem marca de padrão não conta;
+- o atalho por motivo (`checklist` para os dois primeiros, `templates` para o terceiro);
+- `isMailRoundTripConfigured` (`null`, `pending`, `failed` → não configurado; `active` →
+  configurado), separado da liberação do envio.
+
+`test/delivery-clients/mail-send-readiness-parity.contract.ts`: a paridade descrita acima.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) → ok.
+- `bun run lint` (raiz, todas as apps) → ok.
+- `bun run --cwd apps/frontend-transportada test` → **3798 pass, 0 fail** (29 arquivos; eram 3784
+  na T403). 14 testes novos entre as duas suítes desta task.
+- `bun run --cwd apps/frontend-transportada build` → ok
+  (`dist/assets/DeliveryClientWorkspace.page-*.js` 56.04 kB gzip 14.08 kB; era 53.16 kB/13.45 kB na
+  T403 — aumento esperado pelo componente novo, nenhum aviso de tamanho novo além dos já
+  existentes, alheios a esta task).
+- `prettier --check` dos arquivos tocados → ok (depois de `--write` nos 4 que faltavam).
+
+### Arquivos
+
+- **Novos**: `shared/mailSendReadiness.service.ts`,
+  `components/MailSendReadinessSummary.component.tsx`.
+- **Testes novos**: `test/delivery-clients/mail-send-readiness{,-parity}.contract.ts`, importados
+  em `test/delivery-clients.contract.test.ts`.
+- **Ajustados**: `pages/DeliveryClientWorkspace.page.tsx`,
+  `components/{ContractorMailSettingsPanel,ContractorMailTemplatesPanel}.component.tsx` (só o `id`
+  da seção), `locales/deliveryClients{,.en}.locale.json`.
+
+Commit: `feat(delivery-clients): a lista de verificação diz se o e-mail está pronto para enviar
+(spec 150 T404)`, sobre `81c75c5e` (staging).

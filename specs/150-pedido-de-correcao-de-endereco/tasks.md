@@ -73,7 +73,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T403** Seção "Modelos" na página "E-mail com contratantes": lista por tipo, criar a partir
       do padrão, editar com as variáveis, prévia, marcar como padrão e arquivar. Evidência:
       contratos de serviço e de validação.
-- [ ] **T404** A lista de verificação mostra "Pronto para enviar", com o motivo quando não está.
+- [x] **T404** A lista de verificação mostra "Pronto para enviar", com o motivo quando não está.
       Evidência: contrato do serviço da lista.
 - [ ] **T405** Confirmação de envio (T305): seletor de modelo, prévia com o modelo escolhido, e a
       recusa por liberação levando à página de configuração. Evidência: contratos de serviço.

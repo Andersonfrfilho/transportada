@@ -16,6 +16,7 @@ import { ContractorMailSettingsPanel } from '../components/ContractorMailSetting
 import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
+import { MailSendReadinessSummary } from '../components/MailSendReadinessSummary.component'
 import { useContractorMailSettings } from '../hooks/useContractorMailSettings.hook'
 import { useDeliveryClients } from '../hooks/useDeliveryClients.hook'
 import styles from '../styles/deliveryClients.module.css'
@@ -69,6 +70,10 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
     label: t('tabs.mail'),
     panel: (
       <>
+        <MailSendReadinessSummary
+          companyId={companyId}
+          enabled={canManageContractorMail && settingsScope.contractorMailSettings}
+        />
         <ContractorMailSettingsPanel
           // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
           // regrava por cima do que já estava salvo.

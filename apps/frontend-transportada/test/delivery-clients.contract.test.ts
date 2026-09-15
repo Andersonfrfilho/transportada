@@ -10,3 +10,5 @@ import './delivery-clients/contractor-mail-templates-variable-insertion.contract
 import './delivery-clients/contractor-mail-templates-response.contract'
 import './delivery-clients/contractor-mail-templates-errors.contract'
 import './delivery-clients/contractor-mail-templates-client.contract'
+import './delivery-clients/mail-send-readiness.contract'
+import './delivery-clients/mail-send-readiness-parity.contract'

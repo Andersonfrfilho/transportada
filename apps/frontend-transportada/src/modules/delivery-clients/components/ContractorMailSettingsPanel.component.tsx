@@ -232,7 +232,11 @@ export function ContractorMailSettingsPanel(props: ContractorMailSettingsPanelPr
         <p className={styles.fieldHint}>{t('contractorMail.webhookInstructions')}</p>
       </section>
 
-      <section aria-labelledby="contractor-mail-checklist-title" className={styles.settingsPanel}>
+      <section
+        aria-labelledby="contractor-mail-checklist-title"
+        className={styles.settingsPanel}
+        id="contractor-mail-checklist-section"
+      >
         <h2 id="contractor-mail-checklist-title">{t('contractorMail.checklistTitle')}</h2>
         {props.checksLoading ? (
           <ChecklistSkeleton />

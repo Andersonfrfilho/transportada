@@ -94,7 +94,11 @@ export function ContractorMailTemplatesPanel({
   const isLoading = templatesHook.catalogQuery.isLoading || templatesHook.templatesQuery.isLoading
 
   return (
-    <section aria-labelledby="contractor-mail-templates-title" className={styles.settingsPanel}>
+    <section
+      aria-labelledby="contractor-mail-templates-title"
+      className={styles.settingsPanel}
+      id="contractor-mail-templates-section"
+    >
       <h2 id="contractor-mail-templates-title">{t('mailTemplates.title')}</h2>
       <p className={styles.fieldHint}>{t('mailTemplates.hint')}</p>
 
