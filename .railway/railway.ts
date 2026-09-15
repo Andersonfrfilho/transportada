@@ -639,9 +639,10 @@ export default defineRailway((ctx) => {
  *   instância custaria cerca de US$ 1,50/mês, e o que ela realmente cobra é **um build a mais por
  *   atualização do extrato**, que é o eixo caro. ⚠️ Aplicar isto **remove** o serviço de staging:
  *   confira que o `VITE_MAP_TILES_URL` do painel de staging aponta para o domínio de produção antes.
- * - **`aggregate-document-ocr` só em produção.** A leitura de imagem do anexo não tem como ser
- *   testada em staging.
- * - **`landing-TjCj-…` e `landing-uFWL-…`** existem em produção, sem domínio, e a segunda sem
- *   variável nenhuma e sem deployment. Parecem duplicatas acidentais e **não estão declaradas
- *   aqui** — um `apply` em produção as removeria. Confira antes: remoção é destrutiva.
+ * - **`aggregate-document-ocr` só em produção** — ✅ não é mais: medido em 15/09/2026, staging tem
+ *   a própria instância, e o serviço está declarado nos dois ambientes.
+ * - **`landing-TjCj-…` e `landing-uFWL-…`** existiam em produção, sem domínio, e a segunda sem
+ *   variável nenhuma e sem deployment. ✅ **Apagadas em 15/09/2026** por decisão do responsável:
+ *   duplicatas criadas pelo painel com nome já em uso, nunca ligadas a domínio nem ao CI. A
+ *   landing de verdade é o serviço `landing`, dono do apex e do `www`.
  */
