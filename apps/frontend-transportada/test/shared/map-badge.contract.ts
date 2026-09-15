@@ -5,7 +5,9 @@ import { describe, expect, it } from 'bun:test'
 
 import { ICON_PATHS } from '@/components/ui/icon'
 import { MAP_BADGE_IDS } from '@/modules/shared/mapBadge.constant'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import {
+  buildTollBadgeId,
   MAP_BADGE_ICONS,
   MAP_BADGE_SHAPES,
   resolveMapBadgeColors,
@@ -75,25 +77,26 @@ describe('os selos de radar e de pedágio no mapa', () => {
     expect(component).toContain("map.on('styleimagemissing'")
     expect(component).toContain('resolveMapBadgeRequest(event.id)')
     expect(component).toContain('theme: themeRef.current')
-    expect(component).toContain("'icon-image': MAP_BADGE_IDS.toll")
-    expect(component).toContain('speedPlate:')
+    expect(component).toContain("'icon-image': ['get', 'image']")
+    expect(component).toContain('buildTollBadgeId(marcador.label)')
+    expect(component).toContain('drawRequestedMapBadge(')
   })
 })
 
 /** O radar acompanha a placa de velocidade (R-19), no lugar do número solto de antes. */
 describe('a placa de velocidade do radar', () => {
   it('lê a velocidade do nome da imagem que o mapa pediu', () => {
-    expect(resolveMapBadgeRequest('selo-radar-60')).toEqual({ kind: 'radar', speed: '60' })
-    expect(resolveMapBadgeRequest('selo-radar-110')).toEqual({ kind: 'radar', speed: '110' })
-    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.radar)).toEqual({ kind: 'radar', speed: null })
-    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.toll)).toEqual({ kind: 'toll', speed: null })
+    expect(resolveMapBadgeRequest('selo-radar-60')).toEqual({ kind: 'radar', value: '60' })
+    expect(resolveMapBadgeRequest('selo-radar-110')).toEqual({ kind: 'radar', value: '110' })
+    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.radar)).toEqual({ kind: 'radar', value: null })
+    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.toll)).toEqual({ kind: 'toll', value: null })
     expect(resolveMapBadgeRequest('outra-imagem')).toBeNull()
   })
 
   /** `BR:urban` e afins não viram placa: desenhar texto qualquer seria inventar o limite. */
   it('só põe número de verdade na placa', () => {
-    expect(resolveMapBadgeRequest('selo-radar-BR:urban')).toEqual({ kind: 'radar', speed: null })
-    expect(resolveMapBadgeRequest('selo-radar-1000')).toEqual({ kind: 'radar', speed: null })
+    expect(resolveMapBadgeRequest('selo-radar-BR:urban')).toEqual({ kind: 'radar', value: null })
+    expect(resolveMapBadgeRequest('selo-radar-1000')).toEqual({ kind: 'radar', value: null })
   })
 
   it('pinta a placa como a da estrada, com cores da paleta do mapa', () => {
@@ -102,5 +105,24 @@ describe('a placa de velocidade do radar', () => {
       fill: '--color-basemap-white',
       ring: '--color-basemap-road-major',
     })
+  })
+})
+
+/** A praça da rota leva o valor por eixo dentro do marcador, no lugar do texto solto ao lado. */
+describe('a etiqueta de preço do pedágio', () => {
+  it('põe na etiqueta o valor como a conta o imprime', () => {
+    for (const amount of ['12.30', '0.00', '1234.50']) {
+      const price = formatAmount(amount)
+      const id = buildTollBadgeId(price)
+
+      expect(id).toBe(`selo-pedagio-${price}`)
+      expect(resolveMapBadgeRequest(id)).toEqual({ kind: 'toll', value: price })
+    }
+  })
+
+  /** "—" é "não sei": etiqueta com valor inventado seria pior que o selo sozinho. */
+  it('deixa a tarifa desconhecida só com o selo', () => {
+    expect(buildTollBadgeId('—')).toBe(MAP_BADGE_IDS.toll)
+    expect(resolveMapBadgeRequest('selo-pedagio-qualquer')).toEqual({ kind: 'toll', value: null })
   })
 })
