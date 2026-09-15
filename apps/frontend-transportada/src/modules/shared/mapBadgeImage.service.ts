@@ -12,12 +12,16 @@ import {
 /** Lado do selo em pixel CSS; o canvas multiplica pela densidade da tela. */
 const BADGE_SIDE = 24
 const ICON_VIEWBOX = 24
-const ICON_SHARE = 0.58
+const ICON_SHARE = 0.62
 const BORDER_WIDTH = 2
-/** A medalha do radar encaixada no canto da placa: menor, e com borda mais fina na mesma razão. */
-const MEDAL_SIDE = 14
+/**
+ * A medalha do radar encaixada no canto da placa: menor, com borda mais fina, e o ícone ocupando
+ * mais dela — abaixo disso o carro com as ondas vira borrão.
+ */
+const MEDAL_SIDE = 17
+const MEDAL_ICON_SHARE = 0.74
 const MEDAL_BORDER_WIDTH = 1.5
-const MEDAL_OVERHANG = 6
+const MEDAL_OVERHANG = 8
 const PLATE_RING_WIDTH = 3
 const GLYPH_STROKE = 2
 const SQUARE_RADIUS_SHARE = 0.28
@@ -27,7 +31,13 @@ const PLATE_FONT_FAMILY = 'sans-serif'
 
 export type SpeedPlate = Readonly<{ colors: SpeedPlateColors; speed: string }>
 
-type BadgeFrame = Readonly<{ border: number; left: number; side: number; top: number }>
+type BadgeFrame = Readonly<{
+  border: number
+  iconShare: number
+  left: number
+  side: number
+  top: number
+}>
 
 /**
  * O selo desenhado em canvas: o MapLibre pinta em WebGL e só aceita imagem pronta. O ícone é
@@ -52,7 +62,13 @@ export function drawMapBadge(input: {
   if (context === null) throw new Error('MAP_BADGE_CANVAS_UNAVAILABLE')
 
   if (speedPlate === undefined) {
-    const frame = { border: BORDER_WIDTH * pixelRatio, left: 0, side, top: 0 }
+    const frame = {
+      border: BORDER_WIDTH * pixelRatio,
+      iconShare: ICON_SHARE,
+      left: 0,
+      side,
+      top: 0,
+    }
     drawIconBadge({ colors, context, frame, kind })
   } else {
     drawSpeedPlate({ context, pixelRatio, plate: speedPlate })
@@ -60,6 +76,7 @@ export function drawMapBadge(input: {
     const origin = canvasSide - medalSide
     const frame = {
       border: MEDAL_BORDER_WIDTH * pixelRatio,
+      iconShare: MEDAL_ICON_SHARE,
       left: origin,
       side: medalSide,
       top: origin,
@@ -77,7 +94,7 @@ function drawIconBadge(input: {
   readonly kind: MapBadgeKind
 }): void {
   const { colors, context, frame, kind } = input
-  const { border, left, side, top } = frame
+  const { border, iconShare, left, side, top } = frame
   const inset = border / 2
 
   context.beginPath()
@@ -93,7 +110,7 @@ function drawIconBadge(input: {
   context.strokeStyle = colors.border
   context.stroke()
 
-  const iconSide = side * ICON_SHARE
+  const iconSide = side * iconShare
   context.save()
   context.translate(left + (side - iconSide) / 2, top + (side - iconSide) / 2)
   context.scale(iconSide / ICON_VIEWBOX, iconSide / ICON_VIEWBOX)
