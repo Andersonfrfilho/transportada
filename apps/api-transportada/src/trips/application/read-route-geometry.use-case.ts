@@ -31,6 +31,11 @@ import {
 } from '../../toll-booths/domain/toll-category.policy.js'
 import type { DepotDescription } from '../domain/depot-description.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import {
+  resolveTollCatalogStatus,
+  type TollCatalogStatusResult,
+} from '../../toll-booths/domain/toll-catalog-status.policy.js'
+import type { TollCatalogSummary } from '../../toll-booths/application/toll-booth.port.js'
 import type {
   RouteGeometryLeg,
   RouteGeometryPort,
@@ -79,6 +84,12 @@ export type RouteGeometryToll = Omit<TollRouteCost, 'booths'> &
      * jsonb congelado — o congelado guarda a observação, e a interpretação se recomputa.
      */
     booths: readonly TollBoothRouteLine[]
+    /**
+     * Se o catálogo de praças (`toll_booths`) está carregado e em dia — leitura fresca, nunca
+     * congelada (mesmo tratamento de `tariffObservedOn` abaixo): staging pode ter o catálogo vazio
+     * enquanto a viagem antiga continua existindo, e a marca precisa refletir o estado de hoje.
+     */
+    catalog: TollCatalogStatusResult
     /**
      * A fração já como rótulo (`1`, `1,5`, `3`), ao lado do par que a gerou.
      *
@@ -173,6 +184,8 @@ export type RouteGeometryView = {
 /** As praças que a rota pode ter passado, pelos ids de nó que a mesma chamada devolveu. */
 export type ReadRouteGeometryTollBoothsPort = {
   readByNodeIds: (nodeIds: readonly number[]) => Promise<readonly TollBoothRouteRecord[]>
+  /** O tamanho e a data do catálogo — para a tela distinguir "vazio" de "sem pedágio na rota". */
+  readCatalogSummary: () => Promise<TollCatalogSummary>
 }
 
 /**
@@ -210,6 +223,8 @@ export type ReadRouteGeometryInput = {
    */
   readonly fuelBaseline?: null | RouteOptionVehicle
   readonly geometry: RouteGeometryPort
+  /** Para o status do catálogo (`empty`/`stale`/`current`). Padrão: `() => new Date()`. */
+  readonly now?: () => Date
   readonly stops: readonly RouteGeometryPoint[]
   /**
    * O catálogo de praças. Ausente é "ninguém pediu pedágio nesta chamada" — o mapa da montagem sem
@@ -285,6 +300,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
         axles: input.axles ?? null,
         hasAutomaticTollPayment: input.hasAutomaticTollPayment ?? false,
         multiplier: input.multiplier ?? null,
+        now: input.now ?? (() => new Date()),
         road: raw,
         tollBooths: input.tollBooths ?? null,
       }),
@@ -334,6 +350,7 @@ async function resolveOption(input: {
   readonly axles: AxleCount | null
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
+  readonly now: () => Date
   readonly road: RouteGeometryRoad
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<
@@ -361,6 +378,7 @@ async function resolveOption(input: {
       hasAutomaticTollPayment: input.hasAutomaticTollPayment,
       nodeIds: input.road.nodeIds,
       nodeIdsByLeg: input.road.nodeIdsByLeg,
+      now: input.now,
       tollBooths: input.tollBooths,
     }),
   }
@@ -378,11 +396,16 @@ async function resolveRouteToll(input: {
   readonly nodeIds: null | readonly number[]
   /** Os mesmos nós por trecho — é deles que sai em que perna da viagem cada praça cai. */
   readonly nodeIdsByLeg: null | readonly (readonly number[])[]
+  readonly now: () => Date
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<null | RouteGeometryToll> {
   if (input.axles === null || input.multiplier === null || input.tollBooths === null) return null
 
-  const records = input.nodeIds === null ? [] : await input.tollBooths.readByNodeIds(input.nodeIds)
+  const tollBooths = input.tollBooths
+  const [records, catalogSummary] = await Promise.all([
+    input.nodeIds === null ? Promise.resolve([]) : tollBooths.readByNodeIds(input.nodeIds),
+    tollBooths.readCatalogSummary(),
+  ])
   /**
    * Em que trecho cada nó é cruzado. ⚠️ **O primeiro cruzamento vence**: um nó que reaparece é alça
    * de trevo ou retorno de rotatória — medido, 27 nós com 65 ocorrências extras numa rota de 89 km —,
@@ -420,6 +443,7 @@ async function resolveRouteToll(input: {
       multiplier: cost.multiplier,
       paymentMode: cost.paymentMode,
     }).map((booth) => ({ ...booth, legIndex: legIndexByNode.get(booth.osmNodeId) ?? null })),
+    catalog: resolveTollCatalogStatus({ summary: catalogSummary, today: input.now() }),
     tariffObservedOn: observedDates[0] ?? null,
   }
 }

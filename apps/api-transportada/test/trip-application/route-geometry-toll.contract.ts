@@ -9,7 +9,10 @@ import { describe, expect, test } from 'bun:test'
 
 import { readRouteGeometry } from '../../src/trips/application/read-route-geometry.use-case.js'
 import type { RouteGeometryPoint } from '../../src/trips/domain/route-geometry.policy.js'
-import type { TollBoothRouteRecord } from '../../src/toll-booths/application/toll-booth.port.js'
+import type {
+  TollBoothRouteRecord,
+  TollCatalogSummary,
+} from '../../src/toll-booths/application/toll-booth.port.js'
 
 const PARADAS: readonly RouteGeometryPoint[] = [
   { latitude: -22.0175, longitude: -47.8908 },
@@ -29,6 +32,7 @@ function porta(input: {
   /** Quando o caso é sobre em que perna a praça cai, os nós vêm agrupados como o OSRM os devolve. */
   readonly nodeIdsByLeg?: readonly (readonly number[])[]
   readonly legCount?: number
+  readonly catalogSummary?: TollCatalogSummary
 }) {
   const calls: (readonly number[])[] = []
   return {
@@ -46,6 +50,8 @@ function porta(input: {
         calls.push(nodeIds)
         return input.booths
       },
+      readCatalogSummary: async () =>
+        input.catalogSummary ?? { boothCount: 166, latestObservedOn: '2026-09-01' },
     },
   }
 }
@@ -217,5 +223,67 @@ describe('em que trecho cada praça é cruzada', () => {
     })
 
     expect(view.toll?.booths[0]?.legIndex).toBe(0)
+  })
+})
+
+/**
+ * O catálogo vazio (`toll_booths` sem seed) não é "sem pedágio na rota" — a tela precisa distinguir
+ * as duas. O status viaja junto de `toll`, calculado na mesma chamada que soma o extrato.
+ */
+describe('status do catálogo de praças', () => {
+  test('catálogo vazio marca `empty`, mesmo com a rota sem praça alguma', async () => {
+    const { geometryPort, tollBooths } = porta({
+      booths: [],
+      catalogSummary: { boothCount: 0, latestObservedOn: null },
+      nodeIds: [1, 2, 3],
+    })
+
+    const view = await readRouteGeometry({
+      axles: { count: 2, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 2 },
+      geometry: geometryPort,
+      stops: PARADAS,
+      tollBooths,
+    })
+
+    expect(view.toll?.catalog).toEqual({ observedOn: null, status: 'empty' })
+  })
+
+  test('catálogo com mais de 365 dias marca `stale`', async () => {
+    const { geometryPort, tollBooths } = porta({
+      booths: [praca(10, '10.50', '2024-01-01')],
+      catalogSummary: { boothCount: 1, latestObservedOn: '2024-01-01' },
+      nodeIds: [10],
+    })
+
+    const view = await readRouteGeometry({
+      axles: { count: 2, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 2 },
+      geometry: geometryPort,
+      now: () => new Date('2026-09-15T00:00:00.000Z'),
+      stops: PARADAS,
+      tollBooths,
+    })
+
+    expect(view.toll?.catalog).toEqual({ observedOn: '2024-01-01', status: 'stale' })
+  })
+
+  test('catálogo recente marca `current`', async () => {
+    const { geometryPort, tollBooths } = porta({
+      booths: [praca(10, '10.50', '2026-06-01')],
+      catalogSummary: { boothCount: 1, latestObservedOn: '2026-06-01' },
+      nodeIds: [10],
+    })
+
+    const view = await readRouteGeometry({
+      axles: { count: 2, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 2 },
+      geometry: geometryPort,
+      now: () => new Date('2026-09-15T00:00:00.000Z'),
+      stops: PARADAS,
+      tollBooths,
+    })
+
+    expect(view.toll?.catalog).toEqual({ observedOn: '2026-06-01', status: 'current' })
   })
 })

@@ -91,7 +91,10 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
       companyId: COMPANY_ID,
       geometry: createGeometryPort([10, 1, 2, 3]),
       repository,
-      tollBooths: { readByNodeIds: async () => TRES_PRACAS },
+      tollBooths: {
+        readByNodeIds: async () => TRES_PRACAS,
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
+      },
       tripId: TRIP_ID,
     })
 
@@ -116,7 +119,10 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1]),
       repository,
-      tollBooths: { readByNodeIds: async () => [praca(1, '32.80')] },
+      tollBooths: {
+        readByNodeIds: async () => [praca(1, '32.80')],
+        readCatalogSummary: async () => ({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+      },
       tripId: TRIP_ID,
     })
 
@@ -138,7 +144,10 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
       companyId: COMPANY_ID,
       geometry: { readRouteGeometry: async () => null },
       repository,
-      tollBooths: { readByNodeIds: async () => TRES_PRACAS },
+      tollBooths: {
+        readByNodeIds: async () => TRES_PRACAS,
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
+      },
       tripId: TRIP_ID,
     })
 
@@ -160,7 +169,10 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
-      tollBooths: { readByNodeIds: async () => TRES_PRACAS },
+      tollBooths: {
+        readByNodeIds: async () => TRES_PRACAS,
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
+      },
       tripId: TRIP_ID,
     })
 
@@ -174,7 +186,10 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
-      tollBooths: { readByNodeIds: async () => TRES_PRACAS },
+      tollBooths: {
+        readByNodeIds: async () => TRES_PRACAS,
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
+      },
       tripId: TRIP_ID,
     })
 

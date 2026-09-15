@@ -9,12 +9,31 @@ import type {
   TollBoothRepository,
   TollBoothRouteRecord,
   TollBoothSeedRecord,
+  TollCatalogSummary,
 } from '../application/toll-booth.port.js'
 
 export type TollBoothDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
 export function createDrizzleTollBoothRepository(database: TollBoothDatabase): TollBoothRepository {
   return {
+    /**
+     * `count(*)` e `max(observed_on)` numa consulta só, nunca lendo a tabela inteira — o catálogo
+     * pode estar vazio (staging sem seed) ou velho (tarifa reajusta ao ano), e é essa distinção que
+     * a tela precisa para não dizer "sem pedágio" quando é "catálogo não carregado".
+     */
+    async readCatalogSummary(): Promise<TollCatalogSummary> {
+      const [row] = await database
+        .select({
+          boothCount: sql<number>`count(*)::int`,
+          latestObservedOn: sql<string | null>`max(${tollBooths.observedOn})`,
+        })
+        .from(tollBooths)
+
+      return {
+        boothCount: row?.boothCount ?? 0,
+        latestObservedOn: row?.latestObservedOn ?? null,
+      }
+    },
     /**
      * Spec 090 T7: **filtra por id de nó, nunca lê a tabela inteira.** `nodeIds` pode trazer
      * repetição (a mesma rotatória volta a passar pelo mesmo nó) — o `IN` do Postgres já deduplica

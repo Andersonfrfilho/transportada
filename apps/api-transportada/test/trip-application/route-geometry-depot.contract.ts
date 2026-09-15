@@ -137,7 +137,10 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
    * que não paga.
    */
   it('o pedágio inclui as praças da perna do barracão', async () => {
-    const tollBooths = { readByNodeIds: async () => [PRACA] }
+    const tollBooths = {
+      readByNodeIds: async () => [PRACA],
+      readCatalogSummary: async () => ({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+    }
 
     const semBarracao = await readRouteGeometry({
       axles: { count: 3, source: 'declared' } as const,

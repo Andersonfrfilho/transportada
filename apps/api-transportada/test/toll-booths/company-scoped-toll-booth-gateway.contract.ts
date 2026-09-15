@@ -30,6 +30,7 @@ function catalogRecord(overrides: Partial<TollBoothRouteRecord> = {}): TollBooth
 function fakeCatalog(records: readonly TollBoothRouteRecord[]): TollBoothRepository {
   return {
     readByNodeIds: async () => records,
+    readCatalogSummary: async () => ({ boothCount: records.length, latestObservedOn: null }),
     saveMany: async () => 0,
   }
 }
@@ -134,5 +135,22 @@ describe('company-scoped toll booth gateway (spec 095 D1)', () => {
 
     expect(result[0]?.chargePerAxleAutomatic).toBe('9.97')
     expect(result[0]?.chargePerAxle).toBe('10.50')
+  })
+
+  /** O resumo é do catálogo inteiro — sem ajuste por empresa, ao contrário das tarifas. */
+  test('passes the catalog summary through untouched', async () => {
+    const gateway = createCompanyScopedTollBoothGateway({
+      catalog: {
+        readByNodeIds: async () => [],
+        readCatalogSummary: async () => ({ boothCount: 42, latestObservedOn: '2026-06-01' }),
+        saveMany: async () => 0,
+      },
+      charges: fakeCharges([]),
+      companyId: COMPANY_ID,
+    })
+
+    const summary = await gateway.readCatalogSummary()
+
+    expect(summary).toEqual({ boothCount: 42, latestObservedOn: '2026-06-01' })
   })
 })
