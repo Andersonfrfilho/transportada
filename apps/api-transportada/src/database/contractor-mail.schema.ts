@@ -137,6 +137,12 @@ export const contractorContacts = pgTable(
       sql`${table.status} in (${sql.raw(inList(CONTRACTOR_CONTACT_STATUSES))})`,
     ),
     check('contractor_contacts_email_check', sql`length(btrim(${table.email})) > 0`),
+    /**
+     * Revisão final, item de segurança B1: `email` é `text()` sem teto — a fronteira HTTP já
+     * recusa acima de 254 (RFC 5321 §4.5.3.1.3, `contractor-contacts.routes.ts`), esta CHECK é a
+     * segunda trava, contra qualquer escrita que não passe pela rota.
+     */
+    check('contractor_contacts_email_length_check', sql`length(${table.email}) <= 254`),
   ],
 )
 

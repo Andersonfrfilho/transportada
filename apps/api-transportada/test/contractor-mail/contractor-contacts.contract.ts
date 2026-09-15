@@ -188,6 +188,25 @@ describe('contractor contacts routes (spec 150 T301, spec 143 T013)', () => {
     expect(response.status).toBe(400)
   })
 
+  /**
+   * Revisão final, item de segurança B1: `contractor_contacts.email` é `text()` sem teto no banco —
+   * sem limite na fronteira, um corpo com um e-mail gigante chegaria até a query. 254 é o teto
+   * prático de e-mail (RFC 5321 §4.5.3.1.3), a mesma constante do CHECK novo na migration.
+   */
+  test('POST rejects an email longer than 254 characters', async () => {
+    const { handle } = await createHttpFixture({})
+    const oversized = `${'a'.repeat(250)}@example.com`
+    expect(oversized.length).toBeGreaterThan(254)
+    const response = await handle(
+      jsonRequest({
+        body: { email: oversized },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+    expect(response.status).toBe(400)
+  })
+
   test('POST creates the contact and answers 201', async () => {
     const createCalls: unknown[] = []
     const { handle } = await createHttpFixture({ createCalls })
@@ -257,6 +276,51 @@ describe('contractor contacts routes (spec 150 T301, spec 143 T013)', () => {
     expect(body.data.status).toBe('inactive')
     expect(updateCalls).toHaveLength(1)
   })
+
+  /**
+   * Revisão final, item [BAIXO]: mesmo contrato do envio de correção (`mail-routes.contract.ts`,
+   * "never logs the recipient email...") — nenhum e-mail de contato aparece em log, no caminho de
+   * sucesso nem no de erro.
+   */
+  test('never logs a contact email, on POST, PATCH or a duplicate-email failure', async () => {
+    const logCalls: { readonly message: string; readonly metadata: unknown }[] = []
+    const { handle } = await createHttpFixture({
+      createError: new ContractorContactEmailTakenError(),
+      logCalls,
+    })
+
+    await handle(
+      jsonRequest({
+        body: { email: 'segredo-do-financeiro@contratante.example' },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+    await handle(
+      jsonRequest({
+        body: { email: 'outro-segredo@contratante.example' },
+        method: 'PATCH',
+        path: `/contractors/${CONTRACTOR_ID}/contacts/${CONTACT_ID}`,
+      }),
+    )
+
+    const serialized = JSON.stringify(logCalls)
+    expect(serialized).not.toContain('segredo-do-financeiro@contratante.example')
+    expect(serialized).not.toContain('outro-segredo@contratante.example')
+  })
+
+  test('PATCH rejects an email longer than 254 characters', async () => {
+    const { handle } = await createHttpFixture({})
+    const oversized = `${'a'.repeat(250)}@example.com`
+    const response = await handle(
+      jsonRequest({
+        body: { email: oversized },
+        method: 'PATCH',
+        path: `/contractors/${CONTRACTOR_ID}/contacts/${CONTACT_ID}`,
+      }),
+    )
+    expect(response.status).toBe(400)
+  })
 })
 
 type ContactRepositoryPort = Pick<
@@ -322,6 +386,7 @@ async function createHttpFixture(params: {
   readonly createCalls?: unknown[]
   readonly createError?: Error
   readonly getContractorError?: Error
+  readonly logCalls?: { readonly message: string; readonly metadata: unknown }[]
   readonly permissions?: CompanyContext['permissions']
   readonly updateCalls?: unknown[]
   readonly updateResult?: ContractorContactRecord | undefined
@@ -404,7 +469,11 @@ async function createHttpFixture(params: {
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'contractor-contacts-http-correlation',
     frontendOrigins: ['http://localhost:53000'],
-    logger: { error() {}, info() {}, warn() {} },
+    logger: {
+      error: (message, metadata) => params.logCalls?.push({ message, metadata }),
+      info: (message, metadata) => params.logCalls?.push({ message, metadata }),
+      warn: (message, metadata) => params.logCalls?.push({ message, metadata }),
+    },
     requestTimeoutSeconds: 10,
     router,
   })

@@ -102,6 +102,35 @@ describe('contractor contacts repository integration (spec 150 T301, spec 143 T0
     },
     30_000,
   )
+
+  /**
+   * Revisão final, item de segurança B1: a fronteira HTTP recusa acima de 254 caracteres
+   * (`contractor-contacts.routes.ts`), e a CHECK `contractor_contacts_email_length_check` é a
+   * segunda trava, contra qualquer escrita que não passe pela rota — só se prova contra Postgres
+   * de verdade.
+   */
+  testWithPostgres(
+    'the database itself rejects an email longer than 254 characters',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, contractorId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const oversized = `${'a'.repeat(250)}@example.com`
+        expect(oversized.length).toBeGreaterThan(254)
+
+        await expect(
+          repository.createContractorContact({
+            canDecide: false,
+            companyId,
+            contractorId,
+            email: oversized,
+            receivesOccurrences: false,
+          }),
+        ).rejects.toThrow()
+      })
+    },
+    30_000,
+  )
 })
 
 async function seedTenant(

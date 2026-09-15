@@ -24,11 +24,13 @@ import type {
 
 const CONTACTS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': 'application/json' }
+/** RFC 5321 §4.5.3.1.3 — mesmo teto do CHECK `contractor_contacts_email_length_check` no banco. */
+const EMAIL_MAX_LENGTH = 254
 
 const createContactSchema = z
   .object({
     canDecide: z.boolean().default(false),
-    email: z.string().trim().email(),
+    email: z.string().trim().max(EMAIL_MAX_LENGTH).email(),
     receivesOccurrences: z.boolean().default(true),
   })
   .strict()
@@ -36,7 +38,7 @@ const createContactSchema = z
 const updateContactSchema = z
   .object({
     canDecide: z.boolean().optional(),
-    email: z.string().trim().email().optional(),
+    email: z.string().trim().max(EMAIL_MAX_LENGTH).email().optional(),
     receivesOccurrences: z.boolean().optional(),
     status: z.enum(CONTRACTOR_CONTACT_STATUSES).optional(),
   })
