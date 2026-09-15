@@ -2262,3 +2262,91 @@ window_start) DO UPDATE SET hits = rate_limit_windows.hits + 1 RETURNING hits, w
 - **Cron / frontend**: só a entrada do catálogo e o contrato-espelho (cron).
 - Raiz: `.env.example`. Spec: `plan.md` (limitador), `tasks.md` (`[x]`), este arquivo.
 - `docs/SECURITY.md` fica para a T407.
+
+## T407
+
+Só documentação: `docs/SECURITY.md`, `docs/ai-context/*`, os `CLAUDE.md` das apps tocadas. Nenhum
+código-fonte mudou nesta task.
+
+### `docs/SECURITY.md`
+
+- **M1 — fechado.** Nova entrada em "Fechados", datada de 2026-09-15: as duas rotas de e-mail
+  (`POST /address-correction-requests/mail`, `POST /contractor-mail-settings/test-email`) tinham
+  disparo sem teto; a T406 fechou com o limitador de estado no Postgres (`rate_limit_windows`, escopo
+  `contractor-mail`, chave `companyId:userId`, sem PII), padrão 20/h por env, fail-closed, `429
+TOO_MANY_REQUESTS` + `Retry-After`. Registrado explicitamente o que **continua aberto**: o teto é por
+  usuário, não por empresa (N operadores multiplicam o volume), e as demais rotas autenticadas e
+  todas as rotas públicas/anônimas do produto continuam só com o limitador em memória por processo —
+  o achado geral "sem limitador com estado compartilhado" não fechou, só o par de rotas de e-mail.
+- **M2 — pendente antes de produção.** Nova entrada em "Abertos": nenhuma ação de
+  `contractor-mail`/`address-correction` (envio, CRUD de contatos, CRUD de modelos) grava trilha de
+  auditoria (§10 do baseline). Registrado o que já existe e não é trilha (`contractor_mail_messages`,
+  `created_at`/`updated_at`, log estrutural sem PII) e que a decisão do usuário nesta rodada foi
+  deixá-la fora da Fase 4 (RF19).
+- **B3 — fechado só no fluxo novo.** Nova entrada em "Abertos": `POST
+/address-correction-requests/recipients` tirou o CPF/CNPJ da URL no fluxo de correção (item 10 da
+  revisão final). Registrado que `GET /contractors/by-tax-id/:taxId` (`fleet.read`) **continua
+  existindo** e é consumida por outros pontos do produto (resolução de `contractorId` no
+  `nfe-workspace`) — migrá-los é trabalho fora do escopo desta spec.
+- **CSP `frame-src`**: nova entrada em "Abertos" (motivo e limite da troca de `'none'` para `'self'`
+  na T403, com `frame-ancestors`/`object-src` intocados) — decisão que se audita, no mesmo padrão das
+  entradas de `camera`/`geolocation` já existentes no arquivo.
+- **`body_html` (item 12 da revisão final, T302)**: **não duplicado**. Já havia uma linha sobre o
+  mesmo tratamento de `body_text` na entrada "respostas das contratantes guardadas sem prazo de
+  descarte" (verificado por grep antes de editar) — nada novo a acrescentar aqui.
+
+### `docs/ai-context/`
+
+- `api-transportada.md`: seção "Fase 4 — modelos de e-mail, liberação do envio e limitador" logo
+  depois da seção existente da spec 150 (T101–T305) — liberação (`sending_verified_at`,
+  `resolveMailSendReadiness`, `status` da 143 não bloqueia mais), modelos (tabela, catálogo,
+  variáveis, renderização, recusas), limitador (união discriminada do `rateLimit`, tabela, chave,
+  fail-closed, envs, limpeza no worker).
+- `frontend-transportada.md`: seção "Fase 4 — modelos, 'Pronto para enviar' e prévia em `iframe`" —
+  painel de modelos, prévia em `iframe sandbox` e o porquê da CSP, `mailSendReadiness.service.ts`
+  (espelha a política da API sem importar), seletor de modelo na confirmação de envio.
+- `worker-transportada.md`: seção nova "A limpeza do limitador de taxa é rotina do worker, não do
+  cron" — `rate-limit.window.purge`, corte de 48h, por que o worker não lê o env da API.
+- `cron-transportada.md`: uma linha nova (não seção) explicando que `rate-limit.window.purge` só
+  entra no catálogo mirrorizado para o contrato de paridade — o cron não executa, quem executa é o
+  worker.
+
+### `CLAUDE.md`
+
+Só invariantes de uma ou duas linhas, sem mexer em nenhuma tabela existente:
+
+- `apps/api-transportada/CLAUDE.md`: duas linhas novas ao lado do aviso existente de
+  `address-correction/` — liberação do envio não depende mais de `status`, e rota que dispara e-mail
+  declara `rateLimit: { store: 'postgres', … }` e aparece em `test/rate-limited-routes.contract.test.ts`.
+- `apps/frontend-transportada/CLAUDE.md`: uma linha na seção "CSP, ambiente e tema de login" sobre
+  `frame-src 'self'` e o limite (`sandbox` sem `allow-scripts`, `frame-ancestors`/`object-src`
+  intocados). **Não mexi** na tabela de primitivos do design system, como pedido.
+- `apps/worker-transportada/CLAUDE.md`: uma linha nova em "Invariantes que valem antes de editar"
+  sobre a rotina `rate-limit.window.purge` viver aqui, não na API nem no cron.
+- `apps/cron-transportada/CLAUDE.md`: **não tocado** — o único efeito no cron é uma entrada
+  mirrorizada de catálogo sem mudança de comportamento, já coberta em `docs/ai-context/cron-transportada.md`;
+  não é invariante nova para quem edita código do cron.
+
+### Gates
+
+```
+bun run --cwd . prettier --check docs/SECURITY.md docs/ai-context/api-transportada.md \
+  docs/ai-context/frontend-transportada.md docs/ai-context/worker-transportada.md \
+  docs/ai-context/cron-transportada.md apps/api-transportada/CLAUDE.md \
+  apps/frontend-transportada/CLAUDE.md apps/worker-transportada/CLAUDE.md \
+  specs/150-pedido-de-correcao-de-endereco/tasks.md
+```
+
+Resultado: `All matched files use Prettier code style!` — nenhum código-fonte tocado, gates de
+typecheck/teste/lint (`bun run typecheck`, `bun run lint`, testes das apps) não se aplicam a esta
+task por instrução (só documentação).
+
+### Arquivos alterados
+
+- `docs/SECURITY.md` (M1 fechado, M2/B3/CSP abertos)
+- `docs/ai-context/api-transportada.md`, `frontend-transportada.md`, `worker-transportada.md`,
+  `cron-transportada.md`
+- `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md`,
+  `apps/worker-transportada/CLAUDE.md`
+- `specs/150-pedido-de-correcao-de-endereco/tasks.md` (`[x]` na T407)
+- Este arquivo (`evidence.md`)

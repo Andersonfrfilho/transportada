@@ -135,6 +135,11 @@ que sobrou de contrato é `worker-transportada/test/nota-rp-v2-client.contract.t
 envelope segue idêntico ao que selou:
 `transportada:nfse-credential:v1:${companyId}:${credentialId}`.
 
+⚠️ `rate-limit.window.purge` (spec 150 T406, limpeza do limitador de taxa com estado no Postgres) só
+entra no catálogo mirrorizado (`shared/job-catalog.constant.ts`) para o contrato de paridade das
+quatro apps — o cron não a executa, só a reconhece: quem roda é o **worker**, ver
+`docs/ai-context/worker-transportada.md` § "A limpeza do limitador de taxa é rotina do worker".
+
 ⚠️ O catálogo `FUEL_TYPES` é **cópia por valor** nas três apps que o usam —
 `api-transportada/src/shared/fuel.constant.ts`,
 `frontend-transportada/src/modules/shared/fuel.constant.ts` e

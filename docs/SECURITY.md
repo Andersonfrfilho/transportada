@@ -5,6 +5,75 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-15 — trilha de auditoria do envio de e-mail e do CRUD de contatos da contratante (M2)
+
+**Onde:** `api-transportada`, módulos `contractor-mail` e `address-correction` (spec 150, Fase 4).
+
+**O que é:** nenhuma ação deste fluxo grava linha em `audit_logs`: nem o envio do pedido de correção
+(`POST /address-correction-requests/mail`), nem criar/editar/(des)ativar um contato de e-mail da
+contratante (`POST`/`PATCH /contractors/:id/contacts`, T301), nem o CRUD de modelos de e-mail
+(`POST`/`PATCH /contractor-mail-templates`, T402/T403). O §10 do baseline pede trilha para "ação
+sensível" — envio dispara e-mail em nome da transportadora para um terceiro, e o contato decide quem
+recebe esse e-mail; os dois qualificam. É o M2 da revisão de segurança da Fase 4 desta spec.
+
+**O que já existe, e não é trilha de auditoria:** `contractor_mail_messages` grava o que foi enviado
+(`thread_id`, destinatários, `template_id`); `contractor_contacts` e `contractor_mail_templates` têm
+`created_at`/`updated_at` (`actor_user_id` só existe nos modelos e na configuração, não no contato);
+o log estrutural de cada requisição carrega `correlationId`, sem PII. Responder "quem cadastrou este
+contato" ou "quem mandou este e-mail" hoje exige cruzar a tabela de negócio com o log de requisição —
+o mesmo problema já registrado no achado de `audit_logs` sem IP, logo abaixo.
+
+**O que falta:** decidir e implementar a trilha (RF19). Decisão do usuário nesta rodada: fica fora da
+Fase 4, pendente **antes de produção**.
+
+**Origem:** spec 150, RF19, revisão de segurança da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — CPF/CNPJ ainda viaja na URL de `GET /contractors/by-tax-id/:taxId` (B3, fechado só no fluxo novo)
+
+**Onde:** `api-transportada`, `delivery-clients/presentation/contractor.routes.ts`.
+
+**O que é:** a revisão de segurança da Fase 4 achou o CPF/CNPJ do emitente viajando no **caminho** da
+URL do fluxo de correção de endereço — o mesmo problema do §8 do baseline (CEP/coordenada em query
+string), agora com documento de pessoa/empresa, que fica gravado em log de proxy e de CDN.
+
+**Fechado para o fluxo novo:** `POST /address-correction-requests/recipients`, body
+`{ contractorTaxId }`, substitui as duas chamadas antigas (`GET /contractors/by-tax-id/:taxId` +
+`GET /contractors/:id/contacts`) por uma só, com o documento no **corpo**
+(`find-address-correction-recipients.use-case.ts`; frontend em `findAddressCorrectionRecipients`,
+`nfeWorkspaceClient.service.ts`). Prova: o teste do client confere que `request.url` nunca contém o
+CNPJ.
+
+**Continua aberto:** `GET /contractors/by-tax-id/:taxId` (`fleet.read`) não foi removida — outros
+consumidores do produto ainda a chamam, por exemplo a resolução de `contractorId` a partir do
+relatório de endereços no `nfe-workspace` (`docs/ai-context/frontend-transportada.md` § "Clientes a
+atualizar"). Migrar esses consumidores para mandar o documento no corpo, em vez do caminho, é
+trabalho fora do escopo desta spec e fica pendente.
+
+**Origem:** spec 150, revisão de segurança da Fase 4, correção pós-revisão final (item 10 do
+`evidence.md`). B3.
+
+### 2026-09-15 — CSP: `frame-src` deixa de ser `'none'` para a prévia do modelo de e-mail (spec 150 T403)
+
+**Onde:** `frontend-transportada`, `shared/contentSecurityPolicy.service.ts`.
+
+**O que é:** `frame-src` era `'none'` desde a ADR-0037 — nenhum `iframe` existia no bundle. A prévia
+de modelo de e-mail (T402/T403) precisa renderizar HTML de terceiro (o texto que o operador digitou,
+já escapado no servidor) sem `dangerouslySetInnerHTML`; a escolha foi um
+`<iframe sandbox="" srcDoc={html}>`, sem `allow-scripts`, e isso exige abrir `frame-src` para pelo
+menos a própria origem.
+
+**O limite:** `frame-src 'self'`, nunca liberado (`'none'` solto) nem `*`. `about:srcdoc` de um
+`iframe` `sandbox` é resolvido contra a origem do documento que o criou, então `'self'` já basta —
+nenhum `iframe` de terceiro passa a ser aceito, e sem `allow-scripts` o conteúdo do sandbox não
+executa script. `frame-ancestors` e `object-src` continuam `'none'`: a própria app segue impossível
+de embutir em terceiro.
+
+**O que falta:** nada em aberto. `test/shared/content-security-policy.contract.ts` cobra os dois
+sentidos — falha se `frame-src` voltar a `'none'` (quebraria a prévia) e falha se deixar de ser
+`'self'` ou virar algo mais permissivo.
+
+**Origem:** spec 150, T403.
+
 ### 2026-09-13 — `audit_logs` não guarda IP
 
 **Onde:** `audit_logs` (todo o produto, não só `contractor-mail`) — sem coluna de endereço de
@@ -834,5 +903,39 @@ toda a base de teste; os seis do seed local são inválidos de propósito.
 
 Trocado por dado sintético. `test/fleet/synthetic-tax-id.contract.ts` passa a reprovar CPF válido em
 qualquer fixture, com lista fechada de exceções para os canônicos de documentação.
+
+### 2026-09-15 — envio de e-mail à contratante sem teto de requisição (M1)
+
+**Onde:** `api-transportada`, `POST /address-correction-requests/mail` e
+`POST /contractor-mail-settings/test-email` (spec 150, revisão de segurança da Fase 4, fechado pela
+T406).
+
+**O que era:** as duas rotas disparam e-mail pelo Resend e não tinham limitador nenhum — um operador
+(ou uma credencial comprometida) podia reenviar em rajada, sem teto, gerando custo direto no
+provedor. É o M1 da revisão de segurança da Fase 4 desta spec.
+
+**Corrigido:** as duas rotas declaram `rateLimit: { store: 'postgres', scope: 'contractor-mail',
+maxRequests, windowSeconds }` — o `rateLimit` de rota virou união discriminada entre o limitador em
+memória que a API já tinha (`store: 'memory'`) e este novo, com estado no Postgres
+(`http/rate-limit-window.port.ts`, `DrizzleRateLimiterRepository`, tabela `rate_limit_windows`).
+Janela fixa **compartilhada entre instâncias** (ao contrário do limitador em memória, que é por
+processo), chave `scope:companyId:userId` — só UUIDs, nunca PII —, aplicada no mesmo ponto de hoje:
+depois de `authorize`, antes de `parse`/idempotência (corpo inválido e replay idempotente contam
+contra o teto). **Fail-closed**: erro do limitador propaga sem `try/catch` e vira 500 pelo Router —
+sem saber quantos envios já saíram, o envio não sai. Estourado, `429 TOO_MANY_REQUESTS` com
+`Retry-After`. Tetos vêm de env (`RATE_LIMIT_CONTRACTOR_MAIL_MAX`/
+`RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS`), padrão 20 por hora. As janelas vencidas são apagadas
+pela rotina `rate-limit.window.purge` do worker (corte de 48 h). Prova:
+`test/integration/rate-limiter.integration.ts` — 30 chamadas concorrentes, exatamente 20 passam.
+
+**O que continua aberto:** o teto é **por usuário**, não por empresa — não há um segundo teto
+agregado só por `companyId`, então N operadores da mesma empresa multiplicam o volume total em
+N × 20/h. E este achado fecha só o par de rotas de e-mail: as demais rotas autenticadas e todas as
+rotas públicas/anônimas do produto (recuperação de senha, CEP, portal do contratante, candidatura de
+agregado, webhook do WhatsApp — cada uma já registrada acima) continuam só com o limitador em
+memória por processo, sem estado compartilhado entre instâncias. O achado geral "sem limitador com
+estado compartilhado" segue aberto para o resto da API.
+
+**Origem:** spec 150, RF18, revisão de segurança da Fase 4. T406, 2026-09-15.
 
 _Nenhum ainda._

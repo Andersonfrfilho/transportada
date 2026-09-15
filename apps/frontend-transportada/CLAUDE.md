@@ -93,6 +93,10 @@ e `server.ts` lê o arquivo **fail-closed** (`FRONTEND_MISSING_CONTENT_SECURITY_
 externo novo entra no `connect-src` existente, nunca numa segunda diretiva. Contrato:
 `test/shared/content-security-policy.contract.ts`.
 
+⚠️ `frame-src` é `'self'` (spec 150 T403; era `'none'` desde a ADR-0037) — o único uso é
+`<iframe sandbox="" srcDoc>` para prévia de HTML confiável (nunca `dangerouslySetInnerHTML`, sem
+`allow-scripts`); `frame-ancestors`/`object-src` continuam `'none'`.
+
 `VITE_APP_ENV` (`local`·`staging`·`production`, ausente/desconhecido cai em `production`) decide a
 faixa de ambiente e o ícone 🚧 fora de produção — mesmo padrão do `web.md` §12. A tela de login
 **não é desta app**: é o tema Keycloak em `deploy/keycloak/theme/`, com os tokens de design

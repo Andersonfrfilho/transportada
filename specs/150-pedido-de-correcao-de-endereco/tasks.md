@@ -81,7 +81,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       rota, aplicado ao envio de correção e ao e-mail de teste, `429` com `Retry-After`, tetos vindos
       do env, e limpeza no worker (`rate-limit.window.purge`). Evidência: contratos do limitador (janela, concorrência atômica,
       `Retry-After`), da rota e do env, mais integração.
-- [ ] **T407** `docs/SECURITY.md`: M1 fechado para as rotas de e-mail, M2 (auditoria) e B3
+- [x] **T407** `docs/SECURITY.md`: M1 fechado para as rotas de e-mail, M2 (auditoria) e B3
       registrados como pendentes antes de produção. Atualizar `docs/ai-context/` e os `CLAUDE.md`
       tocados.
 

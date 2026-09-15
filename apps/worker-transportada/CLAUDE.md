@@ -71,3 +71,6 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   `toAddresses[0]`** — teto `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, cópia por valor da API com
   contrato de paridade (spec 150 T302). Detalhe: docs/ai-context § "O e-mail à contratante sai para
   todos os destinatários".
+- **A limpeza do limitador de taxa (`rate_limit_windows`) é rotina daqui, não da API nem do cron**
+  (spec 150 T406) — `rate-limit.window.purge` apaga janela com mais de 48 h. Detalhe: docs/ai-context
+  § "A limpeza do limitador de taxa é rotina do worker".

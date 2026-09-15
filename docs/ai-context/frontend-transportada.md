@@ -552,3 +552,40 @@ da contratante (completo), os dois abrindo a mesma confirmação
 
 Detalhe completo (regra de habilitação do botão, mapa de código de erro, contrato do serviço):
 `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T201–T305).
+
+### Fase 4 — modelos, "Pronto para enviar" e prévia em `iframe` (spec 150 T403–T405, RF13–RF17)
+
+**Seção "Modelos"** (`ContractorMailTemplatesPanel`/`ContractorMailTemplateEditor.component.tsx`) na
+página "E-mail com contratantes" (módulo `delivery-clients`, aba "mail", ao lado da configuração da
+143 e dos contatos da T301): lista por tipo com selo "Padrão"/"Arquivado", "Criar a partir do
+padrão"/"Novo em branco", editor com as variáveis do catálogo (`{contratante}`, `{quantidade}`,
+`{clientes}`… — cópia por valor de `mail-template-catalog.constant.ts` da API, nunca importado) e
+inserção na posição do cursor (`mailTemplateVariableInsertion.service.ts`, `requestAnimationFrame`
+para o `setSelectionRange` caber no próximo paint). Validação client-side espelha
+`mail-template-render.policy.ts#validateMailTemplate` da API (mesmo tokenizador de `{variavel}`,
+mesmos tetos) — o servidor continua sendo a verdade, isto só adianta o aviso.
+
+**Prévia**: "Ver prévia" chama `POST /contractor-mail-templates/preview` com o conteúdo não salvo e
+mostra `<iframe sandbox="" srcDoc={html}>` (nunca `dangerouslySetInnerHTML`, sem `allow-scripts`) ao
+lado do texto puro, sempre os dois visíveis. Isso exigiu abrir a CSP: `frame-src` era `'none'`
+(ADR-0037) e passou a `'self'` — `about:srcdoc` de um iframe sandbox resolve contra a origem do
+documento que o criou, então `'self'` basta e terceiro continua fora. Detalhe e limite:
+`docs/SECURITY.md` § "CSP: `frame-src` deixa de ser `'none'`".
+
+**"Pronto para enviar"** (`shared/mailSendReadiness.service.ts`, `MailSendReadinessSummary.component.tsx`,
+T404): espelha `resolveMailSendReadiness` da API sem importar código de lá —
+`resolveMailSendReadinessView({ checks, mailType, settings, templates })`. `settings === null` →
+`not_configured`; `settings.sendingVerifiedAt === null` → `sending_not_verified`, com
+`failingChecklistKeys` apontando qual item da lista (`api_key`/`sender_domain`) falta; sem modelo
+**ativo e marcado como padrão** do tipo → `template_missing`. O `status` da 143 (ida e volta) nunca
+entra na função — é uma checagem à parte, só informativa. Atalho por motivo
+(`resolveMailSendReadinessShortcutTarget`) rola e foca a seção certa (`useRevealedPanel`,
+`contractor-mail-checklist-section`/`contractor-mail-templates-section`).
+
+**Confirmação de envio** (T305, revisitada na T405): seletor de modelo (padrão ou outro ativo do
+mesmo tipo) e prévia acompanhando a escolha; a recusa por liberação (`CONTRACTOR_MAIL_TEMPLATE_MISSING`,
+`CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`, `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED`) leva à página de
+configuração pelo mesmo atalho do T404.
+
+Detalhe completo (contratos, arquivos tocados, decisões de layout):
+`specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).

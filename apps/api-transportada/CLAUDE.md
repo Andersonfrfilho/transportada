@@ -23,6 +23,12 @@ Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`
 — é um registro à parte (`address_correction_requests`), e a contratante é sempre resolvida pelo CNPJ
 do emitente dentro da `companyId` do token, nunca do payload (spec 150).
 
+⚠️ **O envio de e-mail à contratante não depende de `contractor_mail_settings.status`** — depende de
+`sending_verified_at` (lista de verificação) e de existir um `contractor_mail_templates` ativo do
+tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara e-mail declara
+`rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`** e aparece em
+`test/rate-limited-routes.contract.test.ts` — hoje só as duas de `contractor-mail` (spec 150 T406).
+
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →

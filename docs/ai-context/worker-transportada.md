@@ -157,3 +157,18 @@ e o `setup_test` não muda. O schema `contractor-mail.schema.ts` (cópia por val
 consumida aqui) ganhou a coluna `bodyHtml`.
 
 Detalhe completo (testes vermelho→verde, arquivos tocados): `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T302.
+
+## A limpeza do limitador de taxa é rotina do worker, não do cron (spec 150 T406)
+
+O limitador de taxa da API com estado no Postgres (`rate_limit_windows`, escopo `contractor-mail`,
+RF18) precisa apagar janela vencida em algum lugar — o cron só publica a batida agendada lendo
+`job_schedules`, quem executa rotina é o worker. `rate-limit.window.purge`
+(`minimumIntervalSeconds: 3_600`), no molde de `trip.cargo-layout.purge`: lotes de 1000 por `ctid`
+com `for update skip locked`, teto de 100 lotes, parada no limite do lote. Corte:
+`window_start < now − 48 h` — o worker não lê o env da API (`RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS`),
+então usa a janela máxima que o schema de lá aceita (24 h) mais 24 h de folga. A linha de
+`job_schedules` para a rotina nova nasce na própria migration aditiva (`20260915233000_rate_limit_windows`,
+`INSERT` no fim). Schema `rate_limit_window.schema.ts` é cópia por valor, com contrato de paridade,
+como toda tabela consumida aqui.
+
+Detalhe completo: `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T406.

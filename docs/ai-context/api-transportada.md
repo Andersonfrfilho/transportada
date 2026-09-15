@@ -1609,3 +1609,51 @@ ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE`. `executeSend` roda inteira dentro de
 
 Detalhe completo (idempotência, `subject_id`, formato do endereço no e-mail, decisão de seleção
 inicial de contatos): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T101–T305).
+
+### Fase 4 — modelos de e-mail, liberação do envio e limitador (spec 150 T401–T406, RF13–RF19)
+
+**A liberação do envio deixou de olhar `contractor_mail_settings.status`.** A revisão final achou que
+o envio exigia `status = 'active'` e nada no sistema grava esse valor — todo envio era recusado. A
+coluna nova `sending_verified_at timestamptz NULL` é gravada pela lista de verificação
+(`runChecks`) quando `api_key` **e** `sender_domain` saem `ok`, e zerada quando a chave ou o
+remetente mudam (`saveSettings`, comparando a chave selada anterior). A política pura
+`resolveMailSendReadiness({ settings, template? })` (`contractor-mail/domain/mail-send-readiness.policy.ts`)
+devolve `ready` ou o motivo (`not_configured` · `sending_not_verified` · `template_missing`,
+`template` omitido = envio ainda não exige modelo). `status` da 143 continua existindo com o mesmo
+significado de "ida e volta completa" e **não bloqueia mais** o envio.
+
+**Modelos de e-mail** (`contractor_mail_templates`, aditiva): nome, assunto, abertura (`intro`), texto
+de cada item (`item_text`, o único que aceita variável de item, repetido por endereço) e assinatura
+(`closing`), único `(company_id, mail_type, lower(name))` entre os ativos, único parcial
+`(company_id, mail_type) where is_default and status = 'active'` — a troca de padrão é atômica, sob
+advisory lock de `(empresa, tipo)`. Arquivado nunca volta a ativo e nunca é padrão; nunca é apagado,
+porque `contractor_mail_messages.template_id` aponta para ele. Catálogo de tipos e variáveis em
+`contractor-mail/domain/mail-template-catalog.constant.ts` — hoje só `address_correction`, variáveis
+do e-mail (`{contratante}`, `{quantidade}`, `{clientes}`, `{transportadora}`, `{operador}`) e de item
+(`{cliente}`, `{endereco_como_veio}`, `{endereco_correto}`, `{motivo}`, `{cep_como_veio}`,
+`{cep_correto}`, `{municipio}`, `{uf}`). `mail-template-render.policy.ts` valida (lista fechada,
+variável de item fora de `item_text` é recusada) e renderiza com escape sempre aplicado depois da
+substituição. Nenhum modelo nasce por migration ou seed (ADR-0021) — só quando o operador salva.
+`POST /contractor-mail-templates/preview` renderiza sem gravar nem enviar. O envio usa o modelo
+padrão ou `templateId?` do body; sem modelo ativo do tipo, `409 CONTRACTOR_MAIL_TEMPLATE_MISSING`;
+`templateId` arquivado/de outro tipo/de outra empresa/inexistente, `409
+CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE` (resposta única, não revela qual dos quatro casos foi).
+
+**Limitador de taxa** (RF18, M1 do `docs/SECURITY.md`, fechado pela T406): a API já tinha limitador em
+memória por processo (`http/rate-limiter.service.ts`); a T406 estendeu esse caminho, sem criar um
+paralelo. `rateLimit` de rota virou união discriminada — `{ store: 'memory', … }` (o de antes) ou
+`{ store: 'postgres', scope, maxRequests, windowSeconds }`. Aplicado a
+`POST /address-correction-requests/mail` e `POST /contractor-mail-settings/test-email`
+(`CONTRACTOR_MAIL_RATE_LIMIT_SCOPE`, mesmo balde para as duas), no mesmo ponto de hoje — depois de
+`authorize`, antes de `parse`/idempotência. `DrizzleRateLimiterRepository`
+(`http/drizzle-rate-limiter.repository.ts`): um upsert em autocommit sobre `rate_limit_windows
+(scope, subject_key, window_start, hits)`, `window_start` e "agora" pelo relógio do **banco**,
+`Retry-After` arredondado para cima com piso 1. Fail-closed, sem `try/catch` — erro do limitador
+propaga e vira 500. Chave `scope:companyId:userId`, nunca PII. Tetos por env
+(`RATE_LIMIT_CONTRACTOR_MAIL_MAX`/`RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS`, padrão 20/h). Limpeza
+pela rotina `rate-limit.window.purge` do **worker** (não o cron, que só publica a batida), corte em
+janelas com mais de 48 h. Detalhe: `docs/SECURITY.md` § "envio de e-mail à contratante sem teto de
+requisição (M1)".
+
+Detalhe completo (contratos vermelho→verde, arquivos tocados, decisões de encaixe do `item_text` e
+singular/plural de `{clientes}`): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).
