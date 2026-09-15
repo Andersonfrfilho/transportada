@@ -3,7 +3,9 @@ import { describe, expect, it } from 'bun:test'
 
 import { decodeBarcodeFrame, type BarcodeFrame } from '@/components/ui/barcodeDecoder.service'
 import {
+  createNativeBarcodeDetector,
   isCameraCapable,
+  NATIVE_BARCODE_FORMATS,
   openCameraStream,
   stopCameraStream,
   toLuminance,
@@ -145,6 +147,92 @@ describe('primitivo de leitura de etiqueta', () => {
     const height = 32
     const luminance = new Uint8ClampedArray(width * height).fill(255)
     expect(decodeBarcodeFrame({ height, luminance, width })).toBeNull()
+  })
+})
+
+/**
+ * ⚠️ A leitura é de **código de barras**, não de QR — os dois continuam suportados, mas o linear
+ * vem primeiro. Code-128 é a chave da DANFE; ITF cobre a caixa de papelão (DUN-14); QR fica por
+ * último por ser o formato mais caro de decodificar e o menos comum numa etiqueta de caixa.
+ */
+describe('ordem dos formatos: lineares primeiro, QR por último', () => {
+  it('a lista nativa pede os lineares antes do QR', () => {
+    expect(NATIVE_BARCODE_FORMATS).toEqual([
+      'code_128',
+      'ean_13',
+      'ean_8',
+      'upc_a',
+      'upc_e',
+      'itf',
+      'code_39',
+      'qr_code',
+    ])
+  })
+
+  it('o zxing tenta os leitores lineares antes do QRCodeReader, na mesma ordem', async () => {
+    const source = await readApplicationFile('src/components/ui/barcodeDecoder.service.ts')
+    const order = [
+      'Code128Reader',
+      'EAN13Reader',
+      'EAN8Reader',
+      'UPCAReader',
+      'UPCEReader',
+      'ITFReader',
+      'Code39Reader',
+      'QRCodeReader',
+    ]
+    const positions = order.map((name) => source.indexOf(`new ${name}()`))
+    expect(positions.every((position) => position !== -1)).toBe(true)
+    expect(positions).toEqual([...positions].sort((first, second) => first - second))
+  })
+
+  it('só pede ao navegador os formatos que getSupportedFormats() devolve', async () => {
+    const requested: string[] = []
+    class FakeBarcodeDetector {
+      static getSupportedFormats(): Promise<readonly string[]> {
+        return Promise.resolve(['qr_code', 'code_128', 'itf'])
+      }
+      constructor(options: Readonly<{ formats: readonly string[] }>) {
+        requested.push(...options.formats)
+      }
+      detect(): Promise<readonly Readonly<{ rawValue: string }>[]> {
+        return Promise.resolve([])
+      }
+    }
+    const detector = await createNativeBarcodeDetector({ BarcodeDetector: FakeBarcodeDetector })
+    expect(detector).toBeDefined()
+    /** A ordem pedida ainda é a de `NATIVE_BARCODE_FORMATS`, não a devolvida pelo navegador. */
+    expect(requested).toEqual(['code_128', 'itf', 'qr_code'])
+  })
+
+  it('sem getSupportedFormats, cai para trás pedindo a lista inteira', async () => {
+    const requested: string[] = []
+    class FakeBarcodeDetector {
+      constructor(options: Readonly<{ formats: readonly string[] }>) {
+        requested.push(...options.formats)
+      }
+      detect(): Promise<readonly Readonly<{ rawValue: string }>[]> {
+        return Promise.resolve([])
+      }
+    }
+    await createNativeBarcodeDetector({ BarcodeDetector: FakeBarcodeDetector })
+    expect(requested).toEqual([...NATIVE_BARCODE_FORMATS])
+  })
+
+  it('nenhum formato suportado é indisponibilidade, não detector sem formato', async () => {
+    class FakeBarcodeDetector {
+      static getSupportedFormats(): Promise<readonly string[]> {
+        return Promise.resolve(['aztec'])
+      }
+      constructor() {
+        throw new Error('não deveria construir sem formato suportado')
+      }
+      detect(): Promise<readonly Readonly<{ rawValue: string }>[]> {
+        return Promise.resolve([])
+      }
+    }
+    const detector = await createNativeBarcodeDetector({ BarcodeDetector: FakeBarcodeDetector })
+    expect(detector).toBeUndefined()
   })
 })
 

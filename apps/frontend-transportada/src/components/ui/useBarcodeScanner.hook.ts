@@ -130,7 +130,8 @@ export function useBarcodeScanner({
       if (isCancelled) return
       setStatus('reading')
 
-      const detector = createNativeBarcodeDetector(globalThis)
+      const detector = await createNativeBarcodeDetector(globalThis)
+      if (isCancelled) return
       if (detector === undefined) {
         worker = new Worker(new URL('./barcodeDecoder.worker.ts', import.meta.url), {
           type: 'module',
