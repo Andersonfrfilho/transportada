@@ -53,7 +53,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na
       contratante (completo), a mesma confirmação com os contatos marcáveis e a prévia, e a
       invalidação do relatório. Evidência: contrato do serviço e smoke Playwright do envio.
-- [ ] **T306** Marcar a T20 da `specs/084-agenda-de-enderecos/tasks.md` como realizada por esta spec
+- [x] **T306** Marcar a T20 da `specs/084-agenda-de-enderecos/tasks.md` como realizada por esta spec
       e atualizar `docs/ai-context/` e os `CLAUDE.md` das apps tocadas.
 
 ## Prompt de execução

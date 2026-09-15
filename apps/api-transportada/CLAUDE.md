@@ -12,12 +12,16 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `billing`, `companies`, `contractor-portal`, `cte-batches`, `cte-issuance`,
-`cte-profiles`, `fleet`, `freight`, `freight-calculations`, `freight-regions`, `freight-rules`,
-`identity`, `mdfe-manifests`, `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`,
-`nfse-profiles`, `notification`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
-`whatsapp-commands`, `health`. Transversais: `config`, `database`, `http`, `logging`,
-`observability`, `server`, `shared`.
+Módulos: `addresses`, `address-correction`, `billing`, `companies`, `contractor-mail`,
+`contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
+`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
+`operations`, `routing`, `storage`, `trips`, `view-preferences`, `whatsapp-commands`, `health`.
+Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
+
+⚠️ **O pedido de correção de endereço (`address-correction/`) nunca edita `nfe_addresses` nem o XML**
+— é um registro à parte (`address_correction_requests`), e a contratante é sempre resolvida pelo CNPJ
+do emitente dentro da `companyId` do token, nunca do payload (spec 150).
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →

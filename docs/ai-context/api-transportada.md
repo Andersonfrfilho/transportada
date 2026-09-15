@@ -1540,3 +1540,72 @@ fiscal. A política de fim sem linha é `DEFAULT_ROUTE_END_POLICY` (padrão da c
 cópia por valor no worker com contrato de paridade — mudou aqui, mude lá. A resposta de geometria
 publica `depot.originSource`; a coordenada vem do `geocoding.backfill` do worker, então até ele
 rodar a tela mostra `not_geocoded` com o texto próprio do endereço da empresa.
+
+## Pedido de correção de endereço à contratante (spec 150, realiza a 084 T20)
+
+**A correção é um pedido, nunca uma edição da nota.** Módulo novo `address-correction/`: tabela
+`address_correction_requests` (aditiva, `company_id` + `contractor_id` FK composta, `address_key`,
+`reported_*` copiado do relatório — nunca do cliente —, `proposed_*` do operador,
+`reason_match_level`/`reason_distance_metres`, `status` `draft`·`sent` sem ENUM nativo, `thread_id`
+opcional), com unique parcial `(company_id, address_key) where status = 'draft'`: um rascunho por
+endereço, e salvar de novo faz `upsertDraft` (`on conflict … where status = 'draft'`) atualizar a
+mesma linha — um pedido `sent` fica fora do alvo do conflito e o próximo `PUT` cria linha nova.
+`nfe_addresses` e o XML fiscal permanecem intactos.
+
+- **`PUT /address-correction-requests/:addressKey`** (`address-correction.routes.ts`, `settings.manage`,
+  corpo `.strict()` — mandar `reported`/`reason*` é `400`, a fronteira só aceita `proposed`): o "como
+  veio" e o motivo são sempre lidos do `AddressReportRepository.read({companyId})` já existente
+  (reaproveitado, sem SQL nova), nunca do body. A contratante é resolvida pelo CNPJ do emitente
+  daquela linha do relatório, dentro da `companyId` do token — sem cadastro, `404
+ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND` (não `409`: é "procurei o cadastro pelo documento e ele não
+  existe", o mesmo caso de `ContractorNotFoundError`, `409` fica para pré-condição de um recurso que o
+  cliente já sabe que existe).
+- **`GET /address-correction-requests`** devolve o estado por `addressKey` da empresa
+  (`listByCompany`, novo método do port — nenhum método existente listava todo status sem filtrar por
+  contratante).
+- **`POST /address-correction-requests/mail`** (`202 { data: { threadId, messageId, sentRequestIds,
+recipientCount } }`, `Idempotency-Key` obrigatório): body `{ contractorTaxId, contactIds[] (1..50),
+requestIds? }` — sem `requestIds` é o envio **completo** (todos os rascunhos da contratante), com
+  ids é o **unitário**; id de outra contratante ou já `sent` responde `409
+ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE`. `executeSend` roda inteira dentro de
+  `unitOfWork.execute` — uma única transação Postgres, igual a `nfe-imports`, ao contrário do
+  `test-email` que abre duas. Idempotência reaproveita a tabela genérica `idempotency_records`
+  (mesma usada por `nfe-imports`/`freight-rules`/`cte-batches`/`company-settings`), com
+  `pg_advisory_xact_lock` sobre `['address-correction-mail', companyId, idempotencyKey]`. Cada envio
+  cria uma `contractor_mail_threads` **nova**, com `subject_id = threadId` (não há um segundo objeto
+  de negócio natural para apontar, ao contrário do `setup_test`, que usa `subject_id = companyId`) —
+  o CHECK de `subject_type` ganhou `address_correction`. `carrierName` vem de
+  `company_fiscal_profiles.tradeName` (fallback `legalName`); sem perfil fiscal cadastrado sai `''`,
+  leitura válida (mesma decisão do "perfil fiscal sem sequência de CT-e" acima). `operatorName` vem de
+  `identityUserProfiles.name` join `userCompanyMemberships` ativo — sem perfil ativo, `''`.
+- **Contatos ativos**: `ADDRESS_CORRECTION_NO_ACTIVE_CONTACT` (422) cobre `contactId` inexistente,
+  inativo **ou de outra contratante** com a mesma resposta — por desenho, para não vazar a qual
+  contratante um id pertence.
+- **`recipientName` no relatório** (RF11): `drizzle-address-report.repository.ts` ganhou uma terceira
+  junção (`recipientParticipant`, `left join` por `role = 'recipient'`, nunca `delivery` — o endereço
+  físico pode vir do participante `delivery`, que não é quem a nota chama de destinatário), ainda numa
+  consulta só. `null` quando a nota não tem linha `recipient`.
+- **`buildAddressCorrectionMail`** (`address-correction/domain/address-correction-mail.template.ts`),
+  função pura sem I/O: devolve `{ subject, html, text }` a partir dos mesmos dados, com `escapeHtml`
+  próprio (nome/endereço vêm de XML de terceiro). Regra do motivo: `distanceMetres === null` →
+  "endereço não localizado"; `< 1000` m → metros inteiros; `>= 1000` m → km com 1 casa.
+- **CRUD de `contractor_contacts`** (`contractor-mail/…/contractor-contacts.routes.ts`, `GET`/`POST`
+  `/contractors/:id/contacts`, `PATCH /contractors/:id/contacts/:contactId`, `settings.manage`,
+  sem `DELETE` físico — desativar é `PATCH { status: 'inactive' }`, porque
+  `contractor_mail_messages` referencia o contato): as três rotas resolvem a contratante primeiro por
+  `getContractor.execute` — contratante de outra empresa é `404` antes de tocar em
+  `contractor_contacts`. Fecha a spec 143 T013/T017.
+- **`contractor_mail_messages.body_html`** (coluna nova, `text NULL`, CHECK `direction = 'outbound'`
+  e teto 512 KiB) — decisão da T302 (parecer do architect, `plan.md` § E-mail): **um e-mail só**, com
+  todos os contatos marcados no `to` (nunca um envio por contato), `Reply-To` da conversa. O HTML é
+  **gravado pela API**, nunca montado no worker. `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`
+  (`contractor-mail/domain/contractor-mail.constant.ts`) cobrado no Zod da rota (`contactIds.max(50)`)
+  — o worker tem cópia por valor da mesma constante, com contrato de paridade (ver
+  `docs/ai-context/worker-transportada.md`). A fila continua levando só `{ messageId }` —
+  retrocompatível, mensagem antiga sem `body_html` sai só em texto.
+- Nenhuma rota deste módulo aparece em documentação de OpenAPI/Scalar: não existe geração desse tipo
+  neste repo (confirmado por busca) — nenhuma ação pendente aqui.
+- Sem endereço, CEP ou e-mail em log, em nenhum dos módulos acima.
+
+Detalhe completo (idempotência, `subject_id`, formato do endereço no e-mail, decisão de seleção
+inicial de contatos): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T101–T305).

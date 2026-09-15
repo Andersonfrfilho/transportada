@@ -67,3 +67,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 - `FISCAL_ENVIRONMENT` (`homologation`|`production`, padrão `production`) só é lido pela
   reconciliação de NFS-e; a distribuição de NF-e usa o ambiente por empresa
   (`company_fiscal_profiles`).
+- **O e-mail à contratante sai num único envio com todos os destinatários no `to`, nunca
+  `toAddresses[0]`** — teto `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, cópia por valor da API com
+  contrato de paridade (spec 150 T302). Detalhe: docs/ai-context § "O e-mail à contratante sai para
+  todos os destinatários".

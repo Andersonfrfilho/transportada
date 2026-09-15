@@ -1144,4 +1144,73 @@ Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado). O aviso de chu
 - `apps/frontend-transportada/test/nfe-workspace/address-correction.contract.ts` e
   `address-correction-status.contract.ts` (fixtures com `id`)
 - `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)
+
+## T306
+
+Só documentação — nenhum arquivo de `src/` ou `test/` tocado.
+
+- `specs/084-agenda-de-enderecos/tasks.md`: T20 marcada `[x]`, com a nota "Realizada pela spec 150
+  (pedido de correção à contratante a partir do relatório)."
+- `docs/ai-context/api-transportada.md`: seção nova "Pedido de correção de endereço à contratante
+  (spec 150, realiza a 084 T20)" — as rotas `PUT`/`GET /address-correction-requests`, `POST
+/address-correction-requests/mail`, a tabela `address_correction_requests`, o CRUD de
+  `contractor_contacts`, `contractor_mail_messages.body_html`, `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`
+  e `recipientName` no relatório, com as decisões da T304 (idempotência, `subject_id`,
+  `carrierName`/`operatorName`) e o motivo de `404` vs `409` na contratante ausente.
+- `docs/ai-context/frontend-transportada.md`: seção nova "'Clientes a atualizar' — pedido de correção
+  de endereço (spec 150, realiza a 084 T20)" — a aba, os dois botões de envio, o diálogo de
+  confirmação, o defeito de `requestId` ausente corrigido na T305, a resolução de `contractorId` por
+  `GET /contractors/by-tax-id/:taxId` e o `ContractorContactsPanel` (spec 143 T013/T017).
+- `docs/ai-context/worker-transportada.md`: seção nova "O e-mail à contratante sai para todos os
+  destinatários, não só o primeiro (spec 150 T302)" — a correção de `toAddresses[0]`, o `to` como
+  lista deduplicada, `html` opcional no gateway, `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50` com contrato
+  de paridade e a fila continuando a levar só `{ messageId }`.
+- `apps/api-transportada/CLAUDE.md`: `address-correction` e `contractor-mail` entraram na lista de
+  módulos (o segundo já existia desde a spec 143 e estava faltando na lista; corrigido de passagem,
+  no mesmo parágrafo tocado por esta task). Invariante nova: a correção nunca edita `nfe_addresses`
+  nem o XML, e a contratante é sempre resolvida pelo CNPJ do token, nunca do payload.
+- `apps/worker-transportada/CLAUDE.md`: invariante nova na lista "Invariantes que valem antes de
+  editar" — o e-mail à contratante sai num único envio com todos no `to`, teto
+  `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50` com contrato de paridade.
+- `apps/frontend-transportada/CLAUDE.md`: **sem alteração**. Nenhum primitivo de design system novo
+  nem invariante de núcleo surgiu desta spec que outro agente precise saber antes de editar — o
+  formulário e o diálogo seguem primitivos já listados na tabela (`Select`, `Checkbox`), e a tabela
+  em si não foi tocada (ela carrega contratos de design-system que cobram a referência a este
+  arquivo).
+- Documentação de rotas (OpenAPI/Scalar): confirmado por busca (`grep -rli "openapi\|scalar"`) que
+  este repo não tem geração desse tipo — nada a atualizar, como a T103 já havia registrado.
+
+### Gates
+
+```
+bun run format:check
+```
+
+Resultado: verde nos 8 arquivos tocados por esta task.
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3739 pass**, 0 fail, 34828 `expect()`, 29 arquivos — mesmo número da T305 (nenhum
+arquivo de teste tocado; roda porque o `CLAUDE.md` da app foi tocado, mas ficou sem alteração de
+conteúdo).
+
+```
+bun run --cwd apps/api-transportada test
+```
+
+Resultado: **5886 pass**, 23 skip, 0 fail, 20681 `expect()`, 174 arquivos (nenhum arquivo de teste
+tocado por esta task; +1 em relação ao total da T304, de execução paralela entre tasks).
+
+### Arquivos alterados
+
+- `specs/084-agenda-de-enderecos/tasks.md` (T20 `[x]`)
+- `docs/ai-context/api-transportada.md` (seção nova)
+- `docs/ai-context/frontend-transportada.md` (seção nova)
+- `docs/ai-context/worker-transportada.md` (seção nova)
+- `apps/api-transportada/CLAUDE.md` (lista de módulos + invariante nova)
+- `apps/worker-transportada/CLAUDE.md` (invariante nova)
+- `specs/150-pedido-de-correcao-de-endereco/tasks.md` (T306 `[x]`)
+- `specs/150-pedido-de-correcao-de-endereco/evidence.md` (esta seção)
 - `specs/150-pedido-de-correcao-de-endereco/tasks.md` (T305 `[x]`)

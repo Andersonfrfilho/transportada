@@ -130,3 +130,30 @@ outras oito no cron. Mudou tabela na API? confira as cópias — migrations só 
 `city_ibge_code|CEP|número` de `company_fiscal_profiles`. A fila do `geocoding.backfill`
 (`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
 coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).
+
+## O e-mail à contratante sai para todos os destinatários, não só o primeiro (spec 150 T302)
+
+Até aqui `send-contractor-mail-outbound-message.use-case.ts` só entregava a `toAddresses[0]` —
+defeito conhecido, registrado no `plan.md` da spec 150. Corrigido: o `to` vira lista completa,
+deduplicada em minúsculas, na ordem gravada; `resend-mail.gateway.ts` passa a aceitar `to: string[]`
+e `html` opcional (`text` continua obrigatório), enviando os dois formatos quando há `html`
+(`contractor_mail_messages.body_html`, gravado pela API — o worker nunca monta HTML, só repassa o que
+achou em `findMessageById`). Endereço com `\r`, `\n`, `,`, `<` ou `>` é recusado **antes** de chamar a
+rede (`ResendInvalidRecipientsError`), e a mensagem vai para `failed`.
+
+**Decisão do architect**: um e-mail só, com todos os contatos no `to` — não um envio por contato. O
+`Reply-To` sai da conversa, então a resposta de qualquer contato cai nela; os contatos se veem entre
+si, aceitável porque são da mesma contratante. Serve também à spec 143 T015.
+
+⚠️ **`CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`** (`contractor-mail/domain/contractor-mail.constant.ts`)
+é **cópia por valor da API** — teto medido na documentação do Resend (`POST /emails`, `to` até 50) —,
+cobrada duas vezes: no Zod da rota da API (`contactIds.max(50)`) e de novo aqui no gateway, que
+recusa sem chamar a rede. Contrato de paridade: `test/contractor-mail/max-recipients-parity.contract.ts`.
+Mudou o teto de um lado, mude do outro — o contrato falha se as constantes divergirem.
+
+A fila **continua levando só `{ messageId }`** (retrocompatível) — o corpo inteiro, incluindo
+`body_html`, é relido do banco a cada mensagem. Mensagem antiga sem `body_html` sai só em texto puro,
+e o `setup_test` não muda. O schema `contractor-mail.schema.ts` (cópia por valor, como toda tabela
+consumida aqui) ganhou a coluna `bodyHtml`.
+
+Detalhe completo (testes vermelho→verde, arquivos tocados): `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T302.

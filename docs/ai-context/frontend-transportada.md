@@ -513,3 +513,42 @@ uma troca de versão. ⚠️ O `server.ts` responde **404** a arquivo inexistent
 fallback do SPA com 200 foi o que escondeu o asset faltando. Contrato:
 `test/shared/maplibre-worker-assets.contract.ts`, que lê o worker real do pacote e exige que todo
 import relativo dele seja um arquivo gravado ao lado.
+## "Clientes a atualizar" — pedido de correção de endereço (spec 150, realiza a 084 T20)
+
+Na aba de endereços não geocodificados do Workspace NF-e (`AddressReportPanel.component.tsx`), cada
+achado ganhou "Informar endereço correto" — formulário preenchido com o endereço **como veio**
+(máscara de CEP, `Select` de UF, município pelo código IBGE, erro ancorado no campo — `web.md` §11),
+mais o estado do pedido por endereço (sem pedido · rascunho · enviado, `useAddressCorrectionForm.hook.ts`)
+e dois botões de envio: "Enviar este endereço" por item (unitário) e "Enviar todos (N)" no cabeçalho
+da contratante (completo), os dois abrindo a mesma confirmação
+(`AddressCorrectionMailDialog.component.tsx`, `useAddressCorrectionMailDialog.hook.ts`).
+
+- **`requestId` estava faltando**: `GET /address-correction-requests` já serializava `id`, mas
+  `mapAddressCorrectionRequest` (T201) não o lia — sem ele o envio unitário não tinha o que mandar em
+  `requestIds`. Corrigido na T305: `id: string` obrigatório em `AddressCorrectionRequestRecord`,
+  registro sem `id` some da lista (mesmo padrão de `status`/`kind` desconhecidos).
+- **`contractorId` resolvido por `GET /contractors/by-tax-id/:taxId`** (`fleet.read`) — o relatório só
+  traz `contractorTaxId`. Permissão diferente da do resto do fluxo (`settings.manage`), mas sem risco:
+  `settings.manage` só existe em `company-admin`, que também tem `fleet.read`.
+- **Seleção inicial dos contatos marcáveis**: os contatos **ativos** com `receivesOccurrences: true`
+  abrem marcados (é o mesmo público que a rotina de ocorrência já avisa), o resto desmarcado — nem
+  tudo nem nada por padrão, RF5a não pede "todos". Contato inativo nunca aparece na lista.
+  `canConfirmAddressCorrectionMail` desabilita o botão em 0 ou acima de
+  `ADDRESS_CORRECTION_MAIL_MAX_CONTACTS = 50` (cópia por valor de `CONTRACTOR_MAIL_MAX_RECIPIENTS`).
+- **Sem contato ativo**, o diálogo aponta para "Clientes → E-mail com contratantes" via
+  `deliveryClientsNavigation.service.ts` (novo, mesmo padrão de `cteProfilesNavigation.service.ts`) —
+  não há deep-link de aba nesta app (`DeliveryClientWorkspace.page.tsx` sempre abre em "Clientes"),
+  então o texto ao lado do botão nomeia a aba.
+- **`invalidateMutationEffect` não entrou** (mesma decisão da T201): `address-report` e
+  `address-correction-requests` são chaves do **mesmo módulo** (`nfe-workspace`) da mutação —
+  `mutationInvalidation.service.ts` documenta esse mecanismo para o alcance **entre** módulos. O hook
+  invalida as duas chaves direto por `queryClient.invalidateQueries`.
+- **CRUD de contatos da contratante** (spec 143 T013/T017, fechadas por esta spec):
+  `ContractorContactsPanel.component.tsx` mora em `delivery-clients`, na aba "E-mail com
+  contratantes" — seletor de contratante (`GET /contractors`), lista de contatos com dois `Checkbox`
+  (`receivesOccurrences`, `canDecide`) e desativar/reativar (nunca excluir, porque
+  `contractor_mail_messages` referencia o contato). Sem `zod` nesta app: validação de e-mail por
+  regex e guarda manual (`hasExactKeys`), espelhando `contractorMailSettings*`.
+
+Detalhe completo (regra de habilitação do botão, mapa de código de erro, contrato do serviço):
+`specs/150-pedido-de-correcao-de-endereco/evidence.md` (T201–T305).
