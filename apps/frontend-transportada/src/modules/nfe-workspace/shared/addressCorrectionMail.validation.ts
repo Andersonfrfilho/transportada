@@ -30,6 +30,26 @@ export type AddressCorrectionMailSendResult = Readonly<{
   threadId: string
 }>
 
+/**
+ * Modelo de e-mail do tipo `address_correction` (spec 150, T405). Cópia por valor do que a API
+ * devolve (T402, `contractor-mail-templates.routes.ts`) — só os campos que a confirmação usa.
+ */
+export type AddressCorrectionMailTemplateStatus = 'active' | 'archived'
+
+export type AddressCorrectionMailTemplate = Readonly<{
+  id: string
+  isDefault: boolean
+  name: string
+  status: AddressCorrectionMailTemplateStatus
+}>
+
+/** `POST /contractor-mail-templates/preview` — sempre dados de exemplo (T402), nunca o envio real. */
+export type AddressCorrectionMailTemplatePreview = Readonly<{
+  html: string
+  subject: string
+  text: string
+}>
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -44,6 +64,10 @@ function isNumber(value: unknown): value is number {
 
 function isContactStatus(value: unknown): value is AddressCorrectionMailContactStatus {
   return value === 'active' || value === 'inactive'
+}
+
+function isTemplateStatus(value: unknown): value is AddressCorrectionMailTemplateStatus {
+  return value === 'active' || value === 'archived'
 }
 
 /** `GET /contractors/by-tax-id/:taxId` — só o `id` importa aqui, o resto é o cadastro do cliente. */
@@ -120,4 +144,41 @@ export function mapAddressCorrectionMailSendResult(
     sentRequestIds: data.sentRequestIds,
     threadId: data.threadId,
   }
+}
+
+/** Modelo que esta versão não reconhece some da lista, não a lista inteira. */
+export function mapAddressCorrectionMailTemplate(
+  value: unknown,
+): AddressCorrectionMailTemplate | null {
+  if (
+    !isRecord(value) ||
+    !isString(value.id) ||
+    !isString(value.name) ||
+    typeof value.isDefault !== 'boolean' ||
+    !isTemplateStatus(value.status)
+  ) {
+    return null
+  }
+  return { id: value.id, isDefault: value.isDefault, name: value.name, status: value.status }
+}
+
+/** `GET /contractor-mail-templates?mailType=address_correction`. */
+export function mapAddressCorrectionMailTemplateList(
+  value: unknown,
+): readonly AddressCorrectionMailTemplate[] {
+  const data = isRecord(value) ? value.data : undefined
+  if (!Array.isArray(data)) return []
+  return data
+    .map(mapAddressCorrectionMailTemplate)
+    .filter((template): template is AddressCorrectionMailTemplate => template !== null)
+}
+
+export function mapAddressCorrectionMailTemplatePreview(
+  value: unknown,
+): AddressCorrectionMailTemplatePreview | null {
+  const data = isRecord(value) ? value.data : undefined
+  if (!isRecord(data) || !isString(data.html) || !isString(data.subject) || !isString(data.text)) {
+    return null
+  }
+  return { html: data.html, subject: data.subject, text: data.text }
 }

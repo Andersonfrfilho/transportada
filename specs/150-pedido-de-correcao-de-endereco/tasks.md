@@ -75,7 +75,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       contratos de serviço e de validação.
 - [x] **T404** A lista de verificação mostra "Pronto para enviar", com o motivo quando não está.
       Evidência: contrato do serviço da lista.
-- [ ] **T405** Confirmação de envio (T305): seletor de modelo, prévia com o modelo escolhido, e a
+- [x] **T405** Confirmação de envio (T305): seletor de modelo, prévia com o modelo escolhido, e a
       recusa por liberação levando à página de configuração. Evidência: contratos de serviço.
 - [ ] 🧠 **T406** Limitador de taxa com estado no Postgres (`rate_limit_windows`), declarado na
       rota, aplicado ao envio de correção e ao e-mail de teste, `429` com `Retry-After`, tetos vindos

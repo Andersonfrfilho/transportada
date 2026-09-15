@@ -323,6 +323,21 @@
   margin: 0;
 }
 
+.mailExampleNotice {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 62%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  font-style: italic;
+}
+
+.mailPreviewFrame {
+  width: 100%;
+  min-height: 12rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: var(--color-fog);
+}
+
 .mailFooter {
   display: flex;
   justify-content: flex-end;

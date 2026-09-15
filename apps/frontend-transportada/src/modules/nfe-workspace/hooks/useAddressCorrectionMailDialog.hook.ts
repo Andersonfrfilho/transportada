@@ -7,11 +7,18 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   activeAddressCorrectionMailContacts,
+  activeAddressCorrectionMailTemplates,
+  addressCorrectionMailTemplateIdForRequest,
   canConfirmAddressCorrectionMail,
+  defaultAddressCorrectionMailTemplateId,
   initialAddressCorrectionMailContactIds,
+  initialAddressCorrectionMailTemplateId,
   resolveAddressCorrectionMailIdempotencyKey,
 } from '../shared/addressCorrectionMail.service'
-import type { AddressCorrectionMailSendResult } from '../shared/addressCorrectionMail.validation'
+import type {
+  AddressCorrectionMailSendResult,
+  AddressCorrectionMailTemplatePreview,
+} from '../shared/addressCorrectionMail.validation'
 import { AddressCorrectionRequestError } from '../shared/addressCorrectionRequestError.service'
 import { createNfeWorkspaceClient } from '../shared/nfeWorkspaceClient.service'
 import { ADDRESS_CORRECTION_REQUESTS_QUERY_KEY } from '../shared/nfeWorkspace.constant'
@@ -34,6 +41,8 @@ export type AddressCorrectionMailTarget = Readonly<{
 export type UseAddressCorrectionMailDialogResult = ReturnType<typeof useAddressCorrectionMailDialog>
 
 const RECIPIENTS_QUERY_KEY = 'address-correction-mail-recipients'
+const TEMPLATES_QUERY_KEY = 'address-correction-mail-templates'
+const TEMPLATE_PREVIEW_QUERY_KEY = 'address-correction-mail-template-preview'
 
 function createClient() {
   return createNfeWorkspaceClient({
@@ -64,6 +73,9 @@ export function useAddressCorrectionMailDialog() {
   const [contactSelectionSnapshot, setContactSelectionSnapshot] = useState<
     readonly string[] | null
   >(null)
+  /** `null` até o operador trocar de modelo no seletor: a seleção efetiva cai para a inicial. */
+  const [selectedTemplateIdOverride, setSelectedTemplateIdOverride] = useState<string | null>(null)
+  const [templateSelectionSnapshot, setTemplateSelectionSnapshot] = useState<string | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState('')
   const [result, setResult] = useState<AddressCorrectionMailSendResult | null>(null)
 
@@ -78,24 +90,51 @@ export function useAddressCorrectionMailDialog() {
     queryKey: [RECIPIENTS_QUERY_KEY, target?.contractorTaxId],
   })
 
+  const templatesQuery = useQuery({
+    enabled: isOpen,
+    queryFn: () => client.listAddressCorrectionMailTemplates(),
+    queryKey: [TEMPLATES_QUERY_KEY],
+  })
+
   const contacts = activeAddressCorrectionMailContacts(recipientsQuery.data?.contacts ?? [])
   const selectedContactIds =
     selectedContactIdsOverride ?? initialAddressCorrectionMailContactIds(contacts)
 
+  const templates = activeAddressCorrectionMailTemplates(templatesQuery.data ?? [])
+  const defaultTemplateId = defaultAddressCorrectionMailTemplateId(templates)
+  const selectedTemplateId =
+    selectedTemplateIdOverride ?? initialAddressCorrectionMailTemplateId(templates)
+  const templateIdForRequest = addressCorrectionMailTemplateIdForRequest({
+    defaultTemplateId,
+    selectedTemplateId,
+  })
+
+  const previewQuery = useQuery<AddressCorrectionMailTemplatePreview>({
+    enabled: isOpen && selectedTemplateId !== null,
+    queryFn: () =>
+      client.previewAddressCorrectionMailTemplate({ templateId: selectedTemplateId ?? '' }),
+    queryKey: [TEMPLATE_PREVIEW_QUERY_KEY, selectedTemplateId],
+  })
+
   /**
    * Ajusta o estado durante a renderização (padrão oficial do React para "resetar estado quando
-   * outro valor muda", sem `useEffect`): a chave só muda quando a seleção muda de fato —
-   * `resolveAddressCorrectionMailIdempotencyKey` decide, `contactSelectionSnapshot === null`
-   * (`open()`) força a troca mesmo que a seleção calculada seja igual à da sessão anterior.
+   * outro valor muda", sem `useEffect`): a chave só muda quando a seleção de contatos ou de modelo
+   * muda de fato — `resolveAddressCorrectionMailIdempotencyKey` decide, `contactSelectionSnapshot
+   * === null` (`open()`) força a troca mesmo que as duas seleções calculadas batam com a sessão
+   * anterior. `currentTemplateId` é o valor **efetivo** que vai no corpo (`templateIdForRequest`,
+   * `undefined` quando é o padrão) — trocar de modelo sem sair do padrão não conta como mudança.
    */
   const resolvedIdempotency = resolveAddressCorrectionMailIdempotencyKey({
     currentContactIds: selectedContactIds,
+    currentTemplateId: templateIdForRequest ?? null,
     generateKey: () => crypto.randomUUID(),
     previousContactIds: contactSelectionSnapshot,
     previousIdempotencyKey: idempotencyKey,
+    previousTemplateId: templateSelectionSnapshot,
   })
   if (resolvedIdempotency.idempotencyKey !== idempotencyKey) {
     setContactSelectionSnapshot(resolvedIdempotency.contactIds)
+    setTemplateSelectionSnapshot(resolvedIdempotency.templateId)
     setIdempotencyKey(resolvedIdempotency.idempotencyKey)
   }
 
@@ -109,6 +148,7 @@ export function useAddressCorrectionMailDialog() {
         contractorTaxId: target.contractorTaxId,
         idempotencyKey,
         ...(target.requestIds === undefined ? {} : { requestIds: target.requestIds }),
+        ...(templateIdForRequest === undefined ? {} : { templateId: templateIdForRequest }),
       })
     },
     onSuccess: (sent) => {
@@ -128,6 +168,8 @@ export function useAddressCorrectionMailDialog() {
     setTarget(next)
     setSelectedContactIdsOverride(null)
     setContactSelectionSnapshot(null)
+    setSelectedTemplateIdOverride(null)
+    setTemplateSelectionSnapshot(null)
     setResult(null)
     sendMutation.reset()
   }
@@ -135,6 +177,7 @@ export function useAddressCorrectionMailDialog() {
   function close(): void {
     setTarget(null)
     setSelectedContactIdsOverride(null)
+    setSelectedTemplateIdOverride(null)
     setResult(null)
     sendMutation.reset()
   }
@@ -147,8 +190,12 @@ export function useAddressCorrectionMailDialog() {
     )
   }
 
+  function selectTemplate(templateId: string): void {
+    setSelectedTemplateIdOverride(templateId)
+  }
+
   function confirm(): void {
-    if (!canConfirmAddressCorrectionMail(selectedContactIds.length)) return
+    if (!canConfirmAddressCorrectionMail(selectedContactIds.length, templates.length > 0)) return
     sendMutation.mutate()
   }
 
@@ -156,16 +203,24 @@ export function useAddressCorrectionMailDialog() {
     close,
     confirm,
     contacts,
-    canConfirm: canConfirmAddressCorrectionMail(selectedContactIds.length),
-    errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error),
+    canConfirm: canConfirmAddressCorrectionMail(selectedContactIds.length, templates.length > 0),
+    errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error),
     isOpen,
     isSending: sendMutation.isPending,
     open,
+    preview: previewQuery.data,
+    previewFailed: previewQuery.isError,
+    previewLoading: isOpen && selectedTemplateId !== null && previewQuery.isFetching,
     recipientsFailed: recipientsQuery.isError,
     recipientsLoading: isOpen && recipientsQuery.isFetching,
     result,
+    selectTemplate,
     selectedContactIds,
+    selectedTemplateId,
     target,
+    templates,
+    templatesFailed: templatesQuery.isError,
+    templatesLoading: isOpen && templatesQuery.isFetching,
     toggleContact,
   }
 }

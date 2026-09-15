@@ -1994,3 +1994,125 @@ que `resolveMailSendReadiness` da API pode devolver, no mesmo molde de
 
 Commit: `feat(delivery-clients): a lista de verificação diz se o e-mail está pronto para enviar
 (spec 150 T404)`, sobre `81c75c5e` (staging).
+
+## T405
+
+Confirmação de envio (T305) ganha o seletor de modelo e a prévia (RF15/RF17, contratos do T402),
+tudo dentro de `nfe-workspace` — `web.md` §1 e `apps/frontend-transportada/CLAUDE.md` proíbem esta
+app importar código de `delivery-clients`, então os tipos e o client HTTP são cópia por valor
+próprios, no mesmo molde de `addressCorrectionMail.validation.ts` (T305) e
+`mailSendReadiness.service.ts` (T404).
+
+- **A prévia é sempre exemplo, nunca os rascunhos reais do envio** — conferido no caso de uso da
+  API antes de desenhar a tela (`contractor-mail-templates.use-case.ts`, `preview`): recebe
+  `{templateId}` ou conteúdo cru, e em qualquer caso chama `previewRenderers[mailType](content)`
+  com dados fixos (`address-correction-mail-sample.constant.ts`, T402) — não existe parâmetro para
+  os itens do envio corrente. A prévia mostra o assunto e o HTML reais do modelo escolhido (não é
+  simulação da UI), mas com endereços fictícios; por isso o rótulo "exemplo" ao lado dela, e a
+  lista "como veio → correto" (T305) continua sendo a única prova visual dos itens reais que vão no
+  envio.
+- **`addressCorrectionMail.validation.ts`**: `AddressCorrectionMailTemplate` (`id`, `isDefault`,
+  `name`, `status`) e `AddressCorrectionMailTemplatePreview` (`html`, `subject`, `text`) — cópia por
+  valor, só os campos que a confirmação usa (sem `mailType`/`version`/`updatedAt`, que o T403 já
+  cobre no módulo dele). Mapeadores tolerantes ao registro que esta versão não reconhece, mesmo
+  padrão dos contatos.
+- **`nfeWorkspaceClient.service.ts`**: dois métodos novos —
+  `listAddressCorrectionMailTemplates` (`GET /contractor-mail-templates?mailType=address_correction`,
+  traz ativos e arquivados) e `previewAddressCorrectionMailTemplate` (`POST
+/contractor-mail-templates/preview` com `{templateId}`). As duas rotas exigem `settings.manage`,
+  a mesma permissão que T305 já demonstrou que quem chega à confirmação sempre tem (é a permissão
+  do resto do fluxo de e-mail). `sendAddressCorrectionMail` ganhou `templateId?: string`.
+- **`addressCorrectionMail.service.ts`** (serviço puro, testado):
+  - `activeAddressCorrectionMailTemplates` — arquivado nunca aparece no seletor (RF15).
+  - `defaultAddressCorrectionMailTemplateId` — o modelo com `isDefault: true` entre os ativos,
+    `null` sem nenhum marcado.
+  - `initialAddressCorrectionMailTemplateId` — **decisão**: o padrão quando existe; sem padrão
+    marcado (ex.: o padrão foi arquivado e nenhum outro assumiu a marca ainda), cai no primeiro
+    modelo ativo da lista; sem nenhum ativo, `null`. Prefere algo pré-selecionado a obrigar o
+    operador a escolher às cegas sempre que houver pelo menos um modelo ativo — e ainda cabe em
+    RF16/RF17, que só bloqueiam o envio (e desabilitam o botão) quando não há **nenhum** modelo
+    ativo do tipo, não quando não há um marcado como padrão.
+  - `addressCorrectionMailTemplateIdForRequest` — o `templateId` só viaja no corpo quando difere do
+    **padrão de verdade** (`defaultAddressCorrectionMailTemplateId`, não a seleção inicial com
+    fallback acima): mantém a compatibilidade de replay que o T402 desenhou ("o envio pelo padrão
+    mantém o fingerprint de antes"). Quando não há padrão marcado, o servidor não tem como resolver
+    um modelo sozinho (`findMailTemplate` sem `templateId` busca o marcado como padrão) — nesse
+    caso o id explícito sempre viaja, mesmo que seja "o primeiro ativo" escolhido pelo fallback
+    acima.
+  - `buildAddressCorrectionMailRequestBody` ganhou `templateId?: string`, mesma regra de
+    "ausente nunca é `undefined` explícito" que já valia para `requestIds`.
+  - `canConfirmAddressCorrectionMail(selectedContactCount, hasTemplate)` — segundo parâmetro novo;
+    o botão de enviar também desabilita sem nenhum modelo ativo disponível.
+  - `resolveAddressCorrectionMailIdempotencyKey` estendida com `currentTemplateId`/
+    `previousTemplateId`: o valor comparado é o **efetivo** que vai no corpo
+    (`templateIdForRequest`, `null` quando é o padrão) — trocar de modelo sem sair do padrão não
+    gera chave nova (o corpo enviado ao servidor não mudou), e trocar para um modelo diferente gera
+    chave nova, mesma regra que já existe para a seleção de contatos.
+  - `MAIL_CONFIGURATION_SHORTCUT_CODES`/`addressCorrectionMailErrorHasConfigurationShortcut`: os
+    quatro códigos de RF16/RF17 (`CONTRACTOR_MAIL_NOT_CONFIGURED`,
+    `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED` — mapeado agora pela primeira vez no frontend, existia
+    desde o T401 mas sem consumidor —, `CONTRACTOR_MAIL_TEMPLATE_MISSING`,
+    `CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`) ganham o atalho "Abrir configuração de e-mail".
+- **`useAddressCorrectionMailDialog.hook.ts`**: `templatesQuery` (`GET`, habilitada com o diálogo
+  aberto) e `previewQuery` (`POST /preview`, habilitada quando há um `selectedTemplateId` —
+  refeita automaticamente a cada troca de modelo, `queryKey` inclui o id). Segue o mesmo padrão de
+  override + snapshot dos contatos: `selectedTemplateIdOverride` (`null` até o operador trocar no
+  seletor) e `templateSelectionSnapshot` (ajustado durante a renderização, sem `useEffect`, junto
+  com `contactSelectionSnapshot` na mesma resolução de `resolveAddressCorrectionMailIdempotencyKey`
+  — os dois snapshots viajam juntos, então `open()` zera os dois e força chave nova).
+- **`AddressCorrectionMailDialog.component.tsx`**: nova seção "Modelo de e-mail" entre os contatos
+  e o aviso de erro — `Select` do design system (`web.md` §11) com os modelos ativos, o padrão com
+  o rótulo "(padrão)"; skeleton enquanto a lista carrega; sem nenhum modelo ativo, mensagem +
+  atalho "Abrir configuração de e-mail" (reaproveita `navigateToDeliveryClients`, o mesmo mecanismo
+  de "sem contato ativo" da T305 — não existe deep-link de aba nesta app, mesma limitação e mesma
+  decisão já registradas ali). Prévia: aviso "exemplo" sempre visível, skeleton enquanto carrega,
+  aviso de falha se a prévia não carregar (não bloqueia o envio, só o texto informativo), e quando
+  chega: assunto + `<iframe sandbox="" srcDoc>` (nunca `dangerouslySetInnerHTML`) — a CSP já
+  permite `frame-src 'self'` desde a T403. O aviso genérico de erro do envio ganhou o mesmo atalho
+  quando `addressCorrectionMailErrorHasConfigurationShortcut` é verdadeiro. Botão "Enviar" segue
+  `dialog.canConfirm`, que agora também exige `templates.length > 0`.
+- **Estilos**: `addressReport.module.css` ganhou `.mailExampleNotice` (aviso itálico, discreto) e
+  `.mailPreviewFrame` (mesmos tokens de borda/fundo do `.previewFrame` de
+  `contractorMailSettings.module.css`, T403, com `min-height` menor porque aqui é um complemento à
+  lista "como veio → correto", não o conteúdo principal da tela).
+
+### Testes
+
+`test/nfe-workspace/address-correction-mail.contract.ts` (existente, T305/revisão final):
+
+- `buildAddressCorrectionMailRequestBody` com `templateId`;
+- `canConfirmAddressCorrectionMail` com os cinco casos (0/1/50/51 contatos com modelo, 1 contato
+  sem modelo);
+- `activeAddressCorrectionMailTemplates` (arquivado excluído);
+- `initialAddressCorrectionMailTemplateId` (padrão, sem padrão → primeiro ativo, arquivado não
+  conta, lista vazia);
+- `defaultAddressCorrectionMailTemplateId` (encontra fora da primeira posição, `null` sem marca);
+- `addressCorrectionMailTemplateIdForRequest` (omite no padrão, inclui quando diverge, omite sem
+  seleção, inclui sempre que não há padrão marcado);
+- `addressCorrectionMailErrorHasConfigurationShortcut` (os quatro códigos vs. dois que não são);
+- mapeadores de lista de modelos e de prévia (registro não reconhecido ignorado / prévia
+  incompleta rejeitada);
+- client: POST com `templateId` no corpo, GET filtrado por `mailType`, POST da prévia com
+  `{templateId}`;
+- chave de idempotência: nova ao trocar de modelo mesmo com os contatos iguais, estável quando
+  contatos e modelo batem os dois.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) → ok.
+- `bun run lint` (raiz, todas as apps) → ok.
+- `bun run --cwd apps/frontend-transportada test` → **3811 pass, 0 fail** (29 arquivos; eram 3798
+  na T404). 13 testes novos no arquivo existente de T305.
+- `bun run --cwd apps/frontend-transportada build` → ok
+  (`dist/assets/NfeWorkspace.page-*.js` 141.33 kB gzip 36.28 kB; nenhum aviso de tamanho novo além
+  dos chunks já grandes e alheios — `pdf`, `index`, `vectorBasemap`).
+- `prettier --check` dos arquivos tocados → ok (depois de `--write` em 3 que faltavam).
+
+### Arquivos
+
+- **Ajustados**: `shared/{addressCorrectionMail.service,addressCorrectionMail.validation,
+nfeWorkspaceClient.service}.ts`, `hooks/useAddressCorrectionMailDialog.hook.ts`,
+  `components/AddressCorrectionMailDialog.component.tsx`, `styles/addressReport.module.css`,
+  `locales/nfeWorkspace{,.en}.locale.json`, `test/nfe-workspace/address-correction-mail.contract.ts`.
+
+Nenhum arquivo de `delivery-clients` tocado — zero acoplamento entre módulos (`web.md` §1).
