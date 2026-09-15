@@ -46,7 +46,8 @@ salvar de novo atualiza esse rascunho. O CHECK de `contractor_mail_threads.subje
 - `PUT /address-correction-requests/:addressKey`: grava ou atualiza o rascunho. O "como veio" e o
   motivo são lidos pelo servidor a partir do relatório. Resposta `200 { data }`.
 - `GET /address-correction-requests`: estado por endereço, para a aba.
-- `POST /address-correction-requests/mail`: body `{ contractorTaxId, contactIds[] }` e header
+- `POST /address-correction-requests/mail`: body `{ contractorTaxId, contactIds[], requestIds? }` (sem `requestIds` é o envio completo; com um
+  id é o unitário; ids de outra contratante ou já enviados são recusados) e header
   `Idempotency-Key`. Envia os rascunhos daquela contratante (a forma depende da P2), grava a mensagem
   e o outbox na mesma transação e marca os pedidos como `sent`.
 - Erros com código estável em `shared/errors/codes.ts`: `ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND`,

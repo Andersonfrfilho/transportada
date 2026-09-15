@@ -8,8 +8,8 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T001** ⛔ Responder P1–P3 do `spec.md` com o usuário: o modelo do e-mail, a forma de
-      agrupar e os contatos que recebem. **Nada da Fase 3 começa sem isso.**
+- [ ] **T001** ⛔ Responder P1 e P3 do `spec.md` com o usuário: o modelo do e-mail e os contatos
+      que recebem. **Nada da Fase 3 começa sem isso.** (P2 decidida: unitário e completo, RF6a.)
 
 ## Fase 1 — O pedido guardado
 
@@ -45,16 +45,16 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [ ] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,
       `Idempotency-Key`, e recusa com código estável sem contratante ou sem contato ativo.
       Evidência: contrato de caso de uso e de rota, e o contrato de que nenhum log leva PII.
-- [ ] **T305** A confirmação "Enviar pedido de correção" por contratante, com os contatos marcáveis e
-      a invalidação do relatório. Evidência: contrato do serviço e smoke Playwright do envio.
+- [ ] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na
+      contratante (completo), a mesma confirmação com os contatos marcáveis e a prévia, e a
+      invalidação do relatório. Evidência: contrato do serviço e smoke Playwright do envio.
 - [ ] **T306** Marcar a T20 da `specs/084-agenda-de-enderecos/tasks.md` como realizada por esta spec
       e atualizar `docs/ai-context/` e os `CLAUDE.md` das apps tocadas.
 
 ## Prompt de execução
 
-Esta spec ainda tem `[NEEDS CLARIFICATION]` aberto (P1, P2 e P3 do `spec.md`), então não tem prompt
+Esta spec ainda tem `[NEEDS CLARIFICATION]` aberto (P1 e P3 do `spec.md`), então não tem prompt
 de autopilot. As perguntas pendentes são:
 
 1. **P1** — Qual é o modelo do e-mail (assunto, abertura, formato da lista, assinatura)?
-2. **P2** — Um e-mail por contratante, agrupando os endereços, ou um por endereço?
-3. **P3** — Recebem todos os contatos ativos, ou só os marcados para correção de cadastro?
+2. **P3** — Recebem todos os contatos ativos, ou só os marcados para correção de cadastro?
