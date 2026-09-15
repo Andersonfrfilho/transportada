@@ -106,6 +106,30 @@ describe('nfe document events integration (spec 149 D19, H9-H14)', () => {
   )
 
   testWithPostgres(
+    'resolves a resent legacy event status change by joining nfe_document_status_changes on event_id',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedLegacyEventScenario(database)
+        const repository = new DrizzleNfeDocumentEventRepository(database.db)
+
+        const page = await repository.listEvents({
+          context: scenario.context,
+          cursor: null,
+          documentId: scenario.documentId,
+          limit: 20,
+        })
+
+        const legacy = page.items.find((item) => item.id === scenario.legacyEventId)
+        expect(legacy).toBeDefined()
+        // O evento em si continua sem snapshot próprio (D17) — o `before`/`after` vem do reprocessamento.
+        expect(legacy?.statusBefore).toBe('authorized')
+        expect(legacy?.statusAfter).toBe('cancelled')
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'paginates without skipping or repeating an entry (H14)',
     async () => {
       await withDisposableDatabase(async (database) => {
@@ -334,6 +358,124 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
     correctionEventId,
     documentId,
     documentInsertChangeId,
+  }
+}
+
+type LegacyEventScenario = {
+  readonly context: {
+    readonly companyId: string
+    readonly kind: 'company'
+    readonly membershipId: string
+    readonly permissions: ReadonlySet<never>
+    readonly roles: readonly never[]
+    readonly userId: string
+  }
+  readonly documentId: string
+  readonly legacyEventId: string
+}
+
+/**
+ * Evento gravado antes da spec 149 (colunas `document_status_before/after` nulas, sem origem/ator —
+ * D17), depois reenviado pela SEFAZ e reprocessado sob a política nova: a mudança real fica em
+ * `nfe_document_status_changes` (`cause: 'event'`) referenciando o evento legado por `event_id`, não
+ * dentro do próprio evento. O repositório precisa achar isso pelo join, não pelas colunas do evento.
+ */
+async function seedLegacyEventScenario(database: TestDatabase): Promise<LegacyEventScenario> {
+  const companyId = crypto.randomUUID()
+  const documentId = crypto.randomUUID()
+  const importId = crypto.randomUUID()
+  const xmlObjectId = crypto.randomUUID()
+  const legacyEventId = crypto.randomUUID()
+  const distributionActorUserId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: distributionActorUserId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values({
+    companyId,
+    id: crypto.randomUUID(),
+    status: 'active',
+    userId: distributionActorUserId,
+  })
+  await database.db.insert(storedObjects).values({
+    bucket: 'integration',
+    companyId,
+    id: xmlObjectId,
+    mimeType: 'application/xml',
+    objectKey: `nfe/${companyId}.xml`,
+    provider: 's3',
+    purpose: 'nfe_document',
+    sha256: SHA,
+    sizeBytes: 100n,
+    status: 'final',
+  })
+  await database.db.insert(nfeImports).values({
+    companyId,
+    correlationId: `correlation-${companyId}`,
+    id: importId,
+    idempotencyKey: `import-${companyId}`,
+    requestFingerprint: `fingerprint-${companyId}`,
+    requestedByUserId: distributionActorUserId,
+    source: 'distribution',
+    status: 'completed',
+  })
+  await database.db.insert(nfeDocuments).values({
+    accessKey: ACCESS_KEY,
+    authorizationProtocol: null,
+    companyId,
+    createdByUserId: distributionActorUserId,
+    id: documentId,
+    importId,
+    issuedAt: new Date('2026-01-01T12:00:00.000Z'),
+    model: '55',
+    number: '31',
+    operationNature: 'Venda',
+    operationType: '1',
+    productsValue: '1000.0000',
+    series: '1',
+    source: 'distribution',
+    status: 'cancelled',
+    totalValue: '1000.0000',
+    xmlObjectId,
+    xmlSha256: SHA,
+  })
+
+  // O evento legado: sem status_code/protocol/origin/ator nem snapshot — gravado antes desta spec.
+  await database.db.insert(nfeEvents).values({
+    companyId,
+    correctionText: null,
+    eventSequence: 1n,
+    eventType: '110111',
+    id: legacyEventId,
+    occurredAt: new Date('2026-01-02T13:00:00.000Z'),
+    targetAccessKey: ACCESS_KEY,
+    xmlObjectId,
+  })
+
+  // O reprocessamento, já sob a política nova, referencia o evento legado por `event_id`.
+  await database.db.insert(nfeDocumentStatusChanges).values({
+    actorUserId: null,
+    cause: 'event',
+    companyId,
+    documentId,
+    eventId: legacyEventId,
+    importId,
+    origin: 'automatic',
+    requestedByUserId: null,
+    statusAfter: 'cancelled',
+    statusBefore: 'authorized',
+  })
+
+  return {
+    context: {
+      companyId,
+      kind: 'company' as const,
+      membershipId: crypto.randomUUID(),
+      permissions: new Set<never>(),
+      roles: [],
+      userId: crypto.randomUUID(),
+    },
+    documentId,
+    legacyEventId,
   }
 }
 

@@ -9,7 +9,8 @@ import { identityUserProfiles } from '../../database/identity-user-profile.schem
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocumentStatusChanges, nfeDocuments, nfeEvents } from '../../database/nfe.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
-import { ApiError } from '../../shared/api.error.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../domain/active-membership-status.constant.js'
+import { nfeDocumentNotFound } from '../domain/nfe-document.error.js'
 import type {
   NfeDocumentEventActor,
   NfeDocumentEventEntry,
@@ -31,6 +32,14 @@ const statusRequesterMembership = alias(
   'nfe_status_change_requester_membership',
 )
 const statusRequesterProfile = alias(identityUserProfiles, 'nfe_status_change_requester_profile')
+
+/**
+ * Evento legado (gravado antes desta spec) tem `document_status_before/after` nulos — mas um
+ * reprocessamento posterior grava a mudança em `nfe_document_status_changes` referenciando esse
+ * mesmo evento (`event_id`). Sem este join, o evento legado reenviado mostraria "sem mudança" em
+ * vez de "autorizada → cancelada".
+ */
+const eventStatusChange = alias(nfeDocumentStatusChanges, 'nfe_event_status_change')
 
 type MergedRow = {
   readonly actor: NfeDocumentEventActor | null
@@ -67,7 +76,7 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
   }): Promise<NfeDocumentEventPage> {
     const companyId = input.context.companyId
     const document = await this.findDocumentAccessKey(companyId, input.documentId)
-    if (document === null) throw documentNotFound()
+    if (document === null) throw nfeDocumentNotFound()
     const cursor = decodeCursor(input.cursor)
 
     const [eventRows, statusChangeRows] = await Promise.all([
@@ -139,8 +148,12 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
         requestedByName: requesterProfile.name,
         requestedByUserId: nfeEvents.requestedByUserId,
         sequence: sql<string>`${nfeEvents.eventSequence}::text`,
-        statusAfter: nfeEvents.documentStatusAfter,
-        statusBefore: nfeEvents.documentStatusBefore,
+        statusAfter: sql<
+          NfeDocumentEventEntry['statusAfter']
+        >`coalesce(${nfeEvents.documentStatusAfter}, ${eventStatusChange.statusAfter})`,
+        statusBefore: sql<
+          NfeDocumentEventEntry['statusBefore']
+        >`coalesce(${nfeEvents.documentStatusBefore}, ${eventStatusChange.statusBefore})`,
         statusCode: nfeEvents.statusCode,
       })
       .from(nfeEvents)
@@ -149,7 +162,7 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
         and(
           eq(actorMembership.userId, nfeEvents.actorUserId),
           eq(actorMembership.companyId, input.companyId),
-          eq(actorMembership.status, 'active'),
+          eq(actorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
         ),
       )
       .leftJoin(actorProfile, eq(actorProfile.userId, actorMembership.userId))
@@ -158,10 +171,17 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
         and(
           eq(requesterMembership.userId, nfeEvents.requestedByUserId),
           eq(requesterMembership.companyId, input.companyId),
-          eq(requesterMembership.status, 'active'),
+          eq(requesterMembership.status, ACTIVE_MEMBERSHIP_STATUS),
         ),
       )
       .leftJoin(requesterProfile, eq(requesterProfile.userId, requesterMembership.userId))
+      .leftJoin(
+        eventStatusChange,
+        and(
+          eq(eventStatusChange.companyId, input.companyId),
+          eq(eventStatusChange.eventId, nfeEvents.id),
+        ),
+      )
       .where(and(...filters))
       .orderBy(desc(nfeEvents.createdAt), desc(nfeEvents.id))
       .limit(input.limit + 1)
@@ -220,7 +240,7 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
         and(
           eq(statusActorMembership.userId, nfeDocumentStatusChanges.actorUserId),
           eq(statusActorMembership.companyId, input.companyId),
-          eq(statusActorMembership.status, 'active'),
+          eq(statusActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
         ),
       )
       .leftJoin(statusActorProfile, eq(statusActorProfile.userId, statusActorMembership.userId))
@@ -229,7 +249,7 @@ export class DrizzleNfeDocumentEventRepository implements NfeDocumentEventReposi
         and(
           eq(statusRequesterMembership.userId, nfeDocumentStatusChanges.requestedByUserId),
           eq(statusRequesterMembership.companyId, input.companyId),
-          eq(statusRequesterMembership.status, 'active'),
+          eq(statusRequesterMembership.status, ACTIVE_MEMBERSHIP_STATUS),
         ),
       )
       .leftJoin(
@@ -343,12 +363,4 @@ function toEntry(row: MergedRow): NfeDocumentEventEntry {
 /** Texto com microssegundos: o `Date` do JS os truncaria e o cursor pularia a entrada vizinha. */
 function formatCursorTimestamp(column: AnyPgColumn): SQL<string> {
   return sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
-}
-
-function documentNotFound(): ApiError {
-  return new ApiError({
-    code: 'NFE_DOCUMENT_NOT_FOUND',
-    message: 'NF-e document not found',
-    status: 404,
-  })
 }

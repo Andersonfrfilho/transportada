@@ -58,7 +58,7 @@ import {
 } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { resolveDocumentFreight } from '../domain/document-freight.policy.js'
 import { freightRules, freightRuleVersions } from '../../database/freight.schema.js'
-import { ApiError } from '../../shared/api.error.js'
+import { nfeDocumentNotFound } from '../domain/nfe-document.error.js'
 import type {
   DocumentOutputDescription,
   DownloadNfeDocumentXmlResult,
@@ -417,7 +417,7 @@ export class DrizzleNfeDocumentRepository
     readonly documentId: string
   }): Promise<NfeDocumentDetail> {
     const document = await this.findDocument(input.context.companyId, input.documentId)
-    if (document === null) throw notFound()
+    if (document === null) throw nfeDocumentNotFound()
     const scope: DocumentScope = {
       companyId: input.context.companyId,
       documentIds: [document.id],
@@ -434,7 +434,7 @@ export class DrizzleNfeDocumentRepository
     readonly documentId: string
   }): Promise<NfeDocumentEligibility> {
     const document = await this.findDocument(input.context.companyId, input.documentId)
-    if (document === null) throw notFound()
+    if (document === null) throw nfeDocumentNotFound()
     return {
       authorizedDocument: document.status === 'authorized',
       companyRelated: true,
@@ -448,7 +448,7 @@ export class DrizzleNfeDocumentRepository
     readonly documentId: string
   }): Promise<DownloadNfeDocumentXmlResult> {
     const row = await this.findDocumentWithObject(input.context.companyId, input.documentId)
-    if (row === null) throw notFound()
+    if (row === null) throw nfeDocumentNotFound()
     return {
       accessKey: row.document.accessKey,
       content: await this.storage.getObjectStream({
@@ -955,12 +955,4 @@ function decodeCursor(value: string | null): DocumentListCursor | null {
   const [updatedAt, issuedAt, id] = value.split('::')
   if (updatedAt === undefined || issuedAt === undefined || id === undefined) return null
   return { id, issuedAt, updatedAt }
-}
-
-function notFound(): ApiError {
-  return new ApiError({
-    code: 'NFE_DOCUMENT_NOT_FOUND',
-    message: 'NF-e document not found',
-    status: 404,
-  })
 }
