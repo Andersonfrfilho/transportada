@@ -13,6 +13,7 @@ const EXPECTED_TABLE_NAMES = [
   'nfe_package_boxes',
   'nfe_products',
   'nfe_events',
+  'nfe_document_status_changes',
   'nfe_distribution_cursors',
   'processing_outbox',
   'processed_messages',

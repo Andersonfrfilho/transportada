@@ -61,6 +61,12 @@ export type NfeFiscalEnvironment = (typeof NFE_FISCAL_ENVIRONMENTS)[number]
 export const NFE_DOCUMENT_STATUSES = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
 export type NfeDocumentStatus = (typeof NFE_DOCUMENT_STATUSES)[number]
 
+export const NFE_EVENT_ORIGINS = ['manual', 'automatic'] as const
+export type NfeEventOrigin = (typeof NFE_EVENT_ORIGINS)[number]
+
+export const NFE_DOCUMENT_STATUS_CHANGE_CAUSES = ['event', 'summary', 'document_insert'] as const
+export type NfeDocumentStatusChangeCause = (typeof NFE_DOCUMENT_STATUS_CHANGE_CAUSES)[number]
+
 const decimalColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
 
 export const nfeImports = pgTable(
@@ -606,6 +612,19 @@ export const nfeEvents = pgTable(
     environment: text().$type<NfeFiscalEnvironment>(),
     metadata: jsonb(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    statusCode: varchar('status_code', { length: 3 }),
+    protocol: varchar({ length: 20 }),
+    correctionText: text('correction_text'),
+    importId: uuid('import_id'),
+    origin: varchar({ length: 16 }).$type<NfeEventOrigin>(),
+    actorUserId: uuid('actor_user_id'),
+    requestedByUserId: uuid('requested_by_user_id'),
+    documentStatusBefore: varchar('document_status_before', {
+      length: 16,
+    }).$type<NfeDocumentStatus>(),
+    documentStatusAfter: varchar('document_status_after', {
+      length: 16,
+    }).$type<NfeDocumentStatus>(),
   },
   (table) => [
     unique('nfe_events_company_id_id_unique').on(table.companyId, table.id),
@@ -641,6 +660,138 @@ export const nfeEvents = pgTable(
     check(
       'nfe_events_environment_check',
       sql`${table.environment} is null or ${table.environment} in ('homologation', 'production')`,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_events_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'nfe_events_status_code_check',
+      sql`${table.statusCode} is null or ${table.statusCode} ~ '^[0-9]{3}$'`,
+    ),
+    // Sem retEvento o nProt é o da NF-e, não o do evento; regex aqui derrubaria a importação.
+    check(
+      'nfe_events_protocol_check',
+      sql`${table.protocol} is null or ${table.statusCode} is not null`,
+    ),
+    check(
+      'nfe_events_correction_text_check',
+      sql`${table.correctionText} is null or (${table.eventType} = '110110' and char_length(${table.correctionText}) between 1 and 1000)`,
+    ),
+    check(
+      'nfe_events_origin_check',
+      sql`${table.origin} is null or ${table.origin} in ('manual', 'automatic')`,
+    ),
+    check(
+      'nfe_events_origin_actor_check',
+      sql`(${table.origin} is null and ${table.actorUserId} is null and ${table.requestedByUserId} is null) or (${table.origin} = 'manual' and ${table.actorUserId} is not null and ${table.requestedByUserId} is null) or (${table.origin} = 'automatic' and ${table.actorUserId} is null)`,
+    ),
+    check(
+      'nfe_events_origin_import_check',
+      sql`(${table.origin} is null) = (${table.importId} is null)`,
+    ),
+    check(
+      'nfe_events_document_status_check',
+      sql`(${table.documentStatusBefore} is null or ${table.documentStatusBefore} in ('authorized', 'cancelled', 'denied', 'unsigned')) and (${table.documentStatusAfter} is null or ${table.documentStatusAfter} in ('authorized', 'cancelled', 'denied', 'unsigned'))`,
+    ),
+    check(
+      'nfe_events_document_status_pair_check',
+      sql`(${table.documentStatusBefore} is null) = (${table.documentStatusAfter} is null)`,
+    ),
+    check(
+      'nfe_events_document_status_transition_check',
+      sql`${table.documentStatusBefore} is null or ${table.documentStatusBefore} = ${table.documentStatusAfter} or (${table.documentStatusBefore}, ${table.documentStatusAfter}) in (('authorized', 'cancelled'), ('unsigned', 'cancelled'), ('unsigned', 'denied'))`,
+    ),
+  ],
+)
+
+// Ator e solicitante sem FK: o vínculo é apagado fisicamente e a trilha não pode travar nem sumir.
+export const nfeDocumentStatusChanges = pgTable(
+  'nfe_document_status_changes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    documentId: uuid('document_id').notNull(),
+    statusBefore: varchar('status_before', { length: 16 }).$type<NfeDocumentStatus>().notNull(),
+    statusAfter: varchar('status_after', { length: 16 }).$type<NfeDocumentStatus>().notNull(),
+    cause: varchar({ length: 16 }).$type<NfeDocumentStatusChangeCause>().notNull(),
+    eventId: uuid('event_id'),
+    importId: uuid('import_id'),
+    origin: varchar({ length: 16 }).$type<NfeEventOrigin>(),
+    actorUserId: uuid('actor_user_id'),
+    requestedByUserId: uuid('requested_by_user_id'),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_document_status_changes_company_id_id_unique').on(table.companyId, table.id),
+    // Destinos terminais e sem rebaixamento: cada destino só é alcançado uma vez (D7).
+    unique('nfe_document_status_changes_document_target_unique').on(
+      table.companyId,
+      table.documentId,
+      table.statusAfter,
+    ),
+    index('nfe_document_status_changes_company_document_changed_id_idx').on(
+      table.companyId,
+      table.documentId,
+      table.changedAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
+    foreignKey({
+      columns: [table.companyId, table.documentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'nfe_document_status_changes_company_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.eventId],
+      foreignColumns: [nfeEvents.companyId, nfeEvents.id],
+      name: 'nfe_document_status_changes_company_event_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_document_status_changes_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'nfe_document_status_changes_status_check',
+      sql`${table.statusBefore} in ('authorized', 'cancelled', 'denied', 'unsigned') and ${table.statusAfter} in ('authorized', 'cancelled', 'denied', 'unsigned')`,
+    ),
+    check(
+      'nfe_document_status_changes_transition_check',
+      sql`(${table.statusBefore}, ${table.statusAfter}) in (('authorized', 'cancelled'), ('unsigned', 'cancelled'), ('unsigned', 'denied'))`,
+    ),
+    check(
+      'nfe_document_status_changes_cause_check',
+      sql`${table.cause} in ('event', 'summary', 'document_insert')`,
+    ),
+    check(
+      'nfe_document_status_changes_event_presence_check',
+      sql`(${table.cause} = 'summary') = (${table.eventId} is null)`,
+    ),
+    check(
+      'nfe_document_status_changes_origin_check',
+      sql`${table.origin} is null or ${table.origin} in ('manual', 'automatic')`,
+    ),
+    check(
+      'nfe_document_status_changes_origin_actor_check',
+      sql`(${table.origin} is null and ${table.actorUserId} is null and ${table.requestedByUserId} is null) or (${table.origin} = 'manual' and ${table.actorUserId} is not null and ${table.requestedByUserId} is null) or (${table.origin} = 'automatic' and ${table.actorUserId} is null)`,
+    ),
+    check(
+      'nfe_document_status_changes_origin_import_check',
+      sql`(${table.origin} is null) = (${table.importId} is null)`,
     ),
   ],
 )

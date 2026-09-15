@@ -82,3 +82,98 @@ aplicação não pode ler o XML por conta própria. Opções:
    publicar versão nova (ex.: `0.3.0-rc.8`) e atualizar o worker — **exige aprovação para mudar e publicar**.
 2. Seguir sem o texto: `nfe_events.correction_text` fica `null` e a tela da H4 mostra só "Carta de correção"
    até o pacote entregar o campo (o teste de lacuna avisa quando).
+
+## H1 — migration `nfe_event_history` · 2026-09-14
+
+Seguiu o parecer `h1-parecer-architect.md`, aprovado com ajustes. A coluna `correction_text` existe e fica
+vazia até o pacote fiscal entregar o texto da CC-e, trabalho paralelo que não é desta task.
+
+### O que foi criado
+
+- Migration `drizzle/20260915021812_nfe_event_history/` (`migration.sql`, `snapshot.json`, `rollback.sql`),
+  gerada por `bun run db:generate --name nfe_event_history`. O prefixo é maior que `20260915005629` e não
+  precisou de renomeação.
+- `nfe_events`: nove colunas nullable, sem DEFAULT (`status_code varchar(3)`, `protocol varchar(20)`,
+  `correction_text text`, `import_id uuid`, `origin varchar(16)`, `actor_user_id uuid`,
+  `requested_by_user_id uuid`, `document_status_before`/`_after varchar(16)`).
+  - FK `nfe_events_company_import_fk` → `nfe_imports(company_id, id)`, RESTRICT/CASCADE.
+  - Os oito CHECKs do ajuste 1.
+  - **Sem** FK em ator/solicitante e **sem** índice novo.
+- `nfe_document_status_changes`:
+  - PK UUID;
+  - FK de `company_id` e as três FKs compostas (documento, evento, importação);
+  - uniques `company_id_id` e `document_target` `(company_id, document_id, status_after)`;
+  - os sete CHECKs;
+  - índice `nfe_document_status_changes_company_document_changed_id_idx`, que sai sem `NULLS` no SQL:
+    `("company_id","document_id","changed_at" DESC,"id" DESC)`.
+- Cópia só de colunas no worker (`apps/worker-transportada/src/database/nfe.schema.ts`), com os tipos
+  `NfeEventOrigin` e `NfeDocumentStatusChangeCause`. Nada mudou no cron.
+- `rollback.sql`, na ordem do ajuste 6: comentário, `BEGIN`, `DROP TABLE`, um único `ALTER TABLE` com os 10
+  `DROP CONSTRAINT` e os 9 `DROP COLUMN`, remoção da linha do journal por nome com `ROW_COUNT = 1`, `COMMIT`.
+  Sem `CASCADE`.
+- Assertion `test/database-migration/nfe-event-history.assertion.ts`, chamada logo depois de
+  `assertNfeDocumentListingOrderIndex`.
+  - O banco recusa:
+    - `manual` sem ator;
+    - `automatic` com ator;
+    - `origin` sem `import_id`;
+    - `protocol` sem `status_code`;
+    - `correction_text` em evento `110111`;
+    - status fora do domínio;
+    - `before` sem `after`;
+    - `authorized→denied` e `cancelled→authorized` nas duas tabelas;
+    - `summary` com `event_id`;
+    - destino repetido (23505);
+    - `import_id` de outra empresa (23503).
+  - O banco aceita o evento antigo, com as nove colunas nulas.
+  - O `EXPLAIN` com `enable_seqscan = off` mostra `Index Scan` pelo índice novo, sem `Sort`.
+  - Depois do rollback, a tabela, as colunas e a linha do journal somem; a migration reaplica e a tabela, as
+    colunas e o índice voltam.
+
+### Vermelho antes
+
+Contratos de schema escritos antes do schema: `distribution.contract.ts`, a suíte nova
+`document-status-changes.contract.ts`, `tables.ts` e `aggregator.contract.ts`.
+
+```
+(fail) NF-e distribution schema > stores events independently while keeping tenant, XML, and NSU uniqueness
+(fail) NF-e distribution schema > records the fiscal history of each event without trusting the worker for coherence (spec 149 H1)
+(fail) NF-e document status change trail schema > keeps one row per reached status, tenant-bound to the document, event, and import
+(fail) NF-e schema tenant safety > requires company ownership and a restrictive company relationship on every table
+(fail) NF-e schema tenant safety > uses UTC timestamps and excludes secret or raw fiscal payload columns
+ 32 pass
+ 6 fail
+Ran 38 tests across 1 file.
+```
+
+Depois do schema: `test/nfe-schema.contract.test.ts` → **38 pass, 0 fail**.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz) → exit 0.
+- `bun run db:check` → "Everything's fine".
+- Contratos da API, com `bun --env-file=../../.env.test test --timeout 120000` sobre a lista `test` do
+  `package.json` → **5790 pass, 23 skip, 0 fail**, 172 arquivos. Linhas `(fail)`: 0. Nenhum skip novo.
+- `make migration-test` → **95 pass, 0 fail**, 8 arquivos. Linhas `(fail)`: 0. A integração aplica,
+  confere as restrições, reverte e reaplica; a assertion da H1 roda dentro dela.
+- `bun run --cwd apps/worker-transportada test` → **1207 pass, 0 fail**, 86 arquivos. Linhas `(fail)`: 0.
+- `make worker-integration` → 96 pass, 1 fail. As suítes de NF-e do worker (import, distribution,
+  cursor, profile, candidate source) passaram com a cópia nova do schema.
+  - A falha está em `osrm-routing-matrix.integration.test.ts` ("ponto fora da área…"): esperado `4511.2`,
+    recebido `237538.9`. É distância do OSRM contra o dataset local.
+  - O arquivo não toca NF-e nem banco e não muda desde `e066c86f` (2026-08-27). É ambiente, não regressão.
+- Prettier `--check` nos arquivos alterados → limpo.
+
+### Desvios do parecer
+
+1. **`tenant-safety.contract.ts`**: a regra "toda tabela NF-e tem `created_at`/`updated_at`" foi excluída
+   para `nfe_document_status_changes`, que pelo ajuste 2 só tem `changed_at`. O precedente é
+   `processed_messages`. A suíte própria prova que `changed_at` é `timestamptz NOT NULL DEFAULT now()`.
+2. **Índice**: o drizzle recebeu `.desc().nullsFirst()`, não `.desc()` puro, no mesmo padrão de
+   `nfe_documents_company_updated_issued_id_idx`. É isso que faz o SQL sair sem `NULLS`, que é o que o
+   ajuste 2 pede, e o `pg_indexes` confere `changed_at DESC, id DESC`.
+3. Três arquivos de teste que o parecer não listou precisaram de uma linha a mais:
+   - `static-migration.contract.ts`: a pasta nova na lista explícita de migrations;
+   - `database-migration/support.ts`: `nfe_document_status_changes` em `NFE_TABLES`;
+   - `nfe-schema.contract.test.ts`: o import da suíte nova. O entrypoint já estava na lista do `package.json`.

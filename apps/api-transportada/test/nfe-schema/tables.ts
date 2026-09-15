@@ -12,6 +12,7 @@ export const NFE_SCHEMA_EXPORT_NAMES = [
   'nfePackageBoxes',
   'nfeProducts',
   'nfeEvents',
+  'nfeDocumentStatusChanges',
   'nfeDistributionCursors',
   'processingOutbox',
   'processedMessages',

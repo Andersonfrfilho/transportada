@@ -40,7 +40,7 @@ Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot
 
 > 🤖 Modelo: `sonnet` (H1 é 🧠 — `opus`, migration crítica, validada por `architect` `opus` antes)
 
-- [ ] H1 🧠 — Migration aditiva `nfe_event_history` (plan § "Migration"): nove colunas nullable em
+- [x] H1 🧠 — Migration aditiva `nfe_event_history` (plan § "Migration"): nove colunas nullable em
       `nfe_events` com CHECKs de domínio e de coerência origem/ator, FK composta para `nfe_imports`, e a
       tabela `nfe_document_status_changes` com índice e FKs compostas. Schema da API e **cópia no worker**
       atualizados. Contrato de schema vermelho antes (CHECK recusa `manual` sem ator, `automatic` com
