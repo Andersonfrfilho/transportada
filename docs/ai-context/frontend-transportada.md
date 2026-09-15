@@ -499,3 +499,17 @@ sozinho e o operador conclui que perdeu a seleção.
 **cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que
 compara os dois arquivos linha a linha: se divergirem, a parada que o worker propõe e a parada que o
 aceite cria deixam de casar, e o roteiro aceito fica com duas paradas no mesmo portão.
+
+**O worker do MapLibre são dois arquivos, e o build grava os dois** (15/09/2026). O mapa da montagem
+não subia em staging nem em produção: `maplibre-gl-worker.mjs` (MapLibre 6) abre com
+`import … from "./maplibre-gl-shared.mjs"`, e o `?url` do Vite copiava só o worker para `assets/`. O
+pedido do shared caía no `index.html` com 200 e o navegador recusava "MIME text/html". Em `vite dev`
+funcionava — o `node_modules` serve os dois lado a lado —, e os smokes rodam sem mapa de rua, então
+nenhum teste pegava. Hoje o `maplibreWorkerAssetsPlugin` (`vite.config.ts`, só no build) grava worker
+e shared em `assets/maplibre-<hash do conteúdo>/` e injeta o endereço por `__MAPLIBRE_WORKER_URL__`;
+`vectorBasemap.service.ts` usa a constante quando existe e o `?url` no dev. ⚠️ O hash vai no nome da
+pasta porque `/assets/` é servido imutável por um ano: shared de nome fixo sobreviveria no cache a
+uma troca de versão. ⚠️ O `server.ts` responde **404** a arquivo inexistente em `/assets/` — o
+fallback do SPA com 200 foi o que escondeu o asset faltando. Contrato:
+`test/shared/maplibre-worker-assets.contract.ts`, que lê o worker real do pacote e exige que todo
+import relativo dele seja um arquivo gravado ao lado.
