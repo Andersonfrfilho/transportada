@@ -908,9 +908,11 @@ em `test/cte-batch-application/list-items.contract.ts` (`GROUPED_ITEM`, `PENDING
 
 ## T6 — Backfill das notas já gravadas · 2026-09-15
 
-**Decisão do usuário:** sem backfill. As notas antigas que ficaram com status `authorized` enquanto têm eventos de cancelamento em `nfe_events` continuarão como estão. A política de status (T2/T3) só aplica a eventos **novos**, que chegam depois do deploy desta spec.
-
-Justificativa: cancelamentos antigos já foram informados ao cliente no período — a conta de frete foi negociada, pode ter CT-e ou viagem já emitida, ou estar em contexto regulatório que não permite "desfazer"; religar o status automaticamente criaria corridas de atualização sem aviso explícito. Se a transportadora quer sincronizar, roda a rotina one-shot com aprovação (T6 descrita em tasks.md e plan.md).
+**Decisão do usuário (2026-09-15):** sem backfill; só eventos novos mudam o status. As notas antigas
+que ficaram com status `authorized` enquanto têm eventos de cancelamento em `nfe_events` continuarão
+como estão. A política de status (T2/T3) só aplica a eventos **novos**, que chegam depois do deploy
+desta spec. Se a transportadora quiser sincronizar as notas antigas, a rotina one-shot descrita em
+`tasks.md` e `plan.md` roda com aprovação própria, fora desta task.
 
 **Marcado em tasks.md:** [ ] T6 — pulada por decisão do usuário (2026-09-15, sem backfill automático).
 
@@ -967,3 +969,115 @@ Referência adicionada na seção sobre NF-e/viagem:
   - Cancelar CT-e/MDF-e/NFS-e/fatura automaticamente quando nota for cancelada (D11, fora de escopo, por ser ação irreversível — operador decide).
   - Alerta ativo por e-mail/WhatsApp/push (D12, alerta manual será a nota no topo da listagem com badge).
   - Teste de fumaça com CNPJ alfanumérico em emissão de CT-e/MDF-e/NFS-e (H2', mudança do pacote é aditiva, caberia teste quando cliente tiver CNPJ alfanumérico).
+
+## Revisão final — API e tela · 2026-09-15
+
+Correções da revisão final sobre H3/H4/T5 (contrato/integração vermelhos antes da revisão), no
+worktree `ordem-notas`, só em `apps/api-transportada`, `apps/frontend-transportada` e docs da spec.
+
+1. **Evento legado na linha do tempo.**
+   `apps/api-transportada/src/nfe-documents/infrastructure/drizzle-nfe-document-event.repository.ts`
+   — o ramo de eventos (`selectEventRows`) ganhou um `left join` com `nfe_document_status_changes`
+   (alias `eventStatusChange`) por `(company_id, event_id)`, e `statusBefore`/`statusAfter` passam a
+   ser `coalesce(nfe_events.document_status_before/after, eventStatusChange.status_before/after)`.
+   Cobre o caso de um evento gravado antes desta spec (colunas de snapshot nulas, D17) que é
+   reenviado pela SEFAZ e reprocessado sob a política nova: a mudança real fica só em
+   `nfe_document_status_changes` (`cause: 'event'`), referenciando o evento legado por `event_id`,
+   nunca dentro do próprio evento. Sem o join, esse evento aparecia sem mudança de situação.
+   Integração nova: `test/integration/nfe-document-events.integration.ts` ("resolves a resent legacy
+   event status change by joining nfe_document_status_changes on event_id") — semeia um evento sem
+   nenhuma das nove colunas novas e uma linha de `nfe_document_status_changes` apontando para ele,
+   confere `authorized → cancelled` na resposta.
+
+2. **Duas datas no drawer (D13).**
+   `apps/frontend-transportada/src/modules/nfe-workspace/components/NfeDocumentEventHistoryDrawer.component.tsx`
+   passa a mostrar duas linhas na lista de definição do item: "Data do evento" (`entry.occurredAt`,
+   `—` quando nulo, sem `<time>` nesse caso) e "Registrado no sistema em" (`entry.registeredAt`,
+   sempre presente), cada uma com o próprio `<time dateTime>`. Antes só existia uma data no cabeçalho,
+   com `dateTime` da data errada (`registeredAt`) mas texto da outra (`occurredAt ?? registeredAt`).
+   Chaves novas `documents.eventHistory.eventDate`/`registeredDate` em `nfeWorkspace.locale.json` e
+   `nfeWorkspace.en.locale.json`.
+
+3. **Erro no "carregar mais" apagava a lista.**
+   `apps/frontend-transportada/src/modules/nfe-workspace/hooks/useNfeDocumentEventHistory.hook.ts`
+   ganhou `retry` (reexecuta a página inicial via `query.refetch()`). O drawer não decide mais o
+   corpo da lista só por `errorCode !== null`: com `entries.length > 0`, a lista renderizada continua
+   e o erro vira um bloco no rodapé (`documents.eventHistory.errorMore`) com botão "Tentar novamente"
+   que chama `fetchNextPage` de novo; só com `entries.length === 0` o erro substitui o corpo, agora
+   também com botão de retentativa. Chaves novas `errorMore`/`retry` nos dois locales; CSS
+   (`nfeWorkspace.module.css`) ganhou `div.cardError`/`.eventHistoryFooter` em coluna para acomodar
+   texto + botão.
+
+4. **Aviso "NF-e cancelada após a emissão" sem checar o CT-e.**
+   `apps/frontend-transportada/src/modules/cte-batch/shared/cteBatchItemActions.service.ts`:
+   `hasCteBatchDocumentNfeWarning` passou a receber `itemStatus` além de `nfeStatus` e só retorna
+   `true` com o item `authorized` — antes um item ainda `pending`/`failed`/`retry_scheduled` cuja nota
+   já tivesse sido cancelada mostrava "depois da emissão" sem ter emitido nada (plan.md § "API e
+   tela" só prevê o aviso com CT-e autorizado; D12 bloqueia a emissão desses itens por
+   `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`, não os sinaliza na tela). Chamada em
+   `CteBatchItemsPanel.component.tsx` passa `item.status` agora. Teste em
+   `test/cte-batch/table-and-items.contract.ts` cobre `pending`/`failed` com nota `cancelled` →
+   `false`.
+
+5. **Ordem de deploy: `nfeStatus` ausente.**
+   `apps/frontend-transportada/src/modules/cte-batch/shared/cteBatchItem.validation.ts` ganhou
+   `nfeStatusFromApi`: campo ausente (API anterior a esta spec) cai em `'authorized'` — o
+   comportamento de antes —, nunca derruba a resposta; valor presente fora do domínio continua
+   recusado (`CTE_BATCH_INVALID_ITEMS_RESPONSE`). Teste novo cobre os dois casos.
+
+6. **Envelope da rota de eventos.** A rota (`nfe-documents.routes.ts`) sempre devolveu
+   `{ data: [...], page: { nextCursor } }` — o mesmo padrão de `GET /nfe-documents` —, mas `spec.md`
+   (D19) e `apps/api-transportada/CLAUDE.md` diziam `pagination: { nextCursor }` (o genérico de
+   `docs/spec/apis.md`, não o real). Os dois documentos, e `docs/ai-context/api-transportada.md`,
+   corrigidos para `page: { nextCursor }`. Nenhum código mudou.
+
+7. **Zod em `nfe-document-events.schema.ts`.** Reescrito com `z.object({...}).strict()`: `cursor`
+   com `z.string().refine(isCursorValue)` (mesma checagem de forma + round-trip de data real que
+   havia antes, agora dentro do `refine`) e `limit` com `z.string().regex(LIMIT_PATTERN).transform(Number)`
+   (1–100, sem zero à esquerda, default 20 quando ausente). Os mesmos erros `400`
+   (`INVALID_REQUEST`) permanecem — checagem de chave desconhecida/repetida continua fora do Zod
+   (não é validação de campo, é validação do conjunto de chaves da query). Suíte
+   `test/nfe-documents/document-events.contract.ts` (cursor malformado, limite fora do teto, chave
+   repetida/desconhecida) passou sem alteração — comportamento idêntico.
+
+8. **Itens menores.**
+   - `'active'` repetido (4x) no join de membership em
+     `drizzle-nfe-document-event.repository.ts` → constante
+     `ACTIVE_MEMBERSHIP_STATUS` nova em `nfe-documents/domain/active-membership-status.constant.ts`.
+   - `'NFE_DOCUMENT_NOT_FOUND'` inline, duplicado em `drizzle-nfe-document-event.repository.ts` e em
+     `drizzle-nfe-document.repository.ts` → função `nfeDocumentNotFound()` centralizada em
+     `nfe-documents/domain/nfe-document.error.ts`, importada pelos dois repositórios (removida a
+     declaração local em cada um).
+   - `spec.md` D20 corrigida: o drawer usa o diálogo do design system da casa
+     (`useModalDialog`/`createPortal`, como `NfseInvoiceDetailDialog.component.tsx`), não
+     `shadcn/ui` `Sheet` — este repositório não tem `shadcn/ui` instalado.
+
+9. **T6 — justificativa inventada.** `evidence.md` § T6 e `tasks.md` § T6 tinham uma justificativa
+   ("cancelamentos antigos já foram informados — CT-e ou viagem podem estar emitidas", e no
+   `evidence.md` uma versão ainda mais elaborada) que o usuário nunca deu. Os dois textos reduzidos a
+   "decisão do usuário (2026-09-15): sem backfill; só eventos novos mudam o status" — sem
+   justificativa atribuída. `docs/spec/fiscal-integration.md` não tinha texto equivalente (conferido,
+   nada a corrigir lá).
+
+### Gates
+
+- `bun run typecheck` (raiz, as 6 apps) → exit 0.
+- `bun run lint` (raiz, as 6 apps) → exit 0.
+- `bun run --env-file=../../.env.test test` (API, lista explícita do `package.json`, unitário) →
+  **5801 pass, 23 skip, 0 fail**, 172 arquivos. Linhas `(fail)`: 0. Inclui
+  `test/nfe-documents.contract.test.ts` (59 pass) e `test/cte-batch-application.contract.test.ts`
+  (58 pass).
+- `bun --env-file=../../.env.test run test:integration --timeout 120000` (API, lista explícita, 61
+  arquivos) → **303 pass, 4 skip, 2 fail (fail)**, 2206 `expect()`. As duas falhas são as mesmas
+  conhecidas de `cte-archive-gateway.integration.ts` (`ObjectStorageError: Object storage is
+unavailable`, MinIO do `.env.test`, arquivo não tocado por esta revisão) — já registradas em T3,
+  H2', H3 e T5 com o mesmo `.env.test`. `nfe-document-events.integration.ts` está dentro dos 303 que
+  passaram, incluindo o caso novo do item 1; rodou em paralelo com a sessão `../spec149-t4`
+  (worker) sobre o mesmo Postgres — nenhuma falha teve cara de corrida.
+- `bun run --cwd apps/api-transportada test ./test/integration/nfe-document-events.integration.ts`
+  isolado (`--env-file=../../.env.test --timeout 120000`) → **4 pass, 0 fail**, 23 `expect()`.
+- `bun run --cwd apps/frontend-transportada test` (lista explícita do `package.json`) → **3642 pass,
+  0 fail**, 29 arquivos, 34554 `expect()`. Linhas `(fail)`: 0.
+- `bun run --cwd apps/frontend-transportada build` → sucesso (PWA gerado, 128 entradas de precache).
+- Prettier `--check` em todos os arquivos tocados por esta revisão (API, frontend, CSS, locales,
+  docs) → limpo, sem `--write` necessário.

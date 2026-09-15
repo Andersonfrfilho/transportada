@@ -128,7 +128,8 @@ muda status `authorized → cancelled` ou `unsigned → denied` **atualiza `upda
 topo** (spec 149 D10), via `applyStatusChange` no worker sob lock por `(company_id, access_key)`.
 
 **Endpoint `GET /v1/nfe-documents/:id/events` (spec 149 D19):** permissão `invoices.read`, retorna
-cursorpage de eventos e mudanças de status (`{ data: [...], pagination: { nextCursor } }`). Origem
+cursorpage de eventos e mudanças de status (`{ data: [...], page: { nextCursor } }`, mesmo padrão de
+`GET /nfe-documents`). Origem
 (`manual`/`automatic`), ator/solicitante e snapshot gravados. Acesso entre empresas (nota de outra
 empresa) retorna **404**. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida"
 e "status anterior não registrado". Ator sem membership ativa na empresa devolve `{ removed: true }`

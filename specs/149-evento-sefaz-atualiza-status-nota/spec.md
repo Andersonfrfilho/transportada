@@ -193,11 +193,13 @@ Um evento fiscal da SEFAZ que muda a situação da NF-e **atualiza `nfe_document
   `(company_id, id)` — nota de outra empresa responde **404** (não 403, para não confirmar a existência).
   Eventos buscados por `(company_id, target_access_key)` da nota. Paginação por cursor
   (`<registered_at>::<id>`), `limit` padrão 20 e teto 100 (`docs` de APIs). Envelope
-  `{ data: [...], pagination: { nextCursor } }`. Resposta sem XML, sem `xml_object_id`, sem chave de
+  `{ data: [...], page: { nextCursor } }` — mesmo padrão de `GET /nfe-documents`, não o
+  `pagination` genérico de `docs/spec/apis.md`. Resposta sem XML, sem `xml_object_id`, sem chave de
   objeto do storage. Documentado no OpenAPI gerado das rotas.
 
 - **D20 — Tela: pt-BR e acessível.** Textos em `*.locale.json` (nomes dos tipos de evento, origens,
-  status, "usuário removido", "origem desconhecida"). Drawer com `shadcn/ui` (`Sheet`), foco preso e
+  status, "usuário removido", "origem desconhecida"). Drawer com o diálogo do design system da casa
+  (este repositório não tem `shadcn/ui` — ver `apps/frontend-transportada/CLAUDE.md`), foco preso e
   devolvido à linha ao fechar, `Esc` fecha; linha do tempo como lista ordenada (`<ol>`) com `<time
 dateTime>`; status anterior→novo não depende só de cor (texto + ícone com `aria-label`); "carregar
   mais" como `button` com estado de carregamento anunciado (`aria-live="polite"`). Estado vazio e de

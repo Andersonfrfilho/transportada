@@ -105,7 +105,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
 
 > 🤖 Modelo: `opus` 🧠
 
-- [x] T6 🧠 — **Decisão do usuário: sem backfill automático** (2026-09-15). Notas antigas com cancelamento em `nfe_events` continuam como estão; só eventos novos mudam status após deploy desta spec. Justificativa: cancelamentos antigos já foram informados — CT-e ou viagem podem estar emitidas. Registrado em `evidence.md` § T6.
+- [x] T6 🧠 — **Decisão do usuário (2026-09-15): sem backfill; só eventos novos mudam o status.** Notas antigas com cancelamento em `nfe_events` continuam como estão após o deploy desta spec. Registrado em `evidence.md` § T6.
 
 ## Fase 5 — Documentação
 
