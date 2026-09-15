@@ -9,21 +9,25 @@ import { shouldPrettyPrintLogs } from '../logging/log-format.policy.js'
 import { safeLogInfo } from '../logging/safe-logger.service.js'
 import { createNfeStorageGatewayFromEnvironment } from '../storage/infrastructure/nfe-storage-gateway.js'
 import {
-  createNfePackageBoxBackfill,
-  type NfePackageBoxBackfillResult,
-} from './application/nfe-package-box-backfill.service.js'
-import { DrizzleNfePackageBoxBackfillRepository } from './infrastructure/drizzle-nfe-package-box-backfill.repository.js'
+  createNfePackageBoxGtinBackfill,
+  type NfePackageBoxGtinBackfillResult,
+} from './application/nfe-package-box-gtin-backfill.service.js'
+import { DrizzleNfePackageBoxGtinBackfillRepository } from './infrastructure/drizzle-nfe-package-box-gtin-backfill.repository.js'
 import { createNfeXmlObjectReader } from './infrastructure/nfe-import-storage.gateway.js'
 import { createNfeXmlImporter } from './infrastructure/nfe-xml-importer.gateway.js'
+import {
+  DEFAULT_STORAGE_BUCKET,
+  resolveCompanyIdArgument,
+} from './nfe-package-box-backfill.main.js'
 
-const COMPANY_ID_ARGUMENT = '--company-id='
-export const DEFAULT_STORAGE_BUCKET = 'transportada-private'
+const CONFIRM_ARGUMENT = '--confirm'
 
-export async function runNfePackageBoxBackfill(params: {
+export async function runNfePackageBoxGtinBackfill(params: {
   readonly batchSize?: number
-  readonly companyId: string
+  readonly companyId?: string
+  readonly dryRun: boolean
   readonly environment?: Record<string, string | undefined>
-}): Promise<NfePackageBoxBackfillResult> {
+}): Promise<NfePackageBoxGtinBackfillResult> {
   const environment = params.environment ?? process.env
   const config = parseWorkerEnvironment(environment)
   const bucket =
@@ -42,23 +46,18 @@ export async function runNfePackageBoxBackfill(params: {
   })
 
   try {
-    const backfill = createNfePackageBoxBackfill({
+    const result = await createNfePackageBoxGtinBackfill({
       importer: createNfeXmlImporter(),
       logger,
-      repository: new DrizzleNfePackageBoxBackfillRepository(database.db),
+      repository: new DrizzleNfePackageBoxGtinBackfillRepository(database.db),
       storage: createNfeXmlObjectReader({ gateway: storageGateway }),
-    })
-    const result = await backfill.execute({
+    }).execute({
       ...(params.batchSize === undefined ? {} : { batchSize: params.batchSize }),
-      companyId: params.companyId,
+      ...(params.companyId === undefined ? {} : { companyIds: [params.companyId] }),
+      dryRun: params.dryRun,
     })
 
-    safeLogInfo({
-      logger,
-      message: 'nfe_package_box_backfill_finished',
-      metadata: { ...result, companyId: params.companyId },
-    })
-
+    safeLogInfo({ logger, message: 'nfe_package_box_gtin_backfill_finished', metadata: result })
     return result
   } finally {
     await storageGateway.close().catch(() => undefined)
@@ -66,20 +65,23 @@ export async function runNfePackageBoxBackfill(params: {
   }
 }
 
-export function resolveCompanyIdArgument(argv: readonly string[]): string | undefined {
-  const flagged = argv.find((argument) => argument.startsWith(COMPANY_ID_ARGUMENT))
-  return flagged?.slice(COMPANY_ID_ARGUMENT.length) || undefined
+/** Sem `--confirm` só conta: gravar é sempre um pedido explícito. */
+export function resolveDryRunArgument(argv: readonly string[]): boolean {
+  return !argv.includes(CONFIRM_ARGUMENT)
 }
 
 if (import.meta.main) {
-  const companyId = resolveCompanyIdArgument(process.argv.slice(2))
-  if (companyId === undefined) {
-    process.stderr.write(`missing ${COMPANY_ID_ARGUMENT}<uuid>\n`)
-    process.exitCode = 1
-  } else {
-    void runNfePackageBoxBackfill({ companyId }).catch(() => {
-      process.stderr.write('nfe_package_box_backfill_failed\n')
+  const argv = process.argv.slice(2)
+  const companyId = resolveCompanyIdArgument(argv)
+  void runNfePackageBoxGtinBackfill({
+    ...(companyId === undefined ? {} : { companyId }),
+    dryRun: resolveDryRunArgument(argv),
+  })
+    .then((result) => {
+      process.stdout.write(`${JSON.stringify(result)}\n`)
+    })
+    .catch(() => {
+      process.stderr.write('nfe_package_box_gtin_backfill_failed\n')
       process.exitCode = 1
     })
-  }
 }
