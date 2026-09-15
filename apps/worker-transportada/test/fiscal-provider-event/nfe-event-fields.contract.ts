@@ -75,10 +75,18 @@ describe('fiscal provider event contract (spec 149 T1)', () => {
     })
   })
 
-  // Lacuna da D18 no rc.7: quando o pacote passar a entregar o xCorrecao, este teste falha e a H2 grava o texto.
-  test('CC-e ainda não expõe o texto da correção (xCorrecao) no evento normalizado — D18 bloqueada', () => {
+  // D18 resolvida na 0.3.1: o pacote agora entrega o xCorrecao em correctionText — a H2' grava o texto.
+  test('CC-e expõe o texto da correção (xCorrecao) no evento normalizado — D18', () => {
     const event = importEvent(buildProcEventoNfeXml({ type: '110110', detail: CORRECTION_DETAIL }))
 
-    expect(JSON.stringify(event)).not.toContain(CORRECTION_TEXT)
+    expect(event.correctionText).toBe(CORRECTION_TEXT)
+  })
+
+  test('cancelamento não expõe texto de correção', () => {
+    const event = importEvent(
+      buildProcEventoNfeXml({ type: '110111', detail: CANCELLATION_DETAIL }),
+    )
+
+    expect(event.correctionText).toBeUndefined()
   })
 })

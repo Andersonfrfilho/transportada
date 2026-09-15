@@ -394,3 +394,107 @@ reais e um logger falso:
    passaram a receber um `logger` vazio, porque a opção virou obrigatória.
 5. Achado fora do parecer: o CHECK `nfe_documents_authorization_protocol_presence_check` contradizia a
    D4. Resolvido pela migration da H1b, por decisão do usuário.
+
+## H2' — subida do pacote fiscal e texto da CC-e · 2026-09-15
+
+Escopo do A7 do `t3-parecer-architect.md`: (1) subir `@adatechnology/fiscal-provider` de
+`0.3.0-rc.7` para `0.3.1` no worker e na API (cron não depende do pacote — confirmado, sem
+ocorrência em `apps/cron-transportada/package.json`); (2) gravar `correctionText` em
+`writeEventWithStatus`; (3) inverter o teste de lacuna da T1; (4) integração da CC-e.
+
+### Versões alinhadas
+
+- `apps/worker-transportada/package.json:27` e `apps/api-transportada/package.json:35`:
+  `0.3.0-rc.7` → `0.3.1`. `bun.lock` regravado por `bun install`; `bun install --frozen-lockfile`
+  passa (exit 0, "Checked 747 installs across 880 packages (no changes)" na segunda rodada).
+- Cron não fixa o pacote — nada a alinhar ali.
+- Dois contratos de "pin exato" que ninguém tinha listado no plano quebraram ao trocar a versão e
+  foram atualizados para `0.3.1`: `apps/worker-transportada/test/environment.contract.test.ts:30`,
+  `apps/worker-transportada/test/nfe-distribution/gateway.contract.ts:19` e
+  `apps/api-transportada/test/certificate-validation-gateway.contract.test.ts:22`.
+
+### Impacto do diff do pacote (`0.3.0-rc.7` → `0.3.1`, leitura em
+
+`~/Documents/personal/adatechnology-packages`, só leitura, nada alterado nem publicado)
+
+Dois commits mudam `packages/backend/fiscal-provider/src` entre as versões:
+
+1. **`feat(fiscal-provider): CNPJ alfanumérico em todo documento, log e impressão`** — a mudança
+   relevante para CT-e/MDF-e/NFS-e. Motivo: o CNPJ virou `[A-Z0-9]{12}[0-9]{2}` pela IN RFB
+   2229/2024 e pela NT Conjunta DF-e 2025.001, em produção desde 01/07/2026; o pacote normalizava
+   documento com `replace(/\D/g, '')` em ~20 lugares, o que descarta a letra e desloca os dígitos —
+   dois CNPJs alfanuméricos distintos podiam colidir na mesma string normalizada. `SefazTaxId.ts`
+   (novo) vira fonte única de normalização, DV e formatação, usada por
+   `CteXmlBuilder`, `MdfeXmlBuilder`, `NfeXmlBuilder`, `NfseProvider`, `NotaRpNfseProvider`,
+   `SatProvider`, `SefazMdfeProvider`, `SefazNfceProvider`, `SefazNfeProvider`,
+   `NfeDistribuicaoProvider`, `LogObfuscator` (a tag `<CNPJ>` alfanumérica não era mascarada e o
+   documento ia inteiro pro log) e os formatadores de recibo impresso (`CupomPdfBuilder`,
+   `DanfceBuilder`, `controlid-cupom`). Pelo autor: "o golden numérico de NF-e, NFC-e, CT-e e MDF-e
+   não mudou um byte" — CNPJ puramente numérico calcula exatamente como antes
+   (`charCodeAt(0) - 48` reproduz o dígito ASCII). CPF, CEP, telefone, IE/IM, NCM, CFOP, CST e
+   CNAE continuam com o filtro antigo. **Efeito para esta base:** nenhuma ação de código aqui — a
+   emissão de CT-e/MDF-e/NFS-e usa CNPJ numérico das transportadoras cadastradas — mas é a mudança
+   de maior superfície da subida e caberia um teste de fumaça com CNPJ alfanumérico se/quando uma
+   empresa cliente vier a ter um.
+2. **`feat(fiscal-provider): NfeXmlEvent traz o texto da Carta de Correção`** — é a mudança que a
+   D18/H2' precisa: `NfeXmlEvent.correctionText?: string`, lido de `detEvento/xCorrecao`, `trim`,
+   `undefined` quando ausente/vazio ou quando `type !== '110110'`. Aditivo, não muda
+   `statusCode`/`protocol`/`situacao`. Confirmado no `dist/types.d.ts:887` do pacote instalado.
+
+Nenhuma outra mudança em `src/` entre as duas versões (`git diff --stat` só lista os arquivos dos
+dois commits acima).
+
+### `writeEventWithStatus`
+
+`apps/worker-transportada/src/nfe-documents/infrastructure/nfe-document-status-write.persistence.ts`:
+grava `correctionText: event.type === '110110' ? (event.correctionText?.slice(0, 1000) ?? null) : null`.
+O pacote já garante que `correctionText` nunca é string vazia (vira `undefined`), então o corte só
+atua sobre texto não vazio — o CHECK `nfe_events_correction_text_check` exige `null` ou
+`char_length between 1 and 1000` quando `event_type = '110110'`.
+
+### Vermelho antes
+
+Teste de lacuna da T1 invertido (`nfe-event-fields.contract.ts`): a asserção antiga
+(`not.toContain(CORRECTION_TEXT)`) descrevia a lacuna do rc.7 e, contra o pacote 0.3.1 já
+instalado, deixaria de fazer sentido (o evento passa a conter o texto). A nova asserção
+(`expect(event.correctionText).toBe(CORRECTION_TEXT)`) é quem fecha o contrato do D18. Depois do
+código, os dois contratos de pin de versão citados acima falharam primeiro
+(`Expected: "0.3.0-rc.7" / Received: "0.3.1"`) e foram atualizados.
+
+### Integração (`event-trail.integration.ts`, dentro de `nfe-document-status.integration.test.ts`)
+
+Três casos novos, nos dois trilhos (importação e distribuição) onde fazia sentido:
+
+- CC-e grava o texto acentuado (`"Corrigir o endereço de entrega para Rua Açaí, número 42 — São
+Paulo"`) sem alteração;
+- CC-e com texto de 1500 caracteres é gravada cortada em exatamente 1000;
+- cancelamento (`110111`) nunca grava `correctionText` (fica `null`);
+- nenhum log (`harness.logs`, que já cobre `info`/`warn` de toda a suíte) contém a palavra
+  "Açaí" nem a sequência de 1000 "A" usada no teste de corte.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz) → exit 0.
+- `bun run --cwd apps/worker-transportada test` → **1302 pass, 0 fail**, 88 arquivos (1300 da T3 +
+  2 do teste "cancelamento não expõe texto de correção" e da inversão do teste de lacuna). Linhas
+  `(fail)`: 0.
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`) → **5790 pass, 23
+  skip, 0 fail**, 172 arquivos. Linhas `(fail)`: 0. Nenhum skip novo.
+- `make worker-integration ENV_FILE=.env.test` → **99 pass, 4 skip, 2 fail**. As duas falhas são
+  as mesmas conhecidas do anexo do agregado (CCMEI e CRLV,
+  `ObjectStorageError: Object storage is unavailable`), já registradas na T3 com o mesmo `.env.test`
+  e confirmadas de novo aqui (mesma suíte, mesmo erro, arquivo não tocado por esta task).
+- `make worker-integration` (`.env`) → **104 pass, 1 fail**. A única falha é a mesma do
+  `osrm-routing-matrix.integration.test.ts` (esperado `4511.2`, recebido `237538.9`), registrada na
+  H1 e na T3 — ambiente, não regressão desta task.
+- `make migration-test` → não roda: H2' não toca migration nem schema.
+- Prettier `--check` nos 8 arquivos alterados → limpo, sem `--write` necessário.
+
+### Follow-ups registrados
+
+- **CNPJ alfanumérico (item 1 acima):** sem ação nesta task; se uma transportadora cliente vier a
+  operar com CNPJ alfanumérico, vale um teste de fumaça de emissão de CT-e/MDF-e/NFS-e contra o
+  pacote — a mudança é aditiva e não regride o caso numérico, mas não foi exercitada aqui.
+- A tela (H4) que exibe o texto da CC-e pode passar a mostrar o `correctionText` de verdade, em vez
+  de "Carta de correção" genérico — decisão da H4, fora do escopo desta task.

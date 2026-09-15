@@ -228,10 +228,93 @@ describeDatabase('NF-e event changes the note status (spec 149 H1, H4)', () => {
     })
   }
 
+  for (const trail of ['import', 'distribution'] as const) {
+    it(`H2' ${trail}: CC-e records the accented correction text, capped at 1000 characters`, async () => {
+      const companyId = harness.companyA
+      const accessKey = newAccessKey()
+      const importId = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source: trail === 'import' ? 'upload' : 'distribution',
+      })
+      await harness.write({ companyId, importId, trail, xml: documentXml({ accessKey }) })
+
+      const correctionText = 'Corrigir o endereço de entrega para Rua Açaí, número 42 — São Paulo'
+      await harness.write({
+        companyId,
+        importId,
+        trail,
+        xml: eventXml({
+          accessKey,
+          correctionText,
+          protocol: '135260000000090',
+          sequence: '1',
+          statusCode: '135',
+          type: '110110',
+        }),
+      })
+
+      const longCorrectionText = 'A'.repeat(1500)
+      await harness.write({
+        companyId,
+        importId,
+        trail,
+        xml: eventXml({
+          accessKey,
+          correctionText: longCorrectionText,
+          protocol: '135260000000091',
+          sequence: '2',
+          statusCode: '135',
+          type: '110110',
+        }),
+      })
+
+      const stored = await readEvents({ accessKey, companyId, db })
+      const byKey = new Map(
+        stored.map((event) => [`${event.eventType}:${event.eventSequence}`, event]),
+      )
+      expect(byKey.get('110110:1')?.correctionText).toBe(correctionText)
+      expect(byKey.get('110110:2')?.correctionText).toBe(longCorrectionText.slice(0, 1000))
+      expect(byKey.get('110110:2')?.correctionText).toHaveLength(1000)
+    })
+  }
+
+  it("H2' cancellation never records a correction text", async () => {
+    const companyId = harness.companyA
+    const accessKey = newAccessKey()
+    const importId = await harness.createImport({
+      companyId,
+      requestedByUserId: harness.userId,
+      source: 'upload',
+    })
+    await harness.write({ companyId, importId, trail: 'import', xml: documentXml({ accessKey }) })
+    await harness.write({
+      companyId,
+      importId,
+      trail: 'import',
+      xml: eventXml({
+        accessKey,
+        protocol: '135260000000092',
+        sequence: '1',
+        statusCode: '135',
+        type: '110111',
+      }),
+    })
+
+    const [event] = await readEvents({ accessKey, companyId, db })
+    expect(event?.correctionText).toBeNull()
+  })
+
   it('never logs an access key', () => {
     const serialized = JSON.stringify(harness.logs)
     for (const accessKey of harness.accessKeys) {
       expect(serialized).not.toContain(accessKey)
     }
+  })
+
+  it("H2' never logs the correction text", () => {
+    const serialized = JSON.stringify(harness.logs)
+    expect(serialized).not.toContain('Açaí')
+    expect(serialized).not.toContain('A'.repeat(1000))
   })
 })

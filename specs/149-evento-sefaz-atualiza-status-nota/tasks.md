@@ -49,7 +49,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
       usuário): `nfe_documents_authorization_protocol_presence_check` passa a exigir protocolo só da
       nota `authorized`, para a `unsigned` poder ser cancelada ou denegada (D4). Rollback falha se já
       houver `cancelled`/`denied` sem protocolo — roll-forward.
-- [ ] H2' — Reduzida pelo A7 do `t3-parecer-architect.md` (origem, ator, solicitante, `status_code`,
+- [x] H2' — Reduzida pelo A7 do `t3-parecer-architect.md` (origem, ator, solicitante, `status_code`,
       `protocol`, snapshot e `nfe_document_status_changes` foram para a T3). Resta, em commit isolado
       depois da T3: (1) subir `@adatechnology/fiscal-provider` de `0.3.0-rc.7` para `0.3.1` no worker,
       com lockfile e `--frozen-lockfile`, alinhando API e cron se fixarem a mesma versão; (2) em

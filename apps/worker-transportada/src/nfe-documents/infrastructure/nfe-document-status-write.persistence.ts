@@ -33,6 +33,8 @@ import {
 const STATUS_CODE_PATTERN = /^\d{3}$/
 const NO_STATUS_EFFECT: NfeStatusWriteResult = { change: null, warning: null }
 const NFE_DOCUMENT_STATUS_INVARIANT_BROKEN = 'NFE_DOCUMENT_STATUS_INVARIANT_BROKEN'
+const CORRECTION_EVENT_TYPE = '110110'
+const CORRECTION_TEXT_MAX_LENGTH = 1000
 
 type ApplyAndRecordChangeParams = {
   readonly cause: NfeDocumentStatusChangeCause
@@ -98,6 +100,10 @@ export async function writeEventWithStatus(
     .values({
       actorUserId: provenance.actorUserId,
       companyId,
+      correctionText:
+        event.type === CORRECTION_EVENT_TYPE
+          ? (event.correctionText?.slice(0, CORRECTION_TEXT_MAX_LENGTH) ?? null)
+          : null,
       documentStatusAfter: current === null ? null : (target ?? current.status),
       documentStatusBefore: current?.status ?? null,
       environment: params.environment ?? null,
