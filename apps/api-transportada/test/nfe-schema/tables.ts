@@ -10,6 +10,7 @@ export const NFE_SCHEMA_EXPORT_NAMES = [
   'nfeAddresses',
   'nfeVolumes',
   'nfePackageBoxes',
+  'nfePackageBoxMeasurements',
   'nfeProducts',
   'nfeEvents',
   'nfeDocumentStatusChanges',

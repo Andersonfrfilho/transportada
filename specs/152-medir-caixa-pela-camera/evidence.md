@@ -562,3 +562,95 @@ $ bun test test/shared.contract.test.ts -t "OpenCV"
 | build do frontend                               | verde; `dist` sem `*opencv*`, `sw.js` sem OpenCV, precache 128 entradas   |
 | `dist/content-security-policy.txt`              | `script-src 'self' 'wasm-unsafe-eval'` · `worker-src 'self'` (inalterada) |
 | workflow                                        | YAML válido (`Bun.YAML.parse`); `actionlint` indisponível                 |
+
+## T2 — Migration aditiva e schema
+
+Data: 2026-09-15/16. Modelo: `sonnet`. Revisada pelo `architect` antes do commit — **aprovada com
+ajustes A1–A7**, todos aplicados neste commit.
+
+### Desenho
+
+- `nfe_package_boxes` ganha `measurement_source varchar(16)` (CHECK `typed|camera|camera_adjusted`)
+  e `measurement_margin_mm integer` (CHECK `0..3000`), mais `UNIQUE(company_id, id)` — alvo da FK
+  composta abaixo.
+- Tabela nova `nfe_package_box_measurements` (histórico append-only): FK composta
+  `(company_id, package_box_id)` → `nfe_package_boxes(company_id, id)`; `source`, dimensões,
+  margens, `warnings varchar(32)[]`, `imprecise_confirmed`, `engine`, `proposed_*_mm` (D17),
+  `measured_by_user_id` **sem FK** (A1), `created_at`.
+- `company_cargo_settings.camera_measurement_enabled boolean not null default false`.
+- Migration `drizzle/20260916000000_nfe_package_box_measurement_source/` (posterior a
+  `20260915233000_rate_limit_windows`), gerada por `db:generate` a partir do schema TS (nunca editada
+  à mão), com `rollback.sql` que recusa desfazer se já houver `measurement_source` gravado ou linha
+  no histórico.
+
+### Ajustes do architect (A1–A7)
+
+- **A1** — removida a FK `nfe_package_box_measurements_actor_membership_fk` de
+  `measured_by_user_id`. `removeMembership` (spec 149) faz `DELETE` físico da linha de membership;
+  com `RESTRICT` a remoção do conferente quebraria, com `SET NULL`/`CASCADE` a auditoria perderia o
+  ator. O isolamento por empresa continua garantido pela FK composta
+  `(company_id, package_box_id)` → `nfe_package_boxes(company_id, id)`; o ator vira dado guardado,
+  não vínculo referencial. **Assimetria registrada**: o repo tem hoje dois padrões vivos para "ator
+  do contexto" em tabela de histórico — `actorUserId`/`created_by`/`requested_by_user_id` com FK
+  composta para `user_company_memberships` (billing, nfe_imports, nfe_documents,
+  processing_outbox, client_delivery_addresses, company_toll_booth_charges) vs.
+  `measured_by_user_id` aqui, sem FK, pelo motivo acima. Não uniformizei — é decisão específica
+  desta tabela, não um novo padrão a copiar.
+  - ⚠️ Verificação pedida: `test/nfe-schema/tenant-safety.contract.ts` tem **dois** testes — o
+    genérico (`requires company ownership...`) que vale para toda tabela de `NFE_SCHEMA_EXPORT_NAMES`
+    e só exige a FK de `company_id`, e um **hardcoded** (`keeps requesting and publishing actors
+linked to persisted identities`) com uma lista fixa de três tabelas (`nfeImports`, `nfeDocuments`,
+    `processingOutbox`) que não inclui `nfePackageBoxMeasurements`. Registrar a tabela em A2 não
+    disparou exigência de FK de ator — não precisei editar o contrato nem parar.
+- **A2** — `nfePackageBoxMeasurements` registrada em `test/nfe-schema/tables.ts` e
+  `nfe_package_box_measurements` em `test/nfe-schema/aggregator.contract.ts`. `tenant-safety.contract.ts`
+  passou sem alteração: o nome lógico da FK de `company_id` (`getTableConfig().foreignKeys[].getName()`)
+  já sai como `..._company_id_companies_id_fk` para referência inline sem nome explícito (mesmo
+  comportamento de `nfePackageBoxes`), então bateu com o que o teste espera.
+- **A3** — `'nfe_package_box_measurements'` acrescentada a `NFE_TABLES` em
+  `test/database-migration/support.ts`. **Item registrado, não corrigido nesta task**: `nfe_package_boxes`
+  continua fora de `NFE_TABLES` (lacuna pré-existente, fora do escopo de T2).
+- **A4** — índice `nfe_package_box_measurements_company_created_idx` em
+  `(company_id, created_at desc, id desc)`, para o export por período da T5 (sem filtrar por caixa).
+- **A5** — CHECKs de pareamento: em `nfe_package_boxes`,
+  `nfe_package_boxes_measurement_source_pairing_check` (origem só com medida) e
+  `nfe_package_boxes_measurement_margin_pairing_check` (margem nula quando `typed`); na tabela nova,
+  `nfe_package_box_measurements_typed_pairing_check` (`typed` ⇒ margens/`proposed_*`/`engine` nulos),
+  `nfe_package_box_measurements_camera_engine_check` (`camera`/`camera_adjusted` ⇒ `engine` não nulo)
+  e `nfe_package_box_measurements_margin_range_check` (`0..3000` nas três margens).
+- **A6** — `nfe_package_box_measurements_warnings_domain_check`
+  (`warnings <@ ARRAY[...]::varchar(32)[]`) com os 7 códigos fechados de D9 (`markerNotFound`,
+  `markerTooSmall`, `steepAngle`, `lowLight`, `blurry`, `boxOutOfFrame`, `unstable`).
+  **`markerAtEdge` fica de fora de propósito**: o `tasks.md` (T6) já decidiu que ele é código interno
+  do motor de medida, fora do enum público até a validação com caixas reais (T15) dizer se vira aviso
+  de tela.
+- **A7** — os dois índices novos usam `table.createdAt.desc()`/`table.id.desc()` (drizzle-orm),
+  como `nfe_documents_company_updated_issued_id_idx` — nada de `sql\`... desc\`` cru.
+
+### Migration e snapshot
+
+Regenerados com `bun run db:generate` após cada rodada de ajuste do schema (nunca editados à mão);
+pasta renomeada de `tmp`/`tmp2` para `20260916000000_nfe_package_box_measurement_source`, timestamp
+posterior a `20260915233000_rate_limit_windows`. Cadeia de snapshot conferida via `prevIds` (aponta
+para o `id` do snapshot de `rate_limit_windows`).
+
+### Gates
+
+Postgres nativo Homebrew 18 descartável no scratchpad da sessão (porta 65441 na rodada final — 65433,
+65434 e 65440 evitadas por poderem estar em uso por outra sessão), subido e derrubado neste turno.
+
+| Gate                                                                                              | Resultado                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun run typecheck`                                                                               | verde                                                                                          |
+| `bun run lint`                                                                                    | verde                                                                                          |
+| `bun run format:check` (raiz)                                                                     | 1 `(fail)` pré-existente, não tocado por esta task: `docs/ai-context/frontend-transportada.md` |
+| Contratos da API (`bun test`, sem `.env.test`)                                                    | 6006 pass, 0 fail                                                                              |
+| Integração da API (`bun --env-file=../../.env.test test --timeout 120000`, Postgres nativo 65441) | 6028 pass, 1 `(fail)` pré-existente e não relacionado (ver abaixo)                             |
+| `make migration-test` (via `db:test`, mesmo Postgres)                                             | 94 pass, 1 `(fail)` pré-existente e não relacionado (mesmo caso)                               |
+
+**`(fail)` pré-existente**: `Drizzle migration integration > applies, constrains, rolls back, and
+reapplies the fiscal migration` espera SQLSTATE `23503` e recebe `23001` em
+`cte-profile-output-constraints.assertion.ts` — código de fiscal profile que esta task não toca.
+Reproduzido também **antes** de qualquer mudança da T2 (primeira rodada de gates, ainda sem A1–A7),
+com o mesmo Postgres 18 nativo — é o motor relatando `restrict_violation` onde a suíte foi escrita
+esperando `foreign_key_violation` de outra versão de Postgres. Fora do escopo desta task.

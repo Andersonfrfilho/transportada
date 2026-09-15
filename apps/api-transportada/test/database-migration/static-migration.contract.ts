@@ -251,6 +251,7 @@ describe('Drizzle migrations', () => {
       '20260915005629_nfe_document_listing_order_index',
       '20260915021812_nfe_event_history',
       '20260915025926_nfe_document_protocol_presence',
+      '20260916000000_nfe_package_box_measurement_source',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

@@ -37,6 +37,12 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
       'is_fragile',
       'keep_upright',
       'measured_at',
+      /**
+       * Spec 152 (D13–D19, experimental): de onde veio a última medida, e a maior margem dela.
+       * `null` em toda caixa medida antes desta spec — o R5 grava `typed` daqui em diante.
+       */
+      'measurement_source',
+      'measurement_margin_mm',
       'created_at',
       'updated_at',
     ])
