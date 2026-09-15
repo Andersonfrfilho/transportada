@@ -11,6 +11,7 @@ const EXPECTED_TABLE_NAMES = [
   'nfe_addresses',
   'nfe_volumes',
   'nfe_package_boxes',
+  'nfe_package_box_measurements',
   'nfe_products',
   'nfe_events',
   'nfe_document_status_changes',

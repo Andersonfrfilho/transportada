@@ -461,6 +461,15 @@ export const nfeVolumes = pgTable(
 )
 
 /**
+ * Spec 152: como a medida da caixa chegou (D13–D19). `typed` e o padrao (digitada); `camera` e
+ * `camera_adjusted` so existem com a funcao ligada na empresa (`company_cargo_settings`).
+ * `camera_adjusted` e `camera` que o conferente editou a mao antes de gravar — a origem some, a
+ * edicao fica registrada.
+ */
+export const PACKAGE_BOX_MEASUREMENT_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
+
+/**
  * A caixa de papelao que carrega os produtos, e a medida dela (spec 085, ADR-0062).
  *
  * ⚠️ A identidade e `(empresa, emitente, cProd, uCom)`. O `cProd` e o codigo **do emitente** —
@@ -511,6 +520,15 @@ export const nfePackageBoxes = pgTable(
     /** "Este lado para cima": a caixa não pode ser deitada para caber melhor. */
     keepUpright: boolean('keep_upright'),
     measuredAt: timestamp('measured_at', { withTimezone: true }),
+    /**
+     * Spec 152 (D13–D19, experimental): de onde veio a ultima medida gravada. `null` em toda caixa
+     * medida antes desta spec — o R5 grava `typed` a partir daqui, nunca reescreve o historico.
+     */
+    measurementSource: varchar('measurement_source', {
+      length: 16,
+    }).$type<PackageBoxMeasurementSource>(),
+    /** A maior das tres margens da ultima medida por camera (D17). `null` em medida `typed`. */
+    measurementMarginMm: integer('measurement_margin_mm'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -521,6 +539,8 @@ export const nfePackageBoxes = pgTable(
       table.productCode,
       table.commercialUnit,
     ),
+    /** Alvo da FK composta de `nfe_package_box_measurements` — o historico so referencia caixa da mesma empresa. */
+    unique('nfe_package_boxes_company_id_id_unique').on(table.companyId, table.id),
     check('nfe_package_boxes_units_per_box_check', sql`${table.unitsPerBox} > 0`),
     /**
      * Pilha de zero não existe, e pilha declarada em caixa que não empilha é contradição — a
@@ -543,6 +563,24 @@ export const nfePackageBoxes = pgTable(
       'nfe_package_boxes_measured_at_check',
       sql`(${table.lengthMm} is null) = (${table.measuredAt} is null)`,
     ),
+    check(
+      'nfe_package_boxes_measurement_source_check',
+      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted')`,
+    ),
+    check(
+      'nfe_package_boxes_measurement_margin_check',
+      sql`${table.measurementMarginMm} is null or (${table.measurementMarginMm} >= 0 and ${table.measurementMarginMm} <= 3000)`,
+    ),
+    /** Origem gravada sem medida seria uma proveniência que não descreve nada. */
+    check(
+      'nfe_package_boxes_measurement_source_pairing_check',
+      sql`${table.measurementSource} is null or ${table.lengthMm} is not null`,
+    ),
+    /** `typed` não carrega margem — margem é só do que a câmera propôs. */
+    check(
+      'nfe_package_boxes_measurement_margin_pairing_check',
+      sql`${table.measurementSource} <> 'typed' or ${table.measurementMarginMm} is null`,
+    ),
     index('nfe_package_boxes_company_pending_idx')
       .on(table.companyId)
       .where(sql`${table.lengthMm} is null`),
@@ -552,6 +590,114 @@ export const nfePackageBoxes = pgTable(
     index('nfe_package_boxes_company_measured_idx')
       .on(table.companyId)
       .where(sql`${table.measuredAt} is not null`),
+  ],
+)
+
+/**
+ * Codigos fechados de D9 — motivo de imprecisao mostrado na tela, sempre com texto e icone.
+ * `markerAtEdge` fica fora de proposito (tasks.md T6): e codigo interno do motor de medida,
+ * ainda sem lugar decidido no enum publico ate a validacao com caixas reais (T15) dizer se ele
+ * vira aviso de tela ou fica so no log do motor.
+ */
+export const PACKAGE_BOX_MEASUREMENT_WARNINGS = [
+  'markerNotFound',
+  'markerTooSmall',
+  'steepAngle',
+  'lowLight',
+  'blurry',
+  'boxOutOfFrame',
+  'unstable',
+] as const
+export type PackageBoxMeasurementWarning = (typeof PACKAGE_BOX_MEASUREMENT_WARNINGS)[number]
+
+/**
+ * Historico append-only da medida de uma caixa (spec 152, D13–D17, experimental). Nenhuma rota
+ * atualiza ou apaga linha aqui — cada tentativa de medir (digitada, pela camera ou ajustada) vira
+ * uma linha nova, ao lado da que `nfe_package_boxes.length_mm`/etc. grava por cima. O `proposed_*`
+ * guarda o que o motor de camera sugeriu (D17), para a validacao da Fase 7 comparar com o gravado
+ * mesmo quando o conferente editou o campo antes de salvar.
+ *
+ * ⚠️ `measured_by_user_id` **nao** tem FK para `user_company_memberships` (assimetria deliberada,
+ * revisao do architect da T2): `removeMembership` (spec 149) faz DELETE fisico da linha de
+ * membership, e aqui RESTRICT quebraria a remocao do conferente e SET NULL/CASCADE apagaria o ator
+ * do registro de auditoria. O isolamento por empresa continua garantido pela FK composta
+ * `(company_id, package_box_id)` abaixo — o ator e so um dado guardado, nao um vinculo referencial.
+ */
+export const nfePackageBoxMeasurements = pgTable(
+  'nfe_package_box_measurements',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    packageBoxId: uuid('package_box_id').notNull(),
+    source: varchar('source', { length: 16 }).$type<PackageBoxMeasurementSource>().notNull(),
+    lengthMm: integer('length_mm').notNull(),
+    widthMm: integer('width_mm').notNull(),
+    heightMm: integer('height_mm').notNull(),
+    lengthMarginMm: integer('length_margin_mm'),
+    widthMarginMm: integer('width_margin_mm'),
+    heightMarginMm: integer('height_margin_mm'),
+    /** Codigos de D9, guardados por valor — sem FK para um catalogo. */
+    warnings: varchar('warnings', { length: 32 }).array().notNull().default([]),
+    impreciseConfirmed: boolean('imprecise_confirmed').notNull().default(false),
+    engine: varchar('engine', { length: 32 }),
+    /** D17: a proposta do motor de camera antes de qualquer edicao. `null` quando `source = typed`. */
+    proposedLengthMm: integer('proposed_length_mm'),
+    proposedWidthMm: integer('proposed_width_mm'),
+    proposedHeightMm: integer('proposed_height_mm'),
+    measuredByUserId: uuid('measured_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.packageBoxId],
+      foreignColumns: [nfePackageBoxes.companyId, nfePackageBoxes.id],
+      name: 'nfe_package_box_measurements_company_package_box_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'nfe_package_box_measurements_source_check',
+      sql`${table.source} in ('typed', 'camera', 'camera_adjusted')`,
+    ),
+    check(
+      'nfe_package_box_measurements_dimensions_check',
+      sql`${table.lengthMm} > 0 and ${table.lengthMm} <= 6000 and ${table.widthMm} > 0 and ${table.widthMm} <= 3000 and ${table.heightMm} > 0 and ${table.heightMm} <= 3000`,
+    ),
+    check(
+      'nfe_package_box_measurements_margin_range_check',
+      sql`(${table.lengthMarginMm} is null or (${table.lengthMarginMm} >= 0 and ${table.lengthMarginMm} <= 3000)) and (${table.widthMarginMm} is null or (${table.widthMarginMm} >= 0 and ${table.widthMarginMm} <= 3000)) and (${table.heightMarginMm} is null or (${table.heightMarginMm} >= 0 and ${table.heightMarginMm} <= 3000))`,
+    ),
+    /** `typed` não tem margem, proposta nem motor — esses só existem quando a câmera participou. */
+    check(
+      'nfe_package_box_measurements_typed_pairing_check',
+      sql`${table.source} <> 'typed' or (${table.lengthMarginMm} is null and ${table.widthMarginMm} is null and ${table.heightMarginMm} is null and ${table.proposedLengthMm} is null and ${table.proposedWidthMm} is null and ${table.proposedHeightMm} is null and ${table.engine} is null)`,
+    ),
+    /** `camera`/`camera_adjusted` sempre sabem qual motor mediu — nunca proposta sem autor. */
+    check(
+      'nfe_package_box_measurements_camera_engine_check',
+      sql`${table.source} = 'typed' or ${table.engine} is not null`,
+    ),
+    check(
+      'nfe_package_box_measurements_warnings_domain_check',
+      sql`${table.warnings} <@ ARRAY[${sql.join(
+        PACKAGE_BOX_MEASUREMENT_WARNINGS.map((warning) => sql`${warning}`),
+        sql`, `,
+      )}]::varchar(32)[]`,
+    ),
+    /** Historico e o export (T5) leem por empresa + caixa, mais recente primeiro. */
+    index('nfe_package_box_measurements_company_package_box_idx').on(
+      table.companyId,
+      table.packageBoxId,
+      table.createdAt.desc(),
+    ),
+    /** O export (T5) pagina pelo período, por empresa, sem filtrar por caixa. */
+    index('nfe_package_box_measurements_company_created_idx').on(
+      table.companyId,
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
   ],
 )
 

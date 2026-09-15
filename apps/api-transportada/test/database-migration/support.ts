@@ -56,6 +56,7 @@ export const NFE_TABLES = [
   'nfe_events',
   'nfe_import_items',
   'nfe_imports',
+  'nfe_package_box_measurements',
   'nfe_participants',
   'nfe_products',
   'nfe_volumes',

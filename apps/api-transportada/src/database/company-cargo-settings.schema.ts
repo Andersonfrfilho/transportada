@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
-import { check, numeric, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, numeric, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
 
@@ -27,6 +27,12 @@ export const companyCargoSettings = pgTable(
         onUpdate: 'cascade',
       }),
     defaultVolumeWeight: numeric('default_volume_weight', { precision: 14, scale: 4 }),
+    /**
+     * Spec 152 (D14, experimental): interruptor por empresa da medida de caixa pela camera.
+     * Ausencia de linha e `false` — o mesmo padrao de "sem linha = desligado" que o resto deste
+     * schema ja usa para `default_volume_weight` nulo.
+     */
+    cameraMeasurementEnabled: boolean('camera_measurement_enabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
