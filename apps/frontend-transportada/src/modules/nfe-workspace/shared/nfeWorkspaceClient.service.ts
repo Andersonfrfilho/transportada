@@ -140,6 +140,8 @@ export type NfeDocumentListItem = Readonly<{
    */
   tripId: null | string
   tripStatus: null | string
+  /** Ausente enquanto a API anterior serve o corpo antigo — a API sobe primeiro. */
+  updatedAt?: string
   variant: 'complete' | 'event' | 'summary'
 }>
 
@@ -388,6 +390,7 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isString(value.series) &&
     isDocumentStatus(value.status) &&
     isString(value.totalAmount) &&
+    (value.updatedAt === undefined || isString(value.updatedAt)) &&
     isDocumentVariant(value.variant)
   )
 }

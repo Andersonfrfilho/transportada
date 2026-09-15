@@ -110,6 +110,7 @@ export type SortColumn =
   | 'recipient'
   | 'series'
   | 'status'
+  | 'updatedAt'
 
 export type SortDirection = 'asc' | 'desc'
 export type SortState = Readonly<{ column: SortColumn; direction: SortDirection }> | null
@@ -221,6 +222,7 @@ export const SORT_COLUMNS: readonly SortColumn[] = [
   'recipient',
   'amount',
   'status',
+  'updatedAt',
 ]
 
 const EMPTY_TEXT: Record<TextFilterField, string> = {
@@ -259,10 +261,12 @@ export const EMPTY_FILTERS: DocumentFilters = {
   text: EMPTY_TEXT,
 }
 
-export const DEFAULT_SORT: SortState = { column: 'issuedAt', direction: 'desc' }
+/** A mesma ordem da API: atualização, depois emissão, depois id — ver `compareByLatestUpdate`. */
+export const DEFAULT_SORT: SortState = { column: 'updatedAt', direction: 'desc' }
 
-// Ordenação anterior; visões já salvas que a carregam adotam o padrão atual em vez de congelá-lo
+// Ordenações padrão anteriores; visões já salvas que as carregam adotam o padrão atual em vez de congelá-lo
 export const SUPERSEDED_NUMBER_SORT: SortState = { column: 'number', direction: 'asc' }
+export const SUPERSEDED_ISSUED_AT_SORT: SortState = { column: 'issuedAt', direction: 'desc' }
 
 export const ALL_COLUMNS_VISIBLE: Record<ColumnKey, boolean> = {
   amount: true,
@@ -683,7 +687,19 @@ function compareByColumn(
   if (column === 'number') return Number(first.number) - Number(second.number)
   if (column === 'series') return Number(first.series) - Number(second.series)
   if (column === 'issuedAt') return first.issuedAt.localeCompare(second.issuedAt)
+  if (column === 'updatedAt') return compareByLatestUpdate(first, second)
   return first.status.localeCompare(second.status)
+}
+
+/** Linha sem `updatedAt` é o corpo da API anterior: a emissão responde por ela até a API subir. */
+function compareByLatestUpdate(first: NfeDocumentListItem, second: NfeDocumentListItem): number {
+  const firstUpdate = first.updatedAt ?? first.issuedAt
+  const secondUpdate = second.updatedAt ?? second.issuedAt
+  const byUpdate = firstUpdate.localeCompare(secondUpdate)
+  if (byUpdate !== 0) return byUpdate
+  const byIssue = first.issuedAt.localeCompare(second.issuedAt)
+  if (byIssue !== 0) return byIssue
+  return first.id.localeCompare(second.id)
 }
 
 export function sortDocuments(params: {
