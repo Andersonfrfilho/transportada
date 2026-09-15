@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { RateLimitWindowUpsertMissingRowError } from './rate-limit-window.error.js'
 import type {
   ConsumeRateLimitWindowParams,
   RateLimitWindowStorePort,
@@ -51,7 +52,7 @@ export class DrizzleRateLimiterRepository implements RateLimitWindowStorePort {
         extract(epoch from now())::double precision as now_seconds
     `)
     const row = rows[0]
-    if (row === undefined) throw new Error('rate limit upsert returned no row')
+    if (row === undefined) throw new RateLimitWindowUpsertMissingRowError()
 
     if (isWithinRateLimit({ hits: Number(row.hits), maxRequests })) return { allowed: true }
     return {

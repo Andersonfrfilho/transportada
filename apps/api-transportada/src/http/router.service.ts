@@ -381,11 +381,12 @@ async function assertWithinRouteRateLimit({
     })
     return
   }
-  // O boot já recusou esta combinação; o `if` só estreita o tipo.
-  if (rateLimitWindows === undefined) throw new Error('postgres rate limit without a store')
-
+  // Rodada de correção da Fase 4: o `if`+`throw` daqui só existia para estreitar o tipo — o boot
+  // (`assertPostgresRateLimitHasStore`) já recusa subir com uma rota `postgres` sem `rateLimitWindows`
+  // configurado, então este ponto é inalcançável em runtime. A asserção documenta a prova em vez de
+  // fingir um caminho de erro que nunca dispara.
   throwWhenRateLimited(
-    await rateLimitWindows.consume({
+    await rateLimitWindows!.consume({
       maxRequests: policy.maxRequests,
       scope: policy.scope,
       subjectKey: `${context.scope.companyId}:${context.scope.userId}`,
