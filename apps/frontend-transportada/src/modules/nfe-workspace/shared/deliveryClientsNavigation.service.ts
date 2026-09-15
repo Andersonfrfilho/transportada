@@ -7,18 +7,21 @@ import {
 
 /**
  * Spec 150 T305: sem contato ativo, a confirmação aponta para onde cadastrar — a aba "E-mail com
- * contratantes" de `delivery-clients` (spec 143 T017/spec 150 T301). Não existe registro
- * programático de aba nesta app (`DeliveryClientWorkspace.page.tsx` sempre abre em "Clientes"), só
- * de workspace inteiro — a navegação chega ao módulo certo, e o texto ao lado diz o nome da aba.
+ * contratantes" de `delivery-clients` (spec 143 T017/spec 150 T301).
+ *
+ * Rodada de correção da Fase 4, item 12: `DeliveryClientWorkspace.page.tsx` agora lê a aba inicial
+ * de `?tab=`, o mesmo mecanismo de `NfeWorkspace.page.tsx` — `?tab=mail` no caminho é o que faz o
+ * atalho abrir direto na aba certa, em vez de só chegar ao módulo e deixar o operador procurar.
  */
 export const DELIVERY_CLIENTS_ROUTE = '/clientes'
+export const DELIVERY_CLIENTS_MAIL_ROUTE = '/clientes?tab=mail'
 export const DELIVERY_CLIENTS_WORKSPACE = 'delivery-clients'
 
 export { createBrowserWorkspaceNavigator, WORKSPACE_STORAGE_KEY }
 export type { WorkspaceNavigator }
 
 export function navigateToDeliveryClients(navigator: WorkspaceNavigator): void {
-  navigator.pushPath(DELIVERY_CLIENTS_ROUTE)
+  navigator.pushPath(DELIVERY_CLIENTS_MAIL_ROUTE)
   navigator.rememberWorkspace(DELIVERY_CLIENTS_WORKSPACE)
   navigator.dispatchPopState()
 }

@@ -23,12 +23,23 @@ import styles from '../styles/deliveryClients.module.css'
 
 const CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
 
-type DeliveryClientTabId = 'clients' | 'mail'
+export type DeliveryClientTabId = 'clients' | 'mail'
 
 const DELIVERY_CLIENT_TAB_IDS: readonly DeliveryClientTabId[] = ['clients', 'mail']
 
-function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
+export function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
   return DELIVERY_CLIENT_TAB_IDS.find((tab) => tab === id) ?? 'clients'
+}
+
+/**
+ * Rodada de correção da Fase 4, item 12: mesmo mecanismo de `NfeWorkspace.page.tsx`
+ * (`readTabFromLocation`) — os atalhos de `navigateToDeliveryClients` (T305/T405) escrevem
+ * `?tab=mail` na URL antes de despachar o `popstate`, e é esta leitura, na montagem, que faz a
+ * aba abrir direto em "E-mail" em vez de sempre cair em "Clientes". Valor desconhecido ou ausente
+ * cai em `clients` — URL inventada não pode quebrar a tela.
+ */
+export function readDeliveryClientTabFromLocation(): DeliveryClientTabId {
+  return resolveDeliveryClientTab(new URLSearchParams(window.location.search).get('tab') ?? '')
 }
 
 /** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
@@ -48,7 +59,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
-  const [activeTab, setActiveTab] = useState<DeliveryClientTabId>('clients')
+  const [activeTab, setActiveTab] = useState<DeliveryClientTabId>(readDeliveryClientTabFromLocation)
   const controller = useDeliveryClients({ permissions })
   const isReadOnly = !controller.canManageClients
 
