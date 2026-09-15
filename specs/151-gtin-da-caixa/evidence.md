@@ -40,4 +40,28 @@ cluster Postgres 18 nativo no scratchpad, com o schema migrado pela API.
 
 ## Staging
 
-STAGING_RESULTADO
+Deploy: os runs do `deploy.yml` do `9d608eb5` foram cancelados por pushes seguintes de outras
+sessões; o worker de staging ficou `SUCCESS` na implantação `3bccd8f7` (17:11), já com
+`dist/nfe-imports/nfe-package-box-gtin-backfill.main.js` no contêiner.
+
+Rotina via `railway ssh` no worker de staging:
+
+| Modo        | empresas | notas lidas | caixas preenchidas | sem GTIN | GTIN inválido | XML ausente | XML ilegível |
+| ----------- | -------- | ----------- | ------------------ | -------- | ------------- | ----------- | ------------ |
+| dry-run     | 1        | 0           | 0                  | 0        | 0             | 1909        | 0            |
+| `--confirm` | 1        | 0           | 0                  | 0        | 0             | 1909        | 0            |
+
+⚠️ **XML ausente em staging é estrutural, não defeito da rotina.** O refresh restaura o dump de
+produção e **não** copia os objetos: as 1979 notas de staging apontam em `stored_objects` para o
+bucket de produção, que a credencial de staging não lê — e não deve ler (buckets não se misturam).
+Staging segue com 465 caixas, todas com `carton_gtin` nulo. A leitura do XML e a gravação só se
+comprovam contra Postgres na integração (seção Gates) e, de verdade, em produção.
+
+Produção (não rodado — exige aprovação humana), primeiro sem gravar e depois gravando:
+
+```bash
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s worker -- \
+  bun dist/nfe-imports/nfe-package-box-gtin-backfill.main.js
+railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -e production -s worker -- \
+  bun dist/nfe-imports/nfe-package-box-gtin-backfill.main.js --confirm
+```
