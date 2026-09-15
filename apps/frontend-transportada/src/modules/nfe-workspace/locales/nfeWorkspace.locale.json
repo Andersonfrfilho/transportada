@@ -506,6 +506,7 @@
     "title": "Caixas por medir",
     "description": "Meça a caixa de papelão do produto. A fila vem na ordem do que mais roda: as primeiras cobrem a maior parte do que sai do galpão.",
     "searchLabel": "Buscar por produto ou código",
+    "searchPlaceholder": "Busque ou bipe a etiqueta",
     "scan": "Ler etiqueta",
     "empty": "Nenhuma caixa nesta busca.",
     "denied": "Você não tem permissão para medir caixas.",

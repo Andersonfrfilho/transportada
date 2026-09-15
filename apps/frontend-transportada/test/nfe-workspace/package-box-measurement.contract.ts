@@ -443,6 +443,143 @@ describe('mais de uma caixa achada pela mesma etiqueta', () => {
   })
 })
 
+/**
+ * ⚠️ Contrato por texto de fonte (spec do bipe físico): esta app não tem DOM nos testes, e a
+ * pistola USB/Bluetooth que "digita" o código e manda Enter precisa cair no MESMO caminho de
+ * `onScan`/`scanned` da câmera — nunca no filtro de texto simples do campo de busca.
+ */
+describe('o leitor físico (pistola) no campo de busca', () => {
+  it('reconhece o formato de código: GTIN de 8/12/13/14 dígitos ou chave de acesso de 44', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('const SCANNED_CODE_LENGTHS = new Set([8, 12, 13, 14])')
+    expect(panel).toContain('const ACCESS_KEY_PATTERN = /^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/')
+    expect(panel).toContain('function looksLikeScannedCode(value: string): boolean {')
+  })
+
+  it('Enter com código bipado manda pelo mesmo caminho de onScan da câmera', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const searchField = panel.split('id="package-box-search"')[1]?.split('/>')[0]
+    expect(searchField).toBeDefined()
+    expect(searchField).toContain("if (event.key !== 'Enter') return")
+    expect(searchField).toContain('if (!looksLikeScannedCode(value)) return')
+    expect(searchField).toContain("scanOriginRef.current = 'keyboard'")
+    expect(searchField).toContain('setAwaitingScan(true)')
+    expect(searchField).toContain('onScan(value)')
+  })
+
+  /** Digitação comum (texto que não tem forma de código) segue filtrando a lista, como hoje. */
+  it('Enter sem formato de código não dispara o caminho de scan', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onKeyDown = panel.split('onKeyDown={(event) => {')[1]?.split('}}')[0]
+    expect(onKeyDown).toBeDefined()
+    expect(onKeyDown).toContain('if (!looksLikeScannedCode(value)) return')
+  })
+
+  it('achar a caixa pela pistola marca a origem separada da câmera, e não abre câmera nenhuma', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("if (scanOriginRef.current === 'keyboard') {")
+    expect(panel).toContain('setCameFromKeyboardScan(true)')
+  })
+
+  /** Ao gravar uma medida aberta pela pistola, o foco volta ao campo de busca — nunca a câmera. */
+  it('gravar uma medida aberta pela pistola devolve o foco ao campo de busca', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onMeasureBlock = panel
+      .split('onMeasure={(measurement) => {')[1]
+      ?.split('}}\n              onOpen=')[0]
+    expect(onMeasureBlock).toBeDefined()
+    expect(onMeasureBlock).toContain('if (cameFromKeyboardScan) {')
+    expect(onMeasureBlock).toContain('setCameFromKeyboardScan(false)')
+    expect(onMeasureBlock).toContain('searchInputRef.current?.focus()')
+  })
+
+  /** Digitar manualmente cancela o modo "veio da pistola", igual já cancela o modo câmera. */
+  it('digitar no campo cancela os dois modos de retorno, câmera e pistola', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onChangeBlock = panel.split('onChange={(event) => {')[1]?.split('}}')[0]
+    expect(onChangeBlock).toBeDefined()
+    expect(onChangeBlock).toContain('setCameFromScan(false)')
+    expect(onChangeBlock).toContain('setCameFromKeyboardScan(false)')
+  })
+
+  it('o campo tem placeholder curto convidando a buscar ou bipar', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("placeholder={t('packageBoxes.searchPlaceholder')}")
+
+    const ptLocale = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/locales/nfeWorkspace.locale.json', import.meta.url),
+    ).text()
+    expect(ptLocale).toContain('"searchPlaceholder": "Busque ou bipe a etiqueta"')
+
+    const enLocale = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
+        import.meta.url,
+      ),
+    ).text()
+    expect(enLocale).toContain('"searchPlaceholder": "Search or scan the label"')
+  })
+
+  /** Nada de listener global: o Enter só é tratado no próprio campo de busca. */
+  it('não existe listener global de teclado — só o onKeyDown do campo de busca', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).not.toContain("addEventListener('keydown'")
+    expect(panel).not.toContain('window.addEventListener')
+    expect(panel).not.toContain('document.addEventListener')
+    /** Os dois `onKeyDown` que existem são de elemento: o campo de busca e o diálogo de candidatas. */
+    const keydownOccurrences = panel.match(/onKeyDown=/g) ?? []
+    expect(keydownOccurrences.length).toBe(2)
+  })
+})
+
 describe('editar a medida de uma caixa já medida', () => {
   it('abre com o que está gravado, convertido de volta para centímetro', async () => {
     const panel = await Bun.file(

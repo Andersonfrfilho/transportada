@@ -48,6 +48,23 @@ const NOT_FOUND_FEEDBACK_DELAY_MS = 2500
 const MAX_CANDIDATES_SHOWN = 8
 const CANDIDATES_TITLE_ID = 'package-box-candidates-title'
 
+/** GTIN-8/12/13/14: só dígitos, no comprimento fixo dos padrões de código de barras de produto. */
+const SCANNED_CODE_LENGTHS = new Set([8, 12, 13, 14])
+/** Chave de acesso da NF-e/CT-e: 44 posições, UF+ano/mês+CNPJ fixos numéricos, dígito verificador. */
+const ACCESS_KEY_PATTERN = /^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/
+
+/**
+ * ⚠️ Diferencia a pistola de código de barras (digita rápido e manda Enter) de alguém digitando uma
+ * busca de texto normal. Sem essa forma o valor cai no filtro por `ilike`, e a pistola nunca acha a
+ * caixa pela chave da nota nem pelo GTIN — o defeito que esta heurística existe para fechar.
+ */
+function looksLikeScannedCode(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed === '') return false
+  if (/^[0-9]+$/.test(trimmed)) return SCANNED_CODE_LENGTHS.has(trimmed.length)
+  return ACCESS_KEY_PATTERN.test(trimmed)
+}
+
 /**
  * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
  * cm, e obrigar o conferente a multiplicar por dez de cabeça, de pé, a cada caixa, é onde nasce o
@@ -129,9 +146,21 @@ export function PackageBoxMeasurementPanel({
    * outra mão. Quem chegou digitando fica na busca — ali ele está procurando, não varrendo.
    */
   const [cameFromScan, setCameFromScan] = useState(false)
+  /**
+   * ⚠️ Equivalente ao `cameFromScan` da câmera, mas para a pistola física (USB/Bluetooth que
+   * "digita" o código e manda Enter): quem bipou pela pistola volta o foco ao campo de busca ao
+   * gravar, não abre a câmera — o ciclo de pilha de caixas é o mesmo, o retorno é outro.
+   */
+  const [cameFromKeyboardScan, setCameFromKeyboardScan] = useState(false)
   const [scanFeedback, setScanFeedback] = useState<BarcodeScannerFeedback | undefined>(undefined)
   /** `true` do bipe até a fila responder — é o sinal que diz quando avaliar achou/não achou. */
   const [awaitingScan, setAwaitingScan] = useState(false)
+  /**
+   * ⚠️ Ref, não estado: só decide o destino de `openMeasurementForScannedBox` (câmera ou pistola),
+   * nunca dispara render sozinho — o `awaitingScan` já cuida disso.
+   */
+  const scanOriginRef = useRef<'camera' | 'keyboard'>('camera')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   /**
    * ⚠️ Mais de uma caixa achada nunca escolhe sozinha (o GTIN ainda não é gravado nas caixas — só
    * chave de acesso e código de produto casam hoje, e o segundo é ambíguo entre emitentes). A lista
@@ -153,7 +182,11 @@ export function PackageBoxMeasurementPanel({
   function openMeasurementForScannedBox(id: string): void {
     setScanFeedback({ kind: 'found', message: t('packageBoxes.scanner.found') })
     setEditingId(id)
-    setCameFromScan(true)
+    if (scanOriginRef.current === 'keyboard') {
+      setCameFromKeyboardScan(true)
+    } else {
+      setCameFromScan(true)
+    }
     closeScanTimer.current = window.setTimeout(() => {
       setIsScannerOpen(false)
       setScanFeedback(undefined)
@@ -201,6 +234,7 @@ export function PackageBoxMeasurementPanel({
         setCandidates(null)
       }}
       onRead={(text) => {
+        scanOriginRef.current = 'camera'
         setScanFeedback(undefined)
         setAwaitingScan(true)
         onScan(text)
@@ -251,8 +285,22 @@ export function PackageBoxMeasurementPanel({
             inputMode="search"
             onChange={(event) => {
               setCameFromScan(false)
+              setCameFromKeyboardScan(false)
               onSearchChange(event.target.value)
             }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              const value = event.currentTarget.value
+              /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
+              if (!looksLikeScannedCode(value)) return
+              event.preventDefault()
+              scanOriginRef.current = 'keyboard'
+              setScanFeedback(undefined)
+              setAwaitingScan(true)
+              onScan(value)
+            }}
+            placeholder={t('packageBoxes.searchPlaceholder')}
+            ref={searchInputRef}
             type="search"
             value={search}
           />
@@ -290,6 +338,10 @@ export function PackageBoxMeasurementPanel({
                 onMeasure({ ...measurement, id: box.id })
                 setEditingId(null)
                 if (cameFromScan) setIsScannerOpen(true)
+                if (cameFromKeyboardScan) {
+                  setCameFromKeyboardScan(false)
+                  searchInputRef.current?.focus()
+                }
               }}
               onOpen={() => setEditingId(box.id)}
               saving={saving}

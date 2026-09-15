@@ -332,6 +332,7 @@
     "title": "Boxes to measure",
     "description": "Measure the product's cardboard box. The queue is ordered by what ships the most.",
     "searchLabel": "Search by product or code",
+    "searchPlaceholder": "Search or scan the label",
     "scan": "Scan label",
     "empty": "No boxes for this search.",
     "denied": "You do not have permission to measure boxes.",
