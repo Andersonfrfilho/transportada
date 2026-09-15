@@ -123,7 +123,22 @@ destinatário (CT-e, NFS-e, faturamento, regra de frete, portal do contratante �
 O cursor é `<updated_at>::<issued_at>::<id>` com microssegundos (texto via `to_char`, nunca `Date`,
 que truncaria e pularia nota); o cursor antigo `<iso>::<uuid>` é `400`. ⚠️ Nada atualiza
 `nfe_documents.updated_at` depois do insert (reimportação é `onConflictDoNothing`; status, caixa,
-viagem e CT-e gravam em outras tabelas) — na prática a ordem é a da importação.
+viagem e CT-e gravam em outras tabelas) — na prática a ordem é a da importação. Evento fiscal que
+muda status `authorized → cancelled` ou `unsigned → denied` **atualiza `updated_at` e sobe a nota ao
+topo** (spec 149 D10), via `applyStatusChange` no worker sob lock por `(company_id, access_key)`.
+
+**Endpoint `GET /v1/nfe-documents/:id/events` (spec 149 D19):** permissão `invoices.read`, retorna
+cursorpage de eventos e mudanças de status (`{ data: [...], pagination: { nextCursor } }`). Origem
+(`manual`/`automatic`), ator/solicitante e snapshot gravados. Acesso entre empresas (nota de outra
+empresa) retorna **404**. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida"
+e "status anterior não registrado". Ator sem membership ativa na empresa devolve `{ removed: true }`
+sem id/nome. Nome e texto de CC-e nunca em log. Índice `(company_id, document_id, changed_at desc,
+id desc)` suporta paginação eficiente.
+
+**CHECK `nfe_documents_authorization_protocol_presence_check`** (migration H1b, spec 149 D4): exige
+protocolo só da nota `authorized` (`("status" <> 'authorized') or ("authorization_protocol" is not null)`),
+permitindo `unsigned`/`cancelled`/`denied` sem protocolo — para a nota `unsigned` poder ser cancelada
+ou denegada no mesmo insert (evento que chega antes da nota).
 
 ⚠️ Telefone (`nfe_addresses.phone`) e e-mail (`nfe_participants`, tabela **diferente** — telefone é do
 endereço, e-mail é da parte) do destinatário existem para a viagem ligar antes de sair; servidor

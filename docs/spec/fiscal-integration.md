@@ -95,6 +95,43 @@ contra órgão público, e ligá-la por padrão decide pelo cliente algo que cus
 Manifesto não encerrado é pendência na SEFAZ e trava o próximo — dívida conhecida, registrada aqui e
 no `evidence.md` da 059.
 
+## Eventos que mudam a situação da NF-e (spec 149)
+
+Uma NF-e importada nasce com status `authorized` ou `unsigned` e fica nesse estado até um evento fiscal da SEFAZ (ou o resumo da distribuição) mudar seu status. A mudança é atômica, registrada com lock por chave (`company_id, access_key`) para evitar corridas de nota e evento inseridos em paralelo.
+
+**Eventos que mudam o status:**
+
+- `tpEvento 110111` (cancelamento) ou `110112` (cancelamento por substituição), com `cStat 135` (registrado e vinculado) | `136` (registrado sem vínculo) | `155` (cancelamento homologado fora de prazo): mudam para `cancelled`.
+- `cSitNFe 2` do resumo `resNFe` da distribuição: muda para `cancelled` (válido de `authorized` ou `unsigned`).
+- `cSitNFe 3` do resumo: muda para `denied` (válido só de `unsigned`; `authorized → denied` é impossível).
+
+**Eventos sem efeito:**
+
+- `tpEvento 110110` (Carta de Correção): registrado mas não muda a nota.
+- `tpEvento 210200`+ (Manifestação do destinatário): registrado mas não muda a nota.
+- Cancelamento com `cStat` fora de `{135, 136, 155}` ou sem `cStat`: registrado, gera `warn nfe_event_status_not_applied`, não muda a nota.
+- Resumo com `cSitNFe 1`: não muda a nota.
+
+**Máquina de estados:**
+
+- `authorized` → `cancelled` | `unsigned` → `cancelled` | `unsigned` → `denied`.
+- `cancelled` e `denied` são **terminais** — nenhum caminho tira uma nota desses estados.
+
+**Histórico e rastreabilidade:**
+
+- Cada mudança de status é gravada em `nfe_document_status_changes` com `changed_at`, origem (`manual`|`automatic`), ator (quem solicitou), snapshot (`status_before`, `status_after`), e protocolo do registro.
+- Eventos que não mudam status (CC-e, manifestação) também são gravados com snapshot identidade (`status_before = status_after`).
+- Evento que chega antes da nota deixa-a inserida já no status alvo (ex.: nota nasce `cancelled` se havia cancelamento pendente).
+- CC-e não toca `updated_at` da nota — só eventos de cancelamento e resumo com situação 2/3 movem a nota ao topo da listagem.
+- Eventos antigos (sem origem/ator/snapshot) aparecem com "origem desconhecida" e "status anterior não registrado" — snapshots não são recalculados.
+
+**Endpoint de consulta:**
+
+- `GET /v1/nfe-documents/:id/events` (permissão `invoices.read`): retorna histórico ordenado por `registered_at desc, id desc`, paginado por cursor `(registered_at, id)`.
+- Resposta inclui tipo de evento (código), sequência, timestamps (`occurredAt`, `registeredAt`), protocolo, `cStat`, status anterior/novo, origem, ator (com nome resolvido por membership), texto de CC-e.
+- Acesso entre empresas retorna 404.
+- Nunca expõe XML, chave de objeto no storage, ou PII de ator removido (devolve `{ removed: true }`).
+
 ## Riscos a esclarecer
 
 - cobertura real de UFs e contingência CT-e;

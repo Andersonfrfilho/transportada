@@ -1522,3 +1522,7 @@ Rotas sob `trip.manage`, todo request trava se viagem despachada:
 - `POST /trip-document-reviews/:id/swap {outTripDocumentId, validatedLayoutId}` — troca de lugar, a nota que sai volta à fila como `pending` em `swapped_out`.
 
 Trilha em `audit_logs`: ator, nota, viagem de origem e destino. `CARGO_LAYOUT_POLICY_VERSION` '6'.
+
+## Histórico fiscal de cada nota (spec 149, D13–D20)
+
+`GET /v1/nfe-documents/:id/events` (permissão `invoices.read`): retorna cursorpage `{ data: [...], pagination: { nextCursor } }` de eventos e mudanças de status com origem (`manual`|`automatic`), ator/solicitante (id + nome resolvido por membership), snapshot anterior/novo, protocolo, `cStat`, texto da CC-e, timestamps. Acesso 404 entre empresas. Ator removido (sem membership ativa) devolve `{ removed: true }` sem id/nome. Paginado por cursor `(registered_at, id)` com microssegundos, limite padrão 20, teto 100. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida" e "status anterior não registrado" — snapshots nunca são recalculados. Detalhe: spec 149 (D13–D20), `h1-parecer-architect.md` (§3 índice, §9 ator removido).
