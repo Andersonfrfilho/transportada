@@ -25,6 +25,7 @@ import type {
 } from '../../src/contractor-mail/infrastructure/mx-lookup.gateway'
 import {
   ResendProviderUnauthorizedError,
+  ResendProviderUnexpectedResponseError,
   ResendProviderUnreachableError,
 } from '../../src/contractor-mail/domain/resend-provider.error'
 import type {
@@ -527,6 +528,54 @@ describe('contractor mail sending verification (spec 150 T401, RF16)', () => {
     expect(recordSendingVerificationCalls).toEqual([
       { companyId: COMPANY_ID, expectedVersion: 1n, isSendingVerified: false },
     ])
+  })
+
+  /**
+   * Spec 150, rodada de correção da Fase 4: falha transitória (rede, timeout, resposta inesperada)
+   * nunca é prova de que o Resend recusou a chave — gravar `null` aqui apagaria uma verificação
+   * válida por causa de um blip de rede. O valor gravado antes precisa sobreviver.
+   */
+  test('an unreachable provider leaves the verification untouched', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+      resendError: new ResendProviderUnreachableError(new Error('ECONNRESET')),
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([])
+  })
+
+  test('an unexpected response from the provider leaves the verification untouched', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+      resendError: new ResendProviderUnexpectedResponseError(),
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([])
+  })
+
+  test('a local credential failure (our own vault, not a Resend decision) leaves the verification untouched', async () => {
+    const brokenSecretService = createContractorMailCredentialSecretService({
+      envelopeProvider: {
+        async decrypt() {
+          throw new Error('key not found in ring')
+        },
+        async encrypt() {
+          throw new Error('encrypt should not run in this test')
+        },
+      },
+    })
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+      secretService: brokenSecretService,
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([])
   })
 
   test('an unconfigured company records nothing', async () => {

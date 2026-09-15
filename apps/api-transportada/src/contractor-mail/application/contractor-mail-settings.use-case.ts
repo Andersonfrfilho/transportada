@@ -160,12 +160,17 @@ export function createContractorMailSettingsUseCase(dependencies: {
         mxLookupGateway.lookupMx({ domain: settings.replyDomain }),
         repository.findSetupTestStatus({ companyId: context.companyId }),
       ])
-      await repository.recordSendingVerification({
-        companyId: context.companyId,
-        expectedVersion: settings.version,
-        isSendingVerified:
-          providerChecks.apiKey.status === 'ok' && providerChecks.senderDomain.status === 'ok',
-      })
+      // Spec 150, rodada de correção da Fase 4: falha transitória (rede, timeout, resposta fora do
+      // esperado, cofre local indisponível) nunca é prova de que o Resend recusou a chave — gravar
+      // `null` aqui apagaria uma verificação válida por causa de um blip. Só uma decisão definitiva
+      // do provedor (chave recusada, domínio não encontrado/não verificado) grava algo.
+      if (providerChecks.sendingVerificationOutcome !== 'transient') {
+        await repository.recordSendingVerification({
+          companyId: context.companyId,
+          expectedVersion: settings.version,
+          isSendingVerified: providerChecks.sendingVerificationOutcome === 'verified',
+        })
+      }
 
       return [
         providerChecks.apiKey,
@@ -402,6 +407,14 @@ function toSummary(record: ContractorMailSettingsRecord): ContractorMailSettings
  * keyring local. Por isso os dois `try` são separados: o de decriptar nunca chega a chamar o
  * gateway.
  */
+/**
+ * Spec 150, rodada de correção da Fase 4: `verified` e `rejected` são as duas decisões que o Resend
+ * de fato tomou (chave aceita + domínio verificado, ou chave/domínio recusados); `transient` cobre
+ * tudo que não é uma decisão — rede indisponível, resposta fora do esperado, ou o cofre local não
+ * abrindo — e que por isso não pode apagar uma verificação anterior.
+ */
+type ContractorMailSendingVerificationOutcome = 'rejected' | 'transient' | 'verified'
+
 async function checkProvider(input: {
   readonly resendAccountGateway: ResendAccountGateway
   readonly secretService: ContractorMailCredentialSecretService
@@ -409,6 +422,7 @@ async function checkProvider(input: {
 }): Promise<{
   readonly apiKey: ContractorMailCheckItem
   readonly senderDomain: ContractorMailCheckItem
+  readonly sendingVerificationOutcome: ContractorMailSendingVerificationOutcome
 }> {
   let secret: ContractorMailCredentialSecret
   try {
@@ -425,6 +439,7 @@ async function checkProvider(input: {
     return {
       apiKey: { key: 'api_key', reason, status: 'failed' },
       senderDomain: { key: 'sender_domain', reason, status: 'failed' },
+      sendingVerificationOutcome: 'transient',
     }
   }
 
@@ -440,12 +455,15 @@ async function checkProvider(input: {
         reason: result.reason,
         status: result.senderDomainVerified ? 'ok' : 'pending',
       },
+      sendingVerificationOutcome: result.senderDomainVerified ? 'verified' : 'rejected',
     }
   } catch (error) {
     const reason = mapProviderErrorReason(error)
     return {
       apiKey: { key: 'api_key', reason, status: 'failed' },
       senderDomain: { key: 'sender_domain', reason, status: 'failed' },
+      sendingVerificationOutcome:
+        error instanceof ResendProviderUnauthorizedError ? 'rejected' : 'transient',
     }
   }
 }
