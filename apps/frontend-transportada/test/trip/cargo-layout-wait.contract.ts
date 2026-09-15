@@ -78,6 +78,17 @@ const LAYERS = 'src/modules/trip/components/TripCargoLayers.component.tsx'
 const WAIT = 'src/modules/trip/components/TripCargoLayoutWait.component.tsx'
 const TRANSITION_HOOK = 'src/modules/trip/hooks/useCargoLayoutTransition.hook.ts'
 
+describe('a planta que falhou diz o código do erro', () => {
+  const wait = withoutComments(readApplicationFile(WAIT))
+
+  it('mostra o errorCode fora da espera, com texto traduzido nas duas línguas', () => {
+    expect(wait).toContain("t('cargoLayers.wait.errorCode', { code: view.errorCode })")
+    expect(wait).toMatch(/!isPending && view\.errorCode !== null/u)
+    expect(trip.cargoLayers.wait.errorCode).toContain('{{code}}')
+    expect(tripEnglish.cargoLayers.wait.errorCode).toContain('{{code}}')
+  })
+})
+
 describe('a tela durante a espera da planta (spec 145 T13, D4/D13/D16/D18)', () => {
   const layers = readApplicationFile(LAYERS)
   const wait = readApplicationFile(WAIT)

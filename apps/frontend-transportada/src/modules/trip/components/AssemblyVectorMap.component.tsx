@@ -26,6 +26,7 @@ import {
   type BasemapTheme,
 } from '@/modules/shared/vectorBasemap.service'
 import { ICON_PATHS } from '@/components/ui/icon'
+import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
@@ -188,8 +189,11 @@ export function AssemblyVectorMap({
         return
       }
       map.setPaintProperty(ROUTE_LAYER, 'line-dasharray', [...route.dashArray])
-    } catch {
-      /** Estilo em troca: o `styledata` seguinte reaplica. */
+    } catch (error) {
+      /** Estilo em troca: o `styledata` seguinte reaplica. Fora de produção a recusa aparece no console. */
+      if (getDeploymentEnvironment() !== 'production') {
+        console.warn('[route-layer]', error instanceof Error ? error.message : error)
+      }
     }
   }, [])
   const [chosenTheme, setChosenTheme] = useState<BasemapTheme | null>(readStoredTheme)
