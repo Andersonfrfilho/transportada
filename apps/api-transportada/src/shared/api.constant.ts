@@ -48,6 +48,8 @@ export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federa
 export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
+/** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
+export const API_COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'

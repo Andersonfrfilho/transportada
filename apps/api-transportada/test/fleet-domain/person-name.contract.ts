@@ -95,6 +95,8 @@ const EMPTY_ADDRESS = {
 } as const
 
 const DRIVER_INPUT: FleetDriverInput = {
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   address: EMPTY_ADDRESS,
   linkedAddress: EMPTY_ADDRESS,

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
+import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
 import { AuthorizationService } from '../src/identity/application/authorization.service'
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
@@ -68,6 +69,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
   const routes = [
     ...createTripRoutes(dependencies),
     ...createFleetRoutes(dependencies),
+    ...createCompanyCrewSettingsRoutes(dependencies),
     ...createBillingRoutes(dependencies),
     ...createCteIssuanceRoutes(dependencies),
     ...createNfeDocumentRoutes(dependencies),
@@ -114,6 +116,12 @@ describe('separator role contract', () => {
       'DELETE /trips/:id/costs/:entryId',
       'DELETE /trips/:id/documents/:documentId',
       'DELETE /trips/:id/revenues/:entryId',
+      /**
+       * Spec 149: a diária geral do ajudante entra na conta que o separador já monta ao escolher a
+       * tripulação da viagem — mesma razão do vínculo motorista↔veículo logo abaixo. Ele lê o
+       * parâmetro, nunca o edita (`PUT` continua `fleet.manage`, fora desta lista).
+       */
+      'GET /company-crew-settings',
       'GET /fleet/capabilities',
       // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
       // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega
@@ -361,6 +369,7 @@ describe('separator role contract', () => {
       'PATCH /fleet/drivers/:id',
       'PUT /fleet/drivers/:id/vehicles',
       'GET /fleet/drivers/availability',
+      'PUT /company-crew-settings',
       'GET /billing/eligible-ctes',
       'GET /billing/invoices',
       'POST /billing/invoices',

@@ -46,6 +46,9 @@ function buildSeed(params: SeedParams): LocalFleetDriverSeed {
         street: params.street,
       },
       anttCategory: params.anttCategory ?? '',
+      /** Spec 149: a base de bancada nasce sem ninguém marcado como ajudante nem diária própria. */
+      canActAsHelper: false,
+      helperDailyRate: null,
       /** Spec 100: quem amarra declara; a base de bancada nasce com ninguém amarrando. */
       securesCargo: false,
       birthCity: '',

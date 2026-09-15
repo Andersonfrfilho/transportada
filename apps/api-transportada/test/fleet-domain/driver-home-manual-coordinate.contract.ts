@@ -16,6 +16,8 @@ const BASE = {
     street: 'Avenida Independência',
   },
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   birthCity: '',
   birthDate: null,

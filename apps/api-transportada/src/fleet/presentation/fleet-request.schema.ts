@@ -192,6 +192,16 @@ const driverFieldsSchema = z.object({
   address: driverAddressSchema,
   anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
   /**
+   * Spec 149 D1: ajudante é papel na tripulação, marcado no cadastro — a mesma pessoa pode dirigir
+   * numa viagem e ajudar em outra. `default(false)`: ausência é "não pode", nunca suposição.
+   */
+  canActAsHelper: z.boolean().default(false),
+  /**
+   * Spec 149 D2: a diária própria vence a geral (`company_crew_settings`) quando existe. Nulo é
+   * "sem valor próprio", nunca zero — negativo não casa `MONEY_DECIMAL` e vira 400 na fronteira.
+   */
+  helperDailyRate: z.string().regex(MONEY_DECIMAL).nullable(),
+  /**
    * Spec 100: o motorista amarra a carga com cinta. ⚠️ `default(false)` e não opcional na leitura:
    * ausência é **não amarra**, e supor cinta desenharia pilha alta para quem não amarra.
    */

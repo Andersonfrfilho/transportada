@@ -128,6 +128,84 @@ describe('fleet drivers http contract', () => {
     ])
   })
 
+  // Spec 149 D1/D2: pode atuar como ajudante, e a diária própria vence a geral quando existe
+  test('carries the helper fields on create and update', async () => {
+    const createFixture = await createFleetHttpFixture()
+    const createResponse = await createFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, canActAsHelper: true, helperDailyRate: '150.0000' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(createResponse.status).toBe(201)
+    expect(createFixture.createDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: { ...DRIVER_FIELDS, canActAsHelper: true, helperDailyRate: '150.0000' },
+        profile: CREATE_DRIVER_BODY.profile,
+      },
+    ])
+
+    const updateFixture = await createFleetHttpFixture()
+    const updateResponse = await updateFixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_DRIVER_BODY, canActAsHelper: true, helperDailyRate: null },
+        method: 'PATCH',
+        path: DRIVER_PATH,
+      }),
+    )
+
+    expect(updateResponse.status).toBe(200)
+    expect(updateFixture.updateDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: {
+          ...DRIVER_FIELDS,
+          canActAsHelper: true,
+          helperDailyRate: null,
+          membershipId: MEMBERSHIP_ID,
+        },
+        driverId: DRIVER_ID,
+        expectedVersion: '1',
+        status: 'active',
+      },
+    ])
+  })
+
+  // Negativo não casa a forma de `MONEY_DECIMAL`: 400 na fronteira, nunca no CHECK do banco
+  test('rejects a negative or malformed helper daily rate, naming the field', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const negativeResponse = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, helperDailyRate: '-1.0000' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+    const malformedResponse = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, helperDailyRate: '150' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(negativeResponse.status).toBe(400)
+    expect(
+      (await responseApiError(negativeResponse)).details?.map((detail) => detail.field),
+    ).toContain('helperDailyRate')
+    expect(malformedResponse.status).toBe(400)
+    expect(
+      (await responseApiError(malformedResponse)).details?.map((detail) => detail.field),
+    ).toContain('helperDailyRate')
+    expect(fixture.createDriverCalls).toEqual([])
+  })
+
   test('rejects a linked tax id that is not a plain fourteen digit cnpj', async () => {
     const fixture = await createFleetHttpFixture()
 

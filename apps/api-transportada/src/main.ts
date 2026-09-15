@@ -338,6 +338,12 @@ import { createVehicleReferenceRoutes } from './fleet/presentation/vehicle-refer
 import { DrizzleVehicleReferenceRepository } from './fleet/infrastructure/drizzle-vehicle-reference.repository'
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
+import {
+  createGetCrewSettingsUseCase,
+  createSetCrewSettingsUseCase,
+} from './fleet/application/crew-settings.use-case'
+import { DrizzleCrewSettingsRepository } from './fleet/infrastructure/drizzle-crew-settings.repository'
+import { createCompanyCrewSettingsRoutes } from './fleet/presentation/crew-settings.routes'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
 import { createReadAddressReportUseCase } from './addresses/application/read-address-report.use-case.js'
 import { createDrizzleAddressReportRepository } from './addresses/infrastructure/drizzle-address-report.repository.js'
@@ -1988,6 +1994,7 @@ function createApplicationRoutes({
   })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
   const driverScoreRepository = new DrizzleDriverScoreRepository(database)
+  const crewSettingsRepository = new DrizzleCrewSettingsRepository(database)
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
@@ -2937,6 +2944,10 @@ function createApplicationRoutes({
       updateDriver: { execute: (input) => fleetDrivers.update(input) },
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
+    }),
+    ...createCompanyCrewSettingsRoutes({
+      get: createGetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
+      set: createSetCrewSettingsUseCase({ crewSettings: crewSettingsRepository }),
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createVehicleReferenceRoutes({
