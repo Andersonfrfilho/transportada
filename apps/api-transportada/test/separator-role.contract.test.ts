@@ -97,6 +97,11 @@ describe('separator role contract', () => {
       'GET /nfe-documents',
       'GET /nfe-documents/:id',
       'GET /nfe-documents/:id/eligibility',
+      /**
+       * Spec 149 H3: a mesma `invoices.read` que já dá a nota inteira e o XML — a linha do tempo
+       * fiscal (cancelamento, CC-e, resumo) não é dado novo para quem já lê os dois.
+       */
+      'GET /nfe-documents/:id/events',
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
       /**

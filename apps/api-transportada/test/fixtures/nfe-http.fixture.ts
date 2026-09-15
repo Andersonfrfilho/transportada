@@ -19,6 +19,7 @@ import {
   SCHEDULED_DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
   DOCUMENT_ELIGIBILITY,
+  DOCUMENT_EVENT,
   DOCUMENT_SUMMARY,
   DOCUMENT_XML,
   IMPORT_DETAIL,
@@ -32,10 +33,12 @@ import type {
   GetDistributionStatusCall,
   GetDocumentCall,
   GetImportCall,
+  ListDocumentEventsCall,
   ListDocumentsCall,
   ListImportsCall,
   NfeDocumentEligibility,
   NfeDocumentDetail,
+  NfeDocumentEventEntry,
   NfeDocumentSummary,
   NfeHttpRouteDependencies,
   ReprocessImportCall,
@@ -61,6 +64,10 @@ type CreateFixtureParams = {
   readonly eligibilityResult?: NfeDocumentEligibility
   readonly distributionStatus?: NfeDistributionStatus
   readonly lastJobRun?: JobRunSnapshot | null
+  readonly documentEvents?: {
+    readonly items: readonly NfeDocumentEventEntry[]
+    readonly nextCursor: string | null
+  }
   readonly downloadError?: Error
   readonly downloadResult?: DownloadDocumentXmlResult
   readonly getDistributionStatusError?: Error
@@ -71,6 +78,7 @@ type CreateFixtureParams = {
     readonly items: readonly NfeImportSummary[]
     readonly nextCursor: string | null
   }
+  readonly listDocumentEventsError?: Error
   readonly listDocumentsError?: Error
   readonly listImportsError?: Error
   readonly permissions?: CompanyContext['permissions']
@@ -84,6 +92,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   readonly documentDownloadCalls: DownloadDocumentXmlCall[]
   readonly documentGetCalls: GetDocumentCall[]
   readonly documentEligibilityCalls: GetDocumentCall[]
+  readonly documentEventCalls: ListDocumentEventsCall[]
   readonly documentListCalls: ListDocumentsCall[]
   readonly events: string[]
   readonly distributionStatusCalls: GetDistributionStatusCall[]
@@ -98,6 +107,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   const documentDownloadCalls: DownloadDocumentXmlCall[] = []
   const documentGetCalls: GetDocumentCall[] = []
   const documentEligibilityCalls: GetDocumentCall[] = []
+  const documentEventCalls: ListDocumentEventsCall[] = []
   const documentListCalls: ListDocumentsCall[] = []
   const distributionStatusCalls: GetDistributionStatusCall[] = []
   const events: string[] = []
@@ -157,6 +167,18 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
     getScheduledDistribution: {
       async execute() {
         return params.scheduledDistributionStatus ?? SCHEDULED_DISTRIBUTION_STATUS
+      },
+    },
+    listDocumentEvents: {
+      async execute(input) {
+        documentEventCalls.push(structuredClone(input))
+        if (params.listDocumentEventsError) throw params.listDocumentEventsError
+        return (
+          params.documentEvents ?? {
+            items: [DOCUMENT_EVENT],
+            nextCursor: null,
+          }
+        )
       },
     },
     listDocuments: {
@@ -251,6 +273,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   return {
     documentDownloadCalls,
     documentEligibilityCalls,
+    documentEventCalls,
     documentGetCalls,
     documentListCalls,
     distributionStatusCalls,

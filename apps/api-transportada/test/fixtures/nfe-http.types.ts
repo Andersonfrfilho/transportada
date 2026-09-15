@@ -97,6 +97,35 @@ export type NfeDocumentSummary = {
 
 export type NfeDocumentDetail = NfeDocumentSummary
 
+export type NfeDocumentEventActor = {
+  readonly id: string
+  readonly name: string
+}
+
+export type NfeDocumentEventEntry = {
+  readonly correctionText: string | null
+  readonly eventType: string | null
+  readonly id: string
+  readonly kind: 'event' | 'statusChange'
+  readonly occurredAt: string | null
+  readonly origin: 'automatic' | 'manual' | 'unknown'
+  readonly actor: NfeDocumentEventActor | null
+  readonly protocol: string | null
+  readonly registeredAt: string
+  readonly requestedBy: NfeDocumentEventActor | null
+  readonly sequence: string | null
+  readonly statusAfter: 'authorized' | 'cancelled' | 'denied' | 'unsigned' | null
+  readonly statusBefore: 'authorized' | 'cancelled' | 'denied' | 'unsigned' | null
+  readonly statusCode: string | null
+}
+
+export type ListDocumentEventsCall = {
+  readonly context: CompanyContext
+  readonly cursor: string | null
+  readonly documentId: string
+  readonly limit: number
+}
+
 export type ListDocumentsCall = {
   readonly accessKey: string | null
   readonly context: CompanyContext
@@ -149,6 +178,12 @@ export type NfeHttpRouteDependencies = {
   }
   readonly getScheduledDistribution: {
     execute(input: { readonly companyId: string }): Promise<ScheduledDistributionStatus>
+  }
+  readonly listDocumentEvents: {
+    execute(input: ListDocumentEventsCall): Promise<{
+      readonly items: readonly NfeDocumentEventEntry[]
+      readonly nextCursor: string | null
+    }>
   }
   readonly listDocuments: {
     execute(input: ListDocumentsCall): Promise<{

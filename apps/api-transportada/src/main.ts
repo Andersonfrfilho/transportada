@@ -490,6 +490,8 @@ import { DrizzleNfeDistributionStatusRepository } from './nfe-imports/infrastruc
 import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle-nfe-import.repository'
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
+import { DrizzleNfeDocumentEventRepository } from './nfe-documents/infrastructure/drizzle-nfe-document-event.repository'
+import { createListNfeDocumentEvents } from './nfe-documents/application/list-nfe-document-events.use-case'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
@@ -1505,6 +1507,9 @@ function createApplicationRoutes({
   })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
+  const listNfeDocumentEvents = createListNfeDocumentEvents({
+    repository: new DrizzleNfeDocumentEventRepository(database),
+  })
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
@@ -2842,6 +2847,7 @@ function createApplicationRoutes({
       downloadDocumentXml: { execute: (input) => nfeDocumentRepository.downloadXml(input) },
       getDocument: { execute: (input) => nfeDocumentRepository.get(input) },
       getEligibility: { execute: (input) => nfeDocumentRepository.getEligibility(input) },
+      listDocumentEvents: { execute: (input) => listNfeDocumentEvents.execute(input) },
       listDocuments: { execute: (input) => nfeDocumentRepository.list(input) },
       locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
     }),

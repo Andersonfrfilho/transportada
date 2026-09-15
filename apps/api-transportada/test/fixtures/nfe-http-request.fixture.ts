@@ -142,6 +142,18 @@ export function documentXmlRequest(
   )
 }
 
+export function documentEventsRequest(
+  documentId = DOCUMENT_ID,
+  options: RequestOptions = {},
+): Request {
+  return new Request(
+    `http://localhost${NFE_DOCUMENTS_PATH}/${documentId}/events${options.query ?? ''}`,
+    {
+      headers: baseHeaders(options),
+    },
+  )
+}
+
 export function documentEligibilityRequest(
   documentId = DOCUMENT_ID,
   options: RequestOptions = {},

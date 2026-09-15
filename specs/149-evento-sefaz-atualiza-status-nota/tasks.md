@@ -27,7 +27,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
 
 > 🤖 Modelo: `opus` 🧠
 
-- [ ] T1 🧠 — Conferir no pacote instalado (`@adatechnology/fiscal-provider@0.3.0-rc.7`, `dist/` e fixtures
+- [x] T1 🧠 — Conferir no pacote instalado (`@adatechnology/fiscal-provider@0.3.0-rc.7`, `dist/` e fixtures
       do próprio pacote) que `importarNfeXml` sobre `procEventoNFe` preenche `event.type` com o `tpEvento`
       (`110111`, `110112`, `110110`…) e `event.statusCode` com o `cStat` do `retEvento`, e que o `DfeItem` do
       `resNFe` traz `situacao`. Registrar em `evidence.md` os valores reais de um XML de cancelamento e de uma
@@ -56,7 +56,7 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
       `writeEventWithStatus`, gravar `correctionText` só em `110110`, cortado em 1000 caracteres;
       (3) inverter o teste de lacuna da T1 (`nfe-event-fields.contract.ts`); (4) integração: a CC-e
       grava o texto e o texto não aparece em nenhum log.
-- [ ] H3 — API `GET /v1/nfe-documents/:id/events` (D19): contrato de rota vermelho antes para H9, H10,
+- [x] H3 — API `GET /v1/nfe-documents/:id/events` (D19): contrato de rota vermelho antes para H9, H10,
       H12, H13 (404 entre empresas; "usuário removido" com `actor: null`) e H14 (cursor, `limit` teto 100,
       400 no excesso), e para a **ausência** de `xmlObjectId`/chave de storage/XML na resposta. Depois
       use case, repositório, schema Zod e rota com `nfe.read`; OpenAPI gerado inclui a rota (teste de

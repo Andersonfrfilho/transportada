@@ -10,7 +10,7 @@ import {
   QUEUED_IMPORT,
   SECOND_IMPORT_ITEM,
 } from './nfe-import-application.fixture'
-import type { NfeDocumentDetail, NfeDocumentSummary } from './nfe-http.types'
+import type { NfeDocumentDetail, NfeDocumentEventEntry, NfeDocumentSummary } from './nfe-http.types'
 import type {
   NfeDistributionStatus,
   NfeImportDetail,
@@ -114,6 +114,23 @@ export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
 }
 
 export const DOCUMENT_DETAIL: NfeDocumentDetail = DOCUMENT_SUMMARY
+
+export const DOCUMENT_EVENT: NfeDocumentEventEntry = {
+  actor: { id: '00000000-0000-4000-8000-000000000901', name: 'Fiscal Teste' },
+  correctionText: null,
+  eventType: '110111',
+  id: '00000000-0000-4000-8000-000000000801',
+  kind: 'event',
+  occurredAt: '2026-07-22T13:59:00.000000Z',
+  origin: 'manual',
+  protocol: '135260000000002',
+  registeredAt: '2026-07-22T14:00:00.000000Z',
+  requestedBy: null,
+  sequence: '1',
+  statusAfter: 'cancelled',
+  statusBefore: 'authorized',
+  statusCode: '135',
+}
 export const DOCUMENT_ELIGIBILITY = {
   authorizedDocument: true,
   companyRelated: true,

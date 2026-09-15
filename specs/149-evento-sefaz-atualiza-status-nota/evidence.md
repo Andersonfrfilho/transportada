@@ -498,3 +498,110 @@ Paulo"`) sem alteração;
   pacote — a mudança é aditiva e não regride o caso numérico, mas não foi exercitada aqui.
 - A tela (H4) que exibe o texto da CC-e pode passar a mostrar o `correctionText` de verdade, em vez
   de "Carta de correção" genérico — decisão da H4, fora do escopo desta task.
+
+## H3 — `GET /v1/nfe-documents/:id/events` · 2026-09-15
+
+Seguiu o `h1-parecer-architect.md` §3 e §9 (cobertura de índice e a ausência de FK no ator) e o D19
+do `spec.md`. T1 marcada `[x]` no `tasks.md` nesta task — a D18 ficou resolvida na H2' (pacote
+`0.3.1`), e a T1 já estava com os dois gates fechados desde 2026-09-14; só faltava o checkbox.
+
+### O que foi criado
+
+- `src/nfe-documents/application/nfe-document-event.port.ts`: `NfeDocumentEventEntry`,
+  `NfeDocumentEventActor`, `NfeDocumentEventPage`, `NfeDocumentEventRepositoryPort`.
+- `src/nfe-documents/application/list-nfe-document-events.use-case.ts`: camada fina, delega ao
+  repositório (a nota de outra empresa e a resolução de nome por membership são dele).
+- `src/nfe-documents/presentation/nfe-document-events.schema.ts`: `parseDocumentEventList` —
+  cursor `<registered_at>::<id>` com microssegundos (mesmo formato de
+  `nfe-documents.schema.ts:parseDocumentListCursor`), `limit` padrão 20, teto 100, `400` fora disso
+  ou com chave de query desconhecida/repetida.
+- `src/nfe-documents/infrastructure/drizzle-nfe-document-event.repository.ts`:
+  `DrizzleNfeDocumentEventRepository.listEvents` — dois ramos (`nfe_events` da chave da nota;
+  `nfe_document_status_changes` do documento com `cause <> 'event'`), cada um com `limit + 1` e o
+  próprio keyset (`(registered_at, id) < (:cursor)`), mesclados em memória por
+  `(registered_at, id)` desc — os `limit + 1` de cada ramo bastam para os `limit + 1` da união
+  (h1-parecer §3), sem precisar de `UNION ALL`, que o resto do repositório de NF-e não usa em lugar
+  nenhum. Nome de ator/solicitante por `left join` em `user_company_memberships` (ativa, mesma
+  empresa) + `identity_user_profiles`, no molde de
+  `contractor-mail/infrastructure/actor-email.repository.ts`.
+- Rota `GET /nfe-documents/:id/events` em `nfe-documents.routes.ts`, dependência `listDocumentEvents`
+  fiada em `main.ts` (`DrizzleNfeDocumentEventRepository` + `createListNfeDocumentEvents`).
+- Fixtures de teste (`nfe-http.types.ts`, `nfe-http.fixture.ts`, `nfe-http-payload.fixture.ts`,
+  `nfe-http-request.fixture.ts`) ganharam o dependente falso e o `documentEventsRequest`.
+
+### Duas decisões que o `spec.md`/`tasks.md` deixam por conta do executor
+
+1. **Permissão.** D19 e a instrução da task dizem "`nfe.read`, a mesma do detalhe". O catálogo
+   (`identity/domain/authorization.policy.ts`) não tem `nfe.read` — a permissão real do detalhe
+   (`GET /nfe-documents/:id`) é `invoices.read`. Usei `invoices.read`, por ser literalmente "a mesma
+   do detalhe"; comentário no código aponta a divergência de nome. Efeito colateral: o `separator`
+   já alcança `invoices.read` (lê nota inteira e XML) e passou a alcançar também o histórico —
+   `test/separator-role.contract.test.ts` (lista exaustiva, exige decisão por escrito) foi atualizado
+   com um comentário justificando: não é dado novo para quem já lê os dois.
+2. **"Usuário removido" (D16, H13).** H13 pede "sem id nem nome" quando o ator não tem membership
+   ativa na empresa — não só ocultar na tela, mas o endpoint não expor o id cru. Implementado como
+   `actor: null` (e `requestedBy: null`) por inteiro nesse caso, nunca `{ id, name: null }`. A string
+   "usuário removido" em si é texto de tela (D20 lista entre os textos do `*.locale.json` do
+   frontend) — fora do escopo desta task (H4).
+3. **OpenAPI.** A task e o D19 pedem "documentado no OpenAPI gerado das rotas" — o repo não tem
+   geração de OpenAPI a partir das rotas em lugar nenhum (`grep -rli openapi` não achou nada em
+   `apps/api-transportada`). Item não aplicável; nada a gerar nem testar por ausência de rota.
+
+### Contrato de rota (vermelho antes)
+
+`test/nfe-documents/document-events.contract.ts` (58 testes no arquivo agregado, incluindo os já
+existentes do módulo): permissão `invoices.read` (403 sem ela); `documentId`/paginação default
+repassados ao caso de uso; serialização sem `xmlObjectId` nem "storage" na resposta; `404` quando o
+repositório recusa (mapeando H13 de tenant); id malformado não casa a rota (`pathParameterFormat`
+padrão do router já filtra por UUID — `404`, nunca chega ao `parse`); cursor com/sem microssegundos,
+com chave extra, ou com id inválido → `400`; `limit` acima de 100, `0`, negativo ou não numérico →
+`400`; query desconhecida ou repetida → `400`.
+
+Antes do código (sem `nfe-document-events.schema.ts`/rota), o import falhava:
+
+```
+error: Cannot find module '../../src/nfe-documents/presentation/nfe-document-events.schema' from
+'.../test/nfe-documents/document-events.contract.ts'
+```
+
+Depois: `bun test ./test/nfe-documents.contract.test.ts` → **58 pass, 0 fail**, 167 `expect()`.
+
+### Integração (`test/integration/nfe-document-events.integration.ts`, Postgres real)
+
+Três casos, banco descartável por teste (mesmo molde de
+`nfe-document-listing-order.integration.ts`): nota com um evento de cancelamento manual (ator com
+membership ativa, nome resolvido), uma entrada `document_insert` (nota nascida cancelada, D5, sem
+ator/solicitante — origem `automatic`) e um evento de CC-e cujo ator perdeu a membership —
+ordenação `registered_at desc` correta entre os dois tipos de entrada, ator da CC-e vem `null`
+(H13), resposta sem `xmlObjectId`/`xml_object_id`/"storage"; isolamento entre empresas (`404` via
+`ApiError`); paginação com `limit=1` não pula nem repete entrada nas três páginas.
+
+Vermelho antes: a suíte referenciava `DrizzleNfeDocumentEventRepository`, inexistente —
+`error: Cannot find module`. Depois:
+`bun --env-file=../../.env.test test ./test/integration/nfe-document-events.integration.ts --timeout 120000`
+→ **3 pass, 0 fail**, 20 `expect()`.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz, API) → exit 0.
+- `bun run --cwd apps/api-transportada test` → **5799 pass, 23 skip, 0 fail**, 172 arquivos. Linhas
+  `(fail)`: 0.
+- `bun --env-file=../../.env.test test ./test/integration/nfe-document-events.integration.ts --timeout 120000`
+  → **3 pass, 0 fail**, 20 `expect()`.
+- `bun --env-file=../../.env.test run test:integration --timeout 120000` (lista completa, 61
+  arquivos) → **301 pass, 4 skip, 2 fail**, 2188 `expect()`. As duas falhas são
+  `cte-archive-gateway.integration.ts` (`ObjectStorageError: Object storage is unavailable`,
+  MinIO do `.env.test`) — arquivo não tocado por esta task, mesmo defeito de ambiente já registrado
+  na T3/H2' para o anexo do agregado. `nfe-document-events.integration.ts` está dentro dos 301 que
+  passaram. Rodou em paralelo com a sessão `../spec149-t4` (T4/worker) sobre o mesmo Postgres do
+  `.env.test`: nenhuma falha teve cara de corrida de banco, então não repeti.
+- Prettier `--check` em todos os arquivos tocados por esta task → limpo, sem `--write`.
+
+### Desvios do plano
+
+1. `plan.md` sugeria `UNION ALL` no SQL; implementado como duas consultas típadas + mescla em
+   memória (justificativa acima) — o resultado é equivalente porque cada ramo já traz `limit + 1`
+   ordenado, e nenhum outro repositório de NF-e usa `UNION ALL` do drizzle nesta base.
+2. Permissão e "usuário removido" — ver seção de decisões acima.
+3. OpenAPI — não aplicável, repositório não tem geração de OpenAPI (ver acima).

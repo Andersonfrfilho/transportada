@@ -9,8 +9,19 @@ import { API_NFE_DOCUMENTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.cons
 import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
 import { parseUuidPathIdentifier } from '../../nfe-imports/presentation/nfe-imports.schema.js'
 import type { TripLocationByAccessKey } from '../../trips/application/find-trip-location-by-access-key.use-case.js'
+import type {
+  NfeDocumentEventActor,
+  NfeDocumentEventEntry,
+} from '../application/nfe-document-event.port.js'
+import { parseDocumentEventList } from './nfe-document-events.schema.js'
 import { parseDocumentList } from './nfe-documents.schema.js'
 
+/**
+ * Spec 149 D19 diz "permissão `nfe.read`, a mesma do detalhe" — o catálogo de permissões
+ * (`identity/domain/authorization.policy.ts`) não tem `nfe.read`; a permissão real do detalhe
+ * (`GET /nfe-documents/:id`, `INVOICES_READ_POLICY` abaixo) é `invoices.read`. É ela que o
+ * histórico usa, por ser literalmente "a mesma do detalhe".
+ */
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
 /**
  * ADR-0043 §3, spec 056 RF-6/P3: o separador bipa a etiqueta e o painel responde onde a nota está.
@@ -74,6 +85,12 @@ type DocumentIdentifierInput = {
   readonly documentId: string
 }
 
+type DocumentEventsInput = {
+  readonly cursor: string | null
+  readonly documentId: string
+  readonly limit: number
+}
+
 type NfeDocumentEligibility = {
   readonly authorizedDocument: boolean
   readonly companyRelated: boolean
@@ -101,6 +118,17 @@ type Dependencies = {
       readonly context: CompanyContext
       readonly documentId: string
     }): Promise<NfeDocumentEligibility>
+  }
+  readonly listDocumentEvents: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly cursor: string | null
+      readonly documentId: string
+      readonly limit: number
+    }): Promise<{
+      readonly items: readonly NfeDocumentEventEntry[]
+      readonly nextCursor: string | null
+    }>
   }
   readonly listDocuments: {
     execute(input: {
@@ -157,6 +185,28 @@ export function createNfeDocumentRoutes(
         documentId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: `${API_NFE_DOCUMENTS_PATH}/:id`,
+      policy: INVOICES_READ_POLICY,
+    }),
+    defineRoute<DocumentEventsInput>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.listDocumentEvents.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: page.items.map(serializeDocumentEvent),
+            page: { nextCursor: page.nextCursor },
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters, request }): DocumentEventsInput => ({
+        documentId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        ...parseDocumentEventList(new URL(request.url)),
+      }),
+      pathname: `${API_NFE_DOCUMENTS_PATH}/:id/events`,
       policy: INVOICES_READ_POLICY,
     }),
     defineRoute<DocumentIdentifierInput>({
@@ -276,6 +326,30 @@ function serializeDocument(document: NfeDocumentSummary): object {
     tripStatus: document.tripStatus,
     variant: document.variant,
   }
+}
+
+/** Nunca `xml_object_id`, chave de storage ou XML (D19) — só o que a linha do tempo mostra. */
+function serializeDocumentEvent(entry: NfeDocumentEventEntry): object {
+  return {
+    actor: serializeEventActor(entry.actor),
+    correctionText: entry.correctionText,
+    eventType: entry.eventType,
+    id: entry.id,
+    kind: entry.kind,
+    occurredAt: entry.occurredAt,
+    origin: entry.origin,
+    protocol: entry.protocol,
+    registeredAt: entry.registeredAt,
+    requestedBy: serializeEventActor(entry.requestedBy),
+    sequence: entry.sequence,
+    statusAfter: entry.statusAfter,
+    statusBefore: entry.statusBefore,
+    statusCode: entry.statusCode,
+  }
+}
+
+function serializeEventActor(actor: NfeDocumentEventActor | null): object | null {
+  return actor === null ? null : { id: actor.id, name: actor.name }
 }
 
 /** A chave de emitente com CNPJ alfanumérico tem letra: guarda só de dígito recusaria o nome real. */
