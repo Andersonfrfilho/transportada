@@ -1081,3 +1081,123 @@ unavailable`, MinIO do `.env.test`, arquivo não tocado por esta revisão) — j
 - `bun run --cwd apps/frontend-transportada build` → sucesso (PWA gerado, 128 entradas de precache).
 - Prettier `--check` em todos os arquivos tocados por esta revisão (API, frontend, CSS, locales,
   docs) → limpo, sem `--write` necessário.
+
+## Revisão final — worker · 2026-09-15
+
+Worktree `spec149-t4` (branch `work/spec149-t4`, alinhada em `work/ordem-notas` `7b8669e7`). Só
+`apps/worker-transportada`, esta spec e `docs/spec/fiscal-integration.md`. Nenhuma migration.
+
+### Commits
+
+| commit     | itens | o quê                                                                                  |
+| ---------- | ----- | -------------------------------------------------------------------------------------- |
+| `2e721640` | 1–3   | CT-e confere todas as notas do item; retransmissão não é barrada; checagem obrigatória |
+| `450ef26f` | 4–5   | só a SEFAZ muda status (D21); protocolo só com 15 dígitos (D22)                        |
+| `890df05b` | 7     | erro de invariante tipado, constantes, `NfeWriteTransaction` fora de `nfe-imports`     |
+
+### Item 1 — CT-e agrupado [ALTO]
+
+- Cópia por valor de `cte_batch_item_documents` em `src/database/cte-issuance-execution.schema.ts`.
+- `DrizzleCteBatchDocumentAuthorizationRepository.isAuthorized`: lê `cte_batch_item_documents`
+  `left join nfe_documents`, os dois por `company_id`; bloqueia se o item não tem nota nenhuma ou se
+  alguma nota não é `authorized` (nota sumida no `left join` também bloqueia).
+- Confirmado na API: `cte-batch-persistence.service.ts` grava uma linha por nota de **todo** item
+  (`per_document` inclusive) desde a migration `20260727133210_cte_batch_item_composition`, que
+  **não** fez backfill — item criado antes dela não tem linha e passa a ser bloqueado (falha fechada,
+  como pedido).
+- Integração nova `test/cte-batch-document-authorization.integration.test.ts` (Postgres, na lista
+  `test:integration`): item de duas notas com uma cancelada → bloqueia; duas autorizadas → segue;
+  item sem linha → bloqueia; item de outra empresa → bloqueia; mais o estado da tentativa (item 2).
+
+### Item 2 — Reenvio [MÉDIO]
+
+- Política pura `src/cte-issuance/domain/cte-retransmission.policy.ts` (`mayHaveReachedSefaz`), dona
+  de `FISCAL_NUMBER_BURNED_CAUSE`: `in_flight` → pode ter chegado; `retry_scheduled` com causa que não
+  seja `fiscal_number_burned:*` → pode ter chegado; `pending`, tentativa inexistente, ou retry depois
+  de número queimado → confere.
+- A checagem foi para **antes** do `recordInFlight`: com ela depois, uma falha da própria checagem
+  deixava a tentativa `in_flight` e o retry pularia a checagem. Assim `in_flight` significa "o gateway
+  pode ter sido chamado".
+- Retransmissão pula a checagem com `info cte_issuance_document_check_skipped_retransmission` (ids
+  apenas) e segue para o gateway, que reconcilia a duplicidade; o aviso "NF-e cancelada após a
+  emissão" (T5) cobre o resultado.
+- Contrato: primeira transmissão com nota não autorizada → `recordRejected` sem `emit` e sem
+  `in_flight`; primeira transmissão autorizada → `emit`; retransmissão com nota cancelada → `emit`
+  sem consultar a nota. Cinco casos da política.
+
+### Item 3 — Checagem obrigatória
+
+`documentAuthorizationCheck` obrigatório em `createCteIssuanceWorkerEffect`; as oito composições de
+teste usam `test/fixtures/cte-document-authorization.fixture.ts`; `main.ts` já injetava.
+
+### Item 4 — Só a SEFAZ muda status [SEGURANÇA]
+
+- `resolveEventStatusChange` recebe `origin`; evento `manual` que mudaria status devolve
+  `not-applied` / `unverified-upload` (motivos de D2 têm precedência). Snapshot `anterior = novo`,
+  `warn` depois do commit (`logNfeStatusWriteResult`, sem mudança).
+- `findPendingStatusFromEvents` filtra `origin = 'automatic'` (`NFE_EVENT_AUTOMATIC_ORIGIN`).
+- Resumo `cSitNFe`: confirmado que só entra pela distribuição — `applySummaryStatus` só é chamado em
+  `DrizzleNfeDistributionRepository.#persistItem` (variante `summary`); o consumidor de importação só
+  trata `nfe-event` e documento.
+- Integração: upload de 110111/135 não cancela (evento `manual`, ator, `authorized → authorized`,
+  `warn unverified-upload`, zero mudanças); o mesmo evento pela distribuição cancela, com a mudança
+  `automatic` apontando para a linha do upload, que não é reescrita. Cancelamento subido antes da nota
+  não a faz nascer cancelada (nos dois trilhos da nota). As suítes H2/H3/H7 passaram a gravar o
+  evento pela distribuição (antes usavam upload e deixariam de cancelar).
+
+### Item 5 — Protocolo
+
+`protocol` só com `/^\d{15}$/` e `statusCode`. Integração: 14 dígitos, letras e 16 dígitos → `null`;
+15 dígitos → gravado; 15 dígitos sem `statusCode` → `null`.
+
+### Item 6 — Ambiente fiscal: não há onde casar
+
+- `nfe_documents` **não tem** coluna de ambiente — `apps/api-transportada/src/database/nfe.schema.ts`
+  (`nfeDocuments`, linhas 262–300) e a cópia do worker (`nfeDocuments`, `src/database/nfe.schema.ts`).
+  `nfe_imports` também não.
+- `nfe_events.environment` existe, mas só é preenchido para evento da distribuição: CHECK
+  `(source_nsu is null) = (environment is null)` (`nfe.schema.ts` da API, ~654).
+- `nfe_import_items.environment` idem (só distribuição). A chave de acesso não carrega `tpAmb`.
+- Sem ambiente na nota, casar nota × evento seria inventar dado. Não implementado; registrado como
+  D23 na spec e em `docs/spec/fiscal-integration.md`. Follow-up: gravar o ambiente da nota
+  (migration aditiva, spec própria).
+
+### Item 7 — Menores
+
+- `NFE_DOCUMENT_AUTHORIZED_STATUS` substitui o `'authorized'` repetido (repositório de autorização,
+  `applySummaryStatus`, `ALLOWED_ORIGIN_STATUSES`).
+- `NfeDocumentStatusInvariantError` (`nfe-document-status.error.ts`, padrão do worker: código na
+  mensagem, contexto `companyId` + `step`, nunca a chave); contrato próprio.
+- `NfeWriteTransaction` em `src/nfe-documents/types/nfe-write-transaction.types.ts`; `grep
+"nfe-imports/" src/nfe-documents` → nenhum resultado.
+- Typo "cancelsm" corrigido no `CLAUDE.md` do worker (a invariante agora cita a D21).
+
+### Vermelho antes
+
+- Contrato CT-e: `Cannot find module '../src/cte-issuance/domain/cte-retransmission.policy.js'` —
+  0 pass, 1 fail.
+- Integração CT-e: 2 pass, 3 fail (duas notas com uma cancelada passava; item sem linha passava;
+  `mayHaveReachedSefaz` inexistente).
+- Contrato da política: 96 pass, 6 fail (upload registrado ainda cancelava).
+- Integração de status: 25 pass, 4 fail (os três D21 e o do protocolo).
+- Contrato do erro: `Cannot find module '.../nfe-document-status.error.js'`.
+
+### Verde por tema
+
+- Contratos de CT-e (8 arquivos): 69 pass, 0 fail. Integração CT-e nova: 5 pass, 0 fail.
+- Contratos de NF-e (política + erro, filhos, importação, distribuição, origem): 182 pass, 0 fail.
+- Integrações de status + repositório de importação + repositório de distribuição: 42 pass, 0 fail.
+
+### Gates
+
+Rodados em sequência depois do último commit de código (`890df05b`):
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz) → exit 0.
+- `bun run --cwd apps/worker-transportada test` → **1325 pass, 0 fail**, 89 arquivos (1304 da T4 +
+  21 desta revisão). Linhas `(fail)`: 0.
+- `make worker-integration ENV_FILE=.env.test` → **107 pass, 4 skip, 2 fail** (mais 18 pass, 0 fail
+  do bloco RabbitMQ). Linhas `(fail)`: 2, as duas conhecidas do anexo do agregado (CCMEI e CRLV,
+  `ObjectStorageError: Object storage is unavailable`), mesmas da T3/H2'/T4. Nenhuma falha de
+  concorrência com a outra sessão; não foi preciso repetir.
+- Prettier `--check` em todos os arquivos alterados (`.ts`, `package.json`, `.md`) → limpo.

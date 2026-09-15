@@ -124,13 +124,13 @@ Um evento fiscal da SEFAZ que muda a situação da NF-e **atualiza `nfe_document
   consulta — nunca uma flag copiada (flag dessincroniza, a mesma razão da regra de prontidão do MDF-e
   em `docs/spec/fiscal-integration.md`).
 
-  | Onde a nota está                       | Efeito                                                                                                                                                            |
-  | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Livre (sem lote/viagem)                | Some dos seletores que já filtram `authorized` (lote, sugestão de roteiro, simulação). Nada a fazer.                                                              |
-  | Item de lote de CT-e ainda não emitido | **A emissão bloqueia o item** com `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED` — o worker relê `nfe_documents.status` antes de chamar a SEFAZ (hoje só a seleção confere). |
-  | CT-e já autorizado sobre a nota        | CT-e continua válido na SEFAZ. A tela do lote/CT-e mostra "NF-e cancelada após a emissão" ao lado do CT-e. Cancelar ou substituir é decisão do operador.          |
-  | Viagem (antes ou depois do despacho)   | A nota na viagem mostra o mesmo aviso; a viagem não muda de estado sozinha.                                                                                       |
-  | MDF-e / fatura já emitidos             | Fora do escopo desta spec (follow-up): o aviso da nota é o sinal por ora.                                                                                         |
+  | Onde a nota está                       | Efeito                                                                                                                                                                                                                                                                                                                                                                                                                           |
+  | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Livre (sem lote/viagem)                | Some dos seletores que já filtram `authorized` (lote, sugestão de roteiro, simulação). Nada a fazer.                                                                                                                                                                                                                                                                                                                             |
+  | Item de lote de CT-e ainda não emitido | **A emissão bloqueia o item** com `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED` — o worker relê o status de **todas** as notas do item (`cte_batch_item_documents`; item sem nota também bloqueia) antes da primeira transmissão do número. Retransmissão que pode já ter chegado à SEFAZ (redelivery em `in_flight`, retry de erro/timeout com o mesmo número) não é barrada: o gateway reconcilia a duplicidade e vale a linha de baixo. |
+  | CT-e já autorizado sobre a nota        | CT-e continua válido na SEFAZ. A tela do lote/CT-e mostra "NF-e cancelada após a emissão" ao lado do CT-e. Cancelar ou substituir é decisão do operador.                                                                                                                                                                                                                                                                         |
+  | Viagem (antes ou depois do despacho)   | A nota na viagem mostra o mesmo aviso; a viagem não muda de estado sozinha.                                                                                                                                                                                                                                                                                                                                                      |
+  | MDF-e / fatura já emitidos             | Fora do escopo desta spec (follow-up): o aviso da nota é o sinal por ora.                                                                                                                                                                                                                                                                                                                                                        |
 
   **Alerta ativo** (e-mail, WhatsApp, notificação push) fica fora desta spec: o sinal é a nota no topo
   da listagem com o badge `cancelled` (já existe em `NfeDocumentTable.component.tsx`) e o aviso nos
@@ -204,6 +204,29 @@ Um evento fiscal da SEFAZ que muda a situação da NF-e **atualiza `nfe_document
 dateTime>`; status anterior→novo não depende só de cor (texto + ícone com `aria-label`); "carregar
   mais" como `button` com estado de carregamento anunciado (`aria-live="polite"`). Estado vazio e de
   erro com texto.
+
+### Revisão final (decisão do usuário, 2026-09-15)
+
+- **D21 — Só a SEFAZ muda status: evento enviado por upload é gravado, mas não muda a nota.** Um
+  XML de `procEventoNFe` que o usuário sobe (`nfe_imports.source = 'upload'`, origem `manual` pela
+  D14) não prova que a SEFAZ registrou o evento — qualquer um monta um XML com `cStat 135`. Ele entra
+  em `nfe_events` e na linha do tempo como hoje, mas a política devolve `not-applied` com motivo
+  `unverified-upload` (o `warn nfe_event_status_not_applied` sai depois do commit) e o snapshot fica
+  `anterior = novo`. Os motivos de D2 têm precedência: upload com `cStat` fora do conjunto continua
+  dizendo `status-code-not-registered`. A D5 também só considera evento de origem `automatic` — o
+  cancelamento subido por upload não faz a nota nascer cancelada (evento legado, sem origem, também
+  não). Quando o mesmo evento chega depois pela distribuição, a unique de `nfe_events` o reconhece,
+  a linha do evento **não é reescrita** (D15) e a mudança é contada em
+  `nfe_document_status_changes` com a origem `automatic` da distribuição. O resumo (`cSitNFe`, D3) já
+  só entra pela distribuição. Consequência para a H9: a CC-e por upload continua `manual` com ator; um
+  cancelamento por upload aparece `authorized → authorized`.
+- **D22 — Protocolo só com forma de protocolo.** `nfe_events.protocol` só é gravado se casar
+  `/^\d{15}$/` (o `nProt` da SEFAZ) **e** houver `statusCode`; caso contrário, `null`.
+- **D23 — Ambiente fiscal não é casado entre nota e evento, porque a nota não o guarda.**
+  `nfe_documents` não tem coluna de ambiente (`tpAmb`); `nfe_events.environment` existe, mas só é
+  preenchido para evento da distribuição (CHECK `(source_nsu is null) = (environment is null)`). A
+  chave de acesso não carrega `tpAmb`. Não há onde casar sem inventar dado — follow-up: gravar o
+  ambiente da nota (spec própria, migration aditiva).
 
 ## Histórias e critérios de aceite
 

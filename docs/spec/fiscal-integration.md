@@ -111,6 +111,25 @@ Uma NF-e importada nasce com status `authorized` ou `unsigned` e fica nesse esta
 - `tpEvento 210200`+ (Manifestação do destinatário): registrado mas não muda a nota.
 - Cancelamento com `cStat` fora de `{135, 136, 155}` ou sem `cStat`: registrado, gera `warn nfe_event_status_not_applied`, não muda a nota.
 - Resumo com `cSitNFe 1`: não muda a nota.
+- **Evento enviado por upload** (origem `manual`), qualquer que seja o `cStat`: registrado no histórico,
+  gera `warn nfe_event_status_not_applied` com motivo `unverified-upload`, não muda a nota e não faz a
+  nota inserida depois nascer cancelada. **Só evento vindo da distribuição muda status** — XML subido
+  pelo usuário não prova registro na SEFAZ. O mesmo evento chegando depois pela distribuição cancela
+  normalmente (spec 149 D21).
+
+**Worker — o que ele grava e confere:**
+
+- `nfe_events.protocol` só é gravado com 15 dígitos (`nProt`) e `statusCode` presente; senão `null`.
+- Antes da **primeira transmissão** de um CT-e, o worker relê o status de **todas** as notas do item
+  em `cte_batch_item_documents` (item agrupado por remetente/destinatário tem N notas), por
+  `company_id`: alguma não `authorized`, ou item sem nota nenhuma, falha o item com
+  `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED` sem chamar a SEFAZ. A checagem é pulada quando a tentativa pode
+  já ter chegado à SEFAZ (`in_flight` em redelivery, ou `retry_scheduled` por erro/timeout com o mesmo
+  número): o gateway reconcilia a duplicidade, e a tela mostra "NF-e cancelada após a emissão". Retry
+  depois de número queimado confere de novo — o número novo nunca foi transmitido.
+- **Ambiente fiscal não é casado entre nota e evento:** `nfe_documents` não guarda `tpAmb` e
+  `nfe_events.environment` só é preenchido para evento da distribuição. Casar exige gravar o ambiente
+  da nota (follow-up, spec 149 D23).
 
 **Máquina de estados:**
 
