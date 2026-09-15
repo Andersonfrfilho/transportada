@@ -69,6 +69,12 @@ Bun.serve({
       return respond(new Response(asset), cacheControlFor(url.pathname))
     }
 
+    // Arquivo de build que não existe é 404, nunca a página do app: o HTML com 200 trocava o erro
+    // por "MIME text/html" e escondia o asset que faltou — foi assim com o shared do MapLibre.
+    if (url.pathname.startsWith(IMMUTABLE_ASSET_PREFIX)) {
+      return respond(new Response('Not Found', { status: 404 }), REVALIDATE_CACHE_CONTROL)
+    }
+
     // Navegação de rota do SPA não tem arquivo correspondente: cai no index sem cache.
     return respond(new Response(resolveAsset(`/${INDEX_PATH}`)), REVALIDATE_CACHE_CONTROL)
   },

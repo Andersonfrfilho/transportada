@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 
 import react from '@vitejs/plugin-react'
@@ -8,6 +10,12 @@ import {
   CONTENT_SECURITY_POLICY_FILE_NAME,
   buildContentSecurityPolicy,
 } from './src/modules/shared/contentSecurityPolicy.service'
+import {
+  MAPLIBRE_SHARED_FILE_NAME,
+  MAPLIBRE_WORKER_FILE_NAME,
+  MAPLIBRE_WORKER_URL_DEFINE,
+  buildMaplibreWorkerAssets,
+} from './src/modules/shared/maplibreWorkerAssets.service'
 
 const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy'
 const PWA_ICON_PATH = '/icons/icon-192.png'
@@ -71,11 +79,39 @@ function contentSecurityPolicyPlugin(): Plugin {
   }
 }
 
+/**
+ * O worker do MapLibre importa o shared pelo caminho relativo, e o `?url` copia só o worker: o
+ * shared nunca chegava ao `dist` e o mapa não subia fora do `vite dev`. Aqui os dois saem juntos, e
+ * o bundle recebe o endereço do worker por `define`. Só no build — em dev o `node_modules` já serve
+ * os dois lado a lado.
+ */
+function maplibreWorkerAssetsPlugin(): Plugin {
+  const requireFromConfig = createRequire(import.meta.url)
+  const readDistribution = (fileName: string): string =>
+    readFileSync(requireFromConfig.resolve(`maplibre-gl/dist/${fileName}`), 'utf8')
+  const assets = buildMaplibreWorkerAssets({
+    sharedSource: readDistribution(MAPLIBRE_SHARED_FILE_NAME),
+    workerSource: readDistribution(MAPLIBRE_WORKER_FILE_NAME),
+  })
+
+  return {
+    name: 'transportada-maplibre-worker-assets',
+    apply: 'build',
+    config: () => ({ define: { [MAPLIBRE_WORKER_URL_DEFINE]: JSON.stringify(assets.workerUrl) } }),
+    generateBundle() {
+      for (const file of assets.files) {
+        this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source })
+      }
+    },
+  }
+}
+
 export default defineConfig({
   envDir: resolve(import.meta.dirname, '../..'),
   plugins: [
     react(),
     contentSecurityPolicyPlugin(),
+    maplibreWorkerAssetsPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },

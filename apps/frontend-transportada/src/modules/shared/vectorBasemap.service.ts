@@ -32,7 +32,15 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
  * mesmo assim sai como esquema desconhecido e morre na CSP, com o canvas preto e nenhum erro na
  * tela. Quem importa este módulo já ganha o protocolo pronto.
  */
-setWorkerUrl(maplibreWorkerUrl)
+/**
+ * ⚠️ **No build o worker vem de `__MAPLIBRE_WORKER_URL__`, nunca do `?url`.** O worker do MapLibre 6
+ * importa `./maplibre-gl-shared.mjs`, e o `?url` copia só ele: o shared caía no `index.html` e o mapa
+ * não subia em staging nem em produção (15/09/2026). O `maplibreWorkerAssetsPlugin` do
+ * `vite.config.ts` grava os dois juntos; o `?url` fica para o `vite dev` e para o teste.
+ */
+setWorkerUrl(
+  typeof __MAPLIBRE_WORKER_URL__ === 'string' ? __MAPLIBRE_WORKER_URL__ : maplibreWorkerUrl,
+)
 addProtocol('pmtiles', new Protocol().tile)
 
 /** Mantida para quem quiser ser explícito no ponto de montagem; o registro já aconteceu no import. */
