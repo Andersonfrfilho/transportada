@@ -161,7 +161,12 @@ roteirizador cruza fora dele.
 
 Registro (15/09/2026): staging usa `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
 579 com tarifa, 571 com tarifa por eixo, em `toll-booths/osm/sudeste/2026-09-14/` do bucket de
-staging. `toll_booths` de staging **ainda está vazia**: o seed a partir desse objeto não foi rodado.
+staging. Seed rodado em staging no mesmo dia, a partir desse objeto e com `--observed-on 2026-09-14`:
+`toll_booths` ficou com 592 linhas, 571 com tarifa por eixo. Produção ainda não foi carregada.
+
+⚠️ **A tarifa carregada é a do OSM, não a oficial.** O mapa serve de cobertura (onde a praça está),
+nunca de preço (spec 095, "Como o mercado faz"); importar ANTT/ARTESP segue fora de escopo, e até lá
+quem corrige o valor é a empresa, pela tarifa ajustada da spec 095.
 
 ## Reassar o overlay do radar (spec 096)
 
