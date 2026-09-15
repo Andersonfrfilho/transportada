@@ -4,6 +4,7 @@ import type { IconName } from '@/components/ui/icon'
 import {
   MAP_BADGE_IDS,
   RADAR_SPEED_BADGE_PREFIX,
+  TOLL_PRICE_BADGE_PREFIX,
   type MapBadgeId,
   type MapBadgeKind,
 } from './mapBadge.constant'
@@ -41,21 +42,37 @@ export function resolveMapBadgeKind(id: string): MapBadgeKind | null {
 
 /** Limite de velocidade que vira placa: só número, até três dígitos — `BR:urban` não vira placa. */
 const SPEED_PATTERN = /^\d{1,3}$/u
+/**
+ * Tarifa que vira etiqueta: o valor como o `formatAmount` imprime (`R$ 12,30`, com o espaço
+ * inseparável do `Intl`). O "—" da tarifa desconhecida não casa, e a praça fica só com o selo.
+ */
+const PRICE_PATTERN = /^R\$\s\d{1,3}(?:\.\d{3})*,\d{2}$/u
 
-export type MapBadgeRequest = Readonly<{ kind: MapBadgeKind; speed: string | null }>
+/** `value` é o limite da placa do radar ou o preço da etiqueta do pedágio; `null`, só o selo. */
+export type MapBadgeRequest = Readonly<{ kind: MapBadgeKind; value: string | null }>
 
 /**
- * O que o mapa pediu no `styleimagemissing`. `selo-radar-60` é o radar com a placa de 60; um valor
- * que não é número volta como radar sem placa — o selo existe mesmo quando o limite não é legível,
- * e desenhar texto qualquer numa placa seria inventar o que o motorista obedece.
+ * O que o mapa pediu no `styleimagemissing`. `selo-radar-60` é o radar com a placa de 60, e
+ * `selo-pedagio-R$ 12,30` a praça com a etiqueta de preço. Valor ilegível volta como selo sem valor —
+ * o selo existe mesmo assim, e desenhar texto qualquer seria inventar o limite ou a tarifa.
  */
 export function resolveMapBadgeRequest(id: string): MapBadgeRequest | null {
   const kind = resolveMapBadgeKind(id)
-  if (kind !== null) return { kind, speed: null }
-  if (!id.startsWith(RADAR_SPEED_BADGE_PREFIX)) return null
+  if (kind !== null) return { kind, value: null }
+  if (id.startsWith(RADAR_SPEED_BADGE_PREFIX)) {
+    const speed = id.slice(RADAR_SPEED_BADGE_PREFIX.length).trim()
+    return { kind: 'radar', value: SPEED_PATTERN.test(speed) ? speed : null }
+  }
+  if (id.startsWith(TOLL_PRICE_BADGE_PREFIX)) {
+    const price = id.slice(TOLL_PRICE_BADGE_PREFIX.length)
+    return { kind: 'toll', value: PRICE_PATTERN.test(price) ? price : null }
+  }
+  return null
+}
 
-  const speed = id.slice(RADAR_SPEED_BADGE_PREFIX.length).trim()
-  return { kind: 'radar', speed: SPEED_PATTERN.test(speed) ? speed : null }
+/** A imagem da praça da rota: a etiqueta com o preço, ou o selo sozinho quando a tarifa é "—". */
+export function buildTollBadgeId(label: string): string {
+  return PRICE_PATTERN.test(label) ? `${TOLL_PRICE_BADGE_PREFIX}${label}` : MAP_BADGE_IDS.toll
 }
 
 export type SpeedPlateColors = Readonly<{ digits: string; fill: string; ring: string }>

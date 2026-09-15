@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 096 T4: a praça de pedágio **do trajeto** desenhada no mapa da montagem, com o valor por
- * eixo ao lado do ícone. A camada `cabine-de-pedagio` do basemap (spec 089) continua mostrando
+ * eixo dentro da etiqueta de preço. A camada `cabine-de-pedagio` do basemap (spec 089) continua mostrando
  * toda cabine da região, sem valor — esta é outra, alimentada pela resposta da rota (spec 090 D4)
  * e filtrada pela opção de rota escolhida (spec 096 T3).
  */
@@ -127,13 +127,17 @@ describe('o desenho da praça do trajeto no mapa (spec 096 T4)', () => {
     expect(chamada).not.toContain('beforeId')
   })
 
-  /** O glifo é texto do MapLibre (WebGL) — exceção já registrada a `web.md` §9. */
-  it('desenha o valor como texto, ao lado do glifo da praça', () => {
+  /**
+   * O valor vai dentro da etiqueta de preço (o selo esticado), não em texto solto ao lado dele: a
+   * imagem é pedida por `buildTollBadgeId`, e tarifa "—" cai no selo sozinho.
+   */
+  it('desenha o valor dentro da etiqueta da praça, sem texto solto ao lado', () => {
     const inicio = source.indexOf("id: 'praca-do-trajeto'")
     expect(inicio).toBeGreaterThan(-1)
     const trecho = source.slice(inicio, inicio + 800)
 
-    expect(trecho).toContain('text-field')
-    expect(trecho).toContain("['get', 'label']")
+    expect(trecho).toContain("'icon-image': ['get', 'image']")
+    expect(trecho).not.toContain('text-field')
+    expect(source).toContain('buildTollBadgeId(marcador.label)')
   })
 })
