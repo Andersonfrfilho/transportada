@@ -184,6 +184,35 @@ describe('CT-e batch table and items contract', () => {
     )
   })
 
+  /**
+   * Spec 149 D12 — ordem de deploy: esta tela pode subir antes da API que passou a expor
+   * `nfeStatus` no documento do item. Ausência não pode derrubar a tela; o valor cai em
+   * `authorized`, o comportamento de antes desta spec.
+   */
+  test('treats a missing document nfeStatus as authorized so the screen survives deploying before the API', async () => {
+    const { createCteBatchItemsAdapter } = await loadFutureModule<CteBatchItemsModule>(ITEMS_MODULE)
+    const itemsFromApi = createCteBatchItemsAdapter()
+    const documentWithoutNfeStatus = Object.fromEntries(
+      Object.entries(REFERENCE_DOCUMENT).filter(([key]) => key !== 'nfeStatus'),
+    )
+
+    const [item] = itemsFromApi({
+      data: [{ ...CTE_BATCH_REJECTED_ITEM, documents: [documentWithoutNfeStatus] }],
+    }) as readonly { readonly documents: readonly { readonly nfeStatus: string }[] }[]
+    expect(item?.documents[0]?.nfeStatus).toBe('authorized')
+
+    expect(() =>
+      itemsFromApi({
+        data: [
+          {
+            ...CTE_BATCH_REJECTED_ITEM,
+            documents: [{ ...documentWithoutNfeStatus, nfeStatus: 'suspended' }],
+          },
+        ],
+      }),
+    ).toThrow('CTE_BATCH_INVALID_ITEMS_RESPONSE')
+  })
+
   test('sorts by header and filters batches by multiple statuses, name and item range', async () => {
     const {
       EMPTY_CTE_BATCH_FILTERS,
@@ -478,10 +507,14 @@ describe('CT-e batch table and items contract', () => {
     const { hasCteBatchDocumentNfeWarning } =
       await loadFutureModule<CteBatchActionsModule>(ACTIONS_MODULE)
 
-    expect(hasCteBatchDocumentNfeWarning('authorized')).toBe(false)
-    expect(hasCteBatchDocumentNfeWarning('unsigned')).toBe(false)
-    expect(hasCteBatchDocumentNfeWarning('cancelled')).toBe(true)
-    expect(hasCteBatchDocumentNfeWarning('denied')).toBe(true)
+    expect(hasCteBatchDocumentNfeWarning('authorized', 'authorized')).toBe(false)
+    expect(hasCteBatchDocumentNfeWarning('authorized', 'unsigned')).toBe(false)
+    expect(hasCteBatchDocumentNfeWarning('authorized', 'cancelled')).toBe(true)
+    expect(hasCteBatchDocumentNfeWarning('authorized', 'denied')).toBe(true)
+    // Spec 149 D12: sem CT-e autorizado não há "depois da emissão" para avisar — a emissão
+    // bloqueia o item (CTE_BATCH_DOCUMENT_NOT_AUTHORIZED), não a tela.
+    expect(hasCteBatchDocumentNfeWarning('pending', 'cancelled')).toBe(false)
+    expect(hasCteBatchDocumentNfeWarning('failed', 'denied')).toBe(false)
 
     const [panel, ptLocale, enLocale] = await Promise.all([
       readModule('src/modules/cte-batch/components/CteBatchItemsPanel.component.tsx'),
@@ -705,7 +738,7 @@ type CteBatchActionsModule = {
     readonly permissions: readonly string[]
   }) => boolean
   readonly describeItemDocuments: (item: unknown) => readonly unknown[]
-  readonly hasCteBatchDocumentNfeWarning: (nfeStatus: string) => boolean
+  readonly hasCteBatchDocumentNfeWarning: (itemStatus: string, nfeStatus: string) => boolean
   readonly groupSelectionByBatch: (input: {
     readonly items: readonly unknown[]
     readonly selectedIds: readonly string[]

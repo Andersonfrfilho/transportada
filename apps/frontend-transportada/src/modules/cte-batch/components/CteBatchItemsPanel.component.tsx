@@ -121,7 +121,7 @@ export function CteBatchItemsPanel({
                  * e é isso que o operador precisa notar antes de faturar ou entregar sobre ela.
                  * Texto e ícone, nunca só a cor (D20).
                  */}
-                {hasCteBatchDocumentNfeWarning(document.nfeStatus) ? (
+                {hasCteBatchDocumentNfeWarning(item.status, document.nfeStatus) ? (
                   <span className={styles.documentNfeWarning}>
                     <Icon name="alert" />
                     {t(`items.documentNfeWarning.${document.nfeStatus}`)}

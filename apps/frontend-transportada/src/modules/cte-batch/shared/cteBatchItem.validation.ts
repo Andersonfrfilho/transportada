@@ -55,6 +55,17 @@ function isNfeStatus(value: unknown): value is CteBatchItemDocument['nfeStatus']
   return isString(value) && (NFE_STATUS_VALUES as readonly string[]).includes(value)
 }
 
+/**
+ * Ordem de deploy (spec 149 D12/T5): esta tela pode subir antes da API que passou a expor
+ * `nfeStatus`. Ausente é API anterior ao campo — cai em `authorized`, o comportamento de antes
+ * desta spec, nunca recusa a resposta; valor presente mas fora do domínio continua recusado.
+ */
+function nfeStatusFromApi(value: unknown): CteBatchItemDocument['nfeStatus'] {
+  if (value === undefined) return 'authorized'
+  if (!isNfeStatus(value)) throw validationError()
+  return value
+}
+
 const COMPANY_ITEM_KEYS = [...ITEM_KEYS, 'batchId', 'batchName', 'createdAt'] as const
 
 const PAGE_KEYS = ['data', 'page'] as const
@@ -117,7 +128,6 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   if (
     !isString(input.accessKey) ||
     !isString(input.id) ||
-    !isNfeStatus(input.nfeStatus) ||
     !isString(input.number) ||
     !isString(input.position) ||
     !isString(input.series) ||
@@ -128,7 +138,7 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   return {
     accessKey: input.accessKey,
     id: input.id,
-    nfeStatus: input.nfeStatus,
+    nfeStatus: nfeStatusFromApi(input.nfeStatus),
     number: input.number,
     position: input.position,
     series: input.series,
