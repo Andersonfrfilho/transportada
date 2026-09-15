@@ -9,6 +9,15 @@ import {
   type AddressCorrectionFields,
   type AddressCorrectionRequestRecord,
 } from './addressCorrection.validation'
+import { buildAddressCorrectionMailRequestBody } from './addressCorrectionMail.service'
+import {
+  mapAddressCorrectionMailContactList,
+  mapAddressCorrectionMailContractor,
+  mapAddressCorrectionMailSendResult,
+  type AddressCorrectionMailContact,
+  type AddressCorrectionMailContractor,
+  type AddressCorrectionMailSendResult,
+} from './addressCorrectionMail.validation'
 import {
   AddressCorrectionRequestError,
   readErrorCode,
@@ -247,9 +256,15 @@ type ClientDependencies = Readonly<{
 
 export type NfeWorkspaceClient = Readonly<{
   downloadDocumentXml: (input: Readonly<{ id: string }>) => Promise<Blob>
+  getAddressCorrectionContractor: (
+    input: Readonly<{ taxId: string }>,
+  ) => Promise<AddressCorrectionMailContractor>
   getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
+  listAddressCorrectionContacts: (
+    input: Readonly<{ contractorId: string }>,
+  ) => Promise<readonly AddressCorrectionMailContact[]>
   listAddressCorrectionRequests: () => Promise<readonly AddressCorrectionRequestRecord[]>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
@@ -265,6 +280,14 @@ export type NfeWorkspaceClient = Readonly<{
   saveAddressCorrection: (
     input: Readonly<{ addressKey: string; proposed: AddressCorrectionFields }>,
   ) => Promise<AddressCorrectionRequestRecord>
+  sendAddressCorrectionMail: (
+    input: Readonly<{
+      contactIds: readonly string[]
+      contractorTaxId: string
+      idempotencyKey: string
+      requestIds?: readonly string[]
+    }>,
+  ) => Promise<AddressCorrectionMailSendResult>
 }>
 
 export type NfeWorkspaceClientFactory = (input: ClientDependencies) => NfeWorkspaceClient
@@ -774,6 +797,51 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
     const saved = mapAddressCorrectionRequest(envelopeData(response))
     if (saved === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
     return saved
+  },
+  /** `GET /contractors/by-tax-id/:taxId` (`fleet.read`): resolve o `contractorId` da confirmação. */
+  async getAddressCorrectionContractor(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: { method: 'GET' },
+      path: `/contractors/by-tax-id/${encodeURIComponent(input.taxId)}`,
+    })
+    const contractor = mapAddressCorrectionMailContractor(envelopeData(response))
+    if (contractor === null) {
+      throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    }
+    return contractor
+  },
+  /** `GET /contractors/:id/contacts` (spec 150 T301, `settings.manage`): a lista marcável. */
+  async listAddressCorrectionContacts(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: { method: 'GET' },
+      path: `/contractors/${encodeURIComponent(input.contractorId)}/contacts`,
+    })
+    return mapAddressCorrectionMailContactList(response)
+  },
+  async sendAddressCorrectionMail(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify(
+          buildAddressCorrectionMailRequestBody({
+            contactIds: input.contactIds,
+            contractorTaxId: input.contractorTaxId,
+            ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
+          }),
+        ),
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': input.idempotencyKey,
+        },
+        method: 'POST',
+      },
+      path: '/address-correction-requests/mail',
+    })
+    const result = mapAddressCorrectionMailSendResult(response)
+    if (result === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    return result
   },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({

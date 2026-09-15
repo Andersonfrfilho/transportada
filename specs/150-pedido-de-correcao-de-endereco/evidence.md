@@ -1004,3 +1004,144 @@ tocado nesta task; rodei o arquivo novo mais os três vizinhos mais próximos (e
   `test/address-correction-mail.contract.test.ts` (imports das suítes novas)
 - `apps/api-transportada/package.json` (`test:integration` com o arquivo novo)
 - `apps/api-transportada/package.json` (lista explícita de testes)
+
+## T305
+
+Os dois botões de envio no `AddressReportPanel` — "Enviar este endereço" por item e "Enviar todos
+(N)" no cabeçalho da contratante — abrindo a mesma confirmação (`AddressCorrectionMailDialog`), com
+os contatos marcáveis, a prévia "como veio → correto" e o `POST /address-correction-requests/mail`
+(T304).
+
+### `requestId` estava faltando no frontend
+
+`GET /address-correction-requests` já serializa `id` (`address-correction.routes.ts`,
+`serializeAddressCorrectionRequest`), mas `mapAddressCorrectionRequest` (T201) nunca lia esse campo
+— `AddressCorrectionRequestRecord` não tinha `id`. Sem ele o envio unitário não tinha o que mandar em
+`requestIds`. Corrigido nesta task: `id: string` obrigatório no tipo e no mapeamento (registro sem
+`id` some da lista, mesmo padrão de `status`/`kind` desconhecidos). Os dois fixtures de teste que já
+existiam (`address-correction.contract.ts`, `address-correction-status.contract.ts`) ganharam o
+campo.
+
+### `contractorId`: resolvido por `GET /contractors/by-tax-id/:taxId`, não uma rota nova
+
+O relatório só traz `contractorTaxId` (RF do enunciado: "descubra como resolver pelo que a API
+oferece; se não houver rota, PARE"). Achei a rota: `GET /contractors/by-tax-id/:taxId`
+(`contractor.routes.ts`, `fleet.read`, devolve `{ data: Contractor }` com `id`). Permissão diferente
+da do resto do fluxo (`settings.manage`), mas sem risco de acesso: `COMPANY_ROLE_PERMISSIONS`
+(`authorization.policy.ts`) mostra que `settings.manage` só existe no papel `company-admin`, que
+**também** tem `fleet.read` — quem chega à confirmação sempre tem a permissão da consulta. Erro
+`CONTRACTOR_NOT_FOUND` (código diferente do `ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND` da própria
+rota de envio) entra no mesmo mapa de mensagem.
+
+### Seleção inicial dos contatos: os que já recebem ocorrência, não todos nem nenhum
+
+RF5a diz "o operador marca quem recebe" a cada envio — decisão registrada aqui: a lista abre com os
+contatos **ativos** que têm `receivesOccurrences: true` já marcados (é o mesmo público que a rotina
+de ocorrência já avisa hoje), e o resto desmarcado. Nem a lista inteira marcada (RF5a não diz
+"todos por padrão") nem nada marcado (o clique extra seria o caso comum). O operador ainda decide,
+marcando ou desmarcando antes de confirmar — `initialAddressCorrectionMailContactIds` é pura e
+testada com os três casos (ativo+ocorrência, ativo sem ocorrência, inativo). Contato inativo nunca
+aparece na lista marcável (`activeAddressCorrectionMailContacts`).
+
+### Sem contato ativo: aponta para "Clientes → E-mail com contratantes", sem deep-link de aba
+
+Não existe registro programático de aba nesta app — `DeliveryClientWorkspace.page.tsx` sempre abre
+em "Clientes" (`useState<DeliveryClientTabId>('clients')`), sem estado de aba na URL. Segui o padrão
+existente de `cteProfilesNavigation.service.ts` (navegação de workspace inteiro via
+`WorkspaceNavigator`, criado em `deliveryClientsNavigation.service.ts`), e o texto ao lado do botão
+nomeia a aba ("E-mail com contratantes") para quem chegar em "Clientes" saber onde clicar.
+
+### `invalidateMutationEffect` não entrou — mesma decisão de T201
+
+O enunciado pedia `invalidateMutationEffect` para invalidar relatório e lista de pedidos. Não usei:
+as duas chaves (`address-report`, `address-correction-requests`) são do **mesmo módulo**
+(`nfe-workspace`) que a mutação, e `mutationInvalidation.service.ts` documenta esse registro como o
+alcance **entre módulos** (`test/shared/mutation-invalidation.contract.ts`: "nenhum hook invalida a
+chave de outro módulo por conta própria" — o inverso, mesma chave dentro do módulo dono, é o caminho
+normal). `useAddressCorrectionForm.hook.ts` (T201) já invalida essas duas chaves direto por
+`queryClient.invalidateQueries`, e esta task segue o mesmo hook irmão em vez de criar um efeito
+cross-module para duas chaves que já pertencem a quem está invalidando.
+
+### `Idempotency-Key`: mesmo padrão de `attemptToken`, sem teste de unidade dedicado
+
+Gerada com `crypto.randomUUID()` dentro de `open()` e guardada em `useState` — o mesmo desenho de
+`useNfseInvoiceBulkCancel.hook.ts` (`attemptToken`): estável entre `confirm()`s da mesma
+confirmação (o estado não muda entre eles) e nova a cada `open()`. Não escrevi um teste de unidade
+isolado para essa estabilidade: é estado React puro (sem ramificação a testar em isolamento), e o
+`attemptToken` do hook irmão também não tem um — não há `renderHook`/`@testing-library/react` no
+repo, e adicionar a infraestrutura só para este ponto seria desproporcional ao que a lista de testes
+do enunciado pede ("contrato do serviço"). O que É testado: a montagem do corpo e o header
+`idempotency-key` do POST (contrato do client), que é o que de fato viaja para o servidor.
+
+### Botão desabilitado: 0 ou acima de 50
+
+`canConfirmAddressCorrectionMail` reaproveita o teto do Resend (`ADDRESS_CORRECTION_MAIL_MAX_CONTACTS
+= 50`, cópia por valor de `CONTRACTOR_MAIL_MAX_RECIPIENTS`, T302) — testado nos quatro limites do
+enunciado (0, 1, 50, 51).
+
+### Smoke Playwright: fica para a verificação final
+
+Não rodei o smoke do envio de ponta a ponta — ele exige Keycloak e Resend configurados (o mesmo
+motivo já registrado nas tasks anteriores desta spec para o envio de e-mail), e este worktree local
+não tem os dois. Fica para a verificação no preview/staging, quando a stack completa estiver de pé.
+
+### Verde
+
+```
+bun run typecheck
+```
+
+Resultado: exit 0 nas 6 apps (api, worker, cron, frontend-transportada, frontend-client,
+frontend-landing).
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3739 pass**, 0 fail, 34828 `expect()`, 29 arquivos — inclui o novo
+`address-correction-mail.contract.ts` (montagem do corpo unitário/completo, regra de habilitação do
+botão nos quatro limites, seleção inicial dos contatos, filtro de contato ativo, mapa de código de
+erro para os sete códigos + desconhecido, mapeamento das três respostas, e o client montando
+`GET /contractors/by-tax-id/:taxId`, `GET /contractors/:id/contacts` e o `POST .../mail` com o
+header `idempotency-key` e o corpo certo) e os dois fixtures atualizados com `id`.
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada build
+```
+
+Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado). O aviso de chunk grande
+(`index-*.js`, `vectorBasemap.service-*.js`) é pré-existente, não desta task.
+
+### Arquivos alterados
+
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrection.validation.ts`
+  (`id` obrigatório em `AddressCorrectionRequestRecord` e no mapeamento)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrectionMail.validation.ts`
+  (novo: contato, contratante e resultado do envio — cópia por valor da API)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrectionMail.service.ts`
+  (novo: corpo do POST, regra do botão, seleção inicial, mapa de erro)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/deliveryClientsNavigation.service.ts`
+  (novo: navegação de workspace para "Clientes", mesmo padrão de `cteProfilesNavigation.service.ts`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/nfeWorkspaceClient.service.ts`
+  (`getAddressCorrectionContractor`, `listAddressCorrectionContacts`, `sendAddressCorrectionMail`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/hooks/useAddressCorrectionMailDialog.hook.ts`
+  (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/components/AddressCorrectionMailDialog.component.tsx`
+  (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/components/AddressReportPanel.component.tsx`
+  (os dois botões, o hook do diálogo, o diálogo renderizado)
+- `apps/frontend-transportada/src/modules/nfe-workspace/styles/addressReport.module.css` (classes do
+  diálogo e dos botões novos)
+- `apps/frontend-transportada/src/modules/nfe-workspace/locales/nfeWorkspace.locale.json` e
+  `nfeWorkspace.en.locale.json` (`addressReport.correction.mail.*`)
+- `apps/frontend-transportada/test/nfe-workspace/address-correction-mail.contract.ts` (novo)
+- `apps/frontend-transportada/test/nfe-workspace/address-correction.contract.ts` e
+  `address-correction-status.contract.ts` (fixtures com `id`)
+- `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)
+- `specs/150-pedido-de-correcao-de-endereco/tasks.md` (T305 `[x]`)

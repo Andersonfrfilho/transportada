@@ -32,6 +32,7 @@ function buildRequest(
 ): AddressCorrectionRequestRecord {
   return {
     addressKey: '3543402|14010100|533',
+    id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3ea1',
     proposed: PROPOSED_FIELDS,
     reasonDistanceMetres: null,
     reasonMatchLevel: 'unresolved',

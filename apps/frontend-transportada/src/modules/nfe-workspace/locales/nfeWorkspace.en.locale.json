@@ -348,7 +348,37 @@
       "stateDraft": "Draft saved",
       "stateSent": "Sent on {{date}}",
       "lastSentAt": "Last sent on {{date}}",
-      "statusUnavailable": "Could not load the request status."
+      "statusUnavailable": "Could not load the request status.",
+      "mail": {
+        "sendOne": "Send this address",
+        "sendAll": "Send all ({{count}})",
+        "titleUnit": "Send this address correction request",
+        "titleComplete": "Send all correction requests",
+        "close": "Close",
+        "previewTitle": "{{count}} address will be sent",
+        "previewTitle_other": "{{count}} addresses will be sent",
+        "previewAsIs": "As it came",
+        "previewProposed": "Correct",
+        "contactsTitle": "Contacts who will receive it",
+        "contactsUnavailable": "Could not load the contractor's contacts.",
+        "noActiveContact": "This contractor has no active e-mail contact registered.",
+        "noActiveContactLink": "Register a contact in Clients → E-mail with contractors",
+        "cancel": "Cancel",
+        "confirm": "Send correction request",
+        "sending": "Sending…",
+        "done": "Done",
+        "sent": "Request sent to {{count}} contact.",
+        "sent_other": "Request sent to {{count}} contacts.",
+        "error": {
+          "contractorNotFound": "We could not find this contractor's record.",
+          "nothingToSend": "There is no pending draft to send.",
+          "noActiveContact": "None of the marked contacts is active. Refresh the list and try again.",
+          "requestNotSendable": "One of the selected requests was already sent or does not belong to this contractor.",
+          "mailNotConfigured": "This contractor's e-mail is not configured or verified yet.",
+          "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
+          "generic": "Could not send the correction request."
+        }
+      }
     }
   },
   "packageBoxes": {

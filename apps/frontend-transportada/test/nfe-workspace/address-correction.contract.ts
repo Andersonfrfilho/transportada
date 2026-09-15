@@ -152,6 +152,7 @@ describe('pedido de correção de endereço (spec 150, T201)', () => {
             JSON.stringify({
               data: {
                 addressKey: '3543402|14010100|533',
+                id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3ea1',
                 proposed: VALID_FIELDS,
                 reasonDistanceMetres: null,
                 reasonMatchLevel: 'unresolved',
@@ -198,6 +199,7 @@ describe('pedido de correção de endereço (spec 150, T201)', () => {
               data: [
                 {
                   addressKey: '3543402|14010100|533',
+                  id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3ea1',
                   proposed: VALID_FIELDS,
                   reasonDistanceMetres: null,
                   reasonMatchLevel: 'unresolved',

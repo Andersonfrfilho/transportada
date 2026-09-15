@@ -58,6 +58,8 @@ export type AddressCorrectionRequestStatus = 'draft' | 'sent'
 
 export type AddressCorrectionRequestRecord = Readonly<{
   addressKey: string
+  /** Spec 150 T305: o `requestId` que `POST /address-correction-requests/mail` espera no envio unitário. */
+  id: string
   proposed: AddressCorrectionFields
   reasonDistanceMetres: null | string
   reasonMatchLevel: string
@@ -112,10 +114,18 @@ function mapFields(value: unknown): AddressCorrectionFields {
 
 /** Registro desconhecido (status que esta versão não entende) some da lista, não a lista inteira. */
 export function mapAddressCorrectionRequest(value: unknown): AddressCorrectionRequestRecord | null {
-  if (!isRecord(value) || !isString(value.addressKey) || !isRequestStatus(value.status)) return null
+  if (
+    !isRecord(value) ||
+    !isString(value.addressKey) ||
+    !isString(value.id) ||
+    !isRequestStatus(value.status)
+  ) {
+    return null
+  }
 
   return {
     addressKey: value.addressKey,
+    id: value.id,
     proposed: mapFields(value.proposed),
     reasonDistanceMetres: nullableText(value.reasonDistanceMetres),
     reasonMatchLevel: text(value.reasonMatchLevel),

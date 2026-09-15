@@ -50,7 +50,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,
       `Idempotency-Key`, e recusa com código estável sem contratante ou sem contato marcado.
       Evidência: contrato de caso de uso e de rota, e o contrato de que nenhum log leva PII.
-- [ ] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na
+- [x] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na
       contratante (completo), a mesma confirmação com os contatos marcáveis e a prévia, e a
       invalidação do relatório. Evidência: contrato do serviço e smoke Playwright do envio.
 - [ ] **T306** Marcar a T20 da `specs/084-agenda-de-enderecos/tasks.md` como realizada por esta spec

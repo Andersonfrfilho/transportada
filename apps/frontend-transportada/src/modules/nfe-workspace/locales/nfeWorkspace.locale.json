@@ -522,7 +522,37 @@
       "stateDraft": "Rascunho salvo",
       "stateSent": "Enviado em {{date}}",
       "lastSentAt": "Último envio em {{date}}",
-      "statusUnavailable": "Não foi possível carregar o estado dos pedidos."
+      "statusUnavailable": "Não foi possível carregar o estado dos pedidos.",
+      "mail": {
+        "sendOne": "Enviar este endereço",
+        "sendAll": "Enviar todos ({{count}})",
+        "titleUnit": "Enviar pedido de correção deste endereço",
+        "titleComplete": "Enviar todos os pedidos de correção",
+        "close": "Fechar",
+        "previewTitle": "{{count}} endereço será enviado",
+        "previewTitle_other": "{{count}} endereços serão enviados",
+        "previewAsIs": "Como veio",
+        "previewProposed": "Correto",
+        "contactsTitle": "Contatos que vão receber",
+        "contactsUnavailable": "Não foi possível carregar os contatos da contratante.",
+        "noActiveContact": "Esta contratante não tem contato de e-mail ativo cadastrado.",
+        "noActiveContactLink": "Cadastrar contato em Clientes → E-mail com contratantes",
+        "cancel": "Cancelar",
+        "confirm": "Enviar pedido de correção",
+        "sending": "Enviando…",
+        "done": "Concluído",
+        "sent": "Pedido enviado a {{count}} contato.",
+        "sent_other": "Pedido enviado a {{count}} contatos.",
+        "error": {
+          "contractorNotFound": "Não encontramos o cadastro desta contratante.",
+          "nothingToSend": "Não há rascunho pendente para enviar.",
+          "noActiveContact": "Nenhum dos contatos marcados está ativo. Atualize a lista e tente de novo.",
+          "requestNotSendable": "Algum dos pedidos selecionados já foi enviado ou não pertence a esta contratante.",
+          "mailNotConfigured": "O e-mail da contratante ainda não está configurado ou verificado.",
+          "idempotencyReused": "Este envio já foi processado. Atualize a página antes de tentar de novo.",
+          "generic": "Não foi possível enviar o pedido de correção."
+        }
+      }
     }
   },
   "packageBoxes": {

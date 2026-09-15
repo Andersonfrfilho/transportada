@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import { AddressCorrectionForm } from './AddressCorrectionForm.component'
+import { AddressCorrectionMailDialog } from './AddressCorrectionMailDialog.component'
 import { formatNfeImportMoment } from '../shared/nfeImportMoment.service'
 import {
   findDraftRequest,
@@ -16,9 +17,23 @@ import {
   resolveAddressCorrectionStatus,
   type AddressCorrectionStatus,
 } from '../shared/addressCorrectionStatus.service'
+import {
+  useAddressCorrectionMailDialog,
+  type AddressCorrectionMailTarget,
+} from '../hooks/useAddressCorrectionMailDialog.hook'
 import type { AddressCorrectionRequestRecord } from '../shared/addressCorrection.validation'
-import type { AddressReport, AddressFinding } from '../shared/addressReport.validation'
+import type {
+  AddressReport,
+  AddressFinding,
+  AddressFindingGroup,
+} from '../shared/addressReport.validation'
 import styles from '../styles/addressReport.module.css'
+
+/** "Como veio → correto", a mesma forma que `resolveAddressCorrectionStatus` já resume. */
+function summarizeAsIs(finding: AddressFinding): string {
+  const base = `${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`
+  return finding.notePostalCode.length === 0 ? base : `${base} · ${finding.notePostalCode}`
+}
 
 type AddressReportPanelProps = Readonly<{
   correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
@@ -60,6 +75,7 @@ export function AddressReportPanel({
   report,
 }: AddressReportPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const mailDialog = useAddressCorrectionMailDialog()
 
   if (denied) return <p className={styles.notice}>{t('addressReport.denied')}</p>
   if (failed) return <p className={styles.notice}>{t('addressReport.failed')}</p>
@@ -77,6 +93,34 @@ export function AddressReportPanel({
     )
   }
 
+  function draftsInGroup(group: AddressFindingGroup): readonly AddressCorrectionRequestRecord[] {
+    const addressKeys = new Set(group.findings.map((finding) => finding.addressKey))
+    return (correctionRequests ?? []).filter(
+      (request) => request.status === 'draft' && addressKeys.has(request.addressKey),
+    )
+  }
+
+  function openCompleteMail(group: AddressFindingGroup): void {
+    const drafts = draftsInGroup(group)
+    const previewItems = group.findings.flatMap((finding) => {
+      const draft = drafts.find((request) => request.addressKey === finding.addressKey)
+      if (draft === undefined) return []
+      const status = resolveAddressCorrectionStatus([draft])
+      return [
+        {
+          addressKey: finding.addressKey,
+          asIs: summarizeAsIs(finding),
+          proposed: status.proposedSummary ?? '',
+        },
+      ]
+    })
+    mailDialog.open({
+      contractorName: group.contractorName || t('addressReport.contractorWithout'),
+      contractorTaxId: group.contractorTaxId,
+      previewItems,
+    })
+  }
+
   return (
     <section className={styles.panel}>
       <h2 className={styles.title}>{t('addressReport.title')}</h2>
@@ -87,44 +131,71 @@ export function AddressReportPanel({
         })}
       </p>
 
-      {report.groups.map((group) => (
-        <article className={styles.group} key={group.contractorTaxId || group.contractorName}>
-          <header className={styles.groupHeader}>
-            <h3 className={styles.groupName}>
-              {group.contractorName || t('addressReport.contractorWithout')}
-            </h3>
-            <span className={styles.groupCount}>{group.findings.length}</span>
-          </header>
+      {report.groups.map((group) => {
+        const groupDraftCount = draftsInGroup(group).length
+        return (
+          <article className={styles.group} key={group.contractorTaxId || group.contractorName}>
+            <header className={styles.groupHeader}>
+              <h3 className={styles.groupName}>
+                {group.contractorName || t('addressReport.contractorWithout')}
+              </h3>
+              <div className={styles.groupActions}>
+                {groupDraftCount === 0 ? null : (
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => openCompleteMail(group)}
+                  >
+                    <Icon name="send" />
+                    {t('addressReport.correction.mail.sendAll', { count: groupDraftCount })}
+                  </Button>
+                )}
+                <span className={styles.groupCount}>{group.findings.length}</span>
+              </div>
+            </header>
 
-          <ul className={styles.findings}>
-            {group.findings.map((finding) => (
-              <FindingRow
-                correctionRequests={correctionRequests}
-                correctionRequestsFailed={correctionRequestsFailed}
-                correctionRequestsLoading={correctionRequestsLoading}
-                finding={finding}
-                key={finding.addressKey}
-              />
-            ))}
-          </ul>
-        </article>
-      ))}
+            <ul className={styles.findings}>
+              {group.findings.map((finding) => (
+                <FindingRow
+                  contractorName={group.contractorName || t('addressReport.contractorWithout')}
+                  contractorTaxId={group.contractorTaxId}
+                  correctionRequests={correctionRequests}
+                  correctionRequestsFailed={correctionRequestsFailed}
+                  correctionRequestsLoading={correctionRequestsLoading}
+                  finding={finding}
+                  key={finding.addressKey}
+                  onSendMail={mailDialog.open}
+                />
+              ))}
+            </ul>
+          </article>
+        )
+      })}
+
+      <AddressCorrectionMailDialog dialog={mailDialog} />
     </section>
   )
 }
 
 type FindingRowProps = Readonly<{
+  contractorName: string
+  contractorTaxId: string
   correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
   correctionRequestsFailed: boolean
   correctionRequestsLoading: boolean
   finding: AddressFinding
+  onSendMail: (target: AddressCorrectionMailTarget) => void
 }>
 
 function FindingRow({
+  contractorName,
+  contractorTaxId,
   correctionRequests,
   correctionRequestsFailed,
   correctionRequestsLoading,
   finding,
+  onSendMail,
 }: FindingRowProps) {
   const { t } = useTranslation('nfeWorkspace')
   const [isCorrectionOpen, setCorrectionOpen] = useState(false)
@@ -212,6 +283,32 @@ function FindingRow({
               ? 'addressReport.correction.trigger'
               : 'addressReport.correction.editTrigger',
           )}
+        </Button>
+      )}
+
+      {draft === undefined ? null : (
+        <Button
+          className={styles.mailTrigger}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() =>
+            onSendMail({
+              contractorName,
+              contractorTaxId,
+              previewItems: [
+                {
+                  addressKey: finding.addressKey,
+                  asIs: summarizeAsIs(finding),
+                  proposed: status.proposedSummary ?? '',
+                },
+              ],
+              requestIds: [draft.id],
+            })
+          }
+        >
+          <Icon name="send" />
+          {t('addressReport.correction.mail.sendOne')}
         </Button>
       )}
     </li>
