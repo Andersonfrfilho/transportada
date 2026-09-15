@@ -19,6 +19,7 @@ import {
   ROUTE_COST_GAPS,
   ROUTE_DEPOT_ABSENCES,
   ROUTE_GEOMETRY_SOURCES,
+  TOLL_CATALOG_STATUSES,
   TOLL_PAYMENT_MODES,
   type RouteGeometry,
   type DepotDescription,
@@ -27,6 +28,7 @@ import {
   type RouteGeometryOption,
   type RouteGeometryToll,
   type RouteGeometryTollBooth,
+  type TollCatalogView,
 } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
@@ -992,6 +994,18 @@ function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
   )
 }
 
+/**
+ * Se o catálogo de praças está carregado e em dia — `empty` não pode virar "sem pedágio na rota"
+ * (ver `TollCatalogView`).
+ */
+function isGeometryTollCatalog(value: unknown): value is TollCatalogView {
+  return (
+    isRecord(value) &&
+    isNullableString(value.observedOn) &&
+    isOneOf(value.status, TOLL_CATALOG_STATUSES)
+  )
+}
+
 /** Spec 090 T7: o pedágio vem na resposta da geometria — validado com o mesmo rigor de qualquer dado. */
 function isGeometryToll(value: unknown): value is RouteGeometryToll {
   if (!isRecord(value)) return false
@@ -1000,6 +1014,7 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     booths,
     boothsFallenBackToManual,
     boothsWithoutCharge,
+    catalog,
     chargePerAxle,
     paymentMode,
     tariffObservedOn,
@@ -1013,6 +1028,7 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     booths.every(isGeometryTollBooth) &&
     typeof boothsFallenBackToManual === 'number' &&
     typeof boothsWithoutCharge === 'number' &&
+    isGeometryTollCatalog(catalog) &&
     isString(value.multiplierLabel) &&
     isString(chargePerAxle) &&
     isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&

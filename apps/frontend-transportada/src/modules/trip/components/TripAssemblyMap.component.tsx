@@ -597,6 +597,17 @@ export function TripAssemblyMap({
             que a 090 inteira combate (mesma trava do `boothsWithoutCharge` abaixo).
           */}
           <p className={styles.hint}>{t(`assemblyMap.toll.paymentMode.${toll.paymentMode}`)}</p>
+          {/*
+            O catálogo de praças reajusta uma vez por ano — sem esta marca a tela imprime uma
+            tarifa velha com cara de hoje. `empty` já vira o aviso do bloco abaixo; aqui é só `stale`.
+          */}
+          {toll.catalog.status !== 'stale' || toll.catalog.observedOn === null ? null : (
+            <p className={styles.warning}>
+              {t('assemblyMap.toll.catalogStale', {
+                month: formatTariffMonth(toll.catalog.observedOn),
+              })}
+            </p>
+          )}
           {toll.paymentMode !== 'automatic' || toll.boothsFallenBackToManual === 0 ? null : (
             <p className={styles.hint}>
               {t('assemblyMap.toll.fallenBackToManual', { count: toll.boothsFallenBackToManual })}
@@ -613,7 +624,11 @@ export function TripAssemblyMap({
             porque sumir é indistinguível de "ninguém calculou".
           */}
           {toll.booths.length === 0 ? (
-            <p className={styles.hint}>{t('assemblyMap.toll.none')}</p>
+            <p className={styles.hint}>
+              {toll.catalog.status === 'empty'
+                ? t('assemblyMap.toll.catalogEmpty')
+                : t('assemblyMap.toll.none')}
+            </p>
           ) : (
             <>
               {/*

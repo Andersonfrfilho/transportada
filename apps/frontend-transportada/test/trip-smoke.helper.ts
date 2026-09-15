@@ -625,6 +625,7 @@ export const TOLL_SINGLE_ROUTE_GEOMETRY = {
   source: 'road',
   toll: {
     axles: { count: 2, source: 'estimated' },
+    catalog: { observedOn: '2026-07-01', status: 'current' },
     booths: [
       {
         chargeCar: '10.9000',
@@ -691,6 +692,7 @@ const TOLL_MAIN_OPTION = {
   ],
   toll: {
     axles: { count: 2, source: 'declared' },
+    catalog: { observedOn: '2026-07-01', status: 'current' },
     booths: [
       {
         chargeCar: '10.5800',
