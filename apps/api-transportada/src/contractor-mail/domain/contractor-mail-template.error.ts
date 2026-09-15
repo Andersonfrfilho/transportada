@@ -78,6 +78,21 @@ export class ContractorMailTemplateNotUsableError extends ApiError {
   }
 }
 
+/**
+ * Segurança L2 (revisão final da Fase 4): teto de `CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE` modelos
+ * ativos por `(companyId, mailType)` — rede contra cadastro em loop, conferida no mesmo advisory
+ * lock da criação (`acquireDefaultLock`), então duas criações concorrentes nunca furam o teto juntas.
+ */
+export class ContractorMailTemplateLimitReachedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_TEMPLATE_LIMIT_REACHED',
+      message: 'Contractor mail template active limit was reached for this type',
+      status: 409,
+    })
+  }
+}
+
 /** `INSERT … RETURNING` vazio: nunca deveria acontecer; o motivo precisa chegar ao log. */
 export class ContractorMailTemplateNotPersistedError extends DiagnosableError {
   public override readonly name = 'ContractorMailTemplateNotPersistedError'

@@ -11,7 +11,11 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import { DrizzleAddressCorrectionMailRepository } from '../../src/address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
-import { ContractorMailTemplateNameTakenError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
+import {
+  ContractorMailTemplateLimitReachedError,
+  ContractorMailTemplateNameTakenError,
+} from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
+import { CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE } from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
 import { DrizzleContractorMailTemplateRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-template.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -302,5 +306,34 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
         await transaction.findMailTemplate({ companyId: COMPANY_ID, templateId: own.id }),
       ).toBeUndefined()
     })
+  })
+
+  /**
+   * Segurança L2 (revisão final da Fase 4): teto de `CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE` (50)
+   * modelos ativos por `(companyId, mailType)` — rede contra cadastro em loop. Arquivar um libera a
+   * vaga: o teto conta só `status = 'active'`.
+   */
+  test('a 51ª criação ativa do mesmo tipo é recusada com CONTRACTOR_MAIL_TEMPLATE_LIMIT_REACHED', async () => {
+    const capCompanyId = crypto.randomUUID()
+    await db().execute(sql`insert into companies (id, status) values (${capCompanyId}, 'active')`)
+
+    let last
+    for (let index = 0; index < CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE; index += 1) {
+      last = await create({ companyId: capCompanyId, name: `Modelo ${index}` })
+    }
+
+    const error = await captureError(() => create({ companyId: capCompanyId, name: 'Excedente' }))
+    expect(error).toBeInstanceOf(ContractorMailTemplateLimitReachedError)
+
+    if (last === undefined) throw new Error('at least one template must have been created')
+    await templates().update({
+      actorUserId: ACTOR_USER_ID,
+      changes: { status: 'archived' },
+      companyId: capCompanyId,
+      expectedVersion: last.version,
+      templateId: last.id,
+    })
+    const afterArchiving = await create({ companyId: capCompanyId, name: 'Depois de arquivar' })
+    expect(afterArchiving.id).toBeTruthy()
   })
 })

@@ -6,7 +6,7 @@
  * e o único parcial de padrão nunca é violado no meio da troca.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm'
 
 import { contractorMailTemplates } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
@@ -18,10 +18,12 @@ import type {
   UpdateContractorMailTemplateParams,
 } from '../application/contractor-mail-template.port.js'
 import {
+  ContractorMailTemplateLimitReachedError,
   ContractorMailTemplateNameTakenError,
   ContractorMailTemplateNotPersistedError,
 } from '../domain/contractor-mail-template.error.js'
 import {
+  CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE,
   CONTRACTOR_MAIL_TEMPLATE_STATUSES,
   type ContractorMailTemplateType,
 } from '../domain/mail-template-catalog.constant.js'
@@ -96,6 +98,22 @@ export class DrizzleContractorMailTemplateRepository
           mailType: params.mailType,
           transaction,
         })
+        // Segurança L2 (revisão final da Fase 4): mesmo lock da troca de padrão — duas criações
+        // concorrentes serializam aqui, então a contagem que decide o 409 nunca fica desatualizada
+        // entre a leitura e o INSERT.
+        const [activeCount] = await transaction
+          .select({ value: count() })
+          .from(table)
+          .where(
+            and(
+              eq(table.companyId, params.companyId),
+              eq(table.mailType, params.mailType),
+              eq(table.status, ACTIVE_STATUS),
+            ),
+          )
+        if ((activeCount?.value ?? 0) >= CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE) {
+          throw new ContractorMailTemplateLimitReachedError()
+        }
         const [currentDefault] = await transaction
           .select({ id: table.id })
           .from(table)

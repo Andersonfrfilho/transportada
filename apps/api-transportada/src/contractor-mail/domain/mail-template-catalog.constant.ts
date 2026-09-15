@@ -22,6 +22,19 @@ export const CONTRACTOR_MAIL_TEMPLATE_LIMITS = {
   text: 4000,
 } as const
 
+/**
+ * Segurança L2 (revisão final da Fase 4): teto de modelos **ativos** por `(companyId, mailType)`.
+ * Não é conta de negócio, é rede contra um cadastro em loop consumindo a tabela sem limite — 50
+ * modelos ativos do mesmo tipo já é muito mais do que qualquer operação real usaria.
+ */
+export const CONTRACTOR_MAIL_TEMPLATE_MAX_ACTIVE = 50
+
+/** Teto de `POST /contractor-mail-templates/preview` — em memória, por usuário, 60 por minuto. */
+export const CONTRACTOR_MAIL_TEMPLATE_PREVIEW_RATE_LIMIT = {
+  maxRequests: 60,
+  windowMs: 60_000,
+} as const
+
 export type MailTemplateVariable = {
   readonly description: string
   readonly name: string

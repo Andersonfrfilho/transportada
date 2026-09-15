@@ -26,6 +26,7 @@ import type {
   MailTemplatePreviewSource,
 } from '../application/contractor-mail-templates.use-case.js'
 import {
+  CONTRACTOR_MAIL_TEMPLATE_PREVIEW_RATE_LIMIT,
   CONTRACTOR_MAIL_TEMPLATE_TYPES,
   type ContractorMailTemplateType,
   type MailTemplateContent,
@@ -155,6 +156,10 @@ export function createContractorMailTemplateRoutes(
       },
       pathname: API_CONTRACTOR_MAIL_TEMPLATES_PREVIEW_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      // Segurança L2 (revisão final da Fase 4): a prévia renderiza a cada tecla que troca o modelo
+      // selecionado — sem teto, um cliente com bug vira busy-loop nesta rota. Em memória (por
+      // instância) porque é limitador de abuso do cliente, não trilha compartilhada como o envio.
+      rateLimit: { ...CONTRACTOR_MAIL_TEMPLATE_PREVIEW_RATE_LIMIT, store: 'memory' },
     }),
   ]
 }
