@@ -87,6 +87,8 @@ export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
 /** Spec 150: o pedido de correção de endereço à contratante. */
 export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-requests'
+/** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */
+export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH = '/address-correction-requests/mail'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'

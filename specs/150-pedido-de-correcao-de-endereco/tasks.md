@@ -47,7 +47,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T303** `buildAddressCorrectionMail`, função pura que devolve `{ subject, html, text }`
       seguindo `email-template.html`. Evidência: contrato de texto (como veio, correto e motivo
       sempre presentes; assunto no singular e no plural; escape de `<`, `&` e `"` vindos da nota).
-- [ ] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,
+- [x] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,
       `Idempotency-Key`, e recusa com código estável sem contratante ou sem contato marcado.
       Evidência: contrato de caso de uso e de rota, e o contrato de que nenhum log leva PII.
 - [ ] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na

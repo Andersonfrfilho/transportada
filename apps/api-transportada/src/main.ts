@@ -260,7 +260,9 @@ import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.
 import { createAddressReportRoutes } from './addresses/presentation/address-report.routes.js'
 import { createSaveAddressCorrectionDraftUseCase } from './address-correction/application/save-address-correction-draft.use-case.js'
 import { createListAddressCorrectionRequestsUseCase } from './address-correction/application/list-address-correction-requests.use-case.js'
+import { createSendAddressCorrectionMailUseCase } from './address-correction/application/send-address-correction-mail.use-case.js'
 import { DrizzleAddressCorrectionRepository } from './address-correction/infrastructure/drizzle-address-correction.repository.js'
+import { DrizzleAddressCorrectionMailRepository } from './address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
 import { createAddressCorrectionRoutes } from './address-correction/presentation/address-correction.routes.js'
 import { createPostalCodeRoutes } from './addresses/presentation/postal-code.routes.js'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
@@ -1668,6 +1670,12 @@ function createApplicationRoutes({
     getContractor: { execute: (input) => contractorRegistry.get(input) },
     repository: contractorMailRepository,
   })
+  /** Spec 150 T304: a conversa, a mensagem e o outbox do pedido de correção, numa transação só. */
+  const sendAddressCorrectionMail = createSendAddressCorrectionMailUseCase({
+    fingerprintService,
+    secretService: contractorMailCredentialSecretService,
+    unitOfWork: new DrizzleAddressCorrectionMailRepository(database),
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -2088,6 +2096,7 @@ function createApplicationRoutes({
     ...createAddressCorrectionRoutes({
       listRequests: listAddressCorrectionRequests,
       saveDraft: saveAddressCorrectionDraft,
+      sendMail: sendAddressCorrectionMail,
     }),
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },

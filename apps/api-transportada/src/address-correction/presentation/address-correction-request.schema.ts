@@ -3,7 +3,10 @@
  */
 import { z } from 'zod'
 
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { invalidRequest, parseBody } from '../../http/request-parsing.service.js'
+import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
   BRAZILIAN_STATES,
   BRAZILIAN_STATE_IBGE_PREFIX,
@@ -83,4 +86,37 @@ export function parseAddressCorrectionRequestKey(addressKey: string): string {
   if (!ADDRESS_KEY_PATTERN.test(addressKey)) throw invalidRequest()
 
   return addressKey
+}
+
+const uniqueArray = <TSchema extends z.ZodType<string>>(schema: TSchema, message: string) =>
+  z
+    .array(schema)
+    .min(1)
+    .superRefine((values, context) => {
+      if (new Set(values).size !== values.length) {
+        context.addIssue({ code: 'custom', message })
+      }
+    })
+
+/**
+ * T304: `contactIds` marcados a cada envio (RF5a) — pelo menos um, no máximo o teto do Resend
+ * (`CONTRACTOR_MAIL_MAX_RECIPIENTS`, cobrado de novo no gateway do worker). `requestIds` ausente é
+ * o envio completo; presente é o unitário/seleção (RF6a) — os dois convergem no mesmo corpo.
+ */
+const postAddressCorrectionMailSchema = z
+  .object({
+    contactIds: uniqueArray(z.uuid(), 'contactIds must not repeat an id').max(
+      CONTRACTOR_MAIL_MAX_RECIPIENTS,
+    ),
+    contractorTaxId: buildTaxIdSchema(TAX_ID_PATTERN),
+    requestIds: uniqueArray(z.uuid(), 'requestIds must not repeat an id').optional(),
+  })
+  .strict()
+
+export type PostAddressCorrectionMailBody = z.infer<typeof postAddressCorrectionMailSchema>
+
+export async function parsePostAddressCorrectionMailBody(
+  request: Request,
+): Promise<PostAddressCorrectionMailBody> {
+  return parseBody(postAddressCorrectionMailSchema, request)
 }

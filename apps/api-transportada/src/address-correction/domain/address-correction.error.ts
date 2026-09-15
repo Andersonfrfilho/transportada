@@ -35,3 +35,58 @@ export class AddressCorrectionContractorNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * T304 (RF5): todo `contactId` do body precisa resolver para um contato `active` desta contratante,
+ * dentro desta empresa — inexistente, inativo ou de outra contratante recebem a mesma resposta, para
+ * não revelar qual dos três motivos foi.
+ */
+export class AddressCorrectionNoActiveContactError extends ApiError {
+  public constructor() {
+    super({
+      code: 'ADDRESS_CORRECTION_NO_ACTIVE_CONTACT',
+      message: 'One or more contacts are not active contacts of this contractor',
+      status: 422,
+    })
+  }
+}
+
+/** T304 (RF6a): o envio completo sem nenhum rascunho da contratante não tem o que mandar. */
+export class AddressCorrectionNothingToSendError extends ApiError {
+  public constructor() {
+    super({
+      code: 'ADDRESS_CORRECTION_NOTHING_TO_SEND',
+      message: 'The contractor has no draft address correction request to send',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * T304 (RF6a): `requestIds` explícito que não resolve a um rascunho `draft` desta contratante —
+ * id de outra contratante, inexistente ou já `sent`.
+ */
+export class AddressCorrectionRequestNotSendableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE',
+      message: 'One or more request ids are not a sendable draft of this contractor',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * T304 (RF6): a mesma `Idempotency-Key` usada com um corpo diferente — mesmo código e status de
+ * `idempotencyKeyReused` em `nfe-imports/application/nfe-import.error.ts`, redeclarado aqui porque
+ * cada domínio deste repositório guarda o seu (`freight-rules`, `cte-batches` fazem o mesmo).
+ */
+export class AddressCorrectionIdempotencyKeyReusedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'IDEMPOTENCY_KEY_REUSED',
+      message: 'Idempotency key cannot be reused with a different request body',
+      status: 409,
+    })
+  }
+}

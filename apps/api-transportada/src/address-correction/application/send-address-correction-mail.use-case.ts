@@ -1,0 +1,219 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * T304 (RF5–RF8): a orquestração fica aqui, nunca no repositório — o que cada leitura significa e
+ * qual erro estável ela vira. `execute` do `unitOfWork` é uma transação só (RF6): a conversa, a
+ * mensagem, o outbox e o `status = 'sent'` dos pedidos comitam juntos.
+ */
+import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
+
+import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
+import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { ContractorMailNotConfiguredError } from '../../contractor-mail/domain/contractor-mail.error.js'
+import {
+  deriveReplyToken,
+  hashReplyToken,
+} from '../../contractor-mail/domain/reply-token.policy.js'
+import { buildAddressCorrectionMail } from '../domain/address-correction-mail.template.js'
+import type {
+  AddressCorrectionMailItem,
+  BuildAddressCorrectionMailParams,
+} from '../domain/address-correction-mail.types.js'
+import {
+  AddressCorrectionContractorNotFoundError,
+  AddressCorrectionIdempotencyKeyReusedError,
+  AddressCorrectionNoActiveContactError,
+  AddressCorrectionNothingToSendError,
+  AddressCorrectionRequestNotSendableError,
+} from '../domain/address-correction.error.js'
+import type {
+  AddressCorrectionMailTransactionPort,
+  AddressCorrectionMailUnitOfWorkPort,
+  SendAddressCorrectionMailResult,
+} from './address-correction-mail.port.js'
+import type { AddressCorrectionRequest } from './address-correction.port.js'
+
+const OPERATION = 'address-correction.send-mail'
+const ENCODER = new TextEncoder()
+/** RF12/T302: caractere que injetaria cabeçalho ou trocaria o destinatário no `to` do gateway. */
+const UNSAFE_EMAIL_CHARACTERS = /[\r\n,<>]/u
+const NO_REQUEST_IDS_MARKER = '__all__'
+
+export type SendAddressCorrectionMailInput = {
+  readonly actorUserId: string
+  readonly companyId: string
+  readonly contactIds: readonly string[]
+  readonly contractorTaxId: string
+  readonly correlationId: string
+  readonly idempotencyKey: string
+  readonly requestIds: readonly string[] | undefined
+}
+
+export type SendAddressCorrectionMailUseCase = Readonly<{
+  send: (input: SendAddressCorrectionMailInput) => Promise<SendAddressCorrectionMailResult>
+}>
+
+export function createSendAddressCorrectionMailUseCase(dependencies: {
+  readonly fingerprintService: IdempotencyFingerprintPort
+  readonly secretService: ContractorMailCredentialSecretService
+  readonly unitOfWork: AddressCorrectionMailUnitOfWorkPort
+}): SendAddressCorrectionMailUseCase {
+  return {
+    send: (input) =>
+      dependencies.unitOfWork.execute((transaction) =>
+        executeSend({
+          fingerprintService: dependencies.fingerprintService,
+          input,
+          secretService: dependencies.secretService,
+          transaction,
+        }),
+      ),
+  }
+}
+
+async function executeSend(params: {
+  readonly fingerprintService: IdempotencyFingerprintPort
+  readonly input: SendAddressCorrectionMailInput
+  readonly secretService: ContractorMailCredentialSecretService
+  readonly transaction: AddressCorrectionMailTransactionPort
+}): Promise<SendAddressCorrectionMailResult> {
+  const { fingerprintService, input, secretService, transaction } = params
+  const { companyId } = input
+
+  const contractor = await transaction.findContractorByTaxId({
+    companyId,
+    taxId: input.contractorTaxId,
+  })
+  if (contractor === undefined) throw new AddressCorrectionContractorNotFoundError()
+
+  const dedupedContactIds = [...new Set(input.contactIds)]
+  const sortedRequestIdsMarker =
+    input.requestIds === undefined ? NO_REQUEST_IDS_MARKER : [...input.requestIds].sort().join(',')
+  const fingerprint = await fingerprintService.create({
+    fields: [
+      companyId,
+      contractor.id,
+      [...dedupedContactIds].sort().join(','),
+      sortedRequestIdsMarker,
+    ].map((value) => ENCODER.encode(value)),
+    operation: OPERATION,
+  })
+
+  const replay = await transaction.findIdempotency({
+    companyId,
+    idempotencyKey: input.idempotencyKey,
+  })
+  if (replay !== null) {
+    if (replay.fingerprint !== fingerprint) throw new AddressCorrectionIdempotencyKeyReusedError()
+    return replay.response
+  }
+
+  const settings = await transaction.findMailSettings({ companyId })
+  if (settings === undefined || settings.status !== 'active') {
+    throw new ContractorMailNotConfiguredError()
+  }
+  const secret = await secretService.decrypt({
+    companyId,
+    envelope: settings.secretEnvelope as SecretEnvelopeV1,
+    settingsId: settings.id,
+  })
+
+  const contacts = await transaction.findActiveContactsByIds({
+    companyId,
+    contactIds: dedupedContactIds,
+    contractorId: contractor.id,
+  })
+  const emailById = new Map(contacts.map((contact) => [contact.id, contact.email]))
+  const toAddresses = input.contactIds.map((id) => emailById.get(id))
+  if (
+    toAddresses.some((email) => email === undefined) ||
+    toAddresses.some((email) => email !== undefined && UNSAFE_EMAIL_CHARACTERS.test(email))
+  ) {
+    throw new AddressCorrectionNoActiveContactError()
+  }
+  const recipientEmails = toAddresses as readonly string[]
+
+  const { invalidRequestIds, sendable } = await transaction.findSendableRequests({
+    companyId,
+    contractorId: contractor.id,
+    requestIds: input.requestIds,
+  })
+  if (invalidRequestIds.length > 0) throw new AddressCorrectionRequestNotSendableError()
+  if (sendable.length === 0) throw new AddressCorrectionNothingToSendError()
+
+  const carrierName = (await transaction.findCarrierName({ companyId })) ?? ''
+  const operatorName =
+    (await transaction.findOperatorName({ companyId, userId: input.actorUserId })) ?? ''
+
+  const mail = buildAddressCorrectionMail(
+    buildMailParams({
+      carrierName,
+      contractorName: contractor.displayName,
+      operatorName,
+      sendable,
+    }),
+  )
+
+  const threadId = crypto.randomUUID()
+  const replyTokenHash = hashReplyToken(
+    deriveReplyToken({ companyId, replyTokenSecret: secret.replyTokenSecret, threadId }),
+  )
+
+  const recorded = await transaction.recordMail({
+    actorUserId: input.actorUserId,
+    bodyHtml: mail.html,
+    bodyText: mail.text,
+    companyId,
+    contractorId: contractor.id,
+    correlationId: input.correlationId,
+    fromAddress: settings.senderAddress,
+    replyTokenHash,
+    subject: mail.subject,
+    threadId,
+    toAddresses: recipientEmails,
+  })
+
+  const sentRequestIds = sendable.map((request) => request.id)
+  await transaction.markRequestsSent({ companyId, requestIds: sentRequestIds, threadId })
+
+  const response: SendAddressCorrectionMailResult = {
+    messageId: recorded.messageId,
+    recipientCount: recipientEmails.length,
+    sentRequestIds,
+    threadId,
+  }
+  await transaction.saveIdempotency({
+    companyId,
+    fingerprint,
+    idempotencyKey: input.idempotencyKey,
+    response,
+  })
+  return response
+}
+
+function buildMailParams(input: {
+  readonly carrierName: string
+  readonly contractorName: string
+  readonly operatorName: string
+  readonly sendable: readonly AddressCorrectionRequest[]
+}): BuildAddressCorrectionMailParams {
+  return {
+    carrierName: input.carrierName,
+    contractorName: input.contractorName,
+    items: input.sendable.map(toMailItem),
+    operatorName: input.operatorName,
+  }
+}
+
+function toMailItem(request: AddressCorrectionRequest): AddressCorrectionMailItem {
+  return {
+    proposed: request.proposed,
+    reason: {
+      distanceMetres:
+        request.reasonDistanceMetres === null ? null : Number(request.reasonDistanceMetres),
+      matchLevel: request.reasonMatchLevel,
+    },
+    recipientName: request.recipientName,
+    reported: request.reported,
+  }
+}

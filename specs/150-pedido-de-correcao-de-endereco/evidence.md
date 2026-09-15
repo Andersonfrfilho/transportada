@@ -812,4 +812,195 @@ identificador mais útil quando não há nome de destinatário.
 - `apps/api-transportada/src/address-correction/domain/address-correction-mail.constant.ts` (novo)
 - `apps/api-transportada/test/address-correction-mail.contract.test.ts` (novo, entrypoint)
 - `apps/api-transportada/test/address-correction-mail/template.contract.ts` (novo)
+
+## T304
+
+`POST /address-correction-requests/mail`, `settings.manage`. Body
+`{ contractorTaxId, contactIds: string[] (1..50, sem repetição), requestIds?: string[] }`,
+`Idempotency-Key` obrigatório. Resposta `202 { data: { threadId, messageId, sentRequestIds,
+recipientCount } }` — segue o padrão do `test-email` (`202`, envio de fato acontece no worker via
+outbox), não `200`.
+
+### Arquitetura escolhida
+
+Porta nova (`address-correction-mail.port.ts`) com um `AddressCorrectionMailTransactionPort`
+(métodos estreitos: achar contratante/config/contatos/pedidos, gravar mensagem, marcar `sent`,
+achar/gravar idempotência) e um `AddressCorrectionMailUnitOfWorkPort.execute` — o mesmo molde de
+`RequestNfeImportTransactionPort`/`cte-batches`: a orquestração (o que cada leitura significa, qual
+erro lançar) fica no caso de uso (`send-address-correction-mail.use-case.ts`), nunca no repositório
+(`drizzle-address-correction-mail.repository.ts`), que só lê e escreve. A função `executeSend`
+inteira roda dentro de `unitOfWork.execute`, ou seja, **uma transação Postgres só** — igual ao
+`executeRequest` de `nfe-imports`, e diferente do `test-email` (que abre duas transações
+separadas): aqui o pedido explícito era "numa única transação", e o `test-email` não tinha essa
+exigência.
+
+### Idempotência: a tabela genérica `idempotency_records`, não uma nova
+
+`grep` por "Idempotency-Key" achou o mecanismo já usado por `nfe-imports`, `freight-rules`,
+`cte-batches` e `company-settings`: a tabela `idempotency_records` (`fiscal-operation.schema.ts`,
+já agregada em `database.schema.ts`), chave `(company_id, operation, idempotency_key)`, com
+`request_fingerprint` guardando um HMAC-SHA256 (`IdempotencyFingerprintPort`,
+`createIdempotencyFingerprintService`, já instanciado uma vez em `main.ts` como `fingerprintService`
+e reaproveitado aqui) sobre os campos de negócio — replay com a mesma chave e fingerprint devolve
+`response` sem repetir a escrita; mesma chave com fingerprint diferente é `IDEMPOTENCY_KEY_REUSED`
+(409), o mesmo código que `nfe-imports`/`freight-rules`/`cte-batches` já usam, cada um com a própria
+classe de erro local — segui o mesmo padrão (`AddressCorrectionIdempotencyKeyReusedError`) em vez de
+importar a de outro domínio. Nenhuma migration nova: a tabela e a coluna do teto de e-mail já
+existiam. O lock é `pg_advisory_xact_lock` sobre o hash de `['address-correction-mail', companyId,
+idempotencyKey]`, cópia do helper de `company-settings.support.ts` (não achei versão exportada
+reaproveitável fora do módulo).
+
+### `subject_id` da conversa nova
+
+`contractor_mail_threads` tem `unique(company_id, subject_type, subject_id)`. Para `setup_test` o
+`subject_id` é o próprio `companyId` (uma conversa por empresa). Para `address_correction` cada
+envio cria uma conversa **nova** (RF6a: unitário e completo convivem, e um envio anterior não pode
+bloquear o próximo) — não existe um segundo objeto de negócio natural para apontar, então
+`subject_id = threadId` (o próprio id gerado por `crypto.randomUUID()` para a conversa). A unicidade
+do `subject_id` fica garantida pela unicidade do `id` da própria linha — decisão equivalente à do
+`setup_test`, só que a chave de negócio aqui é "este envio", não "esta empresa".
+
+### Reply-To funcional, como no `test-email`
+
+A conversa precisa de um `reply_token_hash` que abra de verdade (para uma resposta da contratante
+cair na conversa certa — mesmo mecanismo do RF7/RF2 da spec 143), então o fluxo decripta o
+`replyTokenSecret` da configuração (`ContractorMailCredentialSecretService.decrypt`, a mesma usada
+pelo `test-email`) e deriva o token com `deriveReplyToken`/`hashReplyToken`
+(`reply-token.policy.ts`) para o `threadId` já definitivo — sem a dança de `reserveSetupTestThread`
+(não é necessária aqui: cada envio já nasce com um id novo, não há corrida por "a" conversa).
+
+### Validações e códigos
+
+- `ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND` (já existia da T102/T103): CNPJ do body sem contratante
+  na empresa.
+- `CONTRACTOR_MAIL_NOT_CONFIGURED` (já existia do `contractor-mail`, 409): configuração ausente OU
+  `status !== 'active'` — reaproveitado como pedido pelo enunciado ("recuse com o código que o
+  módulo já usa"), cobrindo os dois motivos ("não configurado" e "não verificado") com a mesma
+  resposta, sem distinguir os dois a quem não tem acesso de escrita na configuração.
+- `ADDRESS_CORRECTION_NO_ACTIVE_CONTACT` (novo, 422): **qualquer** `contactId` do body que não
+  resolva a um contato `active` desta contratante, dentro desta empresa — inexistente, inativo ou de
+  outra contratante recebem a mesma resposta (não distingue qual dos três, por desenho: um atacante
+  não aprende se o id pertence a outra contratante só testando). O mesmo teste cobre também a
+  recusa por `\r \n , < >` no e-mail resolvido (defesa em profundidade — na prática inatingível
+  porque `contractor-contacts` já valida o e-mail com Zod na criação, mas o teste de caso de uso não
+  cobre esse ramo isoladamente porque não há como semear um e-mail assim pelas portas existentes;
+  fica descrito aqui em vez de um teste artificial que forjaria o fake fora do que o sistema produz).
+- `ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE` (novo, 409): **qualquer** `requestId` explícito que não
+  resolva a um rascunho `draft` desta contratante — de outra contratante, inexistente ou já `sent`.
+- `ADDRESS_CORRECTION_NOTHING_TO_SEND` (novo, 409): a lista final de pedidos a enviar (completa ou
+  filtrada por `requestIds`) ficou vazia.
+- `IDEMPOTENCY_KEY_REUSED` (novo, 409): mesma `Idempotency-Key`, fingerprint diferente.
+- `400` com `details[]`: corpo inválido (Zod) — `contactIds` vazio, repetido ou acima do teto
+  (`CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, importado do `contractor-mail`), `contractorTaxId` fora do
+  formato, `requestIds` repetido, header `Idempotency-Key` ausente/fora da forma
+  (`parseIdempotencyKey` de `cte-batches/presentation/cte-batch.schema.ts`, reaproveitado — é o
+  mesmo helper que `mdfe-issuance.routes.ts`/`nfse-invoices.routes.ts` já importam entre módulos).
+
+O teto de 50 contatos é cobrado só no Zod da rota (RF do plan.md: "cobrada no Zod da API... e de
+novo no gateway" — o gateway é o do worker, T302; o caso de uso desta task não repete a conta porque
+não haveria código estável dedicado para isso na lista do enunciado, e duplicar a checagem aqui sem
+um código próprio só trocaria um `400` por outro `400` idêntico).
+
+### `carrierName` e `operatorName`
+
+- `carrierName`: não existe `companies.name` — o nome da transportadora vive em
+  `company_fiscal_profiles` (`legalName`/`tradeName`), a mesma tabela que `cte-issuance` e
+  `invoice-pdf.gateway.ts` usam para identificar o emissor. Uso `tradeName`, com `legalName` de
+  fallback se o nome fantasia estiver em branco (nenhuma convenção existente de "um nome só" para
+  copiar; decisão registrada aqui). Sem perfil fiscal cadastrado, `carrierName` sai `''` — não há
+  erro dedicado para isso na lista do enunciado, e a empresa já opera sem CT-e nesse estado (nota do
+  `CLAUDE.md`: "perfil fiscal sem sequência de CT-e é leitura válida").
+- `operatorName`: o contexto autenticado só tem `userId` (RF do enunciado: "se o contexto só tiver
+  id, busque o nome pelo mecanismo existente"). O mecanismo existente é `identityUserProfiles.name`
+  join `userCompanyMemberships` (ativo, na empresa) — o mesmo padrão de
+  `actor-email.repository.ts` (que busca `email`) e de `actorProfile.name` em
+  `drizzle-nfe-document-event.repository.ts`. Sem perfil ativo na empresa, `operatorName` sai `''`
+  (mesmo raciocínio do `carrierName` — não há um pedido explícito de erro aqui).
+
+### Verde
+
+```
+bun run --cwd apps/api-transportada typecheck
+```
+
+exit 0.
+
+```
+bun test ./test/address-correction-http.contract.test.ts ./test/address-correction-mail.contract.test.ts
+```
+
+**47 pass**, 0 fail, 111 `expect()` — inclui as 9 rotas novas (permissão, 400 com `details[]` para
+corpo vazio/repetido/acima do teto, `Idempotency-Key` ausente, 202 com o corpo certo, `requestIds`
+repassado, código estável propagado com o status certo, `cache-control: no-store`, nenhum PII em
+log) e as 15 do caso de uso (fakes: completo, unitário, `requestId` de outra contratante, já
+enviado, contato inativo, contato de outra contratante, sem rascunho, CNPJ sem contratante,
+configuração ausente/inativa, idempotência replay e reuso, `html`/`text`/`subject` gravados vindos
+de `buildAddressCorrectionMail`).
+
+```
+bun run --cwd apps/api-transportada test
+```
+
+**5885 pass**, 23 skip, 0 fail (174 arquivos).
+
+```
+bun run lint
+```
+
+exit 0 (6 apps).
+
+Integração contra Postgres nativo `127.0.0.1:65433`
+(`DRIZZLE_TEST_DATABASE_URL=… bun --env-file=../../.env.test test … --timeout 120000`, de dentro de
+`apps/api-transportada`):
+
+```
+./test/integration/address-correction-mail-repository.integration.ts
+./test/integration/address-correction-repository.integration.ts
+./test/integration/contractor-contacts-repository.integration.ts
+./test/integration/contractor-mail-test-email-thread.integration.ts
+```
+
+**20 pass**, 0 fail, 73 `expect()` (banco descartável por `describe`, não pulou). O arquivo novo
+prova, contra Postgres de verdade: contratante/config resolvidos dentro da empresa (nunca de
+outra); `carrierName`/`operatorName` só saem para a empresa certa; `findActiveContactsByIds` recusa
+contato de outra contratante; `findSendableRequests` sem `requestIds` traz só os `draft` da
+contratante, com `requestIds` valida dono e status por id; idempotência grava e relê
+fingerprint+resposta; e o ponto central — `recordMail` + `markRequestsSent` dentro do mesmo
+`execute()` comitam **juntos** (conversa `address_correction`, mensagem com `body_html`/`body_text`/
+`to_addresses`, uma linha de outbox `message.send.requested`, e o pedido veio a `sent` com
+`sent_at`/`thread_id`), e um erro lançado **depois** de `recordMail` mas antes do fim do `execute`
+desfaz **tudo** — nem a conversa nem a mensagem sobrevivem, e o pedido volta a `draft`.
+
+Não rodei a suíte `test:integration` inteira (mais de 60 arquivos, cada um sobe um banco
+descartável — minutos) porque nenhum arquivo fora de `address-correction`/`contractor-mail` foi
+tocado nesta task; rodei o arquivo novo mais os três vizinhos mais próximos (endereço, contatos,
+`setup_test`) para confirmar que nada regrediu no que esta task de fato mexeu.
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/address-correction/application/address-correction-mail.port.ts` (novo)
+- `apps/api-transportada/src/address-correction/application/send-address-correction-mail.use-case.ts`
+  (novo)
+- `apps/api-transportada/src/address-correction/infrastructure/drizzle-address-correction-mail.repository.ts`
+  (novo)
+- `apps/api-transportada/src/address-correction/domain/address-correction.error.ts`
+  (`AddressCorrectionNoActiveContactError`, `AddressCorrectionNothingToSendError`,
+  `AddressCorrectionRequestNotSendableError`, `AddressCorrectionIdempotencyKeyReusedError`)
+- `apps/api-transportada/src/address-correction/presentation/address-correction.routes.ts`
+  (`POST /address-correction-requests/mail`)
+- `apps/api-transportada/src/address-correction/presentation/address-correction-request.schema.ts`
+  (`parsePostAddressCorrectionMailBody`)
+- `apps/api-transportada/src/shared/api.constant.ts`
+  (`API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH`)
+- `apps/api-transportada/src/main.ts` (composição: `DrizzleAddressCorrectionMailRepository`,
+  `createSendAddressCorrectionMailUseCase`, reaproveita `fingerprintService` e
+  `contractorMailCredentialSecretService` já existentes)
+- `apps/api-transportada/test/address-correction-http/mail-routes.contract.ts` (novo)
+- `apps/api-transportada/test/address-correction-mail/send-mail-use-case.contract.ts` (novo)
+- `apps/api-transportada/test/integration/address-correction-mail-repository.integration.ts` (novo)
+- `apps/api-transportada/test/fixtures/address-correction-http.fixture.ts` (`sendMail`,
+  `sendMailCalls`, `logCalls`)
+- `apps/api-transportada/test/address-correction-http.contract.test.ts`,
+  `test/address-correction-mail.contract.test.ts` (imports das suítes novas)
+- `apps/api-transportada/package.json` (`test:integration` com o arquivo novo)
 - `apps/api-transportada/package.json` (lista explícita de testes)

@@ -1,0 +1,348 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * T304 (RF6): uma transação só cria a conversa, grava a mensagem e o outbox, e marca os pedidos
+ * como `sent` — nenhuma decisão de negócio mora aqui (isso é do caso de uso), só leitura e escrita.
+ */
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+
+import {
+  addressCorrectionRequests,
+  companyFiscalProfiles,
+  contractorContacts,
+  contractorMailMessages,
+  contractorMailOutbox,
+  contractorMailSettings,
+  contractorMailThreads,
+  contractors,
+  identityUserProfiles,
+  idempotencyRecords,
+  userCompanyMemberships,
+} from '../../database/database.schema.js'
+import type {
+  AddressCorrectionMailContact,
+  AddressCorrectionMailContractor,
+  AddressCorrectionMailIdempotencyRecord,
+  AddressCorrectionMailSettings,
+  AddressCorrectionMailTransactionPort,
+  AddressCorrectionMailUnitOfWorkPort,
+  FindSendableAddressCorrectionRequestsResult,
+  RecordAddressCorrectionMailInput,
+  SendAddressCorrectionMailResult,
+} from '../application/address-correction-mail.port.js'
+import type { AddressCorrectionRequest } from '../application/address-correction.port.js'
+
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+const OPERATION = 'address-correction.send-mail'
+const DRAFT_STATUS = 'draft'
+const SENT_STATUS = 'sent'
+const OUTBOUND_DIRECTION = 'outbound'
+const QUEUED_DELIVERY_STATUS = 'queued'
+const ADDRESS_CORRECTION_SUBJECT_TYPE = 'address_correction'
+
+export class DrizzleAddressCorrectionMailRepository implements AddressCorrectionMailUnitOfWorkPort {
+  public constructor(private readonly database: Database) {}
+
+  public execute<TResult>(
+    operation: (transaction: AddressCorrectionMailTransactionPort) => Promise<TResult>,
+  ): Promise<TResult> {
+    return this.database.transaction((transaction) =>
+      operation(new AddressCorrectionMailDrizzleTransaction(transaction)),
+    )
+  }
+}
+
+class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTransactionPort {
+  public constructor(private readonly transaction: Transaction) {}
+
+  public async findContractorByTaxId(params: {
+    readonly companyId: string
+    readonly taxId: string
+  }): Promise<AddressCorrectionMailContractor | undefined> {
+    const [row] = await this.transaction
+      .select({ displayName: contractors.displayName, id: contractors.id })
+      .from(contractors)
+      .where(and(eq(contractors.companyId, params.companyId), eq(contractors.taxId, params.taxId)))
+      .limit(1)
+    return row
+  }
+
+  public async findMailSettings(params: {
+    readonly companyId: string
+  }): Promise<AddressCorrectionMailSettings | undefined> {
+    const [row] = await this.transaction
+      .select({
+        id: contractorMailSettings.id,
+        secretEnvelope: contractorMailSettings.secretEnvelope,
+        senderAddress: contractorMailSettings.senderAddress,
+        status: contractorMailSettings.status,
+      })
+      .from(contractorMailSettings)
+      .where(eq(contractorMailSettings.companyId, params.companyId))
+      .limit(1)
+    return row
+  }
+
+  public async findActiveContactsByIds(params: {
+    readonly companyId: string
+    readonly contactIds: readonly string[]
+    readonly contractorId: string
+  }): Promise<readonly AddressCorrectionMailContact[]> {
+    if (params.contactIds.length === 0) return []
+    return this.transaction
+      .select({ email: contractorContacts.email, id: contractorContacts.id })
+      .from(contractorContacts)
+      .where(
+        and(
+          eq(contractorContacts.companyId, params.companyId),
+          eq(contractorContacts.contractorId, params.contractorId),
+          eq(contractorContacts.status, 'active'),
+          inArray(contractorContacts.id, [...params.contactIds]),
+        ),
+      )
+  }
+
+  public async findSendableRequests(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly requestIds: readonly string[] | undefined
+  }): Promise<FindSendableAddressCorrectionRequestsResult> {
+    if (params.requestIds === undefined) {
+      const rows = await this.transaction
+        .select()
+        .from(addressCorrectionRequests)
+        .where(
+          and(
+            eq(addressCorrectionRequests.companyId, params.companyId),
+            eq(addressCorrectionRequests.contractorId, params.contractorId),
+            eq(addressCorrectionRequests.status, DRAFT_STATUS),
+          ),
+        )
+      return { invalidRequestIds: [], sendable: rows.map(toAddressCorrectionRequest) }
+    }
+
+    const requestedIds = [...new Set(params.requestIds)]
+    const rows =
+      requestedIds.length === 0
+        ? []
+        : await this.transaction
+            .select()
+            .from(addressCorrectionRequests)
+            .where(
+              and(
+                eq(addressCorrectionRequests.companyId, params.companyId),
+                inArray(addressCorrectionRequests.id, requestedIds),
+              ),
+            )
+    const rowById = new Map(rows.map((row) => [row.id, row]))
+    const sendable: AddressCorrectionRequest[] = []
+    const invalidRequestIds: string[] = []
+    for (const id of requestedIds) {
+      const row = rowById.get(id)
+      if (
+        row === undefined ||
+        row.contractorId !== params.contractorId ||
+        row.status !== DRAFT_STATUS
+      ) {
+        invalidRequestIds.push(id)
+        continue
+      }
+      sendable.push(toAddressCorrectionRequest(row))
+    }
+    return { invalidRequestIds, sendable }
+  }
+
+  public async findCarrierName(params: {
+    readonly companyId: string
+  }): Promise<string | undefined> {
+    const [row] = await this.transaction
+      .select({
+        legalName: companyFiscalProfiles.legalName,
+        tradeName: companyFiscalProfiles.tradeName,
+      })
+      .from(companyFiscalProfiles)
+      .where(eq(companyFiscalProfiles.companyId, params.companyId))
+      .limit(1)
+    if (row === undefined) return undefined
+    return row.tradeName.trim().length > 0 ? row.tradeName : row.legalName
+  }
+
+  public async findOperatorName(params: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<string | undefined> {
+    const [row] = await this.transaction
+      .select({ name: identityUserProfiles.name })
+      .from(identityUserProfiles)
+      .innerJoin(
+        userCompanyMemberships,
+        eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+      )
+      .where(
+        and(
+          eq(identityUserProfiles.userId, params.userId),
+          eq(userCompanyMemberships.companyId, params.companyId),
+          eq(userCompanyMemberships.status, 'active'),
+        ),
+      )
+      .limit(1)
+    return row?.name
+  }
+
+  public async findIdempotency(params: {
+    readonly companyId: string
+    readonly idempotencyKey: string
+  }): Promise<AddressCorrectionMailIdempotencyRecord | null> {
+    await acquireAdvisoryLock(this.transaction, [
+      'address-correction-mail',
+      params.companyId,
+      params.idempotencyKey,
+    ])
+    const [row] = await this.transaction
+      .select({
+        fingerprint: idempotencyRecords.requestFingerprint,
+        response: idempotencyRecords.response,
+      })
+      .from(idempotencyRecords)
+      .where(
+        and(
+          eq(idempotencyRecords.companyId, params.companyId),
+          eq(idempotencyRecords.operation, OPERATION),
+          eq(idempotencyRecords.idempotencyKey, params.idempotencyKey),
+        ),
+      )
+      .limit(1)
+    if (row === undefined) return null
+    return {
+      fingerprint: row.fingerprint,
+      response: row.response as SendAddressCorrectionMailResult,
+    }
+  }
+
+  public async saveIdempotency(params: {
+    readonly companyId: string
+    readonly fingerprint: string
+    readonly idempotencyKey: string
+    readonly response: SendAddressCorrectionMailResult
+  }): Promise<void> {
+    await this.transaction.insert(idempotencyRecords).values({
+      companyId: params.companyId,
+      idempotencyKey: params.idempotencyKey,
+      operation: OPERATION,
+      requestFingerprint: params.fingerprint,
+      response: params.response,
+      status: 'succeeded',
+    })
+  }
+
+  /** RF6: a conversa, a mensagem `queued` e o evento de outbox, todos nesta transação. */
+  public async recordMail(
+    params: RecordAddressCorrectionMailInput,
+  ): Promise<{ readonly messageId: string }> {
+    await this.transaction.insert(contractorMailThreads).values({
+      companyId: params.companyId,
+      contractorId: params.contractorId,
+      id: params.threadId,
+      replyTokenHash: params.replyTokenHash,
+      subjectId: params.threadId,
+      subjectType: ADDRESS_CORRECTION_SUBJECT_TYPE,
+    })
+
+    const [message] = await this.transaction
+      .insert(contractorMailMessages)
+      .values({
+        actorUserId: params.actorUserId,
+        bodyHtml: params.bodyHtml,
+        bodyText: params.bodyText,
+        companyId: params.companyId,
+        deliveryStatus: QUEUED_DELIVERY_STATUS,
+        direction: OUTBOUND_DIRECTION,
+        fromAddress: params.fromAddress,
+        subject: params.subject,
+        threadId: params.threadId,
+        toAddresses: [...params.toAddresses],
+      })
+      .returning({ id: contractorMailMessages.id })
+    if (message === undefined) throw new Error('address correction mail message was not saved')
+
+    await this.transaction.insert(contractorMailOutbox).values({
+      companyId: params.companyId,
+      correlationId: params.correlationId,
+      eventType: 'message.send.requested',
+      messageId: message.id,
+      payload: {},
+    })
+
+    return { messageId: message.id }
+  }
+
+  public async markRequestsSent(params: {
+    readonly companyId: string
+    readonly requestIds: readonly string[]
+    readonly threadId: string
+  }): Promise<void> {
+    if (params.requestIds.length === 0) return
+    await this.transaction
+      .update(addressCorrectionRequests)
+      .set({ sentAt: sql`now()`, status: SENT_STATUS, threadId: params.threadId })
+      .where(
+        and(
+          eq(addressCorrectionRequests.companyId, params.companyId),
+          inArray(addressCorrectionRequests.id, [...params.requestIds]),
+        ),
+      )
+  }
+}
+
+type AddressCorrectionRow = typeof addressCorrectionRequests.$inferSelect
+
+function toAddressCorrectionRequest(row: AddressCorrectionRow): AddressCorrectionRequest {
+  return {
+    actorUserId: row.actorUserId,
+    addressKey: row.addressKey,
+    companyId: row.companyId,
+    contractorId: row.contractorId,
+    createdAt: row.createdAt,
+    id: row.id,
+    proposed: {
+      city: row.proposedCity,
+      cityCode: row.proposedCityCode,
+      complement: row.proposedComplement,
+      district: row.proposedDistrict,
+      number: row.proposedNumber,
+      postalCode: row.proposedPostalCode,
+      state: row.proposedState,
+      street: row.proposedStreet,
+    },
+    reasonDistanceMetres: row.reasonDistanceMetres,
+    reasonMatchLevel: row.reasonMatchLevel,
+    recipientName: row.recipientName,
+    reported: {
+      city: row.reportedCity,
+      cityCode: row.reportedCityCode,
+      complement: row.reportedComplement,
+      district: row.reportedDistrict,
+      number: row.reportedNumber,
+      postalCode: row.reportedPostalCode,
+      state: row.reportedState,
+      street: row.reportedStreet,
+    },
+    sentAt: row.sentAt,
+    status: row.status,
+    threadId: row.threadId,
+    updatedAt: row.updatedAt,
+  }
+}
+
+async function acquireAdvisoryLock(
+  transaction: Transaction,
+  fields: readonly string[],
+): Promise<void> {
+  const encoded = new TextEncoder().encode(JSON.stringify(fields))
+  const digest = await crypto.subtle.digest('SHA-256', encoded)
+  const lockId = new DataView(digest).getBigInt64(0, false)
+  await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
+}

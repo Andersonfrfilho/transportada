@@ -4,11 +4,15 @@
  * `settings.manage` (RF7), a mesma permissão de `GET /address-report` — quem já vê a carteira
  * inteira de endereços a corrigir é quem também registra e envia o pedido de correção.
  */
+import { parseIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import { defineRoute } from '../../http/router.service.js'
 import {
+  API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { SendAddressCorrectionMailResult } from '../application/address-correction-mail.port.js'
+import type { SendAddressCorrectionMailUseCase } from '../application/send-address-correction-mail.use-case.js'
 import type { SaveAddressCorrectionDraftUseCase } from '../application/save-address-correction-draft.use-case.js'
 import type { ListAddressCorrectionRequestsUseCase } from '../application/list-address-correction-requests.use-case.js'
 import type {
@@ -17,6 +21,7 @@ import type {
 } from '../application/address-correction.port.js'
 import {
   parseAddressCorrectionRequestKey,
+  parsePostAddressCorrectionMailBody,
   parsePutAddressCorrectionRequestBody,
 } from './address-correction-request.schema.js'
 
@@ -27,11 +32,20 @@ const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CON
 type Dependencies = Readonly<{
   listRequests: ListAddressCorrectionRequestsUseCase
   saveDraft: SaveAddressCorrectionDraftUseCase
+  sendMail: SendAddressCorrectionMailUseCase
 }>
 
 type SaveDraftInput = Readonly<{
   addressKey: string
   proposed: AddressFields
+}>
+
+type SendMailInput = Readonly<{
+  contactIds: readonly string[]
+  contractorTaxId: string
+  correlationId: string
+  idempotencyKey: string
+  requestIds: readonly string[] | undefined
 }>
 
 export function createAddressCorrectionRoutes(
@@ -78,11 +92,47 @@ export function createAddressCorrectionRoutes(
       pathname: ADDRESS_CORRECTION_REQUEST_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
+    defineRoute<SendMailInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.sendMail.send({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          contactIds: input.contactIds,
+          contractorTaxId: input.contractorTaxId,
+          correlationId: input.correlationId,
+          idempotencyKey: input.idempotencyKey,
+          requestIds: input.requestIds,
+        })
+        return jsonResponse({ data: serializeSendAddressCorrectionMailResult(result) }, 202)
+      },
+      method: 'POST',
+      async parse({ correlationId, request }) {
+        const body = await parsePostAddressCorrectionMailBody(request)
+        return {
+          contactIds: body.contactIds,
+          contractorTaxId: body.contractorTaxId,
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          requestIds: body.requestIds,
+        }
+      },
+      pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
   ]
 }
 
-function jsonResponse(body: object): Response {
-  return new Response(JSON.stringify(body), { headers: NO_STORE_HEADERS, status: 200 })
+function jsonResponse(body: object, status = 200): Response {
+  return new Response(JSON.stringify(body), { headers: NO_STORE_HEADERS, status })
+}
+
+function serializeSendAddressCorrectionMailResult(result: SendAddressCorrectionMailResult): object {
+  return {
+    messageId: result.messageId,
+    recipientCount: result.recipientCount,
+    sentRequestIds: result.sentRequestIds,
+    threadId: result.threadId,
+  }
 }
 
 /**
