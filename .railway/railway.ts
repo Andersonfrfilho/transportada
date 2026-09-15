@@ -411,14 +411,14 @@ export default defineRailway((ctx) => {
    * o que é a falha certa: ela aparece no build, não numa rota errada seis meses depois.
    */
   /**
-   * ⚠️ **`-latest` em 15/09/2026, contra a regra acima — por falta de escolha, não por mudança de
-   * ideia.** O `sudeste-260903` passou a dar 404 e o índice do Geofabrik não lista nenhum `sudeste`
-   * datado; os quatro serviços já rodavam do `-latest` desde a troca de 14/09. Voltar a datar é
-   * espelhar o `.pbf` no bucket (como o extrato de pedágio em `toll-booths/osm/sudeste/<data>/`) e
-   * apontar para lá.
+   * ⚠️ **O índice do Geofabrik não lista os datados, mas eles respondem.** Medido em 15/09/2026: a
+   * data anterior já dava 404, e `sudeste-260914` responde 200 — a mesma data do extrato de pedágio
+   * versionado no bucket (`toll-booths/osm/sudeste/2026-09-14/`). Os quatro serviços no ar ainda
+   * rodam do `-latest` baixado em 14/09 e só passam para esta data no próximo `make map-refresh`;
+   * até lá o `plan` mostra `OSRM_PBF_URL`/`MAP_PBF_URL` mudando, e aplicar reconstrói os dois.
    */
   const OSM_EXTRACT_URL =
-    'https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf'
+    'https://download.geofabrik.de/south-america/brazil/sudeste-260914.osm.pbf'
 
   /**
    * Matriz de distâncias do solver. Existe **nos dois ambientes** desde 04/09/2026 — antes só em
