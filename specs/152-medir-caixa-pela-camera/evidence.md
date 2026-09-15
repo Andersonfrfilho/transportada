@@ -654,3 +654,52 @@ reapplies the fiscal migration` espera SQLSTATE `23503` e recebe `23001` em
 Reproduzido também **antes** de qualquer mudança da T2 (primeira rodada de gates, ainda sem A1–A7),
 com o mesmo Postgres 18 nativo — é o motor relatando `restrict_violation` onde a suíte foi escrita
 esperando `foreign_key_violation` de outra versão de Postgres. Fora do escopo desta task.
+
+### Correção pós-staging: ordem do rollback (CI run 35036660623, gate integration)
+
+Data: 2026-09-16. O CI de staging pegou o que os gates locais não pegaram: `assertCteProfileOutputConstraints`
+falha ali com o SQLSTATE esperado (`23503`), então a suíte segue até o laço que roda **todo**
+`rollback.sql` em ordem reversa — e é só nesse ponto que meu `rollback.sql` original quebrava.
+Localmente, o `(fail)` pré-existente acima acontece **antes** desse laço (Postgres 18 nativo relata
+`23001`), então os gates da rodada anterior nunca chegaram a exercitar o rollback desta migration de
+verdade — só a leitura, não a execução.
+
+**Defeito**: `DROP TABLE "nfe_package_box_measurements"` vinha **depois** de
+`ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_company_id_id_unique"` no
+`rollback.sql`. A FK composta `nfe_package_box_measurements_company_package_box_fk` depende do
+índice dessa UNIQUE, e o Postgres recusa derrubar um índice com dependente vivo:
+`cannot drop constraint nfe_package_boxes_company_id_id_unique on table nfe_package_boxes because
+other objects depend on it`.
+
+**Correção**: `DROP TABLE "nfe_package_box_measurements"` movido para logo depois da guarda de dados
+(início do rollback) e antes de qualquer `ALTER TABLE` em `nfe_package_boxes` — a tabela que carrega
+a FK dependente sai primeiro, e só então a UNIQUE que ela apontava pode cair. Sem `CASCADE` em lugar
+nenhum; a guarda de recusa com dados no topo e a remoção da linha do journal no fim continuam
+intactas. Conferi o resto do arquivo por essa mesma classe de problema: os `DROP CONSTRAINT` dos
+CHECKs de `nfe_package_boxes` continuam antes dos `DROP COLUMN` das colunas que eles referenciam (já
+estava correto), e nenhuma outra constraint nova depende de índice de outra tabela.
+
+**Prova local** (sem depender do `(fail)` pré-existente, que mascara o laço de rollback neste
+Postgres): Postgres nativo Homebrew 18 descartável no scratchpad da sessão, porta 65442 (65433,
+65434, 65440 e 65441 evitadas — já usadas nesta spec ou por outra sessão), subido e derrubado neste
+turno.
+
+1. `bun run db:migrate` até a ponta (`20260916000000_nfe_package_box_measurement_source` aplicada).
+2. `psql -f rollback.sql` — **sem erro** (antes da correção, este passo reproduzia exatamente o erro
+   do CI). Conferido que `nfe_package_box_measurements` some (`to_regclass` retorna vazio) e as
+   colunas de `nfe_package_boxes` voltam a não ter `measurement_*`.
+3. `bun run db:migrate` de novo — reaplica a migration com sucesso (`__drizzle_migrations` volta a
+   ter `20260916000000_nfe_package_box_measurement_source` no topo).
+
+| Gate                                                                                              | Resultado                                                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bun run typecheck` / `bun run lint`                                                              | verdes                                                                   |
+| Contratos da API (`bun test`, sem `.env.test`)                                                    | 6006 pass, 0 fail                                                        |
+| Integração da API (`bun --env-file=../../.env.test test --timeout 120000`, Postgres nativo 65442) | 6028 pass, 1 `(fail)` pré-existente e não relacionado (mesmo caso acima) |
+| `db:test` (migration-test, mesmo Postgres)                                                        | 94 pass, 1 `(fail)` pré-existente e não relacionado (mesmo caso acima)   |
+| Rollback manual via `psql` (ponta a ponta: migrate → rollback → migrate)                          | sem erro — reproduz e corrige o defeito exato do CI                      |
+
+O `(fail)` pré-existente (`assertCteProfileOutputConstraints`, SQLSTATE `23001` vs `23503`) continua
+fora do escopo desta correção — é o mesmo caso já registrado acima, e é ele que impede o Postgres 18
+nativo de alcançar o laço de rollback pela suíte automatizada; a prova ponta a ponta acima supre essa
+lacuna rodando o rollback diretamente.

@@ -22,6 +22,11 @@ BEGIN
 END
 $$;
 
+-- A tabela nova sai primeiro: a FK composta dela depende do índice da UNIQUE abaixo
+-- (nfe_package_box_measurements_company_package_box_fk usa nfe_package_boxes_company_id_id_unique
+-- como índice de apoio), e o Postgres recusa derrubar um índice com dependente vivo.
+DROP TABLE "nfe_package_box_measurements";
+
 ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_measurement_margin_pairing_check";
 ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_measurement_source_pairing_check";
 ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_measurement_margin_check";
@@ -31,8 +36,6 @@ ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_company_id_id
 ALTER TABLE "company_cargo_settings" DROP COLUMN "camera_measurement_enabled";
 ALTER TABLE "nfe_package_boxes" DROP COLUMN "measurement_margin_mm";
 ALTER TABLE "nfe_package_boxes" DROP COLUMN "measurement_source";
-
-DROP TABLE "nfe_package_box_measurements";
 
 DO $$
 DECLARE
