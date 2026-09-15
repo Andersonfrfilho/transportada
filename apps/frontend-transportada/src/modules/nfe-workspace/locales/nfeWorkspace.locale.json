@@ -229,6 +229,7 @@
       "operator": "Operador",
       "value": "Valor",
       "addCondition": "Adicionar condição",
+      "clearConditions": "Limpar condições",
       "removeCondition": "Remover condição",
       "addGroup": "Adicionar grupo",
       "removeGroup": "Remover grupo",

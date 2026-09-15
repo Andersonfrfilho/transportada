@@ -105,6 +105,7 @@
       "valueTo": "Valor final",
       "addCondition": "Adicionar condição",
       "addGroup": "Adicionar grupo",
+      "clearConditions": "Limpar condições",
       "removeCondition": "Remover condição",
       "removeGroup": "Remover grupo",
       "connectorAnd": "E",

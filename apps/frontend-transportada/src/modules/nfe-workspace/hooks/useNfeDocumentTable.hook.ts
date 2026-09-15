@@ -2,6 +2,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  clearAdvancedFilterConditions,
+  removeAdvancedFilterCondition,
+} from '@/modules/shared/advancedFilterConditions.service'
+
+import {
   countSelectionHiddenByFilter,
   scopeSelectionToFilter,
 } from '../shared/documentSelectionScope.service'
@@ -323,6 +328,7 @@ export type UseNfeDocumentTableResult = Readonly<{
   pageSize: number
   rangeEnd: number
   rangeStart: number
+  clearConditions: () => void
   removeCondition: (groupId: string, conditionId: string) => void
   removeGroup: (groupId: string) => void
   safePage: number
@@ -1055,17 +1061,15 @@ export function useNfeDocumentTable({
   }
 
   function removeCondition(groupId: string, conditionId: string): void {
-    setAdvancedFilter((current) => ({
-      ...current,
-      groups: current.groups.map((group) => {
-        if (group.id !== groupId) return group
-        if (group.conditions.length <= 1) return group
-        return {
-          ...group,
-          conditions: group.conditions.filter((condition) => condition.id !== conditionId),
-        }
-      }),
-    }))
+    setAdvancedFilter((current) =>
+      removeAdvancedFilterCondition({ conditionId, groupId, model: current }),
+    )
+    setPageState(0)
+  }
+
+  function clearConditions(): void {
+    setAdvancedFilter((current) => clearAdvancedFilterConditions(current))
+    setSavedAdvancedFilter(null)
     setPageState(0)
   }
 
@@ -1186,6 +1190,7 @@ export function useNfeDocumentTable({
     pageSize,
     rangeEnd,
     rangeStart,
+    clearConditions,
     removeCondition,
     removeGroup,
     safePage,

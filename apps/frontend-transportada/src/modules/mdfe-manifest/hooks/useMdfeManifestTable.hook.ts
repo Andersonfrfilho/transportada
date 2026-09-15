@@ -1,6 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef, useState } from 'react'
 
+import {
+  clearAdvancedFilterConditions,
+  removeAdvancedFilterCondition,
+} from '@/modules/shared/advancedFilterConditions.service'
+
 import type { MdfeManifestStatus, MdfeManifestSummary } from '../shared/mdfeManifest.types'
 import {
   applyConditionChanges,
@@ -138,11 +143,11 @@ export function useMdfeManifestTable(
         ...current,
         groups: current.groups.filter((group) => group.id !== groupId),
       })),
+    clearConditions: () => setAdvancedFilter((current) => clearAdvancedFilterConditions(current)),
     removeGroupCondition: (groupId: string, conditionId: string) =>
-      updateGroup(groupId, (group) => ({
-        ...group,
-        conditions: group.conditions.filter((condition) => condition.id !== conditionId),
-      })),
+      setAdvancedFilter((current) =>
+        removeAdvancedFilterCondition({ conditionId, groupId, model: current }),
+      ),
     selectedIds,
     selectedManifests,
     setFilterMode,

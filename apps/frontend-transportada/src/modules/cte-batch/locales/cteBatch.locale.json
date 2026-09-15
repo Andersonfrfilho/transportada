@@ -208,6 +208,7 @@
     "addGroup": "Adicionar grupo",
     "removeGroup": "Remover grupo",
     "addCondition": "Adicionar condição",
+    "clearConditions": "Limpar condições",
     "removeCondition": "Remover condição",
     "field": "Campo",
     "operator": "Operador",

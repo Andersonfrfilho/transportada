@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
 
+import { AdvancedFilterClearButton } from '@/components/ui/advanced-filter-clear-button'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
 import type { MdfeManifestTableController } from '../hooks/useMdfeManifestTable.hook'
 import {
@@ -31,11 +33,10 @@ const INPUT_TYPE_BY_CONDITION: Readonly<Record<MdfeManifestConditionType, string
 type ConditionRowProps = Readonly<{
   condition: MdfeManifestCondition
   groupId: string
-  isRemovable: boolean
   table: MdfeManifestTableController
 }>
 
-function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowProps) {
+function ConditionRow({ condition, groupId, table }: ConditionRowProps) {
   const { t } = useTranslation('mdfeManifest')
   const conditionType = MDFE_MANIFEST_CONDITION_FIELD_TYPE[condition.field]
   const operators: readonly MdfeManifestConditionOperator[] =
@@ -113,17 +114,15 @@ function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowPr
           value={condition.valueTo}
         />
       </label>
-      {isRemovable ? (
-        <Button
-          onClick={() => table.removeGroupCondition(groupId, condition.id)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="remove" />
-          {t('advanced.removeCondition')}
-        </Button>
-      ) : null}
+      <Button
+        onClick={() => table.removeGroupCondition(groupId, condition.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="remove" />
+        {t('advanced.removeCondition')}
+      </Button>
     </div>
   )
 }
@@ -170,7 +169,6 @@ export function MdfeManifestAdvancedFilterBuilder({
             <ConditionRow
               condition={condition}
               groupId={group.id}
-              isRemovable={group.conditions.length > 1}
               key={condition.id}
               table={table}
             />
@@ -204,6 +202,11 @@ export function MdfeManifestAdvancedFilterBuilder({
           <Icon name="add" />
           {t('advanced.addGroup')}
         </Button>
+        <AdvancedFilterClearButton
+          conditionCount={countAdvancedFilterConditions(table.advancedFilter)}
+          label={t('advanced.clearConditions')}
+          onClear={table.clearConditions}
+        />
       </div>
     </div>
   )

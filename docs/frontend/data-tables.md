@@ -41,7 +41,12 @@ válvula para combinações complexas.
   - Cada **grupo** combina suas condições por um conector **E / OU** próprio.
   - O **root** combina os grupos entre si por outro conector **E / OU**,
     permitindo `(A E B) OU (C)`.
-  - Grupos e condições têm mínimo de 1; adicionar/remover é explícito.
+  - Grupo tem mínimo de 1; condição pode ir a zero — a última também se remove, e grupo sem
+    condição é neutro. **"Limpar condições"** apaga todas de uma vez (desabilitado com zero).
+    Remover e limpar passam pelo primitivo comum
+    (`src/modules/shared/advancedFilterConditions.service.ts` +
+    `@/components/ui/advanced-filter-clear-button`); no `nfe-workspace`, limpar também zera o
+    filtro avançado salvo na preferência de visão.
 - **Contagem de filtros ativos** — o badge do toggle usa `countFilterPills(pills)`
   no modo simples e `activeConditionCount` no modo avançado.
 
