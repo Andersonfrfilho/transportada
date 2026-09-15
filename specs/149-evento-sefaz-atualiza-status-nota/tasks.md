@@ -67,7 +67,7 @@ Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot
 
 > 🤖 Modelo: `sonnet` (T3 é 🧠 — `opus`, desenho validado por `architect` `opus` antes)
 
-- [ ] T2 — Contrato vermelho e depois a política pura `nfe-document-status-transition.policy.ts` +
+- [x] T2 — Contrato vermelho e depois a política pura `nfe-document-status-transition.policy.ts` +
       `nfe-document-status.constant.ts` (D1–D4). Teste de tabela: todos os tipos × `cStat` (com e sem
       `statusCode`), `situacao` 1/2/3, todas as origens × destinos; `cancelled`/`denied` terminais.
       Arquivo novo na lista de testes do `package.json` do worker.

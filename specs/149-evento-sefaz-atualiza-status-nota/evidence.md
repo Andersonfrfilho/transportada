@@ -83,6 +83,56 @@ aplicação não pode ler o XML por conta própria. Opções:
 2. Seguir sem o texto: `nfe_events.correction_text` fica `null` e a tela da H4 mostra só "Carta de correção"
    até o pacote entregar o campo (o teste de lacuna avisa quando).
 
+## T2 — política pura de transição de status · 2026-09-14
+
+Criados `apps/worker-transportada/src/nfe-documents/domain/nfe-document-status.constant.ts`
+(`NFE_STATUS_CHANGING_EVENT_TYPES`, `NFE_EVENT_REGISTERED_STATUS_CODES`, `ALLOWED_ORIGIN_STATUSES`) e
+`nfe-document-status-transition.policy.ts` (`resolveEventStatusChange`, `resolveSummaryStatusChange`,
+`isStatusTransitionAllowed`), sem banco, sem I/O — D1–D4. Reaproveita `NfeDocumentStatus` já definido
+no schema copiado do worker (`src/database/nfe.schema.ts`), sem redeclarar o domínio.
+
+Regras aplicadas: só `110111`/`110112` mudam status, e só com `cStat` em `{135,136,155}` — sem
+`statusCode` ou com `cStat` fora do conjunto vira `not-applied` (D2); tipo fora da lista (CC-e,
+manifestação, EPEC…) é `ignore`, com qualquer `cStat`; resumo `situacao` `'2'` cancela, `'3'` denega,
+`'1'` e `''` (cSitNFe ausente, conforme a T1) não têm efeito (D3); `isStatusTransitionAllowed` só
+permite `cancelled ← {authorized, unsigned}` e `denied ← {unsigned}` — como `cancelled`/`denied`
+nunca aparecem como origem em nenhuma entrada do mapa, nenhuma transição sai deles (D4, terminais). A
+aplicação da guarda no `WHERE` do `UPDATE` (D4, D7) e o `warn` de evento não aplicado ficam para a T3,
+que consome esta política.
+
+### Vermelho antes
+
+Teste escrito primeiro contra os módulos ainda inexistentes:
+
+```
+error: Cannot find module '../../src/nfe-documents/domain/nfe-document-status-transition.policy.js' from
+'.../test/nfe-document-status-transition/nfe-document-status-transition.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file.
+```
+
+Depois do código: `bun test ./test/nfe-document-status-transition.contract.test.ts` → **88 pass, 0 fail**.
+A suíte cobre, em tabela: os dois tipos que cancelam × cada `cStat` registrado, cada `cStat` fora do
+conjunto e sem `statusCode`; os quatro tipos que não mudam status × todo `cStat` (registrado, fora do
+conjunto e ausente) — sempre `ignore`; tipo desconhecido; as cinco situações do resumo (`'1'`, `'2'`,
+`'3'`, `''`, `'9'`); e as 16 combinações origem×destino de `isStatusTransitionAllowed` mais os reforços
+específicos de que nada sai de `cancelled` nem de `denied`.
+
+Arquivo novo (`test/nfe-document-status-transition.contract.test.ts`) entrou na lista explícita `test`
+do `package.json` do worker, logo depois de `fiscal-provider-event.contract.test.ts`.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0.
+- `bun run lint` (raiz) → exit 0.
+- `bun run --cwd apps/worker-transportada test` → **1295 pass, 0 fail** (86 → 88 testes novos), 87
+  arquivos. Linhas `(fail)`: 0.
+- Integração do worker: não se aplica — a T2 é política pura, sem banco.
+- Prettier `--check` nos arquivos alterados → limpo (após `--write` nos três arquivos novos, formatados
+  fora do padrão do editor).
+
 ## H1 — migration `nfe_event_history` · 2026-09-14
 
 Seguiu o parecer `h1-parecer-architect.md`, aprovado com ajustes. A coluna `correction_text` existe e fica
