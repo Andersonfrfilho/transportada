@@ -87,6 +87,8 @@
       },
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "praça sem nome",
+      "catalogEmpty": "Pedágio não calculado: o catálogo de praças não foi carregado neste ambiente.",
+      "catalogStale": "Catálogo de praças de {{month}} — as tarifas podem ter reajustado; atualize o catálogo.",
       "estimated": "· eixo estimado",
       "fallenBackToManual": "{{count}} praças caíram para a manual por falta de tarifa automática",
       "none": "Sem pedágio no trajeto.",

@@ -45,6 +45,7 @@ function praca(input: {
 function toll(booths: RouteGeometryToll['booths']): RouteGeometryToll {
   return {
     axles: { count: 2, source: 'declared' },
+    catalog: { observedOn: '2026-07-01', status: 'current' },
     booths,
     boothsFallenBackToManual: 0,
     multiplierLabel: '2',
