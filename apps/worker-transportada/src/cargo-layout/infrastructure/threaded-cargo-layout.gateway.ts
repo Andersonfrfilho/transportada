@@ -14,13 +14,14 @@ import { CargoLayoutTimeoutError } from '../application/cargo-layout-timeout.err
 import type { StoredCargoLayoutInput } from '../application/stored-cargo-layout-input.schema.js'
 
 /**
- * A extensão sai do próprio módulo: em desenvolvimento roda `src/*.ts`, em produção `dist/*.js`, e
- * `new Worker(url)` é caminho de arquivo de verdade — o runtime não reescreve a extensão.
+ * Em desenvolvimento este módulo é `src/**` e a thread mora ao lado; empacotado ele vira
+ * `dist/main.js`, e a thread fica onde o `bun build --root ./src` a gravou. `new Worker(url)` é
+ * caminho de arquivo de verdade — o bundler não reescreve este `URL`. Contrato:
+ * `test/build-entrypoints.contract.test.ts`.
  */
-const WORKER_URL = new URL(
-  import.meta.url.endsWith('.ts') ? './cargo-layout.worker.ts' : './cargo-layout.worker.js',
-  import.meta.url,
-)
+const WORKER_URL = import.meta.url.endsWith('.ts')
+  ? new URL('./cargo-layout.worker.ts', import.meta.url)
+  : new URL('./cargo-layout/infrastructure/cargo-layout.worker.js', import.meta.url)
 
 type WorkerMessage =
   | { readonly layout: ResolvedCargoLayout | null; readonly ok: true }

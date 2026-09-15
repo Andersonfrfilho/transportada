@@ -21,10 +21,10 @@ const EXTRACTION_TIMEOUT_MS = 30_000
  * runtime não reescreve `.js` para `.ts` como faz com `import`. Fixar uma das duas extensões quebra
  * exatamente o ambiente que não foi testado.
  */
-const WORKER_URL = new URL(
-  import.meta.url.endsWith('.ts') ? './pdf-extraction.worker.ts' : './pdf-extraction.worker.js',
-  import.meta.url,
-)
+const WORKER_URL = import.meta.url.endsWith('.ts')
+  ? new URL('./pdf-extraction.worker.ts', import.meta.url)
+  : // Empacotado, este código é `dist/main.js`: a thread fica onde o `bun build --root ./src` a gravou
+    new URL('./aggregate-attachment/infrastructure/pdf-extraction.worker.js', import.meta.url)
 
 type WorkerMessage =
   | { readonly ok: true; readonly result: { readonly fields: Record<string, unknown> | null } }
