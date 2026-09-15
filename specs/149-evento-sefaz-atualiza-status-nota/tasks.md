@@ -45,6 +45,10 @@ Ordem de execução: T1 → H1 → T2 → T3 (grava também origem/ator/snapshot
       tabela `nfe_document_status_changes` com índice e FKs compostas. Schema da API e **cópia no worker**
       atualizados. Contrato de schema vermelho antes (CHECK recusa `manual` sem ator, `automatic` com
       ator, status fora do domínio); `make migration-test` aplica e reverte; `rollback.sql` ao lado.
+- [x] H1b — Migration `20260915025926_nfe_document_protocol_presence` (achada na T3, decisão do
+      usuário): `nfe_documents_authorization_protocol_presence_check` passa a exigir protocolo só da
+      nota `authorized`, para a `unsigned` poder ser cancelada ou denegada (D4). Rollback falha se já
+      houver `cancelled`/`denied` sem protocolo — roll-forward.
 - [ ] H2 — Worker, junto da T3 ou logo depois dela: `resolveNfeEventOrigin` pura (as três linhas da D14,
       com cópia de `SYSTEM_DISTRIBUTION_ACTOR_USER_ID` no worker), gravação de origem/ator/solicitante,
       `status_code`, `protocol`, `correction_text` e snapshot `before`/`after` em todo evento, e linha em

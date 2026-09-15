@@ -227,3 +227,58 @@ Depois do schema: `test/nfe-schema.contract.test.ts` → **38 pass, 0 fail**.
    - `static-migration.contract.ts`: a pasta nova na lista explícita de migrations;
    - `database-migration/support.ts`: `nfe_document_status_changes` em `NFE_TABLES`;
    - `nfe-schema.contract.test.ts`: o import da suíte nova. O entrypoint já estava na lista do `package.json`.
+
+## H1b — migration `nfe_document_protocol_presence` · 2026-09-15
+
+A T3 esbarrou num CHECK antigo: `nfe_documents_authorization_protocol_presence_check` exigia
+protocolo de toda nota que não fosse `unsigned` (`20260724115644_unsigned_nfe_document_expand`). A D4
+permite `unsigned → cancelled` e `unsigned → denied`, e a nota `unsigned` não tem protocolo. Sob a
+T3 isso virava violação de CHECK dentro da transação do item e retry sem fim na distribuição. O usuário
+escolheu relaxar o CHECK (opção 1), em commit isolado antes da T3.
+
+### O que foi criado
+
+- `drizzle/20260915025926_nfe_document_protocol_presence/`, gerada por
+  `bun run db:generate --name nfe_document_protocol_presence` (prefixo maior que `20260915021812`).
+  `migration.sql` é um único `ALTER TABLE … DROP CONSTRAINT …, ADD CONSTRAINT …`, com o mesmo nome:
+  `("status" <> 'authorized') or ("authorization_protocol" is not null)`. `snapshot.json` gerado.
+- `rollback.sql`: restaura `("status" = 'unsigned') or (…)` e remove a linha do journal com
+  `ROW_COUNT = 1`. ⚠️ Falha se já houver nota `cancelled`/`denied` sem protocolo: nesse caso, roll-forward.
+- Schema da API (`src/database/nfe.schema.ts`) com a expressão nova. O worker não copia CHECKs.
+- Assertion `test/database-migration/nfe-document-protocol-presence.assertion.ts`, logo depois da H1:
+  - `pg_get_constraintdef` confere a expressão nova;
+  - `authorized` sem protocolo → recusado (23514, pela constraint);
+  - `unsigned`, `cancelled` e `denied` sem protocolo → aceitos;
+  - apaga essas notas, roda o `rollback.sql`, confere a expressão antiga e a linha do journal removida;
+  - reaplica e confere a expressão nova de novo.
+
+### Vermelho antes
+
+Contrato de schema (`documents.contract.ts`) com a expressão nova, antes do schema:
+
+```
+(fail) normalized NF-e document schema > preserves document identity, decimal values, and immutable XML references per tenant
+ 37 pass
+ 1 fail
+```
+
+`make migration-test` com a assertion nova, antes da migration:
+
+```
+error: NF-e protocol presence migration is required
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration
+ 94 pass
+ 1 fail
+```
+
+### Gates
+
+- `bun test ./test/nfe-schema.contract.test.ts` → **38 pass, 0 fail**.
+- `bun run typecheck` e `bun run lint` (raiz) → exit 0. `bun run db:check` → "Everything's fine".
+- `make migration-test` → **95 pass, 0 fail**, 8 arquivos. Linhas `(fail)`: 0.
+- Migration aplicada só no banco do `.env.test` (`db:migrate`) e nos bancos descartáveis do
+  `migration-test`.
+- Contratos da API, `bun --env-file=../../.env.test test --timeout 120000` sobre a lista `test` →
+  **5790 pass, 23 skip, 0 fail**, 172 arquivos. Linhas `(fail)`: 0. Nenhum skip novo.
+- Prettier `--check` nos arquivos alterados → limpo (o `.sql` não tem parser no Prettier).
+- `static-migration.contract.ts`: a pasta nova na lista explícita de migrations.

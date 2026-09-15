@@ -11,6 +11,7 @@ import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
+import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
@@ -113,6 +114,12 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
         })
         await assertNfeEventHistory({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          fixture: identityFixture,
+        })
+        await assertNfeDocumentProtocolPresence({
           connectionString,
           database,
           directories: migrationDirectories,

@@ -342,7 +342,7 @@ export const nfeDocuments = pgTable(
     ),
     check(
       'nfe_documents_authorization_protocol_presence_check',
-      sql`(${table.status} = 'unsigned') or (${table.authorizationProtocol} is not null)`,
+      sql`(${table.status} <> 'authorized') or (${table.authorizationProtocol} is not null)`,
     ),
     check('nfe_documents_source_check', sql`${table.source} in ('upload', 'distribution')`),
     check(
