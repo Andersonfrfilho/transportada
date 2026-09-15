@@ -7,5 +7,11 @@
  */
 export const MAP_BADGE_IDS = { radar: 'selo-radar', toll: 'selo-pedagio' } as const
 
+/**
+ * O radar com limite conhecido pede `selo-radar-<velocidade>`: uma imagem por valor, com a placa
+ * de velocidade ao lado da câmera, desenhada na primeira vez que o valor aparece.
+ */
+export const RADAR_SPEED_BADGE_PREFIX = `${MAP_BADGE_IDS.radar}-`
+
 export type MapBadgeKind = keyof typeof MAP_BADGE_IDS
 export type MapBadgeId = (typeof MAP_BADGE_IDS)[MapBadgeKind]

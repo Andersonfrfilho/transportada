@@ -28,7 +28,11 @@ import {
 import { ICON_PATHS } from '@/components/ui/icon'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { MAP_BADGE_IDS } from '@/modules/shared/mapBadge.constant'
-import { resolveMapBadgeColors, resolveMapBadgeKind } from '@/modules/shared/mapBadge.service'
+import {
+  resolveMapBadgeColors,
+  resolveMapBadgeRequest,
+  resolveSpeedPlateColors,
+} from '@/modules/shared/mapBadge.service'
 import { drawMapBadge } from '@/modules/shared/mapBadgeImage.service'
 
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
@@ -257,16 +261,24 @@ export function AssemblyVectorMap({
      * MapLibre as pede de novo por este evento: é ele que mantém o selo no tom do tema escolhido.
      */
     map.on('styleimagemissing', (event: { readonly id: string }) => {
-      const kind = resolveMapBadgeKind(event.id)
-      if (kind === null || map.hasImage(event.id)) return
+      const request = resolveMapBadgeRequest(event.id)
+      if (request === null || map.hasImage(event.id)) return
 
       const pixelRatio = Math.max(1, Math.round(globalThis.devicePixelRatio ?? 1))
       const colors = resolveMapBadgeColors({
-        kind,
+        kind: request.kind,
         resolveToken: readToken,
         theme: themeRef.current,
       })
-      map.addImage(event.id, drawMapBadge({ colors, kind, pixelRatio }), { pixelRatio })
+      const image = drawMapBadge({
+        colors,
+        kind: request.kind,
+        pixelRatio,
+        ...(request.speed === null
+          ? {}
+          : { speedPlate: { colors: resolveSpeedPlateColors(readToken), speed: request.speed } }),
+      })
+      map.addImage(event.id, image, { pixelRatio })
     })
     /**
      * ⚠️ **A rede de segurança do traço, e ela é para a vida inteira do mapa.** Toda troca de tema

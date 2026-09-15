@@ -10,6 +10,8 @@ import {
   MAP_BADGE_SHAPES,
   resolveMapBadgeColors,
   resolveMapBadgeKind,
+  resolveMapBadgeRequest,
+  resolveSpeedPlateColors,
 } from '@/modules/shared/mapBadge.service'
 import { BASEMAP_THEMES } from '@/modules/shared/vectorBasemap.service'
 
@@ -71,8 +73,34 @@ describe('os selos de radar e de pedágio no mapa', () => {
     )
 
     expect(component).toContain("map.on('styleimagemissing'")
-    expect(component).toContain('resolveMapBadgeKind(event.id)')
+    expect(component).toContain('resolveMapBadgeRequest(event.id)')
     expect(component).toContain('theme: themeRef.current')
     expect(component).toContain("'icon-image': MAP_BADGE_IDS.toll")
+    expect(component).toContain('speedPlate:')
+  })
+})
+
+/** O radar acompanha a placa de velocidade (R-19), no lugar do número solto de antes. */
+describe('a placa de velocidade do radar', () => {
+  it('lê a velocidade do nome da imagem que o mapa pediu', () => {
+    expect(resolveMapBadgeRequest('selo-radar-60')).toEqual({ kind: 'radar', speed: '60' })
+    expect(resolveMapBadgeRequest('selo-radar-110')).toEqual({ kind: 'radar', speed: '110' })
+    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.radar)).toEqual({ kind: 'radar', speed: null })
+    expect(resolveMapBadgeRequest(MAP_BADGE_IDS.toll)).toEqual({ kind: 'toll', speed: null })
+    expect(resolveMapBadgeRequest('outra-imagem')).toBeNull()
+  })
+
+  /** `BR:urban` e afins não viram placa: desenhar texto qualquer seria inventar o limite. */
+  it('só põe número de verdade na placa', () => {
+    expect(resolveMapBadgeRequest('selo-radar-BR:urban')).toEqual({ kind: 'radar', speed: null })
+    expect(resolveMapBadgeRequest('selo-radar-1000')).toEqual({ kind: 'radar', speed: null })
+  })
+
+  it('pinta a placa como a da estrada, com cores da paleta do mapa', () => {
+    expect(resolveSpeedPlateColors(echoToken)).toEqual({
+      digits: '--color-basemap-ink',
+      fill: '--color-basemap-white',
+      ring: '--color-basemap-road-major',
+    })
   })
 })

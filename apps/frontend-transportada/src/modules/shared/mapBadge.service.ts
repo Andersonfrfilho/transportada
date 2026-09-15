@@ -1,7 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { IconName } from '@/components/ui/icon'
 
-import { MAP_BADGE_IDS, type MapBadgeId, type MapBadgeKind } from './mapBadge.constant'
+import {
+  MAP_BADGE_IDS,
+  RADAR_SPEED_BADGE_PREFIX,
+  type MapBadgeId,
+  type MapBadgeKind,
+} from './mapBadge.constant'
 import {
   resolveBasemapOutline,
   resolveBasemapRadarColor,
@@ -32,6 +37,40 @@ export type MapBadgeColors = Readonly<{ background: string; border: string; glyp
 export function resolveMapBadgeKind(id: string): MapBadgeKind | null {
   const entries = Object.entries(MAP_BADGE_IDS) as [MapBadgeKind, MapBadgeId][]
   return entries.find(([, badgeId]) => badgeId === id)?.[0] ?? null
+}
+
+/** Limite de velocidade que vira placa: só número, até três dígitos — `BR:urban` não vira placa. */
+const SPEED_PATTERN = /^\d{1,3}$/u
+
+export type MapBadgeRequest = Readonly<{ kind: MapBadgeKind; speed: string | null }>
+
+/**
+ * O que o mapa pediu no `styleimagemissing`. `selo-radar-60` é o radar com a placa de 60; um valor
+ * que não é número volta como radar sem placa — o selo existe mesmo quando o limite não é legível,
+ * e desenhar texto qualquer numa placa seria inventar o que o motorista obedece.
+ */
+export function resolveMapBadgeRequest(id: string): MapBadgeRequest | null {
+  const kind = resolveMapBadgeKind(id)
+  if (kind !== null) return { kind, speed: null }
+  if (!id.startsWith(RADAR_SPEED_BADGE_PREFIX)) return null
+
+  const speed = id.slice(RADAR_SPEED_BADGE_PREFIX.length).trim()
+  return { kind: 'radar', speed: SPEED_PATTERN.test(speed) ? speed : null }
+}
+
+export type SpeedPlateColors = Readonly<{ digits: string; fill: string; ring: string }>
+
+/**
+ * A placa R-19 do CTB: anel vermelho, fundo branco, número preto — igual em todos os temas, porque
+ * é a placa que o motorista encontra na estrada. As cores ainda saem da paleta do mapa, nunca de
+ * valor literal.
+ */
+export function resolveSpeedPlateColors(resolveToken: (token: string) => string): SpeedPlateColors {
+  return {
+    digits: resolveToken('--color-basemap-ink'),
+    fill: resolveToken('--color-basemap-white'),
+    ring: resolveToken('--color-basemap-road-major'),
+  }
 }
 
 /**

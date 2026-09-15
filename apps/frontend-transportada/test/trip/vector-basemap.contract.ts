@@ -13,7 +13,7 @@ import {
   buildBasemapStyle,
   resolveBasemapOutline,
 } from '@/modules/shared/vectorBasemap.service'
-import { MAP_BADGE_IDS } from '@/modules/shared/mapBadge.constant'
+import { MAP_BADGE_IDS, RADAR_SPEED_BADGE_PREFIX } from '@/modules/shared/mapBadge.constant'
 
 /** A validação é da **forma** do estilo; a paleta real é resolvida no documento, que aqui não há. */
 const resolveToken = (token: string): string => `#${token.length.toString(16).padStart(6, '0')}`
@@ -216,7 +216,7 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
    * o único leitor que existe. Medido no extract: 12 radares declaram limite próprio de caminhão.
    */
   it('prefere o limite do caminhão ao do carro quando o mapa declara os dois', () => {
-    const field = JSON.stringify(symbolLayerById('claro', 'radar').layout?.['text-field'])
+    const field = JSON.stringify(symbolLayerById('claro', 'radar').layout?.['icon-image'])
     const posicaoHgv = field.indexOf('maxspeed_hgv')
     const posicaoCarro = field.indexOf('"maxspeed"')
 
@@ -230,15 +230,16 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
    * número** — imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
    * obedece, e o radar existe mesmo quando ninguém mapeou o limite dele.
    */
-  it('desenha o radar sem número quando o mapa não sabe a velocidade', () => {
+  it('desenha o radar sem placa quando o mapa não sabe a velocidade', () => {
     const layer = symbolLayerById('claro', 'radar')
-    const field = layer.layout?.['text-field']
+    const image = layer.layout?.['icon-image']
 
-    expect(layer.layout?.['icon-image']).toBe(MAP_BADGE_IDS.radar)
-    expect(Array.isArray(field)).toBe(true)
-    expect((field as unknown[])[0]).toBe('case')
-    /** O último ramo do `case` é o padrão: texto vazio — o selo sozinho, sem número inventado. */
-    expect((field as unknown[]).at(-1)).toBe('')
+    expect(layer.layout?.['text-field']).toBeUndefined()
+    expect(Array.isArray(image)).toBe(true)
+    expect((image as unknown[])[0]).toBe('case')
+    /** O último ramo do `case` é o padrão: a câmera sozinha, sem placa com número inventado. */
+    expect((image as unknown[]).at(-1)).toBe(MAP_BADGE_IDS.radar)
+    expect(JSON.stringify(image)).toContain(RADAR_SPEED_BADGE_PREFIX)
   })
 
   /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo selo. */

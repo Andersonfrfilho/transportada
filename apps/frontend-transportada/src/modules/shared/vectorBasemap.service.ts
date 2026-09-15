@@ -2,7 +2,7 @@
 import { addProtocol, setWorkerUrl, type StyleSpecification } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 
-import { MAP_BADGE_IDS } from './mapBadge.constant'
+import { MAP_BADGE_IDS, RADAR_SPEED_BADGE_PREFIX } from './mapBadge.constant'
 
 /**
  * ⚠️ **O CSS do MapLibre vem daqui, não do componente.** Sem ele o contêiner do canvas não recebe
@@ -592,39 +592,30 @@ export function buildBasemapStyle(
         'source-layer': 'radar',
         minzoom: RADAR_MIN_ZOOM,
         layout: {
-          'icon-image': MAP_BADGE_IDS.radar,
-          /** Menor na vista da rota inteira, onde os radares se acumulam; inteiro de perto. */
-          'icon-size': ['interpolate', ['linear'], ['zoom'], RADAR_MIN_ZOOM, 0.6, 12, 1],
-          'icon-allow-overlap': true,
           /**
-           * Feature 096 T5 — a velocidade permitida ao lado do selo.
+           * Feature 096 T5 — o limite de velocidade vai numa **placa** ao lado da câmera (a R-19 que
+           * o motorista encontra na estrada), não em texto solto: cada valor pede a imagem
+           * `selo-radar-<velocidade>`, que o mapa desenha no `styleimagemissing`.
            *
            * ⚠️ **`maxspeed:hgv` vence quando existir.** Em rodovia brasileira o limite do caminhão é
            * menor que o do carro, e quem lê este mapa opera frota: mostrar o limite do carro seria
            * mostrar o número errado para o único leitor que existe. Medido: 12 radares o declaram.
            *
-           * ⚠️ **Radar sem `maxspeed` fica só com o selo.** Medido: 89 dos 527 não têm a tag.
-           * Imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
+           * ⚠️ **Radar sem `maxspeed` fica só com a câmera.** Medido: 89 dos 527 não têm a tag.
+           * Pôr "60" na placa porque é o valor mais comum seria inventar o número que o motorista
            * obedece — e o radar existe mesmo quando ninguém mapeou o limite dele.
            */
-          'text-field': [
+          'icon-image': [
             'case',
             ['has', 'maxspeed_hgv'],
-            ['get', 'maxspeed_hgv'],
+            ['concat', RADAR_SPEED_BADGE_PREFIX, ['get', 'maxspeed_hgv']],
             ['has', 'maxspeed'],
-            ['get', 'maxspeed'],
-            '',
+            ['concat', RADAR_SPEED_BADGE_PREFIX, ['get', 'maxspeed']],
+            MAP_BADGE_IDS.radar,
           ],
-          'text-font': [FONT_STACK],
-          'text-size': 10,
-          'text-anchor': 'left',
-          'text-offset': [1.1, 0],
-          'text-allow-overlap': true,
-        },
-        paint: {
-          'text-color': troncal,
-          'text-halo-color': terra,
-          'text-halo-width': 1.4,
+          /** Menor na vista da rota inteira, onde os radares se acumulam; inteiro de perto. */
+          'icon-size': ['interpolate', ['linear'], ['zoom'], RADAR_MIN_ZOOM, 0.6, 12, 1],
+          'icon-allow-overlap': true,
         },
       },
       /**
