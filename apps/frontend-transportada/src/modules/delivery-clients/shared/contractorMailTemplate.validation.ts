@@ -12,7 +12,11 @@ import {
  * `contractor-mail-templates.schema.ts` (T402) — o servidor continua sendo a verdade; isto é
  * conveniência para o operador não descobrir o erro só depois do `PATCH`.
  */
-const VARIABLE_NAME = /^[a-z_]+$/u
+/**
+ * Exportado só para o contrato de paridade com a API (spec 150, item 5 da correção da Fase 4) —
+ * nada mais neste arquivo precisa dele fora de `tokenizeTemplate`.
+ */
+export const VARIABLE_NAME = /^[a-z_]+$/u
 const LINE_BREAK = /[\r\n]/u
 const ITEM_FIELD: MailTemplateFieldName = 'itemText'
 
