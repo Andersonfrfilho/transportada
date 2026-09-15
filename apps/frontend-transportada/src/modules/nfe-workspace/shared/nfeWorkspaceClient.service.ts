@@ -3,6 +3,17 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import {
+  mapAddressCorrectionRequest,
+  mapAddressCorrectionRequestList,
+  type AddressCorrectionFields,
+  type AddressCorrectionRequestRecord,
+} from './addressCorrection.validation'
+import {
+  AddressCorrectionRequestError,
+  readErrorCode,
+  readErrorDetails,
+} from './addressCorrectionRequestError.service'
 import { mapAddressReport, type AddressReport } from './addressReport.validation'
 import {
   JOB_EXECUTION_ORIGINS,
@@ -239,6 +250,7 @@ export type NfeWorkspaceClient = Readonly<{
   getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
+  listAddressCorrectionRequests: () => Promise<readonly AddressCorrectionRequestRecord[]>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
   ) => Promise<NfeDocumentListPage>
@@ -250,6 +262,9 @@ export type NfeWorkspaceClient = Readonly<{
   ) => Promise<NfeImportSummary>
   requestDistribution: (input: Readonly<{ idempotencyKey: string }>) => Promise<NfeImportSummary>
   requestUpload: (input: RequestUploadInput) => Promise<NfeImportSummary>
+  saveAddressCorrection: (
+    input: Readonly<{ addressKey: string; proposed: AddressCorrectionFields }>,
+  ) => Promise<AddressCorrectionRequestRecord>
 }>
 
 export type NfeWorkspaceClientFactory = (input: ClientDependencies) => NfeWorkspaceClient
@@ -573,6 +588,41 @@ async function requestJson(
   }
 }
 
+/**
+ * O corpo do `400`/`404` carrega `error.details[]` por campo (RF3, `web.md` §11): a rota de
+ * correção precisa dele para ancorar o erro no campo, e `requestJson` acima descarta o corpo em
+ * qualquer resposta que não seja `ok`.
+ */
+async function requestJsonWithDetails(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    init?: RequestInit
+    path: string
+  }>,
+): Promise<unknown> {
+  const request = await getAccessTokenRequest(input)
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(request)
+  } catch {
+    throw new AddressCorrectionRequestError('NFE_WORKSPACE_REQUEST_FAILED')
+  }
+  const rawBody = await response.text()
+  let payload: unknown
+  try {
+    payload = rawBody.length === 0 ? undefined : (JSON.parse(rawBody) as unknown)
+  } catch {
+    throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  if (!response.ok) {
+    throw new AddressCorrectionRequestError(
+      readErrorCode(payload) ?? 'NFE_WORKSPACE_REQUEST_FAILED',
+      readErrorDetails(payload),
+    )
+  }
+  return payload
+}
+
 function searchPath(
   input: Readonly<{ cursor: null | string; limit: number; path: string }>,
 ): string {
@@ -702,6 +752,28 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: '/address-report',
     })
     return mapAddressReport(response)
+  },
+  async listAddressCorrectionRequests() {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/address-correction-requests',
+    })
+    return mapAddressCorrectionRequestList(response)
+  },
+  async saveAddressCorrection(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify({ proposed: input.proposed }),
+        headers: { 'content-type': 'application/json' },
+        method: 'PUT',
+      },
+      path: `/address-correction-requests/${encodeURIComponent(input.addressKey)}`,
+    })
+    const saved = mapAddressCorrectionRequest(envelopeData(response))
+    if (saved === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    return saved
   },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({

@@ -1,10 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 
+import { AddressCorrectionForm } from './AddressCorrectionForm.component'
+import { cityCodeFromAddressKey } from '../shared/addressCorrection.validation'
 import type { AddressReport, AddressFinding } from '../shared/addressReport.validation'
 import styles from '../styles/addressReport.module.css'
 
@@ -86,6 +90,7 @@ export function AddressReportPanel({ denied, failed, loading, report }: AddressR
 
 function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
   const { t } = useTranslation('nfeWorkspace')
+  const [isCorrectionOpen, setCorrectionOpen] = useState(false)
 
   return (
     <li className={styles.finding}>
@@ -131,6 +136,35 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
         <p className={styles.distance}>
           {t('addressReport.distance', { metres: Math.round(finding.distanceMetres) })}
         </p>
+      )}
+
+      {isCorrectionOpen ? (
+        <AddressCorrectionForm
+          addressKey={finding.addressKey}
+          initial={{
+            city: finding.city,
+            cityCode: cityCodeFromAddressKey(finding.addressKey),
+            complement: '',
+            district: finding.noteDistrict,
+            number: finding.noteNumber,
+            postalCode: finding.notePostalCode,
+            state: finding.state,
+            street: finding.noteStreet,
+          }}
+          onCancel={() => setCorrectionOpen(false)}
+          onSaved={() => setCorrectionOpen(false)}
+        />
+      ) : (
+        <Button
+          className={styles.correctionTrigger}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() => setCorrectionOpen(true)}
+        >
+          <Icon name="edit" />
+          {t('addressReport.correction.trigger')}
+        </Button>
       )}
     </li>
   )

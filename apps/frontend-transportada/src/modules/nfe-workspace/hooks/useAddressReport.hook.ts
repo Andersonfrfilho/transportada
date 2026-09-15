@@ -6,7 +6,7 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import { createNfeWorkspaceClient } from '../shared/nfeWorkspaceClient.service'
 
-const ADDRESS_REPORT_QUERY_KEY = 'address-report'
+export const ADDRESS_REPORT_QUERY_KEY = 'address-report'
 
 /**
  * O relatório só é buscado com a aba aberta **e** com `settings.manage` — a rota exige a permissão,

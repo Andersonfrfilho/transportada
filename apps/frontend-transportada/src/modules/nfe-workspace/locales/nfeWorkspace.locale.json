@@ -500,7 +500,23 @@
       "postal_code_stale": "O CEP do cadastro é o genérico da cidade. O específico da rua deixa a busca do endereço sair de graça.",
       "street_incomplete": "A mesma rua com o nome mais curto no cadastro. A entrega chega; o cadastro é que está abreviado."
     },
-    "unresolvedAim": "Hoje a entrega aponta para o centro do município"
+    "unresolvedAim": "Hoje a entrega aponta para o centro do município",
+    "correction": {
+      "trigger": "Informar endereço correto",
+      "title": "Informar endereço correto",
+      "street": "Logradouro",
+      "number": "Número",
+      "complement": "Complemento",
+      "district": "Bairro",
+      "city": "Município",
+      "state": "UF",
+      "cityCode": "Código IBGE do município",
+      "postalCode": "CEP",
+      "genericPostalCodeHint": "Este CEP pode ser o CEP único da cidade — confira antes de trocar.",
+      "unlabelledErrorsLead": "O servidor recusou campos que esta tela não reconhece:",
+      "cancel": "Cancelar",
+      "save": "Salvar correção"
+    }
   },
   "packageBoxes": {
     "title": "Caixas por medir",
@@ -548,5 +564,25 @@
       "all": "Todas"
     },
     "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx"
+  },
+  "addressCorrection": {
+    "field": {
+      "street": "Logradouro",
+      "number": "Número",
+      "complement": "Complemento",
+      "district": "Bairro",
+      "city": "Município",
+      "state": "UF",
+      "cityCode": "Código IBGE do município",
+      "postalCode": "CEP"
+    },
+    "error": {
+      "streetRequired": "Informe o logradouro.",
+      "numberRequired": "Informe o número.",
+      "cityRequired": "Informe o município.",
+      "stateInvalid": "Escolha uma UF válida.",
+      "postalCodeInvalid": "CEP precisa ter 8 dígitos.",
+      "cityCodeInvalid": "Código IBGE precisa ter 7 dígitos e começar pelo prefixo da UF escolhida."
+    }
   }
 }

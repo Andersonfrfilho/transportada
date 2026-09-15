@@ -29,7 +29,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T201** Formulário "Informar endereço correto" no `AddressReportPanel`, preenchido com o
+- [x] **T201** Formulário "Informar endereço correto" no `AddressReportPanel`, preenchido com o
       endereço como veio, com máscara de CEP, `Select` de UF e erro ancorado no campo. Evidência:
       contrato do serviço de validação e do mapa de erros por campo.
 - [ ] **T202** O estado do pedido em cada endereço (sem pedido, rascunho, enviado). Evidência:

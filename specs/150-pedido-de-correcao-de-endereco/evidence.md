@@ -301,3 +301,128 @@ Resultado: exit 0 nas 6 apps.
 - `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressReport.validation.ts`
   (`AddressFinding.recipientName`, `nullableText`)
 - `apps/frontend-transportada/test/nfe-workspace/address-report.contract.ts` (dois testes novos)
+
+## T201
+
+Formulário "Informar endereço correto" no `AddressReportPanel`, spec 150 H1.
+
+### O que ficou
+
+- **`shared/addressCorrection.validation.ts`**: cópia por valor da tabela de UF → prefixo IBGE
+  (mesmo desenho de `ADDRESS_FINDING_KINDS`), tipos `AddressCorrectionFields`/
+  `AddressCorrectionRequestRecord`, o mapeamento da resposta da API (registro com `status`
+  desconhecido some da lista, não derruba o resto — mesma regra do relatório) e
+  `validateAddressCorrectionFields`, funções puras com **as mesmas seis checagens do servidor**
+  (`proposedAddressSchema`): logradouro/número/município obrigatórios, UF nas 27, CEP 8 dígitos,
+  `cityCode` 7 dígitos começando pelo prefixo da UF proposta. `cityCodeFromAddressKey` lê o
+  primeiro segmento de `cityCode|postalCode|number` — o mesmo valor que o servidor usa como "como
+  veio" (T103) — para pré-preencher o campo sem uma leitura nova.
+- **`shared/addressCorrectionMask.service.ts`**: reexporta a máscara de CEP já existente
+  (`postalCode.service.ts`, mesma dos outros formulários) e acrescenta a de código IBGE (7 dígitos,
+  sem separador).
+- **`shared/addressCorrectionRequestError.service.ts`**: `web.md` §11, os quatro requisitos —
+  `AddressCorrectionRequestError` carrega `details[]` ao lado do código (item 1);
+  `toFieldErrorMap`/`toInvalidFieldNames` deduplicam por campo, sem o prefixo `proposed.` que o
+  corpo da API usa e o formulário não (itens 2 e 4); `fieldLabelKey` só resolve os oito campos que
+  este formulário conhece — campo que a API vier a recusar e que esta tela não rotula
+  (`somethingNew` no teste) aparece cru no aviso, nunca some (item 4). O atalho que rola até o
+  campo (item 3) fica para quando a T202 tiver um `panelRef` estável entre reaberturas do mesmo
+  endereço — hoje o próprio campo já mostra `aria-invalid`+`aria-describedby`, e os campos
+  desconhecidos aparecem juntos num aviso de rodapé.
+- **`shared/nfeWorkspaceClient.service.ts`**: `saveAddressCorrection` (`PUT
+/address-correction-requests/:addressKey`, `addressKey` codificado com `encodeURIComponent` —
+  mesmo padrão de `tripClient.service.ts` para `geocoded-addresses/:addressKey`, a outra rota com
+  `pathParameterFormat: 'raw'`) e `listAddressCorrectionRequests` (`GET
+/address-correction-requests`). Os dois passam por `requestJsonWithDetails`, uma função nova ao
+  lado de `requestJson`: a existente descartava o corpo de toda resposta que não fosse `ok`, e a
+  fronteira desta rota manda `error.details[]` que o formulário precisa.
+- **`hooks/useAddressReport.hook.ts`**: `ADDRESS_REPORT_QUERY_KEY` passou a exportada — é a chave
+  que o formulário invalida depois de salvar.
+- **`shared/nfeWorkspace.constant.ts`**: `ADDRESS_CORRECTION_REQUESTS_QUERY_KEY` nova, ao lado de
+  `NFE_DOCUMENTS_QUERY_KEY`.
+- **`hooks/useAddressCorrectionForm.hook.ts`**: o estado do formulário — `fields`, `patch`,
+  `clearFieldError` (editar o campo limpa o erro dele, servidor e validação local pela mesma
+  regra), `submit` (valida local primeiro; só chama a API se `validateAddressCorrectionFields`
+  devolver vazio) e a mutação TanStack. `onSuccess` invalida `ADDRESS_REPORT_QUERY_KEY` e
+  `ADDRESS_CORRECTION_REQUESTS_QUERY_KEY` **sem** `await` (`test/shared/mutation-pending-state.contract.ts`
+  reprova `onSuccess` assíncrono — o botão não pode ficar preso à releitura). `onError` separa os
+  `details[]` do servidor entre campo conhecido (`fieldErrors`) e desconhecido
+  (`unlabelledErrors`).
+- **`components/AddressCorrectionForm.component.tsx`**: os oito campos (logradouro, número,
+  complemento, bairro, município, UF via `@/components/ui/select` com as 27 siglas, código IBGE
+  com máscara de 7 dígitos, CEP com máscara `00000-000`), `useRevealedPanel` no `<form>`,
+  `aria-invalid`+`aria-describedby` nos campos com regra própria (logradouro, número, município,
+  UF, código IBGE, CEP — complemento e bairro não têm regra, então nunca têm erro), e a dica de
+  CEP terminado em `-000` (`isGenericCityPostalCode`, RF/084 T14: nunca sugerir que está errado).
+  Botões "Cancelar" e "Salvar correção", com `Icon`.
+- **`components/AddressReportPanel.component.tsx`**: cada `FindingRow` ganhou um `useState` para o
+  formulário (fechado por padrão) e o botão "Informar endereço correto" (`Icon name="edit"`), que
+  alterna para o formulário inline pré-preenchido com o endereço **como veio** (`noteStreet`,
+  `noteNumber`, `noteDistrict`, `notePostalCode`, `city`, `state`, e `cityCode` da própria
+  `addressKey`). Salvar ou cancelar fecha o formulário de volta ao botão.
+- **CSS** (`styles/addressReport.module.css`): classes novas com os tokens do design system
+  (`--field-*`, `--space-*`), mobile-first (`correctionGrid` vira duas colunas a partir de
+  `40rem`), sem estilo inline.
+- **Locales**: `addressReport.correction.*` (rótulos, dica de CEP, ações) e `addressCorrection.*`
+  (`field.*` para o mapa de rótulo e `error.*` para as mensagens de validação local), pt-BR
+  acentuado e o par em `nfeWorkspace.en.locale.json`.
+
+### Testes
+
+`apps/frontend-transportada/test/nfe-workspace/address-correction.contract.ts`, registrado em
+`test/nfe-workspace.contract.test.ts` (que já está na lista explícita de
+`apps/frontend-transportada/package.json`): validação de cada campo (certo e errado), a checagem
+cruzada `cityCode`/UF, a máscara de código IBGE e de CEP, `cityCodeFromAddressKey` (com e sem o
+segmento vazio), a dica de CEP genérico, o mapa `details[].field` → campo sem o prefixo
+`proposed.`, `fieldLabelKey` (conhecido e desconhecido), e o client: monta o `PUT` com a
+`addressKey` codificada e o corpo `{ proposed }`, lê o `GET` da lista, e joga
+`AddressCorrectionRequestError` com os três campos do `400` (incluindo o desconhecido) no `catch`.
+
+### Gates
+
+```
+bun run typecheck
+```
+
+Resultado: verde nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3706 pass**, 0 fail, 34762 `expect()`, 29 arquivos (15 testes novos em
+`address-correction.contract.ts`).
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada build
+```
+
+Resultado: `vite build` concluído (`✓ built in 5.09s`), PWA gerado (128 entradas precache).
+
+### Arquivos alterados
+
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrection.validation.ts` (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrectionMask.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrectionRequestError.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/hooks/useAddressCorrectionForm.hook.ts` (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/components/AddressCorrectionForm.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/components/AddressReportPanel.component.tsx`
+  (botão + formulário inline por endereço)
+- `apps/frontend-transportada/src/modules/nfe-workspace/hooks/useAddressReport.hook.ts`
+  (`ADDRESS_REPORT_QUERY_KEY` exportada)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/nfeWorkspace.constant.ts`
+  (`ADDRESS_CORRECTION_REQUESTS_QUERY_KEY`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/nfeWorkspaceClient.service.ts`
+  (`saveAddressCorrection`, `listAddressCorrectionRequests`, `requestJsonWithDetails`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/styles/addressReport.module.css`
+  (`.correction*`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/locales/nfeWorkspace.locale.json` e
+  `nfeWorkspace.en.locale.json` (`addressReport.correction`, `addressCorrection`)
+- `apps/frontend-transportada/test/nfe-workspace/address-correction.contract.ts` (novo)
+- `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)

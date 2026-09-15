@@ -121,3 +121,78 @@
   font-size: 0.75rem;
   margin: 0;
 }
+
+.correctionTrigger {
+  align-self: flex-start;
+}
+
+.correctionForm {
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.correctionTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.correctionGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .correctionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.correctionGrid label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.correctionGrid input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+/* O erro do campo fica sob ele, dentro do rótulo: é o que o `aria-describedby` do input aponta. */
+.correctionFieldError {
+  color: var(--color-alert);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.correctionHint {
+  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.correctionServerError {
+  color: var(--color-alert);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.correctionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}

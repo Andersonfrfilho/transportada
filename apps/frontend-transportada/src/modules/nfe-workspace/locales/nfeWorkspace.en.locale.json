@@ -326,7 +326,23 @@
       "postal_code_stale": "The cadastre holds the city-wide postal code. The street-level one makes the address lookup free.",
       "street_incomplete": "The same street with a shorter name in the cadastre. Delivery arrives; the cadastre is just abbreviated."
     },
-    "unresolvedAim": "Delivery currently aims at the municipality centre"
+    "unresolvedAim": "Delivery currently aims at the municipality centre",
+    "correction": {
+      "trigger": "Report correct address",
+      "title": "Report correct address",
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "district": "District",
+      "city": "City",
+      "state": "State",
+      "cityCode": "City IBGE code",
+      "postalCode": "Postal code",
+      "genericPostalCodeHint": "This postal code may be the city's single postal code — check before changing it.",
+      "unlabelledErrorsLead": "The server rejected fields this screen does not recognise:",
+      "cancel": "Cancel",
+      "save": "Save correction"
+    }
   },
   "packageBoxes": {
     "title": "Boxes to measure",
@@ -374,5 +390,25 @@
       "all": "All"
     },
     "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box"
+  },
+  "addressCorrection": {
+    "field": {
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "district": "District",
+      "city": "City",
+      "state": "State",
+      "cityCode": "City IBGE code",
+      "postalCode": "Postal code"
+    },
+    "error": {
+      "streetRequired": "Enter the street.",
+      "numberRequired": "Enter the number.",
+      "cityRequired": "Enter the city.",
+      "stateInvalid": "Choose a valid state.",
+      "postalCodeInvalid": "Postal code must have 8 digits.",
+      "cityCodeInvalid": "IBGE code must have 7 digits and start with the chosen state's prefix."
+    }
   }
 }
