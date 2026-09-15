@@ -19,7 +19,7 @@ import {
  * o mesmo da linha de pedágio da conta: o mesmo ícone significa a mesma coisa em todo o produto.
  */
 export const MAP_BADGE_ICONS: Readonly<Record<MapBadgeKind, IconName>> = {
-  radar: 'target',
+  radar: 'speed-camera',
   toll: 'invoice',
 }
 
