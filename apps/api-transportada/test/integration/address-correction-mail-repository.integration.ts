@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { AddressCorrectionRequestNotSendableError } from '../../src/address-correction/domain/address-correction.error.js'
 import { DrizzleAddressCorrectionMailRepository } from '../../src/address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 
@@ -364,6 +365,95 @@ describeDatabase(
         sql`select status from address_correction_requests where id = ${freshDraft?.id}`,
       )
       expect(request?.status).toBe('draft')
+    })
+
+    /**
+     * Revisão final, item [ALTO]: dois operadores clicam "enviar" no mesmo rascunho ao mesmo tempo,
+     * com `Idempotency-Key` diferentes (duas abas, dois cliques). `findSendableRequests` agora lê a
+     * linha com `for('update')`: a segunda transação bloqueia até a primeira comitar, e ao
+     * desbloquear vê a linha já `sent` — nunca as duas mandam e-mail. `markRequestsSent` é a segunda
+     * trava (retorno vazio → `AddressCorrectionRequestNotSendableError`), reforço para quando o
+     * lock por si só não bastasse.
+     */
+    test('envio concorrente do mesmo rascunho: só um vence, o outro recebe 409, sem e-mail em dobro', async () => {
+      if (database === undefined) throw new Error('A disposable database is required')
+      const concurrentAddressKey = '3550308|01310300|47'
+      const [concurrentDraft] = await database.db.execute<{ id: string }>(sql`
+        insert into address_correction_requests
+          (company_id, contractor_id, address_key,
+           reported_street, reported_number, reported_city_code, reported_city, reported_state,
+           reported_postal_code,
+           proposed_street, proposed_number, proposed_city_code, proposed_city, proposed_state,
+           proposed_postal_code,
+           reason_match_level, status)
+        values (
+          ${COMPANY_ID}, ${contractorId}, ${concurrentAddressKey},
+          'Av Paulista', '47', '3550308', 'São Paulo', 'SP', '01310300',
+          'Avenida Paulista', '47', '3550308', 'São Paulo', 'SP', '01310300',
+          'rooftop', 'draft'
+        )
+        returning id
+      `)
+      const concurrentDraftId = concurrentDraft?.id ?? ''
+
+      async function attemptSend(label: string): Promise<{ readonly threadId: string }> {
+        const threadId = crypto.randomUUID()
+        return repository().execute(async (transaction) => {
+          const { invalidRequestIds } = await transaction.findSendableRequests({
+            companyId: COMPANY_ID,
+            contractorId,
+            requestIds: [concurrentDraftId],
+          })
+          if (invalidRequestIds.length > 0) throw new AddressCorrectionRequestNotSendableError()
+
+          const { messageId } = await transaction.recordMail({
+            actorUserId: ACTOR_USER_ID,
+            bodyHtml: `<p>${label}</p>`,
+            bodyText: label,
+            companyId: COMPANY_ID,
+            contractorId,
+            correlationId: `correlation-concurrent-${label}`,
+            fromAddress: 'no-reply@transportada.test',
+            replyTokenHash: label === 'a' ? 'c'.repeat(64) : 'd'.repeat(64),
+            subject: 'Correção de endereço de entrega — 1 cliente',
+            threadId,
+            toAddresses: ['ativo@contratante.example'],
+          })
+          await transaction.markRequestsSent({
+            companyId: COMPANY_ID,
+            requestIds: [concurrentDraftId],
+            threadId,
+          })
+          return { messageId, threadId }
+        })
+      }
+
+      const [outcomeA, outcomeB] = await Promise.allSettled([attemptSend('a'), attemptSend('b')])
+
+      const settled = [outcomeA, outcomeB]
+      const fulfilled = settled.filter((outcome) => outcome.status === 'fulfilled')
+      const rejected = settled.filter((outcome) => outcome.status === 'rejected')
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+        AddressCorrectionRequestNotSendableError,
+      )
+
+      const winnerThreadId = (fulfilled[0] as PromiseFulfilledResult<{ threadId: string }>).value
+        .threadId
+
+      const outboxRows = await database.db.execute<{ event_type: string }>(sql`
+        select o.event_type
+        from contractor_mail_outbox o
+        join contractor_mail_messages m on m.id = o.message_id
+        where m.thread_id = ${winnerThreadId}
+      `)
+      expect(outboxRows).toHaveLength(1)
+
+      const [request] = await database.db.execute<{ status: string; thread_id: string }>(
+        sql`select status, thread_id from address_correction_requests where id = ${concurrentDraftId}`,
+      )
+      expect(request).toMatchObject({ status: 'sent', thread_id: winnerThreadId })
     })
   },
 )

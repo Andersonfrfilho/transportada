@@ -10,6 +10,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
   addressCorrectionRequests,
   companyFiscalProfiles,
+  CONTRACTOR_CONTACT_STATUSES,
+  CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
   contractorContacts,
   contractorMailMessages,
   contractorMailOutbox,
@@ -20,6 +22,7 @@ import {
   idempotencyRecords,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type {
   AddressCorrectionMailContact,
   AddressCorrectionMailContractor,
@@ -32,16 +35,23 @@ import type {
   SendAddressCorrectionMailResult,
 } from '../application/address-correction-mail.port.js'
 import type { AddressCorrectionRequest } from '../application/address-correction.port.js'
+import { ADDRESS_CORRECTION_SEND_MAIL_OPERATION } from '../domain/address-correction-mail.constant.js'
+import {
+  AddressCorrectionMailMessageNotPersistedError,
+  AddressCorrectionRequestNotSendableError,
+} from '../domain/address-correction.error.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
-const OPERATION = 'address-correction.send-mail'
+const OPERATION = ADDRESS_CORRECTION_SEND_MAIL_OPERATION
 const DRAFT_STATUS = 'draft'
 const SENT_STATUS = 'sent'
 const OUTBOUND_DIRECTION = 'outbound'
 const QUEUED_DELIVERY_STATUS = 'queued'
 const ADDRESS_CORRECTION_SUBJECT_TYPE = 'address_correction'
+const ACTIVE_CONTACT_STATUS = CONTRACTOR_CONTACT_STATUSES[0]
+const [MESSAGE_SEND_REQUESTED_EVENT_TYPE] = CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES
 
 export class DrizzleAddressCorrectionMailRepository implements AddressCorrectionMailUnitOfWorkPort {
   public constructor(private readonly database: Database) {}
@@ -99,7 +109,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         and(
           eq(contractorContacts.companyId, params.companyId),
           eq(contractorContacts.contractorId, params.contractorId),
-          eq(contractorContacts.status, 'active'),
+          eq(contractorContacts.status, ACTIVE_CONTACT_STATUS),
           inArray(contractorContacts.id, [...params.contactIds]),
         ),
       )
@@ -121,6 +131,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
             eq(addressCorrectionRequests.status, DRAFT_STATUS),
           ),
         )
+        .for('update')
       return { invalidRequestIds: [], sendable: rows.map(toAddressCorrectionRequest) }
     }
 
@@ -137,6 +148,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
                 inArray(addressCorrectionRequests.id, requestedIds),
               ),
             )
+            .for('update')
     const rowById = new Map(rows.map((row) => [row.id, row]))
     const sendable: AddressCorrectionRequest[] = []
     const invalidRequestIds: string[] = []
@@ -185,7 +197,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         and(
           eq(identityUserProfiles.userId, params.userId),
           eq(userCompanyMemberships.companyId, params.companyId),
-          eq(userCompanyMemberships.status, 'active'),
+          eq(userCompanyMemberships.status, ACTIVE_MEMBERSHIP_STATUS),
         ),
       )
       .limit(1)
@@ -266,12 +278,12 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         toAddresses: [...params.toAddresses],
       })
       .returning({ id: contractorMailMessages.id })
-    if (message === undefined) throw new Error('address correction mail message was not saved')
+    if (message === undefined) throw new AddressCorrectionMailMessageNotPersistedError()
 
     await this.transaction.insert(contractorMailOutbox).values({
       companyId: params.companyId,
       correlationId: params.correlationId,
-      eventType: 'message.send.requested',
+      eventType: MESSAGE_SEND_REQUESTED_EVENT_TYPE,
       messageId: message.id,
       payload: {},
     })
@@ -279,21 +291,32 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
     return { messageId: message.id }
   }
 
+  /**
+   * As linhas já vieram travadas (`for('update')`) por `findSendableRequests` nesta mesma
+   * transação — o `eq(status, 'draft')` aqui é a segunda trava: um envio concorrente do mesmo
+   * rascunho que tenha vencido a corrida já marcou `sent` e libera o lock antes deste `UPDATE`
+   * rodar, então menos linhas voltam do que as pedidas. Nesse caso a transação inteira desfaz (409).
+   */
   public async markRequestsSent(params: {
     readonly companyId: string
     readonly requestIds: readonly string[]
     readonly threadId: string
   }): Promise<void> {
     if (params.requestIds.length === 0) return
-    await this.transaction
+    const updated = await this.transaction
       .update(addressCorrectionRequests)
       .set({ sentAt: sql`now()`, status: SENT_STATUS, threadId: params.threadId })
       .where(
         and(
           eq(addressCorrectionRequests.companyId, params.companyId),
           inArray(addressCorrectionRequests.id, [...params.requestIds]),
+          eq(addressCorrectionRequests.status, DRAFT_STATUS),
         ),
       )
+      .returning({ id: addressCorrectionRequests.id })
+    if (updated.length !== params.requestIds.length) {
+      throw new AddressCorrectionRequestNotSendableError()
+    }
   }
 }
 
@@ -319,6 +342,8 @@ function toAddressCorrectionRequest(row: AddressCorrectionRow): AddressCorrectio
     },
     reasonDistanceMetres: row.reasonDistanceMetres,
     reasonMatchLevel: row.reasonMatchLevel,
+    /** Sempre `draft` aqui (a leitura é `findSendableRequests`, antes de enviar). */
+    recipientCount: null,
     recipientName: row.recipientName,
     reported: {
       city: row.reportedCity,
