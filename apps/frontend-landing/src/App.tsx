@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useState, type ReactNode } from 'react'
 
+import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import { Footer } from '@/modules/foundation/components/Footer.component'
 import { Header } from '@/modules/foundation/components/Header.component'
+import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { useLandingSettings } from '@/modules/shared/useLandingSettings.query'
 import { ApplicationPage } from './pages/ApplicationPage'
 import { HomePage } from './pages/HomePage'
@@ -10,6 +12,7 @@ import { PortalPage } from './pages/PortalPage'
 
 const APPLICATION_PATH = '/cadastro'
 const PORTAL_PATH = '/portal'
+const deploymentEnvironment = getDeploymentEnvironment()
 
 export function App(): ReactNode {
   const { data: settings } = useLandingSettings()
@@ -40,6 +43,7 @@ export function App(): ReactNode {
 
   return (
     <>
+      <EnvironmentBanner environment={deploymentEnvironment} />
       <Header
         brandName={brandName}
         onNavigateHome={() => navigateTo('/')}
