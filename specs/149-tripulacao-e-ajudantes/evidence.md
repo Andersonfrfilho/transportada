@@ -208,3 +208,86 @@ Decisões:
 - `GET /me/trips/current` (`find-current-driver-trip.use-case.ts`, `listActiveTrips`) não foi tocado:
   a spec pede que o ajudante continue vendo a viagem e registrando comprovante — só despachar e
   começar o trajeto são exclusivos do motorista.
+
+## T4 — quem dirige filtra o papel
+
+Arquivos:
+
+- `src/mdfe-manifests/application/create-trip-mdfe-manifest.use-case.ts`: `TripLookupPort.get` passa
+  a devolver `role` (`TripCrewRole`) em cada linha de `drivers`. O `execute` filtra
+  `trip.drivers.filter((driver) => driver.role === 'driver')` **antes** de checar tripulação vazia
+  (`MDFE_MANIFEST_CREW_REQUIRED`) e antes de montar `driverIds` para `manifests.create` — uma viagem
+  só com ajudantes reprova com o mesmo código de tripulação vazia, e uma viagem com 1 motorista + 2
+  ajudantes manda só o motorista. O gatilho automático (`issue-trip-manifest-automatically.use-case.ts`,
+  rota `mdfe.auto-issue`) chama este mesmo `createManifest.execute`, então o filtro cobre os dois
+  caminhos sem duplicar a regra.
+- `src/trips/infrastructure/trip-valuation.query.ts` (`readCrew`, ~linha 686): a consulta que monta
+  `TripCrewMember[]` para o custo do motorista (`buildTripDriverCost`) ganhou
+  `eq(tripDrivers.role, 'driver')` no `where`. Sem isso, um ajudante pago por tabela de região (mesma
+  classe/zona do motorista) somava o próprio valor à conta — medido no teste: 812,45 vira 1.624,90 com
+  o ajudante contando em dobro; e um ajudante sem cobertura de zona vira lacuna `missing` para a
+  viagem inteira, mesmo com o motorista coberto. `readPreviewCrew` (a prévia, antes de a viagem
+  existir) não foi tocada: ela já recebe `driverIds` explícitos do formulário, e quem manda essa lista
+  ainda não conhece o papel nesta task (T5/T7 tratam da montagem/sugestão).
+- `src/trips/infrastructure/financial-summary.query.ts` (`listByDriver`): o `innerJoin` com
+  `tripDrivers` ganhou `eq(tripDrivers.role, 'driver')`. Sem isso, o resumo por motorista abria uma
+  linha extra por ajudante da mesma viagem, com o faturamento inteiro duplicado (mesmo padrão do
+  `costTotal`/`revenueAmount` por grupo).
+- **Não mexidos, por decisão do escopo desta task** (ADR-0065 §2 já nomeia os leitores):
+  `trip-occurrence-feed.query.ts` (já filtra `position = 1`, que a `trip.policy.ts` garante ser sempre
+  `driver`), `delivery-proof-read.support.ts` (comprovante — ajudante registra, é papel dele),
+  `mdfe-document.query.ts` (DAMDFE — decisão do líder poder ver, já registrada na spec) e
+  `drizzle-driver-field-report.repository.ts` (confere vínculo de um `driverId` específico à viagem,
+  não lista "quem dirige"). Nenhum outro leitor de `trip_drivers`/`tripDrivers` fora desta lista e da
+  T3 apareceu no grep (`src/mdfe-manifests`, `src/trips`).
+
+Contratos vermelho antes:
+
+- `bun run typecheck` sem os campos novos: `TripLookupPort.get` exigindo `role` em `drivers` reprovava
+  as fixtures existentes de `test/mdfe-application/trip-manifest.contract.ts` e
+  `test/integration/mixed-cargo-end-to-end.integration.ts` (TS2322, propriedade `role` ausente) — o
+  tipo pegou a lacuna antes de qualquer teste de comportamento rodar.
+- `test/integration/trip-financial-end-to-end.integration.ts` (contra Postgres): revertendo
+  temporariamente os dois filtros de `role` em `trip-valuation.query.ts` e
+  `financial-summary.query.ts` (`git apply -R` seguido de `git apply`), o teste `receita do CT-e,
+agregado pela tabela...` falhava — `byKind.get('driver').amount` saía `1624.9000` em vez de
+  `812.4500` (o ajudante da mesma viagem, sem cadastro de zona/cobertura, contava a rate da classe em
+  dobro). Restaurado o filtro, o teste volta a `812.4500` e a nova asserção de resumo por motorista
+  (`byDriver` com 1 grupo, não 2) passa.
+
+Testes novos/alterados:
+
+- `test/mdfe-application/trip-manifest.contract.ts`: `FixtureParams.tripCrew` permite mandar papel por
+  linha; dois testes novos — 1 motorista + 2 ajudantes manda só o motorista como condutor
+  (`createCalls[0].drivers` com 1 linha), e tripulação só de ajudante reprova como tripulação vazia
+  (`MDFE_MANIFEST_CREW_REQUIRED`).
+- `test/integration/trip-financial-end-to-end.integration.ts`: a viagem seedada ganhou um segundo
+  `fleetDrivers` (ajudante, `paymentModel: 'route_table'`, sem zona/cobertura) e uma segunda linha em
+  `tripDrivers` com `role: 'helper'`; a asserção existente do custo do motorista
+  (`byKind.get('driver')`) passa a provar a exclusão do ajudante, e uma asserção nova confere
+  `listGroups({ groupBy: 'driver' })` com 1 grupo só (`'Agregado'`), não 2.
+- `test/integration/mixed-cargo-end-to-end.integration.ts`: fixture do `TripLookupPort.get` ajustada
+  para incluir `role: 'driver'` (regressão de tipo, comportamento inalterado — só motorista nesta
+  viagem).
+
+Comandos e saída:
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0.
+- `bun test ./test/mdfe-application/trip-manifest.contract.ts` → 11 pass / 0 fail.
+- `bun --env-file=../../.env.test test ./test/integration/trip-financial-end-to-end.integration.ts
+--timeout 120000` → 1 pass / 0 fail (20 `expect()`).
+- `bun --env-file=../../.env.test test --timeout 120000` (API, lista completa do `package.json`) →
+  5830 pass / 23 skip / 0 fail (era 5828 na T3; a diferença são os dois testes novos do MDF-e).
+- `bun --env-file=../../.env.test run test:integration` → 300 pass / 4 skip / 2 fail. As 2 falhas
+  continuam `cte-archive-gateway.integration.ts` (`OBJECT_STORAGE_UNAVAILABLE`, MinIO indisponível no
+  ambiente local desta sessão) — mesma contagem da T3, pré-existente e sem relação com esta task.
+- `bun run lint` e `bun run format:check` (raiz, 6 apps) → exit 0.
+
+Decisões:
+
+- Tenant-safety não ganhou teste próprio nesta task: os dois filtros novos (`eq(tripDrivers.role,
+'driver')`) entram ao lado de filtros de `companyId` já existentes nas mesmas junções — nenhum
+  escopo de empresa foi alterado, só o papel dentro da mesma empresa.
+- `readPreviewCrew` (prévia da viagem, antes de existir `trip_drivers`) ficou fora do filtro de papel
+  de propósito: ela recebe `driverIds` do formulário, sem ajudante ainda nesta task — a montagem
+  (T5/T13) é quem vai decidir o que manda para lá.

@@ -27,7 +27,7 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 > 🤖 Modelo: `sonnet`
 
 - [x] T3 — `resolveTripCrewForCreation` com papel; posição 1 sempre `driver` (409 caso contrário).
-- [ ] T4 — MDF-e da viagem só com `role = driver` (critério 3).
+- [x] T4 — MDF-e da viagem só com `role = driver` (critério 3).
 - [ ] T5 — Sugestão: corpo `helperIds`, tabela de ajudantes, 409 para pessoa repetida e para quem não
       pode ajudar; aceite grava a tripulação completa via `trip-composer.adapter.ts`.
 

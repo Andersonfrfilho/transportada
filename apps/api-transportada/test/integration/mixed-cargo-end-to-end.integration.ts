@@ -234,7 +234,7 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
                 const found = await tripRepository.findById({ companyId, tripId })
                 if (found === null) throw new Error('trip disappeared mid-test')
                 return {
-                  drivers: [{ driverId }],
+                  drivers: [{ driverId, role: 'driver' as const }],
                   id: found.id,
                   requiresMdfe: null,
                   status: found.status,

@@ -431,7 +431,15 @@ export class DrizzleTripValuationQuery {
           ),
         )
         .where(
-          and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)),
+          and(
+            eq(tripDrivers.companyId, input.companyId),
+            eq(tripDrivers.tripId, input.tripId),
+            /**
+             * Spec 149 (ADR-0065 §2): ajudante não é condutor — não entra como agregado nem como
+             * assalariado no custo de motorista.
+             */
+            eq(tripDrivers.role, 'driver'),
+          ),
         )
         /** `position` é a ordem que a viagem gravou; sem ela o `SELECT` devolve o que quiser. */
         .orderBy(asc(tripDrivers.position))

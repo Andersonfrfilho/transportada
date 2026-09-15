@@ -7,6 +7,7 @@ import {
   checkTripAcceptsManifest,
   type TripManifestBlock,
 } from '../../trips/domain/trip-manifest.policy.js'
+import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import {
   MdfeManifestCrewRequiredError,
   MdfeManifestTripNotReadyError,
@@ -33,7 +34,7 @@ export type CreateTripMdfeManifestInput = {
 
 export type TripLookupPort = {
   get(input: { readonly context: MdfeManifestCompanyContext; readonly tripId: string }): Promise<{
-    readonly drivers: readonly { readonly driverId: string }[]
+    readonly drivers: readonly { readonly driverId: string; readonly role: TripCrewRole }[]
     readonly id: string
     readonly requiresMdfe: boolean | null
     readonly status: TripStatus
@@ -67,9 +68,14 @@ export function createTripMdfeManifestUseCase(dependencies: {
   return {
     async execute({ context, correlationId, manifest, tripId }) {
       const trip = await trips.get({ context, tripId })
+      /**
+       * Spec 149 (ADR-0065 §3): o MDF-e leva só quem dirige — ajudante é tripulação, não condutor
+       * fiscal.
+       */
+      const drivers = trip.drivers.filter((driver) => driver.role === 'driver')
       // `createTripSchema` já exige mínimo 1 condutor na viagem; aqui é defesa em profundidade,
       // porque `createTripManifestSchema` omite `driverIds` e confia inteiramente em `trip.drivers`.
-      if (trip.drivers.length === 0 || trip.vehicleId === null) {
+      if (drivers.length === 0 || trip.vehicleId === null) {
         throw new MdfeManifestCrewRequiredError()
       }
 
@@ -93,7 +99,7 @@ export function createTripMdfeManifestUseCase(dependencies: {
           documentIds: snapshot.documents
             .map((document) => document.cteFiscalDocumentId)
             .filter((documentId): documentId is string => documentId !== null),
-          driverIds: trip.drivers.map((driver) => driver.driverId),
+          driverIds: drivers.map((driver) => driver.driverId),
           tripId: trip.id,
           vehicleId: trip.vehicleId,
         },

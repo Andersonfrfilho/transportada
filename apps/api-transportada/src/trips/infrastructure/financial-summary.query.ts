@@ -147,6 +147,11 @@ export class DrizzleFinancialSummaryQuery {
         and(
           eq(tripDrivers.companyId, tripFinancialResults.companyId),
           eq(tripDrivers.tripId, tripFinancialResults.tripId),
+          /**
+           * Spec 149 (ADR-0065 §2): o resumo agrupa quem dirigiu, nunca quem só ajudou naquela
+           * viagem.
+           */
+          eq(tripDrivers.role, 'driver'),
         ),
       )
       .innerJoin(
