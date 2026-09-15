@@ -47,14 +47,14 @@ export function buildAddressCorrectionMailRequestBody(
  * Botão desabilitado com 0 contatos marcados, acima do teto do Resend (T305), ou sem nenhum modelo
  * ativo do tipo disponível (T405, RF15/RF17) — sem modelo o envio não tem o que renderizar.
  */
-export function canConfirmAddressCorrectionMail(
-  selectedContactCount: number,
-  hasTemplate: boolean,
-): boolean {
+export function canConfirmAddressCorrectionMail(input: {
+  readonly hasTemplate: boolean
+  readonly selectedContactCount: number
+}): boolean {
   return (
-    hasTemplate &&
-    selectedContactCount > 0 &&
-    selectedContactCount <= ADDRESS_CORRECTION_MAIL_MAX_CONTACTS
+    input.hasTemplate &&
+    input.selectedContactCount > 0 &&
+    input.selectedContactCount <= ADDRESS_CORRECTION_MAIL_MAX_CONTACTS
   )
 }
 

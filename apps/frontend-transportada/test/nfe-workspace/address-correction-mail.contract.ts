@@ -109,11 +109,21 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
 
   test('botão desabilitado com 0 contatos, habilitado até o teto, desabilitado acima dele ou sem modelo', () => {
     expect(ADDRESS_CORRECTION_MAIL_MAX_CONTACTS).toBe(50)
-    expect(canConfirmAddressCorrectionMail(0, true)).toBe(false)
-    expect(canConfirmAddressCorrectionMail(1, true)).toBe(true)
-    expect(canConfirmAddressCorrectionMail(50, true)).toBe(true)
-    expect(canConfirmAddressCorrectionMail(51, true)).toBe(false)
-    expect(canConfirmAddressCorrectionMail(1, false)).toBe(false)
+    expect(canConfirmAddressCorrectionMail({ hasTemplate: true, selectedContactCount: 0 })).toBe(
+      false,
+    )
+    expect(canConfirmAddressCorrectionMail({ hasTemplate: true, selectedContactCount: 1 })).toBe(
+      true,
+    )
+    expect(canConfirmAddressCorrectionMail({ hasTemplate: true, selectedContactCount: 50 })).toBe(
+      true,
+    )
+    expect(canConfirmAddressCorrectionMail({ hasTemplate: true, selectedContactCount: 51 })).toBe(
+      false,
+    )
+    expect(canConfirmAddressCorrectionMail({ hasTemplate: false, selectedContactCount: 1 })).toBe(
+      false,
+    )
   })
 
   test('arquivado nunca entra na lista de modelos do seletor (RF15)', () => {

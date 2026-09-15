@@ -195,7 +195,13 @@ export function useAddressCorrectionMailDialog() {
   }
 
   function confirm(): void {
-    if (!canConfirmAddressCorrectionMail(selectedContactIds.length, templates.length > 0)) return
+    if (
+      !canConfirmAddressCorrectionMail({
+        hasTemplate: templates.length > 0,
+        selectedContactCount: selectedContactIds.length,
+      })
+    )
+      return
     sendMutation.mutate()
   }
 
@@ -203,7 +209,10 @@ export function useAddressCorrectionMailDialog() {
     close,
     confirm,
     contacts,
-    canConfirm: canConfirmAddressCorrectionMail(selectedContactIds.length, templates.length > 0),
+    canConfirm: canConfirmAddressCorrectionMail({
+      hasTemplate: templates.length > 0,
+      selectedContactCount: selectedContactIds.length,
+    }),
     errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error),
     isOpen,
     isSending: sendMutation.isPending,

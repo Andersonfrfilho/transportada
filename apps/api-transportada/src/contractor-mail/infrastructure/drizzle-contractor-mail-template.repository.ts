@@ -21,14 +21,16 @@ import {
   ContractorMailTemplateNameTakenError,
   ContractorMailTemplateNotPersistedError,
 } from '../domain/contractor-mail-template.error.js'
-import type { ContractorMailTemplateType } from '../domain/mail-template-catalog.constant.js'
+import {
+  CONTRACTOR_MAIL_TEMPLATE_STATUSES,
+  type ContractorMailTemplateType,
+} from '../domain/mail-template-catalog.constant.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 type TemplateRow = typeof contractorMailTemplates.$inferSelect
 
-const ACTIVE_STATUS = 'active'
-const ARCHIVED_STATUS = 'archived'
+const [ACTIVE_STATUS, ARCHIVED_STATUS] = CONTRACTOR_MAIL_TEMPLATE_STATUSES
 const NAME_UNIQUE_CONSTRAINT = 'contractor_mail_templates_company_type_name_unique'
 const LOCK_NAMESPACE = 'contractor-mail-template-default'
 
@@ -89,11 +91,15 @@ export class DrizzleContractorMailTemplateRepository
   public create(params: CreateContractorMailTemplateParams): Promise<ContractorMailTemplate> {
     return translateNameConflict(() =>
       this.database.transaction(async (transaction) => {
-        await acquireDefaultLock(transaction, params.companyId, params.mailType)
+        await acquireDefaultLock({
+          companyId: params.companyId,
+          mailType: params.mailType,
+          transaction,
+        })
         const [currentDefault] = await transaction
           .select({ id: table.id })
           .from(table)
-          .where(activeDefaultFilter(params.companyId, params.mailType))
+          .where(activeDefaultFilter({ companyId: params.companyId, mailType: params.mailType }))
           .limit(1)
         const [row] = await transaction
           .insert(table)
@@ -154,7 +160,11 @@ export class DrizzleContractorMailTemplateRepository
         .limit(1)
       if (target === undefined) return undefined
 
-      await acquireDefaultLock(transaction, params.companyId, target.mailType)
+      await acquireDefaultLock({
+        companyId: params.companyId,
+        mailType: target.mailType,
+        transaction,
+      })
       const [current] = await transaction
         .select()
         .from(table)
@@ -177,7 +187,7 @@ export class DrizzleContractorMailTemplateRepository
       await transaction
         .update(table)
         .set({ ...bump, isDefault: false })
-        .where(activeDefaultFilter(params.companyId, target.mailType))
+        .where(activeDefaultFilter({ companyId: params.companyId, mailType: target.mailType }))
       const [row] = await transaction
         .update(table)
         .set({ ...bump, isDefault: true })
@@ -188,10 +198,13 @@ export class DrizzleContractorMailTemplateRepository
   }
 }
 
-function activeDefaultFilter(companyId: string, mailType: ContractorMailTemplateType): SQL {
+function activeDefaultFilter(params: {
+  readonly companyId: string
+  readonly mailType: ContractorMailTemplateType
+}): SQL {
   return and(
-    eq(table.companyId, companyId),
-    eq(table.mailType, mailType),
+    eq(table.companyId, params.companyId),
+    eq(table.mailType, params.mailType),
     eq(table.isDefault, true),
     eq(table.status, ACTIVE_STATUS),
   ) as SQL
@@ -208,15 +221,17 @@ async function translateNameConflict<TResult>(operation: () => Promise<TResult>)
   }
 }
 
-async function acquireDefaultLock(
-  transaction: Transaction,
-  companyId: string,
-  mailType: ContractorMailTemplateType,
-): Promise<void> {
-  const encoded = new TextEncoder().encode(JSON.stringify([LOCK_NAMESPACE, companyId, mailType]))
+async function acquireDefaultLock(params: {
+  readonly companyId: string
+  readonly mailType: ContractorMailTemplateType
+  readonly transaction: Transaction
+}): Promise<void> {
+  const encoded = new TextEncoder().encode(
+    JSON.stringify([LOCK_NAMESPACE, params.companyId, params.mailType]),
+  )
   const digest = await crypto.subtle.digest('SHA-256', encoded)
   const lockId = new DataView(digest).getBigInt64(0, false)
-  await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
+  await params.transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
 function toTemplate(row: TemplateRow): ContractorMailTemplate {

@@ -13,12 +13,15 @@ import {
   ContractorMailTemplateVersionConflictError,
 } from '../domain/contractor-mail-template.error.js'
 import {
+  CONTRACTOR_MAIL_TEMPLATE_STATUSES,
   CONTRACTOR_MAIL_TEMPLATE_TYPES,
   MAIL_TEMPLATE_CATALOG,
   type ContractorMailTemplateType,
   type MailTemplateCatalogEntry,
   type MailTemplateContent,
 } from '../domain/mail-template-catalog.constant.js'
+
+const [ACTIVE_TEMPLATE_STATUS] = CONTRACTOR_MAIL_TEMPLATE_STATUSES
 import { validateMailTemplate } from '../domain/mail-template-render.policy.js'
 import type {
   ContractorMailTemplate,
@@ -81,12 +84,16 @@ export function createContractorMailTemplatesUseCase(dependencies: {
 }): ContractorMailTemplatesUseCase {
   const { previewRenderers, repository } = dependencies
 
-  async function requireActiveTemplate(
-    context: CompanyContext,
-    templateId: string,
-  ): Promise<ContractorMailTemplate> {
-    const template = await requireTemplate({ context, repository, templateId })
-    if (template.status !== 'active') throw new ContractorMailTemplateArchivedError()
+  async function requireActiveTemplate(input: {
+    readonly context: CompanyContext
+    readonly templateId: string
+  }): Promise<ContractorMailTemplate> {
+    const template = await requireTemplate({
+      context: input.context,
+      repository,
+      templateId: input.templateId,
+    })
+    if (template.status !== ACTIVE_TEMPLATE_STATUS) throw new ContractorMailTemplateArchivedError()
     return template
   }
 
@@ -97,7 +104,7 @@ export function createContractorMailTemplatesUseCase(dependencies: {
         ...MAIL_TEMPLATE_CATALOG[mailType],
       })),
     create: async ({ content, context, mailType, name }) => {
-      assertValidContent(mailType, content)
+      assertValidContent({ content, mailType })
       return repository.create({
         actorUserId: context.userId,
         companyId: context.companyId,
@@ -120,12 +127,12 @@ export function createContractorMailTemplatesUseCase(dependencies: {
         })
         return previewRenderers[template.mailType](pickContent(template))
       }
-      assertValidContent(source.mailType, source.content)
+      assertValidContent({ content: source.content, mailType: source.mailType })
       return previewRenderers[source.mailType](source.content)
     },
     read: ({ context, templateId }) => requireTemplate({ context, repository, templateId }),
     setDefault: async ({ context, expectedVersion, templateId }) => {
-      await requireActiveTemplate(context, templateId)
+      await requireActiveTemplate({ context, templateId })
       const updated = await repository.setDefault({
         actorUserId: context.userId,
         companyId: context.companyId,
@@ -136,8 +143,11 @@ export function createContractorMailTemplatesUseCase(dependencies: {
       return updated
     },
     update: async ({ changes, context, expectedVersion, templateId }) => {
-      const current = await requireActiveTemplate(context, templateId)
-      assertValidContent(current.mailType, { ...pickContent(current), ...changes })
+      const current = await requireActiveTemplate({ context, templateId })
+      assertValidContent({
+        content: { ...pickContent(current), ...changes },
+        mailType: current.mailType,
+      })
       const updated = await repository.update({
         actorUserId: context.userId,
         changes,
@@ -164,11 +174,11 @@ async function requireTemplate(params: {
   return template
 }
 
-function assertValidContent(
-  mailType: ContractorMailTemplateType,
-  content: MailTemplateContent,
-): void {
-  const errors = validateMailTemplate({ content, mailType })
+function assertValidContent(input: {
+  readonly content: MailTemplateContent
+  readonly mailType: ContractorMailTemplateType
+}): void {
+  const errors = validateMailTemplate(input)
   if (errors.length > 0) throw new ContractorMailTemplateInvalidError(errors)
 }
 
