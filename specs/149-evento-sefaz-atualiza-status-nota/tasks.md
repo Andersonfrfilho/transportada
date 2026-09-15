@@ -95,10 +95,11 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
       `CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`, não-retentável, **sem** chamar o gateway fiscal fake (H8).
       Depois a releitura de `nfe_documents.status` em `cte-issuance-consumer.effect.ts` (ou onde o item é
       montado), filtrando por `company_id`.
-- [ ] T5 — API: contrato de `GET /nfe-documents` (nota cancelada sobe ao topo — H1) e das respostas de
+- [x] T5 — API: contrato de `GET /nfe-documents` (nota cancelada sobe ao topo — H1) e das respostas de
       lote/CT-e e viagem expondo o status da nota (reaproveitar `cte-batch-selection.query.ts:215` e
-      `drizzle-trip.repository.ts:694`), com contrato negativo de tenant. Tela: aviso "NF-e cancelada após
-      a emissão" no CT-e autorizado e na nota da viagem; textos no `*.locale.json`; contrato de tela.
+      `drizzle-trip.repository.ts:694`), com contrato negativo de tenant. **Parte de API fechada nesta
+      task; a parte de tela ("NF-e cancelada após a emissão", `*.locale.json`, contrato de tela) ficou
+      fora, ver `evidence.md` § T5.**
 
 ## Fase 4 — Backfill (parada obrigatória)
 

@@ -43,6 +43,7 @@ const GROUPED_ITEM: CteBatchItem = {
     {
       accessKey: '35260705868574001090550020008526741408978623',
       id: 'nfe-document-001',
+      nfeStatus: 'authorized',
       number: '852674',
       position: '1',
       series: '2',
@@ -51,6 +52,9 @@ const GROUPED_ITEM: CteBatchItem = {
     {
       accessKey: '35260705868574001090550020008526741408978630',
       id: 'nfe-document-002',
+      // spec 149 H8: CT-e já autorizado com uma das notas cancelada depois — o CT-e continua
+      // válido, e a leitura de cada nota é quem carrega o sinal para a tela.
+      nfeStatus: 'cancelled',
       number: '852675',
       position: '2',
       series: '2',
@@ -82,6 +86,7 @@ const PENDING_ITEM: CteBatchItem = {
     {
       accessKey: '35260705868574001090550020008526741408978647',
       id: 'nfe-document-003',
+      nfeStatus: 'authorized',
       number: '852676',
       position: '1',
       series: '2',
@@ -152,6 +157,19 @@ describe('CT-e batch item listing contract', () => {
     expect(result.items[0]?.documents.map((document) => document.number)).toEqual([
       '852674',
       '852675',
+    ])
+  })
+
+  test('exposes each linked note status, so a cancelled note is visible on an authorized CT-e (spec 149 H8)', async () => {
+    const reader = new CteBatchItemReaderFixture()
+    const useCase = createListCteBatchItemsUseCase({ reader })
+
+    const result = await useCase.execute({ batchId: BATCH_ID, context: COMPANY_CONTEXT })
+
+    expect(result.items[0]?.status).toBe('authorized')
+    expect(result.items[0]?.documents.map((document) => document.nfeStatus)).toEqual([
+      'authorized',
+      'cancelled',
     ])
   })
 

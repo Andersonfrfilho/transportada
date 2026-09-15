@@ -763,3 +763,122 @@ fiar a chamada no `issueDocument`, os dois casos passaram.
 Nenhum. O plano cita "reaproveitar a constante" da API — como o worker não importa código da API,
 a cópia trouxe só o valor usado (`notAuthorized`), sem redeclarar o `CTE_BATCH_BLOCK_REASON`
 inteiro, que hoje não tem outro consumidor no worker.
+
+## T5 — API: listagem, lote/CT-e e viagem expõem o status da nota · 2026-09-15
+
+**Só a parte de API desta task foi executada.** A instrução de execução pediu para parar antes da
+parte de tela (aviso "NF-e cancelada após a emissão", textos em `*.locale.json`, contrato de tela),
+porque outra sessão mexe em `apps/frontend-transportada` no worktree paralelo `../ordem-notas`
+(H4). O que falta para o frontend está descrito no fim desta seção.
+
+### O que já existia (nenhum código novo precisou)
+
+- `GET /nfe-documents` já ordena por `updated_at desc, issued_at desc, id desc`
+  (`nfe_documents_company_updated_issued_id_idx`) e já expõe `status` em `NfeDocumentSummary`
+  (`describeDocument`, `drizzle-nfe-document.repository.ts:857`/`933`). A T3 (spec 149) já faz o
+  `UPDATE` de `status` e `updated_at` juntos, na mesma transação, quando um evento fiscal muda a
+  situação da nota (`applyStatusChange`, `updated_at = clock_timestamp()`). H1 (nota cancelada sobe
+  ao topo) já era, portanto, consequência das duas peças já existentes — faltava só a prova de
+  contrato ligando as duas, que é o que esta task acrescenta.
+- `drizzle-trip.repository.ts:694` já seleciona `nfeDocumentStatus: nfeDocuments.status`, e
+  `trip.mapper.ts:mapTripDocumentDetail` já expõe isso como `fiscalStatus` em
+  `TripDocumentDetail` — incluindo `'cancelled'`. Já coberto por
+  `test/integration/trip-repository.integration.ts` (nota `cancelled` vinculada a uma viagem,
+  `expect(...).toMatchObject({ fiscalStatus: 'cancelled' })`, com o comentário "nota cancelada não
+  bloqueia nem se desvincula sozinha — o status só aparece na leitura"). Nada foi alterado aqui: a
+  resposta da viagem já satisfaz o pedido de H8 para "viagem com nota cancelada", e o isolamento de
+  tenant do `findById` (cross-company retorna `null`) já é coberto no mesmo arquivo.
+
+### O que faltava e foi criado
+
+`cte-batch-selection.query.ts:215` (usado na **prévia** de seleção do lote) já selecionava
+`status`, mas a resposta do **lote já emitido** (`GET` de itens de um lote/CT-e,
+`CteBatchItemDocument` em `src/cte-batches/application/cte-batch-item.port.ts`) não — a nota vinha
+sem status na tela de acompanhamento de um CT-e já autorizado, exatamente o caso do H8 ("CT-e já
+autorizado sobre a nota" → aviso). Adicionado:
+
+- `src/cte-batches/application/cte-batch-item.port.ts`: `CteBatchItemDocument.nfeStatus:
+NfeDocumentStatus` (campo novo, obrigatório).
+- `src/cte-batches/infrastructure/drizzle-cte-batch-item.repository.ts`: `loadDocuments` passa a
+  selecionar `status: nfeDocuments.status` (mesma junção que já existia com `nfe_documents`, nenhuma
+  consulta a mais) e a mapear `nfeStatus: row.nfeStatus` em cada `CteBatchItemDocument`.
+- A rota (`cte-batch.routes.ts:396`, `serializeItem`) repassa `documents: item['documents']` sem
+  reformatar — o campo novo chega à resposta HTTP sem tocar a rota.
+
+### Vermelho antes
+
+Antes de adicionar o campo à fixture de teste do cenário `cte-item-graph.fixture.ts`, rodar o teste
+de `derived-status.integration.ts` com a asserção nova falhava por `requiredId` não achar o cenário:
+
+```
+error: MISSING_SCENARIO_autorizada_com_nota_cancelada
+```
+
+Depois de acrescentar o cenário (`autorizada_com_nota_cancelada`, CT-e autorizado com a nota
+`cancelled`) e o `select`/mapeamento em `loadDocuments`, os testes ficaram verdes. O typecheck
+sozinho já apontava a lacuna nos três lugares onde `CteBatchItemDocument`/`CteBatchItem` são
+literais tipados (antes de eu adicionar `nfeStatus` nas fixtures):
+
+```
+error TS2741: Property 'nfeStatus' is missing in type '...' but required in type 'CteBatchItemDocument'.
+```
+
+em `test/cte-batch-application/list-items.contract.ts` (`GROUPED_ITEM`, `PENDING_ITEM`) e
+`test/fixtures/cte-batch-http.fixture.ts` (`ITEMS_RESULT`) — os três foram atualizados.
+
+### Testes acrescentados
+
+1. `test/integration/nfe-document-listing-order.integration.ts` — novo teste "quando um evento
+   fiscal cancela a nota, ela sobe ao topo mesmo com a emissão mais antiga (spec 149 H1)": cancela,
+   via `UPDATE` direto (mesmas duas colunas que `applyStatusChange` grava juntas), a nota que hoje
+   fica em 3º lugar, com `updated_at` mais novo que todas as outras; confere que ela vem primeiro,
+   com `status: 'cancelled'`, e que a ordem das demais não mudou. Contrato negativo de tenant: a
+   mesma consulta rodada com o `companyId` da empresa secundária não devolve a nota cancelada
+   (`seedTenants` passou a devolver também `otherCompanyId`).
+2. `test/integration/cte-item-list-repository/derived-status.integration.ts` — três asserções
+   novas dentro do teste existente: o item `autorizada` (CT-e autorizado, nota ainda `authorized`)
+   expõe `documents[].nfeStatus === 'authorized'`; o novo cenário `autorizada_com_nota_cancelada`
+   expõe `status: 'authorized'` no item e `documents[].nfeStatus === 'cancelled'` no documento
+   (H8); e o item equivalente da empresa secundária tem o próprio sinal (`cancelled`) sem depender
+   do id da primária — isolamento de tenant.
+3. `test/cte-batch-application/list-items.contract.ts` — novo teste "exposes each linked note
+   status, so a cancelled note is visible on an authorized CT-e (spec 149 H8)": o item `GROUPED_ITEM`
+   ganhou uma segunda nota `cancelled` (a primeira continua `authorized`), e o teste confere que o
+   item continua `authorized` (D11) enquanto os dois documentos mostram o próprio status.
+4. `test/integration/cte-item-list-repository/cte-item-graph.fixture.ts`: `ItemScenario` ganhou o
+   campo opcional `nfeStatus` (default `'authorized'` em `insertInvoice`, comportamento antigo
+   preservado) e o cenário novo `autorizada_com_nota_cancelada`. Puramente aditivo: os outros três
+   arquivos que reaproveitam esta fixture (`summary.integration.ts`, `billing-status.integration.ts`,
+   `cte-export-selection.integration.ts`) já filtram/contam por `ITEM_SCENARIOS` dinamicamente ou
+   pelo status **do CT-e** (não da nota), então continuaram verdes sem alteração.
+
+### Gates
+
+- `bun run typecheck` (raiz, as 6 apps) → exit 0.
+- `bun run lint` (raiz, as 6 apps) → exit 0.
+- `bun run --cwd apps/api-transportada test` → **5800 pass, 23 skip, 0 fail**, 172 arquivos (5799 da
+  H3 + 1 teste novo do H8 em `list-items.contract.ts`). Linhas `(fail)`: 0.
+- `bun --env-file=../../.env.test test ./test/integration/nfe-document-listing-order.integration.ts
+./test/integration/cte-item-list-repository/{derived-status,summary,billing-status}.integration.ts
+./test/integration/cte-export-selection.integration.ts --timeout 120000` → **9 pass, 0 fail**, 5
+  arquivos — os quatro consumidores da fixture reaproveitada mais o teste de ordenação do H1.
+- `bun --env-file=../../.env.test run test:integration --timeout 120000` (lista completa, 61
+  arquivos) → **302 pass, 4 skip, 2 fail**, 2203 `expect()`. As duas falhas são
+  `cte-archive-gateway.integration.ts` (`ObjectStorageError: Object storage is unavailable`, MinIO
+  do `.env.test`) — arquivo não tocado por esta task, mesmo defeito de ambiente já registrado na
+  T3/H2'/H3 com o mesmo `.env.test`. Rodou sem repetição — nenhuma falha teve cara de corrida com a
+  sessão paralela `../ordem-notas` (H4, frontend) sobre o mesmo Postgres.
+- Prettier `--check` nos 7 arquivos alterados → limpo (depois de `--write` em
+  `derived-status.integration.ts`, formatado fora do padrão do editor).
+
+### O que falta para o frontend (H4, fora desta task)
+
+- Aviso "NF-e cancelada após a emissão" na tela do CT-e autorizado: já há dado suficiente na
+  resposta (`CteBatchItemDocument.nfeStatus`) — a tela só precisa ler `nfeStatus !== 'authorized'`
+  (ou comparar com os terminais `cancelled`/`denied`) por documento do item e mostrar o aviso ao
+  lado do CT-e.
+- Aviso equivalente na nota da viagem: o dado já existe em `TripDocumentDetail.fiscalStatus`
+  (`'cancelled'`/`'denied'` entre os valores possíveis) — mesma leitura, campo já nomeado
+  diferente (`fiscalStatus`, não `status`, porque também cobre frete sem nota vinculada).
+- Textos em `*.locale.json` e contrato de tela ficam por conta de quem fechar a H4 — não foram
+  tocados aqui para não colidir com o trabalho em andamento em `../ordem-notas`.

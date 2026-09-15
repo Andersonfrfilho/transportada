@@ -172,6 +172,7 @@ export const ITEMS_RESULT = {
         {
           accessKey: '35260705868574001090550020008526741408978623',
           id: DOCUMENT_ID,
+          nfeStatus: 'authorized',
           number: '852674',
           position: '1',
           series: '2',
