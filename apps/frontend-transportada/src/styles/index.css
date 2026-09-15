@@ -554,6 +554,24 @@ a {
   color: var(--color-fog);
 }
 
+.public-route-frame {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+}
+
+.public-route-frame > .application-environment-banner {
+  flex: none;
+  margin-block: var(--space-4) 0;
+}
+
+/* A tela pública já ocupa a viewport sozinha; com a faixa acima, fica só com a altura que sobra. */
+.public-route-frame > :last-child {
+  flex: 1 0 auto;
+  min-height: 0;
+  min-block-size: 0;
+}
+
 .page-transition-skeleton {
   width: var(--layout-width);
   margin: 0 auto;

@@ -775,11 +775,27 @@ function PageTransitionSkeleton(): ReactNode {
   )
 }
 
+type PublicRouteFrameProps = {
+  readonly children: ReactNode
+}
+
+/** As telas antes do login não passam pelo `ApplicationShell`, então a faixa de ambiente vem daqui. */
+function PublicRouteFrame({ children }: PublicRouteFrameProps): ReactNode {
+  return (
+    <div className="public-route-frame">
+      <EnvironmentBanner environment={deploymentEnvironment} />
+      {children}
+    </div>
+  )
+}
+
 async function bootstrapApplication(): Promise<void> {
   if (window.location.pathname === '/primeiro-acesso') {
     createRoot(applicationRootElement).render(
       <StrictMode>
-        <FirstAccessPage />
+        <PublicRouteFrame>
+          <FirstAccessPage />
+        </PublicRouteFrame>
       </StrictMode>,
     )
     return
@@ -789,7 +805,9 @@ async function bootstrapApplication(): Promise<void> {
   if (window.location.pathname === '/recuperar-senha') {
     createRoot(applicationRootElement).render(
       <StrictMode>
-        <PasswordResetPage />
+        <PublicRouteFrame>
+          <PasswordResetPage />
+        </PublicRouteFrame>
       </StrictMode>,
     )
     return
@@ -804,7 +822,9 @@ async function bootstrapApplication(): Promise<void> {
   if (!isAuthenticated) {
     createRoot(applicationRootElement).render(
       <StrictMode>
-        <LoginIdentifierPage />
+        <PublicRouteFrame>
+          <LoginIdentifierPage />
+        </PublicRouteFrame>
       </StrictMode>,
     )
     return
