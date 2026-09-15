@@ -20,11 +20,13 @@ import {
   fleetDriverVehicleAssignments,
   fleetDrivers,
   fleetVehicles,
+  identityUserPictures,
   identityUserProfiles,
   identityUsers,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { DrizzleCompanyUserRepository } from '../../src/identity/infrastructure/drizzle-company-user.repository.js'
+import { DrizzleUserPictureRepository } from '../../src/identity/infrastructure/drizzle-user-picture.repository.js'
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
@@ -163,6 +165,67 @@ describe('listagem de usuários — o vínculo com a frota', () => {
     })
   })
 })
+
+/**
+ * A tela só pede a foto de quem tem foto: pedir de todo mundo fazia a API responder 404 a cada
+ * cabeçalho e a cada ficha aberta, e o console do navegador enchia de falha que não era falha.
+ */
+describe('listagem de usuários — quem tem foto', () => {
+  testWithPostgres('marca quem tem foto e quem não tem', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const withPicture = await seedMember(db, { companyId, profile: true })
+      const withoutPicture = await seedMember(db, { companyId, profile: true })
+      await seedPicture(db, withPicture)
+
+      const page = await new DrizzleCompanyUserRepository(db).listPage({
+        companyId,
+        cursor: null,
+        limit: 50,
+      })
+
+      expect(page.items.find((entry) => entry.userId === withPicture)?.hasPicture).toBe(true)
+      expect(page.items.find((entry) => entry.userId === withoutPicture)?.hasPicture).toBe(false)
+    })
+  })
+
+  testWithPostgres('a ficha lida por id diz o mesmo que a listagem', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: true })
+      await seedPicture(db, userId)
+
+      const record = await new DrizzleCompanyUserRepository(db).findByUserId({ companyId, userId })
+
+      expect(record?.hasPicture).toBe(true)
+    })
+  })
+
+  /** A pergunta do `/auth/me` atravessa o vínculo: o id de alguém da empresa vizinha responde "não". */
+  testWithPostgres('a existência da foto é recortada pela empresa', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const otherCompanyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: false })
+      await seedPicture(db, userId)
+      const pictures = new DrizzleUserPictureRepository(db)
+
+      expect(await pictures.hasPicture({ companyId, userId })).toBe(true)
+      expect(await pictures.hasPicture({ companyId: otherCompanyId, userId })).toBe(false)
+    })
+  })
+})
+
+async function seedPicture(db: TestDatabase['db'], userId: string): Promise<void> {
+  const content = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+  await db.insert(identityUserPictures).values({
+    byteSize: content.byteLength,
+    contentBase64: content.toString('base64'),
+    mimeType: 'image/png',
+    sha256: '0'.repeat(64),
+    userId,
+  })
+}
 
 async function seedDriver(
   db: TestDatabase['db'],

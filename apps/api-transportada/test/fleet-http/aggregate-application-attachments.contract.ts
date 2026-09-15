@@ -10,6 +10,7 @@ import { createAggregateApplicationAttachmentPublicRoutes } from '../../src/flee
 import { PUBLIC_ATTACHMENT_MAX_BYTES } from '../../src/fleet/presentation/aggregate-application-attachment.schema.js'
 import { API_PUBLIC_AGGREGATE_APPLICATION_ATTACHMENTS_PATH } from '../../src/shared/api.constant.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { healthService } from '../fixtures/digital-certificates-http-auth.fixture.js'
 
 function neverCalled(what: string): never {
@@ -49,6 +50,7 @@ function buildRouter(
     authentication: { authenticate: async () => neverCalled('authenticate') },
     authorization: { authorize() {} },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
     routes: [],
     tenantContext: { resolveCompany: async () => neverCalled('resolveCompany') },

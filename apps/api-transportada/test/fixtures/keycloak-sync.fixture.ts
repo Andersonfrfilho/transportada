@@ -170,6 +170,7 @@ export function createCompanyUserRepositoryFake(
         contactAddress: 'pessoa@empresa.test',
         contactChannel: channel,
         email: 'pessoa@empresa.test',
+        hasPicture: false,
         membershipId: 'vinculo-de-teste',
         membershipStatus: options.membershipStatus ?? 'active',
         name: 'Pessoa de Teste',

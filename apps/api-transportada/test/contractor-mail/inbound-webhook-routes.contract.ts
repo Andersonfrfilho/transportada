@@ -9,6 +9,7 @@ import { createRouter } from '../../src/http/router.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import { HealthService } from '../../src/health/health.service.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 import type { ProcessInboundEmailWebhookUseCase } from '../../src/contractor-mail/application/process-inbound-email-webhook.use-case.js'
 
@@ -39,6 +40,7 @@ function buildHandler(outcome: 'accepted' | 'ignored' | 'unauthorized'): {
     },
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

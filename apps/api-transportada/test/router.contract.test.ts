@@ -131,7 +131,7 @@ describe('modular router contract', () => {
     expect(await authMe.json()).toEqual({
       data: {
         company: { fiscalEnvironment: 'homologation', id: ROUTER_COMPANY_ID },
-        identity: { userId: ROUTER_USER_ID },
+        identity: { hasPicture: false, userId: ROUTER_USER_ID },
         permissions: ['settings.manage'],
         roles: ['company-admin'],
       },

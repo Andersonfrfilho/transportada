@@ -28,6 +28,7 @@ import {
 import { TRIP_TRANSITION_BLOCK } from '../../src/trips/domain/trip-state.policy.js'
 import { createTripDocumentReviewRoutes } from '../../src/trips/presentation/trip-document-review.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 import { COMPANY_CONTEXT } from '../fixtures/trip-http.fixture.js'
 import {
@@ -108,6 +109,7 @@ function createFixture(params: {
     authentication: { authenticate: async () => context.identity },
     authorization: { authorize: (value, policy) => authorization.authorize(value, policy) },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: { async close() {}, healthCheck: async () => ({ healthy: true }) },
       identityReadiness: { checkReadiness: async () => true },

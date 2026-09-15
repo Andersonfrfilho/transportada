@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { appliedMigrations } from './health.fixture'
 import { COMPANY_CONTEXT as NFE_COMPANY_CONTEXT } from './nfe-import-application.fixture'
 import type {
@@ -239,6 +240,7 @@ export function createTestRouter(input: {
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

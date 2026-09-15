@@ -153,6 +153,8 @@ export function createInviteCompanyUserUseCase({
           contactAddress: contact,
           contactChannel: channel,
           email: profileEmail,
+          /** Convite novo não tem foto: ela só nasce depois, pela rota própria. */
+          hasPicture: false,
           membershipId,
           membershipStatus: 'active',
           name,

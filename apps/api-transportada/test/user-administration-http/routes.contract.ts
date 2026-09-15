@@ -54,6 +54,7 @@ describe('rotas de administração de usuários — listagem', () => {
       contactAddress: 'pessoa@empresa.test',
       contactChannel: 'email',
       email: 'pessoa@empresa.test',
+      hasPicture: false,
       membershipId: TARGET_MEMBERSHIP_ID,
       membershipStatus: 'active',
       name: 'Pessoa Convidada',

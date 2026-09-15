@@ -204,6 +204,8 @@ export type AuthMeResponse = {
       readonly id: string
     }
     readonly identity: {
+      /** Se há foto a buscar: sem ela o cabeçalho pedia os bytes de todo mundo e colhia 404. */
+      readonly hasPicture: boolean
       readonly userId: string
     }
     readonly permissions: readonly CompanyPermission[]

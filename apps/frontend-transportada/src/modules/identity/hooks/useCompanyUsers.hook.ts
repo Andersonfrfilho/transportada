@@ -34,7 +34,7 @@ import { createCompanyUsersViewModel } from '../shared/companyUsersViewModel.ser
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
 
-const COMPANY_USERS_ADMINISTRATION_QUERY_KEY = 'company-users-administration'
+export const COMPANY_USERS_ADMINISTRATION_QUERY_KEY = 'company-users-administration'
 
 export type CompanyUsersClient = Client
 

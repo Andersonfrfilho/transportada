@@ -144,7 +144,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         expect(await companyAResponse.json()).toEqual({
           data: {
             company: { fiscalEnvironment: null, id: companyA },
-            identity: { userId: userA },
+            identity: { hasPicture: false, userId: userA },
             permissions: [
               'invoices.read',
               'cte.read',
@@ -161,7 +161,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         expect(await companyBResponse.json()).toEqual({
           data: {
             company: { fiscalEnvironment: null, id: companyB },
-            identity: { userId: userB },
+            identity: { hasPicture: false, userId: userB },
             permissions: [
               'invoices.import',
               'invoices.read',

@@ -505,6 +505,7 @@ function ApplicationShell(): ReactNode {
   }
 
   const headerPicture = useCompanyUserPicture({
+    hasPicture: authMeQuery.data?.data.identity.hasPicture === true,
     userId: authMeQuery.data?.data.identity.userId,
   })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null

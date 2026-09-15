@@ -4,6 +4,7 @@
 import type { ModuleFetchRouter } from '@adatechnology/module-http/fetch'
 
 import type { CompanyFiscalEnvironmentPort } from '../companies/application/company-fiscal-environment.port'
+import type { UserPictureExistencePort } from '../identity/application/user-picture.port'
 import type { FiscalEnvironment } from '../database/database.schema'
 import type { HealthService } from '../health/health.service'
 import type { AuthenticationPort } from '../identity/application/identity.port'
@@ -161,6 +162,7 @@ type CreateRouterParams = {
   }[]
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
+  readonly userPictureExistence: UserPictureExistencePort
 }
 
 export function createRouter({
@@ -172,6 +174,7 @@ export function createRouter({
   moduleRouters = [],
   routes,
   tenantContext,
+  userPictureExistence,
 }: CreateRouterParams): HttpRouter {
   assertMembershipRoutesUnderMe(routes)
   const moduleCandidates = toModuleCandidates(moduleRouters)
@@ -215,7 +218,13 @@ export function createRouter({
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
-        return handleAuthMeRequest({ companyFiscalEnvironment, identity, method, tenantContext })
+        return handleAuthMeRequest({
+          companyFiscalEnvironment,
+          identity,
+          method,
+          tenantContext,
+          userPictureExistence,
+        })
       }
 
       const matchedRoute = matchRoute({ method, pathname, routes })
@@ -578,11 +587,13 @@ type HandleAuthMeRequestParams = {
   readonly identity: AuthenticatedContext<CompanyContext>['identity']
   readonly method: string
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
+  readonly userPictureExistence: UserPictureExistencePort
 }
 
 type ToAuthMeResponseParams = {
   readonly context: AuthenticatedContext<CompanyContext>
   readonly fiscalEnvironment: FiscalEnvironment | null
+  readonly hasPicture: boolean
 }
 
 async function handleAuthMeRequest({
@@ -590,13 +601,21 @@ async function handleAuthMeRequest({
   identity,
   method,
   tenantContext,
+  userPictureExistence,
 }: HandleAuthMeRequestParams): Promise<Response> {
   assertGetMethod(method)
   const context = await tenantContext.resolveCompany(identity)
-  const fiscalEnvironment = await companyFiscalEnvironment.readEnvironment({
-    companyId: context.scope.companyId,
+  const [fiscalEnvironment, hasPicture] = await Promise.all([
+    companyFiscalEnvironment.readEnvironment({ companyId: context.scope.companyId }),
+    userPictureExistence.hasPicture({
+      companyId: context.scope.companyId,
+      userId: context.identity.userId,
+    }),
+  ])
+  return jsonResponse({
+    body: toAuthMeResponse({ context, fiscalEnvironment, hasPicture }),
+    status: 200,
   })
-  return jsonResponse({ body: toAuthMeResponse({ context, fiscalEnvironment }), status: 200 })
 }
 
 function assertGetMethod(method: string): void {
@@ -605,11 +624,15 @@ function assertGetMethod(method: string): void {
   }
 }
 
-function toAuthMeResponse({ context, fiscalEnvironment }: ToAuthMeResponseParams): AuthMeResponse {
+function toAuthMeResponse({
+  context,
+  fiscalEnvironment,
+  hasPicture,
+}: ToAuthMeResponseParams): AuthMeResponse {
   return {
     data: {
       company: { fiscalEnvironment, id: context.scope.companyId },
-      identity: { userId: context.identity.userId },
+      identity: { hasPicture, userId: context.identity.userId },
       permissions: [...context.scope.permissions],
       roles: [...context.scope.roles],
     },

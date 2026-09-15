@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
@@ -87,6 +88,7 @@ export const COMPANY_USER = {
   email: 'c***@e***.test',
   id: TARGET_USER_ID,
   invitation: { expiresAt: '2026-08-06T12:00:00.000Z', status: 'pending' },
+  hasPicture: false,
   membershipId: TARGET_MEMBERSHIP_ID,
   name: 'Pessoa Convidada',
   phone: '',
@@ -469,6 +471,7 @@ function createTestRouter(input: {
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

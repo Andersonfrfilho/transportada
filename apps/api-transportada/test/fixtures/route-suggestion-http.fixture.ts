@@ -12,6 +12,7 @@ import type {
   RouteSuggestion,
 } from '../../src/routing/application/route-suggestion.port'
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { appliedMigrations } from './health.fixture'
 import { COMPANY_CONTEXT as FLEET_COMPANY_CONTEXT } from './fleet-http.fixture'
 import { CORRELATION_ID, FRONTEND_ORIGIN } from './fleet-http-payload.fixture'
@@ -295,6 +296,7 @@ function createTestRouter(input: {
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

@@ -8,12 +8,14 @@ import { HealthService } from '../src/health/health.service'
 import { appliedMigrations } from './fixtures/health.fixture'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
+import type { UserPictureExistencePort } from '../src/identity/application/user-picture.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
 import type { MembershipRepositoryPort } from '../src/identity/application/tenant-context.port'
 import type { AuthenticatedIdentity } from '../src/identity/domain/authenticated-identity'
 import { ApiError } from '../src/shared/api.error'
 import type { ApiLogger, DatabaseHealthPort, RequestTimeoutPort } from '../src/shared/api.types'
 import { createHttpRouterFixture } from './fixtures/http-router.fixture'
+import { stubUserPictureExistence } from './fixtures/user-picture-existence.fixture'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-000000000003'
@@ -36,7 +38,7 @@ describe('GET /auth/me contract', () => {
     expect(body).toEqual({
       data: {
         company: { fiscalEnvironment: 'production', id: COMPANY_ID },
-        identity: { userId: USER_ID },
+        identity: { hasPicture: false, userId: USER_ID },
         permissions: [
           'invoices.import',
           'invoices.read',
@@ -105,6 +107,35 @@ describe('GET /auth/me contract', () => {
       data: { company: { fiscalEnvironment: 'homologation', id: COMPANY_ID } },
     })
     expect(readCalls).toEqual([COMPANY_ID])
+  })
+
+  /**
+   * O cabeçalho pedia a foto de todo usuário logado, e quem não tinha foto recebia 404 em toda tela —
+   * ruído no console de quem investiga erro. O `/auth/me` diz se ela existe, e a pergunta é feita
+   * dentro da empresa resolvida, não da que o token alega.
+   */
+  test('reports whether the signed-in user has a picture, scoped to the resolved company', async () => {
+    const lookups: Array<{ readonly companyId: string; readonly userId: string }> = []
+    const fixture = createFixture({
+      pictureExistence: {
+        async hasPicture(input) {
+          lookups.push(input)
+          return true
+        },
+      },
+    })
+
+    const response = await fixture.handle(
+      new Request('http://localhost/auth/me', {
+        headers: { authorization: 'Bearer header.payload.signature' },
+      }),
+      fixture.server,
+    )
+
+    expect(await response.json()).toMatchObject({
+      data: { identity: { hasPicture: true, userId: USER_ID } },
+    })
+    expect(lookups).toEqual([{ companyId: COMPANY_ID, userId: USER_ID }])
   })
 
   /** Empresa recém-criada não tem cadastro fiscal: a tela precisa saber disso para não inventar ambiente. */
@@ -255,6 +286,7 @@ type CreateFixtureParams = {
   readonly authentication?: AuthenticationPort
   readonly fiscalEnvironment?: CompanyFiscalEnvironmentPort
   readonly membership?: MembershipRepositoryPort
+  readonly pictureExistence?: UserPictureExistencePort
 }
 
 function createFixture({
@@ -277,6 +309,7 @@ function createFixture({
       }
     },
   },
+  pictureExistence = stubUserPictureExistence(),
 }: CreateFixtureParams = {}) {
   const logs: Array<{ readonly message: string; readonly metadata?: Record<string, unknown> }> = []
   const logger: ApiLogger = {
@@ -310,6 +343,7 @@ function createFixture({
       companyFiscalEnvironment: fiscalEnvironment,
       healthService,
       tenantContext,
+      userPictureExistence: pictureExistence,
     }),
   })
   const server: RequestTimeoutPort = { timeout() {} }

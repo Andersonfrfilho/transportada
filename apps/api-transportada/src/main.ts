@@ -972,6 +972,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
     ],
     tenantContext,
+    userPictureExistence: new DrizzleUserPictureRepository(database.db),
   })
   const server = startApiServer({
     captureError: (error: unknown) => errorTracker.captureException(error),

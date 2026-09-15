@@ -8,6 +8,7 @@ import { toInvitedCompanyUser } from '../../src/modules/identity/shared/companyU
 const COMPANY_USER_PAYLOAD = {
   contact: { channel: 'email', masked: 'a***@example.test' },
   email: 'a***@example.test',
+  hasPicture: false,
   id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93',
   membershipId: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e94',
   name: 'Ana Fiscal',

@@ -53,7 +53,7 @@ export function CompanyUserPermissionsDialog({
   const { t } = useTranslation('identity')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: user !== null, onClose })
   const [chosen, setChosen] = useState<readonly string[]>([])
-  const picture = useCompanyUserPicture({ userId: user?.id })
+  const picture = useCompanyUserPicture({ hasPicture: user?.hasPicture === true, userId: user?.id })
   const navigator = createBrowserWorkspaceNavigator()
 
   if (user === null) return null

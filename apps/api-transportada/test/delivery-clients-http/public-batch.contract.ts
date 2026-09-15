@@ -11,6 +11,7 @@ import type { ExtraChargeBatchReport } from '../../src/delivery-clients/applicat
 import { ExtraChargeBatchNotFoundError } from '../../src/delivery-clients/application/extra-charge-batches.use-case.js'
 import { createPublicExtraChargeBatchRoutes } from '../../src/delivery-clients/presentation/public-extra-charge-batch.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 
 const TOKEN = 'token-opaco-de-trinta-e-dois-bytes-ou-mais'
@@ -77,6 +78,7 @@ function createFixture(params: { readonly unknownToken?: boolean } = {}) {
       },
       authorization: new AuthorizationService(),
       companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+      userPictureExistence: stubUserPictureExistence(),
       healthService: new HealthService({
         database: {
           async close() {},

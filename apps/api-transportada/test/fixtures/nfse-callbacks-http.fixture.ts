@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
@@ -114,6 +115,7 @@ export async function createNfseCallbacksHttpFixture(params: CreateFixtureParams
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
     routes: [],
     tenantContext: {

@@ -72,6 +72,8 @@ export function toCompanyUser(value: unknown): CompanyUser {
     ...(invitation === undefined ? {} : { invitation }),
     email: readString(value, 'email'),
     emails: Array.isArray(value.emails) ? value.emails.map(readText) : [],
+    /** Ausente é API anterior ao campo: sem o sinal, não se pede a foto — o pior é ver as iniciais. */
+    hasPicture: value.hasPicture === true,
     membershipId: readString(value, 'membershipId'),
     name: readString(value, 'name'),
     phone: readString(value, 'phone'),
