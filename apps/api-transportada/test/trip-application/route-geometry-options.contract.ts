@@ -51,7 +51,10 @@ function praca(osmNodeId: number, chargePerAxle: string, observedOn: string): To
 const TOCO = { kilometersPerLiter: '3.5000', pricePerLiter: '6.2000' } as const
 
 function tollBooths(booths: readonly TollBoothRouteRecord[]) {
-  return { readByNodeIds: async () => booths }
+  return {
+    readByNodeIds: async () => booths,
+    readCatalogSummary: async () => ({ boothCount: booths.length, latestObservedOn: '2026-07-01' }),
+  }
 }
 
 describe('opções de rota (spec 096 T1)', () => {
@@ -148,6 +151,7 @@ describe('opções de rota (spec 096 T1)', () => {
           }
           return [praca(30, '46.6000', '2026-07-01')]
         },
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
       },
     })
 

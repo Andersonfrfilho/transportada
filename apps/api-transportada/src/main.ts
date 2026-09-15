@@ -2429,6 +2429,7 @@ function createApplicationRoutes({
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
                 : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            now: () => new Date(),
             stops: input.points,
             tollBooths: createCompanyScopedTollBoothGateway({
               catalog: tollBoothRepository,
@@ -2461,6 +2462,7 @@ function createApplicationRoutes({
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
                 : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            now: () => new Date(),
             stops: await listTripStopCoordinates(database, {
               companyId: input.context.companyId,
               tripId: input.tripId,

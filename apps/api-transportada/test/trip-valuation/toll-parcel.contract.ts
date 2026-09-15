@@ -91,6 +91,11 @@ function run(input: {
           tollBoothCalls.push(nodeIds)
           return Promise.resolve(input.booths ?? [])
         },
+        readCatalogSummary: () =>
+          Promise.resolve({
+            boothCount: input.booths?.length ?? 0,
+            latestObservedOn: '2026-07-01',
+          }),
       },
       vehicleId: VEHICLE_ID,
     }),

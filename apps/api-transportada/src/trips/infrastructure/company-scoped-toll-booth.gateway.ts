@@ -20,6 +20,8 @@ export function createCompanyScopedTollBoothGateway(input: {
   readonly companyId: string
 }): ReadRouteGeometryTollBoothsPort {
   return {
+    /** Resumo do catálogo é do produto todo — sem ajuste por empresa, ao contrário das tarifas. */
+    readCatalogSummary: () => input.catalog.readCatalogSummary(),
     async readByNodeIds(nodeIds): Promise<readonly TollBoothRouteRecord[]> {
       const [records, adjustments] = await Promise.all([
         input.catalog.readByNodeIds(nodeIds),
