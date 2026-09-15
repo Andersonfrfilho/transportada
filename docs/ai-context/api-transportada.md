@@ -523,11 +523,14 @@ doze ainda viajam dentro de uma caixa.
 
 ⚠️ **O peso só é deduzido da nota de item único** (`deriveBoxGrossWeightGrams`): com duas linhas o
 `pesoB` é da carga inteira, e dividi-lo pelos volumes daria a **média** das caixas — número
-plausível atribuído à caixa errada. Medido: 9% das notas, 18 de 663 caixas. `carton_gtin` fica nulo
-até `NfeXmlProduct` do `@adatechnology/fiscal-provider` ganhar o campo de código de barras — mesma
-lacuna de pacote do caso `<email>` —, e é por isso que o bipe casa **duas** colunas: `carton_gtin` e
-`product_code`. Casar só pela primeira devolveria lista vazia em todo bipe; é comum o emitente usar
-o próprio EAN como `cProd`, e é isso que sustenta a leitura enquanto o campo não existe.
+plausível atribuído à caixa errada. Medido: 9% das notas, 18 de 663 caixas. `carton_gtin`
+passou a vir do `cEAN` (fiscal-provider 0.3.2, 15/09/2026): o worker grava na importação, com dígito
+GS1 conferido e DUN-14 reduzido a GTIN-13 pela mesma `reduceToGtin13` (cópia por valor, contrato de
+paridade); `cEANTrib` só com o `cEAN` ausente; inválido ou "SEM GTIN" fica nulo, e linha existente
+só ganha GTIN onde é nulo. As caixas antigas se preenchem por `backfill:nfe-package-box-gtin`
+(worker, dry-run padrão, `--confirm` grava). O bipe continua casando **duas** colunas,
+`carton_gtin` e `product_code`: a nota sem GTIN deixa a primeira nula, e é comum o emitente usar o
+próprio EAN como `cProd`.
 
 **Medir é `cargo.measure`, e a permissão nasceu para não dar carona.** `settings.manage` entregaria
 ao conferente o preço do combustível, a tabela de frete e a credencial da prefeitura. `separator`,

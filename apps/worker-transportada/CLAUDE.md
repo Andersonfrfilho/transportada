@@ -57,6 +57,13 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   `resolveDepotOrigin` é cópia por valor da API com contrato de paridade, e a fila do
   `geocoding.backfill` inclui `company_fiscal_profiles`. Detalhe: docs/ai-context § "O barracão sem
   configuração".
+- **A importação grava `nfe_package_boxes.carton_gtin`** (fiscal-provider 0.3.2): `cEAN` vence,
+  `cEANTrib` só com o `cEAN` ausente, dígito GS1 conferido e DUN-14 reduzido a GTIN-13 por
+  `carton-gtin.policy.ts` — cópia por valor de `reduceToGtin13` da API, com contrato de paridade.
+  Inválido ou "SEM GTIN" fica nulo; linha existente só ganha GTIN onde é nulo, nunca troca o
+  gravado nem a medição. Caixas antigas: `backfill:nfe-package-box-gtin` (dry-run padrão,
+  `--confirm` grava, `--company-id=` restringe); no contêiner, o mesmo arquivo em
+  `dist/nfe-imports/`.
 - `FISCAL_ENVIRONMENT` (`homologation`|`production`, padrão `production`) só é lido pela
   reconciliação de NFS-e; a distribuição de NF-e usa o ambiente por empresa
   (`company_fiscal_profiles`).
