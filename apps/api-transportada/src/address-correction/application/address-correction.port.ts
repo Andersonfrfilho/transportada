@@ -65,6 +65,10 @@ export type ListAddressCorrectionDraftsByContractorParams = {
   readonly contractorId: string
 }
 
+export type ListAddressCorrectionRequestsByCompanyParams = {
+  readonly companyId: string
+}
+
 /** Toda operação recebe `companyId` do contexto autenticado e filtra por ele. */
 export type AddressCorrectionRepositoryPort = {
   findContractorByTaxId(
@@ -77,5 +81,9 @@ export type AddressCorrectionRepositoryPort = {
   ): Promise<readonly AddressCorrectionRequest[]>
   listDraftsByContractor(
     params: ListAddressCorrectionDraftsByContractorParams,
+  ): Promise<readonly AddressCorrectionRequest[]>
+  /** T103 (GET /address-correction-requests): o estado por `addressKey` da empresa, todo status. */
+  listByCompany(
+    params: ListAddressCorrectionRequestsByCompanyParams,
   ): Promise<readonly AddressCorrectionRequest[]>
 }

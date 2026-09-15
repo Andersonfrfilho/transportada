@@ -12,6 +12,7 @@ import type {
   FindAddressCorrectionsByAddressKeysParams,
   FindContractorByTaxIdParams,
   ListAddressCorrectionDraftsByContractorParams,
+  ListAddressCorrectionRequestsByCompanyParams,
   UpsertAddressCorrectionDraftParams,
 } from '../application/address-correction.port.js'
 
@@ -156,6 +157,17 @@ export class DrizzleAddressCorrectionRepository implements AddressCorrectionRepo
           eq(addressCorrectionRequests.status, DRAFT_STATUS),
         ),
       )
+      .orderBy(asc(addressCorrectionRequests.addressKey))
+    return rows.map(toAddressCorrectionRequest)
+  }
+
+  async listByCompany(
+    params: ListAddressCorrectionRequestsByCompanyParams,
+  ): Promise<readonly AddressCorrectionRequest[]> {
+    const rows = await this.database
+      .select()
+      .from(addressCorrectionRequests)
+      .where(eq(addressCorrectionRequests.companyId, params.companyId))
       .orderBy(asc(addressCorrectionRequests.addressKey))
     return rows.map(toAddressCorrectionRequest)
   }

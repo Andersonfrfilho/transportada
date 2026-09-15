@@ -102,3 +102,114 @@ Gates:
 - `apps/api-transportada/src/address-correction/infrastructure/drizzle-address-correction.repository.ts` (novo)
 - `apps/api-transportada/test/integration/address-correction-repository.integration.ts` (novo)
 - `apps/api-transportada/package.json` (entrada em `test:integration`)
+
+## T103
+
+`PUT /address-correction-requests/:addressKey` e `GET /address-correction-requests`, `settings.manage`,
+padrão de `defineRoute`/Zod da `addresses`/`routing` (`address-report.routes.ts`,
+`route-suggestion.routes.ts`).
+
+### O que ficou
+
+- **Validação na fronteira** (`address-correction-request.schema.ts`, Zod, padrão de
+  `route-suggestion-request.schema.ts` + `parseBody`/`invalidRequest` de
+  `http/request-parsing.service.ts`, que já converte `result.error.issues` em `details[]` — **todos**
+  os campos inválidos de uma vez, sem código próprio para isso): CEP 8 dígitos aceito com ou sem
+  hífen (normalizado antes da forma), UF das 27 siglas (`BRAZILIAN_STATE_IBGE_PREFIX`, novo,
+  `address-correction/domain/brazilian-state.constant.ts` — não havia tabela de UF→prefixo IBGE no
+  repo), `cityCode` de 7 dígitos cujos 2 primeiros batem com a UF proposta (`.superRefine`, erro no
+  campo `cityCode`), `street`/`number`/`city` não vazios com teto de tamanho. O corpo é `.strict()`:
+  mandar `reported`/`reason*` no payload é `400`, não ignorado — a fronteira só aceita `proposed`.
+- **O "como veio" e o motivo nunca vêm do cliente**
+  (`save-address-correction-draft.use-case.ts`): lidos do `AddressReportRepository.read({companyId})`
+  já existente (reaproveitado, **sem** SQL nova nem método novo nesse port — a task previa "adicionar
+  um método se preciso", mas o relatório inteiro já cabe numa leitura e a procura por `addressKey` é
+  feita em memória) — `cityCode` sai do primeiro segmento da própria `addressKey`
+  (`cityCode|postalCode|number`, `stop-address-key.ts`), o resto de `note*`. `addressKey` fora do
+  relatório da empresa → `AddressCorrectionAddressNotFoundError` (404,
+  `ADDRESS_CORRECTION_ADDRESS_NOT_FOUND`).
+- **A contratante é resolvida pelo CNPJ do emitente daquela linha** via
+  `AddressCorrectionRepositoryPort.findContractorByTaxId` (já existia, T102). Sem cadastro →
+  `AddressCorrectionContractorNotFoundError`. **Status escolhido: `404`**, não `409` — segue
+  `ContractorNotFoundError` (`delivery-clients/domain/delivery-client.error.ts`), o mesmo caso de
+  "procurei o cadastro pelo documento e ele não existe"; `409` no repo é para pré-condição de outro
+  recurso que o cliente já sabe existir e está no estado errado (`MdfeFiscalSettingsMissingError`).
+  Justificado no comentário do próprio `address-correction.error.ts`.
+- **`recipientName: null`** nesta task, como previsto (T104 é quem faz o relatório expor o nome).
+- **`GET`** adicionou `AddressCorrectionRepositoryPort.listByCompany` (novo método, implementado em
+  `DrizzleAddressCorrectionRepository` com o mesmo padrão de `findByAddressKeys` — `where company_id
+= :companyId`, sem SQL duplicada de outro lugar) porque nenhum método existente lista **todo**
+  status de uma empresa sem filtrar por `contractorId` ou por uma lista de `addressKeys`, que é
+  exatamente o que a aba precisa para cruzar com o relatório.
+- Resposta (`serializeAddressCorrectionRequest`) nunca expõe `companyId`/`contractorId`/`actorUserId`
+  — chaves internas, não produto. `no-store` nos dois métodos, como `address-report`.
+- `addressKey` no caminho (`:addressKey`, `pathParameterFormat: 'raw'`) porque carrega `|`
+  (`cityCode|postalCode|number`) — mesmo motivo e mesmo padrão de forma
+  (`ADDRESS_KEY_PATTERN = /^\d*\|\d{8}\|[^|]{1,60}$/u`) de `geocoded-addresses/:addressKey`
+  (`route-suggestion.routes.ts`); chave malformada é `400` antes de tocar no banco.
+- Rotas registradas em `src/main.ts`, ao lado de `createAddressReportRoutes`. Sem OpenAPI/lista de
+  rotas documentadas neste repo (não existe contrato desse tipo, confirmado por busca).
+- Nada de endereço/CEP em log: nenhum `logger.*`/`console.*` toca nesses módulos.
+
+### Testes (vermelho não fazia sentido aqui — rota nova, sem comportamento prévio a proteger)
+
+`test/address-correction-http.contract.test.ts` → `test/address-correction-http/routes.contract.ts`
+(fakes, padrão de `test/addresses-http/routes.contract.ts` +
+`test/fixtures/address-correction-http.fixture.ts`, novo, no modelo de
+`test/fixtures/postal-code-http.fixture.ts`): `GET` devolve o estado por `addressKey` da empresa do
+token e nunca cacheia; `PUT` grava com o `proposed` do corpo e devolve `200 { data }`; corpo com
+`reported`/`reason*` é recusado (a fronteira não aceita); CEP com/sem hífen normaliza para 8 dígitos;
+corpo com todos os campos inválidos ao mesmo tempo devolve `details[]` com **todos** eles
+(`proposed.city`, `proposed.cityCode`, `proposed.number`, `proposed.postalCode`, `proposed.state`,
+`proposed.street`); `cityCode` de outra UF é recusado sozinho; `addressKey` fora do relatório e
+contratante ausente respondem `404` com o código estável certo; `addressKey` malformado é `400`;
+chamador sem `settings.manage` é `403` em ambas as rotas, sem tocar no caso de uso.
+
+Acrescentado a `test/integration/address-correction-repository.integration.ts` (T102): um teste para
+`listByCompany` (isolamento de tenant do método novo, mesma suíte contra Postgres descartável).
+
+### Gates
+
+```
+bun run typecheck
+```
+
+Resultado: verde nas 6 apps.
+
+```
+bun run --cwd apps/api-transportada test
+```
+
+Resultado: **5833 pass** (5820 + 13 novos), 23 skip, 0 fail, 20568 `expect()`, 173 arquivos.
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test ./test/integration/address-correction-repository.integration.ts --timeout 120000
+```
+
+(dentro de `apps/api-transportada`, Postgres nativo descartável em 65433) Resultado: **6 pass** (5 do
+T102 + 1 novo), 0 fail, 20 `expect()` — não pulou.
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/address-correction/domain/brazilian-state.constant.ts` (novo)
+- `apps/api-transportada/src/address-correction/domain/address-correction.error.ts` (novo)
+- `apps/api-transportada/src/address-correction/presentation/address-correction-request.schema.ts` (novo)
+- `apps/api-transportada/src/address-correction/presentation/address-correction.routes.ts` (novo)
+- `apps/api-transportada/src/address-correction/application/save-address-correction-draft.use-case.ts` (novo)
+- `apps/api-transportada/src/address-correction/application/list-address-correction-requests.use-case.ts` (novo)
+- `apps/api-transportada/src/address-correction/application/address-correction.port.ts` (`listByCompany`)
+- `apps/api-transportada/src/address-correction/infrastructure/drizzle-address-correction.repository.ts` (`listByCompany`)
+- `apps/api-transportada/src/shared/api.constant.ts` (`API_ADDRESS_CORRECTION_REQUESTS_PATH`)
+- `apps/api-transportada/src/main.ts` (composição e registro das rotas)
+- `apps/api-transportada/test/fixtures/address-correction-http.fixture.ts` (novo)
+- `apps/api-transportada/test/address-correction-http/routes.contract.ts` (novo)
+- `apps/api-transportada/test/address-correction-http.contract.test.ts` (novo)
+- `apps/api-transportada/test/integration/address-correction-repository.integration.ts` (teste de `listByCompany`)
+- `apps/api-transportada/package.json` (entrada em `test`)

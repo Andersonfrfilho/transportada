@@ -258,6 +258,10 @@ import { createDrizzleAddressReportRepository } from './addresses/infrastructure
 import { DrizzlePostalCodeRepository } from './addresses/infrastructure/drizzle-postal-code.repository.js'
 import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.gateway.js'
 import { createAddressReportRoutes } from './addresses/presentation/address-report.routes.js'
+import { createSaveAddressCorrectionDraftUseCase } from './address-correction/application/save-address-correction-draft.use-case.js'
+import { createListAddressCorrectionRequestsUseCase } from './address-correction/application/list-address-correction-requests.use-case.js'
+import { DrizzleAddressCorrectionRepository } from './address-correction/infrastructure/drizzle-address-correction.repository.js'
+import { createAddressCorrectionRoutes } from './address-correction/presentation/address-correction.routes.js'
 import { createPostalCodeRoutes } from './addresses/presentation/postal-code.routes.js'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
@@ -1578,8 +1582,16 @@ function createApplicationRoutes({
     }),
   })
   /** O relatório de endereços a corrigir, alimentado pelo lote de medição (spec 084, ADR-0061). */
-  const readAddressReport = createReadAddressReportUseCase({
-    repository: createDrizzleAddressReportRepository(database),
+  const addressReportRepository = createDrizzleAddressReportRepository(database)
+  const readAddressReport = createReadAddressReportUseCase({ repository: addressReportRepository })
+  /** O pedido de correção de endereço à contratante (spec 150). */
+  const addressCorrectionRepository = new DrizzleAddressCorrectionRepository(database)
+  const saveAddressCorrectionDraft = createSaveAddressCorrectionDraftUseCase({
+    addressCorrectionRepository,
+    addressReportRepository,
+  })
+  const listAddressCorrectionRequests = createListAddressCorrectionRequestsUseCase({
+    repository: addressCorrectionRepository,
   })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
@@ -2066,6 +2078,10 @@ function createApplicationRoutes({
     }),
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
     ...createAddressReportRoutes({ readReport: readAddressReport }),
+    ...createAddressCorrectionRoutes({
+      listRequests: listAddressCorrectionRequests,
+      saveDraft: saveAddressCorrectionDraft,
+    }),
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },

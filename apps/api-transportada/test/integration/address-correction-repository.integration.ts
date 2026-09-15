@@ -204,6 +204,16 @@ describeDatabase('o pedido de correção não atravessa empresa (spec 150 T102)'
     expect(rows.find((row) => row.status === 'sent')?.proposed.number).toBe('2300')
   })
 
+  /** T103 (`GET /address-correction-requests`): a listagem por empresa nunca cruza tenant. */
+  test('listByCompany devolve só os pedidos da própria empresa, de qualquer status', async () => {
+    const forA = await repository().listByCompany({ companyId: companyA })
+    expect(forA.length).toBeGreaterThan(0)
+    expect(forA.every((row) => row.companyId === companyA)).toBe(true)
+
+    const forB = await repository().listByCompany({ companyId: companyB })
+    expect(forB.some((row) => row.id === forA[0]?.id)).toBe(false)
+  })
+
   test('a FK composta recusa contratante de outra empresa', async () => {
     await expect(
       repository().upsertDraft(
