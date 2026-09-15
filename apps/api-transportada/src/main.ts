@@ -383,6 +383,7 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
 import { createProcessInboundEmailWebhookUseCase } from './contractor-mail/application/process-inbound-email-webhook.use-case.js'
@@ -391,6 +392,7 @@ import { createActorEmailRepository } from './contractor-mail/infrastructure/act
 import { DrizzleContractorMailRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
 import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
+import { createContractorContactRoutes } from './contractor-mail/presentation/contractor-contacts.routes.js'
 import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
@@ -1661,6 +1663,11 @@ function createApplicationRoutes({
     repository: contractorMailRepository,
     secretService: contractorMailCredentialSecretService,
   })
+  /** Spec 150 T301 (spec 143 T013): BOLA por `getContractor.execute`, antes de tocar em contatos. */
+  const contractorContacts = createContractorContactsUseCase({
+    getContractor: { execute: (input) => contractorRegistry.get(input) },
+    repository: contractorMailRepository,
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -2151,6 +2158,11 @@ function createApplicationRoutes({
       removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
       saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
+    }),
+    ...createContractorContactRoutes({
+      createContact: { execute: (input) => contractorContacts.create(input) },
+      listContacts: { execute: (input) => contractorContacts.list(input) },
+      updateContact: { execute: (input) => contractorContacts.update(input) },
     }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },

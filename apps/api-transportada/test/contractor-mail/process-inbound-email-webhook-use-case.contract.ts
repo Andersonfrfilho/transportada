@@ -50,6 +50,15 @@ function buildRepository(input: { readonly settings?: ContractorMailSettingsReco
   const settings = input.settings === undefined ? undefined : input.settings
 
   const repository: ContractorMailRepositoryPort = {
+    async createContractorContact() {
+      throw new Error('not used in this contract')
+    },
+    async listContractorContacts() {
+      return []
+    },
+    async updateContractorContact() {
+      throw new Error('not used in this contract')
+    },
     async findSettings() {
       return settings
     },

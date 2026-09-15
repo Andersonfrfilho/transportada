@@ -538,6 +538,15 @@ function createHarness(input: {
    * em `ContractorMailSettingsVersionConflictError`, nunca num `upsert` silencioso.
    */
   const repository: ContractorMailRepositoryPort = {
+    async createContractorContact() {
+      throw new Error('not used in this contract')
+    },
+    async listContractorContacts() {
+      return []
+    },
+    async updateContractorContact() {
+      throw new Error('not used in this contract')
+    },
     async findSettings() {
       return currentSettings
     },

@@ -65,6 +65,25 @@
     "testEmailError": "Não foi possível enviar o e-mail de teste: {{code}}",
     "refreshChecks": "Verificar de novo"
   },
+  "contractorContacts": {
+    "title": "Contatos de e-mail da contratante",
+    "hint": "Quem recebe o pedido de correção de endereço e os avisos de ocorrência — escolhido a cada envio, sem marcação fixa aqui.",
+    "contractorLabel": "Contratante",
+    "contractorPlaceholder": "Escolha a contratante",
+    "loading": "Carregando os contatos…",
+    "empty": "Nenhum contato cadastrado ainda.",
+    "emailLabel": "E-mail",
+    "emailRequired": "Informe o e-mail.",
+    "emailInvalid": "Informe um e-mail válido.",
+    "receivesOccurrences": "Recebe ocorrências",
+    "canDecide": "Pode decidir a taxa",
+    "statusActive": "Ativo",
+    "statusInactive": "Inativo",
+    "add": "Adicionar contato",
+    "deactivate": "Desativar",
+    "reactivate": "Reativar",
+    "error": "Não foi possível salvar: {{code}}"
+  },
   "filters": {
     "name": "Nome",
     "namePlaceholder": "Buscar pelo nome do cliente",

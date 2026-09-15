@@ -76,8 +76,9 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T013** CRUD de `contractor_contacts` dentro de `/contractors/:id`, com `settings.manage`.
-      Evidência: contratos de rota, mais a T005 verde.
+- [x] **T013** CRUD de `contractor_contacts` dentro de `/contractors/:id`, com `settings.manage`.
+      Evidência: contratos de rota, mais a T005 verde. Feita pela spec 150 T301 — evidência em
+      `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T301.
 - [ ] **T014** `reply-token.policy.ts`: 128 bits, base32 minúsculo, hash SHA-256 e o endereço
       montado com o `reply_domain` da configuração. Evidência: teste da política.
 - [ ] **T015** `send-occurrence-mail.use-case.ts` e `reply-to-thread.use-case.ts`, com o outbox na
@@ -86,7 +87,9 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 - [ ] **T016** Rotas `POST /trip-stop-occurrences/:id/mail`, `POST /mail-threads/:id/messages` e
       `GET /mail-threads`, com `trip.manage`, mais a linha em `test/separator-role.contract.test.ts`
       (o separador **não** alcança). Evidência: contratos de rota.
-- [ ] **T017** Contatos no formulário da contratante (frontend). Evidência: contrato de validação.
+- [x] **T017** Contatos no formulário da contratante (frontend). Evidência: contrato de validação.
+      Feita pela spec 150 T301 — evidência em
+      `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T301.
 - [ ] **T018** O painel "Conversa com a contratante" na ocorrência, com o botão "Enviar à
       contratante", esqueleto de carregamento e invalidação por `mutationInvalidation.service.ts`.
       Evidência: contratos de serviço puro e smoke Playwright do envio.

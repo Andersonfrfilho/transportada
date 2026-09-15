@@ -48,6 +48,9 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
+export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
+export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'

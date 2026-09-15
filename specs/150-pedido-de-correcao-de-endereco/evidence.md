@@ -521,3 +521,152 @@ Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado).
   `nfeWorkspace.en.locale.json` (`addressReport.correction.*` novos)
 - `apps/frontend-transportada/test/nfe-workspace/address-correction-status.contract.ts` (novo)
 - `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)
+
+## T301
+
+CRUD de `contractor_contacts` dentro de `/contractors/:id` (spec 143 T013) e a seção "Contatos de
+e-mail" no módulo `delivery-clients` (spec 143 T017). A T013 e a T017 estavam abertas — fechadas
+por esta task, como o `tasks.md` previa.
+
+### API
+
+- **Rotas** (`contractor-mail/presentation/contractor-contacts.routes.ts`): `GET
+/contractors/:id/contacts`, `POST /contractors/:id/contacts`,
+  `PATCH /contractors/:id/contacts/:contactId`, todas `settings.manage`, `cache-control: no-store`.
+  Sem `DELETE` físico — desativar é `PATCH { status: 'inactive' }`, porque
+  `contractor_mail_messages` aponta para o contato.
+- **BOLA**: as três rotas resolvem a contratante primeiro por `getContractor.execute` (o mesmo
+  `GET /contractors/:id` de `delivery-clients/application/contractors.use-case.ts`) — contratante de
+  outra empresa responde `404 CONTRACTOR_NOT_FOUND`, igual a inexistente, antes de qualquer consulta
+  a `contractor_contacts`.
+- **Caso de uso** (`contractor-mail/application/contractor-contacts.use-case.ts`): normaliza o
+  e-mail (`trim` + minúsculas) antes de gravar; `update` devolvendo `undefined` do repositório vira
+  `ContractorContactNotFoundError` (404).
+- **Duplicado**: `contractor_contacts_company_contractor_email_unique` (migration da T003 da spec 143) já cobre `(company_id, contractor_id, lower(email))` para **toda** linha, ativa ou inativa —
+  mais estrito que "duplicado ativo" do RF, mas decisão registrada aqui: reativar um e-mail que já
+  existe inativo é um `PATCH` de status, não um novo `POST`, então **nenhuma migration nova foi
+  necessária**. A violação do índice vira `ContractorContactEmailTakenError` (`409
+CONTRACTOR_CONTACT_EMAIL_TAKEN`, `details: [{ field: 'email', ... }]`) via
+  `violatedUniqueConstraint` (`database/postgres-error.support.ts`).
+- **Repositório** (`drizzle-contractor-mail.repository.ts`): `listContractorContacts`,
+  `createContractorContact`, `updateContractorContact`, com `buildContractorContactFilters`
+  (`company_id` + `contractor_id` na mesma condição, nunca conferência à parte).
+- **Idempotency-Key**: as rotas vizinhas de `/contractors` (`contractor.routes.ts`) não aceitam a
+  chave — `POST /contractors/:id/contacts` segue o mesmo padrão, sem ela.
+- Nenhum e-mail em log: os `catch` de violação de unique não logam o valor, só o código do erro.
+
+### Frontend
+
+- **Módulo**: `delivery-clients`, o mesmo onde a spec 143 T011 já tinha resolvido "onde as
+  contratantes são cadastradas" (o painel de e-mail da contratante). A seção nova mora na mesma aba
+  "E-mail com contratantes", abaixo do painel de configuração — não existe hoje uma tela de
+  CRUD de contratante em si, então o seletor de contratante (`GET /contractors`) vive dentro do
+  próprio painel novo.
+- **`ContractorContactsPanel.component.tsx`**: seletor de contratante (`@/components/ui/select`),
+  lista de contatos com dois `Checkbox` (`receivesOccurrences`, `canDecide`) e o botão
+  desativar/reativar (nunca excluir), e o formulário de novo contato com erro ancorado no campo
+  e-mail.
+- **`useContractorContacts.hook.ts`**: `TanStack Query` para a lista de contratantes e a lista de
+  contatos (por `contractorId`), `create`/`update` como mutações que invalidam a lista de contatos.
+- **Cliente e validação puros** (`contractorContactsClient.service.ts`,
+  `contractorContacts.validation.ts`, `contractorContactsResponse.validation.ts`,
+  `contractorContacts.types.ts`): sem `zod` nesta app — guarda manual (`hasExactKeys`) e validação
+  de e-mail por regex, espelhando `contractorMailSettings*`.
+- **`web.md` §11**: `ContractorContactsRequestError` carrega `details` do `409`
+  (`Map<string, string>`), e o painel mostra a mensagem do servidor ancorada no campo `email`
+  (`aria-invalid`), com a validação de formato do lado do cliente andando na frente.
+- **Locales**: `contractorContacts.*` em `deliveryClients.locale.json` (pt-BR acentuado) e
+  `deliveryClients.en.locale.json`.
+
+### Testes
+
+- `apps/api-transportada/test/contractor-mail/contractor-contacts.contract.ts` (novo, registrado em
+  `test/contractor-mail.contract.test.ts`): caso de uso (BOLA, normalização, 404 de
+  atualização, mapeamento do 409) e rotas (permissão, status code, serialização, BOLA em todas as
+  rotas, 409 com o código estável).
+- `apps/api-transportada/test/contractor-mail-schema/tenant-safety.contract.ts`: teste novo de
+  `buildContractorContactFilters` filtrando por `company_id` e `contractor_id` juntos.
+- `apps/api-transportada/test/integration/contractor-contacts-repository.integration.ts` (novo,
+  registrado em `test:integration`): contra Postgres de verdade — cria, lista, atualiza (desativa),
+  duplicado por caixa alta/baixa vira `ContractorContactEmailTakenError`, e isolamento por tenant
+  (lista e atualização de outra empresa nunca alcançam o contato).
+- `apps/frontend-transportada/test/delivery-clients/contractor-contacts-validation.contract.ts` e
+  `contractor-contacts-response.contract.ts` (novos, registrados em
+  `test/delivery-clients.contract.test.ts`): validação de e-mail pura, normalização, guarda de
+  chaves da resposta (rejeita linha com campo a mais, campo faltando, status desconhecido) e a
+  redução do agregado completo de `Contractor` aos três campos do seletor.
+
+### Gates
+
+```
+bun run typecheck
+```
+
+Resultado: verde nas 6 apps.
+
+```
+bun run --cwd apps/api-transportada test
+```
+
+Resultado: **5851 pass**, 0 fail, 20598 `expect()`, 173 arquivos.
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres bun --env-file=../../.env.test test ./test/integration/contractor-contacts-repository.integration.ts --timeout 120000
+```
+
+(de dentro de `apps/api-transportada`) — Resultado: **2 pass**, 0 fail, 6 `expect()` (Postgres
+nativo, não pulou).
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3727 pass**, 0 fail, 34790 `expect()`, 29 arquivos.
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada build
+```
+
+Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado).
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/shared/api.constant.ts` (`API_CONTRACTOR_CONTACTS_PATH`,
+  `API_CONTRACTOR_CONTACT_PATH`)
+- `apps/api-transportada/src/contractor-mail/application/contractor-mail.port.ts` (tipos e métodos
+  de contato no `ContractorMailRepositoryPort`)
+- `apps/api-transportada/src/contractor-mail/application/contractor-contacts.use-case.ts` (novo)
+- `apps/api-transportada/src/contractor-mail/domain/contractor-mail.error.ts`
+  (`ContractorContactEmailTakenError`, `ContractorContactNotFoundError`)
+- `apps/api-transportada/src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.ts`
+  (`listContractorContacts`, `createContractorContact`, `updateContractorContact`,
+  `buildContractorContactFilters`)
+- `apps/api-transportada/src/contractor-mail/presentation/contractor-contacts.routes.ts` (novo)
+- `apps/api-transportada/src/main.ts` (composição e registro das rotas novas)
+- `apps/api-transportada/test/contractor-mail/contractor-contacts.contract.ts` (novo)
+- `apps/api-transportada/test/contractor-mail.contract.test.ts` (import da suíte nova)
+- `apps/api-transportada/test/contractor-mail-schema/tenant-safety.contract.ts` (teste novo)
+- `apps/api-transportada/test/contractor-mail/process-inbound-email-webhook-use-case.contract.ts` e
+  `settings-use-case.contract.ts` (fakes do repositório atualizados com os três métodos novos)
+- `apps/api-transportada/test/integration/contractor-contacts-repository.integration.ts` (novo)
+- `apps/api-transportada/package.json` (`test:integration` com o arquivo novo)
+- `apps/frontend-transportada/src/modules/delivery-clients/shared/contractorContacts.types.ts`,
+  `contractorContactsClient.service.ts`, `contractorContacts.validation.ts`,
+  `contractorContactsResponse.validation.ts` (novos)
+- `apps/frontend-transportada/src/modules/delivery-clients/hooks/useContractorContacts.hook.ts`
+  (novo)
+- `apps/frontend-transportada/src/modules/delivery-clients/components/ContractorContactsPanel.component.tsx`
+  (novo)
+- `apps/frontend-transportada/src/modules/delivery-clients/pages/DeliveryClientWorkspace.page.tsx`
+  (painel novo na aba "mail")
+- `apps/frontend-transportada/src/modules/delivery-clients/locales/deliveryClients.locale.json` e
+  `deliveryClients.en.locale.json` (`contractorContacts.*` novos)
+- `apps/frontend-transportada/test/delivery-clients/contractor-contacts-validation.contract.ts` e
+  `contractor-contacts-response.contract.ts` (novos)
+- `apps/frontend-transportada/test/delivery-clients.contract.test.ts` (import das suítes novas)

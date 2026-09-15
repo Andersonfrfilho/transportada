@@ -98,6 +98,33 @@ export class ContractorMailTestRecipientUnavailableError extends ApiError {
 }
 
 /**
+ * Spec 150 T301 (spec 143 T013): e-mail já cadastrado (ativo ou inativo) para a mesma contratante —
+ * `contractor_contacts_company_contractor_email_unique` é a fonte da verdade, por caixa
+ * (`lower(email)`), sem `citext` neste repositório.
+ */
+export class ContractorContactEmailTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_CONTACT_EMAIL_TAKEN',
+      details: [{ field: 'email', message: 'already registered for this contractor' }],
+      message: 'Contractor contact email is already registered for this contractor',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 150 T301 (spec 143 T013): o contato não existe dentro da dupla `(contractorId, contactId)`. */
+export class ContractorContactNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_CONTACT_NOT_FOUND',
+      message: 'Contractor contact was not found',
+      status: 404,
+    })
+  }
+}
+
+/**
  * Spec 143 T010 (RF11): `webhookId` desconhecido, empresa sem configuração, ou assinatura Svix
  * inválida/fora da janela — as três recebem a mesma resposta fail-closed, para não distinguir "id
  * não existe" de "assinatura errada" a quem não tem o segredo.

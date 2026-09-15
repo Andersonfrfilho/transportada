@@ -11,6 +11,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { ContractorContactsPanel } from '../components/ContractorContactsPanel.component'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
@@ -66,25 +67,28 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
     id: 'mail',
     label: t('tabs.mail'),
     panel: (
-      <ContractorMailSettingsPanel
-        // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
-        // regrava por cima do que já estava salvo.
-        key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
-        apiUrl={getIdentityEnvironment().apiBaseUrl}
-        checks={contractorMail.checksQuery.data}
-        checksLoading={contractorMail.checksQuery.isLoading}
-        disabled={contractorMail.saveMutation.isPending}
-        errorCode={toErrorCode(contractorMail.saveMutation.error)}
-        loading={contractorMail.settingsQuery.isLoading}
-        onRefreshChecks={contractorMail.refreshChecks}
-        onSave={(body) => contractorMail.saveMutation.mutate(body)}
-        onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
-        saved={contractorMail.saveMutation.isSuccess}
-        summary={contractorMail.settingsQuery.data}
-        testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
-        testEmailPending={contractorMail.sendTestEmailMutation.isPending}
-        testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
-      />
+      <>
+        <ContractorMailSettingsPanel
+          // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
+          // regrava por cima do que já estava salvo.
+          key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
+          apiUrl={getIdentityEnvironment().apiBaseUrl}
+          checks={contractorMail.checksQuery.data}
+          checksLoading={contractorMail.checksQuery.isLoading}
+          disabled={contractorMail.saveMutation.isPending}
+          errorCode={toErrorCode(contractorMail.saveMutation.error)}
+          loading={contractorMail.settingsQuery.isLoading}
+          onRefreshChecks={contractorMail.refreshChecks}
+          onSave={(body) => contractorMail.saveMutation.mutate(body)}
+          onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
+          saved={contractorMail.saveMutation.isSuccess}
+          summary={contractorMail.settingsQuery.data}
+          testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
+          testEmailPending={contractorMail.sendTestEmailMutation.isPending}
+          testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
+        />
+        <ContractorContactsPanel isDisabled={!canManageContractorMail} />
+      </>
     ),
   }
 

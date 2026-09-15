@@ -65,6 +65,25 @@
     "testEmailError": "Could not send the test email: {{code}}",
     "refreshChecks": "Check again"
   },
+  "contractorContacts": {
+    "title": "Contractor email contacts",
+    "hint": "Who receives the address correction request and occurrence notices — chosen on every send, no fixed flag here.",
+    "contractorLabel": "Contractor",
+    "contractorPlaceholder": "Choose the contractor",
+    "loading": "Loading contacts…",
+    "empty": "No contact registered yet.",
+    "emailLabel": "Email",
+    "emailRequired": "Enter the email.",
+    "emailInvalid": "Enter a valid email.",
+    "receivesOccurrences": "Receives occurrences",
+    "canDecide": "Can decide the charge",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "add": "Add contact",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "error": "Could not save: {{code}}"
+  },
   "filters": {
     "name": "Name",
     "namePlaceholder": "Search by client name",

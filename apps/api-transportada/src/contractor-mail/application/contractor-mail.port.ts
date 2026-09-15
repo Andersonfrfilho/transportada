@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  ContractorContactStatus,
   ContractorMailDkimResult,
   ContractorMailSettingsStatus,
   ContractorMailThreadStatus,
@@ -150,7 +151,55 @@ export type RecordContractorMailInboundWebhookEventInput = {
   readonly providerEmailId: string
 }
 
+/**
+ * Spec 150 T301 (spec 143 T013): um contato de e-mail da contratante. RF1 do plan.md — a lista que
+ * a T003 semeou a partir de `contractors.report_email`, agora com CRUD próprio.
+ */
+export type ContractorContactRecord = {
+  readonly canDecide: boolean
+  readonly companyId: string
+  readonly contractorId: string
+  readonly email: string
+  readonly id: string
+  readonly receivesOccurrences: boolean
+  readonly status: ContractorContactStatus
+}
+
+export type ListContractorContactsInput = {
+  readonly companyId: string
+  readonly contractorId: string
+}
+
+export type CreateContractorContactInput = {
+  readonly canDecide: boolean
+  readonly companyId: string
+  readonly contractorId: string
+  readonly email: string
+  readonly receivesOccurrences: boolean
+}
+
+export type UpdateContractorContactInput = {
+  readonly canDecide?: boolean
+  readonly companyId: string
+  readonly contactId: string
+  readonly contractorId: string
+  readonly email?: string
+  readonly receivesOccurrences?: boolean
+  readonly status?: ContractorContactStatus
+}
+
 export type ContractorMailRepositoryPort = {
+  readonly listContractorContacts: (
+    input: ListContractorContactsInput,
+  ) => Promise<readonly ContractorContactRecord[]>
+  /** `email` normalizado (minúsculas, sem espaço) — duplicado na mesma contratante é `409`. */
+  readonly createContractorContact: (
+    input: CreateContractorContactInput,
+  ) => Promise<ContractorContactRecord>
+  /** `undefined` quando o contato não existe dentro de `(companyId, contractorId, contactId)`. */
+  readonly updateContractorContact: (
+    input: UpdateContractorContactInput,
+  ) => Promise<ContractorContactRecord | undefined>
   /**
    * `ON CONFLICT DO NOTHING` no único `(company_id, provider_email_id)`: o Svix retenta qualquer
    * resposta que não seja 2xx, e o mesmo `email_id` repetido converge sem gravar duas vezes — a

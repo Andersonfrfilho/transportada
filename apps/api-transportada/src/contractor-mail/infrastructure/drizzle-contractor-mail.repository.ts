@@ -6,6 +6,7 @@ import { and, eq, type SQL, sql } from 'drizzle-orm'
 
 import {
   auditLogs,
+  contractorContacts,
   contractorInboundEmailOutbox,
   contractorMailMessages,
   contractorMailOutbox,
@@ -13,20 +14,28 @@ import {
   contractorMailThreads,
 } from '../../database/database.schema.js'
 import type {
+  ContractorContactRecord,
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
   ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
+  CreateContractorContactInput,
+  ListContractorContactsInput,
   RecordContractorMailInboundWebhookEventInput,
   RecordContractorMailTestEmailInput,
   RecordContractorMailTestEmailResult,
   ReserveContractorMailSetupTestThreadInput,
   ReserveContractorMailSetupTestThreadResult,
   SaveContractorMailSettingsInput,
+  UpdateContractorContactInput,
 } from '../application/contractor-mail.port.js'
-import { ContractorMailSettingsVersionConflictError } from '../domain/contractor-mail.error.js'
+import {
+  ContractorContactEmailTakenError,
+  ContractorMailSettingsVersionConflictError,
+} from '../domain/contractor-mail.error.js'
 import { deriveReplyToken, hashReplyToken } from '../domain/reply-token.policy.js'
 import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
+import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -55,6 +64,16 @@ const SETTINGS_COLUMNS = {
   status: contractorMailSettings.status,
   version: contractorMailSettings.version,
   webhookId: contractorMailSettings.webhookId,
+}
+
+const CONTACT_COLUMNS = {
+  canDecide: contractorContacts.canDecide,
+  companyId: contractorContacts.companyId,
+  contractorId: contractorContacts.contractorId,
+  email: contractorContacts.email,
+  id: contractorContacts.id,
+  receivesOccurrences: contractorContacts.receivesOccurrences,
+  status: contractorContacts.status,
 }
 
 const THREAD_COLUMNS = {
@@ -87,6 +106,19 @@ export const buildContractorMailThreadByReplyTokenFilters = (input: {
  * `findSetupTestStatus` acha a conversa `setup_test` da empresa — `company_id` na mesma condição
  * do `subject_type`, nunca um filtro à parte, pela mesma razão do filtro acima.
  */
+/**
+ * Spec 150 T301 (spec 143 T013): `company_id` e `contractor_id` na mesma condição do resto do
+ * filtro — nunca uma conferência à parte —, para o contato de outra empresa (ou de uma contratante
+ * de outra empresa) nunca aparecer nas consultas abaixo (BOLA).
+ */
+export const buildContractorContactFilters = (input: {
+  readonly companyId: string
+  readonly contractorId: string
+}): readonly SQL[] => [
+  eq(contractorContacts.companyId, input.companyId),
+  eq(contractorContacts.contractorId, input.contractorId),
+]
+
 export const buildContractorMailSetupTestThreadFilters = (input: {
   readonly companyId: string
 }): readonly SQL[] => [
@@ -105,6 +137,78 @@ export const buildContractorMailSetupTestMessageFilters = (input: {
 
 export class DrizzleContractorMailRepository implements ContractorMailRepositoryPort {
   public constructor(private readonly database: Database) {}
+
+  public async listContractorContacts(
+    input: ListContractorContactsInput,
+  ): Promise<readonly ContractorContactRecord[]> {
+    return this.database
+      .select(CONTACT_COLUMNS)
+      .from(contractorContacts)
+      .where(and(...buildContractorContactFilters(input)))
+      .orderBy(contractorContacts.createdAt)
+  }
+
+  /**
+   * `contractor_contacts_company_contractor_email_unique` cobre `(company_id, contractor_id,
+   * lower(email))` para toda linha, ativa ou inativa — mais estrito que "duplicado ativo", mas
+   * decisão registrada em `evidence.md` da T301: reativar um contato inativo é um `PATCH` de
+   * status, não um novo `POST`, então a migration não precisou de índice parcial novo.
+   */
+  public async createContractorContact(
+    input: CreateContractorContactInput,
+  ): Promise<ContractorContactRecord> {
+    try {
+      const [row] = await this.database
+        .insert(contractorContacts)
+        .values({
+          canDecide: input.canDecide,
+          companyId: input.companyId,
+          contractorId: input.contractorId,
+          email: input.email,
+          receivesOccurrences: input.receivesOccurrences,
+        })
+        .returning(CONTACT_COLUMNS)
+      if (row === undefined) throw new Error('contractor contact was not created')
+      return row
+    } catch (error) {
+      if (
+        violatedUniqueConstraint(error) === 'contractor_contacts_company_contractor_email_unique'
+      ) {
+        throw new ContractorContactEmailTakenError()
+      }
+      throw error
+    }
+  }
+
+  public async updateContractorContact(
+    input: UpdateContractorContactInput,
+  ): Promise<ContractorContactRecord | undefined> {
+    try {
+      const [row] = await this.database
+        .update(contractorContacts)
+        .set({
+          ...(input.canDecide === undefined ? {} : { canDecide: input.canDecide }),
+          ...(input.email === undefined ? {} : { email: input.email }),
+          ...(input.receivesOccurrences === undefined
+            ? {}
+            : { receivesOccurrences: input.receivesOccurrences }),
+          ...(input.status === undefined ? {} : { status: input.status }),
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(...buildContractorContactFilters(input), eq(contractorContacts.id, input.contactId)),
+        )
+        .returning(CONTACT_COLUMNS)
+      return row
+    } catch (error) {
+      if (
+        violatedUniqueConstraint(error) === 'contractor_contacts_company_contractor_email_unique'
+      ) {
+        throw new ContractorContactEmailTakenError()
+      }
+      throw error
+    }
+  }
 
   public async findSettings({
     companyId,
