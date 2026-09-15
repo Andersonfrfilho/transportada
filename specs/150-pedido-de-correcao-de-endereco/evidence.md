@@ -1214,3 +1214,301 @@ tocado por esta task; +1 em relação ao total da T304, de execução paralela e
 - `specs/150-pedido-de-correcao-de-endereco/tasks.md` (T306 `[x]`)
 - `specs/150-pedido-de-correcao-de-endereco/evidence.md` (esta seção)
 - `specs/150-pedido-de-correcao-de-endereco/tasks.md` (T305 `[x]`)
+
+## Correções da revisão final
+
+Rodada de correção sobre os achados da revisão final (12 itens). Por instrução explícita, **não**
+mexi na verificação `settings.status !== 'active'` de `send-address-correction-mail.use-case.ts`
+(~linha 112, aguarda decisão do usuário) nem implementei limitador de taxa.
+
+### 1 [ALTO] Envio concorrente = e-mail em dobro
+
+`drizzle-address-correction-mail.repository.ts`: `.for('update')` nos dois ramos de
+`findSendableRequests` (com e sem `requestIds`); `markRequestsSent` passou a filtrar
+`eq(status, 'draft')` e a checar `.returning()` — menos linhas que as pedidas lança
+`AddressCorrectionRequestNotSendableError` (a transação inteira desfaz, 409).
+
+- **Vermelho**: removi temporariamente o `.for('update')` e neutralizei a checagem de
+  `markRequestsSent` (`if (false)`) e rodei
+  `test/integration/address-correction-mail-repository.integration.ts` — o teste novo (dois
+  envios em paralelo do mesmo rascunho, chaves de idempotência diferentes) falhou: `fulfilled`
+  veio com 2, não 1 (as duas transações venceram, duas mensagens/outbox).
+- **Verde**: com o fix completo, `8 pass, 0 fail` no arquivo — exatamente um vence, o outro
+  recebe `AddressCorrectionRequestNotSendableError`, um outbox só para o `thread_id` vencedor, o
+  pedido fica `sent` com o `thread_id` do vencedor.
+- **PUT concorrente com o envio** (segunda parte do item): não escrevi um teste de concorrência
+  real separado para isso — a mecânica já é a mesma provada pelo teste sequencial existente ("um
+  pedido enviado não é reaberto"): o `ON CONFLICT ... WHERE status = 'draft'` do `upsertDraft` só
+  casa com a linha enquanto ela está fora do índice parcial; assim que o envio comita e a linha
+  vira `sent`, qualquer `PUT` concorrente ou posterior deixa de achar conflito e insere um
+  rascunho novo — o Postgres serializa a UPDATE/INSERT concorrentes na mesma linha via lock, e o
+  predicado é reavaliado depois do lock liberar, então o resultado independe do timing. Decisão
+  registrada aqui por limite de tempo desta rodada.
+
+### 2 [MÉDIO] Paridade UF/IBGE
+
+Novo `apps/frontend-transportada/test/nfe-workspace/brazilian-state-parity.contract.ts`, no
+padrão de `physical-destination-parity.contract.ts` (worker): lê
+`brazilian-state.constant.ts` (API) por texto, extrai os 27 pares `UF: 'prefixo'` por regex e
+compara com `BRAZILIAN_STATE_IBGE_PREFIX` do frontend. Os dois já batiam (nenhuma correção de
+comportamento) — o contrato existe para pegar divergência futura. Import em
+`test/nfe-workspace.contract.test.ts`. Verde: `289 pass` em `test/nfe-workspace.contract.test.ts`.
+
+### 3 [MÉDIO] `new Error` cru
+
+`AddressCorrectionMailMessageNotPersistedError` nova (`address-correction.error.ts`), estende
+`DiagnosableError` (mesmo padrão de `CompanySettingsPersistenceError`) — mensagem fixa, sem
+interpolar dado de entrada, então pode ir ao log. Substitui o `new Error(...)` de
+`recordMail` em `drizzle-address-correction-mail.repository.ts`.
+
+### 4 [BAIXO] Strings repetidas → constantes
+
+- `ADDRESS_CORRECTION_SEND_MAIL_OPERATION` (`address-correction-mail.constant.ts`), repetida
+  entre `send-address-correction-mail.use-case.ts` e o repositório — extraída.
+- `'active'` de `contractorContacts.status` → `CONTRACTOR_CONTACT_STATUSES[0]` (já exportado por
+  `contractor-mail.schema.ts`, nunca redeclarado).
+- `'active'` de `userCompanyMemberships.status` → `ACTIVE_MEMBERSHIP_STATUS`, importado de
+  `nfe-documents/domain/active-membership-status.constant.ts` (já existia, reaproveitado).
+- `'message.send.requested'` → `CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES[0]` (já exportado pelo schema).
+- `'succeeded'` do idempotency record **não** foi extraído: só 1 ocorrência dentro do módulo
+  `address-correction` (o padrão se repete em 8 domínios diferentes do repositório, cada um com a
+  própria constante local — generalizar isso é fora do escopo desta rodada, tocaria 8 arquivos
+  alheios a esta task).
+
+### 5 [BAIXO] Dedupe do `to`/`recipientCount`
+
+`send-address-correction-mail.use-case.ts`: `deduplicateRecipients` (minúsculas + `Set`, primeira
+ocorrência vence) — cópia por valor do `deduplicateRecipients` do worker
+(`send-contractor-mail-outbound-message.use-case.ts`). `recipientEmails` (o `to` gravado) e
+`recipientCount` agora batem com o que o worker de fato vai enviar depois de deduplicar nele
+também.
+
+### 6 [BAIXO] Motivo pelo `matchLevel`
+
+`address-correction-mail.template.ts`, `formatReason`: só `rooftop`/`range_interpolated` (casamento
+de rua/número, `address-finding.policy.ts`) usam a distância; `approximate` (centroide do
+município) e `not_found` viram "endereço não localizado" **mesmo com distância** —
+`compare-addresses-batch.use-case.ts` (`toDistance`) mede a distância até o centroide para
+`approximate` quando há coordenada, então o número por si só não provava casamento de rua.
+
+- **Vermelho**: dois testes novos em `template.contract.ts` (`approximate`/`not_found` com
+  distância não-nula) falhavam — o código antigo mostrava "localizado a X km".
+- **Verde**: `27 pass` em `test/address-correction-mail.contract.test.ts` (25 antigos + 3 novos:
+  os dois vermelhos e um confirmando `rooftop` com distância continua "localizado a X km").
+- Tipo `AddressCorrectionMailReason.matchLevel` apertado de `string` para `ProviderMatchLevel`
+  (import type de `database/address-comparison.schema.ts`); `toMailItem` no caso de uso faz o
+  cast documentado (`reasonMatchLevel` é `varchar` no banco, sempre gravado a partir de
+  `ProviderMatchLevel`).
+
+### 7 [BAIXO] Idempotency-Key no frontend
+
+Bug real: a chave era gerada só em `open()` e ficava fixa mesmo que o operador mudasse a seleção
+de contatos antes de confirmar — um reenvio com seleção diferente reusaria a chave com corpo
+diferente, e o servidor recusaria com `IDEMPOTENCY_KEY_REUSED` (409).
+
+`resolveAddressCorrectionMailIdempotencyKey` nova, pura, em `addressCorrectionMail.service.ts`:
+compara a seleção atual com a anterior (por conjunto, ordem não importa) e só chama `generateKey()`
+quando elas divergem ou quando não há seleção anterior (`null`, forçado por `open()`).
+
+- **Vermelho**: `resolveAddressCorrectionMailIdempotencyKey` não existia — `bun test` falhava com
+  `SyntaxError: Export named ... not found`.
+- **Verde**: `289 pass` em `test/nfe-workspace.contract.test.ts`, com os três testes pedidos
+  (estável entre retries com a mesma seleção em qualquer ordem; nova ao reabrir; nova ao mudar a
+  seleção).
+- `useAddressCorrectionMailDialog.hook.ts`: troquei o `useState` fixo por um par
+  (`contactSelectionSnapshot`, `idempotencyKey`) ajustado **durante a renderização** — o padrão
+  oficial do React para "resetar estado quando um valor derivado muda", sem `useEffect`
+  (`web.md` §5 proíbe `useEffect` para transformar dado, e aqui não há sistema externo para
+  sincronizar). `open()` zera `contactSelectionSnapshot` para `null`, forçando chave nova mesmo
+  que a seleção calculada bata com a da sessão anterior.
+
+### 8 Segurança B1 — `.max(254)` no e-mail + CHECK no banco
+
+- `contractor-contacts.routes.ts`: `EMAIL_MAX_LENGTH = 254` (RFC 5321 §4.5.3.1.3), aplicado em
+  `createContactSchema` e `updateContactSchema`.
+  - Vermelho: dois testes novos (`POST`/`PATCH` com e-mail de 259+ caracteres) esperando `400`
+    falhavam com `201`/`200`. Verde depois do `.max()`: `129 pass` em
+    `test/contractor-mail.contract.test.ts`.
+- Migration aditiva `drizzle/20260915210000_contractor_contact_email_length_check/` — CHECK
+  `contractor_contacts_email_length_check` (`length(email) <= 254`), gerada por
+  `bun run db:generate --name contractor_contact_email_length_check` (com `snapshot.json`, nunca à
+  mão) e renomeada de `20260915192737_...` para `20260915210000_...` para manter a ordem
+  crescente com a migration mais recente já commitada (`20260915200000_contractor_mail_body_html`)
+  — o `--name` do drizzle-kit usa o relógio local, que estava atrás do timestamp já commitado.
+  `rollback.sql` no mesmo padrão de `contractor_mail_body_html/rollback.sql`.
+  - **Conferido antes de aplicar**: não há seed nem rotina que grave `contractor_contacts` neste
+    worktree (`local-identity-seed.service.ts`/`local-fleet-seed.service.ts` não tocam a tabela),
+    e a migration rodou limpa contra o Postgres de teste descartável
+    (`runDatabaseMigrations` de dentro do próprio teste de integração). **Não tenho acesso a
+    staging/produção deste worktree** — se houver e-mail acima de 254 caracteres já gravado lá, a
+    migration falharia ao aplicar (`ALTER TABLE ... ADD CONSTRAINT` valida linhas existentes por
+    padrão) e precisa ser conferida por SQL direto antes do deploy (`select 1 from
+contractor_contacts where length(email) > 254 limit 1`).
+  - Novo teste de integração (`contractor-contacts-repository.integration.ts`): grava direto pelo
+    repositório um e-mail de 259+ caracteres e espera rejeição — prova a CHECK contra Postgres de
+    verdade, não só o Zod. Verde: `3 pass` no arquivo.
+- Contrato de log sem PII espelhado do envio (item 12, mesma seção abaixo).
+
+### 9 Segurança B2 — `sql.raw` do `ON CONFLICT ... WHERE`
+
+`drizzle-address-correction.repository.ts`, `upsertDraft`: troquei
+`targetWhere: sql\`${status} = ${sql.raw("'draft'")}\``por`targetWhere: eq(addressCorrectionRequests.status, DRAFT_STATUS)`
+— **parametrizado, não literal**. O comentário antigo dizia que o Postgres só infere o índice
+parcial de um literal; **provei o contrário** contra Postgres de verdade: rodei o teste que já
+existia (`test/integration/address-correction-repository.integration.ts`, "um pedido enviado não é
+reaberto: o rascunho novo é outra linha" — exatamente o teste que depende do `ON CONFLICT`reconhecer o índice parcial) antes e depois da troca,`6 pass`nos dois casos. A versão
+parametrizada com`eq()`funciona igual à literal — mantive sem o`sql.raw`.
+
+### 10 Segurança B3 — CPF/CNPJ fora da URL
+
+Rota nova `POST /address-correction-requests/recipients`, body `{ contractorTaxId }`,
+`settings.manage` (nunca `fleet.read`), 404 `ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND`:
+
+- `find-address-correction-recipients.use-case.ts` (novo): resolve a contratante pelo CNPJ do
+  corpo (`AddressCorrectionRepositoryPort.findContractorByTaxId`, dentro da `companyId` do token)
+  e devolve os contatos **ativos** dela (reaproveita `contractorContacts.list`, que já faz BOLA por
+  `getContractor`).
+- `address-correction-request.schema.ts`: `parsePostAddressCorrectionRecipientsBody` (mesmo
+  `buildTaxIdSchema(TAX_ID_PATTERN)` do envio).
+- `address-correction.routes.ts`: rota nova, serialização própria (nunca `companyId`).
+- `main.ts`: composição reaproveitando `addressCorrectionRepository` (já existente) e
+  `contractorContacts.list` (já existente) — nenhum objeto novo de infraestrutura.
+- Testes: unidade do caso de uso (contratante resolvido + só contato ativo; 404 estável quando não
+  há contratante), HTTP (200 com o corpo certo, `cache-control: no-store`, 400 com CNPJ malformado,
+  404 propagado, 403 sem `settings.manage`) — `28 pass` em `address-correction-http.contract.test.ts`,
+  `29 pass` em `address-correction-mail.contract.test.ts`.
+- **Frontend**: `getAddressCorrectionContractor` + `listAddressCorrectionContacts` (duas
+  chamadas, CNPJ na URL da primeira) viraram `findAddressCorrectionRecipients` (uma chamada,
+  `POST`, CNPJ no corpo). `mapAddressCorrectionRecipients` novo em `addressCorrectionMail.validation.ts`.
+  `useAddressCorrectionMailDialog.hook.ts` colapsou as duas queries (`contractorQuery`+
+  `contactsQuery`) numa só (`recipientsQuery`); `contactsFailed`/`contractorFailed`/
+  `contactsLoading` viraram `recipientsFailed`/`recipientsLoading` (um único estado de
+  erro/carregamento, já que é uma chamada só agora) — `AddressCorrectionMailDialog.component.tsx`
+  ajustado. Teste do client reescrito para provar `request.url` **nunca** contém o CNPJ e o corpo
+  do `POST` carrega `{ contractorTaxId }`. Verde: `289 pass` em `nfe-workspace.contract.test.ts`,
+  build limpo.
+
+### 11 H3 "para quem"
+
+`recipientCount` nunca é uma coluna nova — é lido da mensagem `outbound` da conversa ligada pelo
+`thread_id` (`left join` em `contractor_mail_messages`, `array_length(to_addresses, 1)`), porque um
+pedido `sent` tem exatamente uma mensagem de saída naquela conversa (`address_correction` nunca
+reabre a mesma `thread_id`).
+
+- `AddressCorrectionRequest.recipientCount: number | null` novo no port; `drizzle-address-correction.repository.ts`
+  (`listByCompany`) faz o `left join`; `toAddressCorrectionRequest` ganhou o parâmetro opcional
+  (drafts e o repositório de envio sempre passam `null`).
+- Rota `GET /address-correction-requests` expõe `recipientCount` na serialização.
+- **Vermelho** (frontend): dois testes em `address-correction-status.contract.ts` (o `toEqual` do
+  estado `sent` esperando `recipientCount`, e o estado `draft` esperando `recipientCount: null`)
+  falhavam — a propriedade não existia em `AddressCorrectionStatus`. **Verde**: `289 pass`.
+- `resolveAddressCorrectionStatus` (`addressCorrectionStatus.service.ts`) propaga
+  `sent.recipientCount`; `AddressReportPanel.component.tsx` mostra `stateSentWithCount`
+  (pluralizado, "Enviado a N contato(s) em …") quando há contagem, e mantém `stateSent` (só a
+  data) como reserva para uma linha antiga sem mensagem ligada.
+- Integração nova (`address-correction-repository.integration.ts`): grava conversa + mensagem
+  outbound com 3 endereços de verdade no `to_addresses`, confere `recipientCount: 3` no pedido
+  `sent` e `null` no `draft` — `7 pass` no arquivo, contra Postgres de verdade (prova o `left join`,
+  não só o tipo).
+
+### 12 Contrato de log sem PII (rotas de contatos)
+
+`contractor-contacts.contract.ts`: fixture ganhou `logCalls` (mesmo padrão de
+`address-correction-http.fixture.ts`); teste novo dispara `POST` e `PATCH` com e-mails "segredo" e
+confere que nenhum aparece em `JSON.stringify(logCalls)`, inclusive no caminho de erro
+(`ContractorContactEmailTakenError`). Verde: `130 pass` em `contractor-mail.contract.test.ts`.
+
+### Gates finais
+
+```
+bun run typecheck   # 6 apps, exit 0
+bun run lint        # 6 apps, exit 0
+bun run format:check
+```
+
+Achou 3 arquivos fora de forma que esta task **não tocou**
+(`specs/150-.../email-template.html`, `plan.md`, `spec.md` — pré-existentes) e 1 que tocou
+(`address-correction-mail-repository.integration.ts`, formatado com `prettier --write`).
+
+```
+bun run --cwd apps/api-transportada test         # 5900 pass, 23 skip, 0 fail
+bun run --cwd apps/frontend-transportada test    # 289 pass, 0 fail (test/nfe-workspace.contract.test.ts)
+bun run --cwd apps/worker-transportada test      # 1344 pass, 0 fail
+bun run --cwd apps/frontend-transportada build   # build limpo, PWA gerado
+```
+
+Integrações tocadas (Postgres nativo `127.0.0.1:65433`,
+`DRIZZLE_TEST_DATABASE_URL=… bun --env-file=../../.env.test test … --timeout 120000`):
+
+```
+test/integration/address-correction-mail-repository.integration.ts   # 8 pass
+test/integration/address-correction-repository.integration.ts        # 7 pass
+test/integration/contractor-contacts-repository.integration.ts       # 3 pass
+test/integration/contractor-mail-test-email-thread.integration.ts    # 5 pass
+```
+
+Não rodei a suíte `test:integration` inteira pelo mesmo motivo já registrado nas tasks
+anteriores — só os arquivos que esta rodada tocou ou que exercitam o schema mexido
+(`contractor_contacts`, `address_correction_requests`, `contractor_mail_messages`).
+
+### Arquivos alterados (revisão final)
+
+API:
+
+- `src/address-correction/infrastructure/drizzle-address-correction-mail.repository.ts` (lock,
+  `markRequestsSent` com checagem, erro diagnosticável, constantes)
+- `src/address-correction/infrastructure/drizzle-address-correction.repository.ts` (`ON CONFLICT`
+  parametrizado, `recipientCount` via `left join`)
+- `src/address-correction/domain/address-correction.error.ts`
+  (`AddressCorrectionMailMessageNotPersistedError`)
+- `src/address-correction/domain/address-correction-mail.constant.ts`
+  (`ADDRESS_CORRECTION_SEND_MAIL_OPERATION`)
+- `src/address-correction/domain/address-correction-mail.template.ts` (`formatReason` por
+  `matchLevel`)
+- `src/address-correction/domain/address-correction-mail.types.ts` (`matchLevel: ProviderMatchLevel`)
+- `src/address-correction/application/send-address-correction-mail.use-case.ts` (dedupe, constante,
+  cast documentado de `matchLevel`)
+- `src/address-correction/application/address-correction.port.ts` (`recipientCount`)
+- `src/address-correction/application/find-address-correction-recipients.use-case.ts` (novo)
+- `src/address-correction/presentation/address-correction.routes.ts` (rota `recipients`,
+  `recipientCount` na serialização)
+- `src/address-correction/presentation/address-correction-request.schema.ts`
+  (`parsePostAddressCorrectionRecipientsBody`)
+- `src/contractor-mail/presentation/contractor-contacts.routes.ts` (`.max(254)`)
+- `src/database/contractor-mail.schema.ts` (CHECK `contractor_contacts_email_length_check`)
+- `src/shared/api.constant.ts` (`API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH`)
+- `src/main.ts` (composição do use case novo)
+- `drizzle/20260915210000_contractor_contact_email_length_check/` (novo, com rollback)
+- `test/address-correction-mail/template.contract.ts`,
+  `test/address-correction-mail/send-mail-use-case.contract.ts`,
+  `test/address-correction-mail/find-recipients-use-case.contract.ts` (novo),
+  `test/address-correction-mail.contract.test.ts`
+- `test/address-correction-http/routes.contract.ts`, `test/fixtures/address-correction-http.fixture.ts`
+- `test/contractor-mail/contractor-contacts.contract.ts`
+- `test/integration/address-correction-mail-repository.integration.ts`,
+  `test/integration/address-correction-repository.integration.ts`,
+  `test/integration/contractor-contacts-repository.integration.ts`
+- `test/database-migration/static-migration.contract.ts` (lista de diretórios)
+
+Frontend:
+
+- `src/modules/nfe-workspace/shared/addressCorrection.validation.ts` (`recipientCount`)
+- `src/modules/nfe-workspace/shared/addressCorrectionStatus.service.ts` (`recipientCount` no
+  status `sent`)
+- `src/modules/nfe-workspace/shared/addressCorrectionMail.service.ts`
+  (`resolveAddressCorrectionMailIdempotencyKey`)
+- `src/modules/nfe-workspace/shared/addressCorrectionMail.validation.ts`
+  (`mapAddressCorrectionRecipients`, `AddressCorrectionRecipients`)
+- `src/modules/nfe-workspace/shared/nfeWorkspaceClient.service.ts`
+  (`findAddressCorrectionRecipients` substitui as duas rotas antigas)
+- `src/modules/nfe-workspace/hooks/useAddressCorrectionMailDialog.hook.ts` (query única, chave de
+  idempotência reativa à seleção)
+- `src/modules/nfe-workspace/components/AddressCorrectionMailDialog.component.tsx`
+  (`recipientsFailed`/`recipientsLoading`)
+- `src/modules/nfe-workspace/components/AddressReportPanel.component.tsx` (badge com contagem)
+- `src/modules/nfe-workspace/locales/nfeWorkspace.locale.json`,
+  `nfeWorkspace.en.locale.json` (`stateSentWithCount`)
+- `test/nfe-workspace/address-correction-mail.contract.ts`,
+  `test/nfe-workspace/address-correction-status.contract.ts`,
+  `test/nfe-workspace/brazilian-state-parity.contract.ts` (novo)
+- `test/nfe-workspace.contract.test.ts` (import da suíte nova)
