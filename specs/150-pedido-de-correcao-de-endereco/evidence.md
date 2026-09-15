@@ -426,3 +426,98 @@ Resultado: `vite build` concluído (`✓ built in 5.09s`), PWA gerado (128 entra
   `nfeWorkspace.en.locale.json` (`addressReport.correction`, `addressCorrection`)
 - `apps/frontend-transportada/test/nfe-workspace/address-correction.contract.ts` (novo)
 - `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)
+
+## T202
+
+O estado do pedido em cada endereço da aba, spec 150 H3.
+
+### O que ficou
+
+- **`shared/addressCorrectionStatus.service.ts`**: view-model puro que cruza as linhas de
+  `listAddressCorrectionRequests` com um `addressKey` — sem chamada de rede, sem estado próprio.
+  `resolveAddressCorrectionStatus` recebe só as linhas de uma chave e devolve
+  `{ state: 'none' | 'draft' | 'sent', sentAt, lastSentAt, proposedSummary }`. **Um `sent` e um
+  `draft` mais novo convivem na mesma chave**: o índice único de `upsertDraft`
+  (`drizzle-address-correction.repository.ts`) é parcial (`status = 'draft'`), então salvar de novo
+  depois de um envio cria uma segunda linha em vez de reabrir a enviada — a lista traz as duas, e o
+  estado exibido é sempre `draft`, com o último envio em `lastSentAt`. `findDraftRequest` isola o
+  rascunho de uma chave (nunca um `sent`), e `initialAddressCorrectionFields` decide o valor inicial
+  do formulário: o proposto do rascunho, se houver, senão "como veio" da nota — a mesma regra que a
+  T201 tinha hardcoded em `AddressReportPanel`, agora testável sozinha.
+- **`hooks/useAddressCorrectionRequests.hook.ts`**: `useQuery` na mesma chave que
+  `useAddressCorrectionForm` já invalida ao salvar (`ADDRESS_CORRECTION_REQUESTS_QUERY_KEY`, T201) —
+  fechando o ciclo: salvar um rascunho já reconsultava essa chave, só não existia quem a lesse antes
+  desta task. Habilitado pela mesma condição do relatório (`canManageSettings && activeTab ===
+'addresses'`).
+- **`components/AddressReportPanel.component.tsx`**: cada `FindingRow` filtra
+  `correctionRequests` pelo próprio `addressKey`, resolve o status e mostra `AddressCorrectionStatusBadge`, um componente novo que **reaproveita `Badge`** (`@/components/ui/badge`, o mesmo
+  selo de `BillingDefaultsFields` e das tabelas de NFS-e/MDF-e — nada de visual próprio da aba):
+  `secondary` para "Sem pedido", `default` para "Rascunho salvo" (com "Último envio em …" ao lado
+  quando há envio anterior) e `success` para "Enviado em …". A data reaproveita
+  `formatNfeImportMoment` (`pt-BR`, `dateStyle: 'short'`, `timeStyle: 'short'`) — o mesmo formatador
+  que a lista de importações já usa, em vez de um `Intl.DateTimeFormat` novo. Enquanto a lista
+  carrega, `Skeleton` na forma do selo (`height="1.2rem"`); se falhar, um aviso discreto substitui o
+  selo (`addressReport.correction.statusUnavailable`) — a aba continua utilizável, e a falha não é
+  escondida. Quando há rascunho, o endereço proposto (`proposedSummary`) aparece numa segunda linha
+  abaixo de "No cadastro", e o botão vira "Editar correção" em vez de "Informar endereço correto".
+- **`pages/NfeWorkspace.page.tsx`**: chama o hook novo ao lado de `useAddressReport` e repassa os
+  três campos (`correctionRequests`, `correctionRequestsFailed`, `correctionRequestsLoading`) para o
+  painel.
+- **CSS** (`styles/addressReport.module.css`): `.correctionStatusGroup` (selo + dica lado a lado,
+  `flex-wrap` para mobile) e `.correctionStatusHint`/`.correctionStatusNotice`, tokens do design
+  system, sem valor solto.
+- **Locales**: `addressReport.correction.{editTrigger,proposedLabel,stateNone,stateDraft,stateSent,
+lastSentAt,statusUnavailable}`, pt-BR acentuado e o par em `nfeWorkspace.en.locale.json`.
+
+### Testes
+
+`apps/frontend-transportada/test/nfe-workspace/address-correction-status.contract.ts`, registrado em
+`test/nfe-workspace.contract.test.ts`: nenhuma linha (`none`), só rascunho (`draft` com resumo),
+só envio (`sent` com data), envio seguido de rascunho novo (`draft` com `lastSentAt`), mais de um
+envio (o mais recente vence), chave sem linha no relatório (filtrada antes de cruzar, `none`),
+`findDraftRequest` nunca devolve um `sent`, e o valor inicial do formulário nos dois casos (com e
+sem rascunho).
+
+### Gates
+
+```
+bun run typecheck
+```
+
+Resultado: verde nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3715 pass**, 0 fail, 34777 `expect()`, 29 arquivos (9 testes novos em
+`address-correction-status.contract.ts`).
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+```
+bun run --cwd apps/frontend-transportada build
+```
+
+Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado).
+
+### Arquivos alterados
+
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressCorrectionStatus.service.ts`
+  (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/hooks/useAddressCorrectionRequests.hook.ts`
+  (novo)
+- `apps/frontend-transportada/src/modules/nfe-workspace/components/AddressReportPanel.component.tsx`
+  (selo de estado, resumo do proposto, rótulo do botão, `AddressCorrectionStatusBadge`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx` (hook novo,
+  props do painel)
+- `apps/frontend-transportada/src/modules/nfe-workspace/styles/addressReport.module.css`
+  (`.correctionStatusGroup`, `.correctionStatusHint`, `.correctionStatusNotice`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/locales/nfeWorkspace.locale.json` e
+  `nfeWorkspace.en.locale.json` (`addressReport.correction.*` novos)
+- `apps/frontend-transportada/test/nfe-workspace/address-correction-status.contract.ts` (novo)
+- `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import da suíte nova)

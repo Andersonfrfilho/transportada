@@ -329,6 +329,7 @@
     "unresolvedAim": "Delivery currently aims at the municipality centre",
     "correction": {
       "trigger": "Report correct address",
+      "editTrigger": "Edit correction",
       "title": "Report correct address",
       "street": "Street",
       "number": "Number",
@@ -341,7 +342,13 @@
       "genericPostalCodeHint": "This postal code may be the city's single postal code — check before changing it.",
       "unlabelledErrorsLead": "The server rejected fields this screen does not recognise:",
       "cancel": "Cancel",
-      "save": "Save correction"
+      "save": "Save correction",
+      "proposedLabel": "Proposed",
+      "stateNone": "No request",
+      "stateDraft": "Draft saved",
+      "stateSent": "Sent on {{date}}",
+      "lastSentAt": "Last sent on {{date}}",
+      "statusUnavailable": "Could not load the request status."
     }
   },
   "packageBoxes": {

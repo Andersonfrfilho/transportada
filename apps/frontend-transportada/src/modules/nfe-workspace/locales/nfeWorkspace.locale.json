@@ -503,6 +503,7 @@
     "unresolvedAim": "Hoje a entrega aponta para o centro do município",
     "correction": {
       "trigger": "Informar endereço correto",
+      "editTrigger": "Editar correção",
       "title": "Informar endereço correto",
       "street": "Logradouro",
       "number": "Número",
@@ -515,7 +516,13 @@
       "genericPostalCodeHint": "Este CEP pode ser o CEP único da cidade — confira antes de trocar.",
       "unlabelledErrorsLead": "O servidor recusou campos que esta tela não reconhece:",
       "cancel": "Cancelar",
-      "save": "Salvar correção"
+      "save": "Salvar correção",
+      "proposedLabel": "Proposto",
+      "stateNone": "Sem pedido",
+      "stateDraft": "Rascunho salvo",
+      "stateSent": "Enviado em {{date}}",
+      "lastSentAt": "Último envio em {{date}}",
+      "statusUnavailable": "Não foi possível carregar o estado dos pedidos."
     }
   },
   "packageBoxes": {

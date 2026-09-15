@@ -126,6 +126,20 @@
   align-self: flex-start;
 }
 
+.correctionStatusGroup {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: fit-content;
+}
+
+.correctionStatusHint,
+.correctionStatusNotice {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.72rem;
+}
+
 .correctionForm {
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   display: flex;

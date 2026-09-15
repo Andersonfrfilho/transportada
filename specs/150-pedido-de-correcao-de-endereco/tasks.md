@@ -32,7 +32,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T201** Formulário "Informar endereço correto" no `AddressReportPanel`, preenchido com o
       endereço como veio, com máscara de CEP, `Select` de UF e erro ancorado no campo. Evidência:
       contrato do serviço de validação e do mapa de erros por campo.
-- [ ] **T202** O estado do pedido em cada endereço (sem pedido, rascunho, enviado). Evidência:
+- [x] **T202** O estado do pedido em cada endereço (sem pedido, rascunho, enviado). Evidência:
       contrato do view-model.
 
 ## Fase 3 — O envio

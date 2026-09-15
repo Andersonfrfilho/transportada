@@ -2,17 +2,28 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import { AddressCorrectionForm } from './AddressCorrectionForm.component'
-import { cityCodeFromAddressKey } from '../shared/addressCorrection.validation'
+import { formatNfeImportMoment } from '../shared/nfeImportMoment.service'
+import {
+  findDraftRequest,
+  initialAddressCorrectionFields,
+  resolveAddressCorrectionStatus,
+  type AddressCorrectionStatus,
+} from '../shared/addressCorrectionStatus.service'
+import type { AddressCorrectionRequestRecord } from '../shared/addressCorrection.validation'
 import type { AddressReport, AddressFinding } from '../shared/addressReport.validation'
 import styles from '../styles/addressReport.module.css'
 
 type AddressReportPanelProps = Readonly<{
+  correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
+  correctionRequestsFailed: boolean
+  correctionRequestsLoading: boolean
   denied: boolean
   failed: boolean
   loading: boolean
@@ -39,7 +50,15 @@ function AddressReportSkeleton() {
  * uma base podre; "24 de 148 medidos" diz que o cadastro está majoritariamente bom. O relatório é
  * feito para ser mandado a um cliente, e a diferença entre um pedido e uma acusação está aí.
  */
-export function AddressReportPanel({ denied, failed, loading, report }: AddressReportPanelProps) {
+export function AddressReportPanel({
+  correctionRequests,
+  correctionRequestsFailed,
+  correctionRequestsLoading,
+  denied,
+  failed,
+  loading,
+  report,
+}: AddressReportPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
 
   if (denied) return <p className={styles.notice}>{t('addressReport.denied')}</p>
@@ -79,7 +98,13 @@ export function AddressReportPanel({ denied, failed, loading, report }: AddressR
 
           <ul className={styles.findings}>
             {group.findings.map((finding) => (
-              <FindingRow finding={finding} key={finding.addressKey} />
+              <FindingRow
+                correctionRequests={correctionRequests}
+                correctionRequestsFailed={correctionRequestsFailed}
+                correctionRequestsLoading={correctionRequestsLoading}
+                finding={finding}
+                key={finding.addressKey}
+              />
             ))}
           </ul>
         </article>
@@ -88,9 +113,25 @@ export function AddressReportPanel({ denied, failed, loading, report }: AddressR
   )
 }
 
-function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
+type FindingRowProps = Readonly<{
+  correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
+  correctionRequestsFailed: boolean
+  correctionRequestsLoading: boolean
+  finding: AddressFinding
+}>
+
+function FindingRow({
+  correctionRequests,
+  correctionRequestsFailed,
+  correctionRequestsLoading,
+  finding,
+}: FindingRowProps) {
   const { t } = useTranslation('nfeWorkspace')
   const [isCorrectionOpen, setCorrectionOpen] = useState(false)
+  const requestsForAddress =
+    correctionRequests?.filter((request) => request.addressKey === finding.addressKey) ?? []
+  const status = resolveAddressCorrectionStatus(requestsForAddress)
+  const draft = findDraftRequest(finding.addressKey, requestsForAddress)
 
   return (
     <li className={styles.finding}>
@@ -101,12 +142,24 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
         </span>
       </Tooltip>
 
+      <AddressCorrectionStatusBadge
+        failed={correctionRequestsFailed}
+        loading={correctionRequestsLoading}
+        status={status}
+      />
+
       <div className={styles.sides}>
         <p className={styles.side}>
           <span className={styles.sideLabel}>{t('addressReport.noteLabel')}</span>
           {`${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`}
           {finding.notePostalCode.length === 0 ? '' : ` · ${finding.notePostalCode}`}
         </p>
+        {status.proposedSummary === null ? null : (
+          <p className={styles.side}>
+            <span className={styles.sideLabel}>{t('addressReport.correction.proposedLabel')}</span>
+            {status.proposedSummary}
+          </p>
+        )}
         {/**
          * ⚠️ **O não localizado não tem lado do provedor** (ADR-0062). A rotina paga guarda o
          * carimbo, nunca o que o provedor respondeu — então imprimir "o provedor conhece: não
@@ -141,16 +194,7 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
       {isCorrectionOpen ? (
         <AddressCorrectionForm
           addressKey={finding.addressKey}
-          initial={{
-            city: finding.city,
-            cityCode: cityCodeFromAddressKey(finding.addressKey),
-            complement: '',
-            district: finding.noteDistrict,
-            number: finding.noteNumber,
-            postalCode: finding.notePostalCode,
-            state: finding.state,
-            street: finding.noteStreet,
-          }}
+          initial={initialAddressCorrectionFields({ draft, finding })}
           onCancel={() => setCorrectionOpen(false)}
           onSaved={() => setCorrectionOpen(false)}
         />
@@ -163,9 +207,63 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
           onClick={() => setCorrectionOpen(true)}
         >
           <Icon name="edit" />
-          {t('addressReport.correction.trigger')}
+          {t(
+            draft === undefined
+              ? 'addressReport.correction.trigger'
+              : 'addressReport.correction.editTrigger',
+          )}
         </Button>
       )}
     </li>
   )
+}
+
+/**
+ * O selo de estado do pedido (spec 150, T202) — reaproveita `Badge`, o mesmo selo usado em
+ * `BillingDefaultsFields` e nas tabelas de NFS-e/MDF-e, em vez de um visual próprio da aba.
+ * Enquanto a lista carrega, o esqueleto tem a forma do selo; se ela falhar, um aviso discreto
+ * substitui o selo sem esconder a falha nem travar o resto da linha.
+ */
+function AddressCorrectionStatusBadge({
+  failed,
+  loading,
+  status,
+}: Readonly<{ failed: boolean; loading: boolean; status: AddressCorrectionStatus }>) {
+  const { t } = useTranslation('nfeWorkspace')
+
+  if (loading) return <Skeleton height="1.2rem" variant="text" width="7rem" />
+  if (failed) {
+    return (
+      <small className={styles.correctionStatusNotice}>
+        {t('addressReport.correction.statusUnavailable')}
+      </small>
+    )
+  }
+
+  if (status.state === 'sent') {
+    return (
+      <Badge variant="success">
+        {t('addressReport.correction.stateSent', {
+          date: status.sentAt === null ? '' : formatNfeImportMoment(status.sentAt),
+        })}
+      </Badge>
+    )
+  }
+
+  if (status.state === 'draft') {
+    return (
+      <span className={styles.correctionStatusGroup}>
+        <Badge variant="default">{t('addressReport.correction.stateDraft')}</Badge>
+        {status.lastSentAt === null ? null : (
+          <small className={styles.correctionStatusHint}>
+            {t('addressReport.correction.lastSentAt', {
+              date: formatNfeImportMoment(status.lastSentAt),
+            })}
+          </small>
+        )}
+      </span>
+    )
+  }
+
+  return <Badge variant="secondary">{t('addressReport.correction.stateNone')}</Badge>
 }

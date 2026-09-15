@@ -15,6 +15,7 @@ import { NfeDistributionControl } from '../components/NfeDistributionControl.com
 import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import { AddressReportPanel } from '../components/AddressReportPanel.component'
+import { useAddressCorrectionRequests } from '../hooks/useAddressCorrectionRequests.hook'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
@@ -258,6 +259,11 @@ export function NfeWorkspacePage() {
    * pedi-la sem ela renderizaria um erro numa aba que a pessoa nem escolheu abrir.
    */
   const addressReport = useAddressReport({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && activeTab === 'addresses',
+  })
+  /** O estado do pedido por endereço (spec 150, T202) — mesma condição de habilitação do relatório. */
+  const addressCorrectionRequests = useAddressCorrectionRequests({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && activeTab === 'addresses',
   })
@@ -633,6 +639,9 @@ export function NfeWorkspacePage() {
                 label: t('tabs.addresses'),
                 panel: (
                   <AddressReportPanel
+                    correctionRequests={addressCorrectionRequests.data}
+                    correctionRequestsFailed={addressCorrectionRequests.isError}
+                    correctionRequestsLoading={addressCorrectionRequests.isLoading}
                     denied={!canManageSettings}
                     failed={addressReport.isError}
                     loading={addressReport.isLoading}
