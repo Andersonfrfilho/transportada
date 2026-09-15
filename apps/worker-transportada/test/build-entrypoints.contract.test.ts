@@ -55,4 +55,42 @@ describe('worker build entrypoints contract', () => {
       expect(buildScript).toContain(module)
     }
   })
+
+  /**
+   * Staging, 15/09/2026: toda planta de carga virava `failed` em milissegundos. A thread estava no
+   * `dist/`, mas o gateway a procurava ao lado de `dist/main.js` — `new URL('./x.worker.js',
+   * import.meta.url)` resolve contra o bundle, não contra a pasta de origem. Entrar no build não
+   * basta: o caminho que o código empacotado pede tem de ser o que o `--root ./src` grava.
+   */
+  test('every worker thread is requested at the path the bundled main.js resolves', async () => {
+    const packageManifest = (await Bun.file(
+      new URL('../package.json', import.meta.url),
+    ).json()) as { readonly scripts?: Readonly<Record<string, string>> }
+    expect(packageManifest.scripts?.build ?? '').toContain('--root ./src')
+
+    const workerModules = (await listMainModules(SOURCE_DIRECTORY, './')).filter((module) =>
+      module.endsWith('.worker.ts'),
+    )
+    const sources = await Promise.all(
+      (await listSourceFiles(SOURCE_DIRECTORY)).map((file) => Bun.file(file).text()),
+    )
+
+    expect(workerModules.length).toBeGreaterThan(0)
+    for (const module of workerModules) {
+      const bundledPath = module.replace(/\.ts$/u, '.js')
+      expect(sources.some((source) => source.includes(`'${bundledPath}'`))).toBe(true)
+    }
+  })
 })
+
+async function listSourceFiles(directory: URL): Promise<readonly URL[]> {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const nested = await Promise.all(
+    entries.map((entry) =>
+      entry.isDirectory()
+        ? listSourceFiles(new URL(`${entry.name}/`, directory))
+        : Promise.resolve(entry.name.endsWith('.ts') ? [new URL(entry.name, directory)] : []),
+    ),
+  )
+  return nested.flat()
+}
