@@ -16,6 +16,8 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * a fila deixou de carregar qualquer coisa além do `messageId` (§6 do baseline de segurança).
  */
 export type ContractorMailOutboundMessageRecord = {
+  /** Spec 150 T302: o HTML que a API gravou; `null` em mensagem antiga, que sai só em texto. */
+  readonly bodyHtml: string | null
   readonly bodyText: string
   readonly subject: string
   readonly threadId: string
@@ -69,6 +71,7 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
     async findMessageById({ companyId, messageId }) {
       const [row] = await database
         .select({
+          bodyHtml: contractorMailMessages.bodyHtml,
           bodyText: contractorMailMessages.bodyText,
           subject: contractorMailMessages.subject,
           threadId: contractorMailMessages.threadId,

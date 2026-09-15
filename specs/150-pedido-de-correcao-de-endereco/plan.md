@@ -71,6 +71,22 @@ salvar de novo atualiza esse rascunho. O CHECK de `contractor_mail_threads.subje
   `email-template.html`.
 - A mensagem guarda `html` ao lado do `text`. O gateway do Resend no worker passa a enviar os dois,
   e hoje ele só manda `text:`.
+- **Decisão da T302** (parecer do architect em 2026-09-15, aprovado com ajustes):
+  - **Um e-mail só**, com todos os contatos marcados no `to`, e não um envio por contato. O
+    `Reply-To` sai da conversa, então a resposta de qualquer contato cai nela; `provider_email_id` e
+    `Idempotency-Key` continuam um por mensagem. Os contatos se veem, o que é aceitável: são da
+    mesma contratante. Serve também à 143 T015.
+  - **Limite:** 50 destinatários por e-mail, conferido na documentação do Resend (`POST /emails`,
+    `to` com no máximo 50). Vira a constante `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, cobrada no Zod
+    da API (`contactIds.max(50)`) e de novo no gateway, que recusa sem chamar a rede.
+  - **HTML gravado pela API**, na coluna nova `contractor_mail_messages.body_html text NULL`
+    (migration aditiva), com CHECK de `direction = 'outbound'` e teto de 512 KiB. Nunca montado no
+    worker: o registro append-only guarda o que foi de fato enviado, e o modelo não se duplica
+    entre apps. A cópia do schema no worker ganha a coluna.
+  - **Retrocompatível:** a fila continua levando só `{ messageId }`. Uma mensagem antiga, sem
+    `body_html`, sai só em texto, e o `setup_test` não muda.
+  - **Endereços:** só os `email` de contatos ativos, buscados por id **e** `companyId`, sem
+    repetição, recusando `\r`, `\n`, `,`, `<` e `>`.
 - O relatório (`drizzle-address-report.repository.ts`) passa a trazer `recipientName`, o
   `legal_name` do participante destinatário da nota mais recente da chave, pela mesma escolha que
   já faz para o emitente.

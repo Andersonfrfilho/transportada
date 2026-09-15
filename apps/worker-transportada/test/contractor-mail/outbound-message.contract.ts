@@ -8,6 +8,7 @@ import {
   type SendContractorMailOutboundMessageDependencies,
 } from '../../src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import {
+  ResendInvalidRecipientsError,
   ResendProviderUnauthorizedError,
   ResendProviderUnreachableError,
 } from '../../src/contractor-mail/domain/resend-provider.error.js'
@@ -26,6 +27,7 @@ const SETTINGS_ID = crypto.randomUUID()
 const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 
 const MESSAGE: ContractorMailOutboundMessageRecord = {
+  bodyHtml: null,
   bodyText: 'Este é um e-mail de teste.',
   subject: 'Teste de configuração de e-mail com contratantes',
   threadId: THREAD_ID,
@@ -133,7 +135,7 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
       idempotencyKey: MESSAGE_ID,
       subject: 'Teste de configuração de e-mail com contratantes',
       text: 'Este é um e-mail de teste.',
-      to: 'admin@fernandes-transportadora.com.br',
+      to: ['admin@fernandes-transportadora.com.br'],
     })
     expect(requests[0]?.replyTo.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
     expect(sentCalls).toEqual([
@@ -186,7 +188,7 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
     expect(requests[0]?.replyTo).not.toBe(requests[1]?.replyTo)
   })
 
-  test('sends to the first (and only) recorded recipient, and uses the subject from the message row', async () => {
+  test('uses the subject from the message row', async () => {
     const requests: Parameters<
       SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
     >[0][] = []
@@ -206,8 +208,76 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
 
     expect(requests[0]).toMatchObject({
       subject: 'Assunto gravado na mensagem',
-      to: 'destinatario@example.com',
+      to: ['destinatario@example.com'],
     })
+  })
+
+  /** Spec 150 T302: um e-mail só, para todos os contatos, com o HTML e o texto gravados pela API. */
+  test('sends one mail to every recorded recipient, in order, with the recorded html and text', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      message: {
+        ...MESSAGE,
+        bodyHtml: '<p>Endereço a corrigir</p>',
+        bodyText: 'Endereço a corrigir',
+        toAddresses: ['primeiro@example.com', 'segundo@example.com', 'terceiro@example.com'],
+      },
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.to).toEqual([
+      'primeiro@example.com',
+      'segundo@example.com',
+      'terceiro@example.com',
+    ])
+    expect(requests[0]?.html).toBe('<p>Endereço a corrigir</p>')
+    expect(requests[0]?.text).toBe('Endereço a corrigir')
+  })
+
+  test('a message without html sends text only, without the html key', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      message: { ...MESSAGE, bodyHtml: null },
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0] !== undefined && 'html' in requests[0]).toBe(false)
+  })
+
+  test('a recipient repeated with different case is sent only once, lowercased, in first-seen order', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      message: {
+        ...MESSAGE,
+        toAddresses: ['Contato@Example.com', 'outro@example.com', 'contato@example.com'],
+      },
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]?.to).toEqual(['contato@example.com', 'outro@example.com'])
   })
 
   /** RF7: resposta (e aqui, qualquer envio numa conversa com histórico) carrega In-Reply-To/References. */
@@ -246,6 +316,21 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
       reason: 'provider_unauthorized',
       threadId: THREAD_ID,
     })
+    expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
+    expect(sentCalls).toEqual([])
+  })
+
+  /** Spec 150 T302: destinatário que o gateway recusa não se conserta retentando — vira failed. */
+  test('a recipient list refused by the gateway marks the message failed and does not throw', async () => {
+    const { dependencies, failedCalls, sentCalls } = buildDependencies({
+      sendEmail: async () => {
+        throw new ResendInvalidRecipientsError()
+      },
+    })
+
+    const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(result).toEqual({ outcome: 'failed', reason: 'invalid_recipients', threadId: THREAD_ID })
     expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
     expect(sentCalls).toEqual([])
   })

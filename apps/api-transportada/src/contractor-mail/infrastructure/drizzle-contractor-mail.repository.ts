@@ -397,6 +397,7 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         .insert(contractorMailMessages)
         .values({
           actorUserId: input.actorUserId,
+          bodyHtml: input.bodyHtml ?? null,
           bodyText: input.bodyText,
           companyId: input.companyId,
           deliveryStatus: 'queued',

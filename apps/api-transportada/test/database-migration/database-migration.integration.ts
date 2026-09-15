@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
@@ -120,6 +121,12 @@ describe('Drizzle migration integration', () => {
           fixture: identityFixture,
         })
         await assertNfeDocumentProtocolPresence({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          fixture: identityFixture,
+        })
+        await assertContractorMailBodyHtml({
           connectionString,
           database,
           directories: migrationDirectories,

@@ -41,7 +41,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 - [x] **T301** CRUD de contatos da contratante, se a 143 T013 ainda estiver aberta; senão, marcar
       como feita por ela. Evidência: contratos de rota.
-- [ ] **T302** 🧠 O worker envia a todos os `toAddresses` e manda `html` e `text` juntos, com
+- [x] **T302** 🧠 O worker envia a todos os `toAddresses` e manda `html` e `text` juntos, com
       contrato que **falha** se só o primeiro destinatário receber ou se o HTML se perder.
       Coordenar com a 143 T015.
 - [ ] **T303** `buildAddressCorrectionMail`, função pura que devolve `{ subject, html, text }`

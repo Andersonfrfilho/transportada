@@ -670,3 +670,90 @@ Resultado: build concluído (`dist/` gerado, PWA `sw.js` gerado).
 - `apps/frontend-transportada/test/delivery-clients/contractor-contacts-validation.contract.ts` e
   `contractor-contacts-response.contract.ts` (novos)
 - `apps/frontend-transportada/test/delivery-clients.contract.test.ts` (import das suítes novas)
+
+## T302
+
+Desenho: `plan.md` § E-mail, "Decisão da T302" (parecer do architect de 2026-09-15). Um e-mail só,
+com todos os contatos no `to`; HTML gravado pela API em `contractor_mail_messages.body_html`; fila
+continua levando só `{ messageId }`.
+
+### Vermelho (testes escritos antes da implementação)
+
+```
+cd apps/worker-transportada && bun test ./test/contractor-mail.contract.test.ts
+```
+
+1. Sem a constante: `Cannot find module '../../src/contractor-mail/domain/contractor-mail.constant.js'`
+   — 0 pass, 1 fail.
+2. Com a constante e `ResendInvalidRecipientsError` criadas (esqueleto, sem comportamento):
+   **77 pass, 13 fail**. Os que falharam: `to` ainda string no caso de uso e no gateway; "sends one
+   mail to every recorded recipient, in order, with the recorded html and text"; deduplicação por
+   caixa; lista recusada pelo gateway vira `failed`; o corpo do POST com `to: [a,b,c]` e `html`; 51
+   endereços, lista vazia e os quatro endereços com `\n`, `\r`, `,`, `<>` chamando o `fetch`.
+
+```
+cd apps/api-transportada && bun test ./test/database-migration.contract.test.ts
+```
+
+`preserves baseline and identity bytes while versioning additive fiscal migrations` falhou (54 pass,
+1 fail): a lista explícita já tinha `20260915200000_contractor_mail_body_html` e a pasta não existia.
+
+### Verde
+
+- `bun test ./test/contractor-mail.contract.test.ts` (worker): **90 pass, 0 fail**.
+- `bun run --cwd apps/worker-transportada test`: **1344 pass, 0 fail** (89 arquivos).
+- `bun run --cwd apps/api-transportada test`: **5852 pass, 23 skip, 0 fail** (173 arquivos). Os 23
+  skips são as integrações que precisam de banco, rodadas à parte abaixo.
+- `bun run typecheck` (raiz): exit 0. `bun run lint` (raiz): exit 0.
+- `bun run db:generate --name tmp` gerou exatamente o `migration.sql` escrito à mão; o
+  `snapshot.json` foi movido para a pasta da migration e um `db:generate` seguinte respondeu
+  `no_changes`.
+
+Integração contra Postgres nativo `127.0.0.1:65433`:
+
+- Migrations da API, `DRIZZLE_TEST_DATABASE_URL=… bun --env-file=../../.env.test test
+./test/database-migration.contract.test.ts --timeout 120000`: 58 pass, 1 fail. A falha é a
+  conhecida e alheia `cte-profile-output-constraints` (Postgres 18 local devolve `23001` onde a
+  asserção espera `23503`), e ela vem **antes** da asserção nova na mesma sequência. Por isso a
+  `assertContractorMailBodyHtml` rodou também isolada, num runner temporário (apagado depois): banco
+  descartável, migrations, fixture de identidade e a asserção — **1 pass, 0 fail**. Ela prova:
+  coluna `NULL`; saída com HTML de 524288 bytes aceita; entrada com HTML recusada (`23514`,
+  `contractor_mail_messages_body_html_direction_check`); 524290 bytes recusados (`23514`,
+  `contractor_mail_messages_body_html_size_check`); rollback tira a coluna e a linha do journal; as
+  migrations reaplicam.
+- Outbox do worker, `DATABASE_URL=…/worker_t302 bun test
+./test/contractor-mail-outbound-outbox.integration.test.ts --timeout 120000` (banco novo `worker_t302`
+  criado e migrado para isso): o teste novo "sends the recorded body_html and every recipient to the
+  mail gateway" **passa**: o `body_html` gravado no banco e os três destinatários chegam ao gateway
+  fake. Os dois testes de reivindicação (`claims a due unpublished row…` e `does not let a second
+claim…`) **falham também na versão do HEAD** do arquivo, contra o mesmo banco. É anterior a esta
+  task e não vem de acúmulo, porque são 6 linhas não publicadas para um `limit: 10`. Fica registrado
+  e sem investigação aqui. O teste novo não grava linha de outbox (`withOutbox: false`), então não
+  disputa essas reivindicações.
+
+### Arquivos alterados
+
+- `apps/api-transportada/drizzle/20260915200000_contractor_mail_body_html/` (novo: `migration.sql`,
+  `rollback.sql`, `snapshot.json`)
+- `apps/api-transportada/src/database/contractor-mail.schema.ts` (`bodyHtml` + duas CHECKs)
+- `apps/api-transportada/src/contractor-mail/domain/contractor-mail.constant.ts` (novo,
+  `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`)
+- `apps/api-transportada/src/contractor-mail/application/contractor-mail.port.ts` e
+  `infrastructure/drizzle-contractor-mail.repository.ts` (`bodyHtml` opcional; `setup_test` grava `null`)
+- `apps/api-transportada/test/database-migration/contractor-mail-body-html.assertion.ts` (novo),
+  `database-migration.integration.ts` e `static-migration.contract.ts`
+- `apps/worker-transportada/src/database/contractor-mail.schema.ts` (cópia ganha `bodyHtml`)
+- `apps/worker-transportada/src/contractor-mail/domain/contractor-mail.constant.ts` (novo) e
+  `resend-provider.error.ts` (`ResendInvalidRecipientsError`)
+- `apps/worker-transportada/src/contractor-mail/infrastructure/resend-mail.gateway.ts` (`to` como
+  lista, `html` opcional, recusa antes da rede)
+- `apps/worker-transportada/src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.ts`
+  (`findMessageById` traz `bodyHtml`)
+- `apps/worker-transportada/src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.ts`
+  (sem `toAddresses[0]`; todos, deduplicados em minúsculas, na ordem; lista recusada vira `failed`)
+- `apps/worker-transportada/test/contractor-mail/outbound-message.contract.ts`,
+  `resend-mail-gateway.contract.ts`, `outbound-consumer.contract.ts`,
+  `max-recipients-parity.contract.ts` (novo), `test/contractor-mail.contract.test.ts` e
+  `test/contractor-mail-outbound-outbox.integration.test.ts`
+- `docs/SECURITY.md`, `specs/143-a-contratante-responde-por-e-mail/tasks.md` (nota na T015),
+  `specs/150-pedido-de-correcao-de-endereco/plan.md` (decisão da T302) e `tasks.md`

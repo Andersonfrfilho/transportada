@@ -84,6 +84,9 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 - [ ] **T015** `send-occurrence-mail.use-case.ts` e `reply-to-thread.use-case.ts`, com o outbox na
       mesma transação. O corpo reaproveita o texto de `renderEmail` da 079. Evidência: teste de caso
       de uso.
+      _Nota (spec 150 T302):_ o worker já envia um e-mail só a todos os `to_addresses` (até 50) e
+      manda `html` (`contractor_mail_messages.body_html`, gravado pela API) junto com o `text`. Falta
+      aqui o caso de uso da ocorrência, que grava a mensagem.
 - [ ] **T016** Rotas `POST /trip-stop-occurrences/:id/mail`, `POST /mail-threads/:id/messages` e
       `GET /mail-threads`, com `trip.manage`, mais a linha em `test/separator-role.contract.test.ts`
       (o separador **não** alcança). Evidência: contratos de rota.

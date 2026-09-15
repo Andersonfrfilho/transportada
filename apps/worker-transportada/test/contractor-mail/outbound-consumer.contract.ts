@@ -94,6 +94,7 @@ function buildDependenciesStub(
       },
       async findMessageById() {
         return {
+          bodyHtml: null,
           bodyText: 'corpo',
           subject: 'Teste de configuração de e-mail com contratantes',
           threadId: THREAD_ID,

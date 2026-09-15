@@ -93,6 +93,10 @@ cliente aprovou". O mesmo raciocínio do rascunho da spec 070.
 **O que limita o estrago:** o corpo nunca entra em log (há contrato por texto de fonte), o bucket é
 privado, e as mensagens são filtradas por `company_id`.
 
+`contractor_mail_messages.body_html` (spec 150 T302, só em mensagens de saída, teto de 512 KiB) tem
+o mesmo tratamento de `body_text`: fora de log, filtrado por `company_id`, e com a mesma retenção
+ainda por decidir.
+
 **O que falta:** decidir a retenção. Uma saída possível é descartar o corpo das mensagens que **não**
 decidiram nada depois de um prazo e manter só as que decidiram.
 

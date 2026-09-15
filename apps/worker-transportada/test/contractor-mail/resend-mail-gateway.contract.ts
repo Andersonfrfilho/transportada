@@ -3,16 +3,28 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../../src/contractor-mail/domain/contractor-mail.constant.js'
 import { createResendMailGateway } from '../../src/contractor-mail/infrastructure/resend-mail.gateway.js'
 import {
   ResendDownloadHostNotAllowedError,
   ResendDownloadRedirectBlockedError,
   ResendDownloadTooLargeError,
+  ResendInvalidRecipientsError,
   ResendProviderUnexpectedResponseError,
   ResendProviderUnreachableError,
 } from '../../src/contractor-mail/domain/resend-provider.error.js'
 
 const API_KEY = 're_synthetic_key'
+
+const SEND_INPUT = {
+  apiKey: API_KEY,
+  from: 'resposta@fernandes-transportadora.com.br',
+  headers: {},
+  idempotencyKey: 'message-id-43',
+  replyTo: 'abc123@resposta.fernandes-transportadora.com.br',
+  subject: 'Correção de endereço',
+  text: 'Corpo em texto',
+} as const
 const EMAILS_TARGET = 'https://api.resend.com/emails'
 
 type Call = { readonly body: unknown; readonly init: RequestInit; readonly target: string }
@@ -71,7 +83,7 @@ describe('resend mail gateway (spec 143 T007)', () => {
       replyTo: 'abc123@resposta.fernandes-transportadora.com.br',
       subject: 'Ocorrência de entrega',
       text: 'Corpo da mensagem',
-      to: 'contratante@exemplo.com.br',
+      to: ['contratante@exemplo.com.br'],
     })
 
     expect(result).toEqual({ id: 'email-id-1' })
@@ -106,10 +118,76 @@ describe('resend mail gateway (spec 143 T007)', () => {
         replyTo: 'abc123@resposta.fernandes-transportadora.com.br',
         subject: 'assunto',
         text: 'corpo',
-        to: 'contratante@exemplo.com.br',
+        to: ['contratante@exemplo.com.br'],
       }),
     ).rejects.toBeInstanceOf(ResendProviderUnreachableError)
   })
+
+  /** Spec 150 T302: um POST só, com todos os destinatários no `to` e o HTML ao lado do texto. */
+  test('sends every recipient in one request, with html and text together', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-3' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+    await gateway.sendEmail({
+      ...SEND_INPUT,
+      html: '<p>Corpo em HTML</p>',
+      to: ['a@exemplo.com.br', 'b@exemplo.com.br', 'c@exemplo.com.br'],
+    })
+
+    expect(stub.calls).toHaveLength(1)
+    expect(stub.calls[0]?.body).toEqual({
+      from: SEND_INPUT.from,
+      headers: {},
+      html: '<p>Corpo em HTML</p>',
+      reply_to: SEND_INPUT.replyTo,
+      subject: SEND_INPUT.subject,
+      text: SEND_INPUT.text,
+      to: ['a@exemplo.com.br', 'b@exemplo.com.br', 'c@exemplo.com.br'],
+    })
+  })
+
+  test('refuses more recipients than the limit without touching the network', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-4' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+    const tooMany = Array.from(
+      { length: CONTRACTOR_MAIL_MAX_RECIPIENTS + 1 },
+      (_, index) => `contato${index}@exemplo.com.br`,
+    )
+
+    expect(tooMany).toHaveLength(51)
+    await expect(gateway.sendEmail({ ...SEND_INPUT, to: tooMany })).rejects.toBeInstanceOf(
+      ResendInvalidRecipientsError,
+    )
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test('refuses an empty recipient list without touching the network', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-5' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+    await expect(gateway.sendEmail({ ...SEND_INPUT, to: [] })).rejects.toBeInstanceOf(
+      ResendInvalidRecipientsError,
+    )
+    expect(stub.calls).toHaveLength(0)
+  })
+
+  test.each([
+    'contato@exemplo.com.br\nBcc: intruso@exemplo.com',
+    'contato@exemplo.com.br\r',
+    'um@exemplo.com.br, dois@exemplo.com.br',
+    'Nome <contato@exemplo.com.br>',
+  ])(
+    'refuses a recipient carrying a header or list separator without touching the network',
+    async (address) => {
+      const stub = fakeFetch(async () => json({ id: 'email-id-6' }))
+      const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+      await expect(
+        gateway.sendEmail({ ...SEND_INPUT, to: ['ok@exemplo.com.br', address] }),
+      ).rejects.toBeInstanceOf(ResendInvalidRecipientsError)
+      expect(stub.calls).toHaveLength(0)
+    },
+  )
 
   test('fetches the received email and validates it against the schema', async () => {
     const stub = fakeFetch(async () => json(RECEIVED_EMAIL_BODY))

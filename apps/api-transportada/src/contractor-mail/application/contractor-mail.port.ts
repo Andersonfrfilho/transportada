@@ -125,6 +125,8 @@ export type ReserveContractorMailSetupTestThreadResult = {
  */
 export type RecordContractorMailTestEmailInput = {
   readonly actorUserId: string
+  /** Spec 150 T302: o `setup_test` não manda; ausente grava `null` e o e-mail sai só em texto. */
+  readonly bodyHtml?: string
   readonly bodyText: string
   readonly companyId: string
   readonly correlationId: string

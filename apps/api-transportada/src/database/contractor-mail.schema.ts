@@ -282,6 +282,11 @@ export const contractorMailMessages = pgTable(
      */
     toAddresses: text('to_addresses').array().notNull(),
     bodyText: text('body_text').notNull(),
+    /**
+     * Spec 150 T302: o HTML do e-mail de saída, montado aqui e nunca no worker — o registro guarda o
+     * que foi de fato enviado. `null` em mensagem antiga e em `setup_test`, que saem só em texto.
+     */
+    bodyHtml: text('body_html'),
     rawObjectId: uuid('raw_object_id'),
     rawSha256: text('raw_sha256'),
     providerEmailId: text('provider_email_id'),
@@ -376,6 +381,14 @@ export const contractorMailMessages = pgTable(
     check(
       'contractor_mail_messages_to_addresses_check',
       sql`array_length(${table.toAddresses}, 1) > 0`,
+    ),
+    check(
+      'contractor_mail_messages_body_html_direction_check',
+      sql`${table.bodyHtml} is null or ${table.direction} = 'outbound'`,
+    ),
+    check(
+      'contractor_mail_messages_body_html_size_check',
+      sql`octet_length(${table.bodyHtml}) <= 524288`,
     ),
   ],
 )
