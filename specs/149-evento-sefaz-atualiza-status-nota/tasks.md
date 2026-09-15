@@ -105,22 +105,13 @@ solicitante e snapshot — `t3-parecer-architect.md` A5/A6) → H2' → H3 → H
 
 > 🤖 Modelo: `opus` 🧠
 
-- [ ] T6 🧠 — **Antes de escrever código, perguntar ao usuário** se quer o backfill e por qual fonte:
-      (a) só eventos gravados depois do deploy (têm `status_code`) ou (b) reler o XML dos eventos
-      antigos no storage para obter o `cStat`. Medir no banco de staging quantas notas `authorized` têm
-      evento 110111/110112 em `nfe_events` (consulta só de leitura) e levar o número. Se aprovado: rotina
-      one-shot idempotente, por empresa, que usa `applyStatusChange`; teste de integração; roda só com
-      aprovação humana por ambiente.
+- [x] T6 🧠 — **Decisão do usuário: sem backfill automático** (2026-09-15). Notas antigas com cancelamento em `nfe_events` continuam como estão; só eventos novos mudam status após deploy desta spec. Justificativa: cancelamentos antigos já foram informados — CT-e ou viagem podem estar emitidas. Registrado em `evidence.md` § T6.
 
 ## Fase 5 — Documentação
 
 > 🤖 Modelo: `haiku`
 
-- [ ] T7 — Atualizar `docs/spec/fiscal-integration.md` (seção "Eventos que mudam a situação da NF-e"),
-      `apps/worker-transportada/CLAUDE.md` (invariante: status da nota só muda pela política, com lock por
-      chave, nunca rebaixa), `docs/ai-context/worker-transportada.md` e `docs/ai-context/api-transportada.md`.
-      Registrar os follow-ups (CC-e aplicada/visível, alerta ativo, MDF-e/fatura sobre nota cancelada) em
-      `evidence.md`. Fechar `evidence.md`.
+- [x] T7 — Documentação conforme evidence.md § T7: `docs/spec/fiscal-integration.md` (seção "Eventos que mudam a situação da NF-e"), `apps/worker-transportada/CLAUDE.md` (invariante de lock e status), `apps/api-transportada/CLAUDE.md` (endpoint e CHECK), `docs/ai-context/worker-transportada.md` e `docs/ai-context/api-transportada.md`. Follow-ups: CC-e aplicada, alerta ativo, MDF-e/fatura sobre nota cancelada, teste de CNPJ alfanumérico.
 
 ## Prompt de execução
 

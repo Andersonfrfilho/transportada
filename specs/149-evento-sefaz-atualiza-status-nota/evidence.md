@@ -905,3 +905,65 @@ em `test/cte-batch-application/list-items.contract.ts` (`GROUPED_ITEM`, `PENDING
 - `bun run --cwd apps/frontend-transportada build` → sucesso (PWA gerado, 128 entradas de precache).
 - Prettier `--check` nos arquivos tocados → limpo, sem `--write`.
 - Marcado no `tasks.md`: T5 concluída (API + tela).
+
+## T6 — Backfill das notas já gravadas · 2026-09-15
+
+**Decisão do usuário:** sem backfill. As notas antigas que ficaram com status `authorized` enquanto têm eventos de cancelamento em `nfe_events` continuarão como estão. A política de status (T2/T3) só aplica a eventos **novos**, que chegam depois do deploy desta spec.
+
+Justificativa: cancelamentos antigos já foram informados ao cliente no período — a conta de frete foi negociada, pode ter CT-e ou viagem já emitida, ou estar em contexto regulatório que não permite "desfazer"; religar o status automaticamente criaria corridas de atualização sem aviso explícito. Se a transportadora quer sincronizar, roda a rotina one-shot com aprovação (T6 descrita em tasks.md e plan.md).
+
+**Marcado em tasks.md:** [ ] T6 — pulada por decisão do usuário (2026-09-15, sem backfill automático).
+
+## T7 — Documentação · 2026-09-15
+
+Conforme tasks.md § "Fase 5 — Documentação", atualizadas as seguintes seções:
+
+### `docs/spec/fiscal-integration.md`
+
+Nova seção "Eventos que mudam a situação da NF-e" (D1–D3, D4, D14–D18 da spec 149):
+
+- Tipos de evento que mudam status: `110111` (cancelamento) e `110112` (cancelamento por substituição) para `cancelled`; outros tipos (CC-e `110110`, manifestação `210200`, EPEC, prorrogação) não alteram.
+- Validade: `cStat` (`statusCode`) deve estar em `{135, 136, 155}` — eventos sem `statusCode` ou com código fora do conjunto não aplicam e geram `warn nfe_event_status_not_applied`.
+- Resumo (`resNFe` da distribuição, `cSitNFe`): `'2'` → `cancelled`, `'3'` → `denied` (só a partir de `unsigned`); `'1'` nunca rebaixa, fora do conjunto sem efeito.
+- Máquina de estados: `authorized` e `unsigned` → `cancelled` | `unsigned` → `denied`; `cancelled` e `denied` são terminais.
+- Lock por chave para evitar corrida entre nota e evento (D8).
+- Evento que chega antes da nota deixa a nota já `cancelled` no insert (D5).
+- CC-e não toca a nota nem `updated_at` (D6).
+- Histórico de eventos: origem (`manual`/`automatic`), ator/solicitante, snapshot anterior/novo, protocolo, texto da CC-e, registrado conforme D14–D18.
+- Endpoint: `GET /v1/nfe-documents/:id/events` (D19), permissão `invoices.read`, cursor por `(registered_at, id)`, resposta sem XML nem chave de storage; acesso entre empresas retorna 404.
+
+### `apps/worker-transportada/CLAUDE.md`
+
+Invariante adicionada na seção "Invariantes que valem antes de editar":
+
+- **Status de nota só muda pela política `nfe-document-status-transition.policy.ts`, com lock por `(company_id, access_key)`, nunca rebaixa** — `cancelled` e `denied` são terminais. Eventos `110111`/`110112` com `cStat` em `{135, 136, 155}` cancelsm; resumo `cSitNFe '2'` cancela, `'3'` denega apenas de `unsigned`. O lock é `pg_advisory_xact_lock(hashtextextended('nfe-document-status:<empresa>:<chave>', 0))`, tomado antes de toda leitura/escrita de status ou evento de chave da empresa. `updated_at` só se move quando o status muda (`UPDATE` retorna 1 linha). Detalhe: spec 149 (D1–D9, D14–D18), `t3-parecer-architect.md` (A1–A7).
+
+### `apps/api-transportada/CLAUDE.md`
+
+Adicionada documentação do endpoint:
+
+- **Endpoint `GET /v1/nfe-documents/:id/events` (spec 149 D19):** permissão `invoices.read`, retorna cursorpage de eventos e mudanças de status (`{ data: [...], pagination: { nextCursor } }`). Origem (`manual`/`automatic`), ator/solicitante e snapshot gravados. Acesso entre empresas (nota de outra empresa) retorna **404**. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida" e "status anterior não registrado". Ator sem membership ativa na empresa devolve `{ removed: true }` sem id/nome. Nome e texto de CC-e nunca em log.
+- **CHECK `nfe_documents_authorization_protocol_presence_check`** (migration H1b): exige protocolo só da nota `authorized` (`("status" <> 'authorized') or ("authorization_protocol" is not null)`), permitindo `unsigned`/`cancelled`/`denied` sem protocolo (D4, para a nota `unsigned` poder ser cancelada ou denegada no mesmo insert).
+
+### `docs/ai-context/worker-transportada.md`
+
+Referência adicionada na seção sobre invariantes:
+
+- A política de transição de status do NF-e vive em `src/nfe-documents/domain/nfe-document-status-transition.policy.ts`. Eventos `110111`/`110112` com `cStat 135/136/155` cancelam; `cSitNFe 2` cancela, `3` denega (`unsigned` só). Os dois trilhos (importação de XML e distribuição) executam `applyStatusChange` sob lock por chave. Detalhe: spec 149 (D1–D9), `t3-parecer-architect.md` (A1–A7).
+
+### `docs/ai-context/api-transportada.md`
+
+Referência adicionada na seção sobre NF-e/viagem:
+
+- `GET /v1/nfe-documents/:id/events`: histórico de eventos e mudanças de status com origem, ator, snapshot, protocolo, texto da CC-e. Acesso 404 entre empresas. Ator removido aparece `{ removed: true }`. Detalhe: spec 149 (D13–D20).
+
+### Informações adicionais registradas
+
+- **Pacote fiscal:** subido de `0.3.0-rc.7` para `0.3.1` em worker e API (D18 — `NfeXmlEvent.correctionText` agora entregue). CNPJ alfanumérico suportado por `SefazTaxId.ts` (mudança aditiva de lógica; golden de numérico não muda um byte).
+- **Permissão:** `GET /nfe-documents/:id/events` usa `invoices.read` (a mesma do detalhe da nota).
+- **Resposta sem membership:** endpoint devolve `{ removed: true }` para ator/solicitante sem membership ativa (D16, H13).
+- **Follow-ups:**
+  - Aplicar conteúdo da CC-e na nota e mover `updated_at` por CC-e (D6, fora de escopo, será spec futura).
+  - Cancelar CT-e/MDF-e/NFS-e/fatura automaticamente quando nota for cancelada (D11, fora de escopo, por ser ação irreversível — operador decide).
+  - Alerta ativo por e-mail/WhatsApp/push (D12, alerta manual será a nota no topo da listagem com badge).
+  - Teste de fumaça com CNPJ alfanumérico em emissão de CT-e/MDF-e/NFS-e (H2', mudança do pacote é aditiva, caberia teste quando cliente tiver CNPJ alfanumérico).
