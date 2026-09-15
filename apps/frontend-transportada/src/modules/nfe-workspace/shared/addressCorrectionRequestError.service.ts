@@ -12,11 +12,18 @@ export type AddressCorrectionErrorDetail = Readonly<{
 
 export class AddressCorrectionRequestError extends Error {
   public readonly details: readonly AddressCorrectionErrorDetail[]
+  /** Spec 150, correção Fase 4, item 11: `Retry-After` do `429`, em segundos — `undefined` fora dele. */
+  public readonly retryAfterSeconds: number | undefined
 
-  public constructor(code: string, details: readonly AddressCorrectionErrorDetail[] = []) {
-    super(code)
+  public constructor(input: {
+    readonly code: string
+    readonly details?: readonly AddressCorrectionErrorDetail[]
+    readonly retryAfterSeconds?: number | undefined
+  }) {
+    super(input.code)
     this.name = 'AddressCorrectionRequestError'
-    this.details = details
+    this.details = input.details ?? []
+    this.retryAfterSeconds = input.retryAfterSeconds
   }
 }
 

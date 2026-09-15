@@ -564,6 +564,7 @@
           "templateMissing": "Não há modelo padrão de e-mail de correção de endereço. Cadastre um em E-mail com contratantes.",
           "templateNotUsable": "O modelo escolhido foi arquivado ou não está mais disponível. Escolha outro modelo.",
           "idempotencyReused": "Este envio já foi processado. Atualize a página antes de tentar de novo.",
+          "tooManyRequests": "Muitas tentativas de envio. Tente de novo em {{minutes}} min.",
           "generic": "Não foi possível enviar o pedido de correção."
         }
       }

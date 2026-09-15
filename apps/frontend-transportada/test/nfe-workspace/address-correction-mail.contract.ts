@@ -237,6 +237,11 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(addressCorrectionMailErrorMessageKey('IDEMPOTENCY_KEY_REUSED')).toBe(
       'addressReport.correction.mail.error.idempotencyReused',
     )
+    // Spec 150, correção Fase 4, item 11: TOO_MANY_REQUESTS (429 do limitador) tem chave própria,
+    // com {{minutes}} interpolado a partir do Retry-After.
+    expect(addressCorrectionMailErrorMessageKey('TOO_MANY_REQUESTS')).toBe(
+      'addressReport.correction.mail.error.tooManyRequests',
+    )
     expect(addressCorrectionMailErrorMessageKey('SOMETHING_ELSE')).toBe(
       'addressReport.correction.mail.error.generic',
     )

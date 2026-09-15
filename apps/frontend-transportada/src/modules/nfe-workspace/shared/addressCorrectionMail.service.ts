@@ -141,6 +141,8 @@ const MAIL_ERROR_MESSAGE_KEY: Readonly<Record<string, string>> = {
   /** `GET /contractors/by-tax-id/:taxId` recusa com este código, diferente do da própria rota de envio. */
   CONTRACTOR_NOT_FOUND: 'addressReport.correction.mail.error.contractorNotFound',
   IDEMPOTENCY_KEY_REUSED: 'addressReport.correction.mail.error.idempotencyReused',
+  /** Spec 150, correção Fase 4, item 11: a mensagem interpola `{{minutes}}` do Retry-After. */
+  TOO_MANY_REQUESTS: 'addressReport.correction.mail.error.tooManyRequests',
 }
 
 /** Código que esta versão não reconhece cai na mensagem genérica, nunca em branco. */

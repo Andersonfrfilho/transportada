@@ -390,6 +390,7 @@
           "templateMissing": "There is no default address correction e-mail template. Create one in Contractor e-mail.",
           "templateNotUsable": "The chosen template was archived or is no longer available. Pick another template.",
           "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
+          "tooManyRequests": "Too many send attempts. Try again in {{minutes}} min.",
           "generic": "Could not send the correction request."
         }
       }

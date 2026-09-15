@@ -117,10 +117,13 @@ describe('pedido de correção de endereço (spec 150, T201)', () => {
   })
 
   test('detalhes do erro do servidor viram mapa por campo, sem o prefixo proposed.', () => {
-    const error = new AddressCorrectionRequestError('INVALID_REQUEST', [
-      { field: 'proposed.postalCode', message: 'Invalid' },
-      { field: 'proposed.street', message: 'Invalid' },
-    ])
+    const error = new AddressCorrectionRequestError({
+      code: 'INVALID_REQUEST',
+      details: [
+        { field: 'proposed.postalCode', message: 'Invalid' },
+        { field: 'proposed.street', message: 'Invalid' },
+      ],
+    })
     expect(toFieldErrorMap(error)).toEqual({ postalCode: 'Invalid', street: 'Invalid' })
     expect(toInvalidFieldNames(error)).toEqual(['postalCode', 'street'])
   })
@@ -250,5 +253,39 @@ describe('pedido de correção de endereço (spec 150, T201)', () => {
     expect(error.message).toBe('INVALID_REQUEST')
     expect(toInvalidFieldNames(error)).toEqual(['postalCode', 'cityCode', 'somethingNew'])
     expect(fieldLabelKey('somethingNew')).toBeUndefined()
+  })
+
+  /**
+   * Spec 150, correção Fase 4, item 11: `POST /address-correction-requests/mail` é rota limitada
+   * (`rateLimit: { store: 'postgres', ... }`, `http.md` §RF18) — o `429` carrega `Retry-After` em
+   * segundos, e o client precisa expor esse valor para a tela mostrar "tente de novo em N min".
+   */
+  test('429 do limitador carrega o Retry-After no erro', async () => {
+    const client = createNfeWorkspaceClient({
+      apiUrl: 'https://api.example.test',
+      fetch: () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: { code: 'TOO_MANY_REQUESTS' } }), {
+            headers: { 'content-type': 'application/json', 'retry-after': '90' },
+            status: 429,
+          }),
+        ),
+      getAccessToken: () => Promise.resolve('synthetic-access-token'),
+    })
+
+    let caught: unknown
+    try {
+      await client.saveAddressCorrection({
+        addressKey: '3543402|14010100|533',
+        proposed: VALID_FIELDS,
+      })
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(AddressCorrectionRequestError)
+    const error = caught as AddressCorrectionRequestError
+    expect(error.message).toBe('TOO_MANY_REQUESTS')
+    expect(error.retryAfterSeconds).toBe(90)
   })
 })

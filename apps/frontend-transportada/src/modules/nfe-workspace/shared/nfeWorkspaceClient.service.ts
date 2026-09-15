@@ -3,6 +3,7 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import { readRetryAfterSecondsHeader } from '@/modules/shared/retryAfter.service'
 import {
   mapAddressCorrectionRequest,
   mapAddressCorrectionRequestList,
@@ -636,20 +637,21 @@ async function requestJsonWithDetails(
   try {
     response = await input.dependencies.fetch(request)
   } catch {
-    throw new AddressCorrectionRequestError('NFE_WORKSPACE_REQUEST_FAILED')
+    throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_REQUEST_FAILED' })
   }
   const rawBody = await response.text()
   let payload: unknown
   try {
     payload = rawBody.length === 0 ? undefined : (JSON.parse(rawBody) as unknown)
   } catch {
-    throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
   }
   if (!response.ok) {
-    throw new AddressCorrectionRequestError(
-      readErrorCode(payload) ?? 'NFE_WORKSPACE_REQUEST_FAILED',
-      readErrorDetails(payload),
-    )
+    throw new AddressCorrectionRequestError({
+      code: readErrorCode(payload) ?? 'NFE_WORKSPACE_REQUEST_FAILED',
+      details: readErrorDetails(payload),
+      retryAfterSeconds: readRetryAfterSecondsHeader(response.headers),
+    })
   }
   return payload
 }
@@ -803,7 +805,8 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: `/address-correction-requests/${encodeURIComponent(input.addressKey)}`,
     })
     const saved = mapAddressCorrectionRequest(envelopeData(response))
-    if (saved === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    if (saved === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     return saved
   },
   /**
@@ -824,7 +827,7 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
     })
     const recipients = mapAddressCorrectionRecipients(response)
     if (recipients === null) {
-      throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     }
     return recipients
   },
@@ -849,7 +852,8 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: '/address-correction-requests/mail',
     })
     const result = mapAddressCorrectionMailSendResult(response)
-    if (result === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    if (result === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     return result
   },
   async listAddressCorrectionMailTemplates() {
@@ -871,7 +875,8 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: '/contractor-mail-templates/preview',
     })
     const preview = mapAddressCorrectionMailTemplatePreview(response)
-    if (preview === null) throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+    if (preview === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     return preview
   },
   async downloadDocumentXml(input) {

@@ -63,6 +63,7 @@
     "sendingTestEmail": "Sending…",
     "testEmailSent": "Test email sent. The reply closes the pending items.",
     "testEmailError": "Could not send the test email: {{code}}",
+    "testEmailTooManyRequests": "Too many send attempts. Try again in {{minutes}} min.",
     "refreshChecks": "Check again",
     "sendReadiness": {
       "title": "Ready to send",

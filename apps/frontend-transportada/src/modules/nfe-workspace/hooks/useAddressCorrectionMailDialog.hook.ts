@@ -56,6 +56,11 @@ function readErrorCode(error: unknown): null | string {
   return error instanceof Error ? error.message : null
 }
 
+/** Spec 150, correção Fase 4, item 11: `Retry-After` do `429`, só quando o erro veio dele. */
+function readErrorRetryAfterSeconds(error: unknown): number | undefined {
+  return error instanceof AddressCorrectionRequestError ? error.retryAfterSeconds : undefined
+}
+
 /**
  * A confirmação do envio do pedido de correção (spec 150, T305): resolve o `contractorId` pelo
  * CNPJ, lista os contatos ativos, e envia com `Idempotency-Key` estável entre retries da mesma
@@ -141,7 +146,7 @@ export function useAddressCorrectionMailDialog() {
   const sendMutation = useMutation({
     mutationFn: () => {
       if (target === null) {
-        throw new AddressCorrectionRequestError('NFE_WORKSPACE_RESPONSE_INVALID')
+        throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
       }
       return client.sendAddressCorrectionMail({
         contactIds: selectedContactIds,
@@ -214,6 +219,9 @@ export function useAddressCorrectionMailDialog() {
       selectedContactCount: selectedContactIds.length,
     }),
     errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error),
+    errorRetryAfterSeconds: readErrorRetryAfterSeconds(
+      sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error,
+    ),
     isOpen,
     isSending: sendMutation.isPending,
     open,

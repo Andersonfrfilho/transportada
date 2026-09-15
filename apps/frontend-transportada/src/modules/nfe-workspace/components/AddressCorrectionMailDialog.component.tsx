@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { resolveRetryAfterMinutes } from '@/modules/shared/retryAfter.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
@@ -227,7 +228,12 @@ export function AddressCorrectionMailDialog({ dialog }: AddressCorrectionMailDia
 
         {dialog.errorCode === null ? null : (
           <p className={styles.mailWarning} role="alert">
-            {t(addressCorrectionMailErrorMessageKey(dialog.errorCode))}{' '}
+            {t(addressCorrectionMailErrorMessageKey(dialog.errorCode), {
+              minutes:
+                dialog.errorRetryAfterSeconds === undefined
+                  ? undefined
+                  : resolveRetryAfterMinutes(dialog.errorRetryAfterSeconds),
+            })}{' '}
             {hasConfigurationShortcut ? (
               <Button
                 size="sm"

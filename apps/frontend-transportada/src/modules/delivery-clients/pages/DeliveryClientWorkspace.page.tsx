@@ -12,6 +12,7 @@ import { resolveSettingsDataScope } from '@/modules/company-settings/shared/comp
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { ContractorContactsPanel } from '../components/ContractorContactsPanel.component'
+import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
 import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
@@ -45,6 +46,11 @@ export function readDeliveryClientTabFromLocation(): DeliveryClientTabId {
 /** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
 function toErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
+}
+
+/** Spec 150, correção Fase 4, item 11: `Retry-After` do `429` no envio de e-mail de teste. */
+function toRetryAfterSeconds(error: unknown): number | undefined {
+  return error instanceof ContractorMailSettingsRequestError ? error.retryAfterSeconds : undefined
 }
 
 /**
@@ -101,6 +107,9 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           saved={contractorMail.saveMutation.isSuccess}
           summary={contractorMail.settingsQuery.data}
           testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
+          testEmailErrorRetryAfterSeconds={toRetryAfterSeconds(
+            contractorMail.sendTestEmailMutation.error,
+          )}
           testEmailPending={contractorMail.sendTestEmailMutation.isPending}
           testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
         />

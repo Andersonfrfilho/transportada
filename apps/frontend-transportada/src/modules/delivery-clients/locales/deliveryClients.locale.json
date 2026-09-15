@@ -63,6 +63,7 @@
     "sendingTestEmail": "Enviando…",
     "testEmailSent": "E-mail de teste enviado. A resposta fecha os itens pendentes.",
     "testEmailError": "Não foi possível enviar o e-mail de teste: {{code}}",
+    "testEmailTooManyRequests": "Muitas tentativas de envio. Tente de novo em {{minutes}} min.",
     "refreshChecks": "Verificar de novo",
     "sendReadiness": {
       "title": "Pronto para enviar",
