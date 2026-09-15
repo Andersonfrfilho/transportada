@@ -64,6 +64,17 @@ salvar de novo atualiza esse rascunho. O CHECK de `contractor_mail_threads.subje
 - Invalidação por `invalidateMutationEffect`, e chaves de texto novas em
   `nfeWorkspace.locale.json`, acentuadas.
 
+## E-mail
+
+- `address-correction-mail.template.ts` (API): a função pura `buildAddressCorrectionMail(params)`
+  devolve `{ subject, html, text }`, com escape de HTML em todo valor interpolado. O desenho segue
+  `email-template.html`.
+- A mensagem guarda `html` ao lado do `text`. O gateway do Resend no worker passa a enviar os dois,
+  e hoje ele só manda `text:`.
+- O relatório (`drizzle-address-report.repository.ts`) passa a trazer `recipientName`, o
+  `legal_name` do participante destinatário da nota mais recente da chave, pela mesma escolha que
+  já faz para o emitente.
+
 ## Riscos
 
 - **Envio para vários destinatários:** sem isso, só um contato recebe. É a T302, e também é

@@ -8,9 +8,9 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T001** ⛔ Responder P1 do `spec.md` com o usuário: o modelo do e-mail. **Nada da Fase 3
-      começa sem isso.** (P2 decidida: unitário e completo, RF6a. P3 decidida: destinatários
-      escolhidos a cada envio, RF5a.)
+- [x] **T001** Decisões tomadas com o usuário em 2026-09-15: o e-mail pode ser unitário ou completo
+      (RF6a), os destinatários são escolhidos a cada envio (RF5a), e o texto e o desenho estão
+      aprovados (RF9–RF12, `email-template.html`).
 
 ## Fase 1 — O pedido guardado
 
@@ -22,6 +22,8 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       e a contratante é resolvida pelo CNPJ do emitente dentro da empresa do token.
 - [ ] **T103** `PUT` e `GET /address-correction-requests`, com a validação de CEP, UF e município e
       `details[]` por campo. O "como veio" é lido do banco. Evidência: contratos de rota.
+- [ ] **T104** O relatório expõe `recipientName` (RF11). Evidência: contrato do repositório e do
+      tipo de resposta.
 
 ## Fase 2 — O formulário na aba
 
@@ -39,12 +41,14 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 - [ ] **T301** CRUD de contatos da contratante, se a 143 T013 ainda estiver aberta; senão, marcar
       como feita por ela. Evidência: contratos de rota.
-- [ ] **T302** 🧠 O worker envia a todos os `toAddresses`, com contrato que **falha** se só o primeiro
-      receber. Coordenar com a 143 T015.
-- [ ] **T303** O modelo do e-mail definido na T001, em função TS pura, com contrato de texto:
-      endereço como veio, o proposto e o motivo, sempre os três.
+- [ ] **T302** 🧠 O worker envia a todos os `toAddresses` e manda `html` e `text` juntos, com
+      contrato que **falha** se só o primeiro destinatário receber ou se o HTML se perder.
+      Coordenar com a 143 T015.
+- [ ] **T303** `buildAddressCorrectionMail`, função pura que devolve `{ subject, html, text }`
+      seguindo `email-template.html`. Evidência: contrato de texto (como veio, correto e motivo
+      sempre presentes; assunto no singular e no plural; escape de `<`, `&` e `"` vindos da nota).
 - [ ] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,
-      `Idempotency-Key`, e recusa com código estável sem contratante ou sem contato ativo.
+      `Idempotency-Key`, e recusa com código estável sem contratante ou sem contato marcado.
       Evidência: contrato de caso de uso e de rota, e o contrato de que nenhum log leva PII.
 - [ ] **T305** Os dois botões: "Enviar este endereço" em cada item (unitário) e "Enviar todos" na
       contratante (completo), a mesma confirmação com os contatos marcáveis e a prévia, e a
@@ -54,7 +58,16 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 ## Prompt de execução
 
-Esta spec ainda tem `[NEEDS CLARIFICATION]` aberto (P1 do `spec.md`), então não tem prompt de
-autopilot. A pergunta pendente é:
-
-1. **P1** — Qual é o modelo do e-mail (assunto, abertura, formato da lista, assinatura)?
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/150-pedido-de-correcao-de-endereco/ (leia spec.md,
+plan.md, tasks.md e email-template.html antes de começar). Trabalhe num worktree próprio
+(make worktree NAME=spec-150). Uma task por vez, na ordem do tasks.md.
+Modelos: Fase 1 → executor model=sonnet · T102 🧠 → opus (contrato de tenant vermelho primeiro) ·
+Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet · T302 🧠 → opus (validar com
+architect antes, coordenando com a 143 T015) · revisão final → code-reviewer model=opus.
+Cada task fecha com bun run typecheck + testes da app (integração da API com
+bun --env-file=../../.env.test test --timeout 120000) + commit isolado, com evidência em evidence.md.
+Teste novo entra na lista do package.json.
+Pare e pergunte antes de: deploy em produção, migration destrutiva, e se a T301 esbarrar em
+trabalho em andamento da spec 143.
+```

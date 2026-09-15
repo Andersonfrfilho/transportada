@@ -58,7 +58,21 @@ próximas notas casarem.
   futura.
 - O portal do contratante corrigir por conta própria (084 T13/T14).
 
-## [NEEDS CLARIFICATION]
+## O e-mail
 
-- **P1** — O modelo do e-mail: assunto, abertura, como a lista de endereços aparece (tabela ou
-  blocos "como veio → correto") e assinatura. O usuário vai definir.
+Texto aprovado pelo usuário em 2026-09-15. O desenho de referência está em `email-template.html`,
+com dados fictícios.
+
+- **RF9** — O e-mail sai em **HTML com texto puro de reserva** (multipart): layout em tabela, estilo
+  inline, 600 px e as cores do produto. Os dois formatos saem da mesma função pura, a partir dos
+  mesmos dados.
+- **RF10** — Assunto: `Correção de endereço de entrega — {n} cliente(s)`. Abertura para a equipe da
+  contratante, depois um bloco por endereço, a assinatura com o nome do operador e da transportadora,
+  e o rodapé dizendo que as notas não foram alteradas.
+- **RF11** — Cada bloco traz o **nome do destinatário**, o endereço **como veio**, o **correto**
+  (destacado em verde) e o **motivo**, escrito para leigo: "endereço não localizado" ou "localizado
+  a X km do endereço informado". Para isso o relatório passa a expor o nome do destinatário da nota
+  mais recente de cada endereço.
+- **RF12** — Todo valor interpolado no HTML é escapado. Nome e endereço vêm de XML de terceiro.
+
+Nenhum `[NEEDS CLARIFICATION]` aberto.
