@@ -2,6 +2,8 @@
 import { addProtocol, setWorkerUrl, type StyleSpecification } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 
+import { MAP_BADGE_IDS } from './mapBadge.constant'
+
 /**
  * ⚠️ **O CSS do MapLibre vem daqui, não do componente.** Sem ele o contêiner do canvas não recebe
  * posicionamento, e todo marcador empilha **abaixo** do mapa em vez de flutuar sobre ele — medido, o
@@ -199,6 +201,14 @@ export function resolveBasemapTollColor(
   theme: BasemapTheme,
 ): string {
   return resolveToken(PALETTE[theme]?.rodovia ?? '--color-basemap-road-major')
+}
+
+/** A cor do radar (`troncal`), para o selo desenhado em tempo de execução seguir o tema do mapa. */
+export function resolveBasemapRadarColor(
+  resolveToken: (token: string) => string,
+  theme: BasemapTheme,
+): string {
+  return resolveToken(PALETTE[theme]?.troncal ?? '--color-basemap-road-trunk')
 }
 
 /**
@@ -560,27 +570,20 @@ export function buildBasemapStyle(
         minzoom: 11,
         layout: {
           /**
-           * Glifo, não emoji: `web.md` §9 proíbe emoji na UI de produto — aqui o desenho é o
-           * MapLibre em WebGL, sem `currentColor`, sem componente de ícone, e o próprio pino da
-           * parada e o resto deste estilo já resolvem por glifo de texto.
+           * O selo do pedágio: o ícone `invoice` do design system — o da linha de pedágio da conta —
+           * num quadrado com fundo e borda no tom da rodovia. O mapa o desenha no
+           * `styleimagemissing` (`mapBadgeImage.service.ts`); emoji segue fora (`web.md` §9).
            */
-          'text-field': '●',
-          'text-font': [FONT_STACK],
-          'text-size': 10,
-          'text-allow-overlap': true,
-        },
-        paint: {
-          /** Mesma cor da via com pedágio (`rodovia`) — pedágio é uma linguagem visual só. */
-          'text-color': rodovia,
-          'text-halo-color': terra,
-          'text-halo-width': 1.4,
+          'icon-image': MAP_BADGE_IDS.toll,
+          'icon-allow-overlap': true,
         },
       },
       /**
        * ⚠️ Feature 089 (fase 2) — vem do arquivo separado (`RADAR_SOURCE`), nunca do basemap: o
        * esquema OpenMapTiles não tem `speed_camera`. Zoom 8, a vista do roteiro inteiro — o mesmo
-       * `min_zoom` do `overlay.yml`: em 11 a rota abria sem radar nenhum. Glifo **diferente** da
-       * cabine de pedágio (▲, não ●) — as duas linguagens visuais não podem se confundir na tela.
+       * `min_zoom` do `overlay.yml`: em 11 a rota abria sem radar nenhum. Selo **diferente** do da
+       * cabine de pedágio — câmera num círculo, não recibo num quadrado —, porque as duas linguagens
+       * visuais não podem se confundir na tela.
        */
       {
         id: 'radar',
@@ -589,27 +592,33 @@ export function buildBasemapStyle(
         'source-layer': 'radar',
         minzoom: RADAR_MIN_ZOOM,
         layout: {
+          'icon-image': MAP_BADGE_IDS.radar,
+          /** Menor na vista da rota inteira, onde os radares se acumulam; inteiro de perto. */
+          'icon-size': ['interpolate', ['linear'], ['zoom'], RADAR_MIN_ZOOM, 0.6, 12, 1],
+          'icon-allow-overlap': true,
           /**
-           * Feature 096 T5 — a velocidade permitida ao lado do triângulo.
+           * Feature 096 T5 — a velocidade permitida ao lado do selo.
            *
            * ⚠️ **`maxspeed:hgv` vence quando existir.** Em rodovia brasileira o limite do caminhão é
            * menor que o do carro, e quem lê este mapa opera frota: mostrar o limite do carro seria
            * mostrar o número errado para o único leitor que existe. Medido: 12 radares o declaram.
            *
-           * ⚠️ **Radar sem `maxspeed` fica só com o triângulo.** Medido: 89 dos 527 não têm a tag.
+           * ⚠️ **Radar sem `maxspeed` fica só com o selo.** Medido: 89 dos 527 não têm a tag.
            * Imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
            * obedece — e o radar existe mesmo quando ninguém mapeou o limite dele.
            */
           'text-field': [
             'case',
             ['has', 'maxspeed_hgv'],
-            ['concat', '▲ ', ['get', 'maxspeed_hgv']],
+            ['get', 'maxspeed_hgv'],
             ['has', 'maxspeed'],
-            ['concat', '▲ ', ['get', 'maxspeed']],
-            '▲',
+            ['get', 'maxspeed'],
+            '',
           ],
           'text-font': [FONT_STACK],
-          'text-size': 9,
+          'text-size': 10,
+          'text-anchor': 'left',
+          'text-offset': [1.1, 0],
           'text-allow-overlap': true,
         },
         paint: {

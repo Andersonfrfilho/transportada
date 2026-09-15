@@ -13,6 +13,7 @@ import {
   buildBasemapStyle,
   resolveBasemapOutline,
 } from '@/modules/shared/vectorBasemap.service'
+import { MAP_BADGE_IDS } from '@/modules/shared/mapBadge.constant'
 
 /** A validação é da **forma** do estilo; a paleta real é resolvida no documento, que aqui não há. */
 const resolveToken = (token: string): string => `#${token.length.toString(16).padStart(6, '0')}`
@@ -159,10 +160,11 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
   })
 
   /** As 16 cabines medidas na região vêm como `poi`/`toll_booth` — nunca uma camada própria. */
-  it('marca a cabine de pedágio', () => {
+  it('marca a cabine de pedágio com o selo de pedágio', () => {
     const layer = symbolLayerById('claro', 'cabine-de-pedagio')
     expect(layer['source-layer']).toBe('poi')
     expect(layer.filter).toEqual(['==', ['get', 'subclass'], 'toll_booth'])
+    expect(layer.layout?.['icon-image']).toBe(MAP_BADGE_IDS.toll)
   })
 })
 
@@ -229,19 +231,21 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
    * obedece, e o radar existe mesmo quando ninguém mapeou o limite dele.
    */
   it('desenha o radar sem número quando o mapa não sabe a velocidade', () => {
-    const field = symbolLayerById('claro', 'radar').layout?.['text-field']
+    const layer = symbolLayerById('claro', 'radar')
+    const field = layer.layout?.['text-field']
 
+    expect(layer.layout?.['icon-image']).toBe(MAP_BADGE_IDS.radar)
     expect(Array.isArray(field)).toBe(true)
     expect((field as unknown[])[0]).toBe('case')
-    /** O último ramo do `case` é o padrão: o glifo sozinho, sem `concat` de velocidade nenhuma. */
-    expect((field as unknown[]).at(-1)).toBe('▲')
+    /** O último ramo do `case` é o padrão: texto vazio — o selo sozinho, sem número inventado. */
+    expect((field as unknown[]).at(-1)).toBe('')
   })
 
-  /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo glifo. */
-  it('usa um glifo diferente do da cabine de pedágio', () => {
+  /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo selo. */
+  it('usa um selo diferente do da cabine de pedágio', () => {
     const radar = symbolLayerById('claro', 'radar')
     const cabine = symbolLayerById('claro', 'cabine-de-pedagio')
-    expect(radar.layout?.['text-field']).not.toEqual(cabine.layout?.['text-field'])
+    expect(radar.layout?.['icon-image']).not.toEqual(cabine.layout?.['icon-image'])
   })
 })
 
