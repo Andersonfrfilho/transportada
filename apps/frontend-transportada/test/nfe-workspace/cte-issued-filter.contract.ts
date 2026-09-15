@@ -8,6 +8,7 @@ import {
   evaluateAdvancedFilter,
   hasAnyActiveFilter,
   isCteIssued,
+  isDocumentLinked,
 } from '../../src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
 import type {
   AdvancedFilterModel,
@@ -73,15 +74,36 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
 const PENDING_DOCUMENT = buildDocument({ cteBlockReason: null, id: 'pending-1' })
 const ISSUED_DOCUMENT = buildDocument({ cteBlockReason: ALREADY_LINKED, id: 'issued-1' })
 const BLOCKED_BY_DATA_DOCUMENT = buildDocument({ cteBlockReason: MISSING_DATA, id: 'blocked-1' })
+const NFSE_LINKED_DOCUMENT = buildDocument({ id: 'nfse-1', nfseInvoiceId: 'nfse-invoice-1' })
 
 function withCteIssued(value: string): DocumentFilters {
-  return { ...EMPTY_FILTERS, select: { ...EMPTY_FILTERS.select, cteIssued: value } }
+  return {
+    ...EMPTY_FILTERS,
+    select: { ...EMPTY_FILTERS.select, cteIssued: value },
+    unlinkedOnly: false,
+  }
 }
 
 describe('cte issued filter contract', () => {
-  test('offers the three documented values and defaults to notas sem CT-e', () => {
+  test('offers the documented values and leaves the default to the unlinked-only checkbox', () => {
     expect(CTE_ISSUED_FILTER_VALUES).toEqual(['pending', 'issued'])
-    expect(EMPTY_FILTERS.select.cteIssued).toBe('pending')
+    expect(EMPTY_FILTERS.select.cteIssued).toBe('')
+    expect(EMPTY_FILTERS.unlinkedOnly).toBe(true)
+  })
+
+  test('reads the nota as linked when it has a live CT-e or any NFS-e', () => {
+    expect(isDocumentLinked(ISSUED_DOCUMENT)).toBe(true)
+    expect(isDocumentLinked(NFSE_LINKED_DOCUMENT)).toBe(true)
+    expect(isDocumentLinked(PENDING_DOCUMENT)).toBe(false)
+    expect(isDocumentLinked(BLOCKED_BY_DATA_DOCUMENT)).toBe(false)
+  })
+
+  test('hides the notas with NFS-e by default and shows them once unchecked', () => {
+    expect(documentMatchesSimpleMode(NFSE_LINKED_DOCUMENT, EMPTY_FILTERS, null)).toBe(false)
+    const withLinked = { ...EMPTY_FILTERS, unlinkedOnly: false }
+    expect(documentMatchesSimpleMode(NFSE_LINKED_DOCUMENT, withLinked, null)).toBe(true)
+    expect(documentMatchesSimpleMode(ISSUED_DOCUMENT, withLinked, null)).toBe(true)
+    expect(hasAnyActiveFilter(withLinked)).toBe(true)
   })
 
   test('reads the CT-e as issued only when the nota is linked to a live batch', () => {
@@ -108,18 +130,29 @@ describe('cte issued filter contract', () => {
 
   test('does not count the default as an active filter, but any change does', () => {
     expect(hasAnyActiveFilter(EMPTY_FILTERS)).toBe(false)
-    expect(hasAnyActiveFilter(withCteIssued(''))).toBe(true)
+    const pendingOnly = {
+      ...EMPTY_FILTERS,
+      select: { ...EMPTY_FILTERS.select, cteIssued: 'pending' },
+    }
+    expect(hasAnyActiveFilter(pendingOnly)).toBe(true)
     expect(hasAnyActiveFilter(withCteIssued('issued'))).toBe(true)
   })
 
-  test('restores the default when stored preferences predate the filter', () => {
-    const parsed = parseTableViewPreferences({ filters: { select: { status: '' } } })
-    expect(parsed.filters.select.cteIssued).toBe('pending')
+  test('moves a stored view from the old pending default to the unlinked-only checkbox', () => {
+    const blank = parseTableViewPreferences({ filters: { select: { status: '' } } })
+    expect(blank.filters.select.cteIssued).toBe('')
+    expect(blank.filters.unlinkedOnly).toBe(true)
 
+    const legacy = parseTableViewPreferences({ filters: { select: { cteIssued: 'pending' } } })
+    expect(legacy.filters.select.cteIssued).toBe('')
+    expect(legacy.filters.unlinkedOnly).toBe(true)
+
+    const chosen = { ...withCteIssued('pending'), unlinkedOnly: false }
     const roundTrip = parseTableViewPreferences(
-      serializeTableViewPreferences({ ...parsed, filters: withCteIssued('') }),
+      serializeTableViewPreferences({ ...blank, filters: chosen }),
     )
-    expect(roundTrip.filters.select.cteIssued).toBe('')
+    expect(roundTrip.filters.select.cteIssued).toBe('pending')
+    expect(roundTrip.filters.unlinkedOnly).toBe(false)
   })
 
   test('exposes the same field to the advanced builder', () => {

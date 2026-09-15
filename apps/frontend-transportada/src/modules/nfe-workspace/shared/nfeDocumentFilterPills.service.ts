@@ -99,10 +99,22 @@ function describeDateRange(input: DescribePillsInput): NfeDocumentFilterPill | n
   }
 }
 
+function describeUnlinkedOnly(filters: DocumentFilters): NfeDocumentFilterPill | null {
+  if (filters.unlinkedOnly === EMPTY_FILTERS.unlinkedOnly) return null
+  return {
+    key: 'unlinkedOnly',
+    labelKey: 'filters.fiscalLink',
+    value: '',
+    valueKey: 'filters.includeLinked',
+  }
+}
+
 export function describeNfeDocumentFilterPills(
   input: DescribePillsInput,
 ): readonly NfeDocumentFilterPill[] {
   const pills: NfeDocumentFilterPill[] = []
+  const unlinkedOnlyPill = describeUnlinkedOnly(input.filters)
+  if (unlinkedOnlyPill !== null) pills.push(unlinkedOnlyPill)
   for (const field of TEXT_PILL_FIELDS) {
     const value = input.filters.text[field].trim()
     if (value.length > 0) pills.push({ key: field, labelKey: fieldLabelKey(field), value })

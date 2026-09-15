@@ -77,8 +77,21 @@ describe('nfe document filter pills contract', () => {
     )
     expect(issued[0]?.valueKey).toBe('filters.cteIssuedIssued')
 
-    const every = describe_(buildFilters({ select: { ...EMPTY_FILTERS.select, cteIssued: '' } }))
-    expect(every[0]?.valueKey).toBe('filters.all')
+    const pending = describe_(
+      buildFilters({ select: { ...EMPTY_FILTERS.select, cteIssued: 'pending' } }),
+    )
+    expect(pending[0]?.valueKey).toBe('filters.cteIssuedPending')
+  })
+
+  test('names the unchecked unlinked-only filter, and stays silent on the default', () => {
+    expect(describe_(buildFilters({ unlinkedOnly: true }))).toEqual([])
+    const pills = describe_(buildFilters({ unlinkedOnly: false }))
+    expect(pills[0]).toEqual({
+      key: 'unlinkedOnly',
+      labelKey: 'filters.fiscalLink',
+      value: '',
+      valueKey: 'filters.includeLinked',
+    })
   })
 
   test('collapses the number and the date range into a single pill, marking the open side', () => {

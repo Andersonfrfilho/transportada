@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
@@ -108,6 +109,15 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
         </div>
       ) : (
         <div className={styles.filterGrid}>
+          <div className={styles.filterField}>
+            <span className={styles.filterFieldLabel}>{t('filters.fiscalLink')}</span>
+            <Checkbox
+              checked={table.filters.unlinkedOnly}
+              label={t('filters.unlinkedOnly')}
+              onChange={table.setUnlinkedOnly}
+            />
+          </div>
+
           <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.cteIssued')}</span>
             <Select

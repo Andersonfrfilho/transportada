@@ -2,6 +2,7 @@
 import {
   AMOUNT_OPERATORS,
   CONDITION_FIELDS,
+  CTE_ISSUED_PENDING,
   DEFAULT_PAGE_SIZE,
   DEFAULT_SORT,
   EMPTY_FILTERS,
@@ -70,6 +71,13 @@ function parseFilters(raw: unknown): DocumentFilters {
   const amountOperator = AMOUNT_OPERATORS.includes(raw.amountOperator as AmountOperator)
     ? (raw.amountOperator as AmountOperator)
     : EMPTY_FILTERS.amountOperator
+  const select = parseSelectFilters(raw.select)
+  const isLegacyView = typeof raw.unlinkedOnly !== 'boolean'
+  // A visão é gravada a cada interação, então a visão antiga carrega o padrão anterior sem que ninguém o tenha escolhido
+  const cteIssued =
+    isLegacyView && select.cteIssued === CTE_ISSUED_PENDING
+      ? EMPTY_FILTERS.select.cteIssued
+      : select.cteIssued
   return {
     amountOperator,
     amountValue: parseString(raw.amountValue),
@@ -77,8 +85,9 @@ function parseFilters(raw: unknown): DocumentFilters {
     dateTo: parseString(raw.dateTo),
     numberFrom: parseString(raw.numberFrom),
     numberTo: parseString(raw.numberTo),
-    select: parseSelectFilters(raw.select),
+    select: { ...select, cteIssued },
     text: parseStringRecord(raw.text, TEXT_FILTER_FIELDS),
+    unlinkedOnly: isLegacyView ? EMPTY_FILTERS.unlinkedOnly : raw.unlinkedOnly === true,
   }
 }
 
@@ -170,6 +179,7 @@ function serializeFilters(filters: DocumentFilters): Record<string, unknown> {
     numberTo: filters.numberTo,
     select: { ...filters.select },
     text: { ...filters.text },
+    unlinkedOnly: filters.unlinkedOnly,
   }
 }
 
