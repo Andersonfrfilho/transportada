@@ -3,6 +3,9 @@
  */
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 
+/** A única situação da NF-e sobre a qual um documento novo pode nascer. */
+export const NFE_DOCUMENT_AUTHORIZED_STATUS = 'authorized' as const satisfies NfeDocumentStatus
+
 /** D1 — só estes `tpEvento` mudam a situação da nota; os demais só gravam em `nfe_events`. */
 export const NFE_STATUS_CHANGING_EVENT_TYPES = {
   '110111': 'cancelled',

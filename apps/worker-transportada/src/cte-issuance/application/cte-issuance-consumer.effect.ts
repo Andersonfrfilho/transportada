@@ -18,6 +18,7 @@ import type { MdfeAutoIssueTrigger } from '../../mdfe-auto-issue/application/mdf
 
 import { CTE_BATCH_DOCUMENT_NOT_AUTHORIZED } from '../domain/cte-batch-block-reason.constant.js'
 import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
+import { FISCAL_NUMBER_BURNED_CAUSE } from '../domain/cte-retransmission.policy.js'
 import type {
   CteIssuanceDiagnostics,
   CteIssuanceDiagnosticsPhase,
@@ -43,8 +44,6 @@ import {
 type CteIssuanceWorkerEffect = {
   execute(params: { readonly envelope: CteProcessingEnvelopeV1 }): Promise<void>
 }
-
-const FISCAL_NUMBER_BURNED_CAUSE = 'fiscal_number_burned'
 
 export type CteIssuanceWriteBackKey = {
   readonly attemptId: string
@@ -115,12 +114,17 @@ export type CteSettledAttemptGuard = {
 }
 
 /**
- * Spec 149 T4: a elegibilidade da nota é conferida de novo, sob o `company_id` do envelope,
- * imediatamente antes de montar a chamada à SEFAZ — a seleção do lote pode ter ficado velha.
+ * Spec 149 T4: a elegibilidade das notas é conferida de novo, sob o `company_id` do envelope,
+ * imediatamente antes de montar a chamada à SEFAZ — a seleção do lote pode ter ficado velha. Só na
+ * primeira transmissão do número: a retransmissão talvez já esteja na SEFAZ.
  */
 export type CteBatchDocumentAuthorizationCheck = {
   isAuthorized(input: {
     readonly batchItemId: string
+    readonly companyId: string
+  }): Promise<boolean>
+  mayHaveReachedSefaz(input: {
+    readonly attemptId: string
     readonly companyId: string
   }): Promise<boolean>
 }
@@ -152,7 +156,7 @@ export function createCteIssuanceWorkerEffect(input: {
   readonly cancellationDocumentStorage?: CteCancellationDocumentStorage
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
   readonly diagnostics?: CteIssuanceDiagnostics
-  readonly documentAuthorizationCheck?: CteBatchDocumentAuthorizationCheck
+  readonly documentAuthorizationCheck: CteBatchDocumentAuthorizationCheck
   readonly fiscalNumberProbe?: CteFiscalNumberProbe
   /** Ausente é o gatilho desligado — instalação sem crachá emite MDF-e à mão (ADR-0047). */
   readonly mdfeAutoIssue?: MdfeAutoIssueTrigger
@@ -257,22 +261,14 @@ export function createCteIssuanceWorkerEffect(input: {
     }
 
     const createKey = (): CteIssuanceWriteBackKey => createWriteBackKey(envelope)
+    await ensureDocumentsStillAuthorized({
+      check: input.documentAuthorizationCheck,
+      createKey,
+      envelope,
+      logger: input.logger,
+      ...(input.writeBack === undefined ? {} : { writeBack: input.writeBack }),
+    })
     await input.writeBack?.recordInFlight(createKey())
-
-    const isDocumentAuthorized =
-      input.documentAuthorizationCheck === undefined ||
-      (await input.documentAuthorizationCheck.isAuthorized({
-        batchItemId: envelope.payload.batchItemId,
-        companyId: envelope.companyId,
-      }))
-
-    if (!isDocumentAuthorized) {
-      await input.writeBack?.recordRejected({
-        ...createKey(),
-        errorCode: CTE_BATCH_DOCUMENT_NOT_AUTHORIZED,
-      })
-      throw new CteIssuanceFatalError(CTE_BATCH_DOCUMENT_NOT_AUTHORIZED)
-    }
 
     const command = {
       tenantId: executionInput.tenantId,
@@ -536,6 +532,49 @@ async function advanceBurnedFiscalNumber(input: {
   })
 
   return result.outcome === 'advanced'
+}
+
+/**
+ * Antes do `in_flight`, de propósito: gravado depois dele, uma falha da própria checagem deixaria a
+ * tentativa `in_flight` e o retry pularia a checagem achando que a SEFAZ já tinha sido chamada.
+ */
+async function ensureDocumentsStillAuthorized(input: {
+  readonly check: CteBatchDocumentAuthorizationCheck
+  readonly createKey: () => CteIssuanceWriteBackKey
+  readonly envelope: CteProcessingEnvelopeV1
+  readonly logger: WorkerLogger
+  readonly writeBack?: CteIssuanceWriteBack
+}): Promise<void> {
+  const { envelope } = input
+  const isRetransmission = await input.check.mayHaveReachedSefaz({
+    attemptId: envelope.payload.attemptId,
+    companyId: envelope.companyId,
+  })
+  if (isRetransmission) {
+    safeLogInfo({
+      logger: input.logger,
+      message: 'cte_issuance_document_check_skipped_retransmission',
+      metadata: {
+        attemptId: envelope.payload.attemptId,
+        batchItemId: envelope.payload.batchItemId,
+        companyId: envelope.companyId,
+        eventId: envelope.eventId,
+      },
+    })
+    return
+  }
+
+  const isAuthorized = await input.check.isAuthorized({
+    batchItemId: envelope.payload.batchItemId,
+    companyId: envelope.companyId,
+  })
+  if (isAuthorized) return
+
+  await input.writeBack?.recordRejected({
+    ...input.createKey(),
+    errorCode: CTE_BATCH_DOCUMENT_NOT_AUTHORIZED,
+  })
+  throw new CteIssuanceFatalError(CTE_BATCH_DOCUMENT_NOT_AUTHORIZED)
 }
 
 function createWriteBackKey(envelope: CteProcessingEnvelopeV1): CteIssuanceWriteBackKey {

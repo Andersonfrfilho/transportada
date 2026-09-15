@@ -11,6 +11,7 @@ import {
 } from '../../src/cte-issuance/domain/cte-batch-progress.policy.js'
 import type { CteFiscalProvider } from '../../src/cte-issuance/infrastructure/cte-fiscal-gateway.js'
 import type { CteProcessingEnvelopeV1 } from '../../src/messaging/cte-processing-envelope.schema.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from '../fixtures/cte-document-authorization.fixture.js'
 
 const COMPANY_ID = 'a2fb6f1e-3f4b-4a4f-9a1e-0c74dbdc3a11'
 const ATTEMPT_ID = '3fa2f0f4-0f2b-4f8c-9c2f-1e0f9a5b7d21'
@@ -103,6 +104,7 @@ describe('CT-e issuance redelivery of a settled attempt', () => {
     const calls: string[] = []
     const effect = createCteIssuanceWorkerEffect({
       createProvider: createProviderStub(async () => ({ success: true, rawResponse: {} })),
+      documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
       logger: { error: () => {}, info: () => {}, warn: () => {} },
       resolveExecutionInput: async () => {
         calls.push('resolveExecutionInput')
@@ -187,6 +189,7 @@ function createEffect(input: {
 
   return createCteIssuanceWorkerEffect({
     createProvider: createProviderStub(input.emit),
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     logger: { error: () => {}, info: () => {}, warn: () => {} },
     resolveExecutionInput: async () => EXECUTION_INPUT,
     ...(input.settled === undefined

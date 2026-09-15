@@ -11,6 +11,7 @@ import type {
 import type { CteCancellationExecutionInput } from '../../src/cte-issuance/application/cte-cancellation-input-resolver.service.js'
 import type { CteFiscalProvider } from '../../src/cte-issuance/infrastructure/cte-fiscal-gateway.js'
 import type { CteProcessingEnvelopeV1 } from '../../src/messaging/cte-processing-envelope.schema.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from '../fixtures/cte-document-authorization.fixture.js'
 
 export const ACCESS_KEY = '35260712345678000190570070000000011000000019'
 export const AUTHORIZATION_PROTOCOL = '135260000123456'
@@ -121,6 +122,7 @@ export function createCancellationEffectFixture(input: {
 
   const effect = createCteIssuanceWorkerEffect({
     cancellationDocumentStorage: { storeCancellationXml },
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     createProvider: () => ({
       cancel: async (params) => {
         providerCalls.push({

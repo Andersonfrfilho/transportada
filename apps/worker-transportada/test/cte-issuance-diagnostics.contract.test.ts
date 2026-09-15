@@ -16,6 +16,7 @@ import type {
 } from '../src/cte-issuance/infrastructure/cte-fiscal-gateway.js'
 import type { CteProcessingEnvelopeV1 } from '../src/messaging/cte-processing-envelope.schema.js'
 import type { WorkerLogger } from '../src/shared/worker.types.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from './fixtures/cte-document-authorization.fixture.js'
 
 const CERTIFICATE = 'MIIEowIBAAKCAQEAsegredodocertificado'
 const CERTIFICATE_PASSWORD = 'senha-do-pfx'
@@ -251,6 +252,7 @@ function createEffect(params: {
         params.onRecord?.(record)
       },
     },
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     logger: params.logger ?? createLogger([]),
     async resolveExecutionInput() {
       return {

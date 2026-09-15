@@ -100,6 +100,20 @@ export const cteBatchItems = pgTable('cte_batch_items', {
 })
 
 /**
+ * ⚠️ **Cópia por valor** de `api-transportada/src/database/cte-batch.schema.ts`, só as colunas que a
+ * checagem da nota lê. Com `groupingMode: 'sender_recipient'` o item tem N notas aqui, e
+ * `cte_batch_items.nfe_document_id` é só a principal. Mudou a tabela lá? confira aqui.
+ */
+export const cteBatchItemDocuments = pgTable('cte_batch_item_documents', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  itemId: uuid('item_id').notNull(),
+  nfeDocumentId: uuid('nfe_document_id').notNull(),
+  position: bigint({ mode: 'bigint' }).notNull(),
+})
+
+/**
  * ⚠️ **Cópia por valor** de `api-transportada/src/database/trip.schema.ts`, com as colunas que o
  * gatilho do MDF-e lê e nada mais. As duas apps não importam código uma da outra; migration só roda
  * na API. Mudou a tabela lá? confira aqui.
