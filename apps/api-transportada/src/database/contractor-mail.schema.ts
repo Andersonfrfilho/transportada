@@ -156,6 +156,7 @@ export const CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES = [
   'document_occurrence',
   'delivery_charge',
   'setup_test',
+  'address_correction',
 ] as const
 export type ContractorMailThreadSubjectType = (typeof CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES)[number]
 

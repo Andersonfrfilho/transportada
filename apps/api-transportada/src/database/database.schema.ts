@@ -136,6 +136,7 @@ import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
 import { geocodedAddressCorrections } from './geocoded-address-correction.schema.js'
 import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
 import { addressComparisons } from './address-comparison.schema.js'
+import { addressCorrectionRequests } from './address-correction.schema.js'
 import {
   companyRouteOptimizationSettings,
   routeSuggestionDocuments,
@@ -218,6 +219,7 @@ export * from './geocoding-refinement.schema.js'
 export * from './geocoded-address-correction.schema.js'
 export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
+export * from './address-correction.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
@@ -342,6 +344,7 @@ export const databaseSchema = {
   geocodedAddressCorrections,
   clientDeliveryAddresses,
   addressComparisons,
+  addressCorrectionRequests,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
