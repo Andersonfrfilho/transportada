@@ -18,7 +18,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 - [x] **T101** Migration aditiva `address_correction_requests` e a ampliação do CHECK de
       `contractor_mail_threads.subject_type`, com `rollback.sql`. Evidência: `make migration-test`.
-- [ ] **T102** 🧠 Contrato de tenant, **vermelho primeiro**: um pedido de outra empresa responde 404,
+- [x] **T102** 🧠 Contrato de tenant, **vermelho primeiro**: um pedido de outra empresa responde 404,
       e a contratante é resolvida pelo CNPJ do emitente dentro da empresa do token.
 - [ ] **T103** `PUT` e `GET /address-correction-requests`, com a validação de CEP, UF e município e
       `details[]` por campo. O "como veio" é lido do banco. Evidência: contratos de rota.

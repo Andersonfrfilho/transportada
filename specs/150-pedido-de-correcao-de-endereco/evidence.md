@@ -56,3 +56,49 @@ Resultado: **5820 pass, 23 skip, 0 fail**, 20539 `expect()`, 172 arquivos (sem
 - `apps/api-transportada/drizzle/20260915162953_address_correction_requests/snapshot.json` (novo,
   gerado)
 - `apps/api-transportada/test/database-migration/static-migration.contract.ts` (lista explícita)
+
+## T102
+
+Contrato de tenant contra Postgres: `apps/api-transportada/test/integration/address-correction-repository.integration.ts`
+(banco descartável com todas as migrations, apagado no fim), declarado em `test:integration` do
+`package.json` da API. Prova: a contratante sai de `contractors.tax_id` dentro da `companyId`
+informada (o CNPJ só cadastrado em outra empresa não é encontrado); o rascunho de uma empresa não
+aparece em `findByAddressKeys`/`listDraftsByContractor` da outra, e o `upsertDraft` da outra cria
+linha própria sem tocar no dele; salvar de novo atualiza o mesmo registro; pedido `sent` não é
+reaberto (o rascunho novo é outra linha); a FK composta recusa `contractor_id` de outra empresa.
+
+Postgres nativo descartável em `127.0.0.1:65433`, de dentro de `apps/api-transportada`:
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test ./test/integration/address-correction-repository.integration.ts --timeout 120000
+```
+
+**Vermelho** (antes da porta e do repositório existirem):
+
+```
+error: Cannot find module '../../src/address-correction/infrastructure/drizzle-address-correction.repository.js'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+**Verde** (depois de `address-correction.port.ts` e `drizzle-address-correction.repository.ts`):
+**5 pass, 0 fail**, 17 `expect()` — não pulou (5 testes executados contra o banco).
+
+O `upsertDraft` usa `on conflict (company_id, address_key) where status = 'draft'`, o índice
+parcial da T101: um pedido `sent` fica fora do alvo e o insert cria linha nova.
+
+Gates:
+
+- `bun run typecheck` (raiz): verde.
+- `bun run --cwd apps/api-transportada test`: **5820 pass, 23 skip, 0 fail**, 20539 `expect()`,
+  172 arquivos.
+- Prettier nos arquivos tocados: verde.
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/address-correction/application/address-correction.port.ts` (novo)
+- `apps/api-transportada/src/address-correction/infrastructure/drizzle-address-correction.repository.ts` (novo)
+- `apps/api-transportada/test/integration/address-correction-repository.integration.ts` (novo)
+- `apps/api-transportada/package.json` (entrada em `test:integration`)
