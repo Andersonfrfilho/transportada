@@ -1,129 +1,149 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { AddressFields } from '../application/address-correction.port.js'
+import {
+  escapeMailHtml as escapeHtml,
+  renderMailTemplate,
+} from '../../contractor-mail/domain/mail-template-render.policy.js'
 import {
   ADDRESS_CORRECTION_MAIL_COLOR,
   ADDRESS_CORRECTION_MAIL_FONT_FAMILY,
   ADDRESS_CORRECTION_MAIL_WIDTH_PIXELS,
 } from './address-correction-mail.constant.js'
+import {
+  buildItemVariableValues,
+  formatAddress,
+  itemHeading,
+} from './address-correction-mail-format.policy.js'
 import type {
   AddressCorrectionMailItem,
-  AddressCorrectionMailReason,
   BuildAddressCorrectionMailParams,
   BuildAddressCorrectionMailResult,
 } from './address-correction-mail.types.js'
 
-const METRES_PER_KILOMETRE = 1000
+type RenderedContent = {
+  readonly closing: string
+  readonly intro: string
+  /** Um texto por item, na ordem dos itens — o `itemText` do modelo já com as variáveis dele. */
+  readonly itemTexts: readonly string[]
+  readonly subject: string
+}
+
+type LayoutInput = {
+  readonly carrierName: string
+  readonly content: RenderedContent
+  readonly contractorName: string
+  readonly items: readonly AddressCorrectionMailItem[]
+}
+
+const PARAGRAPH_BREAK = /\n\s*\n/u
+const LINE_BREAKS = /\s*[\r\n]+\s*/gu
 
 /**
- * Função pura (RF9–RF12): monta o assunto, o HTML e o texto de reserva a partir dos mesmos dados —
- * nenhum I/O, nenhuma data/hora corrente. O desenho segue `email-template.html` (spec 150, aprovado
- * pelo usuário em 2026-09-15): layout em tabela, estilo inline, 600 px, preheader oculto, cabeçalho
- * grafite com filete cobre, um bloco numerado por endereço e rodapé dizendo que a nota não mudou.
+ * Função pura (RF9–RF14): o texto vem do modelo (T402) e o layout segue `email-template.html`
+ * (aprovado em 2026-09-15) — tabela, estilo inline, 600 px, preheader oculto, cabeçalho grafite com
+ * filete cobre, um bloco numerado por endereço e rodapé dizendo que a nota não mudou. O modelo edita
+ * texto, nunca a estrutura: nome, "como veio" e "endereço correto" de cada bloco são fixos, e o
+ * `itemText` renderizado ocupa a linha de baixo do bloco (a do motivo, no desenho aprovado).
  */
 export function buildAddressCorrectionMail(
   params: BuildAddressCorrectionMailParams,
 ): BuildAddressCorrectionMailResult {
-  const { carrierName, contractorName, items, operatorName } = params
+  const { carrierName, contractorName, items, operatorName, template } = params
   const count = items.length
-
-  return {
-    html: buildHtml({ carrierName, contractorName, count, items, operatorName }),
-    subject: buildSubject(count),
-    text: buildText({ carrierName, contractorName, items, operatorName }),
+  const mailValues = {
+    clientes: `${count} ${pluralize(count, 'cliente', 'clientes')}`,
+    contratante: contractorName,
+    operador: operatorName,
+    quantidade: String(count),
+    transportadora: carrierName,
   }
-}
+  const render = (text: string, values: Readonly<Record<string, string>>): string =>
+    renderMailTemplate({ format: 'text', text, values })
 
-function buildSubject(count: number): string {
-  return `Correção de endereço de entrega — ${count} ${pluralize(count, 'cliente', 'clientes')}`
+  const content: RenderedContent = {
+    closing: render(template.closing, mailValues).trim(),
+    intro: render(template.intro, mailValues).trim(),
+    itemTexts: items.map((item) =>
+      render(template.itemText, { ...mailValues, ...buildItemVariableValues(item) }).trim(),
+    ),
+    /** Assunto vira cabeçalho: nenhuma quebra de linha vinda de valor sobrevive. */
+    subject: render(template.subject, mailValues).replaceAll(LINE_BREAKS, ' ').trim(),
+  }
+  const layout = { carrierName, content, contractorName, items }
+
+  return { html: buildHtml(layout), subject: content.subject, text: buildText(layout) }
 }
 
 function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural
 }
 
-/**
- * `\r`, `\n`, `,`, `<` e `>` não aparecem em endereço válido de nota — o escape é para o texto livre
- * de terceiro (RF12), não para esses campos. `&` sempre primeiro: escapar os outros antes duplicaria
- * o `&amp;` que eles próprios introduzem.
- */
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
+/** Parágrafos separados por linha em branco; dentro do parágrafo, cada linha vira `<br>`. */
+function toParagraphs(text: string): readonly (readonly string[])[] {
+  return text
+    .split(PARAGRAPH_BREAK)
+    .map((paragraph) =>
+      paragraph
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0),
+    )
+    .filter((lines) => lines.length > 0)
+}
+
+function escapeLines(lines: readonly string[]): string {
+  return lines.map(escapeHtml).join('<br>')
+}
+
+function buildIntroHtml(intro: string): string {
+  const paragraphs = toParagraphs(intro)
+  return paragraphs
+    .map((lines, index) => {
+      const margin = index === paragraphs.length - 1 ? '0' : '0 0 12px'
+      return `<p style="margin:${margin};font-size:15px;line-height:1.6;">${escapeLines(lines)}</p>`
+    })
+    .join('')
 }
 
 /**
- * `logradouro, número[, complemento] — [bairro —] cidade/UF · CEP`, sem separador sobrando quando
- * complemento ou bairro faltam (T303).
+ * Com mais de um parágrafo, o último é a assinatura do desenho aprovado: primeira linha em negrito
+ * (quem assina) e as demais em cinza (a transportadora). Um parágrafo só sai como texto comum.
  */
-function formatAddress(fields: AddressFields): string {
-  const hasComplement = fields.complement !== null && fields.complement.trim().length > 0
-  const streetSegment = hasComplement
-    ? `${fields.street}, ${fields.number}, ${fields.complement}`
-    : `${fields.street}, ${fields.number}`
-
-  const hasDistrict = fields.district !== null && fields.district.trim().length > 0
-  const segments = hasDistrict
-    ? [streetSegment, fields.district as string, `${fields.city}/${fields.state}`]
-    : [streetSegment, `${fields.city}/${fields.state}`]
-
-  return `${segments.join(' — ')} · ${formatPostalCode(fields.postalCode)}`
-}
-
-function formatPostalCode(postalCode: string): string {
-  const digits = postalCode.replaceAll(/\D/gu, '')
-  if (digits.length !== 8) return postalCode
-
-  return `${digits.slice(0, 5)}-${digits.slice(5)}`
-}
-
-/**
- * Motivo em linguagem de leigo (RF11): "localizado a X" só quando o provedor casou rua e número
- * (`rooftop`/`range_interpolated`, `address-finding.policy.ts`). `approximate` e `not_found` viram
- * "endereço não localizado" **mesmo com distância** — `approximate` mede até o centroide do
- * município (`toDistance`, `compare-addresses-batch.use-case.ts`), então o número não descreve uma
- * rua encontrada perto, e mostrá-lo insinuaria uma correspondência que não existe (revisão final).
- * Sem distância útil (`distanceMetres: null`, sem coordenada do provedor para medir) é sempre "não
- * localizado" também. Havendo distância e casamento de rua, abaixo de 1 km sai em metros inteiros; a
- * partir de 1 km, em quilômetros com vírgula decimal e uma casa.
- */
-function formatReason(reason: AddressCorrectionMailReason): string {
-  const isStreetLevelMatch =
-    reason.matchLevel === 'rooftop' || reason.matchLevel === 'range_interpolated'
-  if (!isStreetLevelMatch || reason.distanceMetres === null) return 'endereço não localizado'
-
-  if (reason.distanceMetres < METRES_PER_KILOMETRE) {
-    return `localizado a ${Math.round(reason.distanceMetres)} m do endereço informado`
+function buildClosingHtml(closing: string): string {
+  const paragraphs = toParagraphs(closing)
+  const color = ADDRESS_CORRECTION_MAIL_COLOR
+  if (paragraphs.length < 2) {
+    return paragraphs
+      .map(
+        (lines) => `<p style="margin:0;font-size:15px;line-height:1.6;">${escapeLines(lines)}</p>`,
+      )
+      .join('')
   }
 
-  const kilometres = (reason.distanceMetres / METRES_PER_KILOMETRE).toFixed(1).replace('.', ',')
-  return `localizado a ${kilometres} km do endereço informado`
+  const body = paragraphs
+    .slice(0, -1)
+    .map(
+      (lines) =>
+        `<p style="margin:0 0 20px;font-size:15px;line-height:1.6;">${escapeLines(lines)}</p>`,
+    )
+    .join('')
+  const [signer = '', ...rest] = paragraphs.at(-1) ?? []
+  const detail =
+    rest.length === 0 ? '' : `<br><span style="color:${color.slate};">${escapeLines(rest)}</span>`
+  return `${body}<p style="margin:0;font-size:15px;line-height:1.5;"><strong>${escapeHtml(signer)}</strong>${detail}</p>`
 }
 
-/** `null` → o bloco abre pelo endereço correto, sem nome nem "null" (T303). */
-function itemHeading(item: AddressCorrectionMailItem): string {
-  return item.recipientName ?? formatAddress(item.proposed)
-}
-
-function buildHtml(input: {
-  readonly carrierName: string
-  readonly contractorName: string
-  readonly count: number
-  readonly items: readonly AddressCorrectionMailItem[]
-  readonly operatorName: string
-}): string {
-  const { carrierName, contractorName, count, items, operatorName } = input
+function buildHtml(input: LayoutInput): string {
+  const { carrierName, content, contractorName, items } = input
   const color = ADDRESS_CORRECTION_MAIL_COLOR
   const font = ADDRESS_CORRECTION_MAIL_FONT_FAMILY
-  const subject = buildSubject(count)
+  const count = items.length
   const preheader = `Não localizamos ${count} ${pluralize(count, 'endereço', 'endereços')} de entrega das suas notas. Veja o que veio e o endereço correto.`
 
-  const blocks = items.map((item, index) => buildHtmlBlock(item, index)).join('')
+  const blocks = items
+    .map((item, index) => buildHtmlBlock({ index, item, itemText: content.itemTexts[index] ?? '' }))
+    .join('')
 
   return [
     '<!doctype html>',
@@ -133,7 +153,7 @@ function buildHtml(input: {
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="color-scheme" content="light">',
     '<meta name="supported-color-schemes" content="light">',
-    `<title>${escapeHtml(subject)}</title>`,
+    `<title>${escapeHtml(content.subject)}</title>`,
     '</head>',
     `<body style="margin:0;padding:0;background:${color.pageBackground};">`,
     `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>`,
@@ -147,17 +167,14 @@ function buildHtml(input: {
     '</td></tr>',
 
     `<tr><td style="padding:28px 28px 8px;font-family:${font};color:${color.ink};">`,
-    `<h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;">${escapeHtml(subject)}</h1>`,
-    `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;">Olá, equipe <strong>${escapeHtml(contractorName)}</strong>,</p>`,
-    '<p style="margin:0 0 12px;font-size:15px;line-height:1.6;">Ao roteirizar as entregas das suas notas, não conseguimos localizar os endereços abaixo. Hoje a entrega aponta para o centro do município.</p>',
-    '<p style="margin:0;font-size:15px;line-height:1.6;">Pedimos que confira e corrija o cadastro desses clientes no seu sistema, para que as próximas notas já saiam com o endereço certo.</p>',
+    `<h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;">${escapeHtml(content.subject)}</h1>`,
+    buildIntroHtml(content.intro),
     '</td></tr>',
 
     blocks,
 
     `<tr><td style="padding:24px 28px 8px;font-family:${font};color:${color.ink};">`,
-    '<p style="margin:0 0 20px;font-size:15px;line-height:1.6;">Qualquer dúvida, é só responder este e-mail.</p>',
-    `<p style="margin:0;font-size:15px;line-height:1.5;"><strong>${escapeHtml(operatorName)}</strong><br><span style="color:${color.slate};">${escapeHtml(carrierName)}</span></p>`,
+    buildClosingHtml(content.closing),
     '</td></tr>',
 
     `<tr><td style="padding:20px 28px;border-top:1px solid ${color.footerBorder};font-family:${font};font-size:12px;line-height:1.5;color:${color.slate};">`,
@@ -172,10 +189,19 @@ function buildHtml(input: {
   ].join('')
 }
 
-function buildHtmlBlock(item: AddressCorrectionMailItem, index: number): string {
+function buildHtmlBlock(input: {
+  readonly index: number
+  readonly item: AddressCorrectionMailItem
+  readonly itemText: string
+}): string {
+  const { index, item, itemText } = input
   const color = ADDRESS_CORRECTION_MAIL_COLOR
   const font = ADDRESS_CORRECTION_MAIL_FONT_FAMILY
   const topPadding = index === 0 ? '20px' : '16px'
+  const itemRow =
+    itemText.length === 0
+      ? ''
+      : `<tr><td style="padding:0 16px 14px;font-family:${font};font-size:13px;color:${color.amber};">${escapeLines(itemText.split('\n'))}</td></tr>`
 
   return [
     `<tr><td style="padding:${topPadding} 28px 0;">`,
@@ -198,48 +224,31 @@ function buildHtmlBlock(item: AddressCorrectionMailItem, index: number): string 
     '</div>',
     '</td></tr>',
 
-    `<tr><td style="padding:0 16px 14px;font-family:${font};font-size:13px;color:${color.amber};">`,
-    `<strong>Motivo:</strong> ${escapeHtml(formatReason(item.reason))}.`,
-    '</td></tr>',
+    itemRow,
 
     '</table>',
     '</td></tr>',
   ].join('')
 }
 
-function buildText(input: {
-  readonly carrierName: string
-  readonly contractorName: string
-  readonly items: readonly AddressCorrectionMailItem[]
-  readonly operatorName: string
-}): string {
-  const { carrierName, contractorName, items, operatorName } = input
-
-  const blocks = items.map((item, index) => buildTextBlock(item, index))
+function buildText(input: LayoutInput): string {
+  const { carrierName, content, contractorName, items } = input
+  const blocks = items.map((item, index) =>
+    [
+      `${index + 1}. ${itemHeading(item)}`,
+      `Como veio na nota: ${formatAddress(item.reported)}`,
+      `Endereço correto: ${formatAddress(item.proposed)}`,
+      ...(content.itemTexts[index] ? [content.itemTexts[index]] : []),
+      '',
+    ].join('\n'),
+  )
 
   return [
-    `Olá, equipe ${contractorName},`,
-    '',
-    'Ao roteirizar as entregas das suas notas, não conseguimos localizar os endereços abaixo. Hoje a entrega aponta para o centro do município.',
-    '',
-    'Pedimos que confira e corrija o cadastro desses clientes no seu sistema, para que as próximas notas já saiam com o endereço certo.',
+    content.intro,
     '',
     ...blocks,
-    'Qualquer dúvida, é só responder este e-mail.',
-    '',
-    operatorName,
-    carrierName,
+    content.closing,
     '',
     `Você recebeu este e-mail por ser contato cadastrado da ${contractorName} junto à ${carrierName}. As notas fiscais não foram alteradas: a correção vale a partir do seu cadastro.`,
-  ].join('\n')
-}
-
-function buildTextBlock(item: AddressCorrectionMailItem, index: number): string {
-  return [
-    `${index + 1}. ${itemHeading(item)}`,
-    `Como veio na nota: ${formatAddress(item.reported)}`,
-    `Endereço correto: ${formatAddress(item.proposed)}`,
-    `Motivo: ${formatReason(item.reason)}.`,
-    '',
   ].join('\n')
 }

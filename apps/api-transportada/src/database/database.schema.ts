@@ -152,6 +152,7 @@ import {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
+  contractorMailTemplates,
   contractorMailThreads,
 } from './contractor-mail.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
@@ -358,6 +359,7 @@ export const databaseSchema = {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
+  contractorMailTemplates,
   contractorMailThreads,
   contractorPortalBindings,
   tripCostEntries,

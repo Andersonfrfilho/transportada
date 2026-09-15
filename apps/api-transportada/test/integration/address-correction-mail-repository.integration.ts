@@ -37,6 +37,7 @@ describeDatabase(
     let contractorId = ''
     let contactId = ''
     let draftRequestId = ''
+    let templateId = ''
 
     function repository(): DrizzleAddressCorrectionMailRepository {
       if (database === undefined) throw new Error('A disposable database is required')
@@ -83,6 +84,15 @@ describeDatabase(
         'no-reply@transportada.test', 'Transportada', 'reply.transportada.test', 'active'
       )
     `)
+
+      const [template] = await db.execute<{ id: string }>(sql`
+      insert into contractor_mail_templates
+        (company_id, mail_type, name, subject, intro, item_text, closing, is_default)
+      values (${COMPANY_ID}, 'address_correction', 'Padrão', 'Assunto', 'Abertura',
+        'Motivo: {motivo}.', 'Assinatura', true)
+      returning id
+    `)
+      templateId = template?.id ?? ''
 
       await db.execute(sql`
       insert into company_fiscal_profiles
@@ -262,6 +272,7 @@ describeDatabase(
           fromAddress: 'no-reply@transportada.test',
           replyTokenHash: 'a'.repeat(64),
           subject: 'Correção de endereço de entrega — 1 cliente',
+          templateId,
           threadId,
           toAddresses: ['ativo@contratante.example'],
         })
@@ -290,13 +301,15 @@ describeDatabase(
       const [message] = await database.db.execute<{
         body_html: string
         body_text: string
+        template_id: string
         to_addresses: readonly string[]
       }>(
-        sql`select body_html, body_text, to_addresses from contractor_mail_messages where id = ${messageId}`,
+        sql`select body_html, body_text, template_id, to_addresses from contractor_mail_messages where id = ${messageId}`,
       )
       expect(message).toMatchObject({
         body_html: '<p>html</p>',
         body_text: 'text',
+        template_id: templateId,
         to_addresses: ['ativo@contratante.example'],
       })
 
@@ -350,6 +363,7 @@ describeDatabase(
             fromAddress: 'no-reply@transportada.test',
             replyTokenHash: 'b'.repeat(64),
             subject: 'Correção de endereço de entrega — 1 cliente',
+            templateId,
             threadId,
             toAddresses: ['ativo@contratante.example'],
           })
@@ -416,6 +430,7 @@ describeDatabase(
             fromAddress: 'no-reply@transportada.test',
             replyTokenHash: label === 'a' ? 'c'.repeat(64) : 'd'.repeat(64),
             subject: 'Correção de endereço de entrega — 1 cliente',
+            templateId,
             threadId,
             toAddresses: ['ativo@contratante.example'],
           })

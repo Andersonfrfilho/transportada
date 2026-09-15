@@ -18,6 +18,8 @@ import {
   responseApiError,
 } from '../fixtures/fleet-http-payload.fixture.js'
 import { AddressCorrectionContractorNotFoundError } from '../../src/address-correction/domain/address-correction.error.js'
+import { ContractorMailTemplateMissingError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
+import { ContractorMailTemplateNotUsableError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
 
 const MAIL_PATH = '/address-correction-requests/mail'
 const CONTACT_ID = '00000000-0000-4000-8000-000000000b01'
@@ -85,6 +87,57 @@ describe('POST /address-correction-requests/mail http contract', () => {
 
     expect(response.status).toBe(202)
     expect(fixture.sendMailCalls[0]?.requestIds).toEqual([ADDRESS_CORRECTION_REQUEST.id])
+  })
+
+  /** Spec 150 T402 (RF15): o modelo escolhido na confirmação chega ao caso de uso. */
+  test('passes templateId through when the operator picks a template', async () => {
+    const fixture = await createAddressCorrectionHttpFixture()
+    const templateId = '00000000-0000-4000-8000-000000000b30'
+
+    const response = await fixture.handle(
+      mailRequest({
+        body: { ...validBody(), templateId },
+        headers: { 'idempotency-key': 'address-correction-mail-template-1' },
+      }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.sendMailCalls[0]?.templateId).toBe(templateId)
+  })
+
+  test('refuses a templateId that is not a uuid, with details', async () => {
+    const fixture = await createAddressCorrectionHttpFixture()
+
+    const response = await fixture.handle(
+      mailRequest({
+        body: { ...validBody(), templateId: 'padrao' },
+        headers: { 'idempotency-key': 'address-correction-mail-template-2' },
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    const error = await responseApiError(response)
+    expect(error.details ?? []).toContainEqual(expect.objectContaining({ field: 'templateId' }))
+    expect(fixture.sendMailCalls).toEqual([])
+  })
+
+  test('propagates TEMPLATE_MISSING and TEMPLATE_NOT_USABLE with their stable codes', async () => {
+    for (const [error, code] of [
+      [new ContractorMailTemplateMissingError(), 'CONTRACTOR_MAIL_TEMPLATE_MISSING'],
+      [new ContractorMailTemplateNotUsableError(), 'CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE'],
+    ] as const) {
+      const fixture = await createAddressCorrectionHttpFixture({ sendMailError: error })
+
+      const response = await fixture.handle(
+        mailRequest({
+          body: validBody(),
+          headers: { 'idempotency-key': `address-correction-mail-${code}` },
+        }),
+      )
+
+      expect(response.status).toBe(409)
+      expect(await responseApiError(response)).toMatchObject({ code })
+    }
   })
 
   test('requires the Idempotency-Key header', async () => {

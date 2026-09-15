@@ -42,6 +42,8 @@ COPY apps/api-transportada/src/nfse-invoices/domain apps/api-transportada/src/nf
 COPY apps/api-transportada/src/identity/domain apps/api-transportada/src/identity/domain
 COPY apps/api-transportada/src/whatsapp-commands/domain apps/api-transportada/src/whatsapp-commands/domain
 COPY apps/api-transportada/src/cte-profiles/domain apps/api-transportada/src/cte-profiles/domain
+# contractor-mail.schema.ts lê o catálogo de tipos de modelo de e-mail (spec 150 T402).
+COPY apps/api-transportada/src/contractor-mail/domain apps/api-transportada/src/contractor-mail/domain
 COPY apps/api-transportada/src/shared apps/api-transportada/src/shared
 # O pre-deploy semeia os templates de notificação: o texto do aviso vem do catálogo em código.
 COPY apps/api-transportada/src/notification apps/api-transportada/src/notification

@@ -17,6 +17,13 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+import {
+  CONTRACTOR_MAIL_TEMPLATE_LIMITS,
+  CONTRACTOR_MAIL_TEMPLATE_STATUSES,
+  CONTRACTOR_MAIL_TEMPLATE_TYPES,
+  type ContractorMailTemplateStatus,
+  type ContractorMailTemplateType,
+} from '../contractor-mail/domain/mail-template-catalog.constant.js'
 import { companies } from './identity.schema.js'
 import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
@@ -229,6 +236,84 @@ export const contractorMailThreads = pgTable(
 )
 
 /**
+ * Spec 150 RF13–RF15 (T402): modelos de e-mail por empresa e tipo. O modelo edita texto, nunca a
+ * estrutura do e-mail. Ninguém cria linha aqui em migration ou seed (ADR-0021): o padrão sugerido
+ * vive no catálogo e só vira linha quando o operador salva.
+ */
+export const contractorMailTemplates = pgTable(
+  'contractor_mail_templates',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    mailType: text('mail_type').$type<ContractorMailTemplateType>().notNull(),
+    name: text().notNull(),
+    subject: text().notNull(),
+    intro: text().notNull(),
+    /** Repete-se uma vez por item enviado; único campo que aceita variável de item (RF14). */
+    itemText: text('item_text').notNull().default(''),
+    closing: text().notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    status: text().$type<ContractorMailTemplateStatus>().notNull().default('active'),
+    version: bigint({ mode: 'bigint' }).notNull().default(1n),
+    actorUserId: uuid('actor_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'contractor_mail_templates_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Alvo da FK composta de `contractor_mail_messages.template_id`. */
+    unique('contractor_mail_templates_company_id_id_unique').on(table.companyId, table.id),
+    uniqueIndex('contractor_mail_templates_company_type_name_unique')
+      .on(table.companyId, table.mailType, sql`lower(${table.name})`)
+      .where(sql`${table.status} = 'active'`),
+    /** RF15: um padrão por tipo — a troca desmarca o anterior na mesma transação. */
+    uniqueIndex('contractor_mail_templates_company_type_default_unique')
+      .on(table.companyId, table.mailType)
+      .where(sql`${table.isDefault} and ${table.status} = 'active'`),
+    check(
+      'contractor_mail_templates_mail_type_check',
+      sql`${table.mailType} in (${sql.raw(inList(CONTRACTOR_MAIL_TEMPLATE_TYPES))})`,
+    ),
+    check(
+      'contractor_mail_templates_status_check',
+      sql`${table.status} in (${sql.raw(inList(CONTRACTOR_MAIL_TEMPLATE_STATUSES))})`,
+    ),
+    check(
+      'contractor_mail_templates_name_check',
+      sql`length(btrim(${table.name})) > 0 and length(${table.name}) <= ${sql.raw(String(CONTRACTOR_MAIL_TEMPLATE_LIMITS.name))}`,
+    ),
+    /** Assunto vira cabeçalho de e-mail: sem quebra de linha, que abriria injeção de cabeçalho. */
+    check(
+      'contractor_mail_templates_subject_check',
+      sql`length(btrim(${table.subject})) > 0 and length(${table.subject}) <= ${sql.raw(String(CONTRACTOR_MAIL_TEMPLATE_LIMITS.subject))} and ${table.subject} !~ '[\\r\\n]'`,
+    ),
+    check(
+      'contractor_mail_templates_intro_check',
+      sql`length(btrim(${table.intro})) > 0 and length(${table.intro}) <= ${sql.raw(String(CONTRACTOR_MAIL_TEMPLATE_LIMITS.text))}`,
+    ),
+    check(
+      'contractor_mail_templates_item_text_check',
+      sql`length(${table.itemText}) <= ${sql.raw(String(CONTRACTOR_MAIL_TEMPLATE_LIMITS.text))}`,
+    ),
+    check(
+      'contractor_mail_templates_closing_check',
+      sql`length(btrim(${table.closing})) > 0 and length(${table.closing}) <= ${sql.raw(String(CONTRACTOR_MAIL_TEMPLATE_LIMITS.text))}`,
+    ),
+    check(
+      'contractor_mail_templates_default_active_check',
+      sql`not ${table.isDefault} or ${table.status} = 'active'`,
+    ),
+    check('contractor_mail_templates_version_check', sql`${table.version} > 0`),
+  ],
+)
+
+/**
  * RF4/RF5/RF7: mensagem append-only. `actor_user_id` é nulo em toda `inbound` (RF5 — quem escreveu
  * foi a contratante, não um usuário nosso) e pode ser nulo também em `outbound` automática (P4, sem
  * clique de operador). `raw_object_id`/`raw_sha256` só existem em `inbound` (RF4: o MIME bruto de
@@ -297,6 +382,8 @@ export const contractorMailMessages = pgTable(
      * que foi de fato enviado. `null` em mensagem antiga e em `setup_test`, que saem só em texto.
      */
     bodyHtml: text('body_html'),
+    /** Spec 150 T402 (RF15): o modelo usado no envio. `null` em mensagem antiga, `inbound` e teste. */
+    templateId: uuid('template_id'),
     rawObjectId: uuid('raw_object_id'),
     rawSha256: text('raw_sha256'),
     providerEmailId: text('provider_email_id'),
@@ -327,6 +414,13 @@ export const contractorMailMessages = pgTable(
       columns: [table.companyId, table.rawObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],
       name: 'contractor_mail_messages_raw_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.templateId],
+      foreignColumns: [contractorMailTemplates.companyId, contractorMailTemplates.id],
+      name: 'contractor_mail_messages_template_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

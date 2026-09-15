@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { MailTemplateContent } from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type { AddressCorrectionRequest } from './address-correction.port.js'
 
 export type AddressCorrectionMailContractor = {
@@ -13,6 +14,11 @@ export type AddressCorrectionMailSettings = {
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly sendingVerifiedAt: Date | null
+}
+
+/** Spec 150 T402: o texto do modelo usado no envio; o layout do e-mail segue fixo. */
+export type AddressCorrectionMailTemplate = MailTemplateContent & {
+  readonly id: string
 }
 
 export type AddressCorrectionMailContact = {
@@ -41,6 +47,7 @@ export type RecordAddressCorrectionMailInput = {
   readonly fromAddress: string
   readonly replyTokenHash: string
   readonly subject: string
+  readonly templateId: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
 }
@@ -76,6 +83,14 @@ export type AddressCorrectionMailTransactionPort = {
   findMailSettings(params: {
     readonly companyId: string
   }): Promise<AddressCorrectionMailSettings | undefined>
+  /**
+   * Modelo ativo de `address_correction` desta empresa: o `templateId` pedido, ou o padrão quando
+   * ele não vem. Arquivado, de outro tipo ou de outra empresa não é achado.
+   */
+  findMailTemplate(params: {
+    readonly companyId: string
+    readonly templateId?: string
+  }): Promise<AddressCorrectionMailTemplate | undefined>
   findOperatorName(params: {
     readonly companyId: string
     readonly userId: string

@@ -255,6 +255,7 @@ describe('Drizzle migrations', () => {
       '20260915200000_contractor_mail_body_html',
       '20260915210000_contractor_contact_email_length_check',
       '20260915220000_contractor_mail_sending_verified_at',
+      '20260915230000_contractor_mail_templates',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

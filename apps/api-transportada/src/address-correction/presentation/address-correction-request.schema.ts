@@ -110,6 +110,8 @@ const postAddressCorrectionMailSchema = z
     ),
     contractorTaxId: buildTaxIdSchema(TAX_ID_PATTERN),
     requestIds: uniqueArray(z.uuid(), 'requestIds must not repeat an id').optional(),
+    /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
+    templateId: z.uuid().optional(),
   })
   .strict()
 

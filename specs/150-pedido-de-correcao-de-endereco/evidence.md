@@ -1587,3 +1587,209 @@ testes `test/contractor-mail/mail-send-readiness-policy.contract.ts` (novo, impo
 `static-migration.contract.ts`, integrações `contractor-mail-settings-repository` e
 `address-correction-mail-repository`; frontend `contractorMailSettings.types.ts`,
 `contractorMailSettingsResponse.validation.ts` e os dois contratos de `delivery-clients`.
+
+## T402
+
+Modelos de e-mail na API (RF13–RF15, com RF12 no escape). O envio passa a exigir modelo:
+`resolveMailSendReadiness` recebe `template` (o achado ou `null`), então `template_missing` agora
+é alcançável. O e-mail de teste continua sem passar `template` e não exige modelo.
+
+- **Migration aditiva** `20260915230000_contractor_mail_templates`: tabela
+  `contractor_mail_templates`, mais `contractor_mail_messages.template_id uuid NULL` com FK composta
+  `(company_id, template_id) → (company_id, id)`. Para ser alvo dessa FK, a tabela nova tem único
+  `(company_id, id)`. Também tem único `(company_id, mail_type, lower(name)) where status =
+'active'` e único parcial `(company_id, mail_type) where is_default and status = 'active'`.
+  CHECKs:
+  - `mail_type` contra o catálogo e `status` em `active|archived`;
+  - nome com 1..120 caracteres, assunto 1..200 e sem `\r`/`\n`, abertura e assinatura 1..4000,
+    `item_text` até 4000;
+  - `default_active`: arquivado nunca é padrão;
+  - `version > 0`.
+
+  `snapshot.json` gerado por `db:generate --name tmp_t402` e renomeado para depois de
+  `20260915220000`. O `prevIds` encadeia em `fbc7ef36…` (a T401) e o `migration.sql` é o gerado,
+  sem edição. Colunas `text` com CHECK, não `varchar`: é o padrão das outras tabelas de
+  `contractor-mail.schema.ts`, e nenhuma usa ENUM nativo. Entrou na lista explícita de
+  `static-migration.contract.ts`.
+
+- **`rollback.sql`** verificado num banco descartável do Postgres 65433 (script em scratchpad).
+  Depois de migrar: `{table: contractor_mail_templates, column: 1, journal: 1}`. Depois do rollback:
+  `{table: null, column: 0, journal: 0}`. Reaplicado: `{…, column: 1, journal: 1}`.
+- **Nenhum modelo em migration ou seed** (ADR-0021). O padrão sugerido vive no catálogo e só vira
+  linha quando o operador salva.
+- **Worker**: não mudou. Ele não lê modelo, e a coluna nova de `contractor_mail_messages` é
+  anulável, então a gravação da mensagem `inbound` segue igual.
+- **Imagem de runtime**: `contractor-mail.schema.ts` passou a importar
+  `contractor-mail/domain/mail-template-catalog.constant.ts` (tipos, status e tetos). O `Dockerfile`
+  da API ganhou `COPY src/contractor-mail/domain`, no mesmo molde de `companies/domain` e
+  `cte-profiles/domain`. Sem essa linha, `pre-deploy.contract.ts` ("a imagem de runtime copia todo o
+  grafo de imports do pre-deploy") reprova, e o contêiner morreria com `Cannot find module`.
+
+### Catálogo e renderização
+
+- `contractor-mail/domain/mail-template-catalog.constant.ts` define os tipos
+  (`address_correction`) e as variáveis de cada tipo, cada uma com descrição em pt-BR para a T403
+  listar:
+  - do e-mail: `contratante`, `quantidade`, `clientes`, `transportadora`, `operador`;
+  - de item: `cliente`, `endereco_como_veio`, `endereco_correto`, `motivo`, `cep_como_veio`,
+    `cep_correto`, `municipio`, `uf`.
+
+  O catálogo traz também o modelo padrão sugerido e os tetos de tamanho.
+
+- `contractor-mail/domain/mail-template-render.policy.ts` tem três funções puras:
+  - `validateMailTemplate` devolve todos os erros por campo, de uma vez. Recusa variável
+    desconhecida, variável de item fora de `itemText` e chave solta ou malformada (`{`, `}`, `{}`,
+    `{Maiúscula}`, `{{x}}`).
+  - `renderMailTemplate` com `format: 'html'` escapa o texto inteiro depois de substituir: o texto
+    digitado e o valor de terceiro, os dois. Com `format: 'text'`, sai literal.
+  - `escapeMailHtml` passou a ser o único escape do e-mail; o builder usa este.
+- **Decisão de singular/plural**: `{quantidade}` é só o número. A concordância ficou numa variável
+  própria do e-mail, `{clientes}`, que vira "1 cliente" ou "N clientes". O assunto sugerido é
+  `Correção de endereço de entrega — {clientes}`, que sai idêntico ao assunto aprovado com 1 ou com
+  N itens (contrato "{clientes} concorda com a quantidade"). Sem a variável, um texto fixo não teria
+  como saber quantos itens vão no envio.
+- **Decisão do encaixe do `item_text`**: o RF13 diz que os blocos de endereço são fixos. Cada bloco
+  segue o desenho aprovado: número, nome do cliente, "Como veio na nota" e "Endereço correto". O
+  `item_text` renderizado ocupa a **última linha do bloco**, na linha âmbar onde o desenho aprovado
+  põe o motivo (13px, `#8a4f1d`). O padrão sugerido é `Motivo: {motivo}.`, que reproduz a linha
+  aprovada. `item_text` vazio não deixa linha no bloco. No texto puro, o item entra depois de
+  "Endereço correto:".
+- **Abertura e assinatura**: linha em branco separa parágrafos, e cada quebra de linha simples vira
+  `<br>`. Quando a assinatura tem mais de um parágrafo, o último sai no estilo de assinatura do
+  desenho: primeira linha em negrito, as demais em cinza (`#6b7c85`). Com o padrão sugerido, o html
+  bate caractere a caractere com o de `email-template.html` nessa parte.
+- **Diferenças do desenho aprovado**:
+  - o "Motivo:" e o nome da contratante na saudação perdem o `<strong>`, porque o modelo é texto e
+    não aceita marcação;
+  - o texto puro (`text`) sai idêntico ao da T303, palavra por palavra (contrato "o modelo padrão
+    reproduz o texto aprovado").
+- **Assunto**: quebra de linha vinda de valor vira espaço, porque o assunto é cabeçalho de e-mail.
+  O schema HTTP e a CHECK do banco também recusam quebra no texto do assunto.
+- **Variável do e-mail dentro de `item_text`** é aceita: o RF14 só proíbe o contrário.
+- **Prévia**: dados fictícios de `email-template.html` (`address-correction-mail-sample.constant.ts`).
+  O caso de uso recebe um renderizador por tipo, ligado em `main.ts`, para o módulo
+  `contractor-mail` não importar `address-correction`.
+
+### Contrato HTTP
+
+Todas as rotas exigem `settings.manage`, tiram `companyId` e ator do token e respondem com
+`cache-control: no-store`. A resposta lista os campos `id`, `mailType`, `name`, `subject`, `intro`,
+`itemText`, `closing`, `isDefault`, `status`, `version` (texto) e `updatedAt`; nunca inclui
+`companyId` nem `actorUserId`.
+
+| Rota                                          | Resposta                                                                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /contractor-mail-templates/catalog`      | `200 {data: [{mailType, label, mailVariables[], itemVariables[], suggestedTemplate}]}`                                          |
+| `GET /contractor-mail-templates?mailType=`    | `200 {data: [modelo…]}`, ativos e arquivados, só da empresa. `mailType` fora do catálogo ou chave de query desconhecida → `400` |
+| `GET /contractor-mail-templates/:id`          | `200`, ou `404 CONTRACTOR_MAIL_TEMPLATE_NOT_FOUND` (também para o de outra empresa)                                             |
+| `POST /contractor-mail-templates`             | body `{mailType, name, subject, intro, itemText, closing}` estrito → `201`. O primeiro modelo ativo do tipo nasce padrão        |
+| `PATCH /contractor-mail-templates/:id`        | body `{version, name?, subject?, intro?, itemText?, closing?, status?: 'archived'}`, com pelo menos uma mudança                 |
+| `POST /contractor-mail-templates/:id/default` | body `{version}`. Troca atômica: desmarca o anterior e marca o novo na mesma transação, sob advisory lock de `(empresa, tipo)`  |
+| `POST /contractor-mail-templates/preview`     | `{templateId}` ou `{mailType, subject, intro, itemText, closing}` → `200 {data: {subject, html, text}}`. Nunca envia nem grava  |
+
+Recusas:
+
+- **`PATCH`**:
+  - versão velha → `409 CONTRACTOR_MAIL_TEMPLATE_VERSION_CONFLICT`;
+  - modelo arquivado → `409 CONTRACTOR_MAIL_TEMPLATE_ARCHIVED` (arquivado não volta; `status:
+'active'` é `400`);
+  - arquivar o padrão tira o padrão.
+- **Padrão**: arquivado → `409 CONTRACTOR_MAIL_TEMPLATE_ARCHIVED`.
+- **Validação**: `400 INVALID_REQUEST` com `details[]` por campo, tanto de forma (Zod) quanto de
+  variável (caso de uso).
+- **Nome duplicado** (por caixa, só entre os ativos do tipo) → `409
+CONTRACTOR_MAIL_TEMPLATE_NAME_TAKEN` com `details[{field: 'name'}]`.
+
+**Envio**: `POST /address-correction-requests/mail` aceita `templateId?` (uuid). Sem ele, vale o
+padrão ativo do tipo.
+
+- Sem padrão → `409 CONTRACTOR_MAIL_TEMPLATE_MISSING`, pela política. `SENDING_NOT_VERIFIED` e
+  `NOT_CONFIGURED` vêm antes.
+- `templateId` arquivado, de outro tipo, de outra empresa ou inexistente → `409
+CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`, resposta única que não revela qual dos quatro casos foi.
+- A mensagem grava `template_id`.
+- O `templateId` entra no fingerprint de idempotência **só quando escolhido**. O envio pelo padrão
+  mantém o fingerprint de antes, então uma chave gravada antes deste deploy segue fazendo replay.
+
+O mapa de erros da T305 no frontend ganhou `CONTRACTOR_MAIL_TEMPLATE_MISSING` e
+`CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`, com as mensagens `templateMissing`/`templateNotUsable` em
+pt-BR e en.
+
+**Logs**: nenhum texto de modelo vai para log. O contrato "never logs template text, even when the
+request fails" confere isso com três pedidos, dois deles recusados.
+
+### Vermelho
+
+Contrato de tenant escrito antes de qualquer código:
+
+- `test/contractor-mail-schema/template-tenant-safety.contract.ts` confere a FK de `companies`, o
+  único `(company_id, id)`, a FK composta da mensagem e os filtros `company_id` + id e `company_id`
+  (+ `mail_type`).
+- `test/integration/contractor-mail-template-repository.integration.ts` confere:
+  - modelo de outra empresa não é listado, lido, editado nem marcado padrão;
+  - nome único por empresa e tipo, por caixa, só entre os ativos;
+  - o banco recusa dois padrões ativos;
+  - duas trocas de padrão concorrentes nunca deixam dois padrões;
+  - o primeiro modelo nasce padrão, e arquivar o padrão tira o padrão;
+  - versão velha não grava;
+  - FK composta com modelo de outra empresa;
+  - o envio só acha modelo ativo, do tipo e da própria empresa.
+
+Resultado:
+
+- `bun test ./test/contractor-mail-schema.contract.test.ts` → **0 pass, 1 fail** (`Cannot find
+module …/drizzle-contractor-mail-template.repository.js`).
+- A integração (`DRIZZLE_TEST_DATABASE_URL=…65433`, `--env-file=../../.env.test`) → **0 pass, 1
+  fail**, mesmo motivo. Não pulou.
+
+### Verde
+
+- `bun run --cwd apps/api-transportada test` → **5974 pass, 23 skip, 0 fail** (174 arquivos). Na
+  T401 eram 5918. Suítes novas:
+  - `mail-template-render-policy.contract.ts` (validação, chaves soltas, escape);
+  - `templates-routes.contract.ts` (18 contratos de rota, com tenant 404 em leitura, edição, padrão
+    e prévia, e sem texto em log);
+  - template com modelo (texto aprovado palavra por palavra, cores e estrutura, variáveis por item,
+    `{clientes}` no singular e no plural, item vazio, escape de marcação digitada, assunto sem
+    quebra);
+  - caso de uso de envio (padrão, `templateId`, sem padrão → `TEMPLATE_MISSING`, arquivado ou de
+    fora → `NOT_USABLE`, verificação antes do modelo, fingerprint);
+  - rota de envio (`templateId` repassado, não-uuid `400`, códigos estáveis).
+- Integração no Postgres nativo 65433, sem pular → **31 pass, 0 fail** em 5 arquivos:
+  - `contractor-mail-template-repository` (8/8);
+  - `address-correction-mail-repository`, que agora confere o `template_id` gravado;
+  - `contractor-mail-settings-repository`;
+  - `contractor-mail-test-email-thread`;
+  - `contractor-contacts-repository`.
+- `database-migration.integration.ts` → 1 fail, a falha conhecida e alheia
+  (`cte-profile-output-constraints`, 23001 em vez de 23503 no Postgres 18 local).
+- `bun run --cwd apps/frontend-transportada test` → **3743 pass, 0 fail**.
+- `bun run typecheck` → ok (todas as apps). `bun run lint` → ok. `prettier --check` dos arquivos
+  tocados → ok.
+
+Arquivos:
+
+- **Migration**: `drizzle/20260915230000_contractor_mail_templates/{migration.sql,rollback.sql,snapshot.json}`.
+- **Banco e imagem**: `src/database/{contractor-mail.schema,database.schema}.ts`, `Dockerfile`.
+- **Módulo `contractor-mail`**:
+  - domínio: `domain/{mail-template-catalog.constant,mail-template-render.policy,contractor-mail-template.error}.ts`;
+  - aplicação: `application/{contractor-mail-template.port,contractor-mail-templates.use-case}.ts`;
+  - infraestrutura: `infrastructure/drizzle-contractor-mail-template.repository.ts`;
+  - apresentação: `presentation/contractor-mail-templates.{routes,schema}.ts`.
+- **Módulo `address-correction`**:
+  - domínio: `domain/{address-correction-mail.template,address-correction-mail.types,address-correction-mail-format.policy,address-correction-mail-sample.constant}.ts`;
+  - aplicação e infraestrutura: `application/{address-correction-mail.port,send-address-correction-mail.use-case}.ts`,
+    `infrastructure/drizzle-address-correction-mail.repository.ts`;
+  - apresentação: `presentation/{address-correction.routes,address-correction-request.schema}.ts`.
+- **Transversais**: `src/shared/api.constant.ts`, `src/main.ts`.
+- **Testes**:
+  - contratos novos `test/contractor-mail/{mail-template-render-policy,templates-routes}.contract.ts`
+    (importados em `test/contractor-mail.contract.test.ts`) e
+    `test/contractor-mail-schema/template-tenant-safety.contract.ts`;
+  - fixture nova `test/fixtures/contractor-mail-templates-http.fixture.ts`;
+  - integração nova `test/integration/contractor-mail-template-repository.integration.ts`, na lista
+    `test:integration` do `package.json`;
+  - ajustados: `template`, `send-mail-use-case`, `mail-routes`, `static-migration`, fixture HTTP de
+    contractor-mail (exporta o roteador de teste) e a integração `address-correction-mail-repository`.
+- **Frontend**: `addressCorrectionMail.service.ts`, `nfeWorkspace{,.en}.locale.json` e
+  `test/nfe-workspace/address-correction-mail.contract.ts`.

@@ -27,7 +27,10 @@ import {
 import {
   ContractorMailNotConfiguredError,
   ContractorMailSendingNotVerifiedError,
+  ContractorMailTemplateMissingError,
 } from '../../src/contractor-mail/domain/contractor-mail.error.js'
+import { ContractorMailTemplateNotUsableError } from '../../src/contractor-mail/domain/contractor-mail-template.error.js'
+import { MAIL_TEMPLATE_CATALOG } from '../../src/contractor-mail/domain/mail-template-catalog.constant.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000c01'
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000000c02'
@@ -42,6 +45,36 @@ const REQUEST_SENT_ID = '00000000-0000-4000-8000-000000000c21'
 const REQUEST_OTHER_CONTRACTOR_ID = '00000000-0000-4000-8000-000000000c22'
 const REPLY_TOKEN_SECRET = '11'.repeat(32)
 const SENDING_VERIFIED_AT = new Date('2026-09-15T12:00:00.000Z')
+const DEFAULT_TEMPLATE_ID = '00000000-0000-4000-8000-000000000c30'
+const CHOSEN_TEMPLATE_ID = '00000000-0000-4000-8000-000000000c31'
+const ARCHIVED_TEMPLATE_ID = '00000000-0000-4000-8000-000000000c32'
+const SUGGESTED = MAIL_TEMPLATE_CATALOG.address_correction.suggestedTemplate
+
+type FakeTemplate = {
+  readonly closing: string
+  readonly id: string
+  readonly intro: string
+  readonly isDefault: boolean
+  readonly itemText: string
+  readonly subject: string
+}
+
+const DEFAULT_TEMPLATE: FakeTemplate = {
+  closing: SUGGESTED.closing,
+  id: DEFAULT_TEMPLATE_ID,
+  intro: SUGGESTED.intro,
+  isDefault: true,
+  itemText: SUGGESTED.itemText,
+  subject: SUGGESTED.subject,
+}
+
+const CHOSEN_TEMPLATE: FakeTemplate = {
+  ...DEFAULT_TEMPLATE,
+  id: CHOSEN_TEMPLATE_ID,
+  isDefault: false,
+  itemText: 'CEP correto: {cep_correto}',
+  subject: 'Endereços a corrigir: {quantidade}',
+}
 
 const PROPOSED_ADDRESS = {
   city: 'São Paulo',
@@ -89,7 +122,10 @@ function createFakeTransaction(overrides: {
   readonly carrierName?: string
   readonly operatorName?: string
   readonly requests?: readonly (AddressCorrectionRequest & { readonly contractorId: string })[]
+  /** Só os modelos ativos de `address_correction` desta empresa — o repositório filtra o resto. */
+  readonly templates?: readonly FakeTemplate[]
 }): { readonly calls: Calls; readonly transaction: AddressCorrectionMailTransactionPort } {
+  const templates = overrides.templates ?? [DEFAULT_TEMPLATE, CHOSEN_TEMPLATE]
   const requests = new Map(
     (
       overrides.requests ?? [
@@ -150,6 +186,15 @@ function createFakeTransaction(overrides: {
         senderAddress: 'no-reply@transportada.test',
         sendingVerifiedAt: SENDING_VERIFIED_AT,
       }
+    },
+    async findMailTemplate({ templateId }) {
+      const found =
+        templateId === undefined
+          ? templates.find((template) => template.isDefault)
+          : templates.find((template) => template.id === templateId)
+      if (found === undefined) return undefined
+      const { closing, id, intro, itemText, subject } = found
+      return { closing, id, intro, itemText, subject }
     },
     async findOperatorName() {
       return overrides.operatorName
@@ -224,9 +269,11 @@ function baseInput(
     readonly contactIds?: readonly string[]
     readonly idempotencyKey?: string
     readonly requestIds?: readonly string[] | undefined
+    readonly templateId?: string
   } = {},
 ) {
   return {
+    ...(overrides.templateId === undefined ? {} : { templateId: overrides.templateId }),
     actorUserId: ACTOR_USER_ID,
     companyId: COMPANY_ID,
     contactIds: overrides.contactIds ?? [CONTACT_ACTIVE_ID],
@@ -403,9 +450,85 @@ describe('send address correction mail use case contract', () => {
         },
       ],
       operatorName: 'Maria Operadora',
+      template: {
+        closing: SUGGESTED.closing,
+        intro: SUGGESTED.intro,
+        itemText: SUGGESTED.itemText,
+        subject: SUGGESTED.subject,
+      },
     })
     expect(fake.calls.recordMail[0]?.bodyHtml).toBe(expected.html)
     expect(fake.calls.recordMail[0]?.bodyText).toBe(expected.text)
     expect(fake.calls.recordMail[0]?.subject).toBe(expected.subject)
+  })
+
+  /** Spec 150 T402 (RF15): sem `templateId`, vale o padrão ativo do tipo, e a mensagem o registra. */
+  test('sends with the default template and records its id', async () => {
+    const fake = createFakeTransaction({})
+    const useCase = createUseCase(fake)
+
+    await useCase.send(baseInput())
+
+    expect(fake.calls.recordMail[0]?.templateId).toBe(DEFAULT_TEMPLATE_ID)
+    expect(fake.calls.recordMail[0]?.subject).toBe('Correção de endereço de entrega — 1 cliente')
+  })
+
+  test('sends with the chosen templateId and renders its text', async () => {
+    const fake = createFakeTransaction({})
+    const useCase = createUseCase(fake)
+
+    await useCase.send(baseInput({ templateId: CHOSEN_TEMPLATE_ID }))
+
+    expect(fake.calls.recordMail[0]?.templateId).toBe(CHOSEN_TEMPLATE_ID)
+    expect(fake.calls.recordMail[0]?.subject).toBe('Endereços a corrigir: 1')
+    expect(fake.calls.recordMail[0]?.bodyText).toContain('CEP correto: 01310-100')
+  })
+
+  test('refuses with TEMPLATE_MISSING when the type has no default template', async () => {
+    const fake = createFakeTransaction({ templates: [CHOSEN_TEMPLATE] })
+    const useCase = createUseCase(fake)
+
+    await expect(useCase.send(baseInput())).rejects.toBeInstanceOf(
+      ContractorMailTemplateMissingError,
+    )
+    expect(fake.calls.recordMail).toEqual([])
+    expect(fake.calls.markRequestsSent).toEqual([])
+  })
+
+  /** Arquivado, de outro tipo ou de outra empresa: o repositório não acha, e a resposta é uma só. */
+  test('refuses an archived, foreign or unknown templateId with NOT_USABLE', async () => {
+    const fake = createFakeTransaction({})
+    const useCase = createUseCase(fake)
+
+    await expect(
+      useCase.send(baseInput({ templateId: ARCHIVED_TEMPLATE_ID })),
+    ).rejects.toBeInstanceOf(ContractorMailTemplateNotUsableError)
+    expect(fake.calls.recordMail).toEqual([])
+  })
+
+  test('the sender verification is checked before the template', async () => {
+    const fake = createFakeTransaction({ templates: [] })
+    fake.transaction.findMailSettings = async () => ({
+      id: 'settings-1',
+      secretEnvelope: {},
+      senderAddress: 'no-reply@transportada.test',
+      sendingVerifiedAt: null,
+    })
+    const useCase = createUseCase(fake)
+
+    await expect(useCase.send(baseInput())).rejects.toBeInstanceOf(
+      ContractorMailSendingNotVerifiedError,
+    )
+  })
+
+  test('a different template with the same idempotency key is a different request', async () => {
+    const fake = createFakeTransaction({})
+    const useCase = createUseCase(fake)
+
+    await useCase.send(baseInput({ idempotencyKey: 'template-key' }))
+
+    await expect(
+      useCase.send(baseInput({ idempotencyKey: 'template-key', templateId: CHOSEN_TEMPLATE_ID })),
+    ).rejects.toBeInstanceOf(AddressCorrectionIdempotencyKeyReusedError)
   })
 })

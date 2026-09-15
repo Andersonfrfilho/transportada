@@ -16,6 +16,7 @@ import {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
+  contractorMailTemplates,
   contractorMailThreads,
   contractors,
   identityUserProfiles,
@@ -23,11 +24,16 @@ import {
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import {
+  ADDRESS_CORRECTION_MAIL_TYPE,
+  CONTRACTOR_MAIL_TEMPLATE_STATUSES,
+} from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type {
   AddressCorrectionMailContact,
   AddressCorrectionMailContractor,
   AddressCorrectionMailIdempotencyRecord,
   AddressCorrectionMailSettings,
+  AddressCorrectionMailTemplate,
   AddressCorrectionMailTransactionPort,
   AddressCorrectionMailUnitOfWorkPort,
   FindSendableAddressCorrectionRequestsResult,
@@ -51,6 +57,7 @@ const OUTBOUND_DIRECTION = 'outbound'
 const QUEUED_DELIVERY_STATUS = 'queued'
 const ADDRESS_CORRECTION_SUBJECT_TYPE = 'address_correction'
 const ACTIVE_CONTACT_STATUS = CONTRACTOR_CONTACT_STATUSES[0]
+const [ACTIVE_TEMPLATE_STATUS] = CONTRACTOR_MAIL_TEMPLATE_STATUSES
 const [MESSAGE_SEND_REQUESTED_EVENT_TYPE] = CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES
 
 export class DrizzleAddressCorrectionMailRepository implements AddressCorrectionMailUnitOfWorkPort {
@@ -92,6 +99,34 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
       })
       .from(contractorMailSettings)
       .where(eq(contractorMailSettings.companyId, params.companyId))
+      .limit(1)
+    return row
+  }
+
+  /** `company_id`, tipo e `active` na mesma condição do id — nunca o id sozinho (T402, tenant). */
+  public async findMailTemplate(params: {
+    readonly companyId: string
+    readonly templateId?: string
+  }): Promise<AddressCorrectionMailTemplate | undefined> {
+    const [row] = await this.transaction
+      .select({
+        closing: contractorMailTemplates.closing,
+        id: contractorMailTemplates.id,
+        intro: contractorMailTemplates.intro,
+        itemText: contractorMailTemplates.itemText,
+        subject: contractorMailTemplates.subject,
+      })
+      .from(contractorMailTemplates)
+      .where(
+        and(
+          eq(contractorMailTemplates.companyId, params.companyId),
+          eq(contractorMailTemplates.mailType, ADDRESS_CORRECTION_MAIL_TYPE),
+          eq(contractorMailTemplates.status, ACTIVE_TEMPLATE_STATUS),
+          params.templateId === undefined
+            ? eq(contractorMailTemplates.isDefault, true)
+            : eq(contractorMailTemplates.id, params.templateId),
+        ),
+      )
       .limit(1)
     return row
   }
@@ -274,6 +309,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         direction: OUTBOUND_DIRECTION,
         fromAddress: params.fromAddress,
         subject: params.subject,
+        templateId: params.templateId,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
       })

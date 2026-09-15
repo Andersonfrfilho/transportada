@@ -113,6 +113,12 @@ describe('envio do pedido de correção por e-mail (spec 150, T305)', () => {
     expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_NOT_CONFIGURED')).toBe(
       'addressReport.correction.mail.error.mailNotConfigured',
     )
+    expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_TEMPLATE_MISSING')).toBe(
+      'addressReport.correction.mail.error.templateMissing',
+    )
+    expect(addressCorrectionMailErrorMessageKey('CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE')).toBe(
+      'addressReport.correction.mail.error.templateNotUsable',
+    )
     expect(addressCorrectionMailErrorMessageKey('IDEMPOTENCY_KEY_REUSED')).toBe(
       'addressReport.correction.mail.error.idempotencyReused',
     )

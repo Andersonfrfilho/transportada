@@ -65,7 +65,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       `resolveMailSendReadiness`; o envio deixa de exigir `status = 'active'`. Contrato **vermelho
       primeiro**: com a configuração em `pending` e o envio verificado, o pedido sai. Evidência:
       contratos da política, da rota de envio e da lista de verificação.
-- [ ] 🧠 **T402** Modelos na API: a tabela `contractor_mail_templates`, `template_id` na mensagem, as
+- [x] 🧠 **T402** Modelos na API: a tabela `contractor_mail_templates`, `template_id` na mensagem, as
       rotas CRUD, o padrão e a prévia, e a renderização das variáveis (lista fechada, escape). O
       envio usa o modelo padrão ou o `templateId`, e sem modelo recusa com
       `CONTRACTOR_MAIL_TEMPLATE_MISSING`. Evidência: contrato de tenant, contratos de rota, de

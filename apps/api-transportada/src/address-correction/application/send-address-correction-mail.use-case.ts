@@ -10,6 +10,7 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { ContractorMailTemplateNotUsableError } from '../../contractor-mail/domain/contractor-mail-template.error.js'
 import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
@@ -30,6 +31,7 @@ import {
   AddressCorrectionRequestNotSendableError,
 } from '../domain/address-correction.error.js'
 import type {
+  AddressCorrectionMailTemplate,
   AddressCorrectionMailTransactionPort,
   AddressCorrectionMailUnitOfWorkPort,
   SendAddressCorrectionMailResult,
@@ -50,6 +52,8 @@ export type SendAddressCorrectionMailInput = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly requestIds: readonly string[] | undefined
+  /** Spec 150 T402 (RF15): ausente, vale o modelo padrão do tipo. */
+  readonly templateId?: string | undefined
 }
 
 export type SendAddressCorrectionMailUseCase = Readonly<{
@@ -92,12 +96,14 @@ async function executeSend(params: {
   const dedupedContactIds = [...new Set(input.contactIds)]
   const sortedRequestIdsMarker =
     input.requestIds === undefined ? NO_REQUEST_IDS_MARKER : [...input.requestIds].sort().join(',')
+  /** O modelo entra no fingerprint só quando escolhido: o envio pelo padrão mantém o de antes. */
   const fingerprint = await fingerprintService.create({
     fields: [
       companyId,
       contractor.id,
       [...dedupedContactIds].sort().join(','),
       sortedRequestIdsMarker,
+      ...(input.templateId === undefined ? [] : [`template:${input.templateId}`]),
     ].map((value) => ENCODER.encode(value)),
     operation: OPERATION,
   })
@@ -111,11 +117,21 @@ async function executeSend(params: {
     return replay.response
   }
 
-  const readiness = resolveMailSendReadiness({
-    settings: await transaction.findMailSettings({ companyId }),
+  const settingsRow = await transaction.findMailSettings({ companyId })
+  const template = await transaction.findMailTemplate({
+    companyId,
+    ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
   })
-  if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
+  const readiness = resolveMailSendReadiness({ settings: settingsRow, template: template ?? null })
+  if (!readiness.ready) {
+    /** O modelo escolhido não serve (arquivado, de outro tipo, de outra empresa): código próprio. */
+    if (readiness.reason === 'template_missing' && input.templateId !== undefined) {
+      throw new ContractorMailTemplateNotUsableError()
+    }
+    throw createMailSendReadinessError(readiness.reason)
+  }
   const { settings } = readiness
+  const mailTemplate = template as AddressCorrectionMailTemplate
   const secret = await secretService.decrypt({
     companyId,
     envelope: settings.secretEnvelope as SecretEnvelopeV1,
@@ -155,6 +171,7 @@ async function executeSend(params: {
       contractorName: contractor.displayName,
       operatorName,
       sendable,
+      template: mailTemplate,
     }),
   )
 
@@ -173,6 +190,7 @@ async function executeSend(params: {
     fromAddress: settings.senderAddress,
     replyTokenHash,
     subject: mail.subject,
+    templateId: mailTemplate.id,
     threadId,
     toAddresses: recipientEmails,
   })
@@ -200,12 +218,15 @@ function buildMailParams(input: {
   readonly contractorName: string
   readonly operatorName: string
   readonly sendable: readonly AddressCorrectionRequest[]
+  readonly template: AddressCorrectionMailTemplate
 }): BuildAddressCorrectionMailParams {
+  const { closing, intro, itemText, subject } = input.template
   return {
     carrierName: input.carrierName,
     contractorName: input.contractorName,
     items: input.sendable.map(toMailItem),
     operatorName: input.operatorName,
+    template: { closing, intro, itemText, subject },
   }
 }
 

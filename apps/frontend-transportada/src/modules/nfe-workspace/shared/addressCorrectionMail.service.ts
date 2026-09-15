@@ -71,6 +71,9 @@ const MAIL_ERROR_MESSAGE_KEY: Readonly<Record<string, string>> = {
   ADDRESS_CORRECTION_NO_ACTIVE_CONTACT: 'addressReport.correction.mail.error.noActiveContact',
   ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE: 'addressReport.correction.mail.error.requestNotSendable',
   CONTRACTOR_MAIL_NOT_CONFIGURED: 'addressReport.correction.mail.error.mailNotConfigured',
+  /** Spec 150 T402: sem modelo padrão do tipo, ou o modelo escolhido não serve mais. */
+  CONTRACTOR_MAIL_TEMPLATE_MISSING: 'addressReport.correction.mail.error.templateMissing',
+  CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE: 'addressReport.correction.mail.error.templateNotUsable',
   /** `GET /contractors/by-tax-id/:taxId` recusa com este código, diferente do da própria rota de envio. */
   CONTRACTOR_NOT_FOUND: 'addressReport.correction.mail.error.contractorNotFound',
   IDEMPOTENCY_KEY_REUSED: 'addressReport.correction.mail.error.idempotencyReused',

@@ -377,6 +377,8 @@
           "noActiveContact": "None of the marked contacts is active. Refresh the list and try again.",
           "requestNotSendable": "One of the selected requests was already sent or does not belong to this contractor.",
           "mailNotConfigured": "This contractor's e-mail is not configured or verified yet.",
+          "templateMissing": "There is no default address correction e-mail template. Create one in Contractor e-mail.",
+          "templateNotUsable": "The chosen template was archived or is no longer available. Pick another template.",
           "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
           "generic": "Could not send the correction request."
         }

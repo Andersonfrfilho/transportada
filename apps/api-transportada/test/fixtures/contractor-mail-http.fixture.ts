@@ -163,7 +163,7 @@ async function loadRoutes(input: RouteDependencies): Promise<readonly Registered
   return module.createContractorMailSettingsRoutes(input)
 }
 
-function createTestRouter(input: {
+export function createTestRouter(input: {
   readonly context: AuthenticatedContext<CompanyContext>
   readonly routes: readonly RegisteredRoute[]
 }) {
@@ -204,7 +204,7 @@ function createTestRouter(input: {
   })
 }
 
-function authenticatedContext(
+export function authenticatedContext(
   permissions: CompanyContext['permissions'],
 ): AuthenticatedContext<CompanyContext> {
   return {

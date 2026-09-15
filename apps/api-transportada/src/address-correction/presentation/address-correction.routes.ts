@@ -53,6 +53,7 @@ type SendMailInput = Readonly<{
   correlationId: string
   idempotencyKey: string
   requestIds: readonly string[] | undefined
+  templateId: string | undefined
 }>
 
 type RecipientsInput = Readonly<{ contractorTaxId: string }>
@@ -111,6 +112,7 @@ export function createAddressCorrectionRoutes(
           correlationId: input.correlationId,
           idempotencyKey: input.idempotencyKey,
           requestIds: input.requestIds,
+          templateId: input.templateId,
         })
         return jsonResponse({ data: serializeSendAddressCorrectionMailResult(result) }, 202)
       },
@@ -123,6 +125,7 @@ export function createAddressCorrectionRoutes(
           correlationId,
           idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
           requestIds: body.requestIds,
+          templateId: body.templateId,
         }
       },
       pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
