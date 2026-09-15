@@ -8,12 +8,14 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
+import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { ContractorMailNotConfiguredError } from '../../contractor-mail/domain/contractor-mail.error.js'
 import {
   deriveReplyToken,
   hashReplyToken,
 } from '../../contractor-mail/domain/reply-token.policy.js'
+import { ADDRESS_CORRECTION_SEND_MAIL_OPERATION } from '../domain/address-correction-mail.constant.js'
 import { buildAddressCorrectionMail } from '../domain/address-correction-mail.template.js'
 import type {
   AddressCorrectionMailItem,
@@ -33,7 +35,7 @@ import type {
 } from './address-correction-mail.port.js'
 import type { AddressCorrectionRequest } from './address-correction.port.js'
 
-const OPERATION = 'address-correction.send-mail'
+const OPERATION = ADDRESS_CORRECTION_SEND_MAIL_OPERATION
 const ENCODER = new TextEncoder()
 /** RF12/T302: caractere que injetaria cabeçalho ou trocaria o destinatário no `to` do gateway. */
 const UNSAFE_EMAIL_CHARACTERS = /[\r\n,<>]/u
@@ -131,7 +133,7 @@ async function executeSend(params: {
   ) {
     throw new AddressCorrectionNoActiveContactError()
   }
-  const recipientEmails = toAddresses as readonly string[]
+  const recipientEmails = deduplicateRecipients(toAddresses as readonly string[])
 
   const { invalidRequestIds, sendable } = await transaction.findSendableRequests({
     companyId,
@@ -205,13 +207,24 @@ function buildMailParams(input: {
   }
 }
 
+/**
+ * Mesma regra do worker (`send-contractor-mail-outbound-message.use-case.ts`,
+ * `deduplicateRecipients`): minúsculas, primeira ocorrência vence — o `to` gravado e o
+ * `recipientCount` respondidos batem com o que o gateway do Resend de fato envia.
+ */
+function deduplicateRecipients(addresses: readonly string[]): string[] {
+  return [...new Set(addresses.map((address) => address.toLowerCase()))]
+}
+
 function toMailItem(request: AddressCorrectionRequest): AddressCorrectionMailItem {
   return {
     proposed: request.proposed,
     reason: {
       distanceMetres:
         request.reasonDistanceMetres === null ? null : Number(request.reasonDistanceMetres),
-      matchLevel: request.reasonMatchLevel,
+      /** `reasonMatchLevel` é `varchar` no banco (sem ENUM nativo) mas sempre gravado a partir de
+       * `ProviderMatchLevel` (`save-address-correction-draft.use-case.ts`, `found.matchLevel`). */
+      matchLevel: request.reasonMatchLevel as ProviderMatchLevel,
     },
     recipientName: request.recipientName,
     reported: request.reported,

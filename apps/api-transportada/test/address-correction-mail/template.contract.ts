@@ -114,6 +114,38 @@ describe('buildAddressCorrectionMail (spec 150 T303)', () => {
     expect(result.html).toContain('endereço não localizado')
   })
 
+  /**
+   * `approximate` é o provedor caindo no centroide do município — a distância calculada até esse
+   * ponto não é "encontramos a X metros", é só a distância até o centro da cidade. Mostrar
+   * "localizado a X km" aqui insinuaria uma correspondência de rua que não existe (revisão final).
+   */
+  test('motivo "não localizado" quando matchLevel é approximate, mesmo com distância', () => {
+    const result = buildAddressCorrectionMail({
+      ...BASE_PARAMS,
+      items: [buildItem({ reason: { distanceMetres: 4200, matchLevel: 'approximate' } })],
+    })
+    expect(result.text).toContain('Motivo: endereço não localizado.')
+    expect(result.html).toContain('endereço não localizado')
+    expect(result.text).not.toContain('km')
+  })
+
+  test('motivo "não localizado" quando matchLevel é not_found, mesmo com distância', () => {
+    const result = buildAddressCorrectionMail({
+      ...BASE_PARAMS,
+      items: [buildItem({ reason: { distanceMetres: 500, matchLevel: 'not_found' } })],
+    })
+    expect(result.text).toContain('Motivo: endereço não localizado.')
+    expect(result.text).not.toContain(' m do endereço')
+  })
+
+  test('motivo em quilômetros só quando o casamento é de rua/número (rooftop)', () => {
+    const result = buildAddressCorrectionMail({
+      ...BASE_PARAMS,
+      items: [buildItem({ reason: { distanceMetres: 1500, matchLevel: 'rooftop' } })],
+    })
+    expect(result.text).toContain('Motivo: localizado a 1,5 km do endereço informado.')
+  })
+
   test('motivo em quilômetros, com vírgula decimal e uma casa, a partir de 1 km', () => {
     const result = buildAddressCorrectionMail({
       ...BASE_PARAMS,

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { DiagnosableError } from '../../shared/diagnosable.error.js'
 
 /**
  * A `addressKey` não aparece no relatório desta empresa — pediu correção de um endereço que não é
@@ -88,5 +89,18 @@ export class AddressCorrectionIdempotencyKeyReusedError extends ApiError {
       message: 'Idempotency key cannot be reused with a different request body',
       status: 409,
     })
+  }
+}
+
+/**
+ * T304 (revisão final): `recordMail` insere a mensagem e pede `RETURNING id` de volta — nunca deveria
+ * vir vazio, mas se vier o motivo precisa aparecer no log (`http_request_failed`), mesmo padrão de
+ * `CompanySettingsPersistenceError`. A mensagem não carrega dado de entrada.
+ */
+export class AddressCorrectionMailMessageNotPersistedError extends DiagnosableError {
+  public override readonly name = 'AddressCorrectionMailMessageNotPersistedError'
+
+  public constructor() {
+    super('Address correction mail message was not persisted')
   }
 }

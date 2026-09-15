@@ -26,3 +26,9 @@ export const ADDRESS_CORRECTION_MAIL_COLOR = {
 export const ADDRESS_CORRECTION_MAIL_FONT_FAMILY = 'Arial,Helvetica,sans-serif'
 
 export const ADDRESS_CORRECTION_MAIL_WIDTH_PIXELS = 600
+
+/**
+ * Nome da operação de idempotência do envio (T304/RF6), repetido entre o caso de uso e o
+ * repositório — extraído para não divergir (§16 do padrão de código).
+ */
+export const ADDRESS_CORRECTION_SEND_MAIL_OPERATION = 'address-correction.send-mail'

@@ -64,7 +64,8 @@ function buildDraft(input: {
     id: input.id,
     proposed: PROPOSED_ADDRESS,
     reasonDistanceMetres: '820.00',
-    reasonMatchLevel: 'street',
+    reasonMatchLevel: 'rooftop',
+    recipientCount: null,
     recipientName: 'Cliente Final',
     reported: { ...PROPOSED_ADDRESS, street: 'Av Paulista' },
     sentAt: null,
@@ -359,7 +360,7 @@ describe('send address correction mail use case contract', () => {
       items: [
         {
           proposed: PROPOSED_ADDRESS,
-          reason: { distanceMetres: 820, matchLevel: 'street' },
+          reason: { distanceMetres: 820, matchLevel: 'rooftop' },
           recipientName: 'Cliente Final',
           reported: { ...PROPOSED_ADDRESS, street: 'Av Paulista' },
         },

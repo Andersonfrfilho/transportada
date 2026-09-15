@@ -83,14 +83,19 @@ function formatPostalCode(postalCode: string): string {
 }
 
 /**
- * Motivo em linguagem de leigo (RF11): sem distância útil (endereço não localizado, ou o provedor
- * só apontou o centro do município) vira "endereço não localizado" — é o que `distanceMetres: null`
- * significa em `address-report.port.ts` (`toDistance`, `compare-addresses-batch.use-case.ts`): sem
- * coordenada do provedor para medir, não há distância para mostrar. Havendo distância, abaixo de 1
- * km sai em metros inteiros; a partir de 1 km, em quilômetros com vírgula decimal e uma casa.
+ * Motivo em linguagem de leigo (RF11): "localizado a X" só quando o provedor casou rua e número
+ * (`rooftop`/`range_interpolated`, `address-finding.policy.ts`). `approximate` e `not_found` viram
+ * "endereço não localizado" **mesmo com distância** — `approximate` mede até o centroide do
+ * município (`toDistance`, `compare-addresses-batch.use-case.ts`), então o número não descreve uma
+ * rua encontrada perto, e mostrá-lo insinuaria uma correspondência que não existe (revisão final).
+ * Sem distância útil (`distanceMetres: null`, sem coordenada do provedor para medir) é sempre "não
+ * localizado" também. Havendo distância e casamento de rua, abaixo de 1 km sai em metros inteiros; a
+ * partir de 1 km, em quilômetros com vírgula decimal e uma casa.
  */
 function formatReason(reason: AddressCorrectionMailReason): string {
-  if (reason.distanceMetres === null) return 'endereço não localizado'
+  const isStreetLevelMatch =
+    reason.matchLevel === 'rooftop' || reason.matchLevel === 'range_interpolated'
+  if (!isStreetLevelMatch || reason.distanceMetres === null) return 'endereço não localizado'
 
   if (reason.distanceMetres < METRES_PER_KILOMETRE) {
     return `localizado a ${Math.round(reason.distanceMetres)} m do endereço informado`

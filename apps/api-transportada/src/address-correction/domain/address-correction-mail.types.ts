@@ -1,10 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { AddressFields } from '../application/address-correction.port.js'
 
 export type AddressCorrectionMailReason = {
-  readonly matchLevel: string
+  readonly matchLevel: ProviderMatchLevel
   /** `null` é "endereço não localizado" — sem coordenada útil para medir distância (RF11). */
   readonly distanceMetres: number | null
 }
