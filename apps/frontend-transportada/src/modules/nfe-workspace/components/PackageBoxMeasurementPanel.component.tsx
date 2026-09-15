@@ -146,7 +146,7 @@ export function PackageBoxMeasurementPanel({
             value={search}
           />
         </label>
-        <Button onClick={() => setIsScannerOpen(true)} size="sm" type="button" variant="secondary">
+        <Button onClick={() => setIsScannerOpen(true)} type="button" variant="secondary">
           <Icon name="camera" />
           {t('packageBoxes.scan')}
         </Button>
