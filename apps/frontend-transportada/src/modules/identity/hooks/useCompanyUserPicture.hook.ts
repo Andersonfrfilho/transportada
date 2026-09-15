@@ -11,6 +11,25 @@ import {
 
 export const COMPANY_USER_PICTURE_QUERY_KEY = 'company-user-picture'
 
+export type CreateCompanyUserPictureQueryOptionsParams = Readonly<{
+  client: CompanyUsersClient
+  exists: boolean
+  userId: string | undefined
+}>
+
+/** Sem `exists` a query nem nasce habilitada: pessoa sem foto não custa um 404 por tela. */
+export function createCompanyUserPictureQueryOptions(
+  params: CreateCompanyUserPictureQueryOptionsParams,
+) {
+  return {
+    enabled: params.userId !== undefined && params.exists,
+    queryFn: () => params.client.readPicture({ userId: params.userId ?? '' }),
+    queryKey: [COMPANY_USER_PICTURE_QUERY_KEY, params.userId] as const,
+    /** A foto muda por ação de quem está na tela: recarregar por foco é gasto sem ganho. */
+    staleTime: 300_000,
+  }
+}
+
 /**
  * A foto desce como bytes numa rota autenticada — não dá para apontar `<img src>` para ela, porque a
  * tag não manda o `Authorization`. O caminho é buscar o blob e criar uma URL de objeto.
@@ -35,13 +54,9 @@ export function useCompanyUserPicture(
   const exists =
     decided !== null && decided.userId === input.userId ? decided.exists : input.hasPicture
 
-  const query = useQuery({
-    enabled: input.userId !== undefined && exists,
-    queryFn: () => client.readPicture({ userId: input.userId ?? '' }),
-    queryKey: [COMPANY_USER_PICTURE_QUERY_KEY, input.userId],
-    /** A foto muda por ação de quem está na tela: recarregar por foco é gasto sem ganho. */
-    staleTime: 300_000,
-  })
+  const query = useQuery(
+    createCompanyUserPictureQueryOptions({ client, exists, userId: input.userId }),
+  )
 
   const blob = exists ? (query.data ?? null) : null
 

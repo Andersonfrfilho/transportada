@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 
+import type { CompanyUsersClient } from '../../src/modules/identity/hooks/useCompanyUsers.hook'
+import { createCompanyUserPictureQueryOptions } from '../../src/modules/identity/hooks/useCompanyUserPicture.hook'
 import { isAuthMeResponse } from '../../src/modules/identity/queries/useAuthMe.query'
 import { createCompanyUsersClient } from '../../src/modules/identity/shared/companyUsersClient.service'
 import { toCompanyUser } from '../../src/modules/identity/shared/companyUsersResponse.validation'
@@ -141,12 +144,38 @@ describe('a foto só é pedida quando existe', () => {
     expect(toCompanyUser(companyUserBody({})).hasPicture).toBe(false)
   })
 
-  test('a busca dos bytes depende do sinal, não só do id', () => {
-    const hook = readFileSync('src/modules/identity/hooks/useCompanyUserPicture.hook.ts', 'utf8')
-    const query = hook.slice(hook.indexOf('useQuery({'))
+  /** Observador real do TanStack: é ele que decide disparar o `queryFn`, como no navegador. */
+  async function countPictureRequests(exists: boolean): Promise<number> {
+    let requests = 0
+    const client = {
+      readPicture: () => {
+        requests += 1
+        return Promise.resolve(null)
+      },
+    } as unknown as CompanyUsersClient
+    const observer = new QueryObserver(
+      new QueryClient(),
+      createCompanyUserPictureQueryOptions({ client, exists, userId: USER_ID }),
+    )
+    const unsubscribe = observer.subscribe(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    unsubscribe()
+    return requests
+  }
 
-    expect(query.slice(0, query.indexOf('queryFn'))).toContain('&& exists')
+  test('sem foto, nenhum pedido sai', async () => {
+    expect(await countPictureRequests(false)).toBe(0)
+  })
+
+  test('com foto, os bytes são pedidos uma vez', async () => {
+    expect(await countPictureRequests(true)).toBe(1)
+  })
+
+  test('o sinal que habilita a query vem de hasPicture', () => {
+    const hook = readFileSync('src/modules/identity/hooks/useCompanyUserPicture.hook.ts', 'utf8')
+
     expect(hook).toMatch(/const exists =[^;]*input\.hasPicture/u)
+    expect(hook).toMatch(/createCompanyUserPictureQueryOptions\(\{ client, exists,/u)
   })
 
   test('o cabeçalho passa o sinal do /auth/me', () => {
