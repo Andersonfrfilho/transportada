@@ -47,6 +47,14 @@ describe('contractor mail template validation — name', () => {
   test('accepts a name within the limit', () => {
     expect(validateMailTemplateName('Padrão')).toBeUndefined()
   })
+
+  /** Rodada de correção da Fase 4, item 6: mesma regra do texto — conta o nome cru, sem aparar. */
+  test('conta o nome cru, sem aparar, igual à CHECK do banco', () => {
+    const paddedWithinTrimmedLimit = `  ${'a'.repeat(119)}  ` // aparado: 119, cru: 123
+    expect(validateMailTemplateName(paddedWithinTrimmedLimit)).toBe(
+      MAIL_TEMPLATE_VALIDATION_ERROR.NAME_TOO_LONG,
+    )
+  })
 })
 
 describe('contractor mail template validation — content', () => {
@@ -72,6 +80,25 @@ describe('contractor mail template validation — content', () => {
     const errors = validateMailTemplateContent({
       catalogEntry: CATALOG_ENTRY,
       content: { ...VALID_CONTENT, closing: 'a'.repeat(4001) },
+    })
+    expect(errors).toContainEqual({
+      field: 'closing',
+      message: MAIL_TEMPLATE_VALIDATION_ERROR.TEXT_TOO_LONG,
+    })
+  })
+
+  /**
+   * Rodada de correção da Fase 4, item 6: a CHECK do banco mede `length(coluna)` — o texto **cru**
+   * que fica armazenado, não o texto aparado. Contar pelo texto aparado deixa passar um valor que o
+   * `PATCH` vai recusar (`400`) depois, porque o teto do Zod (`.trim().max(...)`) e a CHECK do banco
+   * também operam sobre o texto que efetivamente é gravado, incluindo os espaços de borda que o
+   * operador digitou antes de o navegador aparar em algum outro ponto do fluxo.
+   */
+  test('conta o texto cru, sem aparar, igual à CHECK do banco', () => {
+    const paddedWithinTrimmedLimit = `  ${'a'.repeat(3999)}  ` // aparado: 3999, cru: 4003
+    const errors = validateMailTemplateContent({
+      catalogEntry: CATALOG_ENTRY,
+      content: { ...VALID_CONTENT, closing: paddedWithinTrimmedLimit },
     })
     expect(errors).toContainEqual({
       field: 'closing',

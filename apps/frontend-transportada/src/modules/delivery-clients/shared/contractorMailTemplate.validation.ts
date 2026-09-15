@@ -38,10 +38,15 @@ type TemplateToken =
   | Readonly<{ kind: 'text'; value: string }>
   | Readonly<{ kind: 'variable'; name: string }>
 
+/**
+ * Rodada de correção da Fase 4, item 6: a CHECK do banco (`contractor-mail.schema.ts`) mede
+ * `length(name)` — o texto **cru** que fica gravado, não o aparado. O requisito de "obrigatório"
+ * ainda olha o aparado (nome só de espaço continua vazio), mas o teto mede o cru, senão o front
+ * aceita um valor que o `PATCH` recusa depois.
+ */
 export function validateMailTemplateName(name: string): MailTemplateValidationError | undefined {
-  const trimmed = name.trim()
-  if (trimmed.length === 0) return MAIL_TEMPLATE_VALIDATION_ERROR.NAME_REQUIRED
-  if (trimmed.length > CONTRACTOR_MAIL_TEMPLATE_LIMITS.name) {
+  if (name.trim().length === 0) return MAIL_TEMPLATE_VALIDATION_ERROR.NAME_REQUIRED
+  if (name.length > CONTRACTOR_MAIL_TEMPLATE_LIMITS.name) {
     return MAIL_TEMPLATE_VALIDATION_ERROR.NAME_TOO_LONG
   }
   return undefined
@@ -60,7 +65,6 @@ export function validateMailTemplateContent(
 
   return MAIL_TEMPLATE_FIELD_NAMES.flatMap((field) => {
     const raw = content[field]
-    const trimmed = raw.trim()
     const isRequired = field !== ITEM_FIELD
     const limit =
       field === 'subject'
@@ -68,10 +72,12 @@ export function validateMailTemplateContent(
         : CONTRACTOR_MAIL_TEMPLATE_LIMITS.text
 
     const errors: MailTemplateFieldError[] = []
-    if (isRequired && trimmed.length === 0) {
+    if (isRequired && raw.trim().length === 0) {
       errors.push({ field, message: MAIL_TEMPLATE_VALIDATION_ERROR.TEXT_REQUIRED })
     }
-    if (trimmed.length > limit) {
+    // Rodada de correção da Fase 4, item 6: o teto mede o texto cru (como a CHECK do banco), não o
+    // aparado — senão o front aceita um valor que o `PATCH` recusa depois.
+    if (raw.length > limit) {
       errors.push({ field, message: MAIL_TEMPLATE_VALIDATION_ERROR.TEXT_TOO_LONG })
     }
     if (field === 'subject' && LINE_BREAK.test(raw)) {
