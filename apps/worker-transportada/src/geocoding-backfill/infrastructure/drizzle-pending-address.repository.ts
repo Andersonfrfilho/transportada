@@ -48,8 +48,13 @@ export function createDrizzlePendingAddressSource(
             on p."id" = n."participant_id" and p."company_id" = n."company_id"
           where p."role" in ('recipient', 'delivery')
           union all
-          -- Spec 097 D7: o barracão sem configuração é o endereço fiscal da empresa.
-          select f."city_ibge_code", f."postal_code", f."number"
+          -- Spec 097 D7: o barracão sem configuração é o endereço fiscal da empresa. Um endereço só,
+          -- lido por chave exata: o número sai normalizado como em buildStopAddressKey ("nº", "SN").
+          select trim(f."city_ibge_code"), f."postal_code",
+            case when trim(f."number") ~* '^(s\\s*/?\\s*n|sem\\s*n[uú]mero)$' then 'S/N'
+              else regexp_replace(trim(regexp_replace(trim(f."number"), '^n[ºo°]?\\.?\\s*', '', 'i')),
+                '\\s+', ' ', 'g')
+            end
           from company_fiscal_profiles f
         ), keyed as (
           select

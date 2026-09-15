@@ -12,6 +12,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import { createDrizzlePendingAddressSource } from '../src/geocoding-backfill/infrastructure/drizzle-pending-address.repository.js'
+import { buildStopAddressKey } from '../src/routing/domain/pool-address-key.js'
 import { createDrizzleRouteOptimizationRepository } from '../src/routing/infrastructure/drizzle-route-optimization.repository.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -122,6 +123,43 @@ describeDatabase('o barracão vem do cadastro da empresa (spec 097 D7)', () => {
     })
     expect(context?.end).toEqual(context?.depot ?? null)
     expect(page.some((address) => address.addressKey === COMPANY_KEY)).toBe(false)
+  })
+
+  /** A chave enfileirada tem de ser a que o solver procura, com o número em qualquer grafia. */
+  test('a fila monta a mesma chave que buildStopAddressKey', async () => {
+    const cases = ['nº 45', 'SN', 'Sem número', '12  a', ' N° 7 ']
+    const ids = cases.map(() => crypto.randomUUID())
+    const postalCodeOf = (index: number) => `1407699${index}`
+    try {
+      for (const [index, number] of cases.entries()) {
+        const companyId = ids[index] ?? ''
+        await db.execute(sql`insert into companies (id, status) values (${companyId}, 'active')`)
+        await db.execute(sql`
+          insert into company_fiscal_profiles
+            (company_id, legal_name, trade_name, cnpj, state_registration, municipal_registration,
+             tax_regime, rntrc, street, number, complement, district, city, state, postal_code,
+             city_ibge_code, phone, email)
+          values (${companyId}, 'D7', 'D7', ${companyId.replace(/\D/gu, '').slice(0, 14).padEnd(14, '0')},
+            '', '', '1', '58151044', 'Rua', ${number}, '', 'Centro', 'Ribeirão Preto', 'SP',
+            ${postalCodeOf(index)}, ' 3543402 ', '1600000000', 'fiscal@example.test')
+        `)
+      }
+      const page = await pending.list({ after: '3543402|14076989', limit: 50 })
+
+      for (const [index, number] of cases.entries()) {
+        const expected = buildStopAddressKey({
+          cityCode: ' 3543402 ',
+          number,
+          postalCode: postalCodeOf(index),
+        })
+        expect(page.map((address) => address.addressKey)).toContain(expected ?? 'sem chave')
+      }
+    } finally {
+      for (const companyId of ids) {
+        await db.execute(sql`delete from company_fiscal_profiles where company_id = ${companyId}`)
+        await db.execute(sql`delete from companies where id = ${companyId}`)
+      }
+    }
   })
 
   test('a origem configurada vence o endereço da empresa', async () => {

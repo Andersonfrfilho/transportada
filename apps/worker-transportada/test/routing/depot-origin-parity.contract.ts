@@ -22,6 +22,19 @@ describe('a origem do barracão (spec 097 D7)', () => {
     expect(afterHeader(copy)).toBe(afterHeader(original))
   })
 
+  /** Sem linha de configuração, as duas apps terminam a rota no mesmo lugar. */
+  test('o padrão da política de fim é o mesmo nas duas apps', async () => {
+    const [schema, repository] = await Promise.all([
+      readFile('../api-transportada/src/database/route-suggestion.schema.ts', 'utf8'),
+      readFile('src/routing/infrastructure/drizzle-route-optimization.repository.ts', 'utf8'),
+    ])
+    const apiDefault = /DEFAULT_ROUTE_END_POLICY: RouteEndPolicy = '([a-z_]+)'/u.exec(schema)?.[1]
+    const workerDefault = /endPolicy: '([a-z_]+)'/u.exec(repository)?.[1]
+
+    expect(apiDefault).toBeDefined()
+    expect(workerDefault).toBe(apiDefault)
+  })
+
   test('a configuração vence; sem ela, o endereço da empresa', () => {
     const companyAddress = { cityIbgeCode: '3543402', number: '2296', postalCode: '14076-400' }
 

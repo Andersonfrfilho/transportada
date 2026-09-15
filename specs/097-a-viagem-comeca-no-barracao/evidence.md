@@ -246,3 +246,9 @@ chave `city_ibge_code|CEP|número` do endereço ausente de `geocoded_addresses`.
   **8 pass / 0 fail** — o endereço entra uma vez na fila do `geocoding.backfill` e sai depois de
   geocodificado; sem coordenada o solver fica sem barracão; com ela parte e volta à empresa; a
   configuração vence.
+- Revisão independente (code-reviewer, opus) achou que a chave da fila montada em SQL não
+  normalizava o número como `buildStopAddressKey` (`nº 45`, `SN`, `Sem número`, espaço duplo) — o
+  barracão seria geocodificado numa chave que ninguém lê. Corrigido no ramo da empresa; integração
+  compara as duas chaves para cinco grafias: **9 pass / 0 fail**. Paridade ganhou o padrão de
+  `end_policy` das duas apps. Worker 1332 pass. A falha de `database-migration.integration.ts`
+  (23001 × 23503) é do Postgres 18 nativo usado no lugar do Docker quebrado — nenhuma migration mudou.
