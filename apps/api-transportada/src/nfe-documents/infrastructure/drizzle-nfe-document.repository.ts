@@ -2,7 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, desc, eq, inArray, isNull, lt, ne, or, sum } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, isNull, ne, sql, sum } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
@@ -276,19 +277,28 @@ export function buildDocumentListFilters({
 }: {
   readonly accessKey: string | null
   readonly companyId: string
-  readonly cursor: { readonly createdAt: Date; readonly id: string } | null
+  readonly cursor: DocumentListCursor | null
 }): readonly SQL[] {
   const filters: SQL[] = [eq(nfeDocuments.companyId, companyId)]
   if (accessKey !== null) filters.push(eq(nfeDocuments.accessKey, accessKey))
   if (cursor !== null) {
     filters.push(
-      or(
-        lt(nfeDocuments.issuedAt, cursor.createdAt),
-        and(eq(nfeDocuments.issuedAt, cursor.createdAt), lt(nfeDocuments.id, cursor.id)),
-      )!,
+      sql`(${nfeDocuments.updatedAt}, ${nfeDocuments.issuedAt}, ${nfeDocuments.id}) < (${cursor.updatedAt}::timestamptz, ${cursor.issuedAt}::timestamptz, ${cursor.id}::uuid)`,
     )
   }
   return filters
+}
+
+/** As três chaves da ordem da listagem, com os microssegundos que o banco guarda (ver `list`). */
+type DocumentListCursor = {
+  readonly id: string
+  readonly issuedAt: string
+  readonly updatedAt: string
+}
+
+/** Texto em vez de `Date`: o `Date` do JS truncaria `updated_at` e o cursor pularia a nota vizinha. */
+function formatCursorTimestamp(column: AnyPgColumn): SQL<string> {
+  return sql<string>`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
 }
 
 export class DrizzleNfeDocumentRepository
@@ -370,14 +380,19 @@ export class DrizzleNfeDocumentRepository
       companyId: input.context.companyId,
       cursor: decodeCursor(input.cursor),
     })
+    /** A nota mexida por último abre a lista; a emissão desempata e o id deixa a ordem estável. */
     const rows = await this.database
-      .select()
+      .select({
+        issuedAtKey: formatCursorTimestamp(nfeDocuments.issuedAt),
+        record: nfeDocuments,
+        updatedAtKey: formatCursorTimestamp(nfeDocuments.updatedAt),
+      })
       .from(nfeDocuments)
       .where(and(...filters))
-      .orderBy(desc(nfeDocuments.issuedAt), desc(nfeDocuments.id))
+      .orderBy(desc(nfeDocuments.updatedAt), desc(nfeDocuments.issuedAt), desc(nfeDocuments.id))
       .limit(input.limit + 1)
-    const pageRows = rows.slice(0, input.limit)
-    const last = pageRows.at(-1)
+    const last = rows.slice(0, input.limit).at(-1)
+    const pageRows = rows.slice(0, input.limit).map((row) => row.record)
     const scope: DocumentScope = {
       companyId: input.context.companyId,
       documentIds: pageRows.map((record) => record.id),
@@ -392,7 +407,7 @@ export class DrizzleNfeDocumentRepository
       ),
       nextCursor:
         rows.length > input.limit && last !== undefined
-          ? `${last.issuedAt.toISOString()}::${last.id}`
+          ? `${last.updatedAtKey}::${last.issuedAtKey}::${last.record.id}`
           : null,
     }
   }
@@ -889,6 +904,7 @@ function describeDocument(
     emitterTaxId: emitter.taxId,
     id: document.id,
     issuedAt: document.issuedAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
     nfseInvoiceId: nfseInvoice?.id ?? null,
     nfseInvoiceNumber: nfseInvoice?.number ?? null,
     number: document.number,
@@ -933,15 +949,12 @@ function composeAddress(
   return full.length > 0 ? full : null
 }
 
-function decodeCursor(
-  value: string | null,
-): { readonly createdAt: Date; readonly id: string } | null {
+/** A forma já foi conferida na borda (`parseDocumentListCursor`); aqui só se separa as chaves. */
+function decodeCursor(value: string | null): DocumentListCursor | null {
   if (value === null) return null
-  const separator = value.lastIndexOf('::')
-  if (separator < 0) return null
-  const createdAt = new Date(value.slice(0, separator))
-  const id = value.slice(separator + 2)
-  return Number.isNaN(createdAt.getTime()) || id.length === 0 ? null : { createdAt, id }
+  const [updatedAt, issuedAt, id] = value.split('::')
+  if (updatedAt === undefined || issuedAt === undefined || id === undefined) return null
+  return { id, issuedAt, updatedAt }
 }
 
 function notFound(): ApiError {

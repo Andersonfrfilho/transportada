@@ -3,8 +3,11 @@ import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { ChargeBatchListPage } from '@/modules/charges/ChargeBatchList.page'
 import { DeliveryListPage } from '@/modules/deliveries/DeliveryList.page'
+import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
 import { getClientEnvironment } from '@/modules/shared/environment.config'
 import {
   getKeycloakAuthProvider,
@@ -21,6 +24,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
 })
 
+const deploymentEnvironment = getDeploymentEnvironment()
+
+applyEnvironmentBadge({ document, environment: deploymentEnvironment })
+
 type Tab = 'charges' | 'deliveries'
 
 function App() {
@@ -33,6 +40,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <EnvironmentBanner environment={deploymentEnvironment} />
       <main>
         <div className="page">
           <nav className="nav">

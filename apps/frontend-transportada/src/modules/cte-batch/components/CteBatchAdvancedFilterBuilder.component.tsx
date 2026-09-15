@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Select } from '@/components/ui/select'
 
+import { AdvancedFilterClearButton } from '@/components/ui/advanced-filter-clear-button'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
 import type { CteBatchTableController } from '../hooks/useCteBatchTable.hook'
 import {
@@ -31,11 +33,10 @@ const INPUT_TYPE_BY_CONDITION: Readonly<Record<CteBatchConditionType, string>> =
 type ConditionRowProps = Readonly<{
   condition: CteBatchCondition
   groupId: string
-  isRemovable: boolean
   table: CteBatchTableController
 }>
 
-function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowProps) {
+function ConditionRow({ condition, groupId, table }: ConditionRowProps) {
   const { t } = useTranslation('cteBatch')
   const conditionType = CTE_BATCH_CONDITION_FIELD_TYPE[condition.field]
   const operators: readonly CteBatchConditionOperator[] = CTE_BATCH_OPERATORS_BY_TYPE[conditionType]
@@ -112,17 +113,15 @@ function ConditionRow({ condition, groupId, isRemovable, table }: ConditionRowPr
           value={condition.valueTo}
         />
       </label>
-      {isRemovable ? (
-        <Button
-          onClick={() => table.removeGroupCondition(groupId, condition.id)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="remove" />
-          {t('advanced.removeCondition')}
-        </Button>
-      ) : null}
+      <Button
+        onClick={() => table.removeGroupCondition(groupId, condition.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="remove" />
+        {t('advanced.removeCondition')}
+      </Button>
     </div>
   )
 }
@@ -167,7 +166,6 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
             <ConditionRow
               condition={condition}
               groupId={group.id}
-              isRemovable={group.conditions.length > 1}
               key={condition.id}
               table={table}
             />
@@ -201,6 +199,11 @@ export function CteBatchAdvancedFilterBuilder({ table }: CteBatchAdvancedFilterB
           <Icon name="add" />
           {t('advanced.addGroup')}
         </Button>
+        <AdvancedFilterClearButton
+          conditionCount={countAdvancedFilterConditions(table.advancedFilter)}
+          label={t('advanced.clearConditions')}
+          onClear={table.clearConditions}
+        />
       </div>
     </div>
   )

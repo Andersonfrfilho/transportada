@@ -2,10 +2,12 @@
 import { Fragment, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AdvancedFilterClearButton } from '@/components/ui/advanced-filter-clear-button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
 import {
   CONDITION_FIELDS,
@@ -33,6 +35,7 @@ type AdvancedFilterBuilderProps = Readonly<{
   model: AdvancedFilterModel
   onAddCondition: (groupId: string) => void
   onAddGroup: () => void
+  onClearConditions: () => void
   onRemoveCondition: (groupId: string, conditionId: string) => void
   onRemoveGroup: (groupId: string) => void
   onSetGroupConnector: (groupId: string, connector: GroupConnector) => void
@@ -88,6 +91,7 @@ export function AdvancedFilterBuilder({
   model,
   onAddCondition,
   onAddGroup,
+  onClearConditions,
   onRemoveCondition,
   onRemoveGroup,
   onSetGroupConnector,
@@ -215,7 +219,6 @@ export function AdvancedFilterBuilder({
         <button
           aria-label={t('documents.builder.removeCondition')}
           className={styles.iconAction}
-          disabled={group.conditions.length <= 1}
           onClick={() => onRemoveCondition(group.id, condition.id)}
           title={t('documents.builder.removeCondition')}
           type="button"
@@ -288,6 +291,11 @@ export function AdvancedFilterBuilder({
         <Icon name="add" />
         <span>{t('documents.builder.addGroup')}</span>
       </button>
+      <AdvancedFilterClearButton
+        conditionCount={countAdvancedFilterConditions(model)}
+        label={t('documents.builder.clearConditions')}
+        onClear={onClearConditions}
+      />
     </div>
   )
 }

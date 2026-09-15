@@ -29,7 +29,11 @@ const toSql = (filters: readonly Parameters<typeof and>[number][]) =>
   dialect.sqlToQuery(and(...filters)!)
 
 const ACCESS_KEY = '35260761156864000191550010000000022000000022'
-const CURSOR = { createdAt: new Date('2026-07-22T14:01:00.000Z'), id: DOCUMENT_ID } as const
+const CURSOR = {
+  id: DOCUMENT_ID,
+  issuedAt: '2026-07-22T14:01:00.000000Z',
+  updatedAt: '2026-09-14T10:15:30.123456Z',
+} as const
 
 describe('NF-e document listing query tenant safety', () => {
   test('scopes the page by company even without cursor or access key', () => {
@@ -59,8 +63,16 @@ describe('NF-e document listing query tenant safety', () => {
 
     expect(query.sql).toContain('"nfe_documents"."company_id" = $')
     expect(query.sql).toContain('"nfe_documents"."access_key" = $')
-    const issuedAt = CURSOR.createdAt.toISOString()
-    expect(query.params).toEqual([COMPANY_ID, ACCESS_KEY, issuedAt, issuedAt, CURSOR.id])
+    expect(query.sql).toContain(
+      '("nfe_documents"."updated_at", "nfe_documents"."issued_at", "nfe_documents"."id") < (',
+    )
+    expect(query.params).toEqual([
+      COMPANY_ID,
+      ACCESS_KEY,
+      CURSOR.updatedAt,
+      CURSOR.issuedAt,
+      CURSOR.id,
+    ])
   })
 })
 

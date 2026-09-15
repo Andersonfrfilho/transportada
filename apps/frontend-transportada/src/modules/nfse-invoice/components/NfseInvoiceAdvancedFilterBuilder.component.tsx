@@ -2,9 +2,11 @@
 import { Fragment, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AdvancedFilterClearButton } from '@/components/ui/advanced-filter-clear-button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
 import type { NfseAdvancedFilterControls } from '../hooks/useNfseAdvancedFilter.hook'
 import { NFSE_INVOICE_STATUSES } from '../shared/nfseInvoice.types'
@@ -157,7 +159,6 @@ export function NfseInvoiceAdvancedFilterBuilder({
         <button
           aria-label={t('advanced.removeCondition')}
           className={styles.iconAction}
-          disabled={group.conditions.length <= 1}
           onClick={() => controls.removeGroupCondition(group.id, condition.id)}
           title={t('advanced.removeCondition')}
           type="button"
@@ -235,6 +236,11 @@ export function NfseInvoiceAdvancedFilterBuilder({
         <Icon name="add" />
         <span>{t('advanced.addGroup')}</span>
       </button>
+      <AdvancedFilterClearButton
+        conditionCount={countAdvancedFilterConditions(model)}
+        label={t('advanced.clearConditions')}
+        onClear={controls.clearConditions}
+      />
     </div>
   )
 }

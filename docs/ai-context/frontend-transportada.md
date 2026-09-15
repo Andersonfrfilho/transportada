@@ -276,6 +276,22 @@ Herda de `base` (não de `keycloak.v2`, que arrasta o PatternFly) e reescreve `t
 não importa código nosso. Mudou cor, fonte ou escala aqui? copie lá. Regra completa em
 `docs/frontend/login-theme.md`.
 
+**O login passa sempre pela verificação do app (regra de 2026-09-14).** A pessoa entra por qualquer
+contato cadastrado, a tela `LoginIdentifier.page.tsx` (ligada por `VITE_IDENTIFIER_FIRST_LOGIN`)
+resolve o username por `/login-hints` e chama `keycloak.login({ loginHint })`. O Keycloak sozinho só
+entende o username, então **nenhuma** reautenticação vai direto a ele com a etapa ligada: o
+`restartAuthentication` do `KeycloakAuthProvider` (banner de sessão expirada, depois da falha de
+refresh) limpa o token e **recarrega a página no mesmo endereço**. O `initialize` guarda o caminho de
+volta (`persistPostAuthenticationPath`), o `check-sso` volta sem sessão e a tela de identificação
+aparece. O erro `3rd party check iframe` devolve `false` direto para a mesma tela (recarregar
+repetiria o erro). O contato não é pré-preenchido: não existe mecanismo para isso, e criar um poria
+PII na URL ou no storage. Com a etapa desligada tudo segue como antes, com o `loginAgain` levando o
+`preferred_username` do token expirado (commit 159b9b1b). A navegação é injetável
+(`createKeycloakAuthProvider(keycloak, redirectUri, { reloadApplication })`) para o contrato
+`test/keycloak-auth-provider.test.ts`. Do outro lado, o tema mostra só a senha quando chega
+`login_hint`; o detalhe está em `docs/frontend/login-theme.md` § "Depois da verificação do app, só a
+senha".
+
 **A CSP nasce no build, e o servidor não sobe sem ela.** `VITE_API_URL` e `VITE_KEYCLOAK_URL` são
 inlinadas no bundle e **não existem** no contêiner que serve o `dist` — o estágio de runtime do
 `Dockerfile` copia só `dist` e `server.ts`, e `server.ts` não pode importar de `src/`. Então a

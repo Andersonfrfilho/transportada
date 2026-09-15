@@ -460,7 +460,10 @@ describe('Keycloak login theme contract', () => {
     const dockerfile = await readProjectFile('deploy/keycloak/Dockerfile')
 
     expect(compose).toContain(`./${THEME_ROOT}:/opt/keycloak/themes/${THEME_NAME}:ro`)
-    expect(dockerfile).toContain(`COPY ${THEME_ROOT} /opt/keycloak/themes/${THEME_NAME}`)
+    // O `--chown` é necessário: o build reescreve o `theme.properties` com o hash do conteúdo.
+    expect(dockerfile).toMatch(
+      new RegExp(`^COPY (?:--chown=\\S+ )?${THEME_ROOT} /opt/keycloak/themes/${THEME_NAME}$`, 'm'),
+    )
   })
 })
 

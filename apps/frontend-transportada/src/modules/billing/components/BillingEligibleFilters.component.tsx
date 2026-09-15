@@ -2,9 +2,15 @@
 import { Fragment, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AdvancedFilterClearButton } from '@/components/ui/advanced-filter-clear-button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import {
+  clearAdvancedFilterConditions,
+  countAdvancedFilterConditions,
+  removeAdvancedFilterCondition,
+} from '@/modules/shared/advancedFilterConditions.service'
 
 import type { BillingEligibleTableController } from '../hooks/useBillingEligibleTable.hook'
 import {
@@ -178,13 +184,13 @@ export function BillingEligibleFilters({ table }: BillingEligibleFiltersProps): 
         <button
           aria-label={t('eligible.advanced.removeCondition')}
           className={styles.builderAction}
-          disabled={group.conditions.length <= 1}
           onClick={() =>
             table.setAdvancedFilter(
-              replaceGroup(model, group.id, (current) => ({
-                ...current,
-                conditions: current.conditions.filter((item) => item.id !== condition.id),
-              })),
+              removeAdvancedFilterCondition({
+                conditionId: condition.id,
+                groupId: group.id,
+                model,
+              }),
             )
           }
           type="button"
@@ -339,6 +345,11 @@ export function BillingEligibleFilters({ table }: BillingEligibleFiltersProps): 
           <Icon name="add" />
           {t('eligible.advanced.addGroup')}
         </button>
+        <AdvancedFilterClearButton
+          conditionCount={countAdvancedFilterConditions(model)}
+          label={t('eligible.advanced.clearConditions')}
+          onClear={() => table.setAdvancedFilter(clearAdvancedFilterConditions(model))}
+        />
       </div>
     </div>
   )

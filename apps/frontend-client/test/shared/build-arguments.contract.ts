@@ -15,6 +15,10 @@ const ENVIRONMENT_CONFIG_PATH = new URL(
   '../../src/modules/shared/environment.config.ts',
   import.meta.url,
 ).pathname
+const DEPLOYMENT_ENVIRONMENT_PATH = new URL(
+  '../../src/modules/shared/deploymentEnvironment.service.ts',
+  import.meta.url,
+).pathname
 const DOCKERFILE_PATH = new URL('../../Dockerfile', import.meta.url).pathname
 
 const VITE_REFERENCE_PATTERN = /import\.meta\.env\.(VITE_[A-Z0-9_]+)/gu
@@ -27,12 +31,15 @@ async function readViteNames(path: string, pattern: RegExp): Promise<ReadonlySet
 
 describe('argumentos de build do portal do contratante', () => {
   test('toda VITE_ que o código lê tem ARG no Dockerfile', async () => {
-    const [read, declared] = await Promise.all([
+    const [configuration, deployment, declared] = await Promise.all([
       readViteNames(ENVIRONMENT_CONFIG_PATH, VITE_REFERENCE_PATTERN),
+      readViteNames(DEPLOYMENT_ENVIRONMENT_PATH, VITE_REFERENCE_PATTERN),
       readViteNames(DOCKERFILE_PATH, BUILD_ARGUMENT_PATTERN),
     ])
+    const read = new Set([...configuration, ...deployment])
 
     expect(read.size).toBeGreaterThan(0)
+    expect(read.has('VITE_APP_ENV')).toBe(true)
     expect([...read].filter((name) => !declared.has(name))).toEqual([])
   })
 })

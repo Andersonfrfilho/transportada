@@ -1,6 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef, useState } from 'react'
 
+import {
+  clearAdvancedFilterConditions,
+  removeAdvancedFilterCondition,
+} from '@/modules/shared/advancedFilterConditions.service'
+
 import { useCompanyCteItemSummaryQuery } from '../queries/cteBatchItems.query'
 import type { CteBatchStatus, CteBatchSummary } from '../shared/cteBatchClient.service'
 import {
@@ -153,10 +158,10 @@ export function useCteBatchTable(input: UseCteBatchTableInput) {
         groups: current.groups.filter((group) => group.id !== groupId),
       })),
     removeGroupCondition: (groupId: string, conditionId: string) =>
-      updateGroup(groupId, (group) => ({
-        ...group,
-        conditions: group.conditions.filter((condition) => condition.id !== conditionId),
-      })),
+      setAdvancedFilter((current) =>
+        removeAdvancedFilterCondition({ conditionId, groupId, model: current }),
+      ),
+    clearConditions: () => setAdvancedFilter((current) => clearAdvancedFilterConditions(current)),
     selectedBatches,
     selectedIds,
     selectionSummary,

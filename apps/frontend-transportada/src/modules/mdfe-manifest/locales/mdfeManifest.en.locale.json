@@ -88,6 +88,7 @@
     "addGroup": "Add group",
     "removeGroup": "Remove group",
     "addCondition": "Add condition",
+    "clearConditions": "Clear conditions",
     "removeCondition": "Remove condition",
     "field": "Field",
     "operator": "Operator",

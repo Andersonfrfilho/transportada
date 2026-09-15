@@ -88,6 +88,7 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             model={table.advancedFilter}
             onAddCondition={table.addCondition}
             onAddGroup={table.addGroup}
+            onClearConditions={table.clearConditions}
             onRemoveCondition={table.removeCondition}
             onRemoveGroup={table.removeGroup}
             onSetGroupConnector={table.setGroupConnector}

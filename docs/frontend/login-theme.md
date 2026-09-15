@@ -228,6 +228,39 @@ sabe o endereço do frontend. O `login.ftl` renderiza a âncora escondida e
 login antes de revelá-la. Sem `redirect_uri` legível o link continua escondido — melhor ausente do
 que apontando para lugar nenhum.
 
+## Depois da verificação do app, só a senha
+
+A pessoa entra por qualquer contato cadastrado (e-mail, CPF, CNPJ, telefone). Quem traduz o contato
+em login é a tela de identificação do app (`LoginIdentifier.page.tsx`), e o Keycloak recebe o username
+por `login_hint`. Pedir o usuário de novo aqui seria perguntar duas vezes, e num campo que não aceita o
+CPF nem o telefone que acabou de ser digitado.
+
+- **Como o `login_hint` chega ao template:** no Keycloak 26 o `UsernamePasswordForm` põe o hint no
+  form data, e o FreeMarker o lê em `login.username`. O `login.ftl` faz
+  `<#assign identifiedUsername = (login.username)!''>` e, com conteúdo, troca o campo de usuário por
+  texto (`Entrando como` + o username, nenhum outro dado), um `<input type="hidden" name="username">` e
+  o link **"Não é você?"**. A senha ganha o `autofocus`.
+- **O link volta para a identificação do app**, que é a raiz do app sem sessão. A origem vem de
+  `applicationOrigin=${env.KEYCLOAK_FRONTEND_ORIGIN}` no `theme.properties`, a mesma variável que o realm
+  usa nas `redirectUris`. Nenhuma URL fica cravada por ambiente. Sem a variável o Keycloak deixa o
+  literal `${env.…}`, e por isso o template só usa valor que comece com `http`; fora disso o link
+  nasce `hidden` e o `password-reset-link.js` o resolve pelo `redirect_uri`, como faz com o link de
+  recuperação. O `compose.yaml` local não declara a variável, então no local quem resolve é o script.
+- **Sem `login_hint`** (acesso direto, console de conta), `login.username` vem vazio e a tela continua
+  com usuário e senha.
+- **Senha errada** volta para a mesma tela só de senha, com a mensagem do Keycloak: o form reenviado
+  traz o username do campo oculto.
+- ⚠️ **O template não distingue o hint do username reenviado.** No acesso direto, senha errada também
+  volta só com a senha e o username que a pessoa digitou. O que ela vê é o próprio texto que digitou,
+  e o "Não é você?" leva à identificação do app. O fluxo de autenticação do realm não foi mudado, e
+  nada no FreeMarker diferencia os dois casos.
+
+Conferido em container de sonda (`quay.io/keycloak/keycloak:26.5.2`, tema montado): com
+`login_hint` a tela tem o username oculto, a senha e o link para a origem do app; sem ele, usuário e
+senha; senha errada volta só com a senha e `Usuário ou senha inválidos.`; senha certa devolve 302
+para o `/auth/callback`. Contrato em
+`apps/frontend-transportada/test/design-system/login-theme-password-only.contract.ts`.
+
 ## O realm não recebe o tema pelo `realm.json`
 
 `--import-realm` **ignora realm já existente**: `"loginTheme": "transportada"` só vale numa
@@ -263,6 +296,42 @@ template com o do `base` da versão nova, trazer o que mudou, e só então atual
 As telas que **não** bifurcamos (recuperação pelo Keycloak, erro, OTP, termos) vêm do `base` com o
 nosso CSS mas com as classes dele — estilizadas pela metade. Upgrade não muda isso em nenhuma
 direção.
+
+## Toda mudança do tema invalida o cache do navegador
+
+O Keycloak serve os recursos do tema em `/resources/<versão-do-servidor>/login/transportada/...`
+com `Cache-Control: max-age=2592000` — **30 dias**. A `<versão-do-servidor>` só muda quando muda o
+Keycloak, não quando muda o tema. Medido em 14/09/2026: depois do deploy do tema novo em staging, o
+navegador que já tinha aberto o login seguiu com o `login.css` antigo, e a faixa de ambiente apareceu
+sem estilo até um recarregamento forçado.
+
+O mecanismo tem três pontas:
+
+- **`theme.properties` declara `resourcesVersion=dev`.** É o padrão seguro: sem carimbo, a URL
+  continua válida.
+- **O `deploy/keycloak/Dockerfile` carimba o hash do conteúdo no build da imagem.** No estágio
+  `build`, depois de copiar o tema, ele calcula
+  `find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12` — caminho
+  e bytes de todo arquivo de `deploy/keycloak/theme/`, em ordem fixa — e troca a linha por `sed`. O
+  build reprova se a linha não foi trocada. O runtime recebe o tema já carimbado pelo
+  `COPY --from=build /opt/keycloak/`; um segundo `COPY` cru do tema desfaria o carimbo.
+- **O `template.ftl` põe `?v=${resourcesVersion}` em todo recurso nosso**: ícones, `color-theme.js`,
+  os laços de `styles=` e `scripts=` e a marca da Ada no `footer.ftl`. A variável é `<#global>`, e
+  não `<#assign>`: o `footer.ftl` é importado como namespace e não enxergaria o `assign`. O
+  `js/authChecker.js` fica sem `?v=` porque é do `base`, e a URL dele já muda com o servidor.
+
+Hash de conteúdo, e não data, número à mão ou commit: data e commit mudam a URL sem mudança no tema,
+e número à mão depende de alguém lembrar. Com o hash, mudou um byte, mudou a URL; não mudou nada, o
+cache continua valendo.
+
+No dev local o `compose.yaml` monta o tema direto no container, sem passar pelo `Dockerfile`, então
+a URL sai com `?v=dev`. Não faz falta: o `start-dev` serve os recursos com `Cache-Control: no-cache`
+(medido na sonda de 14/09/2026).
+
+Conferido em container de sonda com a imagem do `Dockerfile`: a tela de login saiu com
+`login.css?v=db2ef1159c10`, e com um byte a mais no `login.css` a imagem reconstruída saiu com
+outro hash. Contrato em
+`apps/frontend-transportada/test/design-system/login-theme-cache-busting.contract.ts`.
 
 ## Verificando uma mudança
 

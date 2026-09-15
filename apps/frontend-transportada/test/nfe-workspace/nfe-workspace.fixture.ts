@@ -117,6 +117,7 @@ export type NfeDocumentListItemContract = Readonly<{
   totalAmount: string
   tripId: null | string
   tripStatus: null | string
+  updatedAt?: string
   variant: 'complete' | 'event' | 'summary'
 }>
 

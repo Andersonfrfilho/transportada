@@ -2,6 +2,11 @@
 import { useRef, useState } from 'react'
 
 import {
+  clearAdvancedFilterConditions,
+  removeAdvancedFilterCondition,
+} from '@/modules/shared/advancedFilterConditions.service'
+
+import {
   applyNfseConditionChanges,
   createNfseAdvancedFilterModel,
   createNfseCondition,
@@ -68,14 +73,10 @@ export function useNfseAdvancedFilterModel(onChange: () => void) {
           ? current
           : { ...current, groups: current.groups.filter((group) => group.id !== groupId) },
       ),
+    clearConditions: () => changeModel((current) => clearAdvancedFilterConditions(current)),
     removeGroupCondition: (groupId: string, conditionId: string) =>
-      changeGroup(groupId, (group) =>
-        group.conditions.length === 1
-          ? group
-          : {
-              ...group,
-              conditions: group.conditions.filter((condition) => condition.id !== conditionId),
-            },
+      changeModel((current) =>
+        removeAdvancedFilterCondition({ conditionId, groupId, model: current }),
       ),
     setGroupConnector: (groupId: string, connector: 'and' | 'or') =>
       changeGroup(groupId, (group) => ({ ...group, connector })),

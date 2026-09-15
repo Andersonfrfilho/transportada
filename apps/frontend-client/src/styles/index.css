@@ -51,6 +51,19 @@ body {
   min-height: 100vh;
 }
 
+.environment-banner {
+  width: var(--layout-width);
+  margin: var(--space-4) auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  color: var(--color-fog);
+}
+
 .page {
   margin-inline: auto;
   padding-block: var(--space-8);

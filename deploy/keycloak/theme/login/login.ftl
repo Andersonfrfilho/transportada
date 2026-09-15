@@ -1,5 +1,7 @@
 <#-- Copyright (c) 2026 Ada Technology. MIT License. -->
 <#import "template.ftl" as layout>
+<#assign identifiedUsername = (login.username)!''>
+<#assign applicationOrigin = properties.applicationOrigin!''>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password'); section>
     <#if section = "header">
         ${msg("loginAccountTitle")}
@@ -8,12 +10,27 @@
         <#if realm.password>
             <form id="kc-form-login" action="${url.loginAction}" method="post" onsubmit="login.disabled = true; return true;">
                 <#if !usernameHidden??>
-                    <label class="field" for="username">
-                        <span class="field-label"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></span>
-                        <input autocomplete="username" autofocus class="field-input" dir="ltr" id="username" name="username"
-                               type="text" value="${(login.username!'')}"
-                               aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
-                    </label>
+                    <#-- Username preenchido é quem a tela do app já identificou (`login_hint`), ou o
+                         que acabou de ser enviado e voltou com erro: perguntar de novo seria pedir o
+                         username num campo que não aceita o CPF ou o telefone digitado lá. -->
+                    <#if identifiedUsername?has_content>
+                        <div class="field identified-user">
+                            <span class="field-label">${msg("transportadaIdentifiedAs")}</span>
+                            <strong class="identified-user-name" dir="ltr">${identifiedUsername}</strong>
+                            <#-- Sem a variável no deploy o valor é o literal `${env.…}`; aí o script
+                                 resolve a origem pelo `redirect_uri`, como no link de recuperação. -->
+                            <a class="panel-link" data-identity-restart
+                               <#if applicationOrigin?starts_with("http")>href="${applicationOrigin}/"<#else>hidden href="#"</#if>>${msg("transportadaNotYou")}</a>
+                        </div>
+                        <input id="username" name="username" type="hidden" value="${identifiedUsername}" />
+                    <#else>
+                        <label class="field" for="username">
+                            <span class="field-label"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></span>
+                            <input autocomplete="username" autofocus class="field-input" dir="ltr" id="username" name="username"
+                                   type="text" value=""
+                                   aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
+                        </label>
+                    </#if>
                 </#if>
 
                 <#-- Aqui o rótulo é irmão do campo, não o envolve: o botão do olho é conteúdo
@@ -21,7 +38,7 @@
                 <div class="field">
                     <label class="field-label" for="password">${msg("password")}</label>
                     <span class="field-control">
-                        <input autocomplete="current-password" class="field-input" dir="ltr" id="password" name="password"
+                        <input autocomplete="current-password" <#if identifiedUsername?has_content>autofocus </#if>class="field-input" dir="ltr" id="password" name="password"
                                type="password"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
                         <button aria-controls="password" aria-label="${msg("showPassword")}" aria-pressed="false"

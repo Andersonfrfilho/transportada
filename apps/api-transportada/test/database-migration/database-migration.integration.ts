@@ -10,6 +10,7 @@ import { assertFreightRegionConstraints } from './freight-region-constraints.ass
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
@@ -104,6 +105,11 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           fixture: identityFixture,
+        })
+        await assertNfeDocumentListingOrderIndex({
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         const postIdentityRollbacks = await Promise.all(

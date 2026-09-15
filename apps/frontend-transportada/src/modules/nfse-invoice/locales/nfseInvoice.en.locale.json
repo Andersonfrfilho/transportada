@@ -61,6 +61,7 @@
     "groupTitle": "Group {{index}}",
     "hint": "Conditions narrow the page already loaded, without going back to the API.",
     "operator": "Operator",
+    "clearConditions": "Clear conditions",
     "removeCondition": "Remove the condition",
     "removeGroup": "Remove the group",
     "rootConnector": "Toggle the connector between the groups",

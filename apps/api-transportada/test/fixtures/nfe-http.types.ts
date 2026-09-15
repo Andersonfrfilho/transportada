@@ -66,6 +66,7 @@ export type NfeDocumentSummary = {
   readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly updatedAt: string
   readonly nfseInvoiceId: string | null
   readonly nfseInvoiceNumber: string | null
   readonly number: string

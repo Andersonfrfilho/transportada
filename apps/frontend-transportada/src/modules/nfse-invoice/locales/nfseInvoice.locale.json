@@ -61,6 +61,7 @@
     "groupTitle": "Grupo {{index}}",
     "hint": "As condições recortam a página já carregada, sem voltar à API.",
     "operator": "Operador",
+    "clearConditions": "Limpar condições",
     "removeCondition": "Remover a condição",
     "removeGroup": "Remover o grupo",
     "rootConnector": "Alternar o conector entre os grupos",

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   DEFAULT_SORT,
+  SUPERSEDED_ISSUED_AT_SORT,
   SUPERSEDED_NUMBER_SORT,
   sortDocuments,
 } from '../../src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
@@ -46,36 +47,75 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
     series: '1',
     status: 'authorized',
     totalAmount: '1500.0000',
+    updatedAt: '2026-03-15T09:00:00.000000Z',
     variant: 'complete',
     ...overrides,
   }
 }
 
+function sortedIds(documents: readonly NfeDocumentListItem[]): readonly string[] {
+  return sortDocuments({ documents, sort: DEFAULT_SORT }).map((document) => document.id)
+}
+
 describe('nfe-workspace default sort', () => {
-  test('the default sort is the newest issue date first', () => {
-    expect(DEFAULT_SORT).toEqual({ column: 'issuedAt', direction: 'desc' })
+  test('the default sort is the most recently updated document first', () => {
+    expect(DEFAULT_SORT).toEqual({ column: 'updatedAt', direction: 'desc' })
   })
 
-  test('the default sort puts the most recent document at the top', () => {
-    const oldest = buildDocument({
-      id: 'oldest',
+  test('the latest update opens the list, even over a newer issue date', () => {
+    const touchedToday = buildDocument({
+      id: 'touched-today',
       issuedAt: '2026-01-05T08:00:00.000Z',
-      number: '9',
+      updatedAt: '2026-09-14T10:00:00.000000Z',
     })
-    const newest = buildDocument({
-      id: 'newest',
-      issuedAt: '2026-08-10T21:00:00.000Z',
-      number: '1',
-    })
-    const middle = buildDocument({
-      id: 'middle',
-      issuedAt: '2026-05-20T12:00:00.000Z',
-      number: '5',
+    const issuedYesterday = buildDocument({
+      id: 'issued-yesterday',
+      issuedAt: '2026-09-13T08:00:00.000Z',
+      updatedAt: '2026-09-13T09:00:00.000000Z',
     })
 
-    const sorted = sortDocuments({ documents: [oldest, newest, middle], sort: DEFAULT_SORT })
+    expect(sortedIds([issuedYesterday, touchedToday])).toEqual([
+      'touched-today',
+      'issued-yesterday',
+    ])
+  })
 
-    expect(sorted.map((document) => document.id)).toEqual(['newest', 'middle', 'oldest'])
+  /** O servidor grava microssegundos; comparar como texto ISO de largura fixa preserva a ordem. */
+  test('a microsecond apart is still a different update', () => {
+    const later = buildDocument({ id: 'later', updatedAt: '2026-09-14T10:00:00.000002Z' })
+    const earlier = buildDocument({ id: 'earlier', updatedAt: '2026-09-14T10:00:00.000001Z' })
+
+    expect(sortedIds([earlier, later])).toEqual(['later', 'earlier'])
+  })
+
+  test('a tie on the update is broken by the newest issue date, then by the id', () => {
+    const updatedAt = '2026-09-14T09:00:00.000000Z'
+    const newestIssue = buildDocument({ id: 'b', issuedAt: '2026-09-12T12:00:00.000Z', updatedAt })
+    const olderIssueHigherId = buildDocument({
+      id: 'z',
+      issuedAt: '2026-09-11T12:00:00.000Z',
+      updatedAt,
+    })
+    const olderIssueLowerId = buildDocument({
+      id: 'a',
+      issuedAt: '2026-09-11T12:00:00.000Z',
+      updatedAt,
+    })
+
+    expect(sortedIds([olderIssueLowerId, olderIssueHigherId, newestIssue])).toEqual(['b', 'z', 'a'])
+  })
+
+  /** A API sobe primeiro; enquanto o corpo antigo chegar sem `updatedAt`, a emissão responde. */
+  test('a row served without the update time falls back to its issue date', () => {
+    const withoutUpdate = buildDocument({ id: 'old-body', issuedAt: '2026-09-13T08:00:00.000Z' })
+    delete (withoutUpdate as { updatedAt?: string }).updatedAt
+    const updated = buildDocument({
+      id: 'updated',
+      issuedAt: '2026-01-01T08:00:00.000Z',
+      updatedAt: '2026-09-12T08:00:00.000000Z',
+    })
+
+    expect(sortedIds([updated, withoutUpdate])).toEqual(['old-body', 'updated'])
   })
 
   test('a null sort keeps the order the API delivered', () => {
@@ -85,11 +125,31 @@ describe('nfe-workspace default sort', () => {
     expect(sortDocuments({ documents: [first, second], sort: null })).toEqual([first, second])
   })
 
-  test('a saved view carrying the superseded number sort adopts the new default', () => {
-    expect(parseTableViewPreferences({ sort: SUPERSEDED_NUMBER_SORT }).sort).toEqual(DEFAULT_SORT)
+  test('the issue date is still a column the user can sort by', () => {
+    const oldest = buildDocument({ id: 'oldest', issuedAt: '2026-01-05T08:00:00.000Z' })
+    const newest = buildDocument({ id: 'newest', issuedAt: '2026-08-10T21:00:00.000Z' })
+
+    expect(
+      sortDocuments({
+        documents: [newest, oldest],
+        sort: { column: 'issuedAt', direction: 'asc' },
+      }).map((document) => document.id),
+    ).toEqual(['oldest', 'newest'])
   })
 
-  test('any other saved sort is preserved, including number descending', () => {
+  test('a saved view carrying a superseded default adopts the current one', () => {
+    expect(SUPERSEDED_ISSUED_AT_SORT).toEqual({ column: 'issuedAt', direction: 'desc' })
+    expect(parseTableViewPreferences({ sort: SUPERSEDED_NUMBER_SORT }).sort).toEqual(DEFAULT_SORT)
+    expect(parseTableViewPreferences({ sort: SUPERSEDED_ISSUED_AT_SORT }).sort).toEqual(
+      DEFAULT_SORT,
+    )
+  })
+
+  test('any other saved sort is preserved, including the current default', () => {
+    expect(parseTableViewPreferences({ sort: DEFAULT_SORT }).sort).toEqual(DEFAULT_SORT)
+    expect(
+      parseTableViewPreferences({ sort: { column: 'issuedAt', direction: 'asc' } }).sort,
+    ).toEqual({ column: 'issuedAt', direction: 'asc' })
     expect(
       parseTableViewPreferences({ sort: { column: 'number', direction: 'desc' } }).sort,
     ).toEqual({ column: 'number', direction: 'desc' })

@@ -118,6 +118,13 @@ destinatário (CT-e, NFS-e, faturamento, regra de frete, portal do contratante �
 **Chave de acesso é filtro de listagem, não rota nova** — `GET /nfe-documents?accessKey=` dentro do
 `companyId` do contexto, padrão alfanumérico (`^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$`, nunca `\d{44}`).
 
+**A listagem de notas abre pela última atualização** (14/09/2026): `GET /nfe-documents` ordena por
+`updated_at desc, issued_at desc, id desc`, servida por `nfe_documents_company_updated_issued_id_idx`.
+O cursor é `<updated_at>::<issued_at>::<id>` com microssegundos (texto via `to_char`, nunca `Date`,
+que truncaria e pularia nota); o cursor antigo `<iso>::<uuid>` é `400`. ⚠️ Nada atualiza
+`nfe_documents.updated_at` depois do insert (reimportação é `onConflictDoNothing`; status, caixa,
+viagem e CT-e gravam em outras tabelas) — na prática a ordem é a da importação.
+
 ⚠️ Telefone (`nfe_addresses.phone`) e e-mail (`nfe_participants`, tabela **diferente** — telefone é do
 endereço, e-mail é da parte) do destinatário existem para a viagem ligar antes de sair; servidor
 sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalhe completo: docs/ai-context
