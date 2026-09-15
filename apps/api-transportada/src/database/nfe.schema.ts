@@ -295,6 +295,12 @@ export const nfeDocuments = pgTable(
   (table) => [
     unique('nfe_documents_company_id_id_unique').on(table.companyId, table.id),
     unique('nfe_documents_company_id_access_key_unique').on(table.companyId, table.accessKey),
+    index('nfe_documents_company_updated_issued_id_idx').on(
+      table.companyId,
+      table.updatedAt.desc().nullsFirst(),
+      table.issuedAt.desc().nullsFirst(),
+      table.id.desc().nullsFirst(),
+    ),
     foreignKey({
       columns: [table.companyId, table.xmlObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],

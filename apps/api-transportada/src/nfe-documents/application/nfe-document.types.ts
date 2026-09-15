@@ -19,6 +19,8 @@ export type NfeDocumentSummary = {
   readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  /** A última gravação da linha em `nfe_documents` — a chave que abre a listagem. */
+  readonly updatedAt: string
   readonly nfseInvoiceId: string | null
   readonly nfseInvoiceNumber: string | null
   readonly number: string

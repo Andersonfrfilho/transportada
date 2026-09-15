@@ -28,6 +28,9 @@ import {
 } from '../fixtures/nfe-http-request.fixture'
 import { COMPANY_CONTEXT, IMPORT_ID } from '../fixtures/nfe-import-application.fixture'
 
+const DOCUMENT_LIST_CURSOR =
+  '2026-09-14T10:15:30.123456Z::2026-07-22T14:00:00.000000Z::00000000-0000-4000-8000-000000000230'
+
 describe('nfe http listing and detail contract', () => {
   test('lists imports with validated cursor/limit and stable response serialization', async () => {
     const fixture = await createNfeHttpFixture()
@@ -81,7 +84,7 @@ describe('nfe http listing and detail contract', () => {
 
     const listResponse = await fixture.handle(
       documentsListRequest({
-        query: '?cursor=2026-07-22T14:00:00.000Z::00000000-0000-4000-8000-000000000230&limit=10',
+        query: `?cursor=${DOCUMENT_LIST_CURSOR}&limit=10`,
       }),
     )
     expect(listResponse.status).toBe(200)
@@ -98,7 +101,7 @@ describe('nfe http listing and detail contract', () => {
     expect(fixture.documentListCalls[0]).toEqual({
       accessKey: null,
       context: COMPANY_CONTEXT,
-      cursor: '2026-07-22T14:00:00.000Z::00000000-0000-4000-8000-000000000230',
+      cursor: DOCUMENT_LIST_CURSOR,
       limit: 10,
     })
   })

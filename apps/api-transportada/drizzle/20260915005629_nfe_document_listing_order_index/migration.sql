@@ -1,0 +1,1 @@
+CREATE INDEX "nfe_documents_company_updated_issued_id_idx" ON "nfe_documents" ("company_id","updated_at" DESC,"issued_at" DESC,"id" DESC);

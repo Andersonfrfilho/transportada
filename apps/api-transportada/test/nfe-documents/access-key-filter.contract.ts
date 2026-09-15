@@ -60,7 +60,8 @@ describe('NF-e document listing filtered by access key', () => {
 
   test('keeps the cursor page working beside the key', async () => {
     const fixture = await createNfeHttpFixture()
-    const cursor = '2026-07-22T14:01:00.000Z::00000000-0000-4000-8000-000000000230'
+    const cursor =
+      '2026-09-14T10:15:30.123456Z::2026-07-22T14:01:00.000000Z::00000000-0000-4000-8000-000000000230'
 
     const response = await fixture.handle(
       documentsListRequest({

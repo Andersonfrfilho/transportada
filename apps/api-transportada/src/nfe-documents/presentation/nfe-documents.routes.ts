@@ -33,6 +33,7 @@ type NfeDocumentSummary = {
   readonly emitterTaxId: string | null
   readonly id: string
   readonly issuedAt: string
+  readonly updatedAt: string
   readonly nfseInvoiceId: string | null
   readonly nfseInvoiceNumber: string | null
   readonly number: string
@@ -248,6 +249,7 @@ function serializeDocument(document: NfeDocumentSummary): object {
     emitterTaxId: document.emitterTaxId,
     id: document.id,
     issuedAt: document.issuedAt,
+    updatedAt: document.updatedAt,
     nfseInvoiceId: document.nfseInvoiceId,
     nfseInvoiceNumber: document.nfseInvoiceNumber,
     number: document.number,

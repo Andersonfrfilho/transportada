@@ -302,7 +302,11 @@ function hasAcceptedFileSignature(file: File): boolean {
  */
 export function parseCursorPage(
   url: URL,
-  options: { readonly extraKeys?: readonly string[] } = {},
+  options: {
+    readonly extraKeys?: readonly string[]
+    /** A rota cuja ordem tem outras chaves valida o próprio cursor; o padrão é `<iso>::<uuid>`. */
+    readonly validateCursor?: (value: string) => void
+  } = {},
 ): {
   readonly cursor: string | null
   readonly limit: number
@@ -313,7 +317,7 @@ export function parseCursorPage(
   if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
   const cursor = url.searchParams.get('cursor')
   const limit = url.searchParams.get('limit')
-  if (cursor !== null) parseCursor(cursor)
+  if (cursor !== null) (options.validateCursor ?? parseCursor)(cursor)
   return {
     cursor,
     limit: limit === null ? 25 : parseLimit(limit),
