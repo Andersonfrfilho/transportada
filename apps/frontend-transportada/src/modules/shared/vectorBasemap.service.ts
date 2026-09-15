@@ -593,8 +593,8 @@ export function buildBasemapStyle(
         minzoom: RADAR_MIN_ZOOM,
         layout: {
           /**
-           * Feature 096 T5 — o limite de velocidade vai numa **placa** ao lado da câmera (a R-19 que
-           * o motorista encontra na estrada), não em texto solto: cada valor pede a imagem
+           * Feature 096 T5 — o radar com limite conhecido é a própria **placa** R-19 que o motorista
+           * encontra na estrada, com a medalha do radar no canto: cada valor pede a imagem
            * `selo-radar-<velocidade>`, que o mapa desenha no `styleimagemissing`.
            *
            * ⚠️ **`maxspeed:hgv` vence quando existir.** Em rodovia brasileira o limite do caminhão é

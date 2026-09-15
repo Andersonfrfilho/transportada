@@ -28,7 +28,7 @@ function readApplicationFile(filePath: string): string {
  */
 describe('os selos de radar e de pedágio no mapa', () => {
   it('usa ícone do design system, nunca emoji — e o pedágio é o mesmo da linha da conta', () => {
-    expect(MAP_BADGE_ICONS.radar).toBe('camera')
+    expect(MAP_BADGE_ICONS.radar).toBe('target')
     expect(MAP_BADGE_ICONS.toll).toBe('invoice')
     expect(ICON_PATHS[MAP_BADGE_ICONS.radar].length).toBeGreaterThan(0)
     expect(ICON_PATHS[MAP_BADGE_ICONS.toll].length).toBeGreaterThan(0)

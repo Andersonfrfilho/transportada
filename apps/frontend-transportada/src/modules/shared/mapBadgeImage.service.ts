@@ -11,10 +11,13 @@ import {
 
 /** Lado do selo em pixel CSS; o canvas multiplica pela densidade da tela. */
 const BADGE_SIDE = 24
-const PLATE_GAP = 3
 const ICON_VIEWBOX = 24
 const ICON_SHARE = 0.58
 const BORDER_WIDTH = 2
+/** A medalha do radar encaixada no canto da placa: menor, e com borda mais fina na mesma razão. */
+const MEDAL_SIDE = 14
+const MEDAL_BORDER_WIDTH = 1.5
+const MEDAL_OVERHANG = 6
 const PLATE_RING_WIDTH = 3
 const GLYPH_STROKE = 2
 const SQUARE_RADIUS_SHARE = 0.28
@@ -24,11 +27,14 @@ const PLATE_FONT_FAMILY = 'sans-serif'
 
 export type SpeedPlate = Readonly<{ colors: SpeedPlateColors; speed: string }>
 
+type BadgeFrame = Readonly<{ border: number; left: number; side: number; top: number }>
+
 /**
  * O selo desenhado em canvas: o MapLibre pinta em WebGL e só aceita imagem pronta. O ícone é
  * traçado com `Path2D` sobre os mesmos caminhos do `ICON_PATHS` — sem `data:` (a CSP de `img-src`
  * não o permite) e sem arquivo à parte que divergiria do design system. Com `speedPlate`, a placa
- * de velocidade vai ao lado, na mesma imagem.
+ * de velocidade é o corpo do marcador e o selo do radar vira uma medalha no canto dela — uma peça
+ * só, não duas lado a lado que o olho lê como marcadores diferentes.
  */
 export function drawMapBadge(input: {
   readonly colors: MapBadgeColors
@@ -36,22 +42,29 @@ export function drawMapBadge(input: {
   readonly pixelRatio: number
   readonly speedPlate?: SpeedPlate
 }): ImageData {
-  const side = BADGE_SIDE * input.pixelRatio
-  const plateOffset = side + PLATE_GAP * input.pixelRatio
+  const { colors, kind, pixelRatio, speedPlate } = input
+  const side = BADGE_SIDE * pixelRatio
+  const canvasSide = speedPlate === undefined ? side : (BADGE_SIDE + MEDAL_OVERHANG) * pixelRatio
   const canvas = document.createElement('canvas')
-  canvas.width = input.speedPlate === undefined ? side : plateOffset + side
-  canvas.height = side
+  canvas.width = canvasSide
+  canvas.height = canvasSide
   const context = canvas.getContext('2d')
   if (context === null) throw new Error('MAP_BADGE_CANVAS_UNAVAILABLE')
 
-  drawIconBadge({ colors: input.colors, context, kind: input.kind, pixelRatio: input.pixelRatio })
-  if (input.speedPlate !== undefined) {
-    drawSpeedPlate({
-      context,
-      left: plateOffset,
-      pixelRatio: input.pixelRatio,
-      plate: input.speedPlate,
-    })
+  if (speedPlate === undefined) {
+    const frame = { border: BORDER_WIDTH * pixelRatio, left: 0, side, top: 0 }
+    drawIconBadge({ colors, context, frame, kind })
+  } else {
+    drawSpeedPlate({ context, pixelRatio, plate: speedPlate })
+    const medalSide = MEDAL_SIDE * pixelRatio
+    const origin = canvasSide - medalSide
+    const frame = {
+      border: MEDAL_BORDER_WIDTH * pixelRatio,
+      left: origin,
+      side: medalSide,
+      top: origin,
+    }
+    drawIconBadge({ colors, context, frame, kind })
   }
 
   return context.getImageData(0, 0, canvas.width, canvas.height)
@@ -60,19 +73,19 @@ export function drawMapBadge(input: {
 function drawIconBadge(input: {
   readonly colors: MapBadgeColors
   readonly context: CanvasRenderingContext2D
+  readonly frame: BadgeFrame
   readonly kind: MapBadgeKind
-  readonly pixelRatio: number
 }): void {
-  const { colors, context, kind, pixelRatio } = input
-  const side = BADGE_SIDE * pixelRatio
-  const border = BORDER_WIDTH * pixelRatio
+  const { colors, context, frame, kind } = input
+  const { border, left, side, top } = frame
   const inset = border / 2
 
   context.beginPath()
   if (MAP_BADGE_SHAPES[kind] === 'circle') {
-    context.arc(side / 2, side / 2, side / 2 - inset, 0, Math.PI * 2)
+    context.arc(left + side / 2, top + side / 2, side / 2 - inset, 0, Math.PI * 2)
   } else {
-    context.roundRect(inset, inset, side - border, side - border, side * SQUARE_RADIUS_SHARE)
+    const radius = side * SQUARE_RADIUS_SHARE
+    context.roundRect(left + inset, top + inset, side - border, side - border, radius)
   }
   context.fillStyle = colors.background
   context.fill()
@@ -82,7 +95,7 @@ function drawIconBadge(input: {
 
   const iconSide = side * ICON_SHARE
   context.save()
-  context.translate((side - iconSide) / 2, (side - iconSide) / 2)
+  context.translate(left + (side - iconSide) / 2, top + (side - iconSide) / 2)
   context.scale(iconSide / ICON_VIEWBOX, iconSide / ICON_VIEWBOX)
   context.lineWidth = GLYPH_STROKE
   context.lineCap = 'round'
@@ -97,17 +110,16 @@ function drawIconBadge(input: {
 /** A R-19: círculo branco, anel vermelho grosso, o número em preto e negrito no centro. */
 function drawSpeedPlate(input: {
   readonly context: CanvasRenderingContext2D
-  readonly left: number
   readonly pixelRatio: number
   readonly plate: SpeedPlate
 }): void {
-  const { context, left, pixelRatio, plate } = input
+  const { context, pixelRatio, plate } = input
   const side = BADGE_SIDE * pixelRatio
   const ring = PLATE_RING_WIDTH * pixelRatio
-  const center = { x: left + side / 2, y: side / 2 }
+  const center = side / 2
 
   context.beginPath()
-  context.arc(center.x, center.y, side / 2 - ring / 2, 0, Math.PI * 2)
+  context.arc(center, center, side / 2 - ring / 2, 0, Math.PI * 2)
   context.fillStyle = plate.colors.fill
   context.fill()
   context.lineWidth = ring
@@ -119,5 +131,5 @@ function drawSpeedPlate(input: {
   context.font = `bold ${Math.round(side * fontShare)}px ${PLATE_FONT_FAMILY}`
   context.textAlign = 'center'
   context.textBaseline = 'middle'
-  context.fillText(plate.speed, center.x, center.y + pixelRatio)
+  context.fillText(plate.speed, center, center + pixelRatio)
 }
