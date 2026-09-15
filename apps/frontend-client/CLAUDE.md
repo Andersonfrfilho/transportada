@@ -44,7 +44,10 @@ enfeite.
 ⚠️ Esta app **não tem design system nem Playwright**: CSS próprio curto com os tokens copiados por
 valor, campos nativos (inclusive `datetime-local`, que o painel proíbe), e nenhum teste de tela — o
 que se prova é serviço puro e texto de fonte. Crescer a app é decidir isso de novo, por escrito.
-Envs: `VITE_API_URL`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`.
+Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`. `VITE_APP_ENV`
+(`local`·`staging`·`production`, ausente/desconhecido cai em `production`) liga a faixa de ambiente
+no topo e o ícone 🚧 na aba — cópia por valor do painel, e `environment-banner.contract.ts` compara
+o texto da faixa com o dele.
 
 ## Documento fiscal: o CNPJ tem letra
 
