@@ -19,6 +19,10 @@ import {
 
 const describeDatabase = DATABASE_URL ? describe : describe.skip
 
+/**
+ * A nota entra pelos dois trilhos; o evento que muda status, só pela distribuição (D21): evento de
+ * upload não é prova de que a SEFAZ registrou nada.
+ */
 describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', () => {
   const harness = createStatusHarness('spec149-insert')
   const { db } = harness
@@ -26,21 +30,25 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
   beforeAll(harness.setup)
   afterAll(harness.cleanup)
 
+  function distributionImport(companyId: string): Promise<string> {
+    return harness.createImport({
+      companyId,
+      requestedByUserId: harness.userId,
+      source: 'distribution',
+    })
+  }
+
   for (const trail of TRAILS) {
     const source = trail === 'import' ? ('upload' as const) : ('distribution' as const)
 
     it(`H2 ${trail}: the note is born cancelled when a registered cancellation came first`, async () => {
       const companyId = harness.companyA
       const accessKey = newAccessKey()
-      const eventImport = await harness.createImport({
-        companyId,
-        requestedByUserId: harness.userId,
-        source,
-      })
+      const eventImport = await distributionImport(companyId)
       await harness.write({
         companyId,
         importId: eventImport,
-        trail,
+        trail: 'distribution',
         xml: eventXml({
           accessKey,
           protocol: '135260000000090',
@@ -52,7 +60,7 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
       await harness.write({
         companyId,
         importId: eventImport,
-        trail,
+        trail: 'distribution',
         xml: eventXml({
           accessKey,
           protocol: '135260000000091',
@@ -110,6 +118,44 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
       ])
     })
 
+    it(`D21 ${trail}: an uploaded cancellation that came first never makes the note born cancelled`, async () => {
+      const companyId = harness.companyA
+      const accessKey = newAccessKey()
+      const uploadImport = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source: 'upload',
+      })
+      await harness.write({
+        companyId,
+        importId: uploadImport,
+        trail: 'import',
+        xml: eventXml({
+          accessKey,
+          protocol: '135260000000095',
+          sequence: '1',
+          statusCode: '135',
+          type: '110111',
+        }),
+      })
+
+      const documentImport = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source,
+      })
+      await harness.write({
+        companyId,
+        importId: documentImport,
+        trail,
+        xml: documentXml({ accessKey }),
+      })
+
+      const document = await readDocument({ accessKey, companyId, db })
+      expect(document?.status).toBe('authorized')
+      expect(await readChanges({ companyId, db, documentId: document!.id })).toHaveLength(0)
+    })
+
     it(`H3 ${trail}: replays and a second cancellation leave one change and the original snapshot`, async () => {
       const companyId = harness.companyA
       const accessKey = newAccessKey()
@@ -131,20 +177,27 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
         statusCode: '135',
         type: '110111',
       })
-      await harness.write({ companyId, importId: firstImport, trail, xml: cancellation })
+      const eventImport = await distributionImport(companyId)
+      await harness.write({
+        companyId,
+        importId: eventImport,
+        trail: 'distribution',
+        xml: cancellation,
+      })
       const cancelled = await readDocument({ accessKey, companyId, db })
       const [original] = await readEvents({ accessKey, companyId, db })
 
-      const replayImport = await harness.createImport({
-        companyId,
-        requestedByUserId: harness.userId,
-        source,
-      })
-      await harness.write({ companyId, importId: replayImport, trail, xml: cancellation })
+      const replayImport = await distributionImport(companyId)
       await harness.write({
         companyId,
         importId: replayImport,
-        trail,
+        trail: 'distribution',
+        xml: cancellation,
+      })
+      await harness.write({
+        companyId,
+        importId: replayImport,
+        trail: 'distribution',
         xml: eventXml({
           accessKey,
           protocol: '135260000000093',
@@ -153,9 +206,14 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
           type: '110111',
         }),
       })
+      const reimport = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source,
+      })
       await harness.write({
         companyId,
-        importId: replayImport,
+        importId: reimport,
         trail,
         xml: documentXml({ accessKey }),
       })
@@ -199,10 +257,11 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
       expect((await readDocument({ accessKey, companyId, db }))?.status).toBe('authorized')
       const [legacyBefore] = await readEvents({ accessKey, companyId, db })
 
+      const eventImport = await distributionImport(companyId)
       await harness.write({
         companyId,
-        importId,
-        trail,
+        importId: eventImport,
+        trail: 'distribution',
         xml: eventXml({
           accessKey,
           protocol: '135260000000094',
@@ -216,7 +275,11 @@ describeDatabase('NF-e event before the note, and replays (spec 149 H2, H3)', ()
       expect(document?.status).toBe('cancelled')
       const changes = await readChanges({ companyId, db, documentId: document!.id })
       expect(changes).toHaveLength(1)
-      expect(changes[0]).toMatchObject({ cause: 'event', eventId: legacyEventId, importId })
+      expect(changes[0]).toMatchObject({
+        cause: 'event',
+        eventId: legacyEventId,
+        importId: eventImport,
+      })
 
       const [legacyAfter] = await readEvents({ accessKey, companyId, db })
       expect(legacyAfter).toEqual(legacyBefore!)

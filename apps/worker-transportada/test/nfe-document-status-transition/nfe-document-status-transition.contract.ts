@@ -27,7 +27,7 @@ describe('nfe-document-status-transition.policy (spec 149 T2)', () => {
       test.each(REGISTERED_STATUS_CODES)(
         'cStat %s registrado — muda para cancelled',
         (statusCode) => {
-          expect(resolveEventStatusChange({ eventType, statusCode })).toEqual({
+          expect(resolveEventStatusChange({ eventType, origin: 'automatic', statusCode })).toEqual({
             kind: 'change',
             to: 'cancelled',
           })
@@ -37,7 +37,7 @@ describe('nfe-document-status-transition.policy (spec 149 T2)', () => {
       test.each(UNREGISTERED_STATUS_CODES)(
         'cStat %s fora de {135,136,155} — não aplica',
         (statusCode) => {
-          expect(resolveEventStatusChange({ eventType, statusCode })).toEqual({
+          expect(resolveEventStatusChange({ eventType, origin: 'automatic', statusCode })).toEqual({
             kind: 'not-applied',
             reason: 'status-code-not-registered',
           })
@@ -45,7 +45,9 @@ describe('nfe-document-status-transition.policy (spec 149 T2)', () => {
       )
 
       test('sem statusCode — não aplica', () => {
-        expect(resolveEventStatusChange({ eventType, statusCode: undefined })).toEqual({
+        expect(
+          resolveEventStatusChange({ eventType, origin: 'automatic', statusCode: undefined }),
+        ).toEqual({
           kind: 'not-applied',
           reason: 'missing-status-code',
         })
@@ -56,16 +58,53 @@ describe('nfe-document-status-transition.policy (spec 149 T2)', () => {
       test.each(ANY_STATUS_CODES)(
         'cStat %p — ignorado, qualquer que seja o cStat',
         (statusCode) => {
-          expect(resolveEventStatusChange({ eventType, statusCode })).toEqual({ kind: 'ignore' })
+          expect(resolveEventStatusChange({ eventType, origin: 'automatic', statusCode })).toEqual({
+            kind: 'ignore',
+          })
         },
       )
     })
 
     test('tipo desconhecido é ignorado', () => {
-      expect(resolveEventStatusChange({ eventType: 'foo', statusCode: '135' })).toEqual({
-        kind: 'ignore',
+      expect(
+        resolveEventStatusChange({ eventType: 'foo', origin: 'automatic', statusCode: '135' }),
+      ).toEqual({ kind: 'ignore' })
+    })
+  })
+
+  describe('resolveEventStatusChange — só a SEFAZ muda status (revisão final, D21)', () => {
+    describe.each(STATUS_CHANGING_EVENT_TYPES)('tpEvento %s por upload', (eventType) => {
+      test.each(REGISTERED_STATUS_CODES)(
+        'cStat %s registrado — gravado, mas não aplica',
+        (statusCode) => {
+          expect(resolveEventStatusChange({ eventType, origin: 'manual', statusCode })).toEqual({
+            kind: 'not-applied',
+            reason: 'unverified-upload',
+          })
+        },
+      )
+
+      test('cStat fora do conjunto continua dizendo por quê', () => {
+        expect(
+          resolveEventStatusChange({ eventType, origin: 'manual', statusCode: '573' }),
+        ).toEqual({ kind: 'not-applied', reason: 'status-code-not-registered' })
+      })
+
+      test('sem statusCode continua dizendo por quê', () => {
+        expect(
+          resolveEventStatusChange({ eventType, origin: 'manual', statusCode: undefined }),
+        ).toEqual({ kind: 'not-applied', reason: 'missing-status-code' })
       })
     })
+
+    test.each(NON_STATUS_CHANGING_EVENT_TYPES)(
+      'tpEvento %s por upload — ignorado, sem aviso',
+      (eventType) => {
+        expect(
+          resolveEventStatusChange({ eventType, origin: 'manual', statusCode: '135' }),
+        ).toEqual({ kind: 'ignore' })
+      },
+    )
   })
 
   describe('resolveSummaryStatusChange — D3', () => {

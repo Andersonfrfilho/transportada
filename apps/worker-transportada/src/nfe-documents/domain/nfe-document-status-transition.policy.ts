@@ -1,15 +1,19 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
+import type { NfeDocumentStatus, NfeEventOrigin } from '../../database/nfe.schema.js'
 
 import {
   ALLOWED_ORIGIN_STATUSES,
+  NFE_EVENT_AUTOMATIC_ORIGIN,
   NFE_EVENT_REGISTERED_STATUS_CODES,
   NFE_STATUS_CHANGING_EVENT_TYPES,
 } from './nfe-document-status.constant.js'
 
-export type NfeDocumentStatusNotAppliedReason = 'missing-status-code' | 'status-code-not-registered'
+export type NfeDocumentStatusNotAppliedReason =
+  | 'missing-status-code'
+  | 'status-code-not-registered'
+  | 'unverified-upload'
 
 export type NfeDocumentStatusChangeResolution =
   | { readonly kind: 'change'; readonly to: NfeDocumentStatus }
@@ -20,9 +24,13 @@ const EVENT_TYPE_TARGETS: Record<string, NfeDocumentStatus | undefined> =
   NFE_STATUS_CHANGING_EVENT_TYPES
 const REGISTERED_STATUS_CODES: readonly string[] = NFE_EVENT_REGISTERED_STATUS_CODES
 
-/** D1, D2 — só cancela quando o tipo muda status e a SEFAZ registrou o evento com um `cStat` aceito. */
+/**
+ * D1, D2, D21 — só cancela quando o tipo muda status, a SEFAZ registrou o evento com um `cStat`
+ * aceito e o evento veio da distribuição: XML enviado por upload não prova que a SEFAZ registrou nada.
+ */
 export function resolveEventStatusChange(input: {
   readonly eventType: string
+  readonly origin: NfeEventOrigin
   readonly statusCode: string | undefined
 }): NfeDocumentStatusChangeResolution {
   const to = EVENT_TYPE_TARGETS[input.eventType]
@@ -31,6 +39,8 @@ export function resolveEventStatusChange(input: {
   if (input.statusCode === undefined) return { kind: 'not-applied', reason: 'missing-status-code' }
   if (!REGISTERED_STATUS_CODES.includes(input.statusCode))
     return { kind: 'not-applied', reason: 'status-code-not-registered' }
+  if (input.origin !== NFE_EVENT_AUTOMATIC_ORIGIN)
+    return { kind: 'not-applied', reason: 'unverified-upload' }
 
   return { kind: 'change', to }
 }

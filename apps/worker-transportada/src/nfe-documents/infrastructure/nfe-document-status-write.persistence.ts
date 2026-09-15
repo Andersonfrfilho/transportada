@@ -31,6 +31,7 @@ import {
 } from './drizzle-nfe-document-status.persistence.js'
 
 const STATUS_CODE_PATTERN = /^\d{3}$/
+const PROTOCOL_PATTERN = /^\d{15}$/
 const NO_STATUS_EFFECT: NfeStatusWriteResult = { change: null, warning: null }
 const NFE_DOCUMENT_STATUS_INVARIANT_BROKEN = 'NFE_DOCUMENT_STATUS_INVARIANT_BROKEN'
 const CORRECTION_EVENT_TYPE = '110110'
@@ -87,7 +88,18 @@ export async function writeEventWithStatus(
     event.statusCode !== undefined && STATUS_CODE_PATTERN.test(event.statusCode)
       ? event.statusCode
       : undefined
-  const resolution = resolveEventStatusChange({ eventType: event.type, statusCode })
+  // nProt tem 15 dígitos: fora disso não é protocolo da SEFAZ, é texto que ninguém validou
+  const protocol =
+    statusCode !== undefined &&
+    event.protocol !== undefined &&
+    PROTOCOL_PATTERN.test(event.protocol)
+      ? event.protocol
+      : null
+  const resolution = resolveEventStatusChange({
+    eventType: event.type,
+    origin: provenance.origin,
+    statusCode,
+  })
   const target =
     resolution.kind === 'change' &&
     current !== null &&
@@ -112,7 +124,7 @@ export async function writeEventWithStatus(
       importId: provenance.importId,
       occurredAt: new Date(event.occurredAt),
       origin: provenance.origin,
-      protocol: statusCode === undefined ? null : (event.protocol ?? null),
+      protocol,
       requestedByUserId: provenance.requestedByUserId,
       sourceNsu: params.sourceNsu ?? null,
       statusCode: statusCode ?? null,

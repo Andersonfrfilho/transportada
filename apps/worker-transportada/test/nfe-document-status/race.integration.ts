@@ -87,7 +87,7 @@ describeDatabase('NF-e note and cancellation racing for the same key (spec 149 H
       const importId = await harness.createImport({
         companyId,
         requestedByUserId: harness.userId,
-        source: 'upload',
+        source: 'distribution',
       })
       const writerOne = harness.connect()
       const writerTwo = harness.connect()
@@ -133,7 +133,7 @@ describeDatabase('NF-e note and cancellation racing for the same key (spec 149 H
     const importId = await harness.createImport({
       companyId,
       requestedByUserId: harness.userId,
-      source: 'upload',
+      source: 'distribution',
     })
     const writerOne = harness.connect()
     const writerTwo = harness.connect()

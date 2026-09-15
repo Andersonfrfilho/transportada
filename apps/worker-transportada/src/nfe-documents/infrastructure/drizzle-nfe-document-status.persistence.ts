@@ -7,6 +7,7 @@ import { nfeDocumentStatusChanges, nfeDocuments, nfeEvents } from '../../databas
 import {
   ALLOWED_ORIGIN_STATUSES,
   NFE_DOCUMENT_STATUS_LOCK_NAMESPACE,
+  NFE_EVENT_AUTOMATIC_ORIGIN,
   NFE_STATUS_CHANGING_EVENT_TYPES,
 } from '../domain/nfe-document-status.constant.js'
 import { resolveEventStatusChange } from '../domain/nfe-document-status-transition.policy.js'
@@ -97,7 +98,10 @@ export async function recordStatusChange(params: RecordStatusChangeParams): Prom
     })
 }
 
-/** D5 — o filtro de `cStat` fica na política, não no SQL: ela continua sendo a única fonte. */
+/**
+ * D5 — o filtro de `cStat` fica na política, não no SQL: ela continua sendo a única fonte. D21: só
+ * evento da distribuição; o de upload (e o legado, sem origem) não faz a nota nascer cancelada.
+ */
 export async function findPendingStatusFromEvents(
   params: FindPendingStatusFromEventsParams,
 ): Promise<FindPendingStatusFromEventsResult> {
@@ -108,6 +112,7 @@ export async function findPendingStatusFromEvents(
       and(
         eq(nfeEvents.companyId, params.companyId),
         eq(nfeEvents.targetAccessKey, params.accessKey),
+        eq(nfeEvents.origin, NFE_EVENT_AUTOMATIC_ORIGIN),
         inArray(nfeEvents.eventType, STATUS_CHANGING_EVENT_TYPES),
       ),
     )
@@ -116,6 +121,7 @@ export async function findPendingStatusFromEvents(
   for (const row of rows) {
     const resolution = resolveEventStatusChange({
       eventType: row.eventType,
+      origin: NFE_EVENT_AUTOMATIC_ORIGIN,
       statusCode: row.statusCode ?? undefined,
     })
     if (resolution.kind === 'change') return { eventId: row.id, to: resolution.to }

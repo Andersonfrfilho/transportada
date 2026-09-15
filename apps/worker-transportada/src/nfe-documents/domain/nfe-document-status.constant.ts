@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
+import type { NfeDocumentStatus, NfeEventOrigin } from '../../database/nfe.schema.js'
+
+/** D21 — a única origem cujo evento muda status: a distribuição, que é a SEFAZ quem entrega. */
+export const NFE_EVENT_AUTOMATIC_ORIGIN = 'automatic' as const satisfies NfeEventOrigin
 
 /** A única situação da NF-e sobre a qual um documento novo pode nascer. */
 export const NFE_DOCUMENT_AUTHORIZED_STATUS = 'authorized' as const satisfies NfeDocumentStatus
