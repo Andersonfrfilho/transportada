@@ -1,7 +1,7 @@
 # ADR-0065 — O ajudante é tripulação, e não condutor
 
 - **Data:** 2026-09-14
-- **Estado:** proposta
+- **Estado:** aceita
 - **Contexto:** habilita D1, D5, D6 e D11 da **spec 149**. Estende a ADR-0023 (tripulação da viagem com o
   desenho de `mdfe_manifest_drivers`) e a ADR-0055 (a sugestão escolhe quem dirige).
 

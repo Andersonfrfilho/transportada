@@ -278,6 +278,28 @@ export async function assertTripConstraints(
     'trip_drivers_tax_id_check',
   )
 
+  // Spec 149 / ADR-0065: a linha legada, sem papel, continua sendo o condutor.
+  const [legacyCrew] = await database<{ role: string }[]>`
+    select role from trip_drivers where trip_id = ${tripId} and position = 1
+  `
+  expect(legacyCrew?.role).toBe('driver')
+  await expectQueryToFail(
+    database`
+      insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position, role)
+      values (${companyId}, ${otherTripId}, ${secondDriverId}, 'Ajudante', '98765432100', 1, 'helper')
+    `,
+    '23514',
+    'trip_drivers_lead_role_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position, role)
+      values (${companyId}, ${tripId}, ${secondDriverId}, 'Ajudante', '98765432100', 2, 'copilot')
+    `,
+    '23514',
+    'trip_drivers_role_check',
+  )
+
   const importId = crypto.randomUUID()
   await database`
     insert into nfe_imports (

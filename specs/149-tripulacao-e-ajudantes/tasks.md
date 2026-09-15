@@ -17,7 +17,7 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 > 🤖 Modelo: `sonnet` (T1 é 🧠 — `opus`)
 
-- [ ] T1 🧠 — Aceitar a ADR-0065 e escrever as migrations do plano (6 mudanças, aditivas, com snapshot).
+- [x] T1 🧠 — Aceitar a ADR-0065 e escrever as migrations do plano (6 mudanças, aditivas, com snapshot).
       `make migration-test` verde; contrato de schema e tenant-safety das tabelas novas.
 - [ ] T2 — Ficha do motorista: `canActAsHelper` e `helperDailyRate` no schema de request, mapper e
       leitura; `GET/PUT /company-crew-settings`. Contratos de validação (valor negativo 400) e permissão.

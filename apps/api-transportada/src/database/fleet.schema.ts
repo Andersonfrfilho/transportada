@@ -402,6 +402,9 @@ export const fleetDrivers = pgTable(
      * salário (D2), porque ela paga o dia fora, não a hora trabalhada.
      */
     dailyAllowanceAmount: numeric('daily_allowance_amount', { precision: 19, scale: 4 }),
+    /** Spec 149 / ADR-0065: pode ir de ajudante; a diária própria vence a da empresa quando existe. */
+    canActAsHelper: boolean('can_act_as_helper').notNull().default(false),
+    helperDailyRate: numeric('helper_daily_rate', { precision: 19, scale: 4 }),
     licenseNumber: text('license_number').notNull().default(''),
     licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
@@ -636,6 +639,10 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_status_check',
       sql`${table.status} in (${sql.raw(inList(FLEET_DRIVER_STATUSES))})`,
+    ),
+    check(
+      'fleet_drivers_helper_daily_rate_check',
+      sql`${table.helperDailyRate} is null or ${table.helperDailyRate} >= 0`,
     ),
     check('fleet_drivers_version_check', sql`${table.version} > 0`),
   ],

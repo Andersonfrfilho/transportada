@@ -44,6 +44,9 @@ describe('fleet driver schema', () => {
       'payment_closing_day',
       /** Spec 143 D3: a diária combinada só deste motorista — vazia, vale o valor geral da empresa. */
       'daily_allowance_amount',
+      /** Spec 149 / ADR-0065: quem pode ir de ajudante, e a diária própria dele (nula = a da empresa). */
+      'can_act_as_helper',
+      'helper_daily_rate',
       'license_number',
       'license_category',
       'license_expires_at',
@@ -115,6 +118,7 @@ describe('fleet driver schema', () => {
       'payment_closing_day',
       // Spec 143 D3: sem valor próprio o motorista cai no valor geral — a ausência é a regra, não a exceção
       'daily_allowance_amount',
+      'helper_daily_rate',
       // Nulo é ausência de aceite — e enquanto for nulo, o portal não mostra posição nenhuma
       'location_sharing_consent_at',
       // Ficha sem coordenada é o normal: o par só nasce de endereço escolhido na busca, e a marca
@@ -275,6 +279,26 @@ describe('fleet driver schema', () => {
     expect(checks.fleet_drivers_address_state_check).toContain("~ '^[A-Z]{2}$'")
     expect(checks.fleet_drivers_address_state_check).toContain('= 0')
     expect(checks.fleet_drivers_address_length_check).toContain('<= 120')
+  })
+
+  test('keeps every existing driver out of the helper pool until someone says otherwise', () => {
+    const canActAsHelper = getTableConfig(fleetDrivers).columns.find(
+      (column) => column.name === 'can_act_as_helper',
+    )
+
+    expect(canActAsHelper?.notNull).toBeTrue()
+    expect(canActAsHelper?.default).toBe(false)
+    expect(columnSqlTypes(fleetDrivers)).toMatchObject({
+      can_act_as_helper: 'boolean',
+      helper_daily_rate: 'numeric(19, 4)',
+    })
+  })
+
+  test('refuses a negative helper daily rate and lets it stay empty', () => {
+    const check = checkSqlByName(fleetDrivers).fleet_drivers_helper_daily_rate_check
+
+    expect(check).toContain('is null')
+    expect(check).toContain('>= 0')
   })
 
   test('starts the optimistic lock at a positive version', () => {

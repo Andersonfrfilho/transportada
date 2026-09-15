@@ -6,6 +6,7 @@ import type {
   OccurrenceItemQuantityUnit,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
+import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -507,6 +508,8 @@ export const tripDrivers = pgTable(
     driverName: text('driver_name').notNull(),
     driverTaxId: text('driver_tax_id').notNull(),
     position: bigint({ mode: 'bigint' }).notNull(),
+    /** Spec 149 / ADR-0065: o default mantém toda linha anterior à coluna como condutor. */
+    role: text().$type<TripCrewRole>().notNull().default('driver'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -548,6 +551,8 @@ export const tripDrivers = pgTable(
     ),
     check('trip_drivers_tax_id_check', sql`${table.driverTaxId} ~ ${raw(`'${TAX_ID_PATTERN}'`)}`),
     check('trip_drivers_name_check', sql`length(${table.driverName}) > 0`),
+    check('trip_drivers_role_check', sql`${table.role} in (${raw(inList(TRIP_CREW_ROLES))})`),
+    check('trip_drivers_lead_role_check', sql`${table.position} <> 1 or ${table.role} = 'driver'`),
   ],
 )
 

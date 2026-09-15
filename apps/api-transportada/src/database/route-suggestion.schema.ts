@@ -17,7 +17,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-import { companies } from './identity.schema.js'
+import { DRIVER_SOURCES, type DriverSource } from '../shared/suggestion-driver-source.constant.js'
+import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -374,6 +375,8 @@ export const routeSuggestionVehicles = pgTable(
      * e era o único comportamento possível até esta coluna existir.
      */
     driverId: uuid('driver_id'),
+    /** Spec 149: de onde veio o motorista — nulo exatamente quando não há motorista. */
+    driverSource: text('driver_source').$type<DriverSource>(),
     position: bigint({ mode: 'bigint' }).notNull(),
     /**
      * A volta da última entrega ao fim da rota, da mesma matriz do solver (decisão 2026-09-13).
@@ -420,10 +423,146 @@ export const routeSuggestionVehicles = pgTable(
       table.suggestionId,
       table.position,
     ),
+    /** Alvo da FK composta dos ajudantes: a chave do veículo sugerido com a empresa junto. */
+    unique('route_suggestion_vehicles_company_suggestion_vehicle_unique').on(
+      table.companyId,
+      table.suggestionId,
+      table.vehicleId,
+    ),
     check('route_suggestion_vehicles_position_check', sql`${table.position} >= 0`),
     check(
       'route_suggestion_vehicles_return_leg_check',
       sql`(${table.returnDistanceMeters} is null or ${table.returnDistanceMeters} >= 0) and (${table.returnDurationSeconds} is null or ${table.returnDurationSeconds} >= 0)`,
+    ),
+    check(
+      'route_suggestion_vehicles_driver_source_check',
+      sql`${table.driverSource} is null or (${table.driverId} is not null and ${table.driverSource} in (${sql.raw(inList(DRIVER_SOURCES))}))`,
+    ),
+  ],
+)
+
+/**
+ * Spec 149 / ADR-0065: quem vai de ajudante em cada veículo da sugestão. Sai junto com o veículo
+ * sugerido (cascade); a pessoa nunca é apagada por baixo (restrict).
+ */
+export const routeSuggestionVehicleHelpers = pgTable(
+  'route_suggestion_vehicle_helpers',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    suggestionId: uuid('suggestion_id').notNull(),
+    vehicleId: uuid('vehicle_id').notNull(),
+    driverId: uuid('driver_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'route_suggestion_vehicle_helpers_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.suggestionId, table.vehicleId],
+      foreignColumns: [
+        routeSuggestionVehicles.companyId,
+        routeSuggestionVehicles.suggestionId,
+        routeSuggestionVehicles.vehicleId,
+      ],
+      name: 'route_suggestion_vehicle_helpers_vehicle_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'route_suggestion_vehicle_helpers_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('route_suggestion_vehicle_helpers_suggestion_driver_unique').on(
+      table.companyId,
+      table.suggestionId,
+      table.driverId,
+    ),
+  ],
+)
+
+/**
+ * Spec 149: o que a recomendação sugeriu e quem o operador escolheu, por veículo da sugestão. Uma
+ * linha por veículo — a última escolha vence (upsert), por isso o `updated_at`.
+ */
+export const driverAssignmentFeedback = pgTable(
+  'driver_assignment_feedback',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    suggestionId: uuid('suggestion_id').notNull(),
+    vehicleId: uuid('vehicle_id').notNull(),
+    recommendedDriverId: uuid('recommended_driver_id'),
+    chosenDriverId: uuid('chosen_driver_id'),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'driver_assignment_feedback_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.suggestionId],
+      foreignColumns: [routeSuggestions.companyId, routeSuggestions.id],
+      name: 'driver_assignment_feedback_suggestion_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.vehicleId],
+      foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
+      name: 'driver_assignment_feedback_vehicle_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.recommendedDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'driver_assignment_feedback_recommended_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.chosenDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'driver_assignment_feedback_chosen_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** A FK simples aceitaria ator de outra empresa: o membership amarra os dois. */
+    foreignKey({
+      columns: [table.actorUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'driver_assignment_feedback_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('driver_assignment_feedback_company_suggestion_vehicle_unique').on(
+      table.companyId,
+      table.suggestionId,
+      table.vehicleId,
+    ),
+    index('driver_assignment_feedback_company_vehicle_created_idx').on(
+      table.companyId,
+      table.vehicleId,
+      table.createdAt,
+    ),
+    check(
+      'driver_assignment_feedback_driver_check',
+      sql`${table.recommendedDriverId} is not null or ${table.chosenDriverId} is not null`,
     ),
   ],
 )
