@@ -26,7 +26,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 
 ## Invariantes que valem antes de editar
 
-- **Status de nota só muda pela política `nfe-document-status-transition.policy.ts`, com lock por `(company_id, access_key)`, nunca rebaixa** — `cancelled` e `denied` são terminais. Eventos `110111`/`110112` com `cStat` em `{135, 136, 155}` cancelsm; resumo `cSitNFe '2'` cancela, `'3'` denega apenas de `unsigned`. O lock é `pg_advisory_xact_lock(hashtextextended('nfe-document-status:<empresa>:<chave>', 0))`, tomado antes de toda leitura/escrita de status ou evento da chave. `updated_at` só se move quando o status muda (UPDATE retorna 1 linha). Detalhe: spec 149 (D1–D9, D14–D18), `t3-parecer-architect.md` (A1–A7).
+- **Status de nota só muda pela política `nfe-document-status-transition.policy.ts`, com lock por `(company_id, access_key)`, nunca rebaixa** — `cancelled` e `denied` são terminais. Eventos `110111`/`110112` com `cStat` em `{135, 136, 155}` cancelam — **só vindos da distribuição** (evento de upload é gravado, mas não muda status, D21); resumo `cSitNFe '2'` cancela, `'3'` denega apenas de `unsigned`. O lock é `pg_advisory_xact_lock(hashtextextended('nfe-document-status:<empresa>:<chave>', 0))`, tomado antes de toda leitura/escrita de status ou evento da chave. `updated_at` só se move quando o status muda (UPDATE retorna 1 linha). Detalhe: spec 149 (D1–D9, D14–D18), `t3-parecer-architect.md` (A1–A7).
 - **Trava contra `cStat 656` é `nfe_distribution_cursors.next_allowed_at`, por
   `(company_id, environment)` — nunca a cadência do agendador.** A distribuição assina com o
   certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE`); detalhe: docs/ai-context

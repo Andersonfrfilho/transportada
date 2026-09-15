@@ -4,12 +4,12 @@
 import { sql } from 'drizzle-orm'
 
 import { contractors, deliveryClients } from '../../database/delivery-client.schema.js'
+import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
 import {
   resolveDeliveryRegistryCandidates,
   type DeliveryRegistryCandidate,
   type NfeRegistryParty,
 } from '../domain/delivery-registry.policy.js'
-import type { NfeWriteTransaction } from './drizzle-nfe-import-consumer.repository.js'
 
 export type DeliveryRegistryLogger = {
   warn(message: string, metadata?: Readonly<Record<string, unknown>>): void

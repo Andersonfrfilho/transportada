@@ -5,10 +5,8 @@ import type { NfeXmlDocument } from '@adatechnology/fiscal-provider'
 import { describe, expect, test } from 'bun:test'
 
 import { nfeAddresses, nfeParticipants } from '../../src/database/nfe.schema.js'
-import {
-  writeDocumentChildren,
-  type NfeWriteTransaction,
-} from '../../src/nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
+import type { NfeWriteTransaction } from '../../src/nfe-documents/types/nfe-write-transaction.types.js'
+import { writeDocumentChildren } from '../../src/nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000101'
 const DOCUMENT_ID = '00000000-0000-4000-8000-000000000230'

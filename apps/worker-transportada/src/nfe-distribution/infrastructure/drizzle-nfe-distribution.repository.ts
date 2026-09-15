@@ -28,10 +28,8 @@ import type {
   NfeStatusProvenance,
   NfeStatusWriteResult,
 } from '../../nfe-documents/types/nfe-document-status.types.js'
-import {
-  type NfeWriteTransaction,
-  writeDocumentChildren,
-} from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
+import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
+import { writeDocumentChildren } from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 

@@ -15,6 +15,9 @@ export const NFE_STATUS_CHANGING_EVENT_TYPES = {
   '110112': 'cancelled',
 } as const satisfies Record<string, NfeDocumentStatus>
 
+/** Código estável do erro de invariante da escrita de status (`nfe-document-status.error.ts`). */
+export const NFE_DOCUMENT_STATUS_INVARIANT_BROKEN = 'NFE_DOCUMENT_STATUS_INVARIANT_BROKEN'
+
 /** D8 — prefixo do lock; colisão de hash com outro advisory lock só gera espera, nunca erro. */
 export const NFE_DOCUMENT_STATUS_LOCK_NAMESPACE = 'nfe-document-status'
 
@@ -28,6 +31,6 @@ export const NFE_EVENT_REGISTERED_STATUS_CODES = ['135', '136', '155'] as const
 export const ALLOWED_ORIGIN_STATUSES: Partial<
   Record<NfeDocumentStatus, readonly NfeDocumentStatus[]>
 > = {
-  cancelled: ['authorized', 'unsigned'],
+  cancelled: [NFE_DOCUMENT_AUTHORIZED_STATUS, 'unsigned'],
   denied: ['unsigned'],
 }

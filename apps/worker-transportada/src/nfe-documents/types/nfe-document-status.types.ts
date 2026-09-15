@@ -10,8 +10,8 @@ import type {
   NfeFiscalEnvironment,
   NfeImportSource,
 } from '../../database/nfe.schema.js'
-import type { NfeWriteTransaction } from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 import type { NfeDocumentStatusNotAppliedReason } from '../domain/nfe-document-status-transition.policy.js'
+import type { NfeWriteTransaction } from './nfe-write-transaction.types.js'
 
 export type NfeStatusProvenance = {
   readonly actorUserId: string | null

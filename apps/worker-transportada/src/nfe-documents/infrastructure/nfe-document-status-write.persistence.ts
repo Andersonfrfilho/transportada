@@ -5,7 +5,8 @@ import { and, eq } from 'drizzle-orm'
 
 import type { NfeDocumentStatus, NfeDocumentStatusChangeCause } from '../../database/nfe.schema.js'
 import { nfeEvents } from '../../database/nfe.schema.js'
-import type { NfeWriteTransaction } from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
+import { NFE_DOCUMENT_AUTHORIZED_STATUS } from '../domain/nfe-document-status.constant.js'
+import { NfeDocumentStatusInvariantError } from '../domain/nfe-document-status.error.js'
 import {
   isStatusTransitionAllowed,
   resolveEventStatusChange,
@@ -23,6 +24,7 @@ import type {
   ResolveInitialDocumentStatusResult,
   WriteEventWithStatusParams,
 } from '../types/nfe-document-status.types.js'
+import type { NfeWriteTransaction } from '../types/nfe-write-transaction.types.js'
 import {
   applyStatusChange,
   findPendingStatusFromEvents,
@@ -33,7 +35,6 @@ import {
 const STATUS_CODE_PATTERN = /^\d{3}$/
 const PROTOCOL_PATTERN = /^\d{15}$/
 const NO_STATUS_EFFECT: NfeStatusWriteResult = { change: null, warning: null }
-const NFE_DOCUMENT_STATUS_INVARIANT_BROKEN = 'NFE_DOCUMENT_STATUS_INVARIANT_BROKEN'
 const CORRECTION_EVENT_TYPE = '110110'
 const CORRECTION_TEXT_MAX_LENGTH = 1000
 
@@ -58,7 +59,9 @@ async function applyAndRecordChange(
     to: params.to,
     tx,
   })
-  if (!applied.changed) throw new Error(NFE_DOCUMENT_STATUS_INVARIANT_BROKEN)
+  if (!applied.changed) {
+    throw new NfeDocumentStatusInvariantError({ companyId, step: 'apply-status-change' })
+  }
 
   const change: NfeStatusChangeRecord = {
     cause: params.cause,
@@ -183,7 +186,12 @@ async function findEventId(
       ),
     )
     .limit(1)
-  if (row === undefined) throw new Error(NFE_DOCUMENT_STATUS_INVARIANT_BROKEN)
+  if (row === undefined) {
+    throw new NfeDocumentStatusInvariantError({
+      companyId: params.companyId,
+      step: 'find-event-id',
+    })
+  }
   return row.id
 }
 
@@ -242,7 +250,7 @@ export async function applySummaryStatus(
     })
     return { change, warning: null }
   }
-  if (current.status === 'authorized' && resolution.to === 'denied') {
+  if (current.status === NFE_DOCUMENT_AUTHORIZED_STATUS && resolution.to === 'denied') {
     return {
       change: null,
       warning: {

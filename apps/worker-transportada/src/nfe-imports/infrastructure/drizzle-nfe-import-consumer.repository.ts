@@ -30,6 +30,7 @@ import type {
   NfeDocumentStatusLogger,
   NfeStatusWriteResult,
 } from '../../nfe-documents/types/nfe-document-status.types.js'
+import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
 import { buildPackageBoxRows, deriveBoxGrossWeightGrams } from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
@@ -388,8 +389,6 @@ export class DrizzleNfeImportConsumerRepository {
     return input.summary
   }
 }
-
-export type NfeWriteTransaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 type Transaction = NfeWriteTransaction
 

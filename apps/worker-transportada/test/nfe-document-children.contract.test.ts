@@ -6,10 +6,8 @@ import { describe, expect, test } from 'bun:test'
 import { getTableName } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 
-import {
-  writeDocumentChildren,
-  type NfeWriteTransaction,
-} from '../src/nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
+import type { NfeWriteTransaction } from '../src/nfe-documents/types/nfe-write-transaction.types.js'
+import { writeDocumentChildren } from '../src/nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000901'
 const DOCUMENT_ID = '00000000-0000-4000-8000-000000000902'
