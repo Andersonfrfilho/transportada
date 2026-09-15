@@ -2,13 +2,19 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+import { resolveCartonGtin } from './carton-gtin.policy.js'
+
 export type PackageBoxSource = {
   readonly code: string
   readonly commercialUnit: string
   readonly description: string
+  readonly gtin?: string | undefined
+  readonly taxableUnitGtin?: string | undefined
 }
 
 export type PackageBoxRow = {
+  /** Só presente quando o XML trouxe GTIN válido — ausência nunca apaga o que já está gravado. */
+  readonly cartonGtin?: string
   readonly commercialUnit: string
   readonly description: string
   readonly emitterTaxId: string
@@ -48,7 +54,10 @@ export function buildPackageBoxRows(input: {
     const commercialUnit = product.commercialUnit
     if (productCode.trim() === '' || commercialUnit.trim() === '') continue
 
-    byKey.set(`${productCode}|${commercialUnit}`, {
+    const key = `${productCode}|${commercialUnit}`
+    const cartonGtin = byKey.get(key)?.cartonGtin ?? resolveCartonGtin(product)
+    byKey.set(key, {
+      ...(cartonGtin === null ? {} : { cartonGtin }),
       commercialUnit,
       description: product.description.trim(),
       emitterTaxId,

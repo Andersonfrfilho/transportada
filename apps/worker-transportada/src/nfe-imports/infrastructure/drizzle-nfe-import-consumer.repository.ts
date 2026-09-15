@@ -31,7 +31,11 @@ import type {
   NfeStatusWriteResult,
 } from '../../nfe-documents/types/nfe-document-status.types.js'
 import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
-import { buildPackageBoxRows, deriveBoxGrossWeightGrams } from '../domain/package-box.policy.js'
+import {
+  buildPackageBoxRows,
+  deriveBoxGrossWeightGrams,
+  type PackageBoxRow,
+} from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
@@ -481,30 +485,12 @@ export async function writeDocumentChildren(input: {
       products: input.document.products,
       volumes: input.document.volumes,
     })
-    if (boxes.length > 0) {
-      /**
-       * Spec 085: a caixa entra sem medida, e `doNothing` é o ponto inteiro — a linha já existente
-       * carrega a medição do conferente, e reescrevê-la apagaria o trabalho dele a cada nota nova
-       * do mesmo produto.
-       */
-      await input.tx
-        .insert(nfePackageBoxes)
-        .values(
-          boxes.map((box) => ({
-            ...box,
-            companyId: input.companyId,
-            ...(grossWeightGrams === null ? {} : { grossWeightGrams }),
-          })),
-        )
-        .onConflictDoNothing({
-          target: [
-            nfePackageBoxes.companyId,
-            nfePackageBoxes.emitterTaxId,
-            nfePackageBoxes.productCode,
-            nfePackageBoxes.commercialUnit,
-          ],
-        })
-    }
+    await writePackageBoxes({
+      boxes,
+      companyId: input.companyId,
+      grossWeightGrams,
+      tx: input.tx,
+    })
   }
 
   if (input.document.volumes.length > 0) {
@@ -520,6 +506,40 @@ export async function writeDocumentChildren(input: {
       })),
     )
   }
+}
+
+/**
+ * Spec 085: a caixa entra sem medida, e a linha existente carrega a medição do conferente — nota
+ * nova do mesmo produto nunca a reescreve. O único campo que ela acrescenta é o GTIN, e só onde
+ * ainda é nulo: um GTIN já gravado não troca pelo da nota seguinte.
+ */
+export async function writePackageBoxes(input: {
+  readonly boxes: readonly PackageBoxRow[]
+  readonly companyId: string
+  readonly grossWeightGrams: number | null
+  readonly tx: Transaction
+}): Promise<void> {
+  if (input.boxes.length === 0) return
+
+  await input.tx
+    .insert(nfePackageBoxes)
+    .values(
+      input.boxes.map((box) => ({
+        ...box,
+        companyId: input.companyId,
+        ...(input.grossWeightGrams === null ? {} : { grossWeightGrams: input.grossWeightGrams }),
+      })),
+    )
+    .onConflictDoUpdate({
+      set: { cartonGtin: sql`excluded.carton_gtin` },
+      setWhere: sql`${nfePackageBoxes.cartonGtin} is null and excluded.carton_gtin is not null`,
+      target: [
+        nfePackageBoxes.companyId,
+        nfePackageBoxes.emitterTaxId,
+        nfePackageBoxes.productCode,
+        nfePackageBoxes.commercialUnit,
+      ],
+    })
 }
 
 function buildParties(

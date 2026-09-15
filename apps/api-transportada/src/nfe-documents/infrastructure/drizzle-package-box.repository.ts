@@ -153,10 +153,10 @@ function buildStatusFilter(status: PackageBoxFilters['status']) {
 /**
  * A etiqueta que o conferente bipou, casada contra **duas** colunas.
  *
- * ⚠️ `carton_gtin` é hoje nulo em toda linha: `NfeXmlProduct` do `@adatechnology/fiscal-provider`
- * não expõe `cEAN`, a mesma lacuna de pacote do caso `<email>`, então a importação não tem de onde
- * escrevê-lo. Casar **só** por ele devolveria lista vazia em todo bipe — e é comum o emitente usar
- * o próprio EAN como `cProd`, que é o que salva a leitura enquanto o campo não existe.
+ * ⚠️ `carton_gtin` vem do `cEAN` do produto (fiscal-provider 0.3.2), gravado pelo worker já
+ * reduzido a GTIN-13 e só com dígito verificador válido — mas fica nulo quando a nota traz
+ * "SEM GTIN" ou código inválido. Casar **só** por ele devolveria lista vazia nesses casos, e é
+ * comum o emitente usar o próprio EAN como `cProd`: por isso o bipe casa as duas colunas.
  *
  * Os códigos chegam já em conjunto (o lido e o reduzido a GTIN-13): quem decide a redução é a
  * política, não o SQL.
