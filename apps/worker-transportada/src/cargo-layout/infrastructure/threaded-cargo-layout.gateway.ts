@@ -9,6 +9,7 @@ import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
 import { CARGO_LAYOUT_THREAD_CEILING_MARGIN_MS } from '../application/cargo-layout-budget.policy.js'
 import type { CargoLayoutHandlerPorts } from '../application/cargo-layout-handler.service.js'
+import { CargoLayoutThreadError } from '../application/cargo-layout-thread.error.js'
 import { CargoLayoutTimeoutError } from '../application/cargo-layout-timeout.error.js'
 import type { StoredCargoLayoutInput } from '../application/stored-cargo-layout-input.schema.js'
 
@@ -23,7 +24,7 @@ const WORKER_URL = new URL(
 
 type WorkerMessage =
   | { readonly layout: ResolvedCargoLayout | null; readonly ok: true }
-  | { readonly ok: false; readonly reason: string }
+  | { readonly code: string | undefined; readonly ok: false; readonly reason: string }
 
 export function createThreadedCargoLayoutGateway(
   options: { readonly ceilingMarginMs?: number } = {},
@@ -61,7 +62,7 @@ function runInThread(input: {
       settle(() =>
         message.ok
           ? resolve(message.layout)
-          : reject(new Error(`cargo layout thread failed: ${message.reason}`)),
+          : reject(new CargoLayoutThreadError(message.reason, message.code)),
       )
     })
     worker.on('error', (error: Error) => {

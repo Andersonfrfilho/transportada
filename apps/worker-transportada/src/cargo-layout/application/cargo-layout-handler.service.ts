@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
+import type { z } from 'zod'
 
 import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
@@ -11,6 +12,7 @@ import {
   TIME_BUDGET_UNPLACED_REASON,
   type CargoLayoutErrorCode,
 } from './cargo-layout-error.constant.js'
+import { CargoLayoutThreadError } from './cargo-layout-thread.error.js'
 import { CargoLayoutTimeoutError } from './cargo-layout-timeout.error.js'
 import {
   storedCargoLayoutInputSchema,
@@ -103,7 +105,18 @@ async function settleCargoLayout(input: {
 }): Promise<CargoLayoutDisposition> {
   const { isFinalAttempt, params } = input
   const parsed = storedCargoLayoutInputSchema.safeParse(input.claim.input)
-  if (!parsed.success) return failCargoLayout({ errorCode: CARGO_LAYOUT_ERROR.failed, params })
+  if (!parsed.success) {
+    // Só código e caminho de cada recusa: o valor recusado pode ser rótulo de parada (PII)
+    safeLogWarn({
+      logger: params.logger,
+      message: 'cargo_layout_input_rejected',
+      metadata: {
+        issues: describeInputIssues(parsed.error.issues),
+        layoutId: params.job.layoutId,
+      },
+    })
+    return failCargoLayout({ errorCode: CARGO_LAYOUT_ERROR.failed, params })
+  }
 
   const startedAt = params.ports.now()
   const outcome = await computeOutcome({
@@ -112,7 +125,7 @@ async function settleCargoLayout(input: {
       baseBudgetMs: params.baseBudgetMs,
     }),
     input: parsed.data,
-    ports: params.ports,
+    params,
   })
 
   if (outcome.kind === 'timeout') {
@@ -140,14 +153,43 @@ async function settleCargoLayout(input: {
 async function computeOutcome(input: {
   readonly budgetMs: number
   readonly input: StoredCargoLayoutInput
-  readonly ports: CargoLayoutHandlerPorts
+  readonly params: HandleCargoLayoutParams
 }): Promise<ComputeOutcome> {
+  const { params } = input
   try {
-    const layout = await input.ports.compute({ budgetMs: input.budgetMs, input: input.input })
+    const layout = await params.ports.compute({ budgetMs: input.budgetMs, input: input.input })
     return { kind: 'computed', layout }
   } catch (cause) {
-    return cause instanceof CargoLayoutTimeoutError ? { kind: 'timeout' } : { kind: 'failed' }
+    if (cause instanceof CargoLayoutTimeoutError) return { kind: 'timeout' }
+    safeLogWarn({
+      logger: params.logger,
+      message: 'cargo_layout_compute_failed',
+      metadata: { ...describeComputeFailure(cause), layoutId: params.job.layoutId },
+    })
+    return { kind: 'failed' }
   }
+}
+
+/** Teto de itens no log: uma entrada inteira recusada não pode virar uma linha de megabytes. */
+const MAX_LOGGED_INPUT_ISSUES = 10
+
+function describeInputIssues(
+  issues: readonly z.core.$ZodIssue[],
+): readonly Readonly<Record<string, unknown>>[] {
+  return issues.slice(0, MAX_LOGGED_INPUT_ISSUES).map((issue) => ({
+    code: issue.code,
+    path: issue.path.map(String).join('.'),
+    ...(issue.code === 'unrecognized_keys' ? { keys: issue.keys } : {}),
+  }))
+}
+
+function describeComputeFailure(cause: unknown): Readonly<Record<string, string>> {
+  if (cause instanceof CargoLayoutThreadError) {
+    return cause.code === undefined
+      ? { reason: cause.reason }
+      : { code: cause.code, reason: cause.reason }
+  }
+  return { reason: cause instanceof Error ? cause.name : 'unknown' }
 }
 
 function hasTimeBudgetShortfall(layout: ResolvedCargoLayout): boolean {

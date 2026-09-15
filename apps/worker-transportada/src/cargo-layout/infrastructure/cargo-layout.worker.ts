@@ -9,6 +9,7 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { resolveCargoLayout, type ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
+import { readSafeErrorCode } from '../application/cargo-layout-thread.error.js'
 import type { StoredCargoLayoutInput } from '../application/stored-cargo-layout-input.schema.js'
 
 export type CargoLayoutWorkerData = Readonly<{
@@ -59,6 +60,10 @@ if (parentPort !== null) {
     port.postMessage({ layout: computeCargoLayout(workerData as CargoLayoutWorkerData), ok: true })
   } catch (error: unknown) {
     // Só a forma do erro atravessa: a mensagem pode citar o rótulo da parada
-    port.postMessage({ ok: false, reason: error instanceof Error ? error.name : 'unknown' })
+    port.postMessage({
+      code: readSafeErrorCode(error),
+      ok: false,
+      reason: error instanceof Error ? error.name : 'unknown',
+    })
   }
 }
