@@ -104,7 +104,11 @@
     "protocol": "Protocol",
     "lastError": "Rejection",
     "actions": "Actions",
-    "summary": "{{authorized}} authorized · {{pending}} in progress · {{rejected}} rejected · {{documents}} invoice(s) · total {{total}}"
+    "summary": "{{authorized}} authorized · {{pending}} in progress · {{rejected}} rejected · {{documents}} invoice(s) · total {{total}}",
+    "documentNfeWarning": {
+      "cancelled": "Invoice cancelled after issuance",
+      "denied": "Invoice denied after issuance"
+    }
   },
   "itemStatus": {
     "authorized": "Authorized",

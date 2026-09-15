@@ -141,6 +141,46 @@ describe('nfe document listing order integration', () => {
     },
     60_000,
   )
+
+  testWithPostgres(
+    'quando um evento fiscal cancela a nota, ela sobe ao topo mesmo com a emissão mais antiga (spec 149 H1)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { context, otherCompanyId } = await seedTenants(database)
+        const repository = new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE)
+        // Hoje a terceira colocada (updatedAt '2026-09-14T09:00:00.000000Z') — nem a mais nova
+        // emissão, nem a mais nova atualização antes do cancelamento.
+        const cancelledDocument = PRIMARY_DOCUMENTS[2]
+        if (cancelledDocument === undefined) throw new Error('MISSING_FIXTURE_DOCUMENT')
+        const cancelledAt = '2026-09-16T08:00:00.000000Z'
+
+        // Mesmas duas colunas que `applyStatusChange` (worker, spec 149 T3) grava juntas dentro
+        // da mesma transação, quando um `procEventoNFe` de cancelamento muda o status da nota.
+        await database.db.execute(
+          sql`update nfe_documents
+            set status = 'cancelled', updated_at = ${cancelledAt}::timestamptz
+            where id = ${cancelledDocument.id}`,
+        )
+
+        const page = await repository.list({ accessKey: null, context, cursor: null, limit: 50 })
+
+        expect(page.items[0]?.id).toBe(cancelledDocument.id)
+        expect(page.items[0]?.status).toBe('cancelled')
+        expect(page.items.slice(1).map((item) => item.id)).toEqual(
+          EXPECTED_ORDER.filter((id) => id !== cancelledDocument.id),
+        )
+        // Contrato negativo de tenant: a nota cancelada não vaza para a leitura da outra empresa.
+        const otherPage = await repository.list({
+          accessKey: null,
+          context: { ...context, companyId: otherCompanyId },
+          cursor: null,
+          limit: 50,
+        })
+        expect(otherPage.items.some((item) => item.id === cancelledDocument.id)).toBe(false)
+      })
+    },
+    60_000,
+  )
 })
 
 async function seedTenants(database: TestDatabase): Promise<{
@@ -152,10 +192,12 @@ async function seedTenants(database: TestDatabase): Promise<{
     readonly roles: readonly never[]
     readonly userId: string
   }
+  readonly otherCompanyId: string
 }> {
   const primary = await seedCompany(database, PRIMARY_DOCUMENTS)
-  await seedCompany(database, OTHER_DOCUMENTS)
+  const other = await seedCompany(database, OTHER_DOCUMENTS)
   return {
+    otherCompanyId: other.companyId,
     context: {
       companyId: primary.companyId,
       kind: 'company',

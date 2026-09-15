@@ -10,6 +10,7 @@ import {
 } from '../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import { CteIssuanceFatalError } from '../src/cte-issuance/application/cte-issuance-worker-message-handler.service.js'
 import type { CteProcessingEnvelopeV1 } from '../src/messaging/cte-processing-envelope.schema.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from './fixtures/cte-document-authorization.fixture.js'
 
 const COMPANY_ID = 'fbc033e7-63e0-4698-adc6-12778bedf4a7'
 const ATTEMPT_ID = '4f6f2e89-bf9b-4d16-b7e7-d8ce6b0f6f5d'
@@ -251,6 +252,7 @@ describe('CT-e issuance execution input contract', () => {
     const logs: Array<Record<string, unknown>> = []
     const resolver = createResolver({ calls, technicalResponsible: TECHNICAL_RESPONSIBLE })
     const effect = createCteIssuanceWorkerEffect({
+      documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
       createProvider({ config }) {
         calls.push({ event: 'createProvider', config })
         return {

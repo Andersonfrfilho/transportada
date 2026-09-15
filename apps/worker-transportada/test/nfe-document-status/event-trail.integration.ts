@@ -1,0 +1,444 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../../src/nfe-documents/domain/system-distribution-actor.constant.js'
+import {
+  createStatusHarness,
+  DATABASE_URL,
+  documentXml,
+  eventXml,
+  newAccessKey,
+  readChanges,
+  readDocument,
+  readEvents,
+  type Trail,
+} from './nfe-document-status.fixture.js'
+
+const describeDatabase = DATABASE_URL ? describe : describe.skip
+
+type OriginCase = {
+  readonly expected: {
+    readonly actor: 'user' | null
+    readonly origin: 'automatic' | 'manual'
+    readonly requester: 'user' | null
+  }
+  readonly name: string
+  readonly requester: 'system' | 'user'
+  readonly source: 'distribution' | 'upload'
+  readonly trail: Trail
+}
+
+/** Upload não está aqui de propósito: evento de upload nunca muda status (D21, teste próprio abaixo). */
+const ORIGIN_CASES: readonly OriginCase[] = [
+  {
+    expected: { actor: null, origin: 'automatic', requester: null },
+    name: 'scheduled distribution',
+    requester: 'system',
+    source: 'distribution',
+    trail: 'distribution',
+  },
+  {
+    expected: { actor: null, origin: 'automatic', requester: 'user' },
+    name: '"fetch now" distribution',
+    requester: 'user',
+    source: 'distribution',
+    trail: 'distribution',
+  },
+]
+
+describeDatabase('NF-e event changes the note status (spec 149 H1, H4)', () => {
+  const harness = createStatusHarness('spec149-event')
+  const { db } = harness
+
+  beforeAll(harness.setup)
+  afterAll(harness.cleanup)
+
+  for (const scenario of ORIGIN_CASES) {
+    it(`H1 ${scenario.name}: a registered cancellation cancels an authorized note`, async () => {
+      const companyId = harness.companyA
+      const accessKey = newAccessKey()
+      const requestedByUserId =
+        scenario.requester === 'system' ? SYSTEM_DISTRIBUTION_ACTOR_USER_ID : harness.userId
+      const importId = await harness.createImport({
+        companyId,
+        requestedByUserId,
+        source: scenario.source,
+      })
+      await harness.write({
+        companyId,
+        importId,
+        trail: scenario.trail,
+        xml: documentXml({ accessKey }),
+      })
+      const before = await readDocument({ accessKey, companyId, db })
+
+      await harness.write({
+        companyId,
+        importId,
+        trail: scenario.trail,
+        xml: eventXml({
+          accessKey,
+          protocol: '135260000000077',
+          sequence: '1',
+          statusCode: '135',
+          type: '110111',
+        }),
+      })
+
+      const after = await readDocument({ accessKey, companyId, db })
+      expect(after?.status).toBe('cancelled')
+      expect(after!.updatedMicros > before!.updatedMicros).toBe(true)
+
+      const [event] = await readEvents({ accessKey, companyId, db })
+      const actor = scenario.expected.actor === 'user' ? harness.userId : null
+      const requester = scenario.expected.requester === 'user' ? harness.userId : null
+      expect(event).toMatchObject({
+        actorUserId: actor,
+        documentStatusAfter: 'cancelled',
+        documentStatusBefore: 'authorized',
+        importId,
+        origin: scenario.expected.origin,
+        protocol: '135260000000077',
+        requestedByUserId: requester,
+        statusCode: '135',
+      })
+
+      const changes = await readChanges({ companyId, db, documentId: after!.id })
+      expect(changes).toHaveLength(1)
+      expect(changes[0]).toMatchObject({
+        actorUserId: actor,
+        cause: 'event',
+        eventId: event!.id,
+        importId,
+        origin: scenario.expected.origin,
+        requestedByUserId: requester,
+        statusAfter: 'cancelled',
+        statusBefore: 'authorized',
+      })
+      expect(changes[0]!.changedMicros).toBe(after!.updatedMicros)
+
+      expect(harness.logs).toContainEqual({
+        level: 'info',
+        message: 'nfe_document_status_changed',
+        metadata: {
+          cause: 'event',
+          companyId,
+          documentId: after!.id,
+          from: 'authorized',
+          to: 'cancelled',
+        },
+      })
+    })
+  }
+
+  for (const trail of ['import', 'distribution'] as const) {
+    it(`H4 ${trail}: CC-e, manifestation and unregistered events never touch the note`, async () => {
+      const companyId = harness.companyA
+      const accessKey = newAccessKey()
+      const importId = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source: trail === 'import' ? 'upload' : 'distribution',
+      })
+      await harness.write({ companyId, importId, trail, xml: documentXml({ accessKey }) })
+      const before = await readDocument({ accessKey, companyId, db })
+      const warningsBefore = harness.logs.filter((entry) => entry.level === 'warn').length
+
+      const events = [
+        eventXml({
+          accessKey,
+          protocol: '135260000000078',
+          sequence: '1',
+          statusCode: '135',
+          type: '110110',
+        }),
+        eventXml({
+          accessKey,
+          protocol: '135260000000079',
+          sequence: '1',
+          statusCode: '135',
+          type: '210200',
+        }),
+        eventXml({
+          accessKey,
+          protocol: '135260000000080',
+          sequence: '1',
+          statusCode: '573',
+          type: '110111',
+        }),
+        eventXml({ accessKey, sequence: '2', type: '110111' }),
+        eventXml({
+          accessKey,
+          protocol: '135260000000081',
+          sequence: '3',
+          statusCode: '1350',
+          type: '110111',
+        }),
+      ]
+      for (const xml of events) {
+        await harness.write({ companyId, importId, trail, xml })
+      }
+
+      const after = await readDocument({ accessKey, companyId, db })
+      expect(after?.status).toBe('authorized')
+      expect(after?.updatedMicros).toBe(before!.updatedMicros)
+      expect(await readChanges({ companyId, db, documentId: after!.id })).toHaveLength(0)
+
+      const stored = await readEvents({ accessKey, companyId, db })
+      const byKey = new Map(
+        stored.map((event) => [`${event.eventType}:${event.eventSequence}`, event]),
+      )
+      expect(byKey.get('110111:1')).toMatchObject({
+        protocol: '135260000000080',
+        statusCode: '573',
+      })
+      expect(byKey.get('110111:2')).toMatchObject({ protocol: null, statusCode: null })
+      expect(byKey.get('110111:3')).toMatchObject({ protocol: null, statusCode: null })
+      for (const event of stored) {
+        expect(event.documentStatusBefore).toBe('authorized')
+        expect(event.documentStatusAfter).toBe('authorized')
+      }
+
+      const warnings = harness.logs.filter((entry) => entry.level === 'warn').slice(warningsBefore)
+      expect(
+        warnings.map((entry) => [
+          entry.message,
+          entry.metadata['eventType'],
+          entry.metadata['reason'],
+        ]),
+      ).toEqual([
+        ['nfe_event_status_not_applied', '110111', 'status-code-not-registered'],
+        ['nfe_event_status_not_applied', '110111', 'missing-status-code'],
+        ['nfe_event_status_not_applied', '110111', 'missing-status-code'],
+      ])
+      expect(warnings[0]?.metadata).toEqual({
+        companyId,
+        eventId: byKey.get('110111:1')!.id,
+        eventType: '110111',
+        reason: 'status-code-not-registered',
+      })
+    })
+  }
+
+  for (const trail of ['import', 'distribution'] as const) {
+    it(`H2' ${trail}: CC-e records the accented correction text, capped at 1000 characters`, async () => {
+      const companyId = harness.companyA
+      const accessKey = newAccessKey()
+      const importId = await harness.createImport({
+        companyId,
+        requestedByUserId: harness.userId,
+        source: trail === 'import' ? 'upload' : 'distribution',
+      })
+      await harness.write({ companyId, importId, trail, xml: documentXml({ accessKey }) })
+
+      const correctionText = 'Corrigir o endereço de entrega para Rua Açaí, número 42 — São Paulo'
+      await harness.write({
+        companyId,
+        importId,
+        trail,
+        xml: eventXml({
+          accessKey,
+          correctionText,
+          protocol: '135260000000090',
+          sequence: '1',
+          statusCode: '135',
+          type: '110110',
+        }),
+      })
+
+      const longCorrectionText = 'A'.repeat(1500)
+      await harness.write({
+        companyId,
+        importId,
+        trail,
+        xml: eventXml({
+          accessKey,
+          correctionText: longCorrectionText,
+          protocol: '135260000000091',
+          sequence: '2',
+          statusCode: '135',
+          type: '110110',
+        }),
+      })
+
+      const stored = await readEvents({ accessKey, companyId, db })
+      const byKey = new Map(
+        stored.map((event) => [`${event.eventType}:${event.eventSequence}`, event]),
+      )
+      expect(byKey.get('110110:1')?.correctionText).toBe(correctionText)
+      expect(byKey.get('110110:2')?.correctionText).toBe(longCorrectionText.slice(0, 1000))
+      expect(byKey.get('110110:2')?.correctionText).toHaveLength(1000)
+    })
+  }
+
+  it("H2' cancellation never records a correction text", async () => {
+    const companyId = harness.companyA
+    const accessKey = newAccessKey()
+    const importId = await harness.createImport({
+      companyId,
+      requestedByUserId: harness.userId,
+      source: 'upload',
+    })
+    await harness.write({ companyId, importId, trail: 'import', xml: documentXml({ accessKey }) })
+    await harness.write({
+      companyId,
+      importId,
+      trail: 'import',
+      xml: eventXml({
+        accessKey,
+        protocol: '135260000000092',
+        sequence: '1',
+        statusCode: '135',
+        type: '110111',
+      }),
+    })
+
+    const [event] = await readEvents({ accessKey, companyId, db })
+    expect(event?.correctionText).toBeNull()
+  })
+
+  it('D21: an uploaded 110111/135 is recorded but never cancels; the same event from the distribution does', async () => {
+    const companyId = harness.companyA
+    const accessKey = newAccessKey()
+    const uploadImport = await harness.createImport({
+      companyId,
+      requestedByUserId: harness.userId,
+      source: 'upload',
+    })
+    await harness.write({
+      companyId,
+      importId: uploadImport,
+      trail: 'import',
+      xml: documentXml({ accessKey }),
+    })
+    const before = await readDocument({ accessKey, companyId, db })
+    const logsBefore = harness.logs.length
+    const cancellation = eventXml({
+      accessKey,
+      protocol: '135260000000070',
+      sequence: '1',
+      statusCode: '135',
+      type: '110111',
+    })
+
+    await harness.write({ companyId, importId: uploadImport, trail: 'import', xml: cancellation })
+
+    const afterUpload = await readDocument({ accessKey, companyId, db })
+    expect(afterUpload?.status).toBe('authorized')
+    expect(afterUpload?.updatedMicros).toBe(before!.updatedMicros)
+    expect(await readChanges({ companyId, db, documentId: before!.id })).toHaveLength(0)
+    const [uploaded] = await readEvents({ accessKey, companyId, db })
+    expect(uploaded).toMatchObject({
+      actorUserId: harness.userId,
+      documentStatusAfter: 'authorized',
+      documentStatusBefore: 'authorized',
+      importId: uploadImport,
+      origin: 'manual',
+      protocol: '135260000000070',
+      statusCode: '135',
+    })
+    expect(harness.logs.slice(logsBefore)).toEqual([
+      {
+        level: 'warn',
+        message: 'nfe_event_status_not_applied',
+        metadata: {
+          companyId,
+          eventId: uploaded!.id,
+          eventType: '110111',
+          reason: 'unverified-upload',
+        },
+      },
+    ])
+
+    const distributionImport = await harness.createImport({
+      companyId,
+      requestedByUserId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID,
+      source: 'distribution',
+    })
+    await harness.write({
+      companyId,
+      importId: distributionImport,
+      trail: 'distribution',
+      xml: cancellation,
+    })
+
+    const after = await readDocument({ accessKey, companyId, db })
+    expect(after?.status).toBe('cancelled')
+    expect(after!.updatedMicros > before!.updatedMicros).toBe(true)
+    const changes = await readChanges({ companyId, db, documentId: after!.id })
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({
+      actorUserId: null,
+      cause: 'event',
+      eventId: uploaded!.id,
+      importId: distributionImport,
+      origin: 'automatic',
+      statusAfter: 'cancelled',
+      statusBefore: 'authorized',
+    })
+    // D15: a linha do evento não é reescrita — quem conta a mudança é a trilha de status
+    expect(await readEvents({ accessKey, companyId, db })).toEqual([uploaded!])
+  })
+
+  it('protocol is recorded only with 15 digits and a SEFAZ status code', async () => {
+    const companyId = harness.companyA
+    const accessKey = newAccessKey()
+    const importId = await harness.createImport({
+      companyId,
+      requestedByUserId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID,
+      source: 'distribution',
+    })
+    await harness.write({
+      companyId,
+      importId,
+      trail: 'distribution',
+      xml: documentXml({ accessKey }),
+    })
+    const protocols = ['13526000000007', '1352600000000AB', '135260000000071', '1352600000000712']
+    for (const [index, protocol] of protocols.entries()) {
+      await harness.write({
+        companyId,
+        importId,
+        trail: 'distribution',
+        xml: eventXml({
+          accessKey,
+          protocol,
+          sequence: String(index + 1),
+          statusCode: '135',
+          type: '110110',
+        }),
+      })
+    }
+    await harness.write({
+      companyId,
+      importId,
+      trail: 'distribution',
+      xml: eventXml({ accessKey, protocol: '135260000000072', sequence: '9', type: '110110' }),
+    })
+
+    const stored = await readEvents({ accessKey, companyId, db })
+    const bySequence = new Map(stored.map((event) => [String(event.eventSequence), event.protocol]))
+    expect(Object.fromEntries(bySequence)).toEqual({
+      '1': null,
+      '2': null,
+      '3': '135260000000071',
+      '4': null,
+      '9': null,
+    })
+  })
+
+  it('never logs an access key', () => {
+    const serialized = JSON.stringify(harness.logs)
+    for (const accessKey of harness.accessKeys) {
+      expect(serialized).not.toContain(accessKey)
+    }
+  })
+
+  it("H2' never logs the correction text", () => {
+    const serialized = JSON.stringify(harness.logs)
+    expect(serialized).not.toContain('Açaí')
+    expect(serialized).not.toContain('A'.repeat(1000))
+  })
+})

@@ -22,6 +22,7 @@ import type {
 import type { SettleWhatsAppCommandInput } from '../../src/whatsapp-commands/application/settle-whatsapp-command.use-case.js'
 import { createWhatsAppCommandSettlementRoutes } from '../../src/whatsapp-commands/presentation/whatsapp-command-settlement.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 
 type RegisteredRoute = ReturnType<typeof defineRoute>
@@ -146,6 +147,7 @@ function createTestRouter(input: {
     authentication: { authenticate: async () => input.context.identity },
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

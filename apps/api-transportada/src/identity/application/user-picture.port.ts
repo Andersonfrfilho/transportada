@@ -57,6 +57,17 @@ export type UserPictureRepositoryPort = {
   readonly save: (input: SaveUserPictureInput) => Promise<UserPictureMetadata>
 }
 
+/**
+ * Só a pergunta "tem foto?", recortada pela empresa como toda leitura desta tabela. É o que deixa a
+ * tela pedir os bytes apenas de quem tem — sem ela, cada cabeçalho sem foto virava um 404.
+ */
+export type UserPictureExistencePort = {
+  readonly hasPicture: (input: {
+    readonly companyId: string
+    readonly userId: string
+  }) => Promise<boolean>
+}
+
 export type UserPictureIdentityGatewayPort = {
   readonly setProfilePicture: (input: {
     readonly pictureUrl: string | undefined

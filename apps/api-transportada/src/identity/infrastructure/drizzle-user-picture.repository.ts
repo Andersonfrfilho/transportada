@@ -12,6 +12,7 @@ import {
 import type {
   SaveUserPictureInput,
   UserPicture,
+  UserPictureExistencePort,
   UserPictureMetadata,
   UserPictureRepositoryPort,
 } from '../application/user-picture.port.js'
@@ -24,8 +25,28 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * `company_id`. Conferir a empresa em memória, antes de ler, deixaria a leitura em si aberta — e é
  * a leitura que devolve bytes para o navegador de quem pediu.
  */
-export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
+export class DrizzleUserPictureRepository
+  implements UserPictureExistencePort, UserPictureRepositoryPort
+{
   public constructor(private readonly database: Database) {}
+
+  /** Só a chave sai do banco: a pergunta é se a linha existe, e o conteúdo pesa até 256 KiB. */
+  public async hasPicture(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<boolean> {
+    const [row] = await this.database
+      .select({ userId: identityUserPictures.userId })
+      .from(identityUserPictures)
+      .innerJoin(
+        userCompanyMemberships,
+        eq(userCompanyMemberships.userId, identityUserPictures.userId),
+      )
+      .where(this.scopedTo(input))
+      .limit(1)
+
+    return row !== undefined
+  }
 
   public async find(input: {
     readonly companyId: string

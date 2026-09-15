@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { expect } from 'bun:test'
 
 import { HealthService } from '../../src/health/health.service'
@@ -70,6 +71,7 @@ export function createRouterFixture({
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
     routes: [
       defineRoute({

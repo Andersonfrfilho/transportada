@@ -32,6 +32,8 @@ export type CompanyUserView = {
    */
   readonly emails: readonly string[]
   readonly fleet?: CompanyUserFleetLink
+  /** Se há foto a buscar. A tela só pede os bytes quando há — pedir de todos era 404 em série. */
+  readonly hasPicture: boolean
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
   /**
@@ -54,6 +56,7 @@ type CompanyUserViewSource = {
   readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string
+  readonly hasPicture: boolean
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
@@ -139,6 +142,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
     email: maskEmailOrEmpty(source.email),
     emails: (source.emails ?? []).map(maskEmailOrEmpty),
     ...(source.fleet === undefined ? {} : { fleet: source.fleet }),
+    hasPicture: source.hasPicture,
     id: source.userId,
     membershipId: source.membershipId,
     name: toDisplayPersonName(source.name),

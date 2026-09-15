@@ -11,6 +11,7 @@ import type {
 import type { CteIssuanceExecutionInput } from '../../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import type { CteFiscalProvider } from '../../src/cte-issuance/infrastructure/cte-fiscal-gateway.js'
 import type { CteProcessingEnvelopeV1 } from '../../src/messaging/cte-processing-envelope.schema.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from '../fixtures/cte-document-authorization.fixture.js'
 
 export const ACCESS_KEY = '35260712345678000190570070000000011000000019'
 export const AUTHORIZED_XML =
@@ -104,6 +105,7 @@ export function createEffectFixture(input: {
       emit: input.emit,
       testConnection: async () => ({ ok: true, rawResponse: {} }),
     }),
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     logger: { error: () => {}, info: () => {}, warn: () => {} },
     resolveExecutionInput: async () => EXECUTION_INPUT,
     writeBack: {

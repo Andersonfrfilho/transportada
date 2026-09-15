@@ -70,6 +70,28 @@ A ordem importa, e sair dela derruba serviço em silêncio:
    incompleto**; pare e complete antes de aplicar.
 4. `railway config apply`, e só então remova o `railway.json`.
 
+> ✅ **Staging migrou em 15/09/2026.** Os sete serviços (`api`, `worker`, `transportada-frontend`,
+> `landing`, `keycloak`, `cron`, `staging-refresh`) estão sem ponteiro de config em staging e são
+> geridos pelo `.railway/railway.ts`; o `apply` não apagou nada. **Produção continua nos
+> `railway.json`** — por isso os arquivos seguem no repositório, e o passo 4 só vale depois que
+> produção migrar também.
+>
+> ⚠️ Antes do `apply`, a prévia mostrou três coisas que o arquivo mudaria sem ninguém ter
+> decidido, e todas foram corrigidas no arquivo: variáveis que só existiam no painel
+> (`DEPLOYED_REVISION` e outras — **omitir é apagar**), o `aggregate-document-ocr` de staging e a
+> fonte GitHub do `client`. Rode o `plan` antes de migrar produção pelo mesmo motivo.
+>
+> ⚠️ **O `plan` nunca fica zerado, e isso não é drift.** Nove serviços declaram
+> `restartPolicyType: 'ON_FAILURE'`, que é o padrão da Railway, e ela grava o padrão como vazio:
+> depois de todo `apply`, o `plan` volta a mostrar `restartPolicyType (null → "ON_FAILURE")`
+> nesses nove. Medido aplicando duas vezes seguidas. Qualquer outra linha na prévia é mudança de
+> verdade.
+>
+> ⚠️ **Até o próximo `make map-refresh`, o `plan` também mostra `OSRM_PBF_URL` e `MAP_PBF_URL`
+> mudando** em `osrm` e `map-tiles`: o arquivo fixa `sudeste-260914`, e os serviços no ar ainda
+> rodam do `-latest` baixado em 14/09. Essas duas linhas são mudança de verdade — aplicar
+> reconstrói os dois serviços com a data do arquivo.
+
 ### O que o `railway config pull` não traz
 
 O import lê o **painel**, e o painel nunca soube do que estava no arquivo — a própria documentação

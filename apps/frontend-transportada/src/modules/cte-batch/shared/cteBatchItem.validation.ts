@@ -39,7 +39,32 @@ const DUPLICATE_NUMBER_REASON = 'sefaz_duplicate_number'
 
 const CHARGE_KEYS = ['amount', 'baseAmount', 'calculationType', 'label', 'ordinal', 'rate'] as const
 
-const DOCUMENT_KEYS = ['accessKey', 'id', 'number', 'position', 'series', 'totalAmount'] as const
+const DOCUMENT_KEYS = [
+  'accessKey',
+  'id',
+  'nfeStatus',
+  'number',
+  'position',
+  'series',
+  'totalAmount',
+] as const
+
+const NFE_STATUS_VALUES = ['authorized', 'cancelled', 'denied', 'unsigned'] as const
+
+function isNfeStatus(value: unknown): value is CteBatchItemDocument['nfeStatus'] {
+  return isString(value) && (NFE_STATUS_VALUES as readonly string[]).includes(value)
+}
+
+/**
+ * Ordem de deploy (spec 149 D12/T5): esta tela pode subir antes da API que passou a expor
+ * `nfeStatus`. Ausente é API anterior ao campo — cai em `authorized`, o comportamento de antes
+ * desta spec, nunca recusa a resposta; valor presente mas fora do domínio continua recusado.
+ */
+function nfeStatusFromApi(value: unknown): CteBatchItemDocument['nfeStatus'] {
+  if (value === undefined) return 'authorized'
+  if (!isNfeStatus(value)) throw validationError()
+  return value
+}
 
 const COMPANY_ITEM_KEYS = [...ITEM_KEYS, 'batchId', 'batchName', 'createdAt'] as const
 
@@ -113,6 +138,7 @@ function documentFromApi(input: unknown): CteBatchItemDocument {
   return {
     accessKey: input.accessKey,
     id: input.id,
+    nfeStatus: nfeStatusFromApi(input.nfeStatus),
     number: input.number,
     position: input.position,
     series: input.series,

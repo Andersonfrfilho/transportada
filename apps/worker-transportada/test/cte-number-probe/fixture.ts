@@ -5,6 +5,7 @@ import { createCteIssuanceWorkerEffect } from '../../src/cte-issuance/applicatio
 import type { CteFiscalNumberProbe } from '../../src/cte-issuance/application/cte-issuance-consumer.effect.js'
 import type { CteIssuanceExecutionInput } from '../../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import type { CteProcessingEnvelopeV1 } from '../../src/messaging/cte-processing-envelope.schema.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from '../fixtures/cte-document-authorization.fixture.js'
 
 export const COMPANY_ID = 'a2fb6f1e-3f4b-4a4f-9a1e-0c74dbdc3a11'
 export const BATCH_ITEM_ID = 'c9d1a2f6-46bd-4d2f-9e1b-2a53f9c0a3d4'
@@ -96,6 +97,7 @@ export function createProbeFixture(input: {
       emit: async () => ({ errorCode: input.errorCode, rawResponse: {}, success: false }),
       testConnection: async () => ({ ok: true, rawResponse: {} }),
     }),
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     fiscalNumberProbe,
     logger: { error: () => {}, info: () => {}, warn: () => {} },
     resolveExecutionInput: async () => EXECUTION_INPUT,

@@ -108,6 +108,7 @@ export const CTE_BATCH_AUTHORIZED_ITEM = {
     {
       accessKey: CTE_REFERENCE_ACCESS_KEY,
       id: CTE_DOCUMENT_ID,
+      nfeStatus: 'authorized',
       number: '000000022',
       position: '1',
       series: '001',
@@ -116,6 +117,7 @@ export const CTE_BATCH_AUTHORIZED_ITEM = {
     {
       accessKey: CTE_SECOND_ACCESS_KEY,
       id: CTE_SECOND_DOCUMENT_ID,
+      nfeStatus: 'authorized',
       number: '000000023',
       position: '2',
       series: '001',
@@ -156,6 +158,7 @@ export const CTE_BATCH_REJECTED_ITEM = {
     {
       accessKey: CTE_REFERENCE_ACCESS_KEY,
       id: CTE_DOCUMENT_ID,
+      nfeStatus: 'authorized',
       number: '000000022',
       position: '1',
       series: '001',
@@ -183,6 +186,15 @@ export const CTE_BATCH_CANCELLED_ITEM = {
 export const CTE_BATCH_UNPROTOCOLED_ITEM = {
   ...CTE_BATCH_AUTHORIZED_ITEM,
   authorizationProtocol: null,
+} as const
+
+/** Spec 149 H8 — o CT-e continua autorizado; a primeira nota é quem foi cancelada depois. */
+export const CTE_BATCH_AUTHORIZED_ITEM_WITH_CANCELLED_DOCUMENT = {
+  ...CTE_BATCH_AUTHORIZED_ITEM,
+  documents: [
+    { ...CTE_BATCH_AUTHORIZED_ITEM.documents[0], nfeStatus: 'cancelled' },
+    CTE_BATCH_AUTHORIZED_ITEM.documents[1],
+  ],
 } as const
 
 export const CTE_BATCH_ITEMS = [CTE_BATCH_AUTHORIZED_ITEM, CTE_BATCH_REJECTED_ITEM] as const

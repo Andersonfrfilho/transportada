@@ -148,6 +148,10 @@ export type RouteGeometryOption = Readonly<{
 export const ROUTE_DEPOT_ABSENCES = ['not_configured', 'not_geocoded'] as const
 export type RouteDepotAbsence = (typeof ROUTE_DEPOT_ABSENCES)[number]
 
+/** Spec 097 D7: o barracão veio da configuração de roteirização ou do cadastro da empresa. */
+export const DEPOT_ORIGIN_SOURCES = ['route_settings', 'company_address'] as const
+export type DepotOriginSource = (typeof DEPOT_ORIGIN_SOURCES)[number]
+
 /**
  * A perna do barracão nesta rota. `leadingLegs`/`trailingLegs` dizem quantos trechos de `legs` são
  * dela — ⚠️ sem esses dois números a tela casaria trecho com a parada errada, ou descartaria todos.
@@ -177,6 +181,11 @@ export type RouteGeometryDepot = Readonly<{
    * numerado das entregas. `null` quando a perna não entrou.
    */
   origin: null | Readonly<{ latitude: string; longitude: string }>
+  /**
+   * D7: de onde a origem veio — a configuração de roteirização ou o endereço cadastrado da empresa.
+   * Opcional para API anterior; ausente é tratado como a configuração, como sempre foi.
+   */
+  originSource?: null | DepotOriginSource
   trailingLegs: number
 }>
 

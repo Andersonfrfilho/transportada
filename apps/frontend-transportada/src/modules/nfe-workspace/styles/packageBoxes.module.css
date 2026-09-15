@@ -184,3 +184,103 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/*
+ * A escolha entre caixas achadas pela mesma etiqueta (spec em andamento — GTIN ainda não gravado
+ * na caixa). Mesma moldura do `BarcodeScanner` (`barcode-scanner.module.css`): tela cheia no
+ * celular, janela centralizada a partir de `tablet:`, para o operador de pé no galpão não perder o
+ * lugar onde a câmera estava.
+ */
+.candidatesOverlay {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+}
+
+.candidatesDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-asphalt);
+}
+
+.candidatesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.candidatesTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.candidatesList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * O alvo é o botão inteiro, não uma linha de texto: `--control-height` garante os 44px mínimos de
+ * toque, e a coluna deixa emitente e situação legíveis sem espremer o nome do produto.
+ */
+.candidateButton {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: left;
+}
+
+.candidateMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  width: 100%;
+}
+
+.candidateMain strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-fog);
+  font-size: 0.95rem;
+}
+
+.candidateMeasured {
+  color: var(--color-ready);
+}
+
+@media (min-width: 40rem) {
+  .candidatesOverlay {
+    padding: var(--space-4);
+  }
+
+  .candidatesDialog {
+    width: min(34rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid var(--color-slate);
+    border-radius: var(--radius-md, 0);
+    box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  }
+}

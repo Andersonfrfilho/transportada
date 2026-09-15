@@ -21,6 +21,8 @@ export type CompanyUserRecord = {
   readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string
+  /** Só a existência da linha em `identity_user_pictures`: os bytes têm rota própria. */
+  readonly hasPicture: boolean
   /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus

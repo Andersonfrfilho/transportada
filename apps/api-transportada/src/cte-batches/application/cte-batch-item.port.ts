@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 
 /** Item sem tentativa de emissão ainda não tem status fiscal próprio. */
 export const CTE_BATCH_ITEM_PENDING_STATUS = 'pending'
@@ -22,6 +23,12 @@ export type CteBatchItemCharge = {
 export type CteBatchItemDocument = {
   readonly accessKey: string
   readonly id: string
+  /**
+   * Spec 149 H8/D12: nota cancelada depois da emissão continua no CT-e autorizado — a leitura
+   * atual do status é o sinal (nunca uma flag copiada) para a tela avisar "NF-e cancelada após a
+   * emissão".
+   */
+  readonly nfeStatus: NfeDocumentStatus
   readonly number: string
   readonly position: string
   readonly series: string

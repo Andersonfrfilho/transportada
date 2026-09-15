@@ -75,20 +75,51 @@ export type NativeBarcodeDetector = Readonly<{
   detect: (source: CanvasImageSource) => Promise<readonly Readonly<{ rawValue: string }>[]>
 }>
 
-type NativeBarcodeDetectorConstructor = new (
-  options: Readonly<{ formats: readonly string[] }>,
-) => NativeBarcodeDetector
+type NativeBarcodeDetectorConstructor = Readonly<{
+  getSupportedFormats?: () => Promise<readonly string[]>
+}> &
+  (new (options: Readonly<{ formats: readonly string[] }>) => NativeBarcodeDetector)
 
-export const NATIVE_BARCODE_FORMATS = ['code_128', 'qr_code'] as const
+/**
+ * Lineares primeiro — Code-128 (chave da DANFE) é o mais comum, ITF cobre a caixa de papelão
+ * (DUN-14) — e o QR por último. `createNativeBarcodeDetector` ainda filtra esta lista pelo que
+ * `BarcodeDetector.getSupportedFormats()` devolve: pedir um formato que o navegador não suporta
+ * lança na construção e derrubaria o detector inteiro.
+ */
+export const NATIVE_BARCODE_FORMATS = [
+  'code_128',
+  'ean_13',
+  'ean_8',
+  'upc_a',
+  'upc_e',
+  'itf',
+  'code_39',
+  'qr_code',
+] as const
 
-export function createNativeBarcodeDetector(scope: unknown): NativeBarcodeDetector | undefined {
+async function resolveSupportedFormats(
+  Detector: NativeBarcodeDetectorConstructor,
+): Promise<readonly string[]> {
+  if (typeof Detector.getSupportedFormats !== 'function') return NATIVE_BARCODE_FORMATS
+  try {
+    const supported = await Detector.getSupportedFormats()
+    return NATIVE_BARCODE_FORMATS.filter((format) => supported.includes(format))
+  } catch {
+    return NATIVE_BARCODE_FORMATS
+  }
+}
+
+export async function createNativeBarcodeDetector(
+  scope: unknown,
+): Promise<NativeBarcodeDetector | undefined> {
   if (typeof scope !== 'object' || scope === null) return undefined
   const { BarcodeDetector } = scope as Readonly<{ BarcodeDetector?: unknown }>
   if (typeof BarcodeDetector !== 'function') return undefined
+  const Detector = BarcodeDetector as NativeBarcodeDetectorConstructor
+  const formats = await resolveSupportedFormats(Detector)
+  if (formats.length === 0) return undefined
   try {
-    return new (BarcodeDetector as NativeBarcodeDetectorConstructor)({
-      formats: NATIVE_BARCODE_FORMATS,
-    })
+    return new Detector({ formats })
   } catch {
     return undefined
   }

@@ -9,6 +9,7 @@ const BASE_SOURCE = {
   contactAddress: 'pessoa@empresa.test',
   contactChannel: 'email',
   email: 'pessoa@empresa.test',
+  hasPicture: false,
   membershipId: '00000000-0000-4000-8000-000000000002',
   membershipStatus: 'active',
   pendingInvitation: undefined,

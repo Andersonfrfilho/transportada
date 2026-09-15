@@ -457,6 +457,13 @@
   overflow-wrap: anywhere;
 }
 
+div.cardError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
 .feedbackSuccess {
   color: var(--color-ready);
   font-size: 0.85rem;
@@ -1534,4 +1541,145 @@
     max-height: 92vh;
     border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
+}
+
+/* Spec 149 D20 — drawer "Histórico fiscal", aberto pela linha da tabela de Notas. */
+.eventHistoryOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.eventHistoryDrawer {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-4);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+@media (min-width: 40rem) {
+  .eventHistoryDrawer {
+    width: min(28rem, 100%);
+    border-left: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
+}
+
+.eventHistoryHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.eventHistoryHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.35rem;
+}
+
+.eventHistorySubtitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.eventHistoryList {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eventHistoryItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+}
+
+.eventHistoryItemHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.eventHistoryTime {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.eventHistoryMeta {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0;
+}
+
+.eventHistoryMeta dt {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.eventHistoryMeta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.eventHistoryStatusChange {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.eventHistoryCorrection {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.eventHistoryCorrection span {
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.eventHistoryFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.eventHistoryFooter .cardError {
+  margin: 0;
+  text-align: center;
 }

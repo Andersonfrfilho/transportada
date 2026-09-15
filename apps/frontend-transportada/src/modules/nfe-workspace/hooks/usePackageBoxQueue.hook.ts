@@ -82,6 +82,11 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
   return {
     failed: query.isError,
     isLoading: query.isLoading,
+    /**
+     * ⚠️ Distinto de `isLoading`: bipar troca a chave da consulta, e é este sinal — não o de
+     * carregamento inicial — que diz ao painel quando a resposta da etiqueta lida chegou.
+     */
+    isMatching: query.isFetching,
     measure,
     queue: query.data ?? null,
     scanned,

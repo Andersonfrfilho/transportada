@@ -108,6 +108,39 @@ describe('cte item list repository integration', () => {
         })
         expect(cteNumberRange.map((item) => item.id)).toEqual([authorizedItemId])
 
+        // spec 149 H8/T5: um evento fiscal cancela a nota depois do CT-e autorizado — o item
+        // continua `authorized` (D11, nada fiscal é desfeito automaticamente) e a leitura do
+        // documento é quem carrega o status atual da nota.
+        const authorizedRegularItem = items.find((item) => item.id === authorizedItemId)
+        expect(authorizedRegularItem?.documents.map((document) => document.nfeStatus)).toEqual([
+          'authorized',
+        ])
+
+        const cancelledNoteItemId = requiredId(
+          primary.itemIdByScenario,
+          'autorizada_com_nota_cancelada',
+        )
+        const cancelledNoteItem = items.find((item) => item.id === cancelledNoteItemId)
+        expect(cancelledNoteItem?.status).toBe('authorized')
+        expect(cancelledNoteItem?.documents.map((document) => document.nfeStatus)).toEqual([
+          'cancelled',
+        ])
+
+        // Isolamento: a nota cancelada da empresa secundária não vaza para a primária, e o
+        // item correspondente da secundária tem o próprio sinal, sem depender do id da primária.
+        const secondaryCancelledNoteItemId = requiredId(
+          secondary.itemIdByScenario,
+          'autorizada_com_nota_cancelada',
+        )
+        expect(secondaryCancelledNoteItemId).not.toBe(cancelledNoteItemId)
+        const secondaryCancelledNoteItem = secondaryItems.find(
+          (item) => item.id === secondaryCancelledNoteItemId,
+        )
+        expect(secondaryCancelledNoteItem?.status).toBe('authorized')
+        expect(secondaryCancelledNoteItem?.documents.map((document) => document.nfeStatus)).toEqual(
+          ['cancelled'],
+        )
+
         const firstPage = await repository.listCompanyItems({
           companyId: primary.companyId,
           cursor: null,

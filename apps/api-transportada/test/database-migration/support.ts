@@ -51,6 +51,7 @@ export const FREIGHT_TABLES = [
 export const NFE_TABLES = [
   'nfe_addresses',
   'nfe_distribution_cursors',
+  'nfe_document_status_changes',
   'nfe_documents',
   'nfe_events',
   'nfe_import_items',

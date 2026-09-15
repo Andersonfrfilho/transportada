@@ -700,6 +700,7 @@ async function loadDocuments(
       accessKey: nfeDocuments.accessKey,
       id: nfeDocuments.id,
       itemId: cteBatchItemDocuments.itemId,
+      nfeStatus: nfeDocuments.status,
       number: nfeDocuments.number,
       position: cteBatchItemDocuments.position,
       series: nfeDocuments.series,
@@ -727,6 +728,7 @@ async function loadDocuments(
     current.push({
       accessKey: row.accessKey,
       id: row.id,
+      nfeStatus: row.nfeStatus,
       number: row.number,
       position: row.position.toString(),
       series: row.series,

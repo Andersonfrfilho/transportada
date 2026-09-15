@@ -30,6 +30,8 @@ export type CompanyUser = Readonly<{
   email: string
   /** Todos os endereços da pessoa, mascarados. Um só na célula esconderia os outros. */
   emails: readonly string[]
+  /** Se há foto a buscar: a tela só pede os bytes quando há. */
+  hasPicture: boolean
   id: string
   membershipId: string
   name: string

@@ -17,7 +17,7 @@ import { createNfeXmlObjectReader } from './infrastructure/nfe-import-storage.ga
 import { createNfeXmlImporter } from './infrastructure/nfe-xml-importer.gateway.js'
 
 const COMPANY_ID_ARGUMENT = '--company-id='
-const DEFAULT_STORAGE_BUCKET = 'transportada-private'
+export const DEFAULT_STORAGE_BUCKET = 'transportada-private'
 
 export async function runNfePackageBoxBackfill(params: {
   readonly batchSize?: number

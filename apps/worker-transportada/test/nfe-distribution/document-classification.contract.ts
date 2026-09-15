@@ -63,6 +63,7 @@ function createDfeItem(input: {
   readonly chaveNfe?: string | undefined
   readonly nsu: string
   readonly schema: string
+  readonly situacao?: string
   readonly xml: string
 }): DfeItem {
   const chaveNfe = 'chaveNfe' in input ? input.chaveNfe : ACCESS_KEY
@@ -71,6 +72,7 @@ function createDfeItem(input: {
     ...(chaveNfe !== undefined ? { chaveNfe } : {}),
     nsu: input.nsu,
     schema: input.schema,
+    ...(input.situacao !== undefined ? { situacao: input.situacao } : {}),
     xmlComprimido: compressXml(input.xml),
   }
 }
@@ -709,6 +711,48 @@ describe('NF-e distribution document classification contract', () => {
     expect(result.skippedCount).toBe(0)
     expect(harness.persisted.map((item) => item.nsu)).toEqual(['000000000037713'])
     expect(harness.storageCalls).toEqual([`event:${ACCESS_KEY}`])
+  })
+
+  /**
+   * Spec 149 A1: o resumo que diz "cancelada" ou "denegada" é mudança de situação da nota que já
+   * temos — pulá-lo por a chave existir mataria a D3. `'1'` e vazio continuam pulados.
+   */
+  test('never skips a summary of a stored note when it carries a status change', async () => {
+    const { adapter, harness } = createAdapter({ storedAccessKeys: [ACCESS_KEY] })
+    const summary = (nsu: string, situacao: string): DfeItem =>
+      createDfeItem({ nsu, schema: 'resNFe_v1.01.xsd', situacao, xml: RESUMO_XML })
+
+    const result = await adapter.persistPage({
+      companyId: COMPANY_ID,
+      environment: 'production',
+      importId: IMPORT_ID,
+      items: [
+        summary('000000000037720', '2'),
+        summary('000000000037721', '3'),
+        summary('000000000037722', '1'),
+        summary('000000000037723', ''),
+        createDfeItem({ nsu: '000000000037724', schema: 'procNFe_v4.00.xsd', xml: DOCUMENTO_XML }),
+      ],
+      maxNsu: '000000000045636',
+      ultNsu: '000000000037724',
+    })
+
+    expect(harness.persisted.map((item) => `${item.nsu}:${item.summary?.situacao}`)).toEqual([
+      '000000000037720:2',
+      '000000000037721:3',
+    ])
+    expect(harness.storageCalls).toEqual([`summary:${ACCESS_KEY}`, `summary:${ACCESS_KEY}`])
+    expect(result.skippedCount).toBe(3)
+    expect(result.duplicatedCount).toBe(3)
+
+    const skipped = harness.logs.filter(
+      (entry) => entry.message === 'nfe_distribution_item_skipped',
+    )
+    expect(skipped.map((entry) => `${entry.metadata['nsu']}:${entry.metadata['reason']}`)).toEqual([
+      '000000000037722:already_stored',
+      '000000000037723:already_stored',
+      '000000000037724:already_stored',
+    ])
   })
 
   /**

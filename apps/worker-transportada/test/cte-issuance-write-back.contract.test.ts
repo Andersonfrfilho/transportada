@@ -12,6 +12,7 @@ import { resolveCteBatchStatus } from '../src/cte-issuance/domain/cte-batch-prog
 import type { CteIssuanceExecutionInput } from '../src/cte-issuance/application/cte-issuance-execution-input-resolver.service.js'
 import type { CteProcessingEnvelopeV1 } from '../src/messaging/cte-processing-envelope.schema.js'
 import type { CteFiscalProvider } from '../src/cte-issuance/infrastructure/cte-fiscal-gateway.js'
+import { AUTHORIZED_DOCUMENT_CHECK } from './fixtures/cte-document-authorization.fixture.js'
 
 const COMPANY_ID = 'a2fb6f1e-3f4b-4a4f-9a1e-0c74dbdc3a11'
 const ATTEMPT_ID = '3fa2f0f4-0f2b-4f8c-9c2f-1e0f9a5b7d21'
@@ -89,6 +90,7 @@ function createEffect(input: {
 
   return createCteIssuanceWorkerEffect({
     createProvider: createProviderStub(input.emit),
+    documentAuthorizationCheck: AUTHORIZED_DOCUMENT_CHECK,
     logger: { error: () => {}, info: () => {}, warn: () => {} },
     resolveExecutionInput: async () => EXECUTION_INPUT,
     writeBack: {

@@ -6,6 +6,7 @@
  * `DELETE` seguido de `GET` prova que a lista continua de pé e só a escolha caiu.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
@@ -173,6 +174,7 @@ function createTestRouter(input: {
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
     routes: input.routes,
     tenantContext: {

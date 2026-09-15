@@ -28,8 +28,10 @@ describe('NF-e schema tenant safety', () => {
   test('uses UTC timestamps and excludes secret or raw fiscal payload columns', () => {
     const tables = NFE_SCHEMA_EXPORT_NAMES.map(requireSchemaTable)
 
+    // A trilha de status é imutável e carimba só `changed_at` (UTC, conferido na suíte própria).
+    const tablesWithoutAuditTimestamps = ['processed_messages', 'nfe_document_status_changes']
     for (const table of tables.filter(
-      (candidate) => getTableConfig(candidate).name !== 'processed_messages',
+      (candidate) => !tablesWithoutAuditTimestamps.includes(getTableConfig(candidate).name),
     )) {
       expectRequiredUtcTimestamps(table)
     }

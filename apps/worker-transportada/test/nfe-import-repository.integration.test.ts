@@ -114,7 +114,10 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
 
   const provider = createDrizzleProvider({ connection: databaseUrl! })
   const db = provider.db
-  const repository = new DrizzleNfeImportConsumerRepository(db, { storageProvider: 'minio' })
+  const repository = new DrizzleNfeImportConsumerRepository(db, {
+    logger: { info: () => undefined, warn: () => undefined },
+    storageProvider: 'minio',
+  })
 
   beforeAll(async () => {
     await db.execute(sql`insert into companies (id, status) values (${companyId}, 'active')`)

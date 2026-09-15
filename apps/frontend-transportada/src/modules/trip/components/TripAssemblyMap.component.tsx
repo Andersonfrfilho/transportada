@@ -483,6 +483,12 @@ export function TripAssemblyMap({
   const depotDescription = geometryQuery.data?.depot?.description ?? null
 
   const depotAbsence = geometryQuery.data?.depot?.absence ?? null
+  /** Spec 097 D7: sem origem configurada, o barracão é o endereço cadastrado da empresa. */
+  const isDepotFromCompanyAddress = geometryQuery.data?.depot?.originSource === 'company_address'
+  const depotAbsenceKey =
+    depotAbsence === 'not_geocoded' && isDepotFromCompanyAddress
+      ? 'not_geocoded_company_address'
+      : depotAbsence
   const legOf = (index: number) => legs[index] ?? null
   /**
    * ⚠️ `null` é "não calculei" (sem veículo, ou o roteirizador não anotou os nós) — nunca "sem
@@ -561,7 +567,7 @@ export function TripAssemblyMap({
       {depotAbsence === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
           <Icon name="alert" />
-          <span>{t(`assemblyMap.depot.absence.${depotAbsence}`)}</span>
+          <span>{t(`assemblyMap.depot.absence.${depotAbsenceKey}`)}</span>
         </p>
       )}
       {/*
@@ -809,7 +815,13 @@ export function TripAssemblyMap({
                         />
                       </span>
                     )}
-                    <span className={styles.hint}>{t('assemblyMap.depotLeg.descriptionNote')}</span>
+                    <span className={styles.hint}>
+                      {t(
+                        isDepotFromCompanyAddress
+                          ? 'assemblyMap.depotLeg.descriptionNoteCompanyOrigin'
+                          : 'assemblyMap.depotLeg.descriptionNote',
+                      )}
+                    </span>
                   </>
                 )}
                 <span className={styles.assemblyStopLeg}>

@@ -23,6 +23,7 @@ import { createRequestWhatsAppPhoneVerificationUseCase } from '../../src/whatsap
 import { createUnbindWhatsAppPhoneUseCase } from '../../src/whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
 import { createWhatsAppPhoneRoutes } from '../../src/whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 import { createWhatsAppPhoneRepositoryFake } from '../fixtures/whatsapp-phone-repository.fixture.js'
 
@@ -427,6 +428,7 @@ function createTestRouter(input: {
     authentication: { authenticate: async () => input.context.identity },
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './nfe-documents/access-key-filter.contract'
+import './nfe-documents/document-events.contract'
 import './nfe-documents/cargo-weight-listing.contract'
 import './nfe-documents/document-freight.contract'
 import './nfe-documents/recipient-phone.contract'

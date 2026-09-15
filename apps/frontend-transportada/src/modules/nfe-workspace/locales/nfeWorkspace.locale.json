@@ -99,6 +99,9 @@
     "searchEmpty": "Nenhum resultado",
     "cteIssuedPending": "Sem CT-e emitido",
     "cteIssuedIssued": "Com CT-e emitido",
+    "fiscalLink": "Vínculo fiscal",
+    "unlinkedOnly": "Somente notas sem CT-e ou NFS-e vinculados",
+    "includeLinked": "Incluindo notas com CT-e ou NFS-e",
     "distribution": "Distribuição",
     "none": "Nenhum",
     "sourceEq": "Origem",
@@ -290,12 +293,56 @@
     "chooseYear": "Escolher o ano",
     "openCalendar": "Abrir calendário",
     "tripLink": "Esta nota está em viagem",
-    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}"
+    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}",
+    "eventHistoryButton": "Histórico fiscal",
+    "eventHistory": {
+      "title": "Histórico fiscal",
+      "subtitle": "NF-e {{number}}/{{series}}",
+      "close": "Fechar histórico",
+      "loading": "Carregando histórico fiscal",
+      "loadingMore": "Carregando mais eventos",
+      "loadMore": "Carregar mais",
+      "empty": "Nenhum evento fiscal registrado para esta nota",
+      "error": "Não foi possível carregar o histórico fiscal",
+      "errorMore": "Não foi possível carregar mais eventos",
+      "retry": "Tentar novamente",
+      "sequence": "Sequência",
+      "protocol": "Protocolo",
+      "statusCode": "Código de retorno",
+      "eventDate": "Data do evento",
+      "registeredDate": "Registrado no sistema em",
+      "statusChangeLabel": "Situação",
+      "statusUnknown": "Situação anterior não registrada",
+      "actorLabel": "Feito por",
+      "requestedByLabel": "Solicitado por",
+      "actorRemoved": "Usuário removido",
+      "actorSystem": "Sistema (distribuição agendada)",
+      "correctionText": "Texto da correção",
+      "origin": {
+        "label": "Origem",
+        "automatic": "Automática",
+        "manual": "Manual",
+        "unknown": "Origem desconhecida"
+      },
+      "eventType": {
+        "correction": "Carta de correção",
+        "cancellation": "Cancelamento",
+        "cancellationSubstitution": "Cancelamento por substituição",
+        "manifestConfirmation": "Manifestação: confirmação da operação",
+        "manifestAwareness": "Manifestação: ciência da operação",
+        "manifestUnaware": "Manifestação: desconhecimento da operação",
+        "manifestNotDone": "Manifestação: operação não realizada",
+        "statusChange": "Mudança de situação",
+        "unknownEvent": "Evento fiscal",
+        "unknown": "Evento fiscal ({{code}})"
+      }
+    }
   },
   "documentStatus": {
     "authorized": "Autorizada",
     "cancelled": "Cancelada",
-    "denied": "Denegada"
+    "denied": "Denegada",
+    "unsigned": "Não assinada"
   },
   "cteEmission": {
     "title": "Gerar CT-es",
@@ -459,6 +506,7 @@
     "title": "Caixas por medir",
     "description": "Meça a caixa de papelão do produto. A fila vem na ordem do que mais roda: as primeiras cobrem a maior parte do que sai do galpão.",
     "searchLabel": "Buscar por produto ou código",
+    "searchPlaceholder": "Busque ou bipe a etiqueta",
     "scan": "Ler etiqueta",
     "empty": "Nenhuma caixa nesta busca.",
     "denied": "Você não tem permissão para medir caixas.",
@@ -476,10 +524,20 @@
     "scanner": {
       "title": "Ler etiqueta da caixa",
       "close": "Fechar",
-      "reading": "Lendo…",
+      "reading": "Aponte para o código de barras da etiqueta",
       "starting": "Abrindo a câmera…",
       "denied": "Permissão de câmera negada. Digite o código na busca.",
-      "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca."
+      "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca.",
+      "found": "Etiqueta lida",
+      "notFound": "Nenhuma caixa da fila corresponde a esta etiqueta. Continue lendo ou digite o código na busca.",
+      "candidates": {
+        "title": "Mais de uma caixa corresponde a esta etiqueta",
+        "hint": "Toque na caixa certa para abrir a medição.",
+        "back": "Voltar a ler",
+        "position": "{{position}} de {{total}}",
+        "measured": "Já medida",
+        "overflow": "Mostrando {{shown}} de {{total}} candidatas. Refine a busca para achar a caixa certa."
+      }
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa",

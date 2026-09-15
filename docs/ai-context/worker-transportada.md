@@ -59,6 +59,8 @@ a linha de `job_executions`, corre a rotina e a encerra; job sem rotina registra
 reconciliação procurar credencial de produção e não achar nota alguma. A distribuição de NF-e segue
 sem ela — lá o ambiente é o de `company_fiscal_profiles`, por empresa.
 
+**Política de transição de status do NF-e (spec 149, migrações H1/H1b, T2/T3):** a nota nasce `authorized` ou `unsigned` e só muda de status via evento fiscal ou resumo da distribuição. A política `nfe-document-status-transition.policy.ts` decide quais eventos aplicam: `tpEvento 110111`/`110112` com `cStat 135/136/155` → `cancelled`; resumo `cSitNFe 2` → `cancelled`, `3` → `denied` (só de `unsigned`). Dois trilhos (importação de XML e distribuição) executam a mudança sob lock `pg_advisory_xact_lock(hashtextextended('nfe-document-status:<empresa>:<chave>', 0))` para evitar corrida. `updated_at` só se move quando o status de fato muda. `cancelled` e `denied` são terminais — nada tira uma nota desses estados. Histórico gravado em `nfe_document_status_changes` com origem (`manual`|`automatic`), ator/solicitante, snapshot anterior/novo. Detalhe: spec 149 (D1–D9, D14–D18), `t3-parecer-architect.md` (A1–A7).
+
 ⚠️ **A trava contra o `cStat 656` é `nfe_distribution_cursors.next_allowed_at`, por
 `(company_id, environment)` — nunca a cadência do agendador.** A NT 2014.002 §3.11.4 bloqueia o
 **CNPJ** por uma hora em consumo indevido, e quem sabe quando a janela reabre é a última resposta da
@@ -118,3 +120,13 @@ Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. 
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
 `billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`, `aggregate-attachment`), e
 outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
+
+## O barracão sem configuração é o endereço da empresa (spec 097 D7, 2026-09-15)
+
+`readContext` do roteirizador resolve a origem por `readDepotOriginAddressKey`
+(`routing/infrastructure/drizzle-depot-origin.query.ts`) → `resolveDepotOrigin`
+(`routing/domain/depot-origin.policy.ts`, cópia por valor da API, paridade em
+`test/routing/depot-origin-parity.contract.ts`): configuração vence; sem ela, a chave
+`city_ibge_code|CEP|número` de `company_fiscal_profiles`. A fila do `geocoding.backfill`
+(`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
+coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).

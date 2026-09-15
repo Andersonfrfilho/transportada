@@ -30,7 +30,13 @@ export type SelectFilterField =
 
 export type AmountOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'neq'
 
-export type FilterKey = SelectFilterField | TextFilterField | 'amount' | 'dateRange' | 'numberRange'
+export type FilterKey =
+  | SelectFilterField
+  | TextFilterField
+  | 'amount'
+  | 'dateRange'
+  | 'numberRange'
+  | 'unlinkedOnly'
 
 export type FilterMode = 'advanced' | 'simple'
 
@@ -124,6 +130,8 @@ export type DocumentFilters = Readonly<{
   numberTo: string
   select: Readonly<Record<SelectFilterField, string>>
   text: Readonly<Record<TextFilterField, string>>
+  /** Esconde a nota que já tem CT-e vivo ou NFS-e vinculada. */
+  unlinkedOnly: boolean
 }>
 
 export const TEXT_FILTER_FIELDS: readonly TextFilterField[] = [
@@ -232,7 +240,7 @@ const EMPTY_TEXT: Record<TextFilterField, string> = {
   recipientName: '',
 }
 
-/** The workspace opens on the notas still waiting for a CT-e, the only ones a batch can take. */
+/** Antigo padrão do filtro; o `unlinkedOnly` assumiu o papel de abrir só as notas ainda sem documento fiscal. */
 export const CTE_ISSUED_PENDING = 'pending'
 
 export const CTE_ISSUED_DONE = 'issued'
@@ -242,7 +250,7 @@ export const CTE_ISSUED_FILTER_VALUES: readonly string[] = [CTE_ISSUED_PENDING, 
 const CTE_ALREADY_LINKED_REASON = 'CTE_BATCH_DOCUMENT_ALREADY_LINKED'
 
 const EMPTY_SELECT: Record<SelectFilterField, string> = {
-  cteIssued: CTE_ISSUED_PENDING,
+  cteIssued: '',
   emitterCity: '',
   emitterState: '',
   recipientCity: '',
@@ -259,6 +267,7 @@ export const EMPTY_FILTERS: DocumentFilters = {
   numberTo: '',
   select: EMPTY_SELECT,
   text: EMPTY_TEXT,
+  unlinkedOnly: true,
 }
 
 /** A mesma ordem da API: atualização, depois emissão, depois id — ver `compareByLatestUpdate`. */
@@ -348,6 +357,7 @@ export type UseNfeDocumentTableResult = Readonly<{
   setDateRange: (from: string, to: string) => void
   setGroupConnector: (groupId: string, connector: GroupConnector) => void
   setMode: (mode: FilterMode) => void
+  setUnlinkedOnly: (value: boolean) => void
   setNumberFrom: (value: string) => void
   setNumberTo: (value: string) => void
   setPage: (page: number) => void
@@ -437,6 +447,7 @@ function matchesSelect(
 }
 
 function documentMatchesFilters(document: NfeDocumentListItem, filters: DocumentFilters): boolean {
+  if (filters.unlinkedOnly && isDocumentLinked(document)) return false
   for (const field of TEXT_FILTER_FIELDS) {
     if (!matchesText(document[field] ?? '', filters.text[field])) return false
   }
@@ -481,7 +492,8 @@ export function hasAnyActiveFilter(filters: DocumentFilters): boolean {
     filters.amountValue.trim().length > 0 ||
     filters.dateFrom.length > 0 ||
     filters.dateTo.length > 0
-  return textActive || selectActive || rangeActive
+  const unlinkedOnlyActive = filters.unlinkedOnly !== EMPTY_FILTERS.unlinkedOnly
+  return textActive || selectActive || rangeActive || unlinkedOnlyActive
 }
 
 function conditionFieldRaw(document: NfeDocumentListItem, field: ConditionField): string {
@@ -612,6 +624,11 @@ export function reorderColumns(
 /** A nota only counts as issued when it is tied to a batch that was not cancelled. */
 export function isCteIssued(document: NfeDocumentListItem): boolean {
   return document.cteBlockReason === CTE_ALREADY_LINKED_REASON
+}
+
+/** O número da NFS-e pode chegar nulo antes da prefeitura autorizar; o vínculo é o id. */
+export function isDocumentLinked(document: NfeDocumentListItem): boolean {
+  return isCteIssued(document) || document.nfseInvoiceId !== null
 }
 
 function cteIssuedValue(document: NfeDocumentListItem): string {
@@ -952,7 +969,18 @@ export function useNfeDocumentTable({
   }
 
   function setSelectFilter(field: SelectFilterField, value: string): void {
-    setFilters((current) => ({ ...current, select: { ...current.select, [field]: value } }))
+    // Pedir as notas com CT-e com o vínculo escondido devolveria sempre a tabela vazia
+    const releasesLinked = field === 'cteIssued' && value === CTE_ISSUED_DONE
+    setFilters((current) => ({
+      ...current,
+      select: { ...current.select, [field]: value },
+      unlinkedOnly: releasesLinked ? false : current.unlinkedOnly,
+    }))
+    setPageState(0)
+  }
+
+  function setUnlinkedOnly(value: boolean): void {
+    setFilters((current) => ({ ...current, unlinkedOnly: value }))
     setPageState(0)
   }
 
@@ -986,6 +1014,7 @@ export function useNfeDocumentTable({
       if (key === 'numberRange') return { ...current, numberFrom: '', numberTo: '' }
       if (key === 'amount') return { ...current, amountValue: '' }
       if (key === 'dateRange') return { ...current, dateFrom: '', dateTo: '' }
+      if (key === 'unlinkedOnly') return { ...current, unlinkedOnly: EMPTY_FILTERS.unlinkedOnly }
       if (key in current.select) {
         const field = key as SelectFilterField
         return { ...current, select: { ...current.select, [field]: EMPTY_FILTERS.select[field] } }
@@ -1230,6 +1259,7 @@ export function useNfeDocumentTable({
     setSearchTerm,
     setSelectFilter,
     setTextFilter,
+    setUnlinkedOnly,
     someSelected,
     sort,
     stateOptions,

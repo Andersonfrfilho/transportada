@@ -7,6 +7,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { CTE_ISSUANCE_STATUSES } from '../../../src/database/cte-issuance.schema'
 import { runDatabaseMigrations } from '../../../src/database/database-migration.service'
+import type { NfeDocumentStatus } from '../../../src/database/nfe.schema'
 import {
   companies,
   cteBatchItemDocuments,
@@ -45,6 +46,8 @@ export type ItemScenario = {
   readonly document: DocumentShape
   readonly expectedStatus: CteIssuanceStatus
   readonly key: string
+  /** Status da própria `nfe_documents` — só usado para simular a nota cancelada da spec 149 H8. */
+  readonly nfeStatus?: NfeDocumentStatus
 }
 
 /** Números sintéticos — nenhuma nota real entra em fixture. */
@@ -112,6 +115,18 @@ export const ITEM_SCENARIOS: readonly ItemScenario[] = [
     document: null,
     expectedStatus: 'cancelled',
     key: 'cancelada_sem_documento',
+  },
+  /**
+   * Spec 149 H8/D12: a nota foi cancelada por um evento fiscal depois da emissão do CT-e — o CT-e
+   * continua `authorized` (nada é desfeito automaticamente, D11), e a leitura da nota é quem
+   * carrega o sinal para a tela.
+   */
+  {
+    attemptStatuses: ['authorized'],
+    document: 'authorized',
+    expectedStatus: 'authorized',
+    key: 'autorizada_com_nota_cancelada',
+    nfeStatus: 'cancelled',
   },
 ]
 
@@ -391,7 +406,7 @@ async function insertInvoice(
     productsValue: '1000.0000',
     series: '1',
     source: 'upload',
-    status: 'authorized',
+    status: input.scenario.nfeStatus ?? 'authorized',
     totalValue: '1000.0000',
     xmlObjectId: input.nfeXmlObjectId,
     xmlSha256: input.sha,

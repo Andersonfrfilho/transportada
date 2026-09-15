@@ -20,6 +20,8 @@ import {
   companyRouteOptimizationSettings,
   geocodedAddresses,
 } from '../../database/database.schema.js'
+import { DEFAULT_ROUTE_END_POLICY } from '../../database/route-suggestion.schema.js'
+import { resolveDepotOrigin } from '../domain/depot-origin.policy.js'
 import {
   resolveDepotDescription,
   type DepotDescription,
@@ -74,25 +76,44 @@ export function createRouteDepotQuery(database: Database): Readonly<{
       })
     },
     async readDepot(input) {
-      const [settings] = await database
-        .select({
-          endAddressKey: companyRouteOptimizationSettings.endAddressKey,
-          endPolicy: companyRouteOptimizationSettings.endPolicy,
-          originAddressKey: companyRouteOptimizationSettings.originAddressKey,
-        })
-        .from(companyRouteOptimizationSettings)
-        .where(eq(companyRouteOptimizationSettings.companyId, input.companyId))
-        .limit(1)
+      const [settingsRows, profileRows] = await Promise.all([
+        database
+          .select({
+            endAddressKey: companyRouteOptimizationSettings.endAddressKey,
+            endPolicy: companyRouteOptimizationSettings.endPolicy,
+            originAddressKey: companyRouteOptimizationSettings.originAddressKey,
+          })
+          .from(companyRouteOptimizationSettings)
+          .where(eq(companyRouteOptimizationSettings.companyId, input.companyId))
+          .limit(1),
+        database
+          .select({
+            cityIbgeCode: companyFiscalProfiles.cityIbgeCode,
+            number: companyFiscalProfiles.number,
+            postalCode: companyFiscalProfiles.postalCode,
+          })
+          .from(companyFiscalProfiles)
+          .where(eq(companyFiscalProfiles.companyId, input.companyId))
+          .limit(1),
+      ])
+      const [settings] = settingsRows
 
-      /** Sem linha, `originAddressKey` é `''` — a mesma ausência que a coluna nasce com. */
-      if (settings === undefined || settings.originAddressKey === '') {
-        return { reason: 'not_configured', status: 'absent' }
-      }
+      /** D7: a configuração vence; sem ela, o endereço cadastrado da empresa — a regra do worker. */
+      const originKey = resolveDepotOrigin({
+        companyAddress: profileRows[0] ?? null,
+        configuredAddressKey: settings?.originAddressKey ?? null,
+      })
+      if (originKey === null) return { reason: 'not_configured', status: 'absent' }
 
-      const endAddressKey = resolveRouteEndAddressKey(settings)
+      /** Sem linha, a política de fim é o padrão da coluna — o mesmo que o solver assume. */
+      const endAddressKey = resolveRouteEndAddressKey({
+        endAddressKey: settings?.endAddressKey ?? '',
+        endPolicy: settings?.endPolicy ?? DEFAULT_ROUTE_END_POLICY,
+        originAddressKey: originKey.addressKey,
+      })
       const keys = [
-        settings.originAddressKey,
-        ...(endAddressKey === null || endAddressKey === settings.originAddressKey
+        originKey.addressKey,
+        ...(endAddressKey === null || endAddressKey === originKey.addressKey
           ? []
           : [endAddressKey]),
       ]
@@ -107,8 +128,9 @@ export function createRouteDepotQuery(database: Database): Readonly<{
         .where(inArray(geocodedAddresses.addressKey, keys))
 
       const pointByKey = new Map(rows.map((row) => [row.addressKey, toPoint(row)]))
-      const origin = pointByKey.get(settings.originAddressKey)
-      if (origin === undefined) return { reason: 'not_geocoded', status: 'absent' }
+      const originSource = originKey.source
+      const origin = pointByKey.get(originKey.addressKey)
+      if (origin === undefined) return { originSource, reason: 'not_geocoded', status: 'absent' }
 
       /**
        * ⚠️ Fim declarado sem coordenada não derruba o barracão inteiro — a origem já resolveu o
@@ -118,11 +140,11 @@ export function createRouteDepotQuery(database: Database): Readonly<{
       const end =
         endAddressKey === null
           ? null
-          : endAddressKey === settings.originAddressKey
+          : endAddressKey === originKey.addressKey
             ? origin
             : (pointByKey.get(endAddressKey) ?? null)
 
-      return { end, origin, status: 'resolved' }
+      return { end, origin, originSource, status: 'resolved' }
     },
   }
 }

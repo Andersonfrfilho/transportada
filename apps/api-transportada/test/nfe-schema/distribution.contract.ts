@@ -4,13 +4,27 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   checkSqlByName,
   columnNames,
+  columnSqlTypes,
   expectGeneratedUuidPrimaryKey,
   foreignKeys,
   requiredColumnNames,
+  unqualifiedCheckSqlByName,
   uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
 import { indexDefinitionsByName, primaryKeyColumns } from './support.js'
 import { requireSchemaTable } from './tables.js'
+
+const HISTORY_COLUMN_NAMES = [
+  'status_code',
+  'protocol',
+  'correction_text',
+  'import_id',
+  'origin',
+  'actor_user_id',
+  'requested_by_user_id',
+  'document_status_before',
+  'document_status_after',
+]
 
 describe('NF-e distribution schema', () => {
   test('stores events independently while keeping tenant, XML, and NSU uniqueness', () => {
@@ -28,8 +42,17 @@ describe('NF-e distribution schema', () => {
       'environment',
       'metadata',
       'created_at',
+      'status_code',
+      'protocol',
+      'correction_text',
+      'import_id',
+      'origin',
+      'actor_user_id',
+      'requested_by_user_id',
+      'document_status_before',
+      'document_status_after',
     ])
-    expect(requiredColumnNames(nfeEvents)).toContainAllValues([
+    expect(requiredColumnNames(nfeEvents)).toEqual([
       'id',
       'company_id',
       'target_access_key',
@@ -73,6 +96,58 @@ describe('NF-e distribution schema', () => {
       nfe_events_distribution_source_presence_check: `("nfe_events"."source_nsu" is null) = ("nfe_events"."environment" is null)`,
       nfe_events_source_nsu_check: `"nfe_events"."source_nsu" is null or "nfe_events"."source_nsu" ~ '^[0-9]{15}$'`,
       nfe_events_environment_check: `"nfe_events"."environment" is null or "nfe_events"."environment" in ('homologation', 'production')`,
+    })
+  })
+
+  test('records the fiscal history of each event without trusting the worker for coherence (spec 149 H1)', () => {
+    const nfeEvents = requireSchemaTable('nfeEvents')
+
+    expect(columnSqlTypes(nfeEvents)).toMatchObject({
+      status_code: 'varchar(3)',
+      protocol: 'varchar(20)',
+      correction_text: 'text',
+      import_id: 'uuid',
+      origin: 'varchar(16)',
+      actor_user_id: 'uuid',
+      requested_by_user_id: 'uuid',
+      document_status_before: 'varchar(16)',
+      document_status_after: 'varchar(16)',
+    })
+    const historyColumns = getTableConfig(nfeEvents).columns.filter((column) =>
+      HISTORY_COLUMN_NAMES.includes(column.name),
+    )
+    expect(
+      historyColumns.map((column) => [column.name, column.notNull, column.hasDefault]),
+    ).toEqual(HISTORY_COLUMN_NAMES.map((name) => [name, false, false]))
+    expect(foreignKeys(nfeEvents)).toContainEqual({
+      columns: ['company_id', 'import_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'nfe_imports',
+      name: 'nfe_events_company_import_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    const actorForeignKeys = foreignKeys(nfeEvents).filter(({ columns }) =>
+      columns.some((column) => column === 'actor_user_id' || column === 'requested_by_user_id'),
+    )
+    expect(actorForeignKeys).toEqual([])
+    expect(indexDefinitionsByName(nfeEvents)).toEqual({
+      nfe_events_company_environment_source_nsu_unique: {
+        columns: ['company_id', 'environment', 'source_nsu'],
+        isUnique: true,
+        where: `"nfe_events"."source_nsu" is not null`,
+      },
+    })
+    expect(unqualifiedCheckSqlByName(nfeEvents)).toMatchObject({
+      nfe_events_status_code_check: `"status_code" is null or "status_code" ~ '^[0-9]{3}$'`,
+      nfe_events_protocol_check: `"protocol" is null or "status_code" is not null`,
+      nfe_events_correction_text_check: `"correction_text" is null or ("event_type" = '110110' and char_length("correction_text") between 1 and 1000)`,
+      nfe_events_origin_check: `"origin" is null or "origin" in ('manual', 'automatic')`,
+      nfe_events_origin_actor_check: `("origin" is null and "actor_user_id" is null and "requested_by_user_id" is null) or ("origin" = 'manual' and "actor_user_id" is not null and "requested_by_user_id" is null) or ("origin" = 'automatic' and "actor_user_id" is null)`,
+      nfe_events_origin_import_check: `("origin" is null) = ("import_id" is null)`,
+      nfe_events_document_status_check: `("document_status_before" is null or "document_status_before" in ('authorized', 'cancelled', 'denied', 'unsigned')) and ("document_status_after" is null or "document_status_after" in ('authorized', 'cancelled', 'denied', 'unsigned'))`,
+      nfe_events_document_status_pair_check: `("document_status_before" is null) = ("document_status_after" is null)`,
+      nfe_events_document_status_transition_check: `"document_status_before" is null or "document_status_before" = "document_status_after" or ("document_status_before", "document_status_after") in (('authorized', 'cancelled'), ('unsigned', 'cancelled'), ('unsigned', 'denied'))`,
     })
   })
 

@@ -41,6 +41,7 @@ const PENDING_ITEM_ID = '00000000-0000-4000-8000-000000000603'
 const REFERENCE_INVOICE = {
   accessKey: CTE_REFERENCE_ACCESS_KEY,
   id: CTE_DOCUMENT_ID,
+  nfeStatus: 'authorized',
   number: '000000022',
   position: '1',
   series: '001',

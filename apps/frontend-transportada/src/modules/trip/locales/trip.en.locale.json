@@ -20,8 +20,9 @@
     "basemapLabel": "City boundary",
     "depot": {
       "absence": {
-        "not_configured": "The depot leg is out of this estimate: no origin address is registered in the company route settings. Distance, time, fuel and tolls below start at the first delivery.",
-        "not_geocoded": "The depot leg is out of this estimate: the origin address is registered but has no coordinate yet. Distance, time, fuel and tolls below start at the first delivery."
+        "not_configured": "The depot leg is out of this estimate: the route settings have no origin, and the company record has no address with a complete postal code. Distance, time, fuel and tolls below start at the first delivery.",
+        "not_geocoded": "The depot leg is out of this estimate: the origin address is registered but has no coordinate yet. Distance, time, fuel and tolls below start at the first delivery.",
+        "not_geocoded_company_address": "The depot leg is out of this estimate: the depot is the company's registered address, which has no coordinate yet — the batch geocoding reaches it on its next run. Distance, time, fuel and tolls below start at the first delivery."
       }
     },
     "depotLeg": {

@@ -63,7 +63,7 @@ export function CompanyUserEditDialog({
   const [visibleFields, setVisibleFields] = useState<readonly SecretField[]>([])
   /** Qual dado está aberto para troca. Fechar limpa o que foi digitado: desistir é desistir. */
   const [editingFields, setEditingFields] = useState<readonly SecretField[]>([])
-  const picture = useCompanyUserPicture({ userId: user?.id })
+  const picture = useCompanyUserPicture({ hasPicture: user?.hasPicture === true, userId: user?.id })
   const identifiers = useCompanyUserIdentifiers({ userId: user?.id })
 
   if (user === null) return null

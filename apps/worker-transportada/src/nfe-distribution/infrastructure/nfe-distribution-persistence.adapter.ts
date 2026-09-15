@@ -8,6 +8,7 @@ import {
 } from '@adatechnology/object-storage-provider'
 
 import type { NfeFiscalEnvironment } from '../../database/nfe.schema.js'
+import { resolveSummaryStatusChange } from '../../nfe-documents/domain/nfe-document-status-transition.policy.js'
 import type { NfeImportFinalStorage } from '../../nfe-imports/infrastructure/nfe-import-storage.gateway.js'
 import type { NfeXmlImporter } from '../../nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
@@ -195,9 +196,14 @@ async function storeItemOrSkip(params: {
   readonly storedAccessKeys: ReadonlySet<string>
 }): Promise<ItemOutcome<DistributionPersistItem>> {
   const { candidate, storedAccessKeys } = params
+  // Spec 149 A1: resumo que cancela ou denega é informação nova sobre a nota que já temos (D3)
+  const summaryChangesStatus =
+    candidate.variant === 'summary' &&
+    resolveSummaryStatusChange({ situation: candidate.dfe.situacao ?? '' }).kind === 'change'
 
   if (
     candidate.variant !== 'event' &&
+    !summaryChangesStatus &&
     candidate.accessKey !== undefined &&
     storedAccessKeys.has(candidate.accessKey)
   ) {

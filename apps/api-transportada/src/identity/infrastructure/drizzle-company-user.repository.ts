@@ -28,6 +28,7 @@ import {
   userInvitations,
 } from '../../database/database.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import { identityUserPictures } from '../../database/identity-user-picture.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import {
@@ -229,12 +230,18 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       .limit(1)
     if (row === undefined) return undefined
 
-    const [roles, pendingInvitations] = await Promise.all([
+    const [roles, pendingInvitations, usersWithPicture] = await Promise.all([
       this.fetchRoles({ companyId: input.companyId, userIds: [input.userId] }),
       this.fetchPendingInvitations({ companyId: input.companyId, userIds: [input.userId] }),
+      this.fetchUsersWithPicture({ userIds: [input.userId] }),
     ])
 
-    return toRecord(row, roles, pendingInvitations)
+    return toRecord({
+      pendingInvitationsByUser: pendingInvitations,
+      rolesByUser: roles,
+      row,
+      usersWithPicture,
+    })
   }
 
   /** O Admin API do Keycloak só entende o `subject`; o id interno não existe do lado de lá. */
@@ -465,7 +472,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
     const pageRows = rows.slice(0, input.limit)
     const userIds = pageRows.map((row) => row.userId)
-    const [roles, pendingInvitations, fleetLinks, emails] = await Promise.all([
+    const [roles, pendingInvitations, fleetLinks, emails, usersWithPicture] = await Promise.all([
       this.fetchRoles({ companyId: input.companyId, userIds }),
       this.fetchPendingInvitations({ companyId: input.companyId, userIds }),
       this.fetchFleetLinks({
@@ -473,10 +480,18 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         membershipIds: pageRows.map((row) => row.membershipId),
       }),
       this.fetchEmails({ userIds }),
+      this.fetchUsersWithPicture({ userIds }),
     ])
 
     const items = pageRows.map((row) =>
-      toRecord(row, roles, pendingInvitations, fleetLinks, emails),
+      toRecord({
+        emailsByUser: emails,
+        fleetLinksByMembership: fleetLinks,
+        pendingInvitationsByUser: pendingInvitations,
+        rolesByUser: roles,
+        row,
+        usersWithPicture,
+      }),
     )
     const last = pageRows.at(-1)
     return {
@@ -813,6 +828,23 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     return links
   }
 
+  /**
+   * Os `userIds` já saíram do recorte da empresa, e a foto é da pessoa, não do vínculo — por isso
+   * não há `companyId` aqui. Só a chave é lida: o conteúdo pesa até 256 KiB por linha.
+   */
+  private async fetchUsersWithPicture(input: {
+    readonly userIds: readonly string[]
+  }): Promise<ReadonlySet<string>> {
+    if (input.userIds.length === 0) return new Set()
+
+    const rows = await this.database
+      .select({ userId: identityUserPictures.userId })
+      .from(identityUserPictures)
+      .where(inArray(identityUserPictures.userId, input.userIds))
+
+    return new Set(rows.map((row) => row.userId))
+  }
+
   private async fetchPendingInvitations(input: {
     readonly companyId: string
     readonly userIds: readonly string[]
@@ -874,13 +906,23 @@ function decodeCursor(
   return Number.isNaN(createdAt.getTime()) || id.length === 0 ? null : { createdAt, id }
 }
 
-function toRecord(
-  row: MembershipRow,
-  rolesByUser: ReadonlyMap<string, readonly CompanyRole[]>,
-  pendingInvitationsByUser: ReadonlyMap<string, Date>,
-  fleetLinksByMembership: ReadonlyMap<string, CompanyUserFleetLink> = new Map(),
-  emailsByUser: ReadonlyMap<string, readonly string[]> = new Map(),
-): CompanyUserRecord {
+type ToRecordParams = {
+  readonly emailsByUser?: ReadonlyMap<string, readonly string[]>
+  readonly fleetLinksByMembership?: ReadonlyMap<string, CompanyUserFleetLink>
+  readonly pendingInvitationsByUser: ReadonlyMap<string, Date>
+  readonly rolesByUser: ReadonlyMap<string, readonly CompanyRole[]>
+  readonly row: MembershipRow
+  readonly usersWithPicture: ReadonlySet<string>
+}
+
+function toRecord({
+  emailsByUser = new Map(),
+  fleetLinksByMembership = new Map(),
+  pendingInvitationsByUser,
+  rolesByUser,
+  row,
+  usersWithPicture,
+}: ToRecordParams): CompanyUserRecord {
   const fleet = fleetLinksByMembership.get(row.membershipId)
   const expiresAt = pendingInvitationsByUser.get(row.userId)
   /** Sem perfil, o `leftJoin` traz nulo em cada coluna dele — vazio é a resposta honesta. */
@@ -890,6 +932,7 @@ function toRecord(
     email: row.email ?? '',
     emails: emailsByUser.get(row.userId) ?? [],
     ...(fleet === undefined ? {} : { fleet }),
+    hasPicture: usersWithPicture.has(row.userId),
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
     name: row.name ?? '',

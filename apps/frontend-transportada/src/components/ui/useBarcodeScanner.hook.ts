@@ -13,6 +13,12 @@ import {
 
 const FRAME_INTERVAL_MS = 250
 const MAXIMUM_FRAME_WIDTH = 720
+/**
+ * A etiqueta continua parada na frente da câmera por vários quadros depois de lida uma vez — sem
+ * este intervalo o mesmo texto reanunciaria a cada 250ms. Curto o bastante para o operador poder
+ * escanear a caixa seguinte sem esperar.
+ */
+const REPEAT_ANNOUNCE_COOLDOWN_MS = 1500
 
 export type BarcodeScannerStatus = 'denied' | 'idle' | 'reading' | 'starting' | 'unavailable'
 
@@ -65,12 +71,23 @@ export function useBarcodeScanner({
     let worker: Worker | undefined
     let timer: ReturnType<typeof setInterval> | undefined
     let isBusy = false
+    let lastAnnouncedText: string | undefined
+    let lastAnnouncedAt = 0
     const canvas = document.createElement('canvas')
 
+    /**
+     * ⚠️ Não cancela mais o laço no primeiro acerto — quem decide se a leitura serve (achou a
+     * caixa na fila ou não) é o módulo que hospeda o leitor, e ele pode querer continuar lendo
+     * quando a etiqueta não corresponde a nada. O primitivo só evita anunciar o mesmo texto duas
+     * vezes seguidas enquanto a etiqueta segue na frente da câmera.
+     */
     function announce(text: string | null): void {
       isBusy = false
       if (text === null || text === '' || isCancelled) return
-      isCancelled = true
+      const now = Date.now()
+      if (text === lastAnnouncedText && now - lastAnnouncedAt < REPEAT_ANNOUNCE_COOLDOWN_MS) return
+      lastAnnouncedText = text
+      lastAnnouncedAt = now
       onReadRef.current(text)
     }
 
@@ -113,7 +130,8 @@ export function useBarcodeScanner({
       if (isCancelled) return
       setStatus('reading')
 
-      const detector = createNativeBarcodeDetector(globalThis)
+      const detector = await createNativeBarcodeDetector(globalThis)
+      if (isCancelled) return
       if (detector === undefined) {
         worker = new Worker(new URL('./barcodeDecoder.worker.ts', import.meta.url), {
           type: 'module',

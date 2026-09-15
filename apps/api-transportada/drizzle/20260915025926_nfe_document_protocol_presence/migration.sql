@@ -1,0 +1,1 @@
+ALTER TABLE "nfe_documents" DROP CONSTRAINT "nfe_documents_authorization_protocol_presence_check", ADD CONSTRAINT "nfe_documents_authorization_protocol_presence_check" CHECK (("status" <> 'authorized') or ("authorization_protocol" is not null));

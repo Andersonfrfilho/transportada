@@ -108,6 +108,7 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
       leadingLegs: 1,
       /** ⚠️ A origem publicada é a **mesma** que entrou no traçado — é com ela que o mapa marca. */
       origin: { latitude: '-21.17670', longitude: '-47.82080' },
+      originSource: null,
       trailingLegs: 1,
     })
   })
@@ -187,6 +188,7 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
         description: null,
         leadingLegs: 0,
         origin: null,
+        originSource: null,
         trailingLegs: 0,
       })
     }
@@ -209,8 +211,37 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
       description: null,
       leadingLegs: 0,
       origin: null,
+      originSource: null,
       trailingLegs: 0,
     })
+  })
+
+  /** D7: a tela precisa saber que o barracão é o endereço da empresa — nos dois desfechos. */
+  it('publica de onde a origem veio, resolvida ou à espera de coordenada', async () => {
+    const resolvida = await readRouteGeometry({
+      depot: barracao({
+        end: BARRACAO,
+        origin: BARRACAO,
+        originSource: 'company_address',
+        status: 'resolved',
+      }),
+      geometry: portaDeVerdade(),
+      stops: PARADAS,
+    })
+    const semCoordenada = await readRouteGeometry({
+      depot: barracao({
+        originSource: 'company_address',
+        reason: 'not_geocoded',
+        status: 'absent',
+      }),
+      geometry: portaDeVerdade(),
+      stops: PARADAS,
+    })
+
+    expect(resolvida.depot?.originSource).toBe('company_address')
+    expect(resolvida.depot?.leadingLegs).toBe(1)
+    expect(semCoordenada.depot?.originSource).toBe('company_address')
+    expect(semCoordenada.depot?.absence).toBe('not_geocoded')
   })
 
   /** Uma entrega só deixa de ser "menos de duas paradas" quando o barracão entra na conta. */

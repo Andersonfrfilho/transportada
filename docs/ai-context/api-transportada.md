@@ -523,11 +523,14 @@ doze ainda viajam dentro de uma caixa.
 
 ⚠️ **O peso só é deduzido da nota de item único** (`deriveBoxGrossWeightGrams`): com duas linhas o
 `pesoB` é da carga inteira, e dividi-lo pelos volumes daria a **média** das caixas — número
-plausível atribuído à caixa errada. Medido: 9% das notas, 18 de 663 caixas. `carton_gtin` fica nulo
-até `NfeXmlProduct` do `@adatechnology/fiscal-provider` ganhar o campo de código de barras — mesma
-lacuna de pacote do caso `<email>` —, e é por isso que o bipe casa **duas** colunas: `carton_gtin` e
-`product_code`. Casar só pela primeira devolveria lista vazia em todo bipe; é comum o emitente usar
-o próprio EAN como `cProd`, e é isso que sustenta a leitura enquanto o campo não existe.
+plausível atribuído à caixa errada. Medido: 9% das notas, 18 de 663 caixas. `carton_gtin`
+passou a vir do `cEAN` (fiscal-provider 0.3.2, 15/09/2026): o worker grava na importação, com dígito
+GS1 conferido e DUN-14 reduzido a GTIN-13 pela mesma `reduceToGtin13` (cópia por valor, contrato de
+paridade); `cEANTrib` só com o `cEAN` ausente; inválido ou "SEM GTIN" fica nulo, e linha existente
+só ganha GTIN onde é nulo. As caixas antigas se preenchem por `backfill:nfe-package-box-gtin`
+(worker, dry-run padrão, `--confirm` grava). O bipe continua casando **duas** colunas,
+`carton_gtin` e `product_code`: a nota sem GTIN deixa a primeira nula, e é comum o emitente usar o
+próprio EAN como `cProd`.
 
 **Medir é `cargo.measure`, e a permissão nasceu para não dar carona.** `settings.manage` entregaria
 ao conferente o preço do combustível, a tabela de frete e a credencial da prefeitura. `separator`,
@@ -1522,3 +1525,18 @@ Rotas sob `trip.manage`, todo request trava se viagem despachada:
 - `POST /trip-document-reviews/:id/swap {outTripDocumentId, validatedLayoutId}` — troca de lugar, a nota que sai volta à fila como `pending` em `swapped_out`.
 
 Trilha em `audit_logs`: ator, nota, viagem de origem e destino. `CARGO_LAYOUT_POLICY_VERSION` '6'.
+
+## Histórico fiscal de cada nota (spec 149, D13–D20)
+
+`GET /v1/nfe-documents/:id/events` (permissão `invoices.read`): retorna cursorpage `{ data: [...], page: { nextCursor } }` (mesmo padrão de `GET /nfe-documents`) de eventos e mudanças de status com origem (`manual`|`automatic`), ator/solicitante (id + nome resolvido por membership), snapshot anterior/novo, protocolo, `cStat`, texto da CC-e, timestamps. Acesso 404 entre empresas. Ator removido (sem membership ativa) devolve `{ removed: true }` sem id/nome. Paginado por cursor `(registered_at, id)` com microssegundos, limite padrão 20, teto 100. Evento antigo (sem origem/ator/snapshot) aparece com "origem desconhecida" e "status anterior não registrado" — snapshots nunca são recalculados. Detalhe: spec 149 (D13–D20), `h1-parecer-architect.md` (§3 índice, §9 ator removido).
+
+## O barracão sem configuração é o endereço da empresa (spec 097 D7, 2026-09-15)
+
+Staging tinha `company_route_optimization_settings` vazia — nada grava essa tabela — e a montagem
+avisava "nenhuma origem cadastrada" para empresa com endereço fiscal completo. `readDepot`
+(`trips/infrastructure/route-depot.query.ts`) passou a resolver a origem por `resolveDepotOrigin`
+(`trips/domain/depot-origin.policy.ts`): configuração vence; sem ela, a chave de parada do perfil
+fiscal. A política de fim sem linha é `DEFAULT_ROUTE_END_POLICY` (padrão da coluna). ⚠️ A regra tem
+cópia por valor no worker com contrato de paridade — mudou aqui, mude lá. A resposta de geometria
+publica `depot.originSource`; a coordenada vem do `geocoding.backfill` do worker, então até ele
+rodar a tela mostra `not_geocoded` com o texto próprio do endereço da empresa.

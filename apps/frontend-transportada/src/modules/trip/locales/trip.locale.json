@@ -21,13 +21,15 @@
     "basemapLabel": "Divisa do município",
     "depot": {
       "absence": {
-        "not_configured": "⚠️ A saída do barracão não está nesta conta: nenhum endereço de origem foi cadastrado na configuração de roteirização da empresa. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",
-        "not_geocoded": "⚠️ A saída do barracão não está nesta conta: o endereço de origem está cadastrado, mas ainda não tem coordenada. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega."
+        "not_configured": "⚠️ A saída do barracão não está nesta conta: não há origem na configuração de roteirização, e o cadastro da empresa não tem endereço com CEP completo. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",
+        "not_geocoded": "⚠️ A saída do barracão não está nesta conta: o endereço de origem está cadastrado, mas ainda não tem coordenada. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",
+        "not_geocoded_company_address": "⚠️ A saída do barracão não está nesta conta: o barracão é o endereço cadastrado da empresa, e ele ainda não tem coordenada — a geocodificação em lote o alcança na próxima rodada. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega."
       }
     },
     "depotLeg": {
       "description": "{{name}} · {{address}}",
       "descriptionNote": "Endereço cadastrado da empresa.",
+      "descriptionNoteCompanyOrigin": "Endereço cadastrado da empresa — é dele que a rota parte, porque a configuração de roteirização não tem origem própria.",
       "descriptionPhone": "Telefone: {{phone}}",
       "outbound": "Saída do barracão até a 1ª entrega: {{distance}} km · {{duration}}",
       "return": "Retorno da última entrega ao barracão: {{distance}} km · {{duration}}"

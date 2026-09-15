@@ -5,7 +5,7 @@ import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
 import { isSmokeAuthBypassEnabled } from '../shared/smokeAuthBypass.service'
 
-const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
+export const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
 const AUTH_ME_PATH = '/auth/me'
 const SMOKE_AUTH_ME_STORAGE_KEY = 'transportada.smoke-auth-me'
 const COMPANY_ROLES = [
@@ -92,7 +92,8 @@ export type AuthMeResponse = {
       readonly fiscalEnvironment?: FiscalEnvironment | null
       readonly id: string
     }
-    readonly identity: { readonly userId: string }
+    /** `hasPicture` ausente é API anterior ao campo: a tela trata como sem foto e não pede os bytes. */
+    readonly identity: { readonly hasPicture?: boolean; readonly userId: string }
     readonly permissions: readonly CompanyPermission[]
     readonly roles: readonly CompanyRole[]
   }
@@ -120,6 +121,10 @@ function isFiscalEnvironment(value: unknown): value is FiscalEnvironment | null 
   )
 }
 
+function hasOptionalBooleanProperty(value: unknown, property: string): boolean {
+  return isRecord(value) && (value[property] === undefined || typeof value[property] === 'boolean')
+}
+
 function hasStringProperty(value: unknown, property: string): boolean {
   return isRecord(value) && typeof value[property] === 'string'
 }
@@ -135,6 +140,7 @@ export function isAuthMeResponse(value: unknown): value is AuthMeResponse {
     hasStringProperty(company, 'id') &&
     isFiscalEnvironment(isRecord(company) ? company.fiscalEnvironment : undefined) &&
     hasStringProperty(identity, 'userId') &&
+    hasOptionalBooleanProperty(identity, 'hasPicture') &&
     isLiteralArray(permissions, COMPANY_PERMISSIONS) &&
     isLiteralArray(roles, COMPANY_ROLES)
   )

@@ -5,6 +5,7 @@ import {
   type CompanyCteItem,
   type CteBatchItem,
   type CteBatchItemDocumentLabel,
+  type CteBatchItemDocumentNfeStatus,
   type CteBatchItemsSummary,
 } from './cteBatchItem.types'
 
@@ -166,7 +167,25 @@ export function describeItemDocuments(item: CteBatchItem): readonly CteBatchItem
     accessKey: document.accessKey,
     id: document.id,
     label: `${document.series}/${document.number}`,
+    nfeStatus: document.nfeStatus,
   }))
+}
+
+/**
+ * Spec 149 H8/D12 — o aviso "NF-e cancelada após a emissão" só faz sentido com o CT-e **autorizado**
+ * (plan.md § "API e tela"): é a nota que mudou de situação depois da emissão, o CT-e continua válido
+ * na SEFAZ. Item ainda não autorizado (pendente, em voo, rejeitado…) não emitiu — não há "depois da
+ * emissão" para avisar; esse caso é bloqueado na emissão (`CTE_BATCH_DOCUMENT_NOT_AUTHORIZED`), não
+ * sinalizado aqui.
+ */
+export function hasCteBatchDocumentNfeWarning(
+  itemStatus: string,
+  nfeStatus: CteBatchItemDocumentNfeStatus,
+): boolean {
+  return (
+    itemStatus === CTE_BATCH_ITEM_STATUS.AUTHORIZED &&
+    (nfeStatus === 'cancelled' || nfeStatus === 'denied')
+  )
 }
 
 /** Dinheiro fiscal só soma em inteiro escalado — float binário jamais toca o valor do CT-e. */

@@ -221,6 +221,365 @@ describe('os cabeçalhos que cada método manda', () => {
  * `unidades por caixa` voltando a `1`, gravar por cima **apagava** a medida em silêncio, e a
  * ocupação da viagem passava a contar cada unidade como uma caixa inteira.
  */
+/**
+ * ⚠️ O leitor abre em camada de tela cheia (primitivo `BarcodeScanner`) e precisa continuar montado
+ * enquanto a fila reconsulta a API por causa de um bipe — senão o retorno ao estado de
+ * carregamento (`loading`) desmontava a câmera no meio da leitura. O ciclo bipar → achar a caixa →
+ * abrir a medição é a ponte para a medição por câmera (spec separada em andamento); o defeito
+ * relatado era o leitor nascer atrás da lista sem preview algum.
+ */
+describe('o leitor de etiqueta continua montado em toda situação da fila', () => {
+  it('o scanner é renderizado nos estados negado, carregando e falho — não só no corpo principal', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('if (denied)')
+    expect(panel).toContain('if (loading)')
+    expect(panel).toContain('if (failed)')
+    /** As três saídas antecipadas devolvem o mesmo elemento `scanner`, não uma cópia. */
+    const scannerReturns = panel.match(/\{scanner\}/g) ?? []
+    expect(scannerReturns.length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+/**
+ * ⚠️ Bipar substitui procurar na lista: achando a caixa, a medição dela abre sozinha — o
+ * conferente não caça a linha certa numa fila que pode ter dezenas. Não achando, o leitor avisa e
+ * continua lendo, porque a próxima etiqueta pode ser a certa.
+ */
+describe('bipar leva direto à medição da caixa achada', () => {
+  it('acertar a fila abre a edição da caixa achada, com feedback visual e vibração', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('function openMeasurementForScannedBox(id: string): void {')
+    expect(panel).toContain("kind: 'found'")
+    expect(panel).toContain('setEditingId(id)')
+    expect(panel).toContain('setCameFromScan(true)')
+  })
+
+  it('não achar mantém o leitor aberto e lendo, com aviso', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("kind: 'notFound'")
+    /** Não achar não fecha o leitor — o bloco que trata a ausência de caixa não chama `setIsScannerOpen`. */
+    const notFoundBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
+    expect(notFoundBlock).toBeDefined()
+    expect(notFoundBlock).not.toContain('setIsScannerOpen')
+  })
+
+  it('o ponto de entrada da medição é isolado — a câmera de medida (spec separada) entra por ali', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('Ponto de entrada isolado de propósito')
+    expect(panel).toContain('medição por câmera')
+  })
+
+  it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+    expect(hook).toContain('isMatching: query.isFetching')
+
+    const page = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx', import.meta.url),
+    ).text()
+    expect(page).toContain('matching={packageBoxes.isMatching}')
+  })
+})
+
+/**
+ * ⚠️ O GTIN ainda não é gravado nas caixas (chega com o pacote fiscal numa etapa seguinte) — hoje
+ * a etiqueta casa por chave de acesso ou código de produto, e o segundo pode achar a mesma caixa em
+ * emitentes diferentes. Escolher a primeira sozinha (o `[match] = queue?.items ?? []` antigo) seria
+ * adivinhar; o operador decide, tocando na candidata certa.
+ */
+describe('mais de uma caixa achada pela mesma etiqueta', () => {
+  it('uma candidata só continua abrindo a medição direto, sem lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('if (items.length === 0) {')
+    expect(panel).toContain('if (items.length > 1) {')
+    expect(panel).toContain('setCandidates(items)')
+    expect(panel).toContain('const [match] = items')
+    expect(panel).toContain('if (match !== undefined) openMeasurementForScannedBox(match.id)')
+  })
+
+  it('nenhuma candidata segue mostrando o aviso de não achou, sem abrir a lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const zeroBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
+    expect(zeroBlock).toBeDefined()
+    expect(zeroBlock).toContain("kind: 'notFound'")
+    expect(zeroBlock).not.toContain('setCandidates')
+  })
+
+  it('mais de uma candidata nunca escolhe sozinha — guarda a lista, não abre medição nenhuma', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const manyBlock = panel.split('if (items.length > 1) {')[1]?.split('}')[0]
+    expect(manyBlock).toBeDefined()
+    expect(manyBlock).toContain('setCandidates(items)')
+    expect(manyBlock).not.toContain('openMeasurementForScannedBox')
+  })
+
+  it('a lista mora no bipe, não na fila — não reabre a escolha quando a fila recarrega por outro motivo', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain(
+      'const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)',
+    )
+  })
+
+  /** Acima do teto a lista para de crescer — refinar a busca é mais rápido que rolar dezenas de linhas. */
+  it('tem um teto de quantas candidatas mostra, com aviso do total quando passa dele', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('const MAX_CANDIDATES_SHOWN = 8')
+    expect(panel).toContain('const shown = candidates.slice(0, MAX_CANDIDATES_SHOWN)')
+    expect(panel).toContain('total > MAX_CANDIDATES_SHOWN')
+    expect(panel).toContain("t('packageBoxes.scanner.candidates.overflow'")
+  })
+
+  /** Esc volta a ler, não fecha o leitor inteiro — só o botão de voltar/fechar do leitor faz isso. */
+  it('Esc na lista volta a ler, e não fecha o leitor', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('useModalDialog({ isOpen: true, onClose: onBack })')
+    expect(panel).toContain('onBack={() => setCandidates(null)}')
+  })
+
+  /** Foco no primeiro item, não no contêiner: quem chegou aqui vai tocar ou apertar Enter direto. */
+  it('o foco entra na primeira candidata ao abrir a lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("querySelector<HTMLElement>('[data-candidate] button')?.focus()")
+  })
+
+  /** Cada candidata é um botão do design system, largo o bastante para o alvo de toque de 44px. */
+  it('cada candidata é um botão de toque grande, não uma linha de texto clicável', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('<Button')
+    expect(panel).toContain('className={styles.candidateButton}')
+    expect(panel).toContain('onClick={() => onSelect(box.id)}')
+
+    const css = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/styles/packageBoxes.module.css', import.meta.url),
+    ).text()
+    expect(css).toContain('.candidateButton {')
+    expect(css).toContain('min-height: var(--control-height);')
+  })
+
+  /** Situação não pode depender só de cor — a caixa já medida ganha texto próprio na candidata. */
+  it('a caixa já medida diz isso em texto na candidata, não só numa cor', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("t('packageBoxes.scanner.candidates.measured')")
+    expect(panel).toContain('box.measuredAt === null ? null :')
+  })
+})
+
+/**
+ * ⚠️ Contrato por texto de fonte (spec do bipe físico): esta app não tem DOM nos testes, e a
+ * pistola USB/Bluetooth que "digita" o código e manda Enter precisa cair no MESMO caminho de
+ * `onScan`/`scanned` da câmera — nunca no filtro de texto simples do campo de busca.
+ */
+describe('o leitor físico (pistola) no campo de busca', () => {
+  it('reconhece o formato de código: GTIN de 8/12/13/14 dígitos ou chave de acesso de 44', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('const SCANNED_CODE_LENGTHS = new Set([8, 12, 13, 14])')
+    expect(panel).toContain('const ACCESS_KEY_PATTERN = /^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/')
+    expect(panel).toContain('function looksLikeScannedCode(value: string): boolean {')
+  })
+
+  it('Enter com código bipado manda pelo mesmo caminho de onScan da câmera', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const searchField = panel.split('id="package-box-search"')[1]?.split('/>')[0]
+    expect(searchField).toBeDefined()
+    expect(searchField).toContain("if (event.key !== 'Enter') return")
+    expect(searchField).toContain('if (!looksLikeScannedCode(value)) return')
+    expect(searchField).toContain("scanOriginRef.current = 'keyboard'")
+    expect(searchField).toContain('setAwaitingScan(true)')
+    expect(searchField).toContain('onScan(value)')
+  })
+
+  /** Digitação comum (texto que não tem forma de código) segue filtrando a lista, como hoje. */
+  it('Enter sem formato de código não dispara o caminho de scan', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onKeyDown = panel.split('onKeyDown={(event) => {')[1]?.split('}}')[0]
+    expect(onKeyDown).toBeDefined()
+    expect(onKeyDown).toContain('if (!looksLikeScannedCode(value)) return')
+  })
+
+  it('achar a caixa pela pistola marca a origem separada da câmera, e não abre câmera nenhuma', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("if (scanOriginRef.current === 'keyboard') {")
+    expect(panel).toContain('setCameFromKeyboardScan(true)')
+  })
+
+  /** Ao gravar uma medida aberta pela pistola, o foco volta ao campo de busca — nunca a câmera. */
+  it('gravar uma medida aberta pela pistola devolve o foco ao campo de busca', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onMeasureBlock = panel
+      .split('onMeasure={(measurement) => {')[1]
+      ?.split('}}\n              onOpen=')[0]
+    expect(onMeasureBlock).toBeDefined()
+    expect(onMeasureBlock).toContain('if (cameFromKeyboardScan) {')
+    expect(onMeasureBlock).toContain('setCameFromKeyboardScan(false)')
+    expect(onMeasureBlock).toContain('searchInputRef.current?.focus()')
+  })
+
+  /** Digitar manualmente cancela o modo "veio da pistola", igual já cancela o modo câmera. */
+  it('digitar no campo cancela os dois modos de retorno, câmera e pistola', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onChangeBlock = panel.split('onChange={(event) => {')[1]?.split('}}')[0]
+    expect(onChangeBlock).toBeDefined()
+    expect(onChangeBlock).toContain('setCameFromScan(false)')
+    expect(onChangeBlock).toContain('setCameFromKeyboardScan(false)')
+  })
+
+  it('o campo tem placeholder curto convidando a buscar ou bipar', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("placeholder={t('packageBoxes.searchPlaceholder')}")
+
+    const ptLocale = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/locales/nfeWorkspace.locale.json', import.meta.url),
+    ).text()
+    expect(ptLocale).toContain('"searchPlaceholder": "Busque ou bipe a etiqueta"')
+
+    const enLocale = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
+        import.meta.url,
+      ),
+    ).text()
+    expect(enLocale).toContain('"searchPlaceholder": "Search or scan the label"')
+  })
+
+  /** Nada de listener global: o Enter só é tratado no próprio campo de busca. */
+  it('não existe listener global de teclado — só o onKeyDown do campo de busca', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).not.toContain("addEventListener('keydown'")
+    expect(panel).not.toContain('window.addEventListener')
+    expect(panel).not.toContain('document.addEventListener')
+    /** Os dois `onKeyDown` que existem são de elemento: o campo de busca e o diálogo de candidatas. */
+    const keydownOccurrences = panel.match(/onKeyDown=/g) ?? []
+    expect(keydownOccurrences.length).toBe(2)
+  })
+})
+
 describe('editar a medida de uma caixa já medida', () => {
   it('abre com o que está gravado, convertido de volta para centímetro', async () => {
     const panel = await Bun.file(

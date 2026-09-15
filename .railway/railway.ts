@@ -82,6 +82,11 @@ export default defineRailway((ctx) => {
       APP_PORT: preserve(),
       BOOTSTRAP_TOKEN: preserve(),
       DATABASE_URL: preserve(),
+      /**
+       * Gravada pelo `.github/scripts/railway-deploy.sh` a cada deploy. Precisa estar declarada em
+       * todo serviço que o CI publica: no IaC, omitir é apagar, e o `apply` a removeria.
+       */
+      DEPLOYED_REVISION: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
@@ -110,6 +115,7 @@ export default defineRailway((ctx) => {
       QUEUE_PREFIX: preserve(),
       RABBITMQ_URL: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+      ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
     },
@@ -135,11 +141,14 @@ export default defineRailway((ctx) => {
       CTE_TECHNICAL_RESPONSIBLE_EMAIL: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_PHONE: preserve(),
       DATABASE_URL: preserve(),
+      DEPLOYED_REVISION: preserve(),
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),
+      /** `${{api.GOOGLE_MAPS_API_KEY}}` no painel (8551016e) — referência, não cópia do segredo. */
+      GOOGLE_MAPS_API_KEY: preserve(),
       IDEMPOTENCY_HMAC_KEY: preserve(),
       LOG_LEVEL: preserve(),
       LOG_SINK_URL: preserve(),
@@ -179,6 +188,7 @@ export default defineRailway((ctx) => {
         : 'app.staging.fernandes-transportadora.com.br',
     ],
     env: {
+      DEPLOYED_REVISION: preserve(),
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
       VITE_API_URL: preserve(),
@@ -220,6 +230,7 @@ export default defineRailway((ctx) => {
       ? ['fernandes-transportadora.com.br', 'www.fernandes-transportadora.com.br']
       : ['staging.fernandes-transportadora.com.br'],
     env: {
+      DEPLOYED_REVISION: preserve(),
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
       VITE_API_URL: preserve(),
@@ -238,6 +249,7 @@ export default defineRailway((ctx) => {
         : 'auth.staging.fernandes-transportadora.com.br',
     ],
     env: {
+      DEPLOYED_REVISION: preserve(),
       KC_BOOTSTRAP_ADMIN_PASSWORD: preserve(),
       KC_BOOTSTRAP_ADMIN_USERNAME: preserve(),
       KC_DB: preserve(),
@@ -280,6 +292,7 @@ export default defineRailway((ctx) => {
       APP_ENV: preserve(),
       CADENCE_MINUTES: preserve(),
       DATABASE_URL: preserve(),
+      DEPLOYED_REVISION: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
       LOG_LEVEL: preserve(),
       LOG_SINK_URL: preserve(),
@@ -397,8 +410,15 @@ export default defineRailway((ctx) => {
    * os arquivos datados por cerca de 90 dias, então uma data muito velha volta a dar 404 no build —
    * o que é a falha certa: ela aparece no build, não numa rota errada seis meses depois.
    */
+  /**
+   * ⚠️ **O índice do Geofabrik não lista os datados, mas eles respondem.** Medido em 15/09/2026: a
+   * data anterior já dava 404, e `sudeste-260914` responde 200 — a mesma data do extrato de pedágio
+   * versionado no bucket (`toll-booths/osm/sudeste/2026-09-14/`). Os quatro serviços no ar ainda
+   * rodam do `-latest` baixado em 14/09 e só passam para esta data no próximo `make map-refresh`;
+   * até lá o `plan` mostra `OSRM_PBF_URL`/`MAP_PBF_URL` mudando, e aplicar reconstrói os dois.
+   */
   const OSM_EXTRACT_URL =
-    'https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pbf'
+    'https://download.geofabrik.de/south-america/brazil/sudeste-260914.osm.pbf'
 
   /**
    * Matriz de distâncias do solver. Existe **nos dois ambientes** desde 04/09/2026 — antes só em
@@ -517,7 +537,10 @@ export default defineRailway((ctx) => {
     },
   })
 
-  /** OCR self-hosted do anexo do agregado (spec 070). ⚠️ Só existe em produção — ver a nota no fim. */
+  /**
+   * OCR self-hosted do anexo do agregado (spec 070). Existe **nos dois ambientes** — medido em
+   * 15/09/2026: staging tem a própria instância, e sem ela aqui um `apply` a apagaria.
+   */
   const aggregateDocumentOcr = service('aggregate-document-ocr', {
     source: image('hertzg/tesseract-server:latest'),
     replicas: { sfo: 1 },
@@ -539,6 +562,14 @@ export default defineRailway((ctx) => {
    * serviço, e traga-as para cá com `railway config pull`.
    */
   const client = service('client', {
+    /**
+     * ⚠️ Em staging a fonte é o GitHub na branch **`main`** (medido em 15/09/2026), e fica declarada
+     * como está: sem ela o `apply` desconectaria o repositório. Apontar para `staging` é decisão
+     * separada — o deploy do CI (`railway up`) é o que publica de fato.
+     */
+    ...(isProduction
+      ? {}
+      : { source: github('Andersonfrfilho/transportada', { branch: 'main', checkSuites: false }) }),
     build: { builder: 'DOCKERFILE', dockerfilePath: 'apps/frontend-client/Dockerfile' },
     deploy: {
       healthcheckPath: '/health/live',
@@ -552,9 +583,11 @@ export default defineRailway((ctx) => {
         : 'cliente.staging.fernandes-transportadora.com.br',
     ],
     env: {
+      DEPLOYED_REVISION: preserve(),
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
       VITE_API_URL: preserve(),
+      VITE_APP_ENV: preserve(),
       VITE_CLIENT_APP_URL: preserve(),
       VITE_KEYCLOAK_CLIENT_ID: preserve(),
       VITE_KEYCLOAK_REALM: preserve(),
@@ -583,7 +616,7 @@ export default defineRailway((ctx) => {
   return project('transportada', {
     resources: isProduction
       ? [...shared, backup, restoreTest, aggregateDocumentOcr, mapTiles, osrm]
-      : [...shared, mailpit, mapTiles, osrm, stagingRefresh],
+      : [...shared, aggregateDocumentOcr, mailpit, mapTiles, osrm, stagingRefresh],
   })
 })
 

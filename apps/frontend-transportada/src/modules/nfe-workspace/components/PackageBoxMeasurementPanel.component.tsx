@@ -1,12 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { BarcodeScanner } from '@/components/ui/barcode-scanner'
+import { BarcodeScanner, type BarcodeScannerFeedback } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
   PACKAGE_BOX_STATUS_FILTERS,
@@ -28,6 +30,8 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   denied: boolean
   failed: boolean
   loading: boolean
+  /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
+  matching: boolean
   onMeasure: (input: PackageBoxMeasurement & { id: string }) => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
@@ -37,6 +41,29 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   search: string
   status: PackageBoxStatusFilter
 }>
+
+const FOUND_FEEDBACK_DELAY_MS = 900
+const NOT_FOUND_FEEDBACK_DELAY_MS = 2500
+/** Acima do teto, a lista não cresce — refinar a busca é mais rápido que rolar dezenas de linhas. */
+const MAX_CANDIDATES_SHOWN = 8
+const CANDIDATES_TITLE_ID = 'package-box-candidates-title'
+
+/** GTIN-8/12/13/14: só dígitos, no comprimento fixo dos padrões de código de barras de produto. */
+const SCANNED_CODE_LENGTHS = new Set([8, 12, 13, 14])
+/** Chave de acesso da NF-e/CT-e: 44 posições, UF+ano/mês+CNPJ fixos numéricos, dígito verificador. */
+const ACCESS_KEY_PATTERN = /^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/
+
+/**
+ * ⚠️ Diferencia a pistola de código de barras (digita rápido e manda Enter) de alguém digitando uma
+ * busca de texto normal. Sem essa forma o valor cai no filtro por `ilike`, e a pistola nunca acha a
+ * caixa pela chave da nota nem pelo GTIN — o defeito que esta heurística existe para fechar.
+ */
+function looksLikeScannedCode(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed === '') return false
+  if (/^[0-9]+$/.test(trimmed)) return SCANNED_CODE_LENGTHS.has(trimmed.length)
+  return ACCESS_KEY_PATTERN.test(trimmed)
+}
 
 /**
  * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
@@ -100,6 +127,7 @@ export function PackageBoxMeasurementPanel({
   denied,
   failed,
   loading,
+  matching,
   onMeasure,
   onScan,
   onSearchChange,
@@ -118,10 +146,127 @@ export function PackageBoxMeasurementPanel({
    * outra mão. Quem chegou digitando fica na busca — ali ele está procurando, não varrendo.
    */
   const [cameFromScan, setCameFromScan] = useState(false)
+  /**
+   * ⚠️ Equivalente ao `cameFromScan` da câmera, mas para a pistola física (USB/Bluetooth que
+   * "digita" o código e manda Enter): quem bipou pela pistola volta o foco ao campo de busca ao
+   * gravar, não abre a câmera — o ciclo de pilha de caixas é o mesmo, o retorno é outro.
+   */
+  const [cameFromKeyboardScan, setCameFromKeyboardScan] = useState(false)
+  const [scanFeedback, setScanFeedback] = useState<BarcodeScannerFeedback | undefined>(undefined)
+  /** `true` do bipe até a fila responder — é o sinal que diz quando avaliar achou/não achou. */
+  const [awaitingScan, setAwaitingScan] = useState(false)
+  /**
+   * ⚠️ Ref, não estado: só decide o destino de `openMeasurementForScannedBox` (câmera ou pistola),
+   * nunca dispara render sozinho — o `awaitingScan` já cuida disso.
+   */
+  const scanOriginRef = useRef<'camera' | 'keyboard'>('camera')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  /**
+   * ⚠️ Mais de uma caixa achada nunca escolhe sozinha (o GTIN ainda não é gravado nas caixas — só
+   * chave de acesso e código de produto casam hoje, e o segundo é ambíguo entre emitentes). A lista
+   * mora aqui, não no `queue`: ela é o resultado de **um** bipe, e a fila recarrega por outros
+   * motivos (troca de situação, busca) que não devem reabrir a escolha.
+   */
+  const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
+  const closeScanTimer = useRef<number | undefined>(undefined)
 
-  if (denied) return <p className={styles.notice}>{t('packageBoxes.denied')}</p>
-  if (loading) return <QueueSkeleton />
-  if (failed) return <p className={styles.notice}>{t('packageBoxes.failed')}</p>
+  useEffect(() => {
+    return () => window.clearTimeout(closeScanTimer.current)
+  }, [])
+
+  /**
+   * ⚠️ Ponto de entrada isolado de propósito: quando a medição por câmera (spec em andamento)
+   * chegar, ela entra por aqui — bipar já leva direto à edição da caixa achada, só falta o
+   * formulário de medida também vir da câmera em vez do teclado.
+   */
+  function openMeasurementForScannedBox(id: string): void {
+    setScanFeedback({ kind: 'found', message: t('packageBoxes.scanner.found') })
+    setEditingId(id)
+    if (scanOriginRef.current === 'keyboard') {
+      setCameFromKeyboardScan(true)
+    } else {
+      setCameFromScan(true)
+    }
+    closeScanTimer.current = window.setTimeout(() => {
+      setIsScannerOpen(false)
+      setScanFeedback(undefined)
+    }, FOUND_FEEDBACK_DELAY_MS)
+  }
+
+  /**
+   * A resposta da fila chegou: uma caixa, abre a medição dela; nenhuma, segue lendo; mais de uma —
+   * o GTIN ainda não está gravado, então a etiqueta pode casar com caixas de emitentes diferentes —
+   * o operador escolhe, nunca a tela.
+   */
+  useEffect(() => {
+    if (!awaitingScan || matching) return
+    setAwaitingScan(false)
+    const items = queue?.items ?? []
+    if (items.length === 0) {
+      setScanFeedback({ kind: 'notFound', message: t('packageBoxes.scanner.notFound') })
+      return
+    }
+    if (items.length > 1) {
+      setCandidates(items)
+      return
+    }
+    const [match] = items
+    if (match !== undefined) openMeasurementForScannedBox(match.id)
+  }, [awaitingScan, matching, queue, t, openMeasurementForScannedBox])
+
+  useEffect(() => {
+    if (scanFeedback?.kind !== 'notFound') return
+    const timer = window.setTimeout(() => setScanFeedback(undefined), NOT_FOUND_FEEDBACK_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [scanFeedback])
+
+  const scanner = (
+    <BarcodeScanner
+      closeLabel={t('packageBoxes.scanner.close')}
+      deniedMessage={t('packageBoxes.scanner.denied')}
+      feedback={scanFeedback}
+      isOpen={isScannerOpen}
+      onClose={() => {
+        window.clearTimeout(closeScanTimer.current)
+        setIsScannerOpen(false)
+        setScanFeedback(undefined)
+        setAwaitingScan(false)
+        setCandidates(null)
+      }}
+      onRead={(text) => {
+        scanOriginRef.current = 'camera'
+        setScanFeedback(undefined)
+        setAwaitingScan(true)
+        onScan(text)
+      }}
+      readingMessage={t('packageBoxes.scanner.reading')}
+      startingMessage={t('packageBoxes.scanner.starting')}
+      title={t('packageBoxes.scanner.title')}
+      unavailableMessage={t('packageBoxes.scanner.unavailable')}
+    />
+  )
+
+  if (denied)
+    return (
+      <>
+        {scanner}
+        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
+      </>
+    )
+  if (loading)
+    return (
+      <>
+        {scanner}
+        <QueueSkeleton />
+      </>
+    )
+  if (failed)
+    return (
+      <>
+        {scanner}
+        <p className={styles.notice}>{t('packageBoxes.failed')}</p>
+      </>
+    )
 
   const items = queue?.items ?? []
 
@@ -140,13 +285,27 @@ export function PackageBoxMeasurementPanel({
             inputMode="search"
             onChange={(event) => {
               setCameFromScan(false)
+              setCameFromKeyboardScan(false)
               onSearchChange(event.target.value)
             }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              const value = event.currentTarget.value
+              /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
+              if (!looksLikeScannedCode(value)) return
+              event.preventDefault()
+              scanOriginRef.current = 'keyboard'
+              setScanFeedback(undefined)
+              setAwaitingScan(true)
+              onScan(value)
+            }}
+            placeholder={t('packageBoxes.searchPlaceholder')}
+            ref={searchInputRef}
             type="search"
             value={search}
           />
         </label>
-        <Button onClick={() => setIsScannerOpen(true)} size="sm" type="button" variant="secondary">
+        <Button onClick={() => setIsScannerOpen(true)} type="button" variant="secondary">
           <Icon name="camera" />
           {t('packageBoxes.scan')}
         </Button>
@@ -179,6 +338,10 @@ export function PackageBoxMeasurementPanel({
                 onMeasure({ ...measurement, id: box.id })
                 setEditingId(null)
                 if (cameFromScan) setIsScannerOpen(true)
+                if (cameFromKeyboardScan) {
+                  setCameFromKeyboardScan(false)
+                  searchInputRef.current?.focus()
+                }
               }}
               onOpen={() => setEditingId(box.id)}
               saving={saving}
@@ -187,22 +350,111 @@ export function PackageBoxMeasurementPanel({
         </ul>
       )}
 
-      <BarcodeScanner
-        closeLabel={t('packageBoxes.scanner.close')}
-        deniedMessage={t('packageBoxes.scanner.denied')}
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onRead={(text) => {
-          onScan(text)
-          setCameFromScan(true)
-          setIsScannerOpen(false)
-        }}
-        readingMessage={t('packageBoxes.scanner.reading')}
-        startingMessage={t('packageBoxes.scanner.starting')}
-        title={t('packageBoxes.scanner.title')}
-        unavailableMessage={t('packageBoxes.scanner.unavailable')}
-      />
+      {scanner}
+
+      {candidates === null ? null : (
+        <PackageBoxCandidatePicker
+          candidates={candidates}
+          onBack={() => setCandidates(null)}
+          onSelect={(id) => {
+            setCandidates(null)
+            openMeasurementForScannedBox(id)
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+type PackageBoxCandidatePickerProps = Readonly<{
+  candidates: readonly PackageBox[]
+  onBack: () => void
+  onSelect: (id: string) => void
+}>
+
+/**
+ * O GTIN ainda não é gravado nas caixas (chega com o pacote fiscal numa etapa seguinte) — hoje só
+ * chave de acesso e código de produto casam a etiqueta, e o segundo pode achar a mesma caixa em
+ * emitentes diferentes. Escolher sozinho aqui seria adivinhar; quem decide é o operador, tocando na
+ * candidata certa. A camada nasce sobre o leitor, nunca inline — a mesma razão que abre o próprio
+ * `BarcodeScanner` em portal: o conferente está de pé, com o celular numa mão.
+ */
+function PackageBoxCandidatePicker({
+  candidates,
+  onBack,
+  onSelect,
+}: PackageBoxCandidatePickerProps) {
+  const { t } = useTranslation('nfeWorkspace')
+  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose: onBack })
+  const total = candidates.length
+  const shown = candidates.slice(0, MAX_CANDIDATES_SHOWN)
+
+  /** Foco no primeiro item, não no contêiner: quem chegou aqui vai tocar ou apertar Enter direto. */
+  useEffect(() => {
+    dialogRef.current?.querySelector<HTMLElement>('[data-candidate] button')?.focus()
+  }, [dialogRef])
+
+  return createPortal(
+    <div className={styles.candidatesOverlay} onKeyDown={handleKeyDown} role="presentation">
+      <div
+        aria-labelledby={CANDIDATES_TITLE_ID}
+        aria-modal="true"
+        className={styles.candidatesDialog}
+        ref={dialogRef}
+        role="dialog"
+        tabIndex={-1}
+      >
+        <div className={styles.candidatesHead}>
+          <h3 className={styles.candidatesTitle} id={CANDIDATES_TITLE_ID}>
+            {t('packageBoxes.scanner.candidates.title')}
+          </h3>
+          <Button
+            aria-label={t('packageBoxes.scanner.candidates.back')}
+            onClick={onBack}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="close" />
+          </Button>
+        </div>
+        <p className={styles.hint}>{t('packageBoxes.scanner.candidates.hint')}</p>
+        <ul className={styles.candidatesList}>
+          {shown.map((box, index) => (
+            <li data-candidate key={box.id}>
+              <Button
+                className={styles.candidateButton}
+                onClick={() => onSelect(box.id)}
+                type="button"
+                variant="secondary"
+              >
+                <span className={styles.candidateMain}>
+                  <strong>{box.description || box.productCode}</strong>
+                  <span className={styles.unit}>{box.emitterTaxId}</span>
+                </span>
+                <span className={styles.hint}>
+                  {t('packageBoxes.scanner.candidates.position', { position: index + 1, total })}
+                  {box.measuredAt === null ? null : (
+                    <>
+                      {' · '}
+                      <span className={styles.candidateMeasured}>
+                        {t('packageBoxes.scanner.candidates.measured')}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {total > MAX_CANDIDATES_SHOWN ? (
+          <p className={styles.notice}>
+            {t('packageBoxes.scanner.candidates.overflow', { shown: shown.length, total })}
+          </p>
+        ) : null}
+      </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -16,6 +16,7 @@ import {
   canReprocessItem,
   canTransmitBatch,
   describeItemDocuments,
+  hasCteBatchDocumentNfeWarning,
 } from '../shared/cteBatchItemActions.service'
 import { CTE_BATCH_ITEM_STATUS, type CteBatchItem } from '../shared/cteBatchItem.types'
 import styles from '../styles/cteBatch.module.css'
@@ -115,6 +116,17 @@ export function CteBatchItemsPanel({
             {describeItemDocuments(item).map((document) => (
               <span className={styles.documentTag} key={document.id} title={document.accessKey}>
                 {document.label}
+                {/*
+                 * Spec 149 H8 — o CT-e continua válido na SEFAZ; quem mudou de situação foi a nota,
+                 * e é isso que o operador precisa notar antes de faturar ou entregar sobre ela.
+                 * Texto e ícone, nunca só a cor (D20).
+                 */}
+                {hasCteBatchDocumentNfeWarning(item.status, document.nfeStatus) ? (
+                  <span className={styles.documentNfeWarning}>
+                    <Icon name="alert" />
+                    {t(`items.documentNfeWarning.${document.nfeStatus}`)}
+                  </span>
+                ) : null}
               </span>
             ))}
           </div>

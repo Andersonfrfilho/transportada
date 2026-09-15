@@ -30,6 +30,7 @@ import {
   type TollMultiplier,
 } from '../../toll-booths/domain/toll-category.policy.js'
 import type { DepotDescription } from '../domain/depot-description.policy.js'
+import type { DepotOriginSource } from '../domain/depot-origin.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import {
   resolveTollCatalogStatus,
@@ -146,6 +147,11 @@ export type RouteGeometryDepot = Readonly<{
    * decimal, e um número solto aqui obrigaria a tela a tratar duas formas para a mesma grandeza.
    */
   origin: null | Readonly<{ latitude: string; longitude: string }>
+  /**
+   * De onde a origem veio (D7): a configuração de roteirização ou o endereço cadastrado da empresa.
+   * `null` quando não há origem nenhuma — a tela diz isso por `absence`.
+   */
+  originSource: null | DepotOriginSource
   trailingLegs: number
 }>
 
@@ -258,10 +264,9 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
    * ⚠️ O barracão é resolvido **antes** do corte de duas paradas, e a ordem importa: uma entrega só
    * deixa de ser "menos de duas paradas" quando o barracão é o outro ponto — que é a rota certa.
    */
-  const plan = planRouteFromDepot({
-    depot: input.depot === undefined || input.depot === null ? null : await input.depot.readDepot(),
-    stops: input.stops,
-  })
+  const depotReading =
+    input.depot === undefined || input.depot === null ? null : await input.depot.readDepot()
+  const plan = planRouteFromDepot({ depot: depotReading, stops: input.stops })
 
   /**
    * ⚠️ A ausência sobrevive à rota indisponível de propósito: é justamente quando não há traçado
@@ -281,6 +286,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
                   latitude: plan.origin.latitude.toFixed(COORDINATE_SCALE),
                   longitude: plan.origin.longitude.toFixed(COORDINATE_SCALE),
                 },
+          originSource: depotReading?.originSource ?? null,
           trailingLegs: plan.trailingLegs,
         }
 

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
+import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
@@ -172,6 +173,7 @@ export const ITEMS_RESULT = {
         {
           accessKey: '35260705868574001090550020008526741408978623',
           id: DOCUMENT_ID,
+          nfeStatus: 'authorized',
           number: '852674',
           position: '1',
           series: '2',
@@ -572,6 +574,7 @@ function createTestRouter(input: {
       },
     },
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

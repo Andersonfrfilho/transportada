@@ -17,6 +17,7 @@ import { createRouter, defineRoute } from '../../src/http/router.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import { createWhatsAppPhoneRoutes } from '../../src/whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
+import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 
 const MEMBERSHIP_POLICY_ALLOWLIST = [
@@ -43,6 +44,7 @@ function buildRouter(routes: readonly ReturnType<typeof defineRoute>[]) {
     },
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
+    userPictureExistence: stubUserPictureExistence(),
     healthService: new HealthService({
       database: {
         async close() {},

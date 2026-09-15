@@ -45,6 +45,8 @@ export type NfeItemStatus =
 export type NfeItemVariant = 'complete' | 'event' | 'summary'
 export type NfeFiscalEnvironment = 'homologation' | 'production'
 export type NfeDocumentStatus = 'authorized' | 'cancelled' | 'denied' | 'unsigned'
+export type NfeEventOrigin = 'automatic' | 'manual'
+export type NfeDocumentStatusChangeCause = 'document_insert' | 'event' | 'summary'
 export type StorageObjectStatus = 'staging' | 'final' | 'deleted'
 export type StorageObjectPurpose =
   | 'import_source'
@@ -255,6 +257,32 @@ export const nfeEvents = pgTable('nfe_events', {
   environment: text().$type<NfeFiscalEnvironment>(),
   metadata: jsonb(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  statusCode: varchar('status_code', { length: 3 }),
+  protocol: varchar({ length: 20 }),
+  correctionText: text('correction_text'),
+  importId: uuid('import_id'),
+  origin: varchar({ length: 16 }).$type<NfeEventOrigin>(),
+  actorUserId: uuid('actor_user_id'),
+  requestedByUserId: uuid('requested_by_user_id'),
+  documentStatusBefore: varchar('document_status_before', {
+    length: 16,
+  }).$type<NfeDocumentStatus>(),
+  documentStatusAfter: varchar('document_status_after', { length: 16 }).$type<NfeDocumentStatus>(),
+})
+
+export const nfeDocumentStatusChanges = pgTable('nfe_document_status_changes', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  documentId: uuid('document_id').notNull(),
+  statusBefore: varchar('status_before', { length: 16 }).$type<NfeDocumentStatus>().notNull(),
+  statusAfter: varchar('status_after', { length: 16 }).$type<NfeDocumentStatus>().notNull(),
+  cause: varchar({ length: 16 }).$type<NfeDocumentStatusChangeCause>().notNull(),
+  eventId: uuid('event_id'),
+  importId: uuid('import_id'),
+  origin: varchar({ length: 16 }).$type<NfeEventOrigin>(),
+  actorUserId: uuid('actor_user_id'),
+  requestedByUserId: uuid('requested_by_user_id'),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const storedObjects = pgTable('stored_objects', {

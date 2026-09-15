@@ -1,11 +1,26 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-.scanner {
+.overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-3);
-  border: 1px solid var(--color-slate);
-  border-radius: var(--radius-md, 0);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
   background: var(--color-asphalt);
 }
 
@@ -21,13 +36,20 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 1rem;
+}
+
+.instruction {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.85rem;
 }
 
 .viewport {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: var(--color-ink, #000);
 }
@@ -38,8 +60,138 @@
   object-fit: cover;
 }
 
+/**
+ * ⚠️ A moldura escurece o que fica fora dela sem precisar de uma segunda camada: `box-shadow` com
+ * espalhamento enorme cobre o retângulo inteiro do vídeo por fora da própria moldura, que é o
+ * elemento que já está no lugar certo.
+ */
+.guide {
+  position: absolute;
+  inset: 14% 10%;
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--color-ink, #000) 55%, transparent);
+  border: 2px solid color-mix(in srgb, var(--color-copper) 80%, transparent);
+  border-radius: var(--radius-md, 0);
+}
+
+.guide[data-feedback='found'] {
+  border-color: var(--color-ready);
+}
+
+.guide[data-feedback='notFound'] {
+  border-color: var(--color-alert);
+}
+
+.corner {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-color: inherit;
+  border-style: solid;
+  border-width: 0;
+}
+
+.corner[data-corner='top-left'] {
+  top: -2px;
+  left: -2px;
+  border-top-width: 3px;
+  border-left-width: 3px;
+}
+
+.corner[data-corner='top-right'] {
+  top: -2px;
+  right: -2px;
+  border-top-width: 3px;
+  border-right-width: 3px;
+}
+
+.corner[data-corner='bottom-left'] {
+  bottom: -2px;
+  left: -2px;
+  border-bottom-width: 3px;
+  border-left-width: 3px;
+}
+
+.corner[data-corner='bottom-right'] {
+  bottom: -2px;
+  right: -2px;
+  border-bottom-width: 3px;
+  border-right-width: 3px;
+}
+
+/* Faixa de leitura: varre a moldura de cima a baixo enquanto a câmera decodifica. */
+.guideBand {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-copper);
+  animation: barcodeScannerSweep 2s ease-in-out infinite;
+}
+
+@keyframes barcodeScannerSweep {
+  0%,
+  100% {
+    top: 6%;
+  }
+
+  50% {
+    top: 94%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guideBand {
+    top: 50%;
+    animation: none;
+  }
+}
+
+.feedback {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink-on-accent, var(--color-fog));
+  font-size: 0.85rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--color-asphalt) 30%, transparent);
+}
+
+.feedback[data-kind='found'] {
+  background: color-mix(in srgb, var(--color-ready) 85%, transparent);
+}
+
+.feedback[data-kind='notFound'] {
+  background: color-mix(in srgb, var(--color-alert) 85%, transparent);
+}
+
 .message {
   margin: 0;
   color: var(--color-fog);
   font-size: 0.8rem;
+}
+
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(34rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid var(--color-slate);
+    border-radius: var(--radius-md, 0);
+    box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  }
+
+  .viewport {
+    flex: none;
+    aspect-ratio: 4 / 3;
+  }
 }
