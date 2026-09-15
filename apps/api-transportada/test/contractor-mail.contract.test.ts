@@ -4,6 +4,7 @@
 import './contractor-mail/contractor-contacts.contract.js'
 import './contractor-mail/credential-secret.contract.js'
 import './contractor-mail/inbound-webhook-routes.contract.js'
+import './contractor-mail/mail-send-readiness-policy.contract.js'
 import './contractor-mail/mx-lookup-gateway.contract.js'
 import './contractor-mail/no-secret-exposure.contract.js'
 import './contractor-mail/process-inbound-email-webhook-use-case.contract.js'

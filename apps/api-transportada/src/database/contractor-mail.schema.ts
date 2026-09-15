@@ -30,6 +30,8 @@ import { inList } from './schema-check.constant.js'
  *
  * `status` acompanha a lista de verificação do RF12: `pending` até o primeiro round-trip de teste
  * fechar, `active` quando ele fecha, `failed` quando algo que já funcionou para de funcionar.
+ * Spec 150 RF16: `status` segue sendo "ida e volta completas" e não bloqueia mais o envio — quem
+ * libera é `sending_verified_at` (chave aceita + domínio do remetente verificado).
  */
 export const CONTRACTOR_MAIL_SETTINGS_STATUSES = ['pending', 'active', 'failed'] as const
 export type ContractorMailSettingsStatus = (typeof CONTRACTOR_MAIL_SETTINGS_STATUSES)[number]
@@ -46,6 +48,8 @@ export const contractorMailSettings = pgTable(
     webhookId: uuid('webhook_id').defaultRandom().notNull(),
     lastWebhookAt: timestamp('last_webhook_at', { withTimezone: true }),
     status: text().$type<ContractorMailSettingsStatus>().notNull().default('pending'),
+    /** Gravado pela lista de verificação; zerado quando a chave ou o remetente mudam. */
+    sendingVerifiedAt: timestamp('sending_verified_at', { withTimezone: true }),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

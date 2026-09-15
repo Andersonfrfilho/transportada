@@ -83,6 +83,8 @@ export type ContractorMailSettingsSummary = {
   readonly replyDomain: string
   readonly senderAddress: string
   readonly senderName: string
+  /** Spec 150 T401: não-nulo é "pronto para enviar" (chave aceita + domínio verificado). */
+  readonly sendingVerifiedAt: string | null
   readonly status: ContractorMailSettingsStatus
   readonly version: string
   readonly webhookId: string
@@ -158,6 +160,12 @@ export function createContractorMailSettingsUseCase(dependencies: {
         mxLookupGateway.lookupMx({ domain: settings.replyDomain }),
         repository.findSetupTestStatus({ companyId: context.companyId }),
       ])
+      await repository.recordSendingVerification({
+        companyId: context.companyId,
+        expectedVersion: settings.version,
+        isSendingVerified:
+          providerChecks.apiKey.status === 'ok' && providerChecks.senderDomain.status === 'ok',
+      })
 
       return [
         providerChecks.apiKey,
@@ -245,6 +253,7 @@ export function createContractorMailSettingsUseCase(dependencies: {
         expectedVersion,
         replyDomain,
         replyTokenSecretRegeneration,
+        resetSendingVerification: secret.apiKeyChanged || existing?.senderAddress !== senderAddress,
         secretEnvelope,
         senderAddress,
         senderName,
@@ -283,6 +292,8 @@ export function createContractorMailSettingsUseCase(dependencies: {
  * hash de toda conversa existente.
  */
 type ResolvedContractorMailCredentialSecret = ContractorMailCredentialSecret & {
+  /** Spec 150 T401: a chave difere da selada antes (ou não havia como comparar) — zera a verificação. */
+  readonly apiKeyChanged: boolean
   readonly replyTokenSecretRegenerated: boolean
 }
 
@@ -299,6 +310,7 @@ async function resolveSecret(input: {
     }
     return {
       apiKey: input.apiKey,
+      apiKeyChanged: true,
       replyTokenSecret: generateReplyTokenSecret(),
       replyTokenSecretRegenerated: false,
       webhookSigningSecret: input.webhookSigningSecret,
@@ -314,6 +326,7 @@ async function resolveSecret(input: {
       })
       return {
         apiKey: input.apiKey,
+        apiKeyChanged: input.apiKey !== previous.apiKey,
         replyTokenSecret: previous.replyTokenSecret,
         replyTokenSecretRegenerated: false,
         webhookSigningSecret: input.webhookSigningSecret,
@@ -322,6 +335,7 @@ async function resolveSecret(input: {
       if (!(error instanceof ContractorMailCredentialUnavailableError)) throw error
       return {
         apiKey: input.apiKey,
+        apiKeyChanged: true,
         replyTokenSecret: generateReplyTokenSecret(),
         replyTokenSecretRegenerated: true,
         webhookSigningSecret: input.webhookSigningSecret,
@@ -336,6 +350,7 @@ async function resolveSecret(input: {
   })
   return {
     apiKey: input.apiKey ?? previous.apiKey,
+    apiKeyChanged: input.apiKey !== undefined && input.apiKey !== previous.apiKey,
     replyTokenSecret: previous.replyTokenSecret,
     replyTokenSecretRegenerated: false,
     webhookSigningSecret: input.webhookSigningSecret ?? previous.webhookSigningSecret,
@@ -371,6 +386,8 @@ function toSummary(record: ContractorMailSettingsRecord): ContractorMailSettings
     replyDomain: record.replyDomain,
     senderAddress: record.senderAddress,
     senderName: record.senderName,
+    sendingVerifiedAt:
+      record.sendingVerifiedAt === undefined ? null : record.sendingVerifiedAt.toISOString(),
     status: record.status,
     version: record.version.toString(),
     webhookId: record.webhookId,

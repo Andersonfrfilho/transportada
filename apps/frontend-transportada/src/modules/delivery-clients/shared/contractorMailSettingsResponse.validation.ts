@@ -57,6 +57,7 @@ function isSettingsSummary(value: unknown): value is ContractorMailSettingsSumma
     isString(value.replyDomain) &&
     isString(value.senderAddress) &&
     isString(value.senderName) &&
+    isNullableString(value.sendingVerifiedAt) &&
     isOneOf(value.status, ['pending', 'active', 'failed']) &&
     isString(value.version) &&
     isString(value.webhookId) &&

@@ -17,6 +17,7 @@ const SUMMARY: ContractorMailSettingsSummary = {
   replyDomain: 'reply.example.com',
   senderAddress: 'occurrences@example.com',
   senderName: 'Example Transportadora',
+  sendingVerifiedAt: null,
   status: 'pending',
   version: '3',
   webhookId: 'webhook-1',

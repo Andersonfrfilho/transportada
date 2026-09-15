@@ -47,6 +47,7 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
       'replyDomain',
       'senderAddress',
       'senderName',
+      'sendingVerifiedAt',
       'status',
       'version',
       'webhookId',

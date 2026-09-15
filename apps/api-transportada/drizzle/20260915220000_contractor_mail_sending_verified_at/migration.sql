@@ -1,0 +1,1 @@
+ALTER TABLE "contractor_mail_settings" ADD COLUMN "sending_verified_at" timestamp with time zone;

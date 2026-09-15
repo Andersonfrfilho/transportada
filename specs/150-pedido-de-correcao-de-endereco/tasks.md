@@ -56,7 +56,64 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T306** Marcar a T20 da `specs/084-agenda-de-enderecos/tasks.md` como realizada por esta spec
       e atualizar `docs/ai-context/` e os `CLAUDE.md` das apps tocadas.
 
+## Fase 4 — Modelos, liberação do envio e limitador (RF13–RF19)
+
+> 🤖 Modelo: `sonnet` (T401, T402 e T406 são 🧠 — `opus`)
+
+- [x] 🧠 **T401** Liberação do envio: a coluna `sending_verified_at` (migration aditiva), gravada
+      pela lista de verificação e zerada quando a chave ou o remetente mudam; a função pura
+      `resolveMailSendReadiness`; o envio deixa de exigir `status = 'active'`. Contrato **vermelho
+      primeiro**: com a configuração em `pending` e o envio verificado, o pedido sai. Evidência:
+      contratos da política, da rota de envio e da lista de verificação.
+- [ ] 🧠 **T402** Modelos na API: a tabela `contractor_mail_templates`, `template_id` na mensagem, as
+      rotas CRUD, o padrão e a prévia, e a renderização das variáveis (lista fechada, escape). O
+      envio usa o modelo padrão ou o `templateId`, e sem modelo recusa com
+      `CONTRACTOR_MAIL_TEMPLATE_MISSING`. Evidência: contrato de tenant, contratos de rota, de
+      renderização e integração.
+- [ ] **T403** Seção "Modelos" na página "E-mail com contratantes": lista por tipo, criar a partir
+      do padrão, editar com as variáveis, prévia, marcar como padrão e arquivar. Evidência:
+      contratos de serviço e de validação.
+- [ ] **T404** A lista de verificação mostra "Pronto para enviar", com o motivo quando não está.
+      Evidência: contrato do serviço da lista.
+- [ ] **T405** Confirmação de envio (T305): seletor de modelo, prévia com o modelo escolhido, e a
+      recusa por liberação levando à página de configuração. Evidência: contratos de serviço.
+- [ ] 🧠 **T406** Limitador de taxa com estado no Postgres (`rate_limit_windows`), declarado na
+      rota, aplicado ao envio de correção e ao e-mail de teste, `429` com `Retry-After`, tetos vindos
+      do env, e limpeza no cron. Evidência: contratos do limitador (janela, concorrência atômica,
+      `Retry-After`), da rota e do env, mais integração.
+- [ ] **T407** `docs/SECURITY.md`: M1 fechado para as rotas de e-mail, M2 (auditoria) e B3
+      registrados como pendentes antes de produção. Atualizar `docs/ai-context/` e os `CLAUDE.md`
+      tocados.
+
 ## Prompt de execução
+
+### Fase 4 (modelos, liberação do envio e limitador)
+
+```text
+/oh-my-claudecode:autopilot Execute a Fase 4 da spec specs/150-pedido-de-correcao-de-endereco/
+(leia spec.md — RF13 a RF19 —, plan.md — seção "Fase 4" —, tasks.md, evidence.md e
+email-template.html antes de começar). Continue na branch work/spec-150-address-correction, sem
+criar outro worktree. Antes da T401, confira no evidence.md que a seção "Correções da revisão
+final" está fechada e com commits; se não estiver, pare e pergunte. Uma task por vez, na ordem
+T401 → T407.
+Modelos: T401 🧠 → executor model=opus (contrato vermelho primeiro: configuração em pending com
+envio verificado sai) · T402 🧠 → executor model=opus (contrato de tenant dos modelos vermelho
+primeiro) · T403, T404, T405 → executor model=sonnet · T406 🧠 → validar o desenho com architect
+model=opus antes, depois executor model=opus · T407 → executor model=sonnet · revisão final →
+code-reviewer, security-reviewer e architect em model=opus, em paralelo, sobre git diff
+origin/staging...HEAD.
+Cada task fecha com bun run typecheck + bun run lint + testes das apps tocadas + integração da API
+com bun --env-file=../../.env.test test --timeout 120000 (se o Postgres do Docker em 65432 der I/O
+error, usar um Postgres nativo descartável e DRIZZLE_TEST_DATABASE_URL) + commit isolado, com
+evidência em evidence.md. Teste novo entra na lista explícita do package.json. A falha conhecida
+cte-profile-output-constraints (23001 em vez de 23503 no Postgres 18 local) é alheia; registrar e
+seguir.
+Migrations só aditivas. O primeiro commit leva também as mudanças pendentes em spec.md, plan.md e
+tasks.md.
+Pare e pergunte antes de: deploy em produção, migration destrutiva, qualquer decisão de produto que
+a spec não cubra (catálogo de tipos além de address_correction, tetos do limitador diferentes do
+padrão de 20 por hora), e antes de publicar em staging se alguma revisão final reprovar.
+```
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/150-pedido-de-correcao-de-endereco/ (leia spec.md,

@@ -24,7 +24,10 @@ import {
   AddressCorrectionNothingToSendError,
   AddressCorrectionRequestNotSendableError,
 } from '../../src/address-correction/domain/address-correction.error.js'
-import { ContractorMailNotConfiguredError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
+import {
+  ContractorMailNotConfiguredError,
+  ContractorMailSendingNotVerifiedError,
+} from '../../src/contractor-mail/domain/contractor-mail.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000c01'
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000000c02'
@@ -38,6 +41,7 @@ const REQUEST_DRAFT_ID = '00000000-0000-4000-8000-000000000c20'
 const REQUEST_SENT_ID = '00000000-0000-4000-8000-000000000c21'
 const REQUEST_OTHER_CONTRACTOR_ID = '00000000-0000-4000-8000-000000000c22'
 const REPLY_TOKEN_SECRET = '11'.repeat(32)
+const SENDING_VERIFIED_AT = new Date('2026-09-15T12:00:00.000Z')
 
 const PROPOSED_ADDRESS = {
   city: 'São Paulo',
@@ -144,7 +148,7 @@ function createFakeTransaction(overrides: {
         id: 'settings-1',
         secretEnvelope: {},
         senderAddress: 'no-reply@transportada.test',
-        status: 'active',
+        sendingVerifiedAt: SENDING_VERIFIED_AT,
       }
     },
     async findOperatorName() {
@@ -314,12 +318,45 @@ describe('send address correction mail use case contract', () => {
     ).rejects.toBeInstanceOf(AddressCorrectionContractorNotFoundError)
   })
 
-  test('refuses when contractor mail is not configured or not active', async () => {
+  test('refuses when contractor mail is not configured', async () => {
     const fake = createFakeTransaction({})
     fake.transaction.findMailSettings = async () => undefined
     const useCase = createUseCase(fake)
 
     await expect(useCase.send(baseInput())).rejects.toBeInstanceOf(ContractorMailNotConfiguredError)
+  })
+
+  /** Spec 150 T401 (RF16): a ida e volta da 143 (`status`) não é mais exigida para enviar. */
+  test('sends with the 143 round-trip still pending once the sender is verified', async () => {
+    const fake = createFakeTransaction({})
+    fake.transaction.findMailSettings = async () => ({
+      id: 'settings-1',
+      secretEnvelope: {},
+      senderAddress: 'no-reply@transportada.test',
+      sendingVerifiedAt: SENDING_VERIFIED_AT,
+    })
+    const useCase = createUseCase(fake)
+
+    const result = await useCase.send(baseInput())
+
+    expect(result.sentRequestIds).toEqual([REQUEST_DRAFT_ID])
+    expect(fake.calls.recordMail).toHaveLength(1)
+  })
+
+  test('refuses with SENDING_NOT_VERIFIED while the sender is not verified', async () => {
+    const fake = createFakeTransaction({})
+    fake.transaction.findMailSettings = async () => ({
+      id: 'settings-1',
+      secretEnvelope: {},
+      senderAddress: 'no-reply@transportada.test',
+      sendingVerifiedAt: null,
+    })
+    const useCase = createUseCase(fake)
+
+    await expect(useCase.send(baseInput())).rejects.toBeInstanceOf(
+      ContractorMailSendingNotVerifiedError,
+    )
+    expect(fake.calls.recordMail).toEqual([])
   })
 
   test('idempotency: the same key replays the same result without recording a second message', async () => {

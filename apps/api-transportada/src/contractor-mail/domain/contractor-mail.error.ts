@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import type { MailSendReadinessReason } from './mail-send-readiness.policy.js'
 
 /**
  * Spec 143 T006: **uma resposta só para tudo que envolve o segredo em repouso** — chave errada,
@@ -81,6 +82,38 @@ export class ContractorMailNotConfiguredError extends ApiError {
       status: 409,
     })
   }
+}
+
+/**
+ * Spec 150 RF16/RF17: há configuração, mas a lista de verificação ainda não gravou a chave aceita e
+ * o domínio do remetente verificado (`sending_verified_at`) — ou a chave/o remetente mudou depois.
+ */
+export class ContractorMailSendingNotVerifiedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_SENDING_NOT_VERIFIED',
+      message: 'Contractor mail sending is not verified for this company',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 150 RF16/RF17: não existe modelo ativo do tipo de e-mail pedido (ligado na T402). */
+export class ContractorMailTemplateMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_TEMPLATE_MISSING',
+      message: 'There is no active contractor mail template for this message type',
+      status: 409,
+    })
+  }
+}
+
+/** Um código estável por motivo de `resolveMailSendReadiness` (RF17). */
+export function createMailSendReadinessError(reason: MailSendReadinessReason): ApiError {
+  if (reason === 'not_configured') return new ContractorMailNotConfiguredError()
+  if (reason === 'sending_not_verified') return new ContractorMailSendingNotVerifiedError()
+  return new ContractorMailTemplateMissingError()
 }
 
 /**

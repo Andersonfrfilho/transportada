@@ -35,6 +35,7 @@ export const SETTINGS_SUMMARY: ContractorMailSettingsSummary = {
   replyDomain: 'resposta.fernandes-transportadora.com.br',
   senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
   senderName: 'Fernandes Transportadora',
+  sendingVerifiedAt: null,
   status: 'pending',
   version: '1',
   webhookId: '00000000-0000-4000-8000-0000000000b2',

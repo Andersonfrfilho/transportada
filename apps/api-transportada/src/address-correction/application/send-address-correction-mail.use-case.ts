@@ -10,7 +10,8 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
-import { ContractorMailNotConfiguredError } from '../../contractor-mail/domain/contractor-mail.error.js'
+import { createMailSendReadinessError } from '../../contractor-mail/domain/contractor-mail.error.js'
+import { resolveMailSendReadiness } from '../../contractor-mail/domain/mail-send-readiness.policy.js'
 import {
   deriveReplyToken,
   hashReplyToken,
@@ -110,10 +111,11 @@ async function executeSend(params: {
     return replay.response
   }
 
-  const settings = await transaction.findMailSettings({ companyId })
-  if (settings === undefined || settings.status !== 'active') {
-    throw new ContractorMailNotConfiguredError()
-  }
+  const readiness = resolveMailSendReadiness({
+    settings: await transaction.findMailSettings({ companyId }),
+  })
+  if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
+  const { settings } = readiness
   const secret = await secretService.decrypt({
     companyId,
     envelope: settings.secretEnvelope as SecretEnvelopeV1,

@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
 import type { AddressCorrectionRequest } from './address-correction.port.js'
 
 export type AddressCorrectionMailContractor = {
@@ -13,7 +12,7 @@ export type AddressCorrectionMailSettings = {
   readonly id: string
   readonly secretEnvelope: unknown
   readonly senderAddress: string
-  readonly status: ContractorMailSettingsStatus
+  readonly sendingVerifiedAt: Date | null
 }
 
 export type AddressCorrectionMailContact = {

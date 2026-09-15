@@ -91,6 +91,63 @@ salvar de novo atualiza esse rascunho. O CHECK de `contractor_mail_threads.subje
   `legal_name` do participante destinatário da nota mais recente da chave, pela mesma escolha que
   já faz para o emitente.
 
+## Fase 4 — modelos, liberação e limitador
+
+**Modelos.** Tabela nova `contractor_mail_templates`, aditiva:
+
+| coluna                                                 | tipo    | nota                                                                                            |
+| ------------------------------------------------------ | ------- | ----------------------------------------------------------------------------------------------- |
+| `id`                                                   | uuid    | PK                                                                                              |
+| `company_id`                                           | uuid    | tenant                                                                                          |
+| `mail_type`                                            | varchar | CHECK contra o catálogo (`address_correction`)                                                  |
+| `name`                                                 | varchar | único por `(company_id, mail_type, lower(name))` entre os ativos                                |
+| `subject`, `intro`, `item_text`, `closing`             | text    | com teto de tamanho; `item_text` se repete por endereço e é o único que aceita variável de item |
+| `is_default`                                           | boolean | unique parcial `(company_id, mail_type) where is_default and status = 'active'`                 |
+| `status`                                               | varchar | `active` · `archived`                                                                           |
+| `version`, `created_at`, `updated_at`, `actor_user_id` |         | concorrência otimista, como em `contractor_mail_settings`                                       |
+
+`contractor_mail_messages` ganha `template_id uuid null`, com FK composta com `company_id`, para
+registrar qual modelo foi usado. Rotas, todas com `settings.manage`:
+
+- `GET /contractor-mail-templates?mailType=`
+- `POST /contractor-mail-templates`
+- `PATCH /contractor-mail-templates/:id`, com `If-Match`/`version`
+- `POST /contractor-mail-templates/:id/default`
+- `POST /contractor-mail-templates/preview`, que renderiza com dados de exemplo
+
+`buildAddressCorrectionMail` passa a receber `{ subject, intro, closing }` do modelo, com as
+variáveis substituídas por uma função pura de renderização: lista fechada por tipo, escape
+aplicado. O texto aprovado vira o modelo que a página oferece como ponto de partida ("Criar a partir
+do padrão"). Ninguém cria modelo em migration ou seed (ADR-0021).
+
+**Liberação.** A função pura `resolveMailSendReadiness({ settings, checks, template })` devolve
+`ready` ou um motivo. A lista de verificação da página já confere a chave e o domínio, e passa a
+gravar o resultado em `contractor_mail_settings.sending_verified_at` (coluna nova, aditiva), que é
+zerado quando a chave ou o remetente mudam. O envio consulta essa coluna e o modelo, e não consulta
+mais `status`. Códigos:
+
+- `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED`
+- `CONTRACTOR_MAIL_TEMPLATE_MISSING`
+- `CONTRACTOR_MAIL_NOT_CONFIGURED`, que já existe, para quando não há configuração nenhuma
+
+A confirmação de envio (T305) ganha o seletor de modelo e a prévia com o modelo escolhido. O body do
+`POST /mail` ganha `templateId?`; sem ele, vale o padrão.
+
+**Limitador.**
+
+- `http/rate-limiter.service.ts`, com a porta `RateLimiterPort` e a implementação
+  `DrizzleRateLimiter` sobre a tabela `rate_limit_windows (scope, subject_key, window_start, hits)`,
+  PK composta, e um `INSERT … ON CONFLICT DO UPDATE SET hits = hits + 1 RETURNING hits` atômico.
+- A chave é `companyId:userId` e nunca guarda PII.
+- A limpeza das janelas vencidas sai no cron existente.
+- A rota declara o limite como dado (`rateLimit: { scope, max, windowSeconds }`), e o router aplica
+  depois de `authorize`.
+- A resposta é `429` com `Retry-After` e `RATE_LIMIT_EXCEEDED`.
+- Os tetos vêm de `RATE_LIMIT_CONTRACTOR_MAIL_MAX` e `RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS` no
+  schema de env, com padrão de 20 por hora.
+- Isso fecha, para as rotas de e-mail, o achado "sem limitador" do `docs/SECURITY.md`. As outras
+  rotas públicas continuam listadas lá como pendentes.
+
 ## Riscos
 
 - **Envio para vários destinatários:** sem isso, só um contato recebe. É a T302, e também é

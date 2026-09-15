@@ -1512,3 +1512,78 @@ Frontend:
   `test/nfe-workspace/address-correction-status.contract.ts`,
   `test/nfe-workspace/brazilian-state-parity.contract.ts` (novo)
 - `test/nfe-workspace.contract.test.ts` (import da suíte nova)
+
+## T401
+
+Liberação do envio (RF16/RF17): o envio sai com o remetente verificado, sem esperar a ida e volta
+da 143.
+
+- **Migration aditiva** `20260915220000_contractor_mail_sending_verified_at`:
+  `contractor_mail_settings.sending_verified_at timestamptz NULL`, com `rollback.sql` e
+  `snapshot.json` (gerado por `db:generate --name tmp_t401`, `migration.sql` gerado idêntico ao
+  escrito à mão, `prevIds` encadeado em `20260915210000`). Entrou na lista explícita de
+  `static-migration.contract.ts`. O worker **não** mudou: ele lê `contractor_mail_settings` só
+  pelas colunas do envio (id, envelope, remetente, domínio) e nunca confere `status` — a cópia do
+  schema dele declara só o que toca.
+- **Lista de verificação** (`runChecks`): grava `sending_verified_at = now()` quando `api_key` e
+  `sender_domain` saem `ok`, e `null` em qualquer outro caso — sempre com
+  `WHERE version = <versão lida>` e **sem** subir `version` (o formulário aberto não recebe 409 por
+  ter rodado a lista; um `PUT` que venceu no meio não herda a verificação antiga).
+- **`saveSettings`** zera a coluna quando o remetente muda ou a chave muda de valor
+  (`apiKeyChanged`, comparada com a chave selada antes; reenviar a mesma chave não zera).
+- **Política pura** `contractor-mail/domain/mail-send-readiness.policy.ts`:
+  `resolveMailSendReadiness({ settings, template? })` → `{ ready: true, settings }` ou
+  `{ ready: false, reason: 'not_configured' | 'sending_not_verified' | 'template_missing' }`.
+  `template` omitido = o envio ainda não exige modelo (a T402 liga); `null` = procurado e ausente.
+- **Erros**: `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED` (409) e `CONTRACTOR_MAIL_TEMPLATE_MISSING`
+  (409, só definido — usado na T402), via `createMailSendReadinessError(reason)`.
+- **Consumidores**: `POST /address-correction-requests/mail` e `POST
+/contractor-mail-settings/test-email` usam a política; `settings.status !== 'active'` saiu do
+  envio de correção. `status` da 143 continua existindo com o mesmo significado (linha no
+  comentário do schema).
+- **Resposta**: `GET`/`PUT /contractor-mail-settings` expõe `sendingVerifiedAt` (ISO ou `null`),
+  sem segredo; validador `hasExactKeys` do frontend aceita o campo novo.
+
+### Vermelho
+
+Com as duas classes de erro já criadas (para o vermelho medir comportamento, não import ausente):
+
+- `bun test ./test/contractor-mail/settings-use-case.contract.ts
+./test/contractor-mail/send-test-email-use-case.contract.ts
+./test/contractor-mail/mail-send-readiness-policy.contract.ts` → **25 pass, 8 fail**: os 6 de
+  "contractor mail sending verification (spec 150 T401, RF16)" (a lista não gravava nada,
+  `resetSendingVerification` não existia), "refuses with SENDING_NOT_VERIFIED" do e-mail de teste
+  (saía sem verificação), e a política (`Cannot find module mail-send-readiness.policy.js`).
+- `bun test ./test/address-correction-mail.contract.test.ts` → **13 fail**: com a configuração em
+  `pending` e envio verificado, o use case lançava `ContractorMailNotConfiguredError` em todo envio
+  (inclusive "sends with the 143 round-trip still pending once the sender is verified").
+- Integração (`DRIZZLE_TEST_DATABASE_URL=…65433`, `--env-file=../../.env.test`)
+  `contractor-mail-settings-repository.integration.ts` → **6 pass, 1 fail** ("records the sending
+  verification on the read version…": coluna/método inexistentes). Não pulou.
+
+### Verde
+
+- `bun run --cwd apps/api-transportada test` → **5918 pass, 23 skip, 0 fail** (174 arquivos).
+- Integração (Postgres nativo 65433, não pulou): `contractor-mail-settings-repository`,
+  `address-correction-mail-repository`, `contractor-mail-test-email-thread`,
+  `contractor-contacts-repository` → **23 pass, 0 fail**.
+- `database-migration.integration.ts` → 1 fail, a falha conhecida e alheia
+  (`cte-profile-output-constraints`, 23001 em vez de 23503 no Postgres 18 local).
+- `bun run --cwd apps/frontend-transportada test` → **3743 pass, 0 fail**.
+- `bun run typecheck` → ok (todas as apps). `bun run lint` → ok.
+- `prettier --check`: só `specs/150-…/email-template.html` segue acusando (já commitado antes,
+  alheio a esta task).
+
+Arquivos: `drizzle/20260915220000_contractor_mail_sending_verified_at/*`,
+`src/database/contractor-mail.schema.ts`, `src/contractor-mail/domain/mail-send-readiness.policy.ts`
+(novo), `src/contractor-mail/domain/contractor-mail.error.ts`,
+`src/contractor-mail/application/{contractor-mail.port,contractor-mail-settings.use-case,send-contractor-mail-test-email.use-case}.ts`,
+`src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.ts`,
+`src/contractor-mail/presentation/contractor-mail-settings.routes.ts`,
+`src/address-correction/{application/address-correction-mail.port,application/send-address-correction-mail.use-case,infrastructure/drizzle-address-correction-mail.repository}.ts`;
+testes `test/contractor-mail/mail-send-readiness-policy.contract.ts` (novo, importado em
+`test/contractor-mail.contract.test.ts`), `settings-use-case`, `send-test-email-use-case`,
+`settings-routes`, `process-inbound-email-webhook-use-case`, `send-mail-use-case`, fixture HTTP,
+`static-migration.contract.ts`, integrações `contractor-mail-settings-repository` e
+`address-correction-mail-repository`; frontend `contractorMailSettings.types.ts`,
+`contractorMailSettingsResponse.validation.ts` e os dois contratos de `delivery-clients`.

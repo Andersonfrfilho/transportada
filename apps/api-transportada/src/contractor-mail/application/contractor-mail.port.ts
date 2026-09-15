@@ -21,9 +21,20 @@ export type ContractorMailSettingsRecord = {
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly senderName: string
+  readonly sendingVerifiedAt: Date | undefined
   readonly status: ContractorMailSettingsStatus
   readonly version: bigint
   readonly webhookId: string
+}
+
+/**
+ * Spec 150 T401: a lista de verificação grava o resultado só na `expectedVersion` que ela leu, e
+ * sem subir `version` — um `PUT` que venceu no meio não herda a verificação da configuração antiga.
+ */
+export type RecordContractorMailSendingVerificationInput = {
+  readonly companyId: string
+  readonly expectedVersion: bigint
+  readonly isSendingVerified: boolean
 }
 
 export type ContractorMailThreadRecord = {
@@ -86,6 +97,8 @@ export type SaveContractorMailSettingsInput = {
    * `reply_token_secret_regenerated`.
    */
   readonly replyTokenSecretRegeneration: { readonly replyTokenSecret: string } | undefined
+  /** Spec 150 T401: a chave ou o remetente mudou — `sending_verified_at` volta a `null`. */
+  readonly resetSendingVerification: boolean
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly senderName: string
@@ -209,6 +222,9 @@ export type ContractorMailRepositoryPort = {
    */
   readonly recordInboundWebhookEvent: (
     input: RecordContractorMailInboundWebhookEventInput,
+  ) => Promise<void>
+  readonly recordSendingVerification: (
+    input: RecordContractorMailSendingVerificationInput,
   ) => Promise<void>
   readonly recordTestEmailMessage: (
     input: RecordContractorMailTestEmailInput,

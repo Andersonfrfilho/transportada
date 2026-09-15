@@ -10,6 +10,7 @@ import type {
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
   ContractorMailSetupTestStatus,
+  RecordContractorMailSendingVerificationInput,
   SaveContractorMailSettingsInput,
 } from '../../src/contractor-mail/application/contractor-mail.port'
 import {
@@ -483,6 +484,113 @@ describe('contractor mail settings use case (spec 143, T008)', () => {
   })
 })
 
+describe('contractor mail sending verification (spec 150 T401, RF16)', () => {
+  const VERIFIED_AT = new Date('2026-09-15T12:00:00.000Z')
+
+  test('the checks record the sender as verified when the key is accepted and the domain verified', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ version: 3n }),
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([
+      { companyId: COMPANY_ID, expectedVersion: 3n, isSendingVerified: true },
+    ])
+  })
+
+  test('the checks clear the verification when the sender domain is not verified', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+      resendResult: {
+        apiKeyAccepted: true,
+        reason: 'sender_domain_not_verified',
+        senderDomainVerified: false,
+      },
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([
+      { companyId: COMPANY_ID, expectedVersion: 1n, isSendingVerified: false },
+    ])
+  })
+
+  test('the checks clear the verification when the provider refuses the key', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+      resendError: new ResendProviderUnauthorizedError(),
+    })
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([
+      { companyId: COMPANY_ID, expectedVersion: 1n, isSendingVerified: false },
+    ])
+  })
+
+  test('an unconfigured company records nothing', async () => {
+    const { recordSendingVerificationCalls, useCase } = createHarness({})
+
+    await useCase.runChecks({ context: { companyId: COMPANY_ID } })
+
+    expect(recordSendingVerificationCalls).toEqual([])
+  })
+
+  test('changing the sender address clears the verification', async () => {
+    const { savedSettingsCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+    })
+
+    const summary = await useCase.save(
+      buildUpdateInput({ senderAddress: 'avisos@fernandes-transportadora.com.br' }),
+    )
+
+    expect(savedSettingsCalls[0]?.resetSendingVerification).toBe(true)
+    expect(summary.sendingVerifiedAt).toBeNull()
+  })
+
+  test('changing the api key clears the verification', async () => {
+    const { savedSettingsCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+    })
+
+    await useCase.save(buildUpdateInput({ apiKey: OTHER_API_KEY }))
+
+    expect(savedSettingsCalls[0]?.resetSendingVerification).toBe(true)
+  })
+
+  test('resending the same api key, or changing only the name, keeps the verification', async () => {
+    const { savedSettingsCalls, useCase } = createHarness({
+      existing: buildRecord({ sendingVerifiedAt: VERIFIED_AT }),
+    })
+
+    const summary = await useCase.save(
+      buildUpdateInput({ apiKey: API_KEY, senderName: 'Fernandes Transportes' }),
+    )
+
+    expect(savedSettingsCalls[0]?.resetSendingVerification).toBe(false)
+    expect(summary.sendingVerifiedAt).toBe(VERIFIED_AT.toISOString())
+  })
+})
+
+function buildUpdateInput(overrides: {
+  readonly apiKey?: string
+  readonly senderAddress?: string
+  readonly senderName?: string
+}): Parameters<ReturnType<typeof createContractorMailSettingsUseCase>['save']>[0] {
+  return {
+    apiKey: overrides.apiKey,
+    context: { companyId: COMPANY_ID, userId: USER_ID },
+    correlationId: 'contractor-mail-uc-t401',
+    expectedVersion: '1',
+    replyDomain: REPLY_DOMAIN,
+    senderAddress: overrides.senderAddress ?? SENDER_ADDRESS,
+    senderName: overrides.senderName ?? SENDER_NAME,
+    webhookSigningSecret: undefined,
+  }
+}
+
 function byKey<TItem extends { readonly key: string }>(
   items: readonly TItem[],
   key: string,
@@ -510,6 +618,7 @@ function buildRecord(
     secretEnvelope: DEFAULT_ENVELOPE,
     senderAddress: SENDER_ADDRESS,
     senderName: SENDER_NAME,
+    sendingVerifiedAt: undefined,
     status: 'pending',
     version: 1n,
     webhookId: '00000000-0000-4000-8000-0000000000d5',
@@ -526,10 +635,12 @@ function createHarness(input: {
   readonly secretService?: ReturnType<typeof createContractorMailCredentialSecretService>
   readonly setupTestStatus?: ContractorMailSetupTestStatus | undefined
 }): {
+  readonly recordSendingVerificationCalls: RecordContractorMailSendingVerificationInput[]
   readonly savedSettingsCalls: SaveContractorMailSettingsInput[]
   readonly useCase: ReturnType<typeof createContractorMailSettingsUseCase>
 } {
   const savedSettingsCalls: SaveContractorMailSettingsInput[] = []
+  const recordSendingVerificationCalls: RecordContractorMailSendingVerificationInput[] = []
   let currentSettings = input.existing
 
   /**
@@ -562,6 +673,9 @@ function createHarness(input: {
     async recordInboundWebhookEvent() {
       throw new Error('not used by this contract (spec 143, T010)')
     },
+    async recordSendingVerification(recordInput) {
+      recordSendingVerificationCalls.push(recordInput)
+    },
     async recordTestEmailMessage() {
       throw new Error('not used by this contract (spec 143, T009)')
     },
@@ -584,6 +698,9 @@ function createHarness(input: {
         secretEnvelope: saveInput.secretEnvelope,
         senderAddress: saveInput.senderAddress,
         senderName: saveInput.senderName,
+        sendingVerifiedAt: saveInput.resetSendingVerification
+          ? undefined
+          : currentSettings?.sendingVerifiedAt,
         status: currentSettings?.status ?? 'pending',
         version: (currentSettings?.version ?? 0n) + 1n,
         webhookId: currentSettings?.webhookId ?? '00000000-0000-4000-8000-0000000000d6',
@@ -619,5 +736,5 @@ function createHarness(input: {
     secretService,
   })
 
-  return { savedSettingsCalls, useCase }
+  return { recordSendingVerificationCalls, savedSettingsCalls, useCase }
 }

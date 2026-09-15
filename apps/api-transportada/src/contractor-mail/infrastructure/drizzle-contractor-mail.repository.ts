@@ -22,6 +22,7 @@ import type {
   CreateContractorContactInput,
   ListContractorContactsInput,
   RecordContractorMailInboundWebhookEventInput,
+  RecordContractorMailSendingVerificationInput,
   RecordContractorMailTestEmailInput,
   RecordContractorMailTestEmailResult,
   ReserveContractorMailSetupTestThreadInput,
@@ -48,9 +49,18 @@ type SettingsRow = {
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly senderName: string
+  readonly sendingVerifiedAt: Date | null
   readonly status: ContractorMailSettingsStatus
   readonly version: bigint
   readonly webhookId: string
+}
+
+function toSettingsRecord(row: SettingsRow): ContractorMailSettingsRecord {
+  return {
+    ...row,
+    lastWebhookAt: row.lastWebhookAt ?? undefined,
+    sendingVerifiedAt: row.sendingVerifiedAt ?? undefined,
+  }
 }
 
 const SETTINGS_COLUMNS = {
@@ -61,6 +71,7 @@ const SETTINGS_COLUMNS = {
   secretEnvelope: contractorMailSettings.secretEnvelope,
   senderAddress: contractorMailSettings.senderAddress,
   senderName: contractorMailSettings.senderName,
+  sendingVerifiedAt: contractorMailSettings.sendingVerifiedAt,
   status: contractorMailSettings.status,
   version: contractorMailSettings.version,
   webhookId: contractorMailSettings.webhookId,
@@ -221,7 +232,7 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
       .where(eq(contractorMailSettings.companyId, companyId))
       .limit(1)
 
-    return row === undefined ? undefined : { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
+    return row === undefined ? undefined : toSettingsRecord(row)
   }
 
   /**
@@ -241,7 +252,25 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
       .where(eq(contractorMailSettings.webhookId, webhookId))
       .limit(1)
 
-    return row === undefined ? undefined : { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
+    return row === undefined ? undefined : toSettingsRecord(row)
+  }
+
+  /**
+   * Spec 150 T401: sem subir `version` (o formulário aberto não perde a vez) e só na versão lida
+   * pela lista de verificação — um `PUT` que venceu no meio já zerou e não é sobrescrito.
+   */
+  public async recordSendingVerification(
+    input: RecordContractorMailSendingVerificationInput,
+  ): Promise<void> {
+    await this.database
+      .update(contractorMailSettings)
+      .set({ sendingVerifiedAt: input.isSendingVerified ? sql`now()` : null })
+      .where(
+        and(
+          eq(contractorMailSettings.companyId, input.companyId),
+          eq(contractorMailSettings.version, input.expectedVersion),
+        ),
+      )
   }
 
   public async findThreadByReplyTokenHash(input: {
@@ -489,7 +518,7 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         })
       }
 
-      return { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
+      return toSettingsRecord(row)
     })
   }
 }
@@ -557,6 +586,7 @@ async function updateExistingSettings(
       secretEnvelope: input.secretEnvelope,
       senderAddress: input.senderAddress,
       senderName: input.senderName,
+      ...(input.resetSendingVerification ? { sendingVerifiedAt: null } : {}),
       updatedAt: sql`now()`,
       version: sql`${contractorMailSettings.version} + 1`,
     })

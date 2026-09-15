@@ -81,6 +81,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           companyId,
           expectedVersion: undefined,
           replyDomain: 'resposta.fernandes-transportadora.com.br',
+          resetSendingVerification: false,
           replyTokenSecretRegeneration: undefined,
           secretEnvelope: SECRET_ENVELOPE_V1,
           senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
@@ -105,6 +106,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           companyId,
           expectedVersion: created.version.toString(),
           replyDomain: created.replyDomain,
+          resetSendingVerification: false,
           replyTokenSecretRegeneration: undefined,
           secretEnvelope: SECRET_ENVELOPE_V2,
           senderAddress: created.senderAddress,
@@ -276,6 +278,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             companyId,
             expectedVersion: '0',
             replyDomain: created.replyDomain,
+            resetSendingVerification: false,
             replyTokenSecretRegeneration: undefined,
             secretEnvelope: staleEnvelope,
             senderAddress: created.senderAddress,
@@ -452,6 +455,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           companyId,
           expectedVersion: '1',
           replyDomain: 'resposta.fernandes-transportadora.com.br',
+          resetSendingVerification: false,
           replyTokenSecretRegeneration: { replyTokenSecret: newReplyTokenSecret },
           secretEnvelope: newEnvelope,
           senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
@@ -494,6 +498,72 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
     },
     30_000,
   )
+
+  /**
+   * Spec 150 T401 (RF16): a lista de verificação grava `sending_verified_at` sem mexer em `version`
+   * (o formulário aberto não perde a vez), e só na versão que ela leu — um `PUT` que venceu no meio
+   * não recebe a verificação da configuração anterior. Trocar chave/remetente zera.
+   */
+  testWithPostgres(
+    'records the sending verification on the read version and clears it when the save asks to',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const settingsId = crypto.randomUUID()
+        const created = await repository.saveSettings(
+          buildCreateInput({ companyId, envelope: SECRET_ENVELOPE_V1, settingsId, userId }),
+        )
+        expect(created.sendingVerifiedAt).toBeUndefined()
+
+        await repository.recordSendingVerification({
+          companyId,
+          expectedVersion: created.version,
+          isSendingVerified: true,
+        })
+        const verified = await repository.findSettings({ companyId })
+        expect(verified?.sendingVerifiedAt).toBeInstanceOf(Date)
+        expect(verified?.version).toBe(created.version)
+
+        await repository.recordSendingVerification({
+          companyId,
+          expectedVersion: created.version + 1n,
+          isSendingVerified: false,
+        })
+        expect((await repository.findSettings({ companyId }))?.sendingVerifiedAt).toBeInstanceOf(
+          Date,
+        )
+
+        const kept = await repository.saveSettings({
+          ...buildCreateInput({ companyId, envelope: SECRET_ENVELOPE_V2, settingsId, userId }),
+          expectedVersion: created.version.toString(),
+          senderName: 'Fernandes Transportes Ltda',
+        })
+        expect(kept.sendingVerifiedAt).toBeInstanceOf(Date)
+
+        const cleared = await repository.saveSettings({
+          ...buildCreateInput({ companyId, envelope: SECRET_ENVELOPE_V1, settingsId, userId }),
+          expectedVersion: kept.version.toString(),
+          resetSendingVerification: true,
+          senderAddress: 'avisos@fernandes-transportadora.com.br',
+        })
+        expect(cleared.sendingVerifiedAt).toBeUndefined()
+
+        await repository.recordSendingVerification({
+          companyId,
+          expectedVersion: cleared.version,
+          isSendingVerified: true,
+        })
+        await repository.recordSendingVerification({
+          companyId,
+          expectedVersion: cleared.version,
+          isSendingVerified: false,
+        })
+        expect((await repository.findSettings({ companyId }))?.sendingVerifiedAt).toBeUndefined()
+      })
+    },
+    30_000,
+  )
 })
 
 function buildCreateInput(input: {
@@ -515,6 +585,7 @@ function buildCreateInput(input: {
     companyId: input.companyId,
     expectedVersion: undefined,
     replyDomain: 'resposta.fernandes-transportadora.com.br',
+    resetSendingVerification: false,
     replyTokenSecretRegeneration: undefined,
     secretEnvelope: input.envelope,
     senderAddress: 'ocorrencias@fernandes-transportadora.com.br',

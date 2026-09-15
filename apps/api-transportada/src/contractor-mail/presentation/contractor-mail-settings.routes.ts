@@ -131,6 +131,7 @@ function serializeSettings(settings: ContractorMailSettingsSummary): Record<stri
     replyDomain: settings.replyDomain,
     senderAddress: settings.senderAddress,
     senderName: settings.senderName,
+    sendingVerifiedAt: settings.sendingVerifiedAt,
     status: settings.status,
     version: settings.version,
     webhookId: settings.webhookId,

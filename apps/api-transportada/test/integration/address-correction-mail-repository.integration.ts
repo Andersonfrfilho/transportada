@@ -155,7 +155,7 @@ describeDatabase(
         ).toBeUndefined()
         expect(await transaction.findMailSettings({ companyId: COMPANY_ID })).toMatchObject({
           senderAddress: 'no-reply@transportada.test',
-          status: 'active',
+          sendingVerifiedAt: null,
         })
         expect(await transaction.findMailSettings({ companyId: OTHER_COMPANY_ID })).toBeUndefined()
       })

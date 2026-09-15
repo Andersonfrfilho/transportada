@@ -30,6 +30,7 @@ const SETTINGS: ContractorMailSettingsRecord = {
   secretEnvelope: { synthetic: true },
   senderAddress: 'ocorrencias@example.com.br',
   senderName: 'Example',
+  sendingVerifiedAt: undefined,
   status: 'active',
   version: 1n,
   webhookId: WEBHOOK_ID,
@@ -73,6 +74,9 @@ function buildRepository(input: { readonly settings?: ContractorMailSettingsReco
     },
     async recordInboundWebhookEvent(event) {
       recordedEvents.push(event)
+    },
+    async recordSendingVerification() {
+      throw new Error('not used by this contract')
     },
     async recordTestEmailMessage() {
       throw new Error('not used by this contract')

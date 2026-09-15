@@ -88,7 +88,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         id: contractorMailSettings.id,
         secretEnvelope: contractorMailSettings.secretEnvelope,
         senderAddress: contractorMailSettings.senderAddress,
-        status: contractorMailSettings.status,
+        sendingVerifiedAt: contractorMailSettings.sendingVerifiedAt,
       })
       .from(contractorMailSettings)
       .where(eq(contractorMailSettings.companyId, params.companyId))
