@@ -536,3 +536,114 @@ Decisões:
   (parcela na valuation da sugestão) precisa da mesma conta de dias sem reimplementá-la.
 - **`readPreviewContext` não ganhou `helperCrew`/jornada**: a prévia (antes de a viagem existir)
   não tem `trip_drivers` nem `writeEstimatedArrivals`; T13 decide o que a montagem manda para lá.
+
+## T7 — diária do ajudante na proposta
+
+D7 na valuation da sugestão multi-veículo (`GET /route-suggestions/:id/valuation`): a mesma parcela
+`helper`, pelo mesmo seam — sem segunda conta escrita para a proposta.
+
+### Campo de duração usado (registrado por pedido explícito)
+
+**`road.durationSeconds`**, o resultado de `sumVehicleTrip` (`suggestion-valuation.policy.ts`) já
+calculado em `read-suggestion-valuation.use-case.ts` antes desta task — a mesma duração que
+`SuggestionVehicleValuation.durationSeconds` expõe, e que o cartão/detalhe/mapa da sugestão
+imprimem como tempo do veículo (condução + parado, com a volta somada quando `isReturnPlanned` e
+gravada). **Não** é a fórmula da viagem (T6: `última chegada − saída planejada`) — o comentário da
+T6 já registrava essa divergência de propósito (`read-trip-valuation.use-case.ts` § "A fórmula da
+jornada"): a sugestão não tem `trip_stops`/ETA para medir a chegada, só as pernas que o solver já
+escolheu, e reaproveitar `sumVehicleTrip` evita uma segunda leitura de rota (D1 da spec 101).
+
+`journeyIncludesReturn` sai de `road.durationParts.returnStatus === 'included'` (`null` quando
+`journeySeconds` é `null`, acompanhando o contrato de `TripValuationContext`) — `'not_planned'` e
+`'unknown'` caem os dois em `false`, o mesmo comportamento binário que `writeEstimatedArrivals` já
+tinha (T6): a política não distingue "não precisava voltar" de "devia e não foi gravado" no booleano
+que a parcela lê, só na razão que motivou o `false`.
+
+### Sem segunda conta (D7)
+
+`resolveValuation` já chamava `buildValuationFromContext` diretamente (`suggestion-valuation.adapter.ts`,
+desde a spec 101) — a única mudança necessária foi preencher `helperCompanyDailyRate`, `helperCrew`,
+`journeyIncludesReturn` e `journeySeconds` no `context` que `read-suggestion-valuation.use-case.ts`
+já monta por veículo (ao lado do `distanceMeters`/`toll` que a T101 D2 já sobrescrevia ali). Nenhuma
+função nova reimplementa `buildTripHelperCost` — só a montagem do contexto muda.
+
+### Sem N+1: as duas leituras de diária, uma vez para a sugestão inteira
+
+`group.helperIds` (T5, `readGroups`) já traz os ajudantes por veículo — não precisou de consulta
+nova para isso. Faltavam as diárias:
+
+- `DrizzleTripValuationQuery.readHelperCompanyDailyRate` (T6) virou **pública**: T7 a reusa fora da
+  viagem, mesma leitura de `company_crew_settings`.
+- `DrizzleTripValuationQuery.readHelperOwnDailyRates` (novo): `fleet_drivers.helper_daily_rate` por
+  id, filtrado por `companyId` e `inArray(driverIds)` — espelha `readHelperCrew`, trocando a origem
+  dos ids (aqui não há `trip_drivers`, a sugestão ainda não tem viagem nenhuma).
+
+As duas entram em `SuggestionValuationPort` (`readHelperCompanyDailyRate`, `readHelperOwnDailyRates`)
+e são chamadas **uma vez**, em `Promise.all`, antes do laço por veículo de
+`read-suggestion-valuation.use-case.ts` — com todos os `helperIds` da sugestão inteira já
+deduplicados (`[...new Set(groups.flatMap(...))]`). O teste
+`test/suggestion-valuation/helper-cost.contract.ts` conta as chamadas (`calls.readHelperOwnDailyRates`)
+para uma sugestão de dois veículos e afirma `1`, não `2`.
+
+### Arquivos
+
+- `apps/api-transportada/src/routing/application/suggestion-valuation.port.ts`: dois métodos novos
+  na porta.
+- `apps/api-transportada/src/trips/infrastructure/trip-valuation.query.ts`:
+  `readHelperCompanyDailyRate` (T6) virou `public`; `readHelperOwnDailyRates` novo (público, por ids).
+- `apps/api-transportada/src/routing/infrastructure/suggestion-valuation.adapter.ts`: o tipo de
+  `valuation` ganha os dois métodos, repassados para a porta.
+- `apps/api-transportada/src/main.ts`: as duas novas funções ligadas a `tripValuationQuery` na
+  composição de `readSuggestionValuation`.
+- `apps/api-transportada/src/routing/application/read-suggestion-valuation.use-case.ts`: lê as duas
+  diárias uma vez (fora do laço), monta `helperCrew` por veículo a partir de `group.helperIds`, e
+  preenche `journeySeconds`/`journeyIncludesReturn` no `context` de `resolveValuation`.
+
+### Testes novos/alterados
+
+- `test/suggestion-valuation/helper-cost.contract.ts` (novo): critério 4 (540.00, 2 ajudantes),
+  volta desconhecida (`estimated` + `HELPER_JOURNEY_WITHOUT_RETURN`), ajudante sem diária (`missing`
+  - `HELPER_DAILY_RATE_MISSING`), veículo sem ajudante (zero sem lacuna), sem N+1 (uma leitura para
+    dois veículos) e o contrato de paridade — mesma entrada em `buildTripHelperCost` direto (molde da
+    T6) e na sugestão dá o mesmo valor/lacuna/fonte.
+- `test/suggestion-valuation.contract.test.ts`: importa o arquivo novo.
+- `test/suggestion-valuation/use-case.contract.ts` e `.../toll-gap.contract.ts`: os dois novos
+  métodos obrigatórios da porta, adicionados às fixtures (`readHelperCompanyDailyRate: async () =>
+null`, `readHelperOwnDailyRates: async () => new Map()`) — sem isso o `SuggestionValuationPort`
+  literal parava de tipar.
+- `test/integration/suggestion-helper-cost.integration.ts` (novo, contra Postgres): a consulta nova
+  lê a diária própria de vários ajudantes numa leitura só, presa à empresa do contexto — id de outra
+  empresa com o mesmo valor cadastrado não aparece na resposta (tenant-safety); sem ids não consulta
+  o banco. Adicionado ao `test:integration` do `package.json` (lista explícita).
+
+### Gates (todos em primeiro plano, com o resultado esperado no próprio comando)
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0.
+- `bun test ./test/suggestion-valuation.contract.test.ts` → 40 pass / 0 fail (33 + 7 novos).
+- `bun test ./test/trip-financial.contract.test.ts ./test/trip-valuation.contract.test.ts` → 180
+  pass / 0 fail (paridade com T6 intacta).
+- `bun --env-file=../../.env.test test --timeout 120000` (API, lista completa) → 5859 pass / 23
+  skip / 0 fail (era 5853 na T6; +6 líquido — 7 contratos novos, um teste reaproveitado).
+- `bun --env-file=../../.env.test test --timeout 120000` nos arquivos de integração tocados
+  (`multi-vehicle-suggestion`, `trip-financial-end-to-end`, `trip-repository`,
+  `suggestion-helper-cost`) → 16 pass / 0 fail.
+- `bun run lint` (raiz, 6 apps) → exit 0.
+- `bun run format:check` (raiz) → exit 0 (após `prettier --write` nos 3 arquivos novos/alterados).
+- `make check` (raiz) → exit 0 (format, lint, typecheck, testes das 6 apps, build das 6 apps).
+- `make migration-test` (raiz) → 95 pass / 0 fail, exit 0 (nenhuma migration nova nesta task).
+
+Decisões:
+
+- **A jornada da sugestão usa a duração impressa na tela, não a fórmula da viagem** — decisão
+  explícita do pedido desta task, já antecipada no comentário da T6 (ver acima). As duas fórmulas
+  convergem quando a sugestão vira viagem sem reordenar paradas nem recalcular ETA, mas divergem em
+  geral: a jornada da viagem mede o relógio (chegada real menos saída), a da proposta soma o que o
+  solver estimou por perna. É por isso que o contrato de paridade compara `buildTripHelperCost`
+  direto (a mesma entrada nos dois caminhos), não os dois use cases ponta a ponta.
+- **Duas leituras novas na porta, não uma função combinada**: espelha a separação já existente em
+  `DrizzleTripValuationQuery` (`readHelperCrew` vs `readHelperCompanyDailyRate`, T6) — cada uma lê
+  uma tabela, e juntá-las numa só obrigaria `Promise.all` interno escondido atrás de um nome só.
+- **`readPreviewContext` não ganhou `helperIds`**: os campos de ajudante entram por cima do contexto
+  em `read-suggestion-valuation.use-case.ts` (mesmo padrão de `distanceMeters`/`toll` da spec 101
+  D2), não dentro da consulta que já roda uma vez por veículo — colocá-los lá dentro do laço
+  reintroduziria o N+1 que esta task evita.

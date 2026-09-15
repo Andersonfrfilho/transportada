@@ -37,7 +37,7 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 - [x] T6 — `trip-helper-cost.policy.ts` (D7) e parcela `helper` em `TRIP_COST_KINDS` pelo seam único.
       Critérios 4 e 5.
-- [ ] T7 — Mesma parcela na valuation da sugestão (`suggestion-valuation.policy.ts`), sem segunda conta.
+- [x] T7 — Mesma parcela na valuation da sugestão (`suggestion-valuation.policy.ts`), sem segunda conta.
 
 ## Fase 4 — Score de entregas
 

@@ -32,6 +32,19 @@ export type SuggestionValuationPort = {
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   }) => Promise<TripValuationContext | null>
+  /**
+   * Spec 149 T7 (D7): a diária geral parametrizada — a mesma leitura de `company_crew_settings` que
+   * a viagem usa (T6), uma linha por empresa.
+   */
+  readHelperCompanyDailyRate: (input: { readonly companyId: string }) => Promise<null | string>
+  /**
+   * Spec 149 T7 (D7): a diária própria de **todos** os ajudantes escolhidos na sugestão inteira, numa
+   * consulta só — nunca uma por veículo, que multiplicaria a leitura pelo número de linhas propostas.
+   */
+  readHelperOwnDailyRates: (input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+  }) => Promise<ReadonlyMap<string, null | string>>
   /** `null` quando a sugestão não existe **para esta empresa** — ausência, nunca 403. */
   readSuggestionStatus: (input: {
     readonly companyId: string

@@ -2893,6 +2893,10 @@ function createApplicationRoutes({
                 valuation: {
                   findApplicableRule: (rule) => applicableFreightRuleQuery.findApplicableRule(rule),
                   readContext: (trip) => tripValuationQuery.readContext(trip),
+                  readHelperCompanyDailyRate: (input) =>
+                    tripValuationQuery.readHelperCompanyDailyRate(input),
+                  readHelperOwnDailyRates: (input) =>
+                    tripValuationQuery.readHelperOwnDailyRates(input),
                   readPreviewContext: (preview) => tripValuationQuery.readPreviewContext(preview),
                 },
               }),

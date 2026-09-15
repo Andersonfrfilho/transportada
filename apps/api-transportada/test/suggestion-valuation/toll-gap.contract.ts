@@ -82,6 +82,8 @@ describe('pedágio na sugestão (spec 101 D2)', () => {
           vehicleId: VEHICLE_A,
         },
       ],
+      readHelperCompanyDailyRate: async () => null,
+      readHelperOwnDailyRates: async () => new Map(),
       readPreviewContext: async () => ({
         distanceMeters: null,
         documents: [],

@@ -488,8 +488,11 @@ export class DrizzleTripValuationQuery {
     return rows
   }
 
-  /** A diária geral parametrizada — uma linha por empresa, lida uma vez por conta (D2). */
-  private async readHelperCompanyDailyRate(input: {
+  /**
+   * A diária geral parametrizada — uma linha por empresa, lida uma vez por conta (D2). Pública: T7
+   * a reusa fora da viagem, para a conta da sugestão multi-veículo.
+   */
+  public async readHelperCompanyDailyRate(input: {
     readonly companyId: string
   }): Promise<null | string> {
     const [row] = await this.database
@@ -499,6 +502,31 @@ export class DrizzleTripValuationQuery {
       .limit(1)
 
     return row?.helperDailyRate ?? null
+  }
+
+  /**
+   * Spec 149 T7: a diária própria de cada ajudante, por id — direto na ficha (`fleet_drivers`), sem
+   * passar por `trip_drivers`, porque a sugestão ainda não tem viagem nenhuma. Espelha
+   * `readHelperCrew`, trocando a origem dos ids: aqui vêm de todos os veículos da sugestão de uma
+   * vez, para não repetir a consulta por veículo (sem N+1).
+   */
+  public async readHelperOwnDailyRates(input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+  }): Promise<ReadonlyMap<string, null | string>> {
+    if (input.driverIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({ driverId: fleetDrivers.id, ownDailyRate: fleetDrivers.helperDailyRate })
+      .from(fleetDrivers)
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          inArray(fleetDrivers.id, [...input.driverIds]),
+        ),
+      )
+
+    return new Map(rows.map((row) => [row.driverId, row.ownDailyRate]))
   }
 
   /** `null` quando ninguém lançou pedágio — ausência de lançamento, não gratuidade. */

@@ -88,6 +88,8 @@ function port(
           vehicleId: VEHICLE_A,
         },
       ],
+    readHelperCompanyDailyRate: async () => null,
+    readHelperOwnDailyRates: async () => new Map(),
     readPreviewContext: async (input) => {
       contexts.push({ distanceMeters: null, vehicleId: input.vehicleId })
       return context()
