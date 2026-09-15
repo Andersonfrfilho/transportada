@@ -128,12 +128,14 @@ describe('trip repository integration', () => {
               driverName: 'Motorista Um',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
             {
               driverId: driverTwoId,
               driverName: 'Motorista Dois',
               driverTaxId: '22222222222',
               position: 2,
+              role: 'driver',
             },
           ],
           vehicleId,
@@ -152,6 +154,7 @@ describe('trip repository integration', () => {
             driverPhone: '16999990001',
             driverTaxId: '11111111111',
             position: 1,
+            role: 'driver',
           },
           {
             // Ficha sem contato devolve vazio, nunca some com o motorista da viagem.
@@ -161,6 +164,7 @@ describe('trip repository integration', () => {
             driverPhone: '',
             driverTaxId: '22222222222',
             position: 2,
+            role: 'driver',
           },
         ])
 
@@ -489,6 +493,88 @@ describe('trip repository integration', () => {
     },
     30_000,
   )
+
+  /**
+   * Spec 149 (ADR-0065) critério de aceite 3: 1 motorista + 2 ajudantes gravam 3 linhas em
+   * `trip_drivers`, com o papel e a posição certos — contra Postgres, para provar o insert e a
+   * leitura de `role`, não só o dublê do domínio.
+   */
+  testWithPostgres('grava e lê a tripulação com motorista e ajudantes', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const vehicleId = crypto.randomUUID()
+      const driverId = crypto.randomUUID()
+      const helperOneId = crypto.randomUUID()
+      const helperTwoId = crypto.randomUUID()
+
+      await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      await database.db.insert(fleetVehicles).values({
+        companyId,
+        id: vehicleId,
+        plate: 'CRW1A23',
+        role: 'traction',
+        state: 'SP',
+        vehicleType: 'tractor_unit',
+      })
+      await database.db.insert(fleetDrivers).values([
+        { companyId, id: driverId, name: 'Motorista Titular', taxId: '11111111111' },
+        {
+          canActAsHelper: true,
+          companyId,
+          id: helperOneId,
+          name: 'Ajudante Um',
+          taxId: '22222222222',
+        },
+        {
+          canActAsHelper: true,
+          companyId,
+          id: helperTwoId,
+          name: 'Ajudante Dois',
+          taxId: '33333333333',
+        },
+      ])
+
+      const repository = new DrizzleTripRepository(database.db)
+      const created = await repository.create({
+        companyId,
+        crew: [
+          {
+            driverId,
+            driverName: 'Motorista Titular',
+            driverTaxId: '11111111111',
+            position: 1,
+            role: 'driver',
+          },
+          {
+            driverId: helperOneId,
+            driverName: 'Ajudante Um',
+            driverTaxId: '22222222222',
+            position: 2,
+            role: 'helper',
+          },
+          {
+            driverId: helperTwoId,
+            driverName: 'Ajudante Dois',
+            driverTaxId: '33333333333',
+            position: 3,
+            role: 'helper',
+          },
+        ],
+        vehicleId,
+      })
+
+      expect(
+        created.drivers.map((driver) => ({ driverId: driver.driverId, role: driver.role })),
+      ).toEqual([
+        { driverId, role: 'driver' },
+        { driverId: helperOneId, role: 'helper' },
+        { driverId: helperTwoId, role: 'helper' },
+      ])
+
+      const read = await repository.findById({ companyId, tripId: created.id })
+      expect(read?.drivers.map((driver) => driver.role)).toEqual(['driver', 'helper', 'helper'])
+    })
+  })
 })
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>

@@ -46,6 +46,10 @@ import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
+import {
+  FIELD_TRIP_STEP,
+  startFieldTrip,
+} from '../../src/trips/application/start-field-trip.use-case.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
@@ -950,6 +954,79 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         code: 'STATE_TRANSITION_NOT_ALLOWED',
         status: 409,
       })
+    })
+  })
+
+  /**
+   * Spec 149 (ADR-0065) / ADR-0058 §4: o ajudante tem a linha em `trip_drivers`, mas não o papel —
+   * ele não despacha e não conta a carga nem inicia o trajeto pelo PWA. Contra Postgres de verdade,
+   * para provar o `where` do papel, não só o dublê.
+   */
+  testWithPostgres('ajudante da mesma tripulação não despacha nem começa a viagem', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedPlannedTrip(database)
+      const helperId = crypto.randomUUID()
+      await database.db.insert(fleetDrivers).values({
+        canActAsHelper: true,
+        companyId: world.companyId,
+        id: helperId,
+        name: 'Ajudante de Campo',
+        taxId: '33333333333',
+      })
+      await database.db.insert(tripDrivers).values({
+        companyId: world.companyId,
+        driverId: helperId,
+        driverName: 'Ajudante de Campo',
+        driverTaxId: '33333333333',
+        position: 2n,
+        role: 'helper',
+        tripId: world.tripId,
+      })
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+        dispatchTrip({
+          actorUserId: input.actorUserId,
+          companyId: world.companyId,
+          repository: routeRepository,
+          tripId: input.tripId,
+        })
+
+      const dispatchAttempt = dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: helperId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      await expect(dispatchAttempt).rejects.toMatchObject({
+        code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+        status: 403,
+      })
+
+      const startAttempt = startFieldTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        driverId: helperId,
+        repository: reads,
+        step: FIELD_TRIP_STEP.confirmLoad,
+      })
+      await expect(startAttempt).rejects.toMatchObject({
+        code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+        status: 403,
+      })
+
+      // O motorista da mesma tripulação continua despachando normalmente — regressão.
+      const driverDispatch = await dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: world.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      expect(driverDispatch).toEqual({ tripStatus: 'dispatched' })
     })
   })
 

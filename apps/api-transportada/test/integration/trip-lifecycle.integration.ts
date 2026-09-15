@@ -126,6 +126,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
               driverName: 'Motorista E2E',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           vehicleId,

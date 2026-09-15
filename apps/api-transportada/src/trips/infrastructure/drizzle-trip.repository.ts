@@ -440,6 +440,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             driverName: driver.driverName,
             driverTaxId: driver.driverTaxId,
             position: BigInt(driver.position),
+            role: driver.role,
             tripId: created.id,
           })),
         )
@@ -678,6 +679,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     if (input.driverIds.length === 0) return []
     return this.database
       .select({
+        canActAsHelper: fleetDrivers.canActAsHelper,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,

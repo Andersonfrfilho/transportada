@@ -35,8 +35,8 @@ Decisões:
 
 - `driver_assignment_feedback` tem unique `(company_id, suggestion_id, vehicle_id)`: upsert, a
   última escolha vence (por isso `updated_at`).
-- Despacho do MDF-e só leva `role = driver`; ajudante pode registrar comprovante e ver o DAMDFE
-  (implementado em T3/T4).
+- Condutor do MDF-e só `role = driver` (T4); despacho/início da viagem pelo PWA só por `role = driver`
+  (T3); ajudante pode registrar comprovante e ver o DAMDFE.
 - O teto `MAX_DRIVERS_PER_TRIP = 10` vale para a tripulação inteira (motoristas + ajudantes).
 
 ## T2 — ficha do motorista e diária geral
@@ -102,3 +102,109 @@ Decisões:
   superfície evita uma rota sem pedido no RF-2.
 - Não adicionei regra cruzada "helperDailyRate exige canActAsHelper": a spec (D1/D2) não pede essa
   amarração, e o RF-1 só descreve os dois campos como independentes na ficha.
+
+## T3 — tripulação com papel
+
+Arquivos:
+
+- `src/trips/domain/trip.policy.ts`: `TripDriverCandidate` ganha `canActAsHelper`; `TripDriverLine`
+  ganha `role` (`TripCrewRole`). `resolveTripCrew` aceita `helperIds?` ao lado de `driverIds` — os
+  motoristas ficam nas posições `1..N` (posição 1 é sempre `driver`, espelhando
+  `trip_drivers_lead_role_check` do banco) e os ajudantes vêm depois, na ordem pedida. Regras: mesma
+  pessoa em `driverIds`/`helperIds` (ou repetida numa lista só) é `TripDriverDuplicatedError`
+  (422, já existente); ajudante sem nenhum motorista é `TripCrewHelperWithoutDriverError` (409,
+  nova); ajudante cuja ficha não tem `canActAsHelper` é `TripCrewHelperNotEligibleError` (409, nova,
+  com os ids em `details`). Helper novo `driversOnly(crew)` filtra só `role = 'driver'`, para T4/T6
+  usarem sem duplicar o `.filter` — nenhum dos dois foi alterado aqui (D6/D-ADR-0065, só registrado).
+- `src/trips/domain/trip.error.ts`: `TripCrewHelperWithoutDriverError`, `TripCrewHelperNotEligibleError`
+  (409) e `TripCrewHelperCannotDriveError` (403, ADR-0058 §4 — despachar e os dois toques do campo
+  são do motorista).
+- `src/trips/application/trip-crew.service.ts`: `resolveTripCrewForCreation` recebe `helperIds?`,
+  busca motoristas e ajudantes **numa consulta só** (`listDrivers` com o id set combinado) e repassa
+  ao domínio.
+- `src/trips/application/trip.use-case.ts`: `CreateTripInput.helperIds?` opcional; `create` propaga
+  para o serviço de tripulação.
+- `src/trips/presentation/trip-request.schema.ts`: `createTripSchema` ganha `helperIds` (mesmo teto
+  de 10, default `[]`) e um `superRefine` que recusa `driverIds.length + helperIds.length > 10` —
+  o "erro já existente de teto" citado no plan.md é este mesmo desenho (400 `INVALID_REQUEST`), só
+  estendido à tripulação inteira em vez de só `driverIds`.
+- `src/trips/infrastructure/drizzle-trip.repository.ts`: `create` grava `role` em `trip_drivers`;
+  `listDrivers` projeta `canActAsHelper` da ficha.
+- `src/trips/infrastructure/trip.mapper.ts`: `mapTripDriver` devolve `role` (a coluna já existe desde
+  T1, com default `driver`).
+- `src/trips/presentation/trip.routes.ts`: `serializeTripDetail` acrescenta `role` a cada linha de
+  `drivers` — campo novo, nada renomeado (compatibilidade mantida).
+- **Despacho e início da viagem só pelo motorista** (critério de aceite 3 / ADR-0058 §4):
+  - `src/trips/application/dispatch-driver-trip.use-case.ts`: `DriverTripLinkagePort.isTripOfDriver`
+    virou `findCrewRole` (`Promise<TripCrewRole | null>`). `null` continua `TripNotOfDriverError`
+    (403, viagem alheia); papel `!== 'driver'` é `TripCrewHelperCannotDriveError` (403, novo) — o
+    ajudante tem a linha em `trip_drivers`, mas não o papel.
+  - `src/trips/application/start-field-trip.use-case.ts`: `StartFieldTripPort.readCurrent` devolve
+    `role` junto de `tripId`/`tripStatus`; `startFieldTrip` recusa com o mesmo
+    `TripCrewHelperCannotDriveError` antes de checar a transição de estado — vale para os dois toques
+    (`confirmLoad` e `startRoute`), porque a ADR-0058 §4 nomeia os dois como gesto do motorista, não
+    só o início do trajeto.
+  - `src/trips/infrastructure/drizzle-current-driver-trip.repository.ts`: `findCrewRole` (renomeado)
+    e `readCurrent` agora selecionam `tripDrivers.role`.
+  - `find-current-driver-trip.use-case.ts` (GET da viagem atual) **não muda**: o ajudante continua
+    vendo a viagem normalmente — só despachar e os dois toques do campo são recusados.
+
+Contratos vermelho antes (arquivos alterados/testes existentes que passam a exigir o papel):
+`test/trip-domain/trip-policy.contract.ts` e `test/trip-application/trip-use-case.contract.ts`
+falhavam de tipo (TS2739 nos fixtures sem `canActAsHelper`/`role`) antes do domínio/aplicação
+mudarem; `test/driver-trip/dispatch.contract.ts` com o mock antigo (`isTripOfDriver: () => boolean`)
+não compilava contra a porta renomeada.
+
+Testes novos/alterados:
+
+- `test/trip-domain/trip-policy.contract.ts`: papel e posição da tripulação mista, ajudante sem
+  motorista, duplicado entre as duas listas, ficha sem `canActAsHelper`, `driversOnly`.
+- `test/trip-application/trip-use-case.contract.ts`: criação com motorista + 2 ajudantes (3 linhas,
+  papéis certos), os três 409 de domínio, sem chamar `repository.create` em nenhum deles.
+- `test/trip-http/create.contract.ts`: `helperIds` chega ao use case; teto de 10 combinando
+  `driverIds` + `helperIds` é 400.
+- `test/driver-trip/dispatch.contract.ts`: ajudante vinculado à mesma viagem não despacha (403
+  `TRIP_CREW_HELPER_CANNOT_DRIVE`); motorista despacha normalmente (regressão).
+- `test/driver-trip/start-field-trip.contract.ts` (novo, registrado em `driver-trip.contract.test.ts`):
+  sem viagem ativa é 404; ajudante não confere carga nem inicia o trajeto (os dois passos); motorista
+  confere a carga normalmente (regressão).
+- `test/integration/trip-repository.integration.ts` (contra Postgres): grava e lê 1 motorista + 2
+  ajudantes com papel e posição certos.
+- `test/integration/me-trip.integration.ts` (contra Postgres): ajudante da mesma tripulação não
+  despacha nem confere carga/inicia o trajeto; o motorista da mesma viagem continua despachando.
+- Fixtures ajustados para o campo novo obrigatório: `test/fixtures/trip-http-payload.fixture.ts`
+  (`role` nas linhas de `TRIP_DETAIL.drivers`, `HELPER_ID` novo) e os `crew:` de
+  `test/integration/trip-lifecycle.integration.ts`, `delivery-charge-end-to-end.integration.ts`,
+  `mixed-cargo-end-to-end.integration.ts` (todos `role: 'driver'`, comportamento inalterado).
+
+Comandos e saída:
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0.
+- `bun run test` (API, lista completa do `package.json`) → 5828 pass / 23 skip / 0 fail (era 5812 na
+  T2; a diferença são os testes novos desta task).
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) →
+  5828 pass / 23 skip / 0 fail — mesma contagem, confirma que nada regrediu sob o `.env.test`.
+- `bun --env-file=../../.env.test run test:integration` → 300 pass / 4 skip / 2 fail. As 2 falhas são
+  `cte-archive-gateway.integration.ts` (`OBJECT_STORAGE_UNAVAILABLE`, MinIO indisponível no ambiente
+  local nesta sessão) — pré-existente e sem relação com esta task; todos os testes de `trip-*`/
+  `me-trip` passaram, incluindo os dois novos casos desta T3.
+- `bun run lint` e `bun run format:check` (raiz, 6 apps) → exit 0.
+
+Decisões:
+
+- Reaproveitei `TripDriverDuplicatedError` (422) para a pessoa repetida entre `driverIds` e
+  `helperIds` — é a mesma regra de unicidade da tripulação (ADR-0065 §4), só estendida às duas
+  listas juntas; criar um segundo código para o mesmo caso duplicaria a semântica.
+- O teto de 10 da tripulação inteira ficou na fronteira HTTP (Zod `superRefine`, 400), não no
+  domínio — mesmo padrão que já existia para `driverIds` sozinho; o domínio segue sem conhecer um
+  número mágico de teto.
+- `driversOnly(crew)` foi criado e exportado, mas **nenhum leitor existente foi migrado** para usá-lo
+  nesta task — MDF-e (`create-trip-mdfe-manifest.use-case.ts`), custo do motorista
+  (`trip-driver-cost.policy.ts`) e resumo financeiro continuam como estavam, por decisão explícita do
+  escopo (T4/T6). O helper existe para quem for tocar esses arquivos não reimplementar o filtro.
+- `TripCrewHelperCannotDriveError` é compartilhado entre despacho e os dois toques do campo
+  (`confirmLoad`/`startRoute`): a ADR-0058 §4 nomeia os dois como gesto do motorista, e um código só
+  evita duas mensagens diferentes para a mesma regra de negócio.
+- `GET /me/trips/current` (`find-current-driver-trip.use-case.ts`, `listActiveTrips`) não foi tocado:
+  a spec pede que o ajudante continue vendo a viagem e registrando comprovante — só despachar e
+  começar o trajeto são exclusivos do motorista.

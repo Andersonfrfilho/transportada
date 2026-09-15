@@ -42,8 +42,20 @@ const IP_ADDRESS = '203.0.113.10'
 const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
 
 const DRIVERS: readonly TripDriverCandidate[] = [
-  { id: FIRST_DRIVER_ID, name: 'Ana Souza', status: 'active', taxId: '12345678909' },
-  { id: SECOND_DRIVER_ID, name: 'Bruno Lima', status: 'active', taxId: '98765432100' },
+  {
+    canActAsHelper: false,
+    id: FIRST_DRIVER_ID,
+    name: 'Ana Souza',
+    status: 'active',
+    taxId: '12345678909',
+  },
+  {
+    canActAsHelper: false,
+    id: SECOND_DRIVER_ID,
+    name: 'Bruno Lima',
+    status: 'active',
+    taxId: '98765432100',
+  },
 ]
 
 const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
@@ -225,6 +237,7 @@ describe('trip use case contract', () => {
         driverPhone: '',
         driverTaxId: '12345678909',
         position: 1,
+        role: 'driver',
       },
       {
         driverEmail: '',
@@ -233,11 +246,12 @@ describe('trip use case contract', () => {
         driverPhone: '',
         driverTaxId: '98765432100',
         position: 2,
+        role: 'driver',
       },
     ])
     /**
-     * A tripulação **enviada** é o retrato fiscal — nome, CPF e posição. O contato só existe na
-     * leitura, e sai da ficha da frota: comparar as duas como iguais escondia essa diferença.
+     * A tripulação **enviada** é o retrato fiscal — nome, CPF, papel e posição. O contato só existe
+     * na leitura, e sai da ficha da frota: comparar as duas como iguais escondia essa diferença.
      */
     expect(fixture.createCalls).toEqual([
       {
@@ -249,6 +263,7 @@ describe('trip use case contract', () => {
           driverName: driver.driverName,
           driverTaxId: driver.driverTaxId,
           position: driver.position,
+          role: driver.role,
         })),
         vehicleId: VEHICLE_ID,
       },
@@ -365,6 +380,140 @@ describe('trip use case contract', () => {
       expect(refusal).toBeInstanceOf(TripVehicleNotFoundError)
       expect(fixture.createCalls).toEqual([])
     })
+  })
+
+  // Spec 149 (ADR-0065): 1 motorista + 2 ajudantes grava 3 linhas, motorista na posição 1.
+  test('creates a trip with a driver and helpers, helpers after the driver', async () => {
+    const helperOne = '55555555-5555-4555-8555-555555555551'
+    const helperTwo = '55555555-5555-4555-8555-555555555552'
+    const fixture = createFixture({
+      drivers: [
+        ...DRIVERS,
+        {
+          canActAsHelper: true,
+          id: helperOne,
+          name: 'Carlos Ajudante',
+          status: 'active',
+          taxId: '11111111111',
+        },
+        {
+          canActAsHelper: true,
+          id: helperTwo,
+          name: 'Diana Ajudante',
+          status: 'active',
+          taxId: '22222222222',
+        },
+      ],
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const trip = await useCase.create({
+      context: CONTEXT,
+      driverIds: [FIRST_DRIVER_ID],
+      helperIds: [helperOne, helperTwo],
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(
+      trip.drivers.map((driver) => ({ driverId: driver.driverId, role: driver.role })),
+    ).toEqual([
+      { driverId: FIRST_DRIVER_ID, role: 'driver' },
+      { driverId: helperOne, role: 'helper' },
+      { driverId: helperTwo, role: 'helper' },
+    ])
+  })
+
+  // Critério de aceite 3: a posição 1 exige um motorista — ajudante sozinho é 409.
+  test('refuses helpers without a driver in the crew', async () => {
+    const fixture = createFixture({
+      drivers: [
+        {
+          canActAsHelper: true,
+          id: FIRST_DRIVER_ID,
+          name: 'Ana Souza',
+          status: 'active',
+          taxId: '12345678909',
+        },
+      ],
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .create({
+        context: CONTEXT,
+        driverIds: [],
+        helperIds: [FIRST_DRIVER_ID],
+        vehicleId: VEHICLE_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect((error as ApiError).code).toBe('TRIP_CREW_HELPER_WITHOUT_DRIVER')
+    expect((error as ApiError).status).toBe(409)
+    expect(fixture.createCalls).toEqual([])
+  })
+
+  // Critério de aceite 3: ficha sem `can_act_as_helper` não entra como ajudante.
+  test('refuses a helper whose driver record cannot help', async () => {
+    const fixture = createFixture({
+      drivers: [
+        {
+          canActAsHelper: false,
+          id: FIRST_DRIVER_ID,
+          name: 'Ana Souza',
+          status: 'active',
+          taxId: '12345678909',
+        },
+        {
+          canActAsHelper: false,
+          id: SECOND_DRIVER_ID,
+          name: 'Bruno Lima',
+          status: 'active',
+          taxId: '98765432100',
+        },
+      ],
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .create({
+        context: CONTEXT,
+        driverIds: [FIRST_DRIVER_ID],
+        helperIds: [SECOND_DRIVER_ID],
+        vehicleId: VEHICLE_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect((error as ApiError).code).toBe('TRIP_CREW_HELPER_NOT_ELIGIBLE')
+    expect((error as ApiError).status).toBe(409)
+    expect(fixture.createCalls).toEqual([])
+  })
+
+  // Mesma pessoa em driverIds e helperIds é 409, igual à repetição dentro da mesma lista.
+  test('refuses the same person as driver and helper', async () => {
+    const fixture = createFixture({
+      drivers: [
+        {
+          canActAsHelper: true,
+          id: FIRST_DRIVER_ID,
+          name: 'Ana Souza',
+          status: 'active',
+          taxId: '12345678909',
+        },
+      ],
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .create({
+        context: CONTEXT,
+        driverIds: [FIRST_DRIVER_ID],
+        helperIds: [FIRST_DRIVER_ID],
+        vehicleId: VEHICLE_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect((error as ApiError).code).toBe('TRIP_DRIVER_DUPLICATED')
+    expect(fixture.createCalls).toEqual([])
   })
 
   test('links a document by nfe document id, xor freight calculation id', async () => {

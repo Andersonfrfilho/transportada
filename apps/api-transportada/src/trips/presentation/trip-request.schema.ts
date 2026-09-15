@@ -26,6 +26,12 @@ export const routeChoiceRequestSchema = z
   })
   .strict()
 
+/**
+ * Spec 149 (ADR-0065 / D5, D11): ajudantes entram na criação ao lado dos motoristas, escolhidos à
+ * mão. O teto de `MAX_TRIP_DRIVERS` vale para a tripulação **inteira** (motoristas + ajudantes,
+ * evidence.md T1) — o `superRefine` fecha isso na fronteira, o mesmo padrão de "erro já existente
+ * de teto" que `driverIds` sozinho já tinha.
+ */
 export const createTripSchema = z
   .object({
     /**
@@ -35,10 +41,20 @@ export const createTripSchema = z
     dailyAllowanceDays: z.number().int().min(1).optional(),
     /** Spec 217 RF2: ausente ou vazio nasce viagem `awaiting_crew` — não é mais 400. */
     driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    helperIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
     /** Spec 217 RF2: ausência é "sem veículo ainda", nunca `TripVehicleNotFoundError`. */
     vehicleId: z.uuid().optional(),
   })
   .strict()
+  .superRefine((body, context) => {
+    if (body.driverIds.length + body.helperIds.length > MAX_TRIP_DRIVERS) {
+      context.addIssue({
+        code: 'custom',
+        message: `The crew cannot have more than ${MAX_TRIP_DRIVERS} people.`,
+        path: ['helperIds'],
+      })
+    }
+  })
 
 export type CreateTripBody = z.infer<typeof createTripSchema>
 

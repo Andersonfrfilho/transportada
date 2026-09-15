@@ -115,6 +115,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
               driverName: 'Motorista',
               driverTaxId: '11111111111',
               position: 1,
+              role: 'driver',
             },
           ],
           vehicleId: world.vehicleId,

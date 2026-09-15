@@ -58,6 +58,7 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 
 /**
  * As fases em que a viagem aparece na tela do motorista.
@@ -99,14 +100,18 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     return record?.id ?? null
   }
 
-  /** ADR-0058: o recorte da rota de despacho do motorista é o vínculo, e ele se prova aqui. */
-  public async isTripOfDriver(input: {
+  /**
+   * ADR-0058: o recorte da rota de despacho do motorista é o vínculo, e ele se prova aqui.
+   * Spec 149 (ADR-0065): o papel viaja junto — `null` é ausência de vínculo, e o vínculo como
+   * ajudante devolve `'helper'`, nunca confundido com "não está nesta viagem".
+   */
+  public async findCrewRole(input: {
     readonly companyId: string
     readonly driverId: string
     readonly tripId: string
-  }): Promise<boolean> {
+  }): Promise<TripCrewRole | null> {
     const [record] = await this.database
-      .select({ tripId: tripDrivers.tripId })
+      .select({ role: tripDrivers.role })
       .from(tripDrivers)
       .where(
         and(
@@ -117,7 +122,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       )
       .limit(1)
 
-    return record !== undefined
+    return record?.role ?? null
   }
 
   /**
@@ -128,9 +133,13 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   public async readCurrent(input: {
     readonly companyId: string
     readonly driverId: string
-  }): Promise<{ readonly tripId: string; readonly tripStatus: TripStatus } | null> {
+  }): Promise<{
+    readonly role: TripCrewRole
+    readonly tripId: string
+    readonly tripStatus: TripStatus
+  } | null> {
     const [record] = await this.database
-      .select({ status: trips.status, tripId: trips.id })
+      .select({ role: tripDrivers.role, status: trips.status, tripId: trips.id })
       .from(tripDrivers)
       .innerJoin(
         trips,
@@ -146,7 +155,9 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       .orderBy(asc(trips.createdAt))
       .limit(1)
 
-    return record === undefined ? null : { tripId: record.tripId, tripStatus: record.status }
+    return record === undefined
+      ? null
+      : { role: record.role, tripId: record.tripId, tripStatus: record.status }
   }
 
   public async readStatus(input: {

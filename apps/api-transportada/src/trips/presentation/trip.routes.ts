@@ -2012,6 +2012,7 @@ function serializeTripDetail(input: {
       driverPhone: input.canReadDriverContact ? driver.driverPhone : null,
       driverTaxId: input.canReadDriverContact ? driver.driverTaxId : null,
       position: driver.position,
+      role: driver.role,
     })),
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
     cargoWeight: trip.cargoWeight === null ? null : { ...trip.cargoWeight },

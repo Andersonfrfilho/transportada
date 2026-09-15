@@ -2,15 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { DispatchTripResult } from './dispatch-trip.use-case.js'
-import { TripNotOfDriverError } from '../domain/trip.error.js'
+import { TripCrewHelperCannotDriveError, TripNotOfDriverError } from '../domain/trip.error.js'
+import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 
 export type DriverTripLinkagePort = {
-  /** `false` cobre viagem alheia **e** viagem inexistente — o 403 não distingue, de propósito. */
-  isTripOfDriver(input: {
+  /** `null` cobre viagem alheia **e** viagem inexistente — o 403 não distingue, de propósito. */
+  findCrewRole(input: {
     readonly companyId: string
     readonly driverId: string
     readonly tripId: string
-  }): Promise<boolean>
+  }): Promise<TripCrewRole | null>
 }
 
 export type DispatchDriverTripInput = {
@@ -33,16 +34,20 @@ export type DispatchDriverTripInput = {
 /**
  * ADR-0058 §1: o motorista vinculado (`trip_drivers`) despacha a própria viagem. Sem permissão
  * nova — o recorte é o vínculo, como em todo `/me/trips/current/*`.
+ *
+ * Spec 149 (ADR-0065): o vínculo sozinho não basta — o ajudante da mesma tripulação tem a linha em
+ * `trip_drivers`, mas não o papel `driver`. Só ele despacha (critério de aceite 3).
  */
 export async function dispatchDriverTrip(
   input: DispatchDriverTripInput,
 ): Promise<DispatchTripResult> {
-  const isLinked = await input.linkage.isTripOfDriver({
+  const role = await input.linkage.findCrewRole({
     companyId: input.companyId,
     driverId: input.driverId,
     tripId: input.tripId,
   })
-  if (!isLinked) throw new TripNotOfDriverError()
+  if (role === null) throw new TripNotOfDriverError()
+  if (role !== 'driver') throw new TripCrewHelperCannotDriveError()
 
   return input.dispatch({ actorUserId: input.actorUserId, tripId: input.tripId })
 }

@@ -2,9 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
-import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import {
+  TripCrewHelperCannotDriveError,
+  TripNotFoundError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 import { TripStatusWriteConflictError } from '../domain/trip-field-office.error.js'
 import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
 import {
@@ -32,10 +37,11 @@ const MAX_STATUS_WRITE_ATTEMPTS = 3
 
 export type StartFieldTripPort = {
   /** `null` quando o motorista não tem viagem na rua — a mesma ausência de `/me/trips/current`. */
-  readCurrent(input: {
-    readonly companyId: string
-    readonly driverId: string
-  }): Promise<{ readonly tripId: string; readonly tripStatus: TripStatus } | null>
+  readCurrent(input: { readonly companyId: string; readonly driverId: string }): Promise<{
+    readonly role: TripCrewRole
+    readonly tripId: string
+    readonly tripStatus: TripStatus
+  } | null>
   /** O status de agora, para decidir de novo depois de perder a corrida. `null`: a viagem sumiu. */
   readStatus(input: {
     readonly companyId: string
@@ -83,6 +89,9 @@ export type StartFieldTripResult = {
  *
  * Repetir converge em `changed: false`, nunca em erro: a fila offline drena muito depois do toque, e
  * um toque que **funcionou** voltando como conflito puniria quem fez tudo certo.
+ *
+ * Spec 149 (ADR-0065) / ADR-0058 §4: conferir a carga e iniciar o trajeto são gestos do motorista —
+ * o ajudante da mesma tripulação tem viagem ativa, mas não o papel para os dois toques.
  */
 export async function startFieldTrip(input: StartFieldTripInput): Promise<StartFieldTripResult> {
   const current =
@@ -93,6 +102,7 @@ export async function startFieldTrip(input: StartFieldTripInput): Promise<StartF
         })
       : { tripId: input.target.tripId, tripStatus: input.target.tripStatus }
   if (current === null) throw new TripNotFoundError()
+  if (current.role !== 'driver') throw new TripCrewHelperCannotDriveError()
 
   return applyFieldStep({
     attemptsLeft: MAX_STATUS_WRITE_ATTEMPTS,

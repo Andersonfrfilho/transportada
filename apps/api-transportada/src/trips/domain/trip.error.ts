@@ -55,6 +55,43 @@ export class TripDriverDuplicatedError extends ApiError {
   }
 }
 
+/** Spec 149 (ADR-0065): ajudante sem nenhum motorista na tripulação — a posição 1 exige condutor. */
+export class TripCrewHelperWithoutDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_HELPER_WITHOUT_DRIVER',
+      message: 'A crew with helpers must have at least one driver.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 149 (ADR-0065): a ficha do ajudante não marcou `can_act_as_helper` — os ids vão em `details`. */
+export class TripCrewHelperNotEligibleError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'TRIP_CREW_HELPER_NOT_ELIGIBLE',
+      details: driverIds.map((driverId) => ({ field: 'helperIds', message: driverId })),
+      message: 'One or more helpers are not marked as able to help in their driver record.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 149 (ADR-0065) / ADR-0058 §4: despachar e os dois toques que começam a viagem no PWA são
+ * gestos do motorista. O ajudante vinculado à mesma viagem tem o vínculo, mas não o papel.
+ */
+export class TripCrewHelperCannotDriveError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_HELPER_CANNOT_DRIVE',
+      message: 'A helper cannot dispatch or start the trip; only the driver crew can.',
+      status: 403,
+    })
+  }
+}
+
 export class TripNotFoundError extends ApiError {
   public constructor() {
     super({

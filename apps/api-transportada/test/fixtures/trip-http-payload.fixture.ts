@@ -18,6 +18,7 @@ export const TRIP_ID = '00000000-0000-4000-8000-000000000a11'
 export const VEHICLE_ID = '00000000-0000-4000-8000-000000000a12'
 export const DRIVER_ID = '00000000-0000-4000-8000-000000000a13'
 export const SECOND_DRIVER_ID = '00000000-0000-4000-8000-000000000a14'
+export const HELPER_ID = '00000000-0000-4000-8000-000000000a1a'
 export const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a15'
 export const FREIGHT_CALCULATION_ID = '00000000-0000-4000-8000-000000000a16'
 export const TRIP_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a17'
@@ -202,6 +203,7 @@ export const TRIP_DETAIL: TripDetail = {
       driverPhone: '16999990001',
       driverTaxId: '11111111111',
       position: 1,
+      role: 'driver',
     },
     {
       driverEmail: '',
@@ -210,6 +212,7 @@ export const TRIP_DETAIL: TripDetail = {
       driverName: 'Motorista Dois',
       driverTaxId: '22222222222',
       position: 2,
+      role: 'driver',
     },
   ],
   stops: [],
