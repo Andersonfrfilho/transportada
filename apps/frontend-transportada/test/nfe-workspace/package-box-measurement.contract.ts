@@ -276,7 +276,7 @@ describe('bipar leva direto à medição da caixa achada', () => {
 
     expect(panel).toContain("kind: 'notFound'")
     /** Não achar não fecha o leitor — o bloco que trata a ausência de caixa não chama `setIsScannerOpen`. */
-    const notFoundBlock = panel.split('if (match === undefined) {')[1]?.split('}')[0]
+    const notFoundBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
     expect(notFoundBlock).toBeDefined()
     expect(notFoundBlock).not.toContain('setIsScannerOpen')
   })
@@ -303,6 +303,143 @@ describe('bipar leva direto à medição da caixa achada', () => {
       new URL('../../src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx', import.meta.url),
     ).text()
     expect(page).toContain('matching={packageBoxes.isMatching}')
+  })
+})
+
+/**
+ * ⚠️ O GTIN ainda não é gravado nas caixas (chega com o pacote fiscal numa etapa seguinte) — hoje
+ * a etiqueta casa por chave de acesso ou código de produto, e o segundo pode achar a mesma caixa em
+ * emitentes diferentes. Escolher a primeira sozinha (o `[match] = queue?.items ?? []` antigo) seria
+ * adivinhar; o operador decide, tocando na candidata certa.
+ */
+describe('mais de uma caixa achada pela mesma etiqueta', () => {
+  it('uma candidata só continua abrindo a medição direto, sem lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('if (items.length === 0) {')
+    expect(panel).toContain('if (items.length > 1) {')
+    expect(panel).toContain('setCandidates(items)')
+    expect(panel).toContain('const [match] = items')
+    expect(panel).toContain('if (match !== undefined) openMeasurementForScannedBox(match.id)')
+  })
+
+  it('nenhuma candidata segue mostrando o aviso de não achou, sem abrir a lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const zeroBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
+    expect(zeroBlock).toBeDefined()
+    expect(zeroBlock).toContain("kind: 'notFound'")
+    expect(zeroBlock).not.toContain('setCandidates')
+  })
+
+  it('mais de uma candidata nunca escolhe sozinha — guarda a lista, não abre medição nenhuma', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const manyBlock = panel.split('if (items.length > 1) {')[1]?.split('}')[0]
+    expect(manyBlock).toBeDefined()
+    expect(manyBlock).toContain('setCandidates(items)')
+    expect(manyBlock).not.toContain('openMeasurementForScannedBox')
+  })
+
+  it('a lista mora no bipe, não na fila — não reabre a escolha quando a fila recarrega por outro motivo', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain(
+      'const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)',
+    )
+  })
+
+  /** Acima do teto a lista para de crescer — refinar a busca é mais rápido que rolar dezenas de linhas. */
+  it('tem um teto de quantas candidatas mostra, com aviso do total quando passa dele', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('const MAX_CANDIDATES_SHOWN = 8')
+    expect(panel).toContain('const shown = candidates.slice(0, MAX_CANDIDATES_SHOWN)')
+    expect(panel).toContain('total > MAX_CANDIDATES_SHOWN')
+    expect(panel).toContain("t('packageBoxes.scanner.candidates.overflow'")
+  })
+
+  /** Esc volta a ler, não fecha o leitor inteiro — só o botão de voltar/fechar do leitor faz isso. */
+  it('Esc na lista volta a ler, e não fecha o leitor', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('useModalDialog({ isOpen: true, onClose: onBack })')
+    expect(panel).toContain('onBack={() => setCandidates(null)}')
+  })
+
+  /** Foco no primeiro item, não no contêiner: quem chegou aqui vai tocar ou apertar Enter direto. */
+  it('o foco entra na primeira candidata ao abrir a lista', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("querySelector<HTMLElement>('[data-candidate] button')?.focus()")
+  })
+
+  /** Cada candidata é um botão do design system, largo o bastante para o alvo de toque de 44px. */
+  it('cada candidata é um botão de toque grande, não uma linha de texto clicável', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('<Button')
+    expect(panel).toContain('className={styles.candidateButton}')
+    expect(panel).toContain('onClick={() => onSelect(box.id)}')
+
+    const css = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/styles/packageBoxes.module.css', import.meta.url),
+    ).text()
+    expect(css).toContain('.candidateButton {')
+    expect(css).toContain('min-height: var(--control-height);')
+  })
+
+  /** Situação não pode depender só de cor — a caixa já medida ganha texto próprio na candidata. */
+  it('a caixa já medida diz isso em texto na candidata, não só numa cor', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain("t('packageBoxes.scanner.candidates.measured')")
+    expect(panel).toContain('box.measuredAt === null ? null :')
   })
 })
 

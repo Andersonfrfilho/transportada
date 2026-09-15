@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { BarcodeScanner, type BarcodeScannerFeedback } from '@/components/ui/barcode-scanner'
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {
   PACKAGE_BOX_STATUS_FILTERS,
@@ -42,6 +44,9 @@ type PackageBoxMeasurementPanelProps = Readonly<{
 
 const FOUND_FEEDBACK_DELAY_MS = 900
 const NOT_FOUND_FEEDBACK_DELAY_MS = 2500
+/** Acima do teto, a lista não cresce — refinar a busca é mais rápido que rolar dezenas de linhas. */
+const MAX_CANDIDATES_SHOWN = 8
+const CANDIDATES_TITLE_ID = 'package-box-candidates-title'
 
 /**
  * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
@@ -127,6 +132,13 @@ export function PackageBoxMeasurementPanel({
   const [scanFeedback, setScanFeedback] = useState<BarcodeScannerFeedback | undefined>(undefined)
   /** `true` do bipe até a fila responder — é o sinal que diz quando avaliar achou/não achou. */
   const [awaitingScan, setAwaitingScan] = useState(false)
+  /**
+   * ⚠️ Mais de uma caixa achada nunca escolhe sozinha (o GTIN ainda não é gravado nas caixas — só
+   * chave de acesso e código de produto casam hoje, e o segundo é ambíguo entre emitentes). A lista
+   * mora aqui, não no `queue`: ela é o resultado de **um** bipe, e a fila recarrega por outros
+   * motivos (troca de situação, busca) que não devem reabrir a escolha.
+   */
+  const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
   const closeScanTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
@@ -148,16 +160,25 @@ export function PackageBoxMeasurementPanel({
     }, FOUND_FEEDBACK_DELAY_MS)
   }
 
-  /** A resposta da fila chegou: acertou uma caixa, abre a medição; não achou, segue lendo. */
+  /**
+   * A resposta da fila chegou: uma caixa, abre a medição dela; nenhuma, segue lendo; mais de uma —
+   * o GTIN ainda não está gravado, então a etiqueta pode casar com caixas de emitentes diferentes —
+   * o operador escolhe, nunca a tela.
+   */
   useEffect(() => {
     if (!awaitingScan || matching) return
     setAwaitingScan(false)
-    const [match] = queue?.items ?? []
-    if (match === undefined) {
+    const items = queue?.items ?? []
+    if (items.length === 0) {
       setScanFeedback({ kind: 'notFound', message: t('packageBoxes.scanner.notFound') })
       return
     }
-    openMeasurementForScannedBox(match.id)
+    if (items.length > 1) {
+      setCandidates(items)
+      return
+    }
+    const [match] = items
+    if (match !== undefined) openMeasurementForScannedBox(match.id)
   }, [awaitingScan, matching, queue, t, openMeasurementForScannedBox])
 
   useEffect(() => {
@@ -177,6 +198,7 @@ export function PackageBoxMeasurementPanel({
         setIsScannerOpen(false)
         setScanFeedback(undefined)
         setAwaitingScan(false)
+        setCandidates(null)
       }}
       onRead={(text) => {
         setScanFeedback(undefined)
@@ -277,7 +299,110 @@ export function PackageBoxMeasurementPanel({
       )}
 
       {scanner}
+
+      {candidates === null ? null : (
+        <PackageBoxCandidatePicker
+          candidates={candidates}
+          onBack={() => setCandidates(null)}
+          onSelect={(id) => {
+            setCandidates(null)
+            openMeasurementForScannedBox(id)
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+type PackageBoxCandidatePickerProps = Readonly<{
+  candidates: readonly PackageBox[]
+  onBack: () => void
+  onSelect: (id: string) => void
+}>
+
+/**
+ * O GTIN ainda não é gravado nas caixas (chega com o pacote fiscal numa etapa seguinte) — hoje só
+ * chave de acesso e código de produto casam a etiqueta, e o segundo pode achar a mesma caixa em
+ * emitentes diferentes. Escolher sozinho aqui seria adivinhar; quem decide é o operador, tocando na
+ * candidata certa. A camada nasce sobre o leitor, nunca inline — a mesma razão que abre o próprio
+ * `BarcodeScanner` em portal: o conferente está de pé, com o celular numa mão.
+ */
+function PackageBoxCandidatePicker({
+  candidates,
+  onBack,
+  onSelect,
+}: PackageBoxCandidatePickerProps) {
+  const { t } = useTranslation('nfeWorkspace')
+  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose: onBack })
+  const total = candidates.length
+  const shown = candidates.slice(0, MAX_CANDIDATES_SHOWN)
+
+  /** Foco no primeiro item, não no contêiner: quem chegou aqui vai tocar ou apertar Enter direto. */
+  useEffect(() => {
+    dialogRef.current?.querySelector<HTMLElement>('[data-candidate] button')?.focus()
+  }, [dialogRef])
+
+  return createPortal(
+    <div className={styles.candidatesOverlay} onKeyDown={handleKeyDown} role="presentation">
+      <div
+        aria-labelledby={CANDIDATES_TITLE_ID}
+        aria-modal="true"
+        className={styles.candidatesDialog}
+        ref={dialogRef}
+        role="dialog"
+        tabIndex={-1}
+      >
+        <div className={styles.candidatesHead}>
+          <h3 className={styles.candidatesTitle} id={CANDIDATES_TITLE_ID}>
+            {t('packageBoxes.scanner.candidates.title')}
+          </h3>
+          <Button
+            aria-label={t('packageBoxes.scanner.candidates.back')}
+            onClick={onBack}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="close" />
+          </Button>
+        </div>
+        <p className={styles.hint}>{t('packageBoxes.scanner.candidates.hint')}</p>
+        <ul className={styles.candidatesList}>
+          {shown.map((box, index) => (
+            <li data-candidate key={box.id}>
+              <Button
+                className={styles.candidateButton}
+                onClick={() => onSelect(box.id)}
+                type="button"
+                variant="secondary"
+              >
+                <span className={styles.candidateMain}>
+                  <strong>{box.description || box.productCode}</strong>
+                  <span className={styles.unit}>{box.emitterTaxId}</span>
+                </span>
+                <span className={styles.hint}>
+                  {t('packageBoxes.scanner.candidates.position', { position: index + 1, total })}
+                  {box.measuredAt === null ? null : (
+                    <>
+                      {' · '}
+                      <span className={styles.candidateMeasured}>
+                        {t('packageBoxes.scanner.candidates.measured')}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {total > MAX_CANDIDATES_SHOWN ? (
+          <p className={styles.notice}>
+            {t('packageBoxes.scanner.candidates.overflow', { shown: shown.length, total })}
+          </p>
+        ) : null}
+      </div>
+    </div>,
+    document.body,
   )
 }
 

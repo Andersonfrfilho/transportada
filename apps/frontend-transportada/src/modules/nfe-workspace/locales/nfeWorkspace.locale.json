@@ -528,7 +528,15 @@
       "denied": "Permissão de câmera negada. Digite o código na busca.",
       "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca.",
       "found": "Etiqueta lida",
-      "notFound": "Nenhuma caixa da fila corresponde a esta etiqueta. Continue lendo ou digite o código na busca."
+      "notFound": "Nenhuma caixa da fila corresponde a esta etiqueta. Continue lendo ou digite o código na busca.",
+      "candidates": {
+        "title": "Mais de uma caixa corresponde a esta etiqueta",
+        "hint": "Toque na caixa certa para abrir a medição.",
+        "back": "Voltar a ler",
+        "position": "{{position}} de {{total}}",
+        "measured": "Já medida",
+        "overflow": "Mostrando {{shown}} de {{total}} candidatas. Refine a busca para achar a caixa certa."
+      }
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa",

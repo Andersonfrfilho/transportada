@@ -354,7 +354,15 @@
       "denied": "Camera permission denied. Type the code in the search field.",
       "unavailable": "The camera is unavailable on this device. Type the code in the search field.",
       "found": "Label read",
-      "notFound": "No box in the queue matches this label. Keep scanning or type the code in the search field."
+      "notFound": "No box in the queue matches this label. Keep scanning or type the code in the search field.",
+      "candidates": {
+        "title": "More than one box matches this label",
+        "hint": "Tap the right box to open its measurement.",
+        "back": "Back to scanning",
+        "position": "{{position}} of {{total}}",
+        "measured": "Already measured",
+        "overflow": "Showing {{shown}} of {{total}} candidates. Narrow the search to find the right box."
+      }
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box",
