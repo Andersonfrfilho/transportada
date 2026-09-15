@@ -9,6 +9,10 @@ import {
   CompanySettingsVersionConflictError,
   FiscalSequenceLockedError,
 } from '../domain/company-settings.error.js'
+import {
+  COMPANY_SETTINGS_PERSISTENCE_FAILURE,
+  CompanySettingsPersistenceError,
+} from '../domain/company-settings-persistence.error.js'
 import type { CompanySettingsTransaction } from './drizzle-company-settings.types.js'
 
 type SequenceState = {
@@ -79,7 +83,9 @@ async function insertSequence(
     })
     .returning({ version: fiscalSequences.version })
   if (sequence === undefined) {
-    throw new Error('Company fiscal sequence could not be persisted')
+    throw new CompanySettingsPersistenceError(
+      COMPANY_SETTINGS_PERSISTENCE_FAILURE.sequenceNotPersisted,
+    )
   }
   return sequence.version
 }
