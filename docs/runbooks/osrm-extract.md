@@ -144,6 +144,25 @@ O seed é idempotente por `osm_node_id` — rodar duas vezes deixa as mesmas lin
 é a data que **você** informa (`--observed-on`, padrão hoje), não a do arquivo: o extrator não sabe
 quando foi rodado, e reajuste de pedágio é anual.
 
+### O extract fica versionado no bucket do ambiente
+
+O JSON do extrator é guardado no bucket de objetos do próprio ambiente (`OBJECT_STORAGE_BUCKET`),
+com a data do `.pbf` na chave — nunca no git, e nunca sobrescrito (`put` em modo `create-only`):
+
+```
+toll-booths/osm/<dataset>/<AAAA-MM-DD>/toll-booths.json   # entrada do seed
+toll-booths/osm/<dataset>/<AAAA-MM-DD>/manifest.json      # origem, Last-Modified, contagens, sha256
+```
+
+A data é o `Last-Modified` do arquivo do Geofabrik, e é ela que vai no `--observed-on` do seed.
+⚠️ O `<dataset>` tem de ser **o mesmo `.pbf` do `OSRM_PBF_URL`** do ambiente: a praça casa por id de
+nó, e um recorte menor (o `ribeirao.osm.pbf` local tem 166 praças) deixa de fora as praças que o
+roteirizador cruza fora dele.
+
+Registro (15/09/2026): staging usa `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
+579 com tarifa, 571 com tarifa por eixo, em `toll-booths/osm/sudeste/2026-09-14/` do bucket de
+staging. `toll_booths` de staging **ainda está vazia**: o seed a partir desse objeto não foi rodado.
+
 ## Reassar o overlay do radar (spec 096)
 
 Mesma regra: o overlay sai do mesmo `.pbf`. Ele carrega `maxspeed`, `maxspeed:hgv` e `direction`, e
