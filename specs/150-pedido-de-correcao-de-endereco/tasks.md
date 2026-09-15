@@ -8,8 +8,9 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T001** ⛔ Responder P1 e P3 do `spec.md` com o usuário: o modelo do e-mail e os contatos
-      que recebem. **Nada da Fase 3 começa sem isso.** (P2 decidida: unitário e completo, RF6a.)
+- [ ] **T001** ⛔ Responder P1 do `spec.md` com o usuário: o modelo do e-mail. **Nada da Fase 3
+      começa sem isso.** (P2 decidida: unitário e completo, RF6a. P3 decidida: destinatários
+      escolhidos a cada envio, RF5a.)
 
 ## Fase 1 — O pedido guardado
 
@@ -53,8 +54,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 
 ## Prompt de execução
 
-Esta spec ainda tem `[NEEDS CLARIFICATION]` aberto (P1 e P3 do `spec.md`), então não tem prompt
-de autopilot. As perguntas pendentes são:
+Esta spec ainda tem `[NEEDS CLARIFICATION]` aberto (P1 do `spec.md`), então não tem prompt de
+autopilot. A pergunta pendente é:
 
 1. **P1** — Qual é o modelo do e-mail (assunto, abertura, formato da lista, assinatura)?
-2. **P3** — Recebem todos os contatos ativos, ou só os marcados para correção de cadastro?

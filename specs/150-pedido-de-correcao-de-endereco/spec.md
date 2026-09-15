@@ -37,6 +37,10 @@ próximas notas casarem.
 - **RF5** — O e-mail vai para os contatos ativos da contratante (`contractor_contacts`). O operador
   vê a lista e confirma antes de enviar. Se a contratante não tiver cadastro ou contato ativo, o envio
   é recusado com código estável e a tela diz o motivo.
+- **RF5a** — Os destinatários são escolhidos **a cada envio** (decidido pelo usuário em 2026-09-15).
+  A confirmação lista todos os contatos ativos da contratante, e o operador marca quem recebe. Não
+  existe marcação fixa no contato, e nenhuma coluna nova em `contractor_contacts`. É preciso marcar
+  pelo menos um contato, e os escolhidos ficam gravados na mensagem enviada.
 - **RF6** — O envio passa pelo outbox do `contractor-mail`, na mesma transação do registro, com
   `Idempotency-Key`. O histórico fica numa conversa `contractor_mail_threads` com um tipo novo
   (`address_correction`).
@@ -58,5 +62,3 @@ próximas notas casarem.
 
 - **P1** — O modelo do e-mail: assunto, abertura, como a lista de endereços aparece (tabela ou
   blocos "como veio → correto") e assinatura. O usuário vai definir.
-- **P3** — Recebem todos os contatos ativos, ou é preciso uma marcação nova no contato (ao lado de
-  `receives_occurrences`) para correção de cadastro?
