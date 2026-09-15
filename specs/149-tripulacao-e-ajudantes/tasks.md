@@ -28,7 +28,7 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 - [x] T3 — `resolveTripCrewForCreation` com papel; posição 1 sempre `driver` (409 caso contrário).
 - [x] T4 — MDF-e da viagem só com `role = driver` (critério 3).
-- [ ] T5 — Sugestão: corpo `helperIds`, tabela de ajudantes, 409 para pessoa repetida e para quem não
+- [x] T5 — Sugestão: corpo `helperIds`, tabela de ajudantes, 409 para pessoa repetida e para quem não
       pode ajudar; aceite grava a tripulação completa via `trip-composer.adapter.ts`.
 
 ## Fase 3 — Diária do ajudante

@@ -6,3 +6,10 @@
  */
 export const DRIVER_SOURCES = ['link', 'recommended', 'manual'] as const
 export type DriverSource = (typeof DRIVER_SOURCES)[number]
+
+/**
+ * Spec 149 T5: o que o **cliente** pode declarar. `recommended` é preenchido só pelo servidor
+ * (T10) — deixá-lo fora daqui faz o schema recusar com 400 quem tentar mandar essa origem.
+ */
+export const CLIENT_DRIVER_SOURCES = ['link', 'manual'] as const
+export type ClientDriverSource = (typeof CLIENT_DRIVER_SOURCES)[number]

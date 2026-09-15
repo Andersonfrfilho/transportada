@@ -60,6 +60,20 @@ export type RouteSuggestionStop = Readonly<{
   weightEstimated: boolean
 }>
 
+/**
+ * Spec 149 T5: de onde veio o motorista da linha — cadastro, recomendação (T10) ou escolha manual.
+ */
+export const DRIVER_SOURCE = ['link', 'manual', 'recommended'] as const
+export type DriverSource = (typeof DRIVER_SOURCE)[number]
+
+/** Spec 149 T5: um veículo da proposta multi-veículo, com quem dirige e quem ajuda. */
+export type RouteSuggestionVehicleSummary = Readonly<{
+  driverId: string | null
+  driverSource: DriverSource | null
+  helperIds: readonly string[]
+  vehicleId: string
+}>
+
 export type RouteSuggestionAssumptions = Readonly<{
   dutyEnabled: boolean
   endPolicy: string
@@ -87,4 +101,9 @@ export type RouteSuggestion = Readonly<{
   truncated: boolean
   updatedAt: string
   vehicleId: null | string
+  /**
+   * Spec 149 T5: a frota da proposta multi-veículo, com a tripulação de cada linha. Opcional —
+   * ausente é tratado como vazio, o que a sugestão de viagem única e a gravada antes desta task já são.
+   */
+  vehicles?: readonly RouteSuggestionVehicleSummary[]
 }>

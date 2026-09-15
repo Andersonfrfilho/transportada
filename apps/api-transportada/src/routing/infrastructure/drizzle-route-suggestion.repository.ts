@@ -8,6 +8,8 @@ import {
   companyRouteOptimizationSettings,
   routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
+  routeSuggestionVehicles,
   routeSuggestions,
 } from '../../database/database.schema.js'
 import type {
@@ -16,6 +18,7 @@ import type {
   RouteSuggestionRepository,
   RouteSuggestionStopRecord,
 } from '../application/route-suggestion.repository.js'
+import type { RouteSuggestionVehicleSummary } from '../application/route-suggestion.port.js'
 
 export type RouteSuggestionDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -93,8 +96,10 @@ export function createDrizzleRouteSuggestionRepository(
        * Uma consulta para todas as paradas, nunca uma por parada.
        */
       const documentsByStop = await readStopDocuments({ companyId, database, suggestionId })
+      /** Spec 149 T5: a frota da proposta, com a tripulação de cada linha (motorista + ajudantes). */
+      const vehicles = await readVehicleCrews({ companyId, database, suggestionId })
 
-      return toRecord({ documentsByStop, row, stops })
+      return toRecord({ documentsByStop, row, stops, vehicles })
     },
 
     /**
@@ -204,10 +209,65 @@ async function readStopDocuments(input: {
   return byStop
 }
 
+/**
+ * Spec 149 T5: a frota da sugestão multi-veículo, com a tripulação de cada linha — vazio na
+ * sugestão de viagem única, que não distribui frota nenhuma.
+ */
+async function readVehicleCrews(input: {
+  readonly companyId: string
+  readonly database: RouteSuggestionDatabase
+  readonly suggestionId: string
+}): Promise<readonly RouteSuggestionVehicleSummary[]> {
+  const vehicleRows = await input.database
+    .select({
+      driverId: routeSuggestionVehicles.driverId,
+      driverSource: routeSuggestionVehicles.driverSource,
+      position: routeSuggestionVehicles.position,
+      vehicleId: routeSuggestionVehicles.vehicleId,
+    })
+    .from(routeSuggestionVehicles)
+    .where(
+      and(
+        eq(routeSuggestionVehicles.companyId, input.companyId),
+        eq(routeSuggestionVehicles.suggestionId, input.suggestionId),
+      ),
+    )
+    .orderBy(routeSuggestionVehicles.position)
+  if (vehicleRows.length === 0) return []
+
+  const helperRows = await input.database
+    .select({
+      driverId: routeSuggestionVehicleHelpers.driverId,
+      vehicleId: routeSuggestionVehicleHelpers.vehicleId,
+    })
+    .from(routeSuggestionVehicleHelpers)
+    .where(
+      and(
+        eq(routeSuggestionVehicleHelpers.companyId, input.companyId),
+        eq(routeSuggestionVehicleHelpers.suggestionId, input.suggestionId),
+      ),
+    )
+  const helperIdsByVehicle = new Map<string, string[]>()
+  for (const row of helperRows) {
+    helperIdsByVehicle.set(row.vehicleId, [
+      ...(helperIdsByVehicle.get(row.vehicleId) ?? []),
+      row.driverId,
+    ])
+  }
+
+  return vehicleRows.map((row) => ({
+    driverId: row.driverId,
+    driverSource: row.driverSource,
+    helperIds: helperIdsByVehicle.get(row.vehicleId) ?? [],
+    vehicleId: row.vehicleId,
+  }))
+}
+
 function toRecord(input: {
   readonly documentsByStop?: ReadonlyMap<string, readonly string[]>
   readonly row: SuggestionRow
   readonly stops: readonly StopRow[]
+  readonly vehicles?: readonly RouteSuggestionVehicleSummary[]
 }): RouteSuggestionRecord {
   return {
     /**
@@ -231,6 +291,7 @@ function toRecord(input: {
     truncated: input.row.truncated,
     updatedAt: input.row.updatedAt.toISOString(),
     vehicleId: input.row.vehicleId,
+    vehicles: input.vehicles ?? [],
   }
 }
 

@@ -2,10 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  MultiVehicleSuggestionCrewTooLargeError,
   MultiVehicleSuggestionDocumentUnavailableError,
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
@@ -42,6 +44,8 @@ export type TripComposer = Readonly<{
   createTrip: (input: {
     readonly context: MultiVehicleScope
     readonly driverId: string | null
+    /** Spec 149 (ADR-0065 D12): a tripulação editada da linha — não o que foi pedido na criação. */
+    readonly helperIds?: readonly string[]
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
   /**
@@ -235,6 +239,8 @@ export function createMultiVehicleSuggestionUseCase(
           const { tripId } = await dependencies.trips.createTrip({
             context,
             driverId: group.driverId,
+            /** Spec 149 (ADR-0065 D12): a tripulação editada da linha, não a do pedido de criação. */
+            helperIds: group.helperIds ?? [],
             vehicleId: group.vehicleId,
           })
 
@@ -324,38 +330,66 @@ export function createMultiVehicleSuggestionUseCase(
       if (documentIds.length === 0) throw new MultiVehicleSuggestionEmptyError('documentIds')
       if (vehicleIds.length === 0) throw new MultiVehicleSuggestionEmptyError('vehicleIds')
 
-      /**
-       * RF-2: o mesmo motorista em dois pares seriam duas viagens simultâneas dele no PWA, sem nada
-       * dizendo qual é a de hoje. Aqui a repetição é do **chamador**, e por isso é recusa, não
-       * deduplicação como a do veículo — descartar em silêncio deixaria um caminhão sem motorista
-       * sem ninguém saber por quê.
-       */
       const driverIds = vehicles
         .map((pair) => pair.driverId)
         .filter((driverId): driverId is string => driverId !== undefined)
-      const repeated = driverIds.filter((driverId, index) => driverIds.indexOf(driverId) !== index)
+
+      /**
+       * Spec 149 (ADR-0065 §4): o teto de `trip_drivers` — motorista + ajudantes, até dez — vale
+       * cedo, na proposta, para o operador não descobrir o estouro só no aceite.
+       */
+      const oversizedVehicleIds = vehicles
+        .filter(
+          (pair) => (pair.driverId === undefined ? 0 : 1) + (pair.helperIds?.length ?? 0) > 10,
+        )
+        .map((pair) => pair.vehicleId)
+      if (oversizedVehicleIds.length > 0) {
+        throw new MultiVehicleSuggestionCrewTooLargeError(oversizedVehicleIds)
+      }
+
+      /**
+       * RF-2, estendida pela spec 149 (ADR-0065 §4): a mesma pessoa em dois lugares da proposta
+       * **inteira** — motorista de dois veículos, ajudante de dois veículos, ou motorista e ajudante
+       * ao mesmo tempo. A repetição é do **chamador**, e por isso é recusa, não deduplicação como a
+       * do veículo — descartar em silêncio deixaria um caminhão sem tripulação sem ninguém saber
+       * por quê.
+       */
+      const helperIds = vehicles.flatMap((pair) => pair.helperIds ?? [])
+      const allCrewIds = [...driverIds, ...helperIds]
+      const repeated = allCrewIds.filter((id, index) => allCrewIds.indexOf(id) !== index)
       if (repeated.length > 0) {
         throw new MultiVehicleSuggestionDriverRepeatedError([...new Set(repeated)])
       }
+
+      const uniqueHelperIds = [...new Set(helperIds)]
 
       /**
        * As conferências correm juntas: elas não dependem uma da outra, e a lentidão de uma seguida
        * da outra apareceria numa tela em que o operador acabou de selecionar oitenta notas.
        */
-      const [unavailableDocuments, unavailableVehicles, unavailableDrivers] = await Promise.all([
-        dependencies.multiVehicle.findUnavailableDocumentIds({
-          companyId: input.context.companyId,
-          documentIds,
-        }),
-        dependencies.multiVehicle.findUnavailableVehicleIds({
-          companyId: input.context.companyId,
-          vehicleIds,
-        }),
-        dependencies.multiVehicle.findUnavailableDriverIds({
-          companyId: input.context.companyId,
-          driverIds,
-        }),
-      ])
+      const [unavailableDocuments, unavailableVehicles, unavailableDrivers, ineligibleHelpers] =
+        await Promise.all([
+          dependencies.multiVehicle.findUnavailableDocumentIds({
+            companyId: input.context.companyId,
+            documentIds,
+          }),
+          dependencies.multiVehicle.findUnavailableVehicleIds({
+            companyId: input.context.companyId,
+            vehicleIds,
+          }),
+          /**
+           * Spec 149: motorista e ajudante conferem disponibilidade pela **mesma** consulta — os
+           * dois são a mesma ficha de `fleet_drivers`, ativa ou não.
+           */
+          dependencies.multiVehicle.findUnavailableDriverIds({
+            companyId: input.context.companyId,
+            driverIds: [...new Set([...driverIds, ...uniqueHelperIds])],
+          }),
+          dependencies.multiVehicle.findIneligibleHelperIds({
+            companyId: input.context.companyId,
+            helperIds: uniqueHelperIds,
+          }),
+        ])
       if (unavailableDocuments.length > 0) {
         throw new MultiVehicleSuggestionDocumentUnavailableError(unavailableDocuments)
       }
@@ -364,6 +398,13 @@ export function createMultiVehicleSuggestionUseCase(
       }
       if (unavailableDrivers.length > 0) {
         throw new MultiVehicleSuggestionDriverUnavailableError(unavailableDrivers)
+      }
+      /** Spec 149 (ADR-0065 D1): ajudante sem `can_act_as_helper` na ficha, mesmo que ativo. */
+      const ineligibleAndAvailable = ineligibleHelpers.filter(
+        (helperId) => !unavailableDrivers.includes(helperId),
+      )
+      if (ineligibleAndAvailable.length > 0) {
+        throw new MultiVehicleSuggestionHelperNotEligibleError(ineligibleAndAvailable)
       }
 
       const settings = await dependencies.suggestions.readSettings(input.context.companyId)

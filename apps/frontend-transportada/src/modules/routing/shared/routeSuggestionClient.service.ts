@@ -64,7 +64,14 @@ export type RouteSuggestionClient = Readonly<{
     input: Readonly<{
       nfeDocumentIds: readonly string[]
       solverTimeBudgetSeconds?: number
-      vehicles: readonly Readonly<{ driverId?: string; vehicleId: string }>[]
+      vehicles: readonly Readonly<{
+        driverId?: string
+        /** Spec 149 T5: de onde veio `driverId` — ausente é `link`. `recommended` é só do servidor. */
+        driverSource?: 'link' | 'manual'
+        /** Spec 149 (ADR-0065 D11): ajudantes escolhidos à mão, além do motorista da linha. */
+        helperIds?: readonly string[]
+        vehicleId: string
+      }>[]
     }>,
   ) => Promise<RouteSuggestion>
   readMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>

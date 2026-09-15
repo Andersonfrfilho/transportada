@@ -4,6 +4,7 @@
 import type { MultiVehicleSuggestionPair } from './multi-vehicle-suggestion.port.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionStatus } from '../../database/route-suggestion.schema.js'
+import type { DriverSource } from '../../shared/suggestion-driver-source.constant.js'
 import type { RouteSuggestionRecord } from './route-suggestion.repository.js'
 
 export type MultiVehicleSuggestionGroup = Readonly<{
@@ -16,6 +17,16 @@ export type MultiVehicleSuggestionGroup = Readonly<{
   documentIdsByAddressKey: ReadonlyMap<string, readonly string[]>
   /** O motorista escolhido para este veículo, ou `null` quando o par não trouxe nenhum. */
   driverId: string | null
+  /**
+   * Spec 149 T5: de onde veio `driverId` — nulo quando não há motorista. Opcional (e ausente é
+   * tratado como nulo): a sugestão gravada antes desta task não distinguia origem nenhuma.
+   */
+  driverSource?: DriverSource | null
+  /**
+   * Spec 149 (ADR-0065 D11): ajudantes escolhidos à mão para este veículo. Opcional — ausente é
+   * tratado como vazio, o comportamento de toda proposta anterior a esta task.
+   */
+  helperIds?: readonly string[]
   /** Na ordem que o solver propôs — é ela que vira a ordem das paradas da viagem criada. */
   orderedAddressKeys: readonly string[]
   /**
@@ -67,6 +78,14 @@ export type MultiVehicleSuggestionRepository = Readonly<{
   findUnavailableDriverIds: (input: {
     readonly companyId: string
     readonly driverIds: readonly string[]
+  }) => Promise<readonly string[]>
+  /**
+   * Spec 149 (ADR-0065 D1): dos ids dados, quais **não** têm `can_act_as_helper` marcado na ficha.
+   * Ausente/inativo já responde por `findUnavailableDriverIds` — esta consulta é só a elegibilidade.
+   */
+  findIneligibleHelperIds: (input: {
+    readonly companyId: string
+    readonly helperIds: readonly string[]
   }) => Promise<readonly string[]>
   /** Veículo inexistente, inativo ou que não traciona — a mesma resposta pelos três motivos. */
   findUnavailableVehicleIds: (input: {

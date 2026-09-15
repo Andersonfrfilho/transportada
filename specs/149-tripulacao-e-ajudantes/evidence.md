@@ -291,3 +291,98 @@ Decisões:
 - `readPreviewCrew` (prévia da viagem, antes de existir `trip_drivers`) ficou fora do filtro de papel
   de propósito: ela recebe `driverIds` do formulário, sem ajudante ainda nesta task — a montagem
   (T5/T13) é quem vai decidir o que manda para lá.
+
+## T5 — ajudantes na sugestão e aceite
+
+Arquivos:
+
+- `src/shared/suggestion-driver-source.constant.ts`: `CLIENT_DRIVER_SOURCES = ['link', 'manual']` —
+  o que o **cliente** pode declarar; `recommended` fica fora de propósito (só o servidor preenche, T10).
+- `src/routing/presentation/route-suggestion-request.schema.ts`: `vehicles[]` ganha `helperIds`
+  (até 9, teto real de 10 com o motorista é conferido no domínio) e `driverSource` (`z.enum` de
+  `CLIENT_DRIVER_SOURCES`) — mandar `recommended` já é `400` pelo próprio schema, sem código extra.
+- `src/routing/domain/routing.error.ts`: `MultiVehicleSuggestionDriverRepeatedError` estendido
+  (mensagem/comentário) para cobrir motorista **e** ajudante da proposta inteira; dois erros novos —
+  `MultiVehicleSuggestionHelperNotEligibleError` (409, ids em `details`) e
+  `MultiVehicleSuggestionCrewTooLargeError` (409, vehicleId em `details`).
+- `src/routing/application/multi-vehicle-suggestion.port.ts`: `MultiVehicleSuggestionPair` ganha
+  `helperIds?` e `driverSource?`.
+- `src/routing/application/multi-vehicle-suggestion.repository.ts`: `MultiVehicleSuggestionGroup`
+  ganha `helperIds?`/`driverSource?` (opcionais — ausente é vazio/nulo, sem forçar toda sugestão
+  antiga a declarar os dois); repositório ganha `findIneligibleHelperIds`.
+- `src/routing/application/multi-vehicle-suggestion.use-case.ts` (`create`): teto de 10 por veículo
+  cedo (antes de qualquer consulta); repetição de pessoa agora cobre motorista+ajudante da proposta
+  **inteira**, não só motorista; disponibilidade do ajudante reusa `findUnavailableDriverIds` com o
+  conjunto motorista∪ajudantes; elegibilidade (`can_act_as_helper`) só é cobrada de quem já passou na
+  disponibilidade (evita dois erros para o mesmo id). `accept`: `createTrip` leva `helperIds` do grupo.
+- `src/routing/infrastructure/drizzle-multi-vehicle-suggestion.repository.ts`: `create` grava
+  `driver_source` (`link` quando o pedido não informa e há motorista; nulo sem motorista) e insere
+  `route_suggestion_vehicle_helpers` na mesma transação da frota; `findIneligibleHelperIds` (consulta
+  própria, `can_act_as_helper = true`); `readGroups` junta os ajudantes por veículo (consulta própria,
+  para não multiplicar linha de parada por ajudante) e o `driver_source`.
+- `src/routing/infrastructure/drizzle-route-suggestion.repository.ts`: `find` agora lê
+  `route_suggestion_vehicles` + `route_suggestion_vehicle_helpers` e povoa `RouteSuggestion.vehicles`
+  (novo, opcional — vazio na sugestão de viagem única e na gravada antes desta task).
+- `src/routing/application/route-suggestion.port.ts`: `RouteSuggestionVehicleSummary` novo;
+  `RouteSuggestion.vehicles?` novo.
+- `src/routing/presentation/multi-vehicle-suggestion.routes.ts`: `serializeSuggestion` acrescenta
+  `vehicles` (só campo novo).
+- `src/routing/infrastructure/trip-composer.adapter.ts` / `multi-vehicle-suggestion.use-case.ts`
+  (`TripComposer`): `createTrip` ganha `helperIds?`, repassado a `dependencies.create` (que já é
+  `trips.create` — T3 já aceita `helperIds`, então o encadeamento pega carona sem mexer em `main.ts`).
+- Frontend (`routing/shared/routeSuggestion*.ts`, `routeSuggestionClient.service.ts`): tipos e
+  validação aceitam `vehicles`/`helperIds`/`driverSource` novos, sem exigi-los (tela é T13).
+
+Contratos (vermelho antes, verificado por reversão local durante a implementação):
+
+- `test/routing-application/multi-vehicle-suggestion.contract.ts`: `findIneligibleHelperIds` no
+  dublê; bloco novo "spec 149 T5" com as 3 variantes de repetição (motorista×ajudante em veículos
+  diferentes, ajudante×ajudante, motorista×ajudante do mesmo veículo), ajudante sem
+  `can_act_as_helper` (409 com id em `details`), ajudante indisponível (reusa o 409 de motorista),
+  teto de 10 por veículo (409), persistência dos `helperIds` na criação, e o aceite levando
+  `helperIds` do grupo para `createTrip`.
+- `test/routing-http/multi-vehicle-suggestion.contract.ts`: `helperIds`/`driverSource` atravessam a
+  rota até o caso de uso; `driverSource: 'recommended'` do cliente é `400` antes de qualquer consulta.
+- `test/integration/multi-vehicle-suggestion.integration.ts`: `seedSuggestionWithCrew` (1 veículo,
+  1 motorista + 2 ajudantes com `can_act_as_helper`) — o aceite contra Postgres real cria a viagem
+  com **3 linhas em `trip_drivers`**, papéis `['driver', 'helper', 'helper']`, posições `[1, 2, 3]`
+  (critério de aceite 3 da spec).
+- `test/routing/route-suggestion-response.contract.ts` (frontend): ajustado para o campo novo
+  `vehicles: []` no payload sem tripulação (`toEqual` explícito, não `toMatchObject`).
+
+Comandos e saída:
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0.
+- `bun test ./test/routing-application.contract.test.ts ./test/routing-http.contract.test.ts` (API)
+  → 100 pass / 0 fail (18 testes novos desta task).
+- `bun --env-file=../../.env.test test --timeout 120000` (API, lista completa) → 5840 pass / 23 skip
+  / 0 fail (era 5830 na T4; +10 = os testes novos de aplicação e HTTP).
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/multi-vehicle-suggestion.integration.ts`
+  → 8 pass / 0 fail (7 + 1 novo).
+- `bun --env-file=../../.env.test run test:integration` → 301 pass / 4 skip / 2 fail. As 2 falhas
+  continuam `cte-archive-gateway.integration.ts` (`OBJECT_STORAGE_UNAVAILABLE`, MinIO indisponível no
+  ambiente local desta sessão) — mesma causa das T3/T4, pré-existente e sem relação com esta task;
+  **não aparecem** em `make check` (que não roda `test:integration`).
+- `bun run lint` e `bun run format:check` (raiz, 6 apps) → exit 0.
+- `make check` (raiz) → exit 0 (format, lint, typecheck, test — incluindo o frontend, com o ajuste do
+  contrato acima —, e build das 3 apps).
+- `make migration-test` (raiz) → 95 pass / 0 fail (sem migration nova nesta task — T5 é só código).
+
+Decisões:
+
+- **Erro reaproveitado, não irmão novo**: `MultiVehicleSuggestionDriverRepeatedError` passou a cobrir
+  a tripulação inteira (motorista e ajudante), em vez de criar um segundo código para "ajudante
+  repetido" — as duas violações têm a mesma causa (a mesma pessoa em dois lugares) e a mesma ação
+  corretiva (escolher outra pessoa); só a mensagem/comentário mudou.
+- **`helperIds`/`driverSource` em `MultiVehicleSuggestionGroup` e em `RouteSuggestion.vehicles` são
+  opcionais**, não obrigatórios: torná-los obrigatórios quebraria a tipagem de toda sugestão gravada
+  antes desta task e de todo dublê de teste já escrito (`suggestion()`/`QUEUED_SUGGESTION`) — ausente
+  já significa "sem tripulação extra", então o custo de reescrever dezenas de fixtures não compra
+  nada que o opcional não dê.
+- **Elegibilidade só é cobrada de quem passou na disponibilidade**: um ajudante inexistente aparece
+  em `unavailableDrivers` e é filtrado da lista de `findIneligibleHelperIds` antes de virar erro —
+  senão o mesmo id dispararia dois 409 diferentes (indisponível e inelegível) dependendo da ordem de
+  leitura, e o operador só precisa do primeiro motivo.
+- **`driver_source` grava `null` sem motorista**, mesmo que o corpo mande `driverSource` — o check do
+  banco (`route_suggestion_vehicles_driver_source_check`, da T1) já exige isso; o repositório só
+  espelha a regra.

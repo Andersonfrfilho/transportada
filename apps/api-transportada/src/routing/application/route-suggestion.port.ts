@@ -8,6 +8,7 @@ import type {
   ServiceTimeSource,
 } from '../../database/route-suggestion.schema.js'
 import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
+import type { DriverSource } from '../../shared/suggestion-driver-source.constant.js'
 import type { RouteViolation } from '../domain/route-solver.types.js'
 
 export type CompanyScope = Readonly<{ companyId: string; userId: string }>
@@ -58,6 +59,17 @@ export type RouteSuggestionStop = Readonly<{
   weightEstimated: boolean
 }>
 
+/**
+ * Spec 149 T5: um veículo da proposta multi-veículo, com quem dirige e quem ajuda. Vazio na
+ * sugestão de viagem única (aquela não distribui frota) e na sugestão gravada antes desta task.
+ */
+export type RouteSuggestionVehicleSummary = Readonly<{
+  driverId: string | null
+  driverSource: DriverSource | null
+  helperIds: readonly string[]
+  vehicleId: string
+}>
+
 export type RouteSuggestion = Readonly<{
   assumptions: RouteSuggestionAssumptions
   createdAt: string
@@ -79,6 +91,12 @@ export type RouteSuggestion = Readonly<{
   truncated: boolean
   updatedAt: string
   vehicleId: string | null
+  /**
+   * Spec 149 T5: a frota da proposta multi-veículo, com a tripulação de cada linha. Opcional —
+   * ausente é tratado como vazio, o que toda sugestão de viagem única e toda proposta gravada antes
+   * desta task já é.
+   */
+  vehicles?: readonly RouteSuggestionVehicleSummary[]
 }>
 
 export type CreateRouteSuggestionInput = Readonly<{

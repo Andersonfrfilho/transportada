@@ -5,10 +5,13 @@ import { z } from 'zod'
 
 import { GEOCODING_PRECISIONS } from '../../database/geocoding.schema.js'
 import { routeChoiceRequestSchema } from '../../trips/presentation/trip-request.schema.js'
+import { CLIENT_DRIVER_SOURCES } from '../../shared/suggestion-driver-source.constant.js'
 
 /** Teto do que uma sugestão aceita otimizar. Acima disso o orçamento de tempo não salva ninguém. */
 const MAX_STOPS_PER_SUGGESTION = 500
 const MAX_VEHICLES_PER_SUGGESTION = 50
+/** Spec 149 (ADR-0065): motorista + ajudantes por veículo, teto de 10 — o mesmo de `trip_drivers`. */
+const MAX_HELPERS_PER_VEHICLE = 9
 const COORDINATE_SCALE = /^-?\d{1,3}(?:\.\d{1,7})?$/u
 
 /**
@@ -41,9 +44,22 @@ export const createMultiVehicleSuggestionSchema = z
      * ADR-0055: **par**, não lista de veículos. O motorista é opcional — distribuir a carga antes de
      * saber quem dirige é o uso normal de quem monta a escala na véspera —, mas quando ele vem, a
      * viagem criada pelo aceite já nasce dele, e é isso que a faz aparecer no PWA de campo.
+     *
+     * Spec 149 (ADR-0065): `helperIds` são a tripulação que não dirige, escolhida à mão (D11).
+     * `driverSource` é de onde veio o motorista desta linha — ausente é `link` (T5); `recommended`
+     * é preenchido só pelo servidor (T10), e por isso fica fora do enum aceito aqui: mandá-lo é 400.
      */
     vehicles: z
-      .array(z.object({ driverId: z.uuid().optional(), vehicleId: z.uuid() }).strict())
+      .array(
+        z
+          .object({
+            driverId: z.uuid().optional(),
+            driverSource: z.enum(CLIENT_DRIVER_SOURCES).optional(),
+            helperIds: z.array(z.uuid()).max(MAX_HELPERS_PER_VEHICLE).optional(),
+            vehicleId: z.uuid(),
+          })
+          .strict(),
+      )
       .min(1)
       .max(MAX_VEHICLES_PER_SUGGESTION),
   })

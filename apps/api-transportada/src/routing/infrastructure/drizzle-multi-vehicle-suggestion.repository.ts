@@ -11,10 +11,12 @@ import {
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
   routeSuggestionStops,
+  routeSuggestionVehicleHelpers,
   routeSuggestionVehicles,
   routeSuggestions,
 } from '../../database/database.schema.js'
 import { tripDocuments } from '../../database/trip.schema.js'
+import type { DriverSource } from '../../shared/suggestion-driver-source.constant.js'
 import type {
   MultiVehicleSuggestionGroup,
   MultiVehicleSuggestionRepository,
@@ -62,11 +64,33 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           input.vehicles.map((pair, index) => ({
             companyId: input.companyId,
             driverId: pair.driverId ?? null,
+            /**
+             * Spec 149 T5: sem motorista não há origem (o check do banco exige isso). Com motorista
+             * e sem `driverSource` no pedido, a origem é `link` — o comportamento de sempre, de
+             * antes de a proposta saber recomendar ou aceitar escolha manual.
+             */
+            driverSource: pair.driverId === undefined ? null : (pair.driverSource ?? 'link'),
             position: BigInt(index),
             suggestionId: row.id,
             vehicleId: pair.vehicleId,
           })),
         )
+
+        /**
+         * Spec 149 (ADR-0065 D11): os ajudantes de cada veículo, na mesma transação da frota — uma
+         * proposta com ajudante sem o veículo dela seria tão inconsistente quanto sem o motorista.
+         */
+        const helperRows = input.vehicles.flatMap((pair) =>
+          (pair.helperIds ?? []).map((driverId) => ({
+            companyId: input.companyId,
+            driverId,
+            suggestionId: row.id,
+            vehicleId: pair.vehicleId,
+          })),
+        )
+        if (helperRows.length > 0) {
+          await transaction.insert(routeSuggestionVehicleHelpers).values(helperRows)
+        }
 
         /**
          * O repositorio de leitura nasce **da transacao**, nunca da conexao de fora. Ligado
@@ -135,6 +159,30 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       const available = new Set(rows.map((row) => row.id))
 
       return driverIds.filter((driverId) => !available.has(driverId))
+    },
+
+    /**
+     * Spec 149 (ADR-0065 D1): a mesma forma da conferência de disponibilidade — pergunta quem
+     * **está** elegível e subtrai. `findUnavailableDriverIds` já cobre inexistente/inativo; esta
+     * consulta é só quem existe mas não marcou `can_act_as_helper` na ficha.
+     */
+    async findIneligibleHelperIds({ companyId, helperIds }) {
+      if (helperIds.length === 0) return []
+
+      const rows = await database
+        .select({ id: fleetDrivers.id })
+        .from(fleetDrivers)
+        .where(
+          and(
+            eq(fleetDrivers.companyId, companyId),
+            inArray(fleetDrivers.id, [...helperIds]),
+            eq(fleetDrivers.canActAsHelper, true),
+          ),
+        )
+
+      const eligible = new Set(rows.map((row) => row.id))
+
+      return helperIds.filter((helperId) => !eligible.has(helperId))
     },
 
     async findUnavailableVehicleIds({ companyId, vehicleIds }) {
@@ -242,10 +290,36 @@ export function createDrizzleMultiVehicleSuggestionRepository(
     },
 
     async readGroups({ companyId, suggestionId }) {
+      /**
+       * Spec 149 (ADR-0065 D11): os ajudantes por veículo, consulta **própria** — juntar aqui
+       * multiplicaria cada linha de parada por ajudante, do mesmo jeito que a nota multiplicaria a
+       * distância em `readVehicleRoads`.
+       */
+      const helperRows = await database
+        .select({
+          driverId: routeSuggestionVehicleHelpers.driverId,
+          vehicleId: routeSuggestionVehicleHelpers.vehicleId,
+        })
+        .from(routeSuggestionVehicleHelpers)
+        .where(
+          and(
+            eq(routeSuggestionVehicleHelpers.companyId, companyId),
+            eq(routeSuggestionVehicleHelpers.suggestionId, suggestionId),
+          ),
+        )
+      const helperIdsByVehicle = new Map<string, string[]>()
+      for (const row of helperRows) {
+        helperIdsByVehicle.set(row.vehicleId, [
+          ...(helperIdsByVehicle.get(row.vehicleId) ?? []),
+          row.driverId,
+        ])
+      }
+
       const rows = await database
         .select({
           addressKey: routeSuggestionStops.addressKey,
           driverId: routeSuggestionVehicles.driverId,
+          driverSource: routeSuggestionVehicles.driverSource,
           /** Spec 107 D3: a hora que o planejamento calculou — o aceite a leva para a viagem. */
           estimatedArrivalAt: routeSuggestionStops.estimatedArrivalAt,
           nfeDocumentId: routeSuggestionStopDocuments.nfeDocumentId,
@@ -286,6 +360,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           byAddress: Map<string, string[]>
           documentIds: string[]
           driverId: string | null
+          driverSource: DriverSource | null
         }
       >()
       for (const row of rows) {
@@ -296,6 +371,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           byAddress: new Map<string, string[]>(),
           documentIds: [],
           driverId: row.driverId,
+          driverSource: row.driverSource,
         }
         if (row.estimatedArrivalAt !== null) {
           group.arrivals.set(row.addressKey, row.estimatedArrivalAt.toISOString())
@@ -322,7 +398,9 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           documentIds: group.documentIds,
           documentIdsByAddressKey: group.byAddress,
           driverId: group.driverId,
+          driverSource: group.driverSource,
           estimatedArrivalByAddressKey: group.arrivals,
+          helperIds: helperIdsByVehicle.get(vehicleId) ?? [],
           orderedAddressKeys: group.addressKeys,
           vehicleId,
         })

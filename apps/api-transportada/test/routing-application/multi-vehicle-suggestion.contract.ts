@@ -18,10 +18,12 @@ import type {
   RouteSuggestionRepository,
 } from '../../src/routing/application/route-suggestion.repository.js'
 import {
+  MultiVehicleSuggestionCrewTooLargeError,
   MultiVehicleSuggestionDocumentUnavailableError,
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionHelperNotEligibleError,
   MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
@@ -97,6 +99,8 @@ function buildFixture(
     /** Spec 107 D2: simula a reivindicação perdida para outro pedido concorrente. */
     readonly claimFails?: boolean
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
+    /** Spec 149 (ADR-0065 D1): ids que existem mas não marcaram `can_act_as_helper` na ficha. */
+    readonly ineligibleHelpers?: readonly string[]
     /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
     readonly releasePlans?: ReadonlyMap<
       string,
@@ -129,6 +133,7 @@ function buildFixture(
       calls.create?.push(record)
       return suggestion({ status: 'queued' })
     },
+    findIneligibleHelperIds: async () => input.ineligibleHelpers ?? [],
     findUnavailableDocumentIds: async () => input.unavailableDocuments ?? [],
     findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
     findUnavailableVehicleIds: async () => input.unavailableVehicles ?? [],
@@ -297,6 +302,168 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
 
     expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
     expect(fixture.calls.create).toEqual([])
+  })
+
+  /**
+   * Spec 149 (ADR-0065 §4): a mesma pessoa em dois lugares da proposta inteira — não só duas vezes
+   * motorista. As três variantes são recusa, para não descobrir a tripulação inconsistente só no
+   * aceite.
+   */
+  describe('spec 149 T5: tripulação sem repetição na proposta inteira', () => {
+    const HELPER = '00000000-0000-4000-8000-000000000031'
+    const OTHER_HELPER = '00000000-0000-4000-8000-000000000032'
+
+    test('recusa a mesma pessoa como motorista de um veículo e ajudante de outro', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+            { helperIds: [FIRST_DRIVER], vehicleId: SECOND_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    test('recusa a mesma pessoa como ajudante em dois veículos', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { helperIds: [HELPER], vehicleId: FIRST_VEHICLE },
+            { helperIds: [HELPER], vehicleId: SECOND_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+    })
+
+    test('recusa a mesma pessoa como motorista e ajudante do mesmo veículo', async () => {
+      const fixture = buildFixture()
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { driverId: FIRST_DRIVER, helperIds: [FIRST_DRIVER], vehicleId: FIRST_VEHICLE },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+    })
+
+    /** Ajudante sem `can_act_as_helper` na ficha — os ids viajam no detalhe do erro. */
+    test('recusa ajudante sem can_act_as_helper marcado, com o id no detalhe', async () => {
+      const fixture = buildFixture({ ineligibleHelpers: [HELPER] })
+
+      const refusal = await fixture.useCase
+        .create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ helperIds: [HELPER], vehicleId: FIRST_VEHICLE }],
+        })
+        .then(() => null)
+        .catch((error: unknown) => error)
+
+      expect(refusal).toBeInstanceOf(MultiVehicleSuggestionHelperNotEligibleError)
+      expect((refusal as MultiVehicleSuggestionHelperNotEligibleError).details).toEqual([
+        { field: 'helperIds', message: HELPER },
+      ])
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Ajudante indisponível (inativo/inexistente) responde pela mesma checagem do motorista. */
+    test('recusa ajudante indisponível pela mesma checagem de disponibilidade do motorista', async () => {
+      const fixture = buildFixture({ unavailableDrivers: [HELPER] })
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ helperIds: [HELPER], vehicleId: FIRST_VEHICLE }],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionDriverUnavailableError)
+    })
+
+    /** Teto de dez (motorista + ajudantes) por veículo, o mesmo de `trip_drivers`. */
+    test('recusa mais de dez pessoas na tripulação de um veículo', async () => {
+      const fixture = buildFixture()
+      const tenHelpers = Array.from({ length: 10 }, () => crypto.randomUUID())
+
+      await expect(
+        fixture.useCase.create({
+          context: CONTEXT,
+          correlationId: 'correlation',
+          documentIds: [FIRST_DOCUMENT],
+          vehicles: [{ driverId: FIRST_DRIVER, helperIds: tenHelpers, vehicleId: FIRST_VEHICLE }],
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionCrewTooLargeError)
+      expect(fixture.calls.create).toEqual([])
+    })
+
+    /** Ajudantes válidos persistem no pool, na mesma criação da frota. */
+    test('grava os ajudantes de cada veículo junto com a frota', async () => {
+      const fixture = buildFixture()
+
+      await fixture.useCase.create({
+        context: CONTEXT,
+        correlationId: 'correlation',
+        documentIds: [FIRST_DOCUMENT],
+        vehicles: [
+          { driverId: FIRST_DRIVER, helperIds: [HELPER, OTHER_HELPER], vehicleId: FIRST_VEHICLE },
+        ],
+      })
+
+      expect(fixture.calls.create?.[0]).toMatchObject({
+        vehicles: [
+          { driverId: FIRST_DRIVER, helperIds: [HELPER, OTHER_HELPER], vehicleId: FIRST_VEHICLE },
+        ],
+      })
+    })
+  })
+
+  /**
+   * Spec 149 (ADR-0065 D12): o aceite leva a tripulação completa — motorista e ajudantes — para o
+   * composer, para a viagem nascer com todo mundo em `trip_drivers`.
+   */
+  test('o aceite leva os ajudantes de cada linha ao criar a viagem', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
+          driverId: FIRST_DRIVER,
+          estimatedArrivalByAddressKey: new Map(),
+          helperIds: [
+            '00000000-0000-4000-8000-000000000031',
+            '00000000-0000-4000-8000-000000000032',
+          ],
+          orderedAddressKeys: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.trip).toMatchObject([
+      {
+        driverId: FIRST_DRIVER,
+        helperIds: ['00000000-0000-4000-8000-000000000031', '00000000-0000-4000-8000-000000000032'],
+        vehicleId: FIRST_VEHICLE,
+      },
+    ])
   })
 
   /** Par sem motorista continua legítimo: é a distribuição da véspera, antes de a escala existir. */

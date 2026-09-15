@@ -59,6 +59,9 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       readonly solverTimeBudgetSeconds?: number | undefined
       readonly vehicles: readonly {
         readonly driverId?: string | undefined
+        /** Spec 149 T5: de onde veio `driverId` — `recommended` é 400 (T10 é quem preenche). */
+        readonly driverSource?: 'link' | 'manual' | undefined
+        readonly helperIds?: readonly string[] | undefined
         readonly vehicleId: string
       }[]
     }>({
@@ -292,6 +295,8 @@ function serializeSuggestion(suggestion: RouteSuggestion): object {
     truncated: suggestion.truncated,
     updatedAt: suggestion.updatedAt,
     vehicleId: suggestion.vehicleId,
+    /** Spec 149 T5: a tripulação de cada linha da frota proposta — só acrescenta campo. */
+    vehicles: suggestion.vehicles ?? [],
   }
 }
 
