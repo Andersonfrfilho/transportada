@@ -44,7 +44,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
 - [x] **T302** 🧠 O worker envia a todos os `toAddresses` e manda `html` e `text` juntos, com
       contrato que **falha** se só o primeiro destinatário receber ou se o HTML se perder.
       Coordenar com a 143 T015.
-- [ ] **T303** `buildAddressCorrectionMail`, função pura que devolve `{ subject, html, text }`
+- [x] **T303** `buildAddressCorrectionMail`, função pura que devolve `{ subject, html, text }`
       seguindo `email-template.html`. Evidência: contrato de texto (como veio, correto e motivo
       sempre presentes; assunto no singular e no plural; escape de `<`, `&` e `"` vindos da nota).
 - [ ] **T304** `POST /address-correction-requests/mail`, com outbox na mesma transação,

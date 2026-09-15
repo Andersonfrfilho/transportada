@@ -757,3 +757,59 @@ claim…`) **falham também na versão do HEAD** do arquivo, contra o mesmo banc
   `test/contractor-mail-outbound-outbox.integration.test.ts`
 - `docs/SECURITY.md`, `specs/143-a-contratante-responde-por-e-mail/tasks.md` (nota na T015),
   `specs/150-pedido-de-correcao-de-endereco/plan.md` (decisão da T302) e `tasks.md`
+
+## T303
+
+`buildAddressCorrectionMail` (`apps/api-transportada/src/address-correction/domain/address-correction-mail.template.ts`),
+função pura sem I/O, reproduzindo `email-template.html`: layout em tabela, estilo inline, 600 px,
+preheader oculto, cabeçalho grafite com filete cobre, blocos numerados "Como veio na nota" /
+"Endereço correto" com barra verde / "Motivo", assinatura e rodapé. Cores e medidas nomeadas em
+`address-correction-mail.constant.ts`; tipos de `Params`/`Result`/item em
+`address-correction-mail.types.ts` (`AddressFields` reaproveitado de `address-correction.port.ts`).
+
+### Regra do motivo adotada
+
+`reason.distanceMetres === null` → "endereço não localizado". É o mesmo sinal que
+`compare-addresses-batch.use-case.ts` (`toDistance`) já grava em branco quando o município diverge ou
+o provedor não devolveu coordenada — inclusive `not_found` e `approximate` (o centroide de
+município), que é exatamente "o nível indica cidade" citado na task. Havendo distância:
+
+| distância   | texto                                                         |
+| ----------- | ------------------------------------------------------------- |
+| `< 1000` m  | `localizado a {metros inteiros} m do endereço informado`      |
+| `>= 1000` m | `localizado a {km, vírgula, 1 casa} km do endereço informado` |
+
+Documentado também no teste (`apps/api-transportada/test/address-correction-mail/template.contract.ts`).
+
+### Escape
+
+Função `escapeHtml` própria do módulo (nenhuma outra existia no repo) — `&` primeiro, depois `<`,
+`>`, `"`, `'`. Só o HTML escapa; o `text` carrega o valor literal, como o rascunho aprovado.
+
+### Endereço formatado
+
+`logradouro, número[, complemento] — [bairro —] cidade/UF · CEP` (CEP com hífen, sem a palavra "CEP"
+— é o que `email-template.html` de fato mostra: "· 13530-000"). Complemento entra depois do número;
+bairro ausente ou complemento ausente não deixam separador sobrando.
+
+### `recipientName` null
+
+O bloco abre pelo endereço **correto** (proposto pelo operador), sem "null" e sem linha vazia — é o
+identificador mais útil quando não há nome de destinatário.
+
+### Verde
+
+- `bun run typecheck` (raiz): exit 0 (6 apps).
+- `bun run --cwd apps/api-transportada test`: **5864 pass, 23 skip, 0 fail** (174 arquivos,
+  incluindo os 12 testes novos de `address-correction-mail.contract.test.ts`, adicionados à lista
+  explícita do `package.json`).
+- `bun run lint` (raiz): exit 0 (6 apps).
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/address-correction/domain/address-correction-mail.template.ts` (novo)
+- `apps/api-transportada/src/address-correction/domain/address-correction-mail.types.ts` (novo)
+- `apps/api-transportada/src/address-correction/domain/address-correction-mail.constant.ts` (novo)
+- `apps/api-transportada/test/address-correction-mail.contract.test.ts` (novo, entrypoint)
+- `apps/api-transportada/test/address-correction-mail/template.contract.ts` (novo)
+- `apps/api-transportada/package.json` (lista explícita de testes)
