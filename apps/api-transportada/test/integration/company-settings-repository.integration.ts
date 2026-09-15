@@ -3,3 +3,4 @@
  */
 import './company-settings-repository/idempotency-and-isolation.integration.js'
 import './company-settings-repository/sequence-and-rollback.integration.js'
+import './company-settings-repository/missing-sequence.integration.js'

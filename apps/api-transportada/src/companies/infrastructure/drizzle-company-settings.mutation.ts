@@ -11,6 +11,10 @@ import type {
   CompanySettingsResult,
 } from '../application/company-settings.port.js'
 import { CompanySettingsVersionConflictError } from '../domain/company-settings.error.js'
+import {
+  COMPANY_SETTINGS_PERSISTENCE_FAILURE,
+  CompanySettingsPersistenceError,
+} from '../domain/company-settings-persistence.error.js'
 import { createCompanySettingsResult } from './drizzle-company-settings.mapper.js'
 import { persistTargetSequence } from './drizzle-company-settings-sequence.persistence.js'
 import {
@@ -118,7 +122,9 @@ async function createSettings(
     })
     .returning({ version: companyFiscalProfiles.version })
   if (profile === undefined) {
-    throw new Error('Company fiscal settings could not be persisted')
+    throw new CompanySettingsPersistenceError(
+      COMPANY_SETTINGS_PERSISTENCE_FAILURE.profileNotPersisted,
+    )
   }
   const sequenceVersion = await persistTargetSequence(transaction, input.companyId, input.settings)
   return createCompanySettingsResult(input.settings, profile.version, sequenceVersion)
