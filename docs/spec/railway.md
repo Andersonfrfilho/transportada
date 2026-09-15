@@ -86,6 +86,11 @@ A ordem importa, e sair dela derruba serviço em silêncio:
 > depois de todo `apply`, o `plan` volta a mostrar `restartPolicyType (null → "ON_FAILURE")`
 > nesses nove. Medido aplicando duas vezes seguidas. Qualquer outra linha na prévia é mudança de
 > verdade.
+>
+> ⚠️ **Até o próximo `make map-refresh`, o `plan` também mostra `OSRM_PBF_URL` e `MAP_PBF_URL`
+> mudando** em `osrm` e `map-tiles`: o arquivo fixa `sudeste-260914`, e os serviços no ar ainda
+> rodam do `-latest` baixado em 14/09. Essas duas linhas são mudança de verdade — aplicar
+> reconstrói os dois serviços com a data do arquivo.
 
 ### O que o `railway config pull` não traz
 
