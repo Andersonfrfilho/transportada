@@ -12,6 +12,7 @@ export type IconName =
   | 'arrow-up'
   | 'calendar'
   | 'camera'
+  | 'speed-camera'
   | 'contrast'
   | 'minus'
   | 'target'
@@ -112,6 +113,16 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   target: ['M12 3v3', 'M12 18v3', 'M3 12h3', 'M18 12h3', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
   calendar: ['M8 3v4', 'M16 3v4', 'M4 7h16v14H4z', 'M4 11h16'],
   camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
+  /** Radar de velocidade: a frente do carro e as ondas que o medem. */
+  'speed-camera': [
+    'M10.9 9.5a7 7 0 0 0 0 7',
+    'M7.9 7.75a10.5 10.5 0 0 0 0 10.5',
+    'M4.9 6a14 14 0 0 0 0 14',
+    'M13 17.5V13l1.6-4h5.8l1.6 4v4.5Z',
+    'M13 13h9',
+    'M14.6 17.5v1.5',
+    'M20.4 17.5v1.5',
+  ],
   check: ['M5 13l4 4L19 7'],
   'chevron-down': ['M6 9l6 6 6-6'],
   'chevron-left': ['M15 18l-6-6 6-6'],

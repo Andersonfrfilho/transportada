@@ -13,6 +13,7 @@ import {
   buildBasemapStyle,
   resolveBasemapOutline,
 } from '@/modules/shared/vectorBasemap.service'
+import { MAP_BADGE_IDS, RADAR_SPEED_BADGE_PREFIX } from '@/modules/shared/mapBadge.constant'
 
 /** A validação é da **forma** do estilo; a paleta real é resolvida no documento, que aqui não há. */
 const resolveToken = (token: string): string => `#${token.length.toString(16).padStart(6, '0')}`
@@ -159,10 +160,11 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
   })
 
   /** As 16 cabines medidas na região vêm como `poi`/`toll_booth` — nunca uma camada própria. */
-  it('marca a cabine de pedágio', () => {
+  it('marca a cabine de pedágio com o selo de pedágio', () => {
     const layer = symbolLayerById('claro', 'cabine-de-pedagio')
     expect(layer['source-layer']).toBe('poi')
     expect(layer.filter).toEqual(['==', ['get', 'subclass'], 'toll_booth'])
+    expect(layer.layout?.['icon-image']).toBe(MAP_BADGE_IDS.toll)
   })
 })
 
@@ -214,7 +216,7 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
    * o único leitor que existe. Medido no extract: 12 radares declaram limite próprio de caminhão.
    */
   it('prefere o limite do caminhão ao do carro quando o mapa declara os dois', () => {
-    const field = JSON.stringify(symbolLayerById('claro', 'radar').layout?.['text-field'])
+    const field = JSON.stringify(symbolLayerById('claro', 'radar').layout?.['icon-image'])
     const posicaoHgv = field.indexOf('maxspeed_hgv')
     const posicaoCarro = field.indexOf('"maxspeed"')
 
@@ -228,20 +230,23 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
    * número** — imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
    * obedece, e o radar existe mesmo quando ninguém mapeou o limite dele.
    */
-  it('desenha o radar sem número quando o mapa não sabe a velocidade', () => {
-    const field = symbolLayerById('claro', 'radar').layout?.['text-field']
+  it('desenha o radar sem placa quando o mapa não sabe a velocidade', () => {
+    const layer = symbolLayerById('claro', 'radar')
+    const image = layer.layout?.['icon-image']
 
-    expect(Array.isArray(field)).toBe(true)
-    expect((field as unknown[])[0]).toBe('case')
-    /** O último ramo do `case` é o padrão: o glifo sozinho, sem `concat` de velocidade nenhuma. */
-    expect((field as unknown[]).at(-1)).toBe('▲')
+    expect(layer.layout?.['text-field']).toBeUndefined()
+    expect(Array.isArray(image)).toBe(true)
+    expect((image as unknown[])[0]).toBe('case')
+    /** O último ramo do `case` é o padrão: a câmera sozinha, sem placa com número inventado. */
+    expect((image as unknown[]).at(-1)).toBe(MAP_BADGE_IDS.radar)
+    expect(JSON.stringify(image)).toContain(RADAR_SPEED_BADGE_PREFIX)
   })
 
-  /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo glifo. */
-  it('usa um glifo diferente do da cabine de pedágio', () => {
+  /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo selo. */
+  it('usa um selo diferente do da cabine de pedágio', () => {
     const radar = symbolLayerById('claro', 'radar')
     const cabine = symbolLayerById('claro', 'cabine-de-pedagio')
-    expect(radar.layout?.['text-field']).not.toEqual(cabine.layout?.['text-field'])
+    expect(radar.layout?.['icon-image']).not.toEqual(cabine.layout?.['icon-image'])
   })
 })
 
