@@ -166,6 +166,11 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
             eq(addressCorrectionRequests.status, DRAFT_STATUS),
           ),
         )
+        // Rodada de correção da Fase 4: `ORDER BY` antes do `FOR UPDATE` fixa a ordem de trava das
+        // linhas — sem ele, um envio completo (por contratante) e um unitário (por lista de ids)
+        // que travam o mesmo par de rascunhos podem pegá-los em ordem oposta e deadlockar sob
+        // concorrência (Postgres derruba um dos dois com `40P01`, que virava 500).
+        .orderBy(addressCorrectionRequests.id)
         .for('update')
       return { invalidRequestIds: [], sendable: rows.map(toAddressCorrectionRequest) }
     }
@@ -183,6 +188,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
                 inArray(addressCorrectionRequests.id, requestedIds),
               ),
             )
+            .orderBy(addressCorrectionRequests.id)
             .for('update')
     const rowById = new Map(rows.map((row) => [row.id, row]))
     const sendable: AddressCorrectionRequest[] = []

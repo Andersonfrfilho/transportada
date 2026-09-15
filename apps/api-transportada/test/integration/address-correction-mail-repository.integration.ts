@@ -470,5 +470,93 @@ describeDatabase(
       )
       expect(request).toMatchObject({ status: 'sent', thread_id: winnerThreadId })
     })
+
+    /**
+     * Rodada de correção da Fase 4, item 3: o envio **completo** (sem `requestIds`, trava por
+     * `company_id`+`contractor_id`) e o **unitário** (com `requestIds`, trava por `id` via `IN`)
+     * podem travar os mesmos rascunhos em ordens diferentes quando concorrentes — sem `ORDER BY`
+     * antes do `FOR UPDATE`, o plano de cada consulta decide sua própria ordem de trava, e duas
+     * ordens opostas sobre as mesmas linhas é a receita de deadlock (Postgres `40P01`), que subia
+     * como 500 em vez de um `409` esperado. `.orderBy(id)` nos dois `for('update')` fixa a mesma
+     * ordem para as duas formas de consulta.
+     */
+    test('envio completo e unitário concorrentes sobre os mesmos rascunhos nunca deadlockam', async () => {
+      if (database === undefined) throw new Error('A disposable database is required')
+      const drafts: string[] = []
+      for (let index = 0; index < 3; index += 1) {
+        const addressKey = `3550308|0131040${index}|4${index}`
+        const [row] = await database.db.execute<{ id: string }>(sql`
+          insert into address_correction_requests
+            (company_id, contractor_id, address_key,
+             reported_street, reported_number, reported_city_code, reported_city, reported_state,
+             reported_postal_code,
+             proposed_street, proposed_number, proposed_city_code, proposed_city, proposed_state,
+             proposed_postal_code,
+             reason_match_level, status)
+          values (
+            ${COMPANY_ID}, ${contractorId}, ${addressKey},
+            'Av Paulista', ${`4${index}`}, '3550308', 'São Paulo', 'SP', '01310400',
+            'Avenida Paulista', ${`4${index}`}, '3550308', 'São Paulo', 'SP', '01310400',
+            'rooftop', 'draft'
+          )
+          returning id
+        `)
+        if (row?.id !== undefined) drafts.push(row.id)
+      }
+      expect(drafts).toHaveLength(3)
+      // Ordem invertida de propósito: sem `ORDER BY` no repositório, esta consulta por `IN` tende a
+      // travar na ordem inversa da consulta "completa" (que trava por `company_id`+`contractor_id`).
+      const reversedIds = [...drafts].reverse()
+
+      async function attemptSend(label: string, requestIds: readonly string[] | undefined) {
+        const threadId = crypto.randomUUID()
+        return repository().execute(async (transaction) => {
+          const { sendable } = await transaction.findSendableRequests({
+            companyId: COMPANY_ID,
+            contractorId,
+            requestIds,
+          })
+          if (sendable.length === 0) return { sendable: [] as string[], threadId: null }
+
+          const sendableIds = sendable.map((request) => request.id)
+          await transaction.recordMail({
+            actorUserId: ACTOR_USER_ID,
+            bodyHtml: `<p>${label}</p>`,
+            bodyText: label,
+            companyId: COMPANY_ID,
+            contractorId,
+            correlationId: `correlation-crossed-${label}`,
+            fromAddress: 'no-reply@transportada.test',
+            replyTokenHash: (label === 'complete' ? 'e' : 'f').repeat(64),
+            subject: `Correção de endereço de entrega — ${sendableIds.length} cliente(s)`,
+            templateId,
+            threadId,
+            toAddresses: ['ativo@contratante.example'],
+          })
+          await transaction.markRequestsSent({
+            companyId: COMPANY_ID,
+            requestIds: sendableIds,
+            threadId,
+          })
+          return { sendable: sendableIds, threadId }
+        })
+      }
+
+      const results = await Promise.allSettled([
+        attemptSend('complete', undefined),
+        attemptSend('unit', reversedIds),
+      ])
+
+      // A prova do item: nenhum dos dois lados propaga um erro cru de deadlock/500 — no pior caso
+      // um vê zero rascunhos sobráveis (já pegos pelo outro) e não manda e-mail nenhum, sem exceção.
+      for (const result of results) {
+        expect(result.status).toBe('fulfilled')
+      }
+
+      const rows = await database.db.execute<{ status: string }>(
+        sql`select status from address_correction_requests where id in ${drafts}`,
+      )
+      expect(rows.every((row) => row.status === 'sent')).toBe(true)
+    })
   },
 )
