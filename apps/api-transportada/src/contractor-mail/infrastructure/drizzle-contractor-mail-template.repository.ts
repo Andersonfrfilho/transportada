@@ -139,17 +139,51 @@ export class DrizzleContractorMailTemplateRepository
     )
   }
 
-  /** Arquivar tira o padrão no mesmo `UPDATE` (a CHECK `default_active` exige). */
-  public update(
+  /**
+   * Arquivar tira o padrão no mesmo `UPDATE` (a CHECK `default_active` exige) — **nunca** promove
+   * outro modelo no lugar (decisão de produto fora do escopo desta task, revisão final Fase 4, item
+   * 8): a empresa fica sem padrão do tipo até alguém escolher um, e é isso que
+   * `resolveMailSendReadiness`/RF16-17 já leem (`templateMissing`) para recusar o envio.
+   *
+   * Arquivar segura o mesmo advisory lock de `(companyId, mailType)` que `create`/`setDefault` —
+   * sem ele, um `create` concorrente poderia ler "já existe padrão" um instante antes deste
+   * `UPDATE` desmarcá-lo, e terminar sem nenhum modelo marcado como padrão por um acaso de tempo em
+   * vez de pela escolha explícita de arquivar.
+   */
+  public async update(
     params: UpdateContractorMailTemplateParams,
   ): Promise<ContractorMailTemplate | undefined> {
     const isArchiving = params.changes.status === ARCHIVED_STATUS
+    if (!isArchiving) return this.updateRow(this.database, params)
+
+    return this.database.transaction(async (transaction) => {
+      const [target] = await transaction
+        .select({ mailType: table.mailType })
+        .from(table)
+        .where(and(...buildContractorMailTemplateFilters(params)))
+        .limit(1)
+      if (target === undefined) return undefined
+
+      await acquireDefaultLock({
+        companyId: params.companyId,
+        mailType: target.mailType,
+        transaction,
+      })
+      return this.updateRow(transaction, params, { isArchiving: true })
+    })
+  }
+
+  private async updateRow(
+    executor: Database | Transaction,
+    params: UpdateContractorMailTemplateParams,
+    options?: { readonly isArchiving: boolean },
+  ): Promise<ContractorMailTemplate | undefined> {
     return translateNameConflict(async () => {
-      const [row] = await this.database
+      const [row] = await executor
         .update(table)
         .set({
           ...params.changes,
-          ...(isArchiving ? { isDefault: false } : {}),
+          ...(options?.isArchiving === true ? { isDefault: false } : {}),
           actorUserId: params.actorUserId,
           updatedAt: sql`now()`,
           version: sql`${table.version} + 1`,

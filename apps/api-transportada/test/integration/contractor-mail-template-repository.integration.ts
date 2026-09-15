@@ -228,6 +228,16 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
     })
     expect(archived).toMatchObject({ isDefault: false, status: 'archived' })
     expect(archived?.version).toBe(first.version + 1n)
+
+    // Item 8 da revisão final: arquivar o padrão nunca promove outro sozinho — decisão de produto
+    // fora desta task. A empresa fica sem padrão do tipo até alguém escolher um.
+    const stillNotDefault = await templates().find({ companyId, templateId: second.id })
+    expect(stillNotDefault?.isDefault).toBe(false)
+    const anyDefaultLeft = await db().execute<{ id: string }>(sql`
+      select id from contractor_mail_templates
+      where company_id = ${companyId} and mail_type = ${MAIL_TYPE} and is_default and status = 'active'
+    `)
+    expect(anyDefaultLeft).toHaveLength(0)
   })
 
   test('versão velha não grava (concorrência otimista)', async () => {
