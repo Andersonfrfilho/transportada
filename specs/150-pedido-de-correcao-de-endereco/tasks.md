@@ -22,7 +22,7 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       e a contratante é resolvida pelo CNPJ do emitente dentro da empresa do token.
 - [x] **T103** `PUT` e `GET /address-correction-requests`, com a validação de CEP, UF e município e
       `details[]` por campo. O "como veio" é lido do banco. Evidência: contratos de rota.
-- [ ] **T104** O relatório expõe `recipientName` (RF11). Evidência: contrato do repositório e do
+- [x] **T104** O relatório expõe `recipientName` (RF11). Evidência: contrato do repositório e do
       tipo de resposta.
 
 ## Fase 2 — O formulário na aba

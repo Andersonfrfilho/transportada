@@ -29,8 +29,8 @@ export type SaveAddressCorrectionDraftUseCase = Readonly<{
 /**
  * RF2/RF4: "como veio" e o motivo são lidos aqui, do relatório (spec 084, G8) — nunca do corpo do
  * cliente — e a contratante é resolvida pelo CNPJ do emitente daquela chave, dentro da empresa do
- * token. `recipientName` fica `null` nesta task: a T104 é quem faz o relatório expor o nome do
- * destinatário.
+ * token. `recipientName` (RF11) vem do mesmo relatório, nunca do body: o cliente nunca escolhe o
+ * nome que aparece no e-mail.
  */
 export function createSaveAddressCorrectionDraftUseCase(dependencies: {
   readonly addressCorrectionRepository: AddressCorrectionRepositoryPort
@@ -59,7 +59,7 @@ export function createSaveAddressCorrectionDraftUseCase(dependencies: {
         proposed: input.proposed,
         reasonDistanceMetres: found.distanceMetres === null ? null : String(found.distanceMetres),
         reasonMatchLevel: found.matchLevel,
-        recipientName: null,
+        recipientName: found.recipientName,
         reported: buildReportedFields({ addressKey: input.addressKey, found }),
       })
     },

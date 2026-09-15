@@ -31,6 +31,8 @@ export type AddressFinding = Readonly<{
   noteStreet: string
   providerPostalCode: string
   providerStreet: string
+  /** Nome do destinatário (RF11). Ainda não exibido nesta tela. */
+  recipientName: null | string
   state: string
 }>
 
@@ -56,6 +58,10 @@ function record(value: unknown): Readonly<Record<string, unknown>> {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function nullableText(value: unknown): null | string {
+  return typeof value === 'string' ? value : null
 }
 
 function count(value: unknown): number {
@@ -116,6 +122,7 @@ function mapFinding(value: unknown): AddressFinding | null {
     noteStreet: text(finding.noteStreet),
     providerPostalCode: text(finding.providerPostalCode),
     providerStreet: text(finding.providerStreet),
+    recipientName: nullableText(finding.recipientName),
     state: text(finding.state),
   }
 }

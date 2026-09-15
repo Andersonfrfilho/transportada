@@ -213,3 +213,91 @@ Resultado: exit 0 nas 6 apps.
 - `apps/api-transportada/test/address-correction-http.contract.test.ts` (novo)
 - `apps/api-transportada/test/integration/address-correction-repository.integration.ts` (teste de `listByCompany`)
 - `apps/api-transportada/package.json` (entrada em `test`)
+
+## T104
+
+O relatório expõe `recipientName` (RF11).
+
+### O que ficou
+
+- **A mesma consulta, uma terceira linha.** `drizzle-address-report.repository.ts` já escolhia
+  `emitter` por um `alias(nfeParticipants, ...)`; `recipientParticipant` é o mesmo desenho —
+  `left join` por `documentId`+`companyId`+`role = 'recipient'`, valor exato conferido no worker
+  (`NFE_PARTICIPANT_ROLE.RECIPIENT`, `worker-transportada/src/nfe-imports/domain/nfe-participant-role.constant.ts`).
+  **`left`, não `inner`**: nem toda nota grava a linha `recipient`, e o relatório precisa continuar
+  mostrando o endereço mesmo sem ela — `null` no lugar do nome.
+- **Por que não `nfeParticipants.legalName` direto.** A junção de destino (`destinationRolesFilter`)
+  aceita `delivery` **e** `recipient` — o endereço físico pode vir do participante `delivery`
+  (`<entrega>`), que não é quem a nota chama de destinatário. Testado no
+  `address-report-repository.integration.ts`: a nota tem `delivery` com um nome e `recipient` com
+  outro, e `recipientName` sai sempre do segundo.
+  Continua **uma consulta só** (`address-report-repository.contract.ts` conta os `.select(` do
+  arquivo: 3, o mesmo de antes) — nada de query por linha.
+- **`AddressReportRow.recipientName: string | null`** (`address-report.port.ts`) — `null` quando a
+  nota não tem linha `recipient`. Propaga sem código extra até `GET /address-report`: `AddressFinding`
+  já é `AddressReportRow & {kind}`, e a rota devolve `report` inteiro (`address-report.routes.ts`,
+  sem mudança).
+- **`PUT /address-correction-requests/:addressKey` grava `recipient_name` do relatório, nunca do
+  body** (`save-address-correction-draft.use-case.ts`): a linha `recipientName: null` (placeholder da
+  T103) virou `recipientName: found.recipientName`, lido do mesmo `AddressReportRepository.read`
+  que já resolve `reported`/`reason*` — coluna e caminho de gravação já existiam desde T101/T103,
+  esta task só preenche o valor.
+- **Frontend: campo aceito, não exibido.** `addressReport.validation.ts` ganhou
+  `recipientName: null | string` em `AddressFinding` e o mapeamento (`nullableText`, mesmo padrão de
+  `text`) — ausente ou `null` no corpo não derruba o achado.
+- **Nada de PII em log**: `recipientName` segue a mesma trilha do `contractorName` existente — nunca
+  passa por `logger.*`, só pelo relatório e pelo registro do pedido.
+
+### Gates
+
+```
+bun run typecheck
+```
+
+Resultado: verde nas 6 apps.
+
+```
+bun run --cwd apps/api-transportada test
+```
+
+Resultado: **5835 pass**, 23 skip, 0 fail, 20571 `expect()`, 173 arquivos.
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test ./test/integration/address-correction-repository.integration.ts \
+  ./test/integration/address-report-repository.integration.ts --timeout 120000
+```
+
+(dentro de `apps/api-transportada`, Postgres nativo descartável em 65433) Resultado: **9 pass** (6 do
+T102/T103 + 3 novos: nome do `recipient` nunca do `delivery`, `null` sem linha `recipient`, o mesmo
+nome chega na linha `unresolved`), 0 fail, 26 `expect()` — não pulou.
+
+```
+bun run --cwd apps/frontend-transportada test
+```
+
+Resultado: **3691 pass**, 0 fail, 34723 `expect()`, 29 arquivos.
+
+```
+bun run lint
+```
+
+Resultado: exit 0 nas 6 apps.
+
+### Arquivos alterados
+
+- `apps/api-transportada/src/addresses/infrastructure/drizzle-address-report.repository.ts` (alias
+  `recipientParticipant`, `left join`, `recipientName` no `select` e nas duas funções de linha)
+- `apps/api-transportada/src/addresses/application/address-report.port.ts`
+  (`AddressReportRow.recipientName`)
+- `apps/api-transportada/src/address-correction/application/save-address-correction-draft.use-case.ts`
+  (`recipientName: found.recipientName`, comentário atualizado)
+- `apps/api-transportada/test/addresses-application/read-address-report.contract.ts` (fixture `LINHA`
+  com `recipientName`)
+- `apps/api-transportada/test/addresses-infrastructure/address-report-repository.contract.ts` (dois
+  testes novos: papel `recipient`, sem query por linha)
+- `apps/api-transportada/test/integration/address-report-repository.integration.ts` (novo)
+- `apps/api-transportada/package.json` (entrada em `test:integration`)
+- `apps/frontend-transportada/src/modules/nfe-workspace/shared/addressReport.validation.ts`
+  (`AddressFinding.recipientName`, `nullableText`)
+- `apps/frontend-transportada/test/nfe-workspace/address-report.contract.ts` (dois testes novos)

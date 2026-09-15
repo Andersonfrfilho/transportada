@@ -23,6 +23,7 @@ const LINHA: AddressReportRow = {
   providerNumber: '533',
   providerPostalCode: '14210-000',
   providerStreet: 'Rua Capitão Augusto de Almeida',
+  recipientName: 'JOAO DA SILVA',
   state: 'SP',
 }
 

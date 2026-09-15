@@ -23,6 +23,14 @@ import type {
 /** O emitente é uma segunda linha de `nfe_participants` do mesmo documento — daí o alias. */
 const emitter = alias(nfeParticipants, 'emitter_participant')
 
+/**
+ * O destinatário (RF11) é uma terceira linha do mesmo documento — a junção de destino
+ * (`destinationRolesFilter`) pode trazer `delivery`, que não é necessariamente quem a nota chama
+ * de destinatário. `role = 'recipient'` é o valor exato gravado pelo worker
+ * (`NFE_PARTICIPANT_ROLE.RECIPIENT`, `nfe-participant-role.constant.ts`).
+ */
+const recipientParticipant = alias(nfeParticipants, 'recipient_participant')
+
 export type AddressReportDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
 /**
@@ -72,6 +80,7 @@ export function createDrizzleAddressReportRepository(
             contractorTaxId: emitter.taxId,
             number: nfeAddresses.number,
             postalCode: nfeAddresses.postalCode,
+            recipientName: recipientParticipant.legalName,
             state: nfeAddresses.state,
           })
           .from(nfeAddresses)
@@ -92,6 +101,19 @@ export function createDrizzleAddressReportRepository(
               eq(emitter.documentId, nfeParticipants.documentId),
               eq(emitter.companyId, nfeParticipants.companyId),
               eq(emitter.role, 'emitter'),
+            ),
+          )
+          /**
+           * RF11: o nome do destinatário, pela **mesma** escolha de nota do endereço — nunca uma
+           * consulta por linha (`code-standart.md` §15). `left join` porque nem toda nota grava a
+           * linha `recipient` (documento antigo, XML sem `<dest>` completo).
+           */
+          .leftJoin(
+            recipientParticipant,
+            and(
+              eq(recipientParticipant.documentId, nfeParticipants.documentId),
+              eq(recipientParticipant.companyId, nfeParticipants.companyId),
+              eq(recipientParticipant.role, 'recipient'),
             ),
           )
           .where(
@@ -145,6 +167,7 @@ type AddressContextRow = {
   readonly district: null | string
   readonly number: null | string
   readonly postalCode: null | string
+  readonly recipientName: null | string
   readonly state: null | string
   readonly street: null | string
 }
@@ -174,6 +197,7 @@ function toUnresolvedRow(input: {
     providerNumber: '',
     providerPostalCode: '',
     providerStreet: '',
+    recipientName: found.recipientName,
     state: found.state ?? '',
   }
 }
@@ -215,6 +239,7 @@ function toMeasurementRow(
     providerNumber: measurement.providerNumber,
     providerPostalCode: measurement.providerPostalCode,
     providerStreet: measurement.providerStreet,
+    recipientName: found?.recipientName ?? null,
     state: found?.state ?? '',
   }
 }

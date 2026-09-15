@@ -33,6 +33,22 @@ describe('a quem o relatório atribui cada pedido (spec 084, G8 / ADR-0057)', ()
     expect(FONTE).not.toContain('sql`')
   })
 
+  /**
+   * RF11: o nome do destinatário vem do participante `recipient`, nunca de `delivery` — que a
+   * junção de destino também aceita (`destinationRolesFilter`), mas não é necessariamente quem a
+   * nota chama de destinatário.
+   */
+  test('o nome do destinatário vem do participante de papel recipient', () => {
+    expect(FONTE).toContain("recipientParticipant.role, 'recipient'")
+    expect(FONTE).toContain('recipientName: recipientParticipant.legalName')
+  })
+
+  /** Mesma passada da parte de contexto — nunca uma segunda consulta por linha (`code-standart.md` §15). */
+  test('o destinatário sai da mesma consulta, sem query por linha', () => {
+    const selects = FONTE.match(/\.select\(/gu) ?? []
+    expect(selects.length).toBe(3)
+  })
+
   /** Todo `select` é escopado pela empresa do contexto (`code-standart.md`, multi-tenant). */
   test('as duas consultas filtram por empresa', () => {
     const ocorrencias = FONTE.match(/companyId, input\.companyId/gu) ?? []
