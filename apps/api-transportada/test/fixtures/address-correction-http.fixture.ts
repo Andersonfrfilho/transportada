@@ -158,7 +158,13 @@ export async function createAddressCorrectionHttpFixture(
   const logCalls: { readonly message: string; readonly metadata: unknown }[] = []
   const router = createTestRouter({
     context: authenticatedContext(params.permissions ?? SETTINGS_MANAGE_PERMISSIONS),
-    routes: await loadRoutes({ findRecipients, listRequests, saveDraft, sendMail }),
+    routes: await loadRoutes({
+      findRecipients,
+      listRequests,
+      mailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
+      saveDraft,
+      sendMail,
+    }),
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
@@ -186,6 +192,7 @@ export async function createAddressCorrectionHttpFixture(
 async function loadRoutes(input: {
   readonly findRecipients: FindAddressCorrectionRecipientsUseCase
   readonly listRequests: ListAddressCorrectionRequestsUseCase
+  readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
   readonly saveDraft: SaveAddressCorrectionDraftUseCase
   readonly sendMail: SendAddressCorrectionMailUseCase
 }): Promise<readonly RegisteredRoute[]> {
@@ -195,6 +202,7 @@ async function loadRoutes(input: {
     createAddressCorrectionRoutes(dependencies: {
       readonly findRecipients: FindAddressCorrectionRecipientsUseCase
       readonly listRequests: ListAddressCorrectionRequestsUseCase
+      readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
       readonly saveDraft: SaveAddressCorrectionDraftUseCase
       readonly sendMail: SendAddressCorrectionMailUseCase
     }): readonly RegisteredRoute[]
@@ -234,6 +242,7 @@ function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

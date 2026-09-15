@@ -9,6 +9,27 @@ export type RateLimitPolicy = Readonly<{
   windowMs: number
 }>
 
+/** Teto e janela vindos do ambiente, sem dizer ainda onde o balde mora. */
+export type RateLimitCeiling = Readonly<{
+  maxRequests: number
+  windowSeconds: number
+}>
+
+/**
+ * Spec 150 T406: balde compartilhado entre réplicas, no Postgres, por `companyId:userId`. Todas as
+ * rotas com o mesmo `scope` gastam o mesmo balde.
+ */
+export type PostgresRateLimitPolicy = RateLimitCeiling &
+  Readonly<{
+    scope: string
+    store: 'postgres'
+  }>
+
+/** O teto que a rota autenticada declara: em memória do processo ou compartilhado no Postgres. */
+export type RouteRateLimitPolicy =
+  | (RateLimitPolicy & Readonly<{ store: 'memory' }>)
+  | PostgresRateLimitPolicy
+
 export type RateLimitOutcome = Readonly<
   { readonly allowed: true } | { readonly allowed: false; readonly retryAfterSeconds: number }
 >

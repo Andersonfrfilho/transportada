@@ -5,11 +5,13 @@
  * inteira de endereços a corrigir é quem também registra e envia o pedido de correção.
  */
 import { parseIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
+import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import {
   API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_PATH,
   API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH,
+  CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type { SendAddressCorrectionMailResult } from '../application/address-correction-mail.port.js'
@@ -38,6 +40,8 @@ const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CON
 type Dependencies = Readonly<{
   findRecipients: FindAddressCorrectionRecipientsUseCase
   listRequests: ListAddressCorrectionRequestsUseCase
+  /** Spec 150 RF18: o teto do envio, vindo do ambiente. */
+  mailRateLimit: RateLimitCeiling
   saveDraft: SaveAddressCorrectionDraftUseCase
   sendMail: SendAddressCorrectionMailUseCase
 }>
@@ -130,6 +134,11 @@ export function createAddressCorrectionRoutes(
       },
       pathname: API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      rateLimit: {
+        ...dependencies.mailRateLimit,
+        scope: CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
+        store: 'postgres',
+      },
     }),
     defineRoute<RecipientsInput>({
       async handle({ context, input }): Promise<Response> {

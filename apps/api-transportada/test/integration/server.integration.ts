@@ -68,6 +68,7 @@ const server = startApiServer({
     bootstrapToken: undefined,
     cargoLayoutTimeBudgetMs: 60_000,
     companyId: undefined,
+    contractorMailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     databasePool: { connectTimeoutSeconds: 5, max: 10, queryTimeoutMs: 8000 },

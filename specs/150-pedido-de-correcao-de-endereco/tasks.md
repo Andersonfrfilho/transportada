@@ -77,9 +77,9 @@ Toda task fecha com typecheck (`bun run typecheck`), os testes da app (a integra
       Evidência: contrato do serviço da lista.
 - [x] **T405** Confirmação de envio (T305): seletor de modelo, prévia com o modelo escolhido, e a
       recusa por liberação levando à página de configuração. Evidência: contratos de serviço.
-- [ ] 🧠 **T406** Limitador de taxa com estado no Postgres (`rate_limit_windows`), declarado na
+- [x] 🧠 **T406** Limitador de taxa com estado no Postgres (`rate_limit_windows`), declarado na
       rota, aplicado ao envio de correção e ao e-mail de teste, `429` com `Retry-After`, tetos vindos
-      do env, e limpeza no cron. Evidência: contratos do limitador (janela, concorrência atômica,
+      do env, e limpeza no worker (`rate-limit.window.purge`). Evidência: contratos do limitador (janela, concorrência atômica,
       `Retry-After`), da rota e do env, mais integração.
 - [ ] **T407** `docs/SECURITY.md`: M1 fechado para as rotas de e-mail, M2 (auditoria) e B3
       registrados como pendentes antes de produção. Atualizar `docs/ai-context/` e os `CLAUDE.md`

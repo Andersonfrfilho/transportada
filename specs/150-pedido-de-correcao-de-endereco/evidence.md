@@ -2116,3 +2116,149 @@ nfeWorkspaceClient.service}.ts`, `hooks/useAddressCorrectionMailDialog.hook.ts`,
   `locales/nfeWorkspace{,.en}.locale.json`, `test/nfe-workspace/address-correction-mail.contract.ts`.
 
 Nenhum arquivo de `delivery-clients` tocado — zero acoplamento entre módulos (`web.md` §1).
+
+## T406
+
+Limitador de taxa com estado no Postgres para as rotas que disparam e-mail à contratante (RF18, M1
+da revisão de segurança). Desenho aprovado pelo architect antes de codar, e ele corrigiu a premissa
+do `plan.md`: **a API já tinha limitador em memória por processo** (`http/rate-limiter.service.ts`,
+aplicado pelo `router.service.ts` depois de `authorize`). A T406 estende esse caminho em vez de criar
+um paralelo; o parágrafo **Limitador** do `plan.md` foi reescrito para refletir isso.
+
+### Decisões
+
+- **Rota declara o teto como dado, e o `rateLimit` vira união discriminada**:
+  `{ store: 'memory', maxRequests, windowMs }` (o de antes) ou
+  `{ store: 'postgres', scope, maxRequests, windowSeconds }`. A única rota autenticada que já tinha
+  teto em memória (`POST /me/whatsapp-phone/verification`) ganhou `store: 'memory'` explícito, sem
+  mudar de comportamento. A rota anônima continua só em memória, por IP (tipo intocado).
+- **Porta assíncrona** `RateLimitWindowStorePort.consume()` (`http/rate-limit-window.port.ts`),
+  injetada em `createRouter` como `rateLimitWindows`. Rota `postgres` sem a porta **derruba o boot**
+  (`assertPostgresRateLimitHasStore`), no molde de `assertMembershipRoutesUnderMe`: teto que não conta
+  é porta aberta calada.
+- **Ponto de aplicação inalterado**: depois de `authorize`, antes de `execute`/`parse`/idempotência.
+  Corpo inválido (400) e replay idempotente **contam** — provado no contrato do router.
+- **`DrizzleRateLimiterRepository`** (`http/drizzle-rate-limiter.repository.ts`): **um** upsert em
+  autocommit, fora da transação do caso de uso — `INSERT … ON CONFLICT (scope, subject_key,
+window_start) DO UPDATE SET hits = rate_limit_windows.hits + 1 RETURNING hits, window_start, now()`.
+  `window_start = to_timestamp(floor(epoch(now()) / w) * w)` e o "agora" vêm do relógio do **banco**
+  (réplica com relógio torto não abre janela própria). `Retry-After = ceil(window_start + w − now())`,
+  mínimo 1, pela função pura `resolveRetryAfterSeconds` (`http/rate-limit-window.policy.ts`). Tudo
+  parametrizado — nenhum `sql.raw`.
+- **Fail-closed**: sem `try/catch`. O limitador fora do ar propaga e vira 500 pelo Router; sem saber
+  quantos envios já saíram, o envio não sai.
+- **Chave**: `scope` + `companyId:userId` — só UUIDs, nada de PII. Escopo único `contractor-mail`
+  (`CONTRACTOR_MAIL_RATE_LIMIT_SCOPE`) para `POST /address-correction-requests/mail` e
+  `POST /contractor-mail-settings/test-email`: o e-mail de teste gasta o mesmo balde do envio.
+- **Código de erro reusado**: `TOO_MANY_REQUESTS` (`HTTP_ERROR.tooManyRequests`), o mesmo que o
+  limitador em memória já devolvia. O `RATE_LIMIT_EXCEEDED` do plano não foi criado.
+- **Env**: `RATE_LIMIT_CONTRACTOR_MAIL_MAX` (int 1..10000, padrão 20) e
+  `RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS` (int 60..86400, padrão 3600) no
+  `environment.schema.ts`, expostos como `ApiEnvironment.contractorMailRateLimit` e injetados nas
+  duas factories de rota (`mailRateLimit`). Declarados no `.env.example` com o padrão, e o contrato
+  do `.env.example` cobra isso (mesmo molde de `CARGO_LAYOUT_TIME_BUDGET_MS`). O `make config` não
+  lista variável por variável — valida o schema —, então não precisou mudar. `.env`/`.env.test` não
+  foram lidos nem tocados.
+- **Tabela e migration aditiva** `20260915233000_rate_limit_windows` (gerada pelo `db:generate`,
+  pasta renomeada para ordenar depois de `20260915230000`; `prevIds` confere com o snapshot anterior):
+  `rate_limit_windows (scope, subject_key, window_start, hits)`, PK composta + btree
+  `rate_limit_windows_window_start_idx`, e o CHECK de `job_schedules`/`job_executions` ampliado com a
+  rotina nova, mais a linha semeada em `job_schedules` (`3600`). Com `snapshot.json`, `rollback.sql` e
+  a entrada na lista explícita de `static-migration.contract.ts` e no `SEED_MIGRATIONS` do contrato
+  do catálogo.
+- **Limpeza no worker, não no cron**: o cron só publica a batida lendo `job_schedules`; quem executa
+  rotina é o worker. Rotina nova `rate-limit.window.purge` (`minimumIntervalSeconds: 3_600`,
+  vocabulário de falha vazio), no molde de `trip.cargo-layout.purge`: lotes de 1000 por `ctid` com
+  `for update skip locked`, teto de 100 lotes, parada no limite do lote. O corte é
+  `window_start < now − 48 h` — o worker não lê o env da API, então usa a janela máxima que o schema
+  de lá aceita (24 h) mais 24 h de folga: toda janela apagada venceu há mais de 24 h. O mecanismo que
+  cria a linha de `job_schedules` para rotina nova é a própria migration (`INSERT` no fim, como em
+  `20260913210300_trip_cargo_layout_purge_job`). A rotina entra no catálogo das quatro apps (API,
+  worker, cron, frontend) e nos três contratos-espelho; o worker ganhou o espelho do schema
+  (`src/database/rate-limit-window.schema.ts`) com contrato de paridade. Nada de `DELETE`
+  oportunista na API.
+
+### Vermelho → verde
+
+- **Vermelho** (antes da implementação), API:
+  `bun test ./test/rate-limit.contract.test.ts ./test/rate-limited-routes.contract.test.ts` →
+  **0 pass, 3 fail, 1 error** — `Cannot find module '../../src/http/rate-limit-window.policy.js'`
+  derrubando o arquivo inteiro de janela/router/env, e as duas asserções de rota (nenhuma rota com
+  teto `postgres`, nenhum arquivo declarando).
+- **Verde**, mesmos arquivos + `env-example` + router antigo + rotas de correção, e-mail e WhatsApp +
+  `http`: **671 pass, 0 fail** (8 arquivos).
+- Worker: o contrato da rotina e o de paridade foram escritos **junto** com a rotina, não antes —
+  não houve vermelho registrado para eles. O contrato do catálogo das quatro apps reprova sem a
+  entrada (é paridade por valor), mas também não guardei a execução vermelha.
+
+### Testes novos (todos na lista explícita do `package.json` da app)
+
+- `test/rate-limit.contract.test.ts` → `rate-limit/window.contract.ts` (janela alinhada, Retry-After
+  arredondado para cima e com piso 1, teto inclusivo), `rate-limit/router.contract.ts` (porta falsa:
+  429 + `retry-after` + `TOO_MANY_REQUESTS` sem chegar ao caso de uso; chave
+  `companyId:userId` e escopo; 400 conta; porta que lança → não é `ApiError` e vira **500** pelo
+  request handler; boot recusa rota `postgres` sem porta; rota `memory` e rota anônima seguem
+  iguais e nunca tocam a porta), `rate-limit/environment.contract.ts` (padrão 20/3600, valores
+  declarados, `0`/`10001`/`1.5`/texto/vazio e `59`/`86401`/`3600.5`/vazio derrubam o boot).
+- `test/rate-limited-routes.contract.test.ts`: as duas rotas `postgres` por extenso, com escopo e
+  teto, e varredura de `src/**/*.routes.ts` — só os dois arquivos declaram `store: 'postgres'`.
+- `test/config/env-example.contract.ts`: as duas variáveis declaradas com o padrão.
+- `test/integration/rate-limiter.integration.ts`: 30 `consume` em `Promise.all` com teto 20 →
+  **exatamente 20 passam**, 10 recusam com `Retry-After` em [1, 3600], linha com `hits = 30`; virada
+  de janela (linha da janela anterior com 25 hits não conta, a nova começa em 1); outro usuário e
+  outro escopo com balde próprio.
+- Worker: `test/rate-limit-window-purge.contract.test.ts` → `purge.contract.ts` (nome, corte de 48 h,
+  lotes, parada, teto, log só com contagens) e `schema-parity.contract.ts`;
+  `test/rate-limit-window-purge.integration.test.ts` (apaga as janelas de 49 h e 72 h, mantém as de
+  47 h e 0 h; segundo ciclo não apaga nada).
+- Fixtures de rota de correção e de e-mail passam `mailRateLimit` e uma porta que sempre deixa
+  passar; os dois `ApiEnvironment` montados à mão nas integrações ganharam `contractorMailRateLimit`.
+
+### Integração (Postgres nativo `127.0.0.1:65433`)
+
+- API, `DRIZZLE_TEST_DATABASE_URL=…/postgres bun --env-file=../../.env.test test … --timeout 120000`:
+  `rate-limiter.integration.ts` **3 pass**; com `contractor-mail-test-email-thread` e
+  `address-correction-mail-repository`, **16 pass**. Nenhum pulou.
+- `server.integration.ts` + `auth-me.integration.ts` leem `API_TEST_DATABASE_URL ?? DATABASE_URL`;
+  sem a primeira, caem no Postgres do Docker (65432, quebrado — registrado na memória do projeto) e
+  estouram 30 s. Contra um banco migrado descartável (`api_t406`): **5 pass, 0 fail** — o
+  `main.ts` sobe com a porta nova injetada.
+- `database-migration.contract.test.ts` com banco: **falha conhecida e alheia**
+  `cte-profile-output-constraints` (`23001` em vez de `23503`, Postgres 18 local). Ela interrompe o
+  teste **antes** do laço de rollbacks, então o `rollback.sql` novo foi provado à parte num banco
+  descartável: migrations aplicadas → linha semeada com `3600` → `rollback.sql` → tabela ausente,
+  zero linha da rotina, CHECK recusa a rotina (`23514`) → migrations reaplicadas → tabela de volta.
+- Worker, `DATABASE_URL=…/worker_t302` (migration nova aplicada antes):
+  `rate-limit-window-purge.integration.test.ts` + `trip-cargo-layout-purge` + `job-run-execution` →
+  **15 pass, 0 fail**. As duas falhas conhecidas de claim do outbox não estão nesses arquivos e não
+  foram exercitadas aqui.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) → ok.
+- `bun run lint` (raiz, todas as apps) → ok.
+- `bun run --cwd apps/api-transportada test` → **5999 pass, 23 skip, 0 fail** (176 arquivos).
+- `bun run --cwd apps/worker-transportada test` → **1352 pass, 0 fail** (90 arquivos).
+- `bun run --cwd apps/cron-transportada test` → **94 pass, 0 fail** (catálogo tocado).
+- `bun run --cwd apps/frontend-transportada test` → **3811 pass, 0 fail** (catálogo tocado).
+- `prettier --check` dos arquivos tocados → ok (depois de `--write`).
+
+### Arquivos
+
+- **API, novos**: `src/http/{rate-limit-window.policy,rate-limit-window.port,drizzle-rate-limiter.repository}.ts`,
+  `src/database/rate-limit-window.schema.ts`, `drizzle/20260915233000_rate_limit_windows/`
+  (`migration.sql`, `rollback.sql`, `snapshot.json`), `test/rate-limit.contract.test.ts`,
+  `test/rate-limit/{window,router,environment}.contract.ts`,
+  `test/rate-limited-routes.contract.test.ts`, `test/integration/rate-limiter.integration.ts`.
+- **API, ajustados**: `src/http/{rate-limiter.service,router.service}.ts`, `src/main.ts`,
+  `src/config/environment.schema.ts`, `src/shared/{api.constant,api.types,job-catalog.constant}.ts`,
+  `src/database/database.schema.ts`, as duas rotas de e-mail,
+  `src/whatsapp-commands/presentation/whatsapp-phone.routes.ts`, `package.json`, os dois fixtures de
+  rota, os dois `ApiEnvironment` de integração, e os contratos de `.env.example`, catálogo e
+  migration estática.
+- **Worker**: `src/rate-limit-window-purge/**`, `src/database/rate-limit-window.schema.ts`,
+  `src/main.ts`, `src/shared/job-catalog.constant.ts`, `package.json`, testes novos e o contrato do
+  catálogo.
+- **Cron / frontend**: só a entrada do catálogo e o contrato-espelho (cron).
+- Raiz: `.env.example`. Spec: `plan.md` (limitador), `tasks.md` (`[x]`), este arquivo.
+- `docs/SECURITY.md` fica para a T407.

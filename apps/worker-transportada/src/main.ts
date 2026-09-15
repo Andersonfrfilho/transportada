@@ -223,6 +223,9 @@ import {
 import { createTripCargoLayoutPurgeRoutine } from './trip-cargo-layout-purge/application/trip-cargo-layout-purge.routine.js'
 import { TRIP_CARGO_LAYOUT_PURGE_JOB } from './trip-cargo-layout-purge/domain/trip-cargo-layout-purge.constant.js'
 import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-purge/infrastructure/drizzle-trip-cargo-layout-purge.repository.js'
+import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
+import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
+import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -1201,6 +1204,14 @@ export async function startWorkerRuntime(
             logger,
             now: () => new Date(),
             purge: createDrizzlePurgeStaleCargoLayoutPreviews(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          }),
+          /** Spec 150 T406: sempre registrada — sem ela a tabela do limitador cresce a cada e-mail. */
+          [RATE_LIMIT_WINDOW_PURGE_JOB]: createRateLimitWindowPurgeRoutine({
+            logger,
+            now: () => new Date(),
+            purge: createDrizzlePurgeExpiredRateLimitWindows(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
           }),

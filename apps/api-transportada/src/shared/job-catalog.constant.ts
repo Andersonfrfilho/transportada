@@ -193,6 +193,16 @@ export const JOB_CATALOG = [
     /** Um dia: o corte é de 24 h, e correr mais fino só encurtaria a retenção em minutos. */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Spec 150 T406: a janela vencida do limitador de taxa não conta mais nada e só ocupa espaço.
+     * A rotina só toca o próprio banco — vocabulário de falha vazio.
+     */
+    failureOutcomes: [],
+    job: 'rate-limit.window.purge',
+    /** Uma hora: a tabela cresce a cada envio de e-mail, e a varredura é barata pelo índice. */
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

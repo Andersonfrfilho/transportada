@@ -69,6 +69,7 @@ export const READ_ONLY_CONTEXT: CompanyContext = {
 }
 
 type RouteDependencies = {
+  readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
   readonly read: {
     execute(input: ExecuteCall): Promise<ContractorMailSettingsSummary | null>
   }
@@ -105,6 +106,7 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
   const sendTestEmailCalls: ExecuteCall[] = []
 
   const routes = await loadRoutes({
+    mailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
     read: {
       async execute(input) {
         readCalls.push(structuredClone(input))
@@ -195,6 +197,7 @@ export function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

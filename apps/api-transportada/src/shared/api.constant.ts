@@ -93,6 +93,11 @@ export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-request
 /** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */
 export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH = '/address-correction-requests/mail'
 /**
+ * Spec 150 T406: o balde único de toda rota que dispara e-mail à contratante — o envio de correção
+ * e o e-mail de teste gastam o mesmo teto.
+ */
+export const CONTRACTOR_MAIL_RATE_LIMIT_SCOPE = 'contractor-mail'
+/**
  * Revisão final (item de segurança B3): resolve a contratante e os contatos ativos dela a partir
  * do CNPJ do corpo — nunca do caminho da URL, e nunca mais via `GET /contractors/by-tax-id/:taxId`.
  */

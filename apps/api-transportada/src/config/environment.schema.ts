@@ -117,6 +117,15 @@ const environmentSchema = z.object({
   // Spec 145 D14: mesmo formato e limites do worker — o lease que a API usa para reabrir planta parada
   // é derivado deste número e precisa ser o mesmo do worker.
   CARGO_LAYOUT_TIME_BUDGET_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+  // Spec 150 RF18: teto do e-mail com contratantes por empresa e usuário. Janela acima de um dia
+  // seria apagada viva pela limpeza do worker, que só conhece esse teto.
+  RATE_LIMIT_CONTRACTOR_MAIL_MAX: z.coerce.number().int().min(1).max(10_000).default(20),
+  RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(86_400)
+    .default(3_600),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -276,6 +285,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     bootstrapToken: parsed.BOOTSTRAP_TOKEN,
     cargoLayoutTimeBudgetMs: parsed.CARGO_LAYOUT_TIME_BUDGET_MS,
     companyId: parsed.PROVISION_COMPANY_ID,
+    contractorMailRateLimit: {
+      maxRequests: parsed.RATE_LIMIT_CONTRACTOR_MAIL_MAX,
+      windowSeconds: parsed.RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS,
+    },
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
     databasePool: {

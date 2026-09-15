@@ -91,7 +91,7 @@ export function createWhatsAppPhoneRoutes(
       parse: ({ request }) => parseWhatsAppPhoneVerificationRequest(request),
       pathname: VERIFICATION_PATH,
       policy: MEMBERSHIP_POLICY,
-      rateLimit: WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT,
+      rateLimit: { ...WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT, store: 'memory' },
     }),
     defineRoute<{ readonly correlationId: string }>({
       async handle({ context, input }): Promise<Response> {

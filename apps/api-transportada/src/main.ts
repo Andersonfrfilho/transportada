@@ -142,6 +142,7 @@ import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-we
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
+import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
@@ -911,6 +912,7 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    rateLimitWindows: new DrizzleRateLimiterRepository(database.db),
     moduleRouters: [
       // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
       // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
@@ -969,6 +971,7 @@ export function bootstrap(): Bun.Server<undefined> {
         apiPublicUrl: config.apiPublicUrl,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
+        contractorMailRateLimit: config.contractorMailRateLimit,
         database: database.db,
         notifications,
         envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -1271,6 +1274,8 @@ type CreateApplicationRoutesParams = {
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
   readonly cargoLayoutTimeBudgetMs: number
+  /** Spec 150 RF18: o teto do envio de correção e do e-mail de teste, do ambiente. */
+  readonly contractorMailRateLimit: ApiEnvironment['contractorMailRateLimit']
   readonly database: CompanySettingsDatabase
   /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
   readonly notifications: NotificationModule
@@ -1299,6 +1304,7 @@ function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
+  contractorMailRateLimit,
   database,
   googleMapsApiKey,
   messaging,
@@ -1927,6 +1933,7 @@ function createApplicationRoutes({
       list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
     }),
     ...createContractorMailSettingsRoutes({
+      mailRateLimit: contractorMailRateLimit,
       read: { execute: (input) => contractorMailSettings.read(input) },
       runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
       save: { execute: (input) => contractorMailSettings.save(input) },
@@ -2119,6 +2126,7 @@ function createApplicationRoutes({
     ...createAddressCorrectionRoutes({
       findRecipients: findAddressCorrectionRecipients,
       listRequests: listAddressCorrectionRequests,
+      mailRateLimit: contractorMailRateLimit,
       saveDraft: saveAddressCorrectionDraft,
       sendMail: sendAddressCorrectionMail,
     }),

@@ -25,6 +25,11 @@ export type ApiEnvironment = {
   readonly cargoLayoutTimeBudgetMs: number
   /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
   readonly companyId: string | undefined
+  /** Spec 150 RF18: teto do envio de e-mail com contratantes, por empresa e usuário. */
+  readonly contractorMailRateLimit: {
+    readonly maxRequests: number
+    readonly windowSeconds: number
+  }
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
   /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */

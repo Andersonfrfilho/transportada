@@ -135,14 +135,28 @@ A confirmação de envio (T305) ganha o seletor de modelo e a prévia com o mode
 
 **Limitador.**
 
-- `http/rate-limiter.service.ts`, com a porta `RateLimiterPort` e a implementação
-  `DrizzleRateLimiter` sobre a tabela `rate_limit_windows (scope, subject_key, window_start, hits)`,
-  PK composta, e um `INSERT … ON CONFLICT DO UPDATE SET hits = hits + 1 RETURNING hits` atômico.
-- A chave é `companyId:userId` e nunca guarda PII.
-- A limpeza das janelas vencidas sai no cron existente.
-- A rota declara o limite como dado (`rateLimit: { scope, max, windowSeconds }`), e o router aplica
-  depois de `authorize`.
-- A resposta é `429` com `Retry-After` e `RATE_LIMIT_EXCEEDED`.
+- **A API já tinha limitador em memória por processo** (`http/rate-limiter.service.ts`, aplicado pelo
+  `router.service.ts` depois de `authorize`). A T406 estende esse caminho, não cria outro: o
+  `rateLimit` da rota autenticada vira união discriminada — `{ store: 'memory', maxRequests,
+windowMs }` (o que já existia) ou `{ store: 'postgres', scope, maxRequests, windowSeconds }`. A rota
+  anônima segue só em memória, por IP.
+- A porta `RateLimitWindowStorePort` (`http/rate-limit-window.port.ts`, `consume` assíncrono) é
+  injetada em `createRouter` como `rateLimitWindows`; rota `postgres` sem ela derruba o boot.
+  Implementação `DrizzleRateLimiterRepository` (`http/drizzle-rate-limiter.repository.ts`) sobre a
+  tabela `rate_limit_windows (scope, subject_key, window_start, hits)`, PK composta + índice em
+  `window_start`: **um** upsert em autocommit, fora da transação do caso de uso, com `window_start`
+  calculado pelo relógio do banco (`floor(epoch(now()) / w) * w`) e `Retry-After =
+ceil(window_start + w − now())`, mínimo 1.
+- Aplicado no mesmo ponto de hoje: depois de `authorize`, antes de `parse`/idempotência — corpo
+  inválido (400) e replay idempotente também contam.
+- **Fail-closed**: erro do limitador propaga sem `try/catch` e vira 500 pelo Router.
+- A chave é o `scope` + `companyId:userId` e nunca guarda PII. Escopo único `contractor-mail` para
+  `POST /address-correction-requests/mail` e `POST /contractor-mail-settings/test-email`.
+- A limpeza das janelas vencidas é a rotina `rate-limit.window.purge` do **worker** (piso de 1 h),
+  semeada em `job_schedules` pela mesma migration aditiva da tabela — não o cron, que só publica a
+  batida. Apaga janela que começou há mais de 48 h (janela máxima de 24 h + 24 h de folga).
+- A resposta é `429` com `Retry-After` e o código **`TOO_MANY_REQUESTS`**, o mesmo que o limitador
+  em memória já devolvia — não um `RATE_LIMIT_EXCEEDED` novo.
 - Os tetos vêm de `RATE_LIMIT_CONTRACTOR_MAIL_MAX` e `RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS` no
   schema de env, com padrão de 20 por hora.
 - Isso fecha, para as rotas de e-mail, o achado "sem limitador" do `docs/SECURITY.md`. As outras

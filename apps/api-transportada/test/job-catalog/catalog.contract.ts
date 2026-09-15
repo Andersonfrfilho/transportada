@@ -103,6 +103,12 @@ const CATALOG = [
     job: 'trip.cargo-layout.purge',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Spec 150 T406: a janela vencida do limitador só toca o próprio banco. */
+    failureOutcomes: [],
+    job: 'rate-limit.window.purge',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 /**
@@ -119,6 +125,7 @@ const SEED_MIGRATIONS = [
   '20260905130000_geocoded_address_paid_refinement',
   '20260912153407_whatsapp_command_settlement',
   '20260913210300_trip_cargo_layout_purge_job',
+  '20260915233000_rate_limit_windows',
 ] as const
 
 describe('job catalog', () => {
