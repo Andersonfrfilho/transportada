@@ -46,6 +46,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run --cwd apps/${{ matrix.app }} lint
       - run: bun run --cwd apps/${{ matrix.app }} typecheck
+      # A sonda de CSP do design system (`box-dimension-scanner-csp.contract.ts`) sobe um Chromium
+      # headless e mede o que o navegador de fato bloqueia — sem este passo ela pulava em 100% das
+      # execuções de CI, e "pular não é passar" (spec 092). Só o frontend a tem; as outras apps não
+      # pagam o download.
+      - name: Install Playwright Chromium
+        if: matrix.app == 'frontend-transportada'
+        run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
       - run: bun run --cwd apps/${{ matrix.app }} test
       - run: bun run --cwd apps/${{ matrix.app }} build
 
