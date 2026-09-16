@@ -32,10 +32,13 @@ function entry(overrides: Partial<CameraMeasurementExportEntry>): CameraMeasurem
 }
 
 /**
- * Spec 152 T12 (R6/R8): resumo da validação com o dado real do histórico (T5). Desde a decisão de
- * 2026-09-16, editar uma dimensão não apaga a margem gravada (ela é da proposta, D17) — "dentro da
- * margem" continua contando só leituras com margem conhecida, mas isso agora cobre a quase
- * totalidade das leituras (a exceção é a dimensão `unreliable` que nunca teve margem proposta).
+ * Spec 152 T12 (R6/R8): resumo da validação com o dado real do histórico (T5).
+ *
+ * ⚠️ **T14 item A4: leitura `camera` pura não valida nada.** Nela o valor gravado É a proposta, o
+ * erro é zero por construção e as duas taxas subiam sozinhas para 100% — o selo `go` saía de uma
+ * amostra que nunca encostou numa fita métrica. O protocolo do D16 (digitar a fita por cima de toda
+ * dimensão, mesmo quando a proposta bate) produz `camera_adjusted`; é só essa origem que conta. As
+ * leituras `camera` puras continuam visíveis no resumo (`cameraOnlyCount`), fora da conta.
  */
 describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
   test('caixa typed não gera leitura nenhuma (sem proposta para comparar)', () => {
@@ -44,6 +47,35 @@ describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
     expect(summary.readingCount).toBe(0)
     expect(summary.withinTenMillimetreRate).toBeNull()
     expect(summary.withinMarginRate).toBeNull()
+    expect(summary.verdict).toBe('insufficient-data')
+  })
+
+  test('camera pura fica fora da conta — o erro dela é zero por construção (A4)', () => {
+    const summary = summarizeCameraMeasurementValidation([
+      entry({ lengthMarginMm: 8, lengthMm: 300, proposedLengthMm: 300, source: 'camera' }),
+    ])
+
+    expect(summary.readingCount).toBe(0)
+    expect(summary.cameraOnlyCount).toBe(1)
+    expect(summary.withinTenMillimetreRate).toBeNull()
+    expect(summary.verdict).toBe('insufficient-data')
+  })
+
+  test('uma sessão só de camera pura nunca vira go, por mais leituras que tenha', () => {
+    const summary = summarizeCameraMeasurementValidation(
+      Array.from({ length: 50 }, (_, index) =>
+        entry({
+          id: `measurement-${index}`,
+          lengthMarginMm: 8,
+          lengthMm: 300,
+          proposedLengthMm: 300,
+          source: 'camera',
+        }),
+      ),
+    )
+
+    expect(summary.cameraOnlyCount).toBe(50)
+    expect(summary.readingCount).toBe(0)
     expect(summary.verdict).toBe('insufficient-data')
   })
 
@@ -87,7 +119,7 @@ describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
         // 8 de 10 com erro <= 10mm (piso de 80%), 9 de 10 dentro da margem de 12mm (piso de 90%)
         lengthMm: index < 8 ? 305 : 330,
         proposedLengthMm: 300,
-        source: 'camera',
+        source: 'camera_adjusted',
       }),
     )
     // ajusta a nona leitura para ficar dentro da margem (erro 12) mas fora dos 10mm
@@ -110,7 +142,7 @@ describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
         lengthMarginMm: 5,
         lengthMm: 320,
         proposedLengthMm: 300,
-        source: index < 9 ? 'camera' : 'camera_adjusted',
+        source: 'camera_adjusted',
       }),
     )
 
@@ -123,12 +155,22 @@ describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
 
   test('go exige as duas taxas ao mesmo tempo, não só uma delas', () => {
     const summary = summarizeCameraMeasurementValidation([
-      entry({ lengthMarginMm: 50, lengthMm: 300, proposedLengthMm: 300, source: 'camera' }),
+      entry({
+        lengthMarginMm: 50,
+        lengthMm: 300,
+        proposedLengthMm: 300,
+        source: 'camera_adjusted',
+      }),
     ])
 
     // dentro da margem 100% (50mm), mas só 1 leitura com erro 0 <= 10mm também — força um caso misto
     const mixed = summarizeCameraMeasurementValidation([
-      entry({ lengthMarginMm: 50, lengthMm: 340, proposedLengthMm: 300, source: 'camera' }),
+      entry({
+        lengthMarginMm: 50,
+        lengthMm: 340,
+        proposedLengthMm: 300,
+        source: 'camera_adjusted',
+      }),
     ])
 
     expect(summary.verdict).toBe('go')

@@ -51,9 +51,16 @@ function toReading(candidate: DimensionCandidate): DimensionReading | undefined 
  * Decisão de 2026-09-16 (T12): a margem pertence à proposta, não ao valor gravado, então continua
  * indo para a API mesmo em dimensão editada (`camera_adjusted`) — `marginMm: null` só acontece
  * quando a proposta nunca teve margem para aquela dimensão, não mais por causa de edição.
+ *
+ * ⚠️ **Só `camera_adjusted` vira leitura (T14 item A4).** Em `camera` puro o valor gravado É a
+ * proposta: o erro é zero por construção, e contar isso empurrava as duas taxas para 100% sem que
+ * ninguém tivesse encostado numa fita métrica — o selo `go` de uma amostra vazia. O protocolo da
+ * D16 manda digitar a fita por cima de toda dimensão, mesmo quando a proposta bate, e isso grava
+ * `camera_adjusted`. As leituras `camera` puras continuam aparecendo no resumo, em `cameraOnlyCount`,
+ * justamente para a sessão que não seguiu o protocolo não passar despercebida.
  */
 function readingsOf(entry: CameraMeasurementExportEntry): readonly DimensionReading[] {
-  if (entry.source === 'typed') return []
+  if (entry.source !== 'camera_adjusted') return []
   const candidates: readonly DimensionCandidate[] = [
     {
       marginMm: entry.lengthMarginMm,
@@ -85,6 +92,8 @@ export const VALIDATION_WITHIN_TEN_MILLIMETRE_TARGET_RATE = 0.8
 export const VALIDATION_WITHIN_MARGIN_TARGET_RATE = 0.9
 
 export type CameraMeasurementValidationSummary = Readonly<{
+  /** A4: leituras `camera` puras, fora da conta — a sessão que não seguiu o protocolo da D16. */
+  cameraOnlyCount: number
   readingCount: number
   verdict: CameraMeasurementValidationVerdict
   withinMarginCount: number
@@ -131,6 +140,7 @@ export function summarizeCameraMeasurementValidation(
   const withinMarginRate = marginKnown.length === 0 ? null : withinMarginCount / marginKnown.length
 
   return {
+    cameraOnlyCount: entries.filter((candidate) => candidate.source === 'camera').length,
     readingCount: readings.length,
     verdict: resolveVerdict(withinTenMillimetreRate, withinMarginRate),
     withinMarginCount,
