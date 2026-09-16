@@ -87,18 +87,27 @@
 </div>
 </#if>
 <main class="gate">
-    <section class="brand" aria-label="${realm.displayName!'TransportAdA'}">
+    <#-- Com a API configurada, a marca nasce reservada e o `installation-brand.js` a preenche — da
+         marca guardada antes da pintura, e da API em seguida. Sem ela, o `displayName` como sempre. -->
+    <#assign brandApiOrigin = properties.brandApiOrigin!"" />
+    <#assign brandFromApi = brandApiOrigin?starts_with("http") />
+    <#assign realmNameLength = (realm.displayName!'TransportAdA')?length />
+    <section class="brand<#if brandFromApi> brand-pending<#elseif realmNameLength gt 22> brand-length-very-long<#elseif realmNameLength gt 12> brand-length-long</#if>" aria-label="${realm.displayName!'TransportAdA'}"<#if brandFromApi> data-brand-api="${brandApiOrigin}" data-brand-fallback="${realm.displayName!'TransportAdA'}"</#if>>
+        <img class="brand-logo" data-brand-logo alt="" hidden />
         <#-- ADR-0021: cada deploy é de uma transportadora só, e é a marca dela que assina a porta.
              O nome do produto é o que sobra quando a instalação não se nomeou — nunca o que lidera.
              O tema é FreeMarker dentro do Keycloak e não alcança a nossa API, então a fonte é o
              `displayName` do realm, que é justamente o nome da instalação. -->
-        <p class="brand-wordmark">${realm.displayName!'TransportAdA'}</p>
+        <p class="brand-wordmark" data-brand-name><#if !brandFromApi>${realm.displayName!'TransportAdA'}</#if></p>
         <#-- O produto assina discreto, e só quando a instalação já se nomeou: sem isso a linha
              repetiria o que o cabeçalho acabou de dizer. -->
         <#if realm.displayName?has_content>
             <p class="brand-installation">${msg("transportadaProduct")}</p>
         </#if>
     </section>
+    <#if brandFromApi>
+    <script src="${url.resourcesPath}/js/installation-brand.js?v=${resourcesVersion}"></script>
+    </#if>
 
     <div class="panel">
         <#if auth?has_content && auth.showUsername() && !auth.showResetCredentials()>

@@ -1,7 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { readInstallationBrand } from '../../src/modules/identity/shared/installationBrand.service'
+import {
+  mergeInstallationBrand,
+  readCachedInstallationBrand,
+  writeCachedInstallationBrand,
+} from '../../src/modules/identity/shared/installationBrandCache.service'
 import { buildContentSecurityPolicy } from '../../src/modules/shared/contentSecurityPolicy.service'
 
 const API_URL = 'https://api.exemplo.com.br'
@@ -132,5 +139,100 @@ describe('a diretiva deixa o logotipo carregar', () => {
   /** O provedor de identidade não serve imagem nossa: origem que ninguém usa é permissão de graça. */
   test('e só ela: o provedor de identidade fica de fora', () => {
     expect(imgSource).not.toContain('identidade.exemplo.com.br')
+  })
+})
+
+/**
+ * O login mostrava a transportadora e, ao entrar, o menu e o cabeçalho voltavam para "TransportAdA"
+ * com o ícone do produto: estavam escritos no código, fora da leitura da marca. A conferência é por
+ * texto de fonte porque a app não tem DOM no teste.
+ */
+describe('a marca da transportadora acompanha a pessoa depois de entrar', () => {
+  const shell = readFileSync('src/main.tsx', 'utf8')
+  const driverHeader = readFileSync(
+    'src/modules/driver-trip/components/DriverShellHeader.component.tsx',
+    'utf8',
+  )
+
+  test('menu lateral, cabeçalho e título da aba leem a marca da instalação', () => {
+    expect(shell).toContain('useInstallationBrandView()')
+    expect(shell).toContain('useInstallationDocumentTitle(brand.name)')
+    expect(shell).toContain('<InstallationBrandMark brand={brand}')
+    expect(shell).not.toContain('<strong>TransportAdA</strong>')
+    expect(shell).not.toContain('<span>TransportAdA</span>')
+    expect(shell).not.toContain("?? 'TransportAdA'")
+  })
+
+  test('o cabeçalho do motorista mostra a transportadora, não o produto', () => {
+    expect(driverHeader).toContain('<InstallationBrandMark')
+    expect(driverHeader).not.toContain('TransportAdA')
+    expect(driverHeader).not.toContain('/icons/icon.svg')
+  })
+
+  /** Sem repetir, uma falha de rede deixava o produto no lugar da empresa até recarregar a página. */
+  test('a leitura da marca tenta de novo antes de cair no produto', () => {
+    const query = readFileSync('src/modules/identity/queries/useInstallationBrand.query.ts', 'utf8')
+
+    expect(query).toMatch(/retry: [1-9]/u)
+  })
+})
+
+function memoryStorage(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial))
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+  }
+}
+
+/**
+ * A tela piscava: abria com o esqueleto (ou com o produto, no login) e trocava pela transportadora
+ * quando a API respondia. A última marca lida é guardada e vira o primeiro quadro da próxima visita.
+ */
+describe('a marca nasce pronta, sem piscar', () => {
+  const company = { logoUrl: `${API_URL}/public/landing-logo`, name: 'Transportes Exemplo' }
+
+  test('o que se grava volta igual na leitura seguinte', () => {
+    const storage = memoryStorage()
+
+    writeCachedInstallationBrand(company, storage)
+
+    expect(readCachedInstallationBrand(storage)).toEqual(company)
+  })
+
+  test('conteúdo corrompido ou navegador sem armazenamento não derrubam a tela', () => {
+    expect(
+      readCachedInstallationBrand(memoryStorage({ 'transportada.installation-brand.v1': '{' })),
+    ).toBeUndefined()
+    expect(readCachedInstallationBrand(null)).toBeUndefined()
+    expect(() =>
+      writeCachedInstallationBrand(company, {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceededError')
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  /** API fora do ar responde igual instalação sem nome: trocar a empresa pelo produto é a piscada. */
+  test('leitura sem nome não apaga a transportadora já conhecida', () => {
+    const fetched = { logoUrl: company.logoUrl, name: null }
+
+    expect(mergeInstallationBrand({ cached: company, fetched })).toEqual(company)
+    expect(mergeInstallationBrand({ cached: undefined, fetched })).toEqual(fetched)
+    expect(
+      mergeInstallationBrand({ cached: company, fetched: { ...company, name: 'Nome Novo' } }).name,
+    ).toBe('Nome Novo')
+  })
+
+  test('app e tela de entrar começam pela marca guardada', () => {
+    const query = readFileSync('src/modules/identity/queries/useInstallationBrand.query.ts', 'utf8')
+    const login = readFileSync('src/modules/identity/pages/LoginIdentifier.page.tsx', 'utf8')
+
+    expect(query).toContain('initialData: readCachedInstallationBrand')
+    expect(query).toContain('initialDataUpdatedAt: 0')
+    expect(login).toContain('useState<InstallationBrand | undefined>(readCachedInstallationBrand)')
+    expect(login).not.toContain("brand?.name ?? 'TransportAdA'")
   })
 })

@@ -172,7 +172,10 @@ jobs:
   # obrigatório, passam a ser três aprovações por release, não uma.
   deploy-api:
     needs: [target, changes, gate]
-    if: needs.changes.outputs.api == 'true'
+    # O Keycloak publica dentro deste job, e pedi-lo à mão com a API inalterada pulava o job inteiro:
+    # o "forçar Keycloak" do `workflow_dispatch` terminava verde sem publicar nada. Os passos da API
+    # abaixo conferem o diff por conta própria.
+    if: needs.changes.outputs.api == 'true' || inputs.deploy_identity == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
@@ -180,18 +183,28 @@ jobs:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
     steps:
-      # Histórico completo: o diff do Keycloak compara com o commit anterior do push, que num release
-      # de cem commits está muito além de um clone raso. Com profundidade truncada o diff falhava e o
+      # Histórico completo: o diff do Keycloak compara com o marco da API, que num release de cem
+      # commits está muito além de um clone raso. Com profundidade truncada o diff falhava e o
       # passo lia a falha como "nada mudou" — foi assim que o tema de login ficou quatro dias fora.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install Railway CLI
         run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Buscar os marcos de deploy
+        run: git fetch --no-tags --quiet origin '+refs/deploy/*:refs/deploy/*' || true
       - name: Deploy identity
         run: |
-          # O baseline é o commit anterior do push. PR não chega aqui — não publica.
-          baseline="${{ github.event.before }}"
+          # O baseline é o marco da API — o commit em que este job terminou verde pela última vez —,
+          # e só na falta dele o commit anterior do push. Comparar com o push perdia o tema: o push que
+          # mudou `deploy/keycloak/` teve o gate vermelho, o seguinte foi cancelado, e o que passou
+          # não via mais a mudança no próprio diff. PR não chega aqui — não publica.
+          marker="refs/deploy/${TARGET_ENVIRONMENT}/api"
+          if git cat-file -e "$marker^{commit}" 2>/dev/null; then
+            baseline="$(git rev-parse "$marker^{commit}")"
+          else
+            baseline="${{ github.event.before }}"
+          fi
           # Em `workflow_dispatch` não há `event.before`, e num push forçado ele pode ter sumido.
           # Baseline que não dá para conferir é dúvida, e dúvida publica: pular aqui é justamente o
           # silêncio que esconde tema novo. Alguns segundos de login fora custam menos.
@@ -222,13 +235,16 @@ jobs:
       # A API roda as migrations no preDeployCommand, e é por isso que ela é o gargalo declarado:
       # worker e cron só começam quando este job termina verde.
       - name: Deploy API
+        if: needs.changes.outputs.api == 'true'
         run: .github/scripts/railway-deploy.sh deploy api
       - name: Conferir migrations aplicadas
+        if: needs.changes.outputs.api == 'true'
         run: .github/scripts/railway-deploy.sh assert-migrations api
       # A api já subiu quando isto roda: a origem que falta não derruba o serviço, ela derruba a
       # primeira chamada da app nova — em CORS, no navegador do cliente, longe daqui. Reprovar o
       # release é o único jeito de a lacuna aparecer antes dele.
       - name: Conferir as origens do frontend
+        if: needs.changes.outputs.api == 'true'
         run: .github/scripts/frontend-origins-check.sh
 
   # O frontend é bundle estático servido por nginx: não abre conexão com o banco e não lê tabela

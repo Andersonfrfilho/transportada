@@ -139,6 +139,22 @@ body {
   max-width: 40rem;
 }
 
+/*
+ * Marca a caminho: o espaço fica reservado, e nada aparece para depois trocar. Uma linha do corpo da
+ * palavra é a altura que a marca ocupa quando chega.
+ */
+.brand-pending .brand-wordmark {
+  min-height: 0.84em;
+  visibility: hidden;
+}
+
+.brand-logo {
+  width: auto;
+  max-width: 100%;
+  height: clamp(3rem, 10vw, 5rem);
+  object-fit: contain;
+}
+
 .brand-wordmark {
   position: relative;
   margin: 0 0 var(--transportada-space-2);
@@ -147,7 +163,21 @@ body {
   font-weight: 400;
   letter-spacing: -0.035em;
   line-height: 0.84;
+  /* Última defesa: palavra maior que a coluna quebra em vez de passar por baixo do painel. */
+  overflow-wrap: anywhere;
   text-transform: uppercase;
+}
+
+/*
+ * O corpo foi medido para "TransportAdA". Razão social de transportadora passa fácil de vinte
+ * letras, e na mesma escala a palavra vazava da coluna e corria por baixo do formulário.
+ */
+.brand-length-long .brand-wordmark {
+  font-size: clamp(2.25rem, 7vw, 4.5rem);
+}
+
+.brand-length-very-long .brand-wordmark {
+  font-size: clamp(1.75rem, 4.75vw, 3.25rem);
 }
 
 /*
