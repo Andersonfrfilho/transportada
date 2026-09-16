@@ -12,9 +12,15 @@ export type CteTechnicalResponsibleEnvironment = {
 }
 
 /** Remetente e conexão SMTP da instalação — em dev aponta para o Mailpit do `docker-compose.yml`. */
+/**
+ * O e-mail sai só daqui (a API enfileira). Resend vai por HTTPS e é o de produção; SMTP fica para o
+ * ambiente local, onde o Mailpit escuta — porta SMTP de saída é o que trava em hospedagem.
+ */
 export type EmailDeliveryEnvironment = {
   readonly from: string
-  readonly smtpUrl: string
+  readonly transport:
+    | { readonly kind: 'resend'; readonly apiKey: string }
+    | { readonly kind: 'smtp'; readonly smtpUrl: string }
 }
 
 /**

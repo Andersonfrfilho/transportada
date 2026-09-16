@@ -184,9 +184,13 @@ const environmentSchema = z.object({
       message: 'POSTAL_CODE_VIA_CEP_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
-  // O mesmo remetente do worker (ADR-0031): não se cria segunda configuração de SMTP. As duas
-  // juntas ou nenhuma — meia configuração daria envio sem remetente.
-  EMAIL_FROM: optionalText(),
+  // O e-mail sai só do worker, que guarda remetente e chave do provedor. A API apenas enfileira, e
+  // esta chave diz se o canal é oferecido no fan-out — ligada sem worker configurado, a entrega
+  // falha alto lá, com o código do provedor no log.
+  EMAIL_CHANNEL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // Segredo compartilhado com o provedor de entrega, para o recibo. Ausente, a rota de webhook nem
   // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
   // qualquer um dizendo que a mensagem chegou.
@@ -261,7 +265,6 @@ const environmentSchema = z.object({
    */
   ROUTING_MATRIX_URL: optionalUrl('ROUTING_MATRIX_URL'),
   RABBITMQ_URL: optionalText(),
-  SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
   SENTRY_ENVIRONMENT: optionalText(),
@@ -283,10 +286,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       max: parsed.DATABASE_POOL_MAX,
       queryTimeoutMs: parsed.DATABASE_QUERY_TIMEOUT_MS,
     },
-    emailDelivery:
-      parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
-        ? undefined
-        : { from: parsed.EMAIL_FROM, smtpUrl: parsed.SMTP_URL },
+    emailChannelEnabled: parsed.EMAIL_CHANNEL_ENABLED,
     frontendOrigins: parsed.FRONTEND_ORIGIN,
     keycloak: {
       admin: {

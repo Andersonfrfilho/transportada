@@ -9,6 +9,7 @@ import type {
   FuelPricePullEnvironment,
   IdentityDocumentBackfillEnvironment,
   WorkerEnvironment,
+  EmailDeliveryEnvironment,
 } from '../shared/worker.types.js'
 
 const TECHNICAL_RESPONSIBLE_KEYS = [
@@ -18,7 +19,7 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
   'CTE_TECHNICAL_RESPONSIBLE_PHONE',
 ] as const
 
-const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
+const EMAIL_TRANSPORT_KEYS = ['RESEND_API_KEY', 'SMTP_URL'] as const
 
 /**
  * ADR-0047: o crachá do worker para chamar a API. As quatro juntas ou nenhuma — com o endereço sem
@@ -63,9 +64,11 @@ const workerEnvironmentSchema = z
     // Produção é o padrão: a NFS-e é trilho de produção (ADR-0035), e instalação de homologação
     // declara o ambiente explicitamente, como o cron sempre fez.
     FISCAL_ENVIRONMENT: z.enum(['homologation', 'production']).default('production'),
-    // Remetente e conexão juntos ou nenhum: com um só, o convite sai sem canal e o código morre
+    // Remetente e transporte juntos ou nenhum: com um só, o convite sai sem canal e o código morre
     // selado na linha do convite.
     EMAIL_FROM: optionalText(),
+    // Com a chave, o e-mail vai pela API HTTPS do Resend e o `SMTP_URL` é ignorado.
+    RESEND_API_KEY: optionalText(),
     FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
@@ -151,14 +154,12 @@ const workerEnvironmentSchema = z
       })
     }
 
-    const declaredEmailKeys = EMAIL_DELIVERY_KEYS.filter(
-      (key) => environment[key] !== undefined,
-    ).length
-    if (declaredEmailKeys > 0 && declaredEmailKeys < EMAIL_DELIVERY_KEYS.length) {
+    const hasEmailTransport = EMAIL_TRANSPORT_KEYS.some((key) => environment[key] !== undefined)
+    if (hasEmailTransport !== (environment.EMAIL_FROM !== undefined)) {
       context.addIssue({
         code: 'custom',
-        message: 'Email delivery requires both the sender and the SMTP connection or none',
-        path: [...EMAIL_DELIVERY_KEYS],
+        message: 'Email delivery requires both the sender and a transport (Resend or SMTP) or none',
+        path: ['EMAIL_FROM', ...EMAIL_TRANSPORT_KEYS],
       })
     }
 
@@ -220,9 +221,7 @@ export function parseWorkerEnvironment(
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     fuelPricePull: toFuelPricePull(result.data),
     ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
-    ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
-      ? {}
-      : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),
+    ...toEmailDelivery(result.data),
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
@@ -403,4 +402,29 @@ function optionalText(): z.ZodType<string | undefined, string | undefined> {
     .trim()
     .transform((value) => (value === '' ? undefined : value))
     .optional()
+}
+
+function toEmailDelivery(
+  environment: Readonly<{
+    EMAIL_FROM?: string | undefined
+    RESEND_API_KEY?: string | undefined
+    SMTP_URL?: string | undefined
+  }>,
+): { readonly emailDelivery?: EmailDeliveryEnvironment } {
+  if (environment.EMAIL_FROM === undefined) return {}
+  if (environment.RESEND_API_KEY !== undefined) {
+    return {
+      emailDelivery: {
+        from: environment.EMAIL_FROM,
+        transport: { apiKey: environment.RESEND_API_KEY, kind: 'resend' },
+      },
+    }
+  }
+  if (environment.SMTP_URL === undefined) return {}
+  return {
+    emailDelivery: {
+      from: environment.EMAIL_FROM,
+      transport: { kind: 'smtp', smtpUrl: environment.SMTP_URL },
+    },
+  }
 }

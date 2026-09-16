@@ -40,6 +40,7 @@
     "mailauth": "5.0.3",
     "nodemailer": "^7.0.9",
     "pdfjs-dist": "^6.2.108",
+    "resend": "6.28.1",
     "zod": "4.4.3"
   },
   "devDependencies": {

@@ -4,7 +4,6 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider, type RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
-import { createSmtpEmailProvider } from '@adatechnology/email-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import { parseWorkerCryptographicConfiguration } from './config/cryptographic-configuration.schema.js'
@@ -85,6 +84,7 @@ import { createRouteOptimizationPorts } from './routing/infrastructure/route-opt
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
 import { createGuardedNotificationQueue } from './notification/infrastructure/guarded-notification-queue.adapter.js'
 import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { createWorkerEmailDriver } from './notification/infrastructure/email-driver.factory.js'
 import { createCteBatchFailureQuery } from './notification/infrastructure/drizzle-cte-batch-failure.query.js'
 import { createNotificationTrigger } from './notification/application/notification-trigger.service.js'
 import { buildCteBatchFailureNotification } from './notification/domain/notification-trigger.policy.js'
@@ -1038,7 +1038,7 @@ export async function startWorkerRuntime(
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
       dependencies: {
-        // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
+        // Sem e-mail configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
         channels: createInvitationChannelGateway({
           brand: emailBrand,
@@ -1046,10 +1046,7 @@ export async function startWorkerRuntime(
           ...(config.emailDelivery === undefined
             ? {}
             : {
-                email: createSmtpEmailProvider({
-                  from: config.emailDelivery.from,
-                  smtpUrl: config.emailDelivery.smtpUrl,
-                }),
+                email: createWorkerEmailDriver(config.emailDelivery),
               }),
           whatsapp: buildWhatsAppCodeSender(config.whatsapp.invitationTemplate),
         }),
@@ -1067,7 +1064,7 @@ export async function startWorkerRuntime(
     passwordResetDeliveryConsumer = await passwordResetDeliveryStarter({
       config,
       dependencies: {
-        // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
+        // Mesmo arranjo do convite: sem e-mail configurado a entrega falha alto, e o código continua
         // válido para reenvio — quem falhou foi o transporte.
         channels: createInvitationChannelGateway({
           brand: emailBrand,
@@ -1075,10 +1072,7 @@ export async function startWorkerRuntime(
           ...(config.emailDelivery === undefined
             ? {}
             : {
-                email: createSmtpEmailProvider({
-                  from: config.emailDelivery.from,
-                  smtpUrl: config.emailDelivery.smtpUrl,
-                }),
+                email: createWorkerEmailDriver(config.emailDelivery),
               }),
           whatsapp: buildWhatsAppCodeSender(config.whatsapp.passwordResetTemplate),
         }),

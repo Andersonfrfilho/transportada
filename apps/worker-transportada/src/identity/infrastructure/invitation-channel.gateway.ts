@@ -17,9 +17,15 @@ export class InvitationChannelUnavailableError extends Error {
 }
 
 export class InvitationDeliveryFailedError extends Error {
+  /** Código do provedor (`smtp_unknown`, `validation_error`…): diz o motivo sem endereço nem corpo. */
+  readonly errorCode: string
+  readonly outcome: string
+
   constructor(outcome: string, errorCode: string) {
     super(`Invitation delivery ${outcome}: ${errorCode}`)
     this.name = 'InvitationDeliveryFailedError'
+    this.errorCode = errorCode
+    this.outcome = outcome
   }
 }
 

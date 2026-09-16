@@ -29,13 +29,8 @@ export type ApiEnvironment = {
   readonly databaseUrl: string
   /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */
   readonly databasePool: DatabasePoolConfiguration
-  /** Remetente compartilhado com o worker; ausente deixa o canal de e-mail sem driver. */
-  readonly emailDelivery:
-    | {
-        readonly from: string
-        readonly smtpUrl: string
-      }
-    | undefined
+  /** O canal de e-mail é oferecido no fan-out; quem envia é o worker, que guarda a credencial. */
+  readonly emailChannelEnabled: boolean
   readonly frontendOrigins: readonly [string, ...string[]]
   readonly keycloak: {
     readonly admin: {

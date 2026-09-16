@@ -1000,7 +1000,7 @@ export function bootstrap(): Bun.Server<undefined> {
 
   registerShutdownSignals({ logger, shutdown })
   logger.info('api_started', {
-    emailNotificationsEnabled: config.emailDelivery !== undefined,
+    emailNotificationsEnabled: config.emailChannelEnabled,
     environment: config.appEnv,
     notificationUseCases: Object.keys(notifications.useCases).length,
     hostname: server.hostname,
