@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { createSmtpEmailProvider } from '@adatechnology/email-provider'
 import type { QueuePort } from '@adatechnology/notification-contracts'
 import {
   createNotificationModule,
@@ -14,12 +13,14 @@ import {
   NOTIFICATION_DEFAULT_TIMEZONE,
 } from '../notification.constant.js'
 import { createIdentityRecipientResolver } from './identity-recipient.resolver.js'
+import type { EmailDeliveryEnvironment } from '../../shared/worker.types.js'
+import { createWorkerEmailDriver } from './email-driver.factory.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 type CreateWorkerNotificationModuleParams = {
   readonly db: Database
-  readonly emailDelivery: { readonly from: string; readonly smtpUrl: string } | undefined
+  readonly emailDelivery: EmailDeliveryEnvironment | undefined
   readonly queue: QueuePort
   readonly suppressionHmacKey: string
 }
@@ -33,12 +34,7 @@ export function createWorkerNotificationModule(
   params: CreateWorkerNotificationModuleParams,
 ): NotificationModule {
   const emailDriver =
-    params.emailDelivery === undefined
-      ? undefined
-      : createSmtpEmailProvider({
-          from: params.emailDelivery.from,
-          smtpUrl: params.emailDelivery.smtpUrl,
-        })
+    params.emailDelivery === undefined ? undefined : createWorkerEmailDriver(params.emailDelivery)
 
   return createNotificationModule({
     config: {
