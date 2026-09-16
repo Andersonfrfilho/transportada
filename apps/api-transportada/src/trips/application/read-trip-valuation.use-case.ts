@@ -116,6 +116,11 @@ export type TripValuationContext = {
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
   /**
+   * Spec 143 D6: os avulsos lançados na viagem (`kind = 'other'`), separados do pedágio. `null`
+   * quando ninguém lançou nada — ausência de lançamento, não gratuidade.
+   */
+  readonly manualCostTotal?: null | string
+  /**
    * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
    * `distanceMeters` na prévia; congelada no momento do planejamento na viagem já criada (T11), e
    * nunca recalculada aqui, porque parear a rota de hoje com a distância congelada de ontem é a
@@ -513,6 +518,12 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),
+    /** Spec 143 D6: o avulso nunca soma com o pedágio — leitura própria, parcela própria. */
+    resolveRecordedParcel({
+      amount: context.manualCostTotal ?? null,
+      gap: VALUATION_GAPS.notRecorded,
+      kind: 'manual',
+    }),
     resolveRecordedParcel({
       amount: context.deliveryChargesTotal ?? null,
       gap: VALUATION_GAPS.featureAbsent,

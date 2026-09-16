@@ -207,6 +207,7 @@ export class DrizzleTripValuationQuery {
       documents,
       crew,
       tollTotal,
+      manualCostTotal,
       deliveryChargesTotal,
       federalRates,
       profiles,
@@ -216,6 +217,7 @@ export class DrizzleTripValuationQuery {
       this.readDocuments(input),
       this.readCrew(input),
       this.readTollTotal(input),
+      this.readManualCostTotal(input),
       this.readDeliveryChargesTotal(input),
       this.readFederalRates({ companyId: input.companyId }),
       this.readIcmsProfiles(input.companyId),
@@ -234,6 +236,7 @@ export class DrizzleTripValuationQuery {
       estimatedDurationSeconds: trip.plannedDurationSeconds,
       federalRates,
       fuelPricePerLiter: fuelPrice,
+      manualCostTotal,
       /**
        * Spec 090 T11: o congelado do momento do planejamento — nunca recalculado aqui (ver o
        * comentário em `TripValuationContext.toll`). `parseTollRouteCost` é a fronteira: forma
@@ -382,7 +385,7 @@ export class DrizzleTripValuationQuery {
       .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
   }
 
-  /** Pedágio e avulsos. `null` quando ninguém lançou nada — ausência de lançamento, não gratuidade. */
+  /** `null` quando ninguém lançou pedágio — ausência de lançamento, não gratuidade. */
   private async readTollTotal(input: {
     readonly companyId: string
     readonly tripId: string
@@ -394,6 +397,30 @@ export class DrizzleTripValuationQuery {
         and(
           eq(tripCostEntries.companyId, input.companyId),
           eq(tripCostEntries.tripId, input.tripId),
+          eq(tripCostEntries.kind, 'toll'),
+        ),
+      )
+
+    return row?.total ?? null
+  }
+
+  /**
+   * Spec 143 D6: o avulso (`kind = 'other'`) alimenta a parcela `manual`, nunca a `toll` — antes
+   * desta consulta existir, `readTollTotal` somava os dois lançamentos juntos. `null` quando
+   * ninguém lançou nada — ausência de lançamento, não gratuidade.
+   */
+  private async readManualCostTotal(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<null | string> {
+    const [row] = await this.database
+      .select({ total: sum(tripCostEntries.amount) })
+      .from(tripCostEntries)
+      .where(
+        and(
+          eq(tripCostEntries.companyId, input.companyId),
+          eq(tripCostEntries.tripId, input.tripId),
+          eq(tripCostEntries.kind, 'other'),
         ),
       )
 

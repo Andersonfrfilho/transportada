@@ -184,6 +184,8 @@ export const TRIP_COST_KINDS = [
   'fuel',
   'other_per_kilometer',
   'toll',
+  /** Spec 143 D6: o avulso (`kind = 'other'` em `trip_cost_entries`) — nunca soma com o pedágio. */
+  'manual',
   'delivery_charges',
   /** ADR-0049 §4: imposto não é custo de operação — ele **desce da receita**, e a tela separa os dois. */
   'icms',

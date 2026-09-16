@@ -754,3 +754,140 @@ deploy desta task.
    é o texto exato que T11 precisa reproduzir no frontend a partir do mesmo `basis` cru, para a
    viagem aberta. Não existe função compartilhada — o contrato é o texto idêntico, testado dos dois
    lados, nunca importado de um app para o outro.
+
+## T7 — O pedágio deixa de engolir o avulso
+
+**Isto é correção de defeito vivo, não feature.** `readTollTotal` soma todo `trip_cost_entries` da
+viagem sem filtrar `kind` — hoje, em produção, qualquer lançamento `other` (avulso) já registrado
+soma, sem querer, na parcela `toll`. A correção separa as duas leituras; não adiciona comportamento
+novo, devolve o que já deveria estar isolado.
+
+### Alvo
+
+`trip-valuation.query.ts` (`readTollTotal`) e `trip-valuation.policy.ts` (`TRIP_COST_KINDS`, faltando
+`'manual'` — o enum já previa a parcela, mas nenhuma leitura a alimentava).
+
+### Vermelho real (não vazio)
+
+Passo 1: o contrato foi escrito primeiro em `test/trip-financial/cost-entries.contract.ts`, com os
+quatro cenários do aceite 6 (só pedágio, só avulso, os dois, nenhum) mais duas asserções de texto de
+fonte (idioma de `driver-rate-gap.contract.ts`, já usado nesta base para pegar `WHERE` sem o filtro
+certo sem precisar de banco). Passo 2: para garantir que o vermelho fosse pelo motivo certo, os três
+arquivos de produção (`trip-valuation.query.ts`, `trip-valuation.policy.ts`,
+`read-trip-valuation.use-case.ts`) foram isolados via `git stash push -- <arquivos>` antes de rodar —
+mesma técnica que a T6 registrou:
+
+```
+$ bun test ./test/trip-financial.contract.test.ts
+
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (.../test/trip-financial/cost-entries.contract.ts:50:34)
+(fail) pedágio e avulso não se somam mais na mesma parcela (spec 143 D6) > só pedágio lançado: a parcela toll recebe o valor e a manual fica sem lançamento [2.16ms]
+
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (.../test/trip-financial/cost-entries.contract.ts:61:34)
+(fail) pedágio e avulso não se somam mais na mesma parcela (spec 143 D6) > só avulso lançado: a parcela manual recebe o valor e o pedágio não é inflado por ele [0.13ms]
+
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (.../test/trip-financial/cost-entries.contract.ts:78:34)
+(fail) pedágio e avulso não se somam mais na mesma parcela (spec 143 D6) > os dois lançados na mesma viagem: cada parcela guarda só o próprio valor [0.14ms]
+
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (.../test/trip-financial/cost-entries.contract.ts:91:34)
+(fail) pedágio e avulso não se somam mais na mesma parcela (spec 143 D6) > nenhum dos dois lançado: as duas parcelas ficam sem lançamento [0.10ms]
+
+error: expect(received).toInclude(expected)
+
+Expected to include: "eq(tripCostEntries.kind, 'toll')"
+Received: "/**\n * Copyright (c) 2026 Ada Technology. MIT License.\n */\n..." (o arquivo original, sem filtro de kind)
+(fail) a consulta separa pedágio de avulso na fonte (spec 143 D6) > readTollTotal filtra kind = toll
+
+error: expect(received).toInclude(expected)
+
+Expected to include: "readManualCostTotal"
+Received: "..." (o método não existia)
+(fail) a consulta separa pedágio de avulso na fonte (spec 143 D6) > readManualCostTotal existe e filtra kind = other
+
+ 41 pass
+ 6 fail
+ 97 expect() calls
+Ran 47 tests across 1 file. [188.00ms]
+```
+
+Não é vazio nem ambíguo: as quatro falhas de parcela apontam para `byKind.get('manual')` retornando
+`undefined` — porque `buildCostParcels`, sem a mudança, nunca produz uma parcela `manual` — e as duas
+falhas de texto de fonte apontam exatamente para a ausência do filtro `kind = 'toll'` e do método
+`readManualCostTotal` no arquivo real, não para erro de compilação ou de fixture. Depois do vermelho,
+`git stash pop` devolveu a implementação, e a suíte fechou verde (ver Gates).
+
+### O que entrou
+
+- **`readTollTotal`** (`trip-valuation.query.ts`): ganhou `eq(tripCostEntries.kind, 'toll')` no
+  `where` — antes somava todo `trip_cost_entries` da viagem, `toll` e `other` juntos.
+- **`readManualCostTotal`** (novo, mesmo arquivo): mesma forma de `readTollTotal`, filtrando
+  `kind = 'other'`. `null` quando ninguém lançou nada — ausência de lançamento, não gratuidade, a
+  mesma semântica que já valia para `readTollTotal`. `readContext` passou a rodar as duas leituras em
+  paralelo (`Promise.all`) e a devolver `manualCostTotal` no contexto.
+- **`TRIP_COST_KINDS`** (`trip-valuation.policy.ts`): ganhou `'manual'` — faltava no enum de domínio
+  mesmo com `TRIP_FINANCIAL_PARCEL_KINDS` (`trip-financial.schema.ts`) já incluindo o valor; sem essa
+  entrada, a parcela nova só quebraria em runtime, não em tipo.
+- **`buildCostParcels`** (`read-trip-valuation.use-case.ts`): nova chamada a `resolveRecordedParcel`
+  para `kind: 'manual'`, reaproveitando `VALUATION_GAPS.notRecorded` (o mesmo código genérico de
+  `toll`, cujo rótulo no frontend já é genérico — "ninguém lançou" — e não específico de pedágio).
+  `TripValuationContext` ganhou o campo opcional `manualCostTotal`.
+- A nomenclatura `kind='other'` (entrada) → `kind='manual'` (parcela) é intencional e não foi
+  unificada: o CHECK `trip_cost_entries_kind_check` só aceita `('toll', 'other')`
+  (`20260827124518_trip_financial_result/migration.sql:23`), e mexer nele está fora do escopo desta
+  task (T8, não T7).
+- Quatro testes novos em `cost-entries.contract.ts`: só pedágio, só avulso, os dois na mesma viagem,
+  nenhum dos dois — cobrindo o aceite 6 (parte das parcelas) sem depender só da parcela `manual`
+  isolada, que passaria mesmo com o defeito presente. Mais duas asserções de texto de fonte que pegam
+  o `WHERE` sem filtro sem precisar de banco.
+
+### Gates
+
+| Gate                        | Comando                                                                                       | Resultado                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Typecheck                   | `bun run typecheck` (raiz, 6 apps)                                                            | ✅ limpo                                                                                       |
+| Testes da API               | `bun run --cwd apps/api-transportada test`                                                    | ✅ 6104 pass · 23 skip · 0 fail · 21480 expect() · 177 arquivos                                |
+| Testes da API (`.env.test`) | `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) | ✅ idêntico — 6104 pass · 23 skip · 0 fail (os testes novos usam repositório falso, não banco) |
+| Testes do frontend          | `bun run --cwd apps/frontend-transportada test`                                               | ✅ 4073 pass · 0 fail · 35825 expect() · 29 arquivos                                           |
+| Lint                        | `bun run lint`                                                                                | ✅ limpo                                                                                       |
+| Formatação                  | `bun run format:check`                                                                        | ✅ limpo                                                                                       |
+
+### Quantas viagens já lançaram avulso indevidamente somado ao pedágio?
+
+Não dá para saber a partir desta sessão: não há acesso a um banco de produção aqui — só o Postgres
+local de desenvolvimento (porta 55432, sem dado de cliente) e o `.env.test` de integração, ambos
+vazios de lançamentos reais. Uma contagem confiável exigiria rodar, contra o banco de produção,
+`SELECT count(DISTINCT trip_id) FROM trip_cost_entries WHERE kind = 'other'` — toda viagem com pelo
+menos um lançamento `other` já teve sua parcela `toll` inflada até este deploy, porque `readTollTotal`
+não distinguia `kind`. Essa consulta fica fora do escopo e do acesso desta task.
+
+### Contrato que a T7 impõe à T8
+
+1. `GET /trips/:id/costs` (T8) lista `trip_cost_entries` por `tripId` sem filtrar `kind` — a
+   separação `toll`/`other` desta task vive só na leitura agregada de `trip-valuation.query.ts`
+   (`readTollTotal`/`readManualCostTotal`), não na tabela em si. T8 pode e deve continuar devolvendo
+   os dois tipos de lançamento na mesma listagem; a distinção que importa (pedágio vs. avulso) é de
+   **parcela**, não de linha listada.
+2. O CHECK `trip_cost_entries_kind_check` continua `('toll', 'other')` — T8 não precisa (e não deve)
+   adicionar `'manual'` ao banco. A tradução `other` (lançamento) → `manual` (parcela) é só da camada
+   de valorização, e T8 trabalha direto com o `kind` da tabela (`toll`/`other`), nunca com o nome da
+   parcela.
+3. `TRIP_COST_KINDS` agora inclui `'manual'` — qualquer `switch`/mapa exaustivo sobre
+   `TripCostParcel['kind']` que T8 vier a escrever (ex.: rótulo de autor por tipo de lançamento) já
+   precisa cobrir esse valor; o typecheck (`exactOptionalPropertyTypes`, `strict`) pega a omissão em
+   compilação, não em runtime.
