@@ -433,6 +433,8 @@
       "loadingLabel": "Loading the measurement engine…",
       "torchOn": "Turn on flashlight",
       "torchOff": "Turn off flashlight",
+      "lookupFailed": "The queue could not be searched right now. Scan the label again.",
+      "saveFailed": "The measurement could not be saved ({{code}}). Check it and try again.",
       "unsupportedNotice": "This device can't measure with the camera — type the measurement",
       "point": {
         "a": "Corner A of the top face",

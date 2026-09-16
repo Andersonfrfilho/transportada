@@ -614,6 +614,8 @@
       "loadingLabel": "Carregando o motor de medida…",
       "torchOn": "Ligar lanterna",
       "torchOff": "Apagar lanterna",
+      "lookupFailed": "Não foi possível consultar a fila agora. Leia a etiqueta de novo.",
+      "saveFailed": "Não foi possível gravar a medida ({{code}}). Confira e tente de novo.",
       "unsupportedNotice": "Este aparelho não mede pela câmera — digite a medida",
       "point": {
         "a": "Canto A da face de cima",

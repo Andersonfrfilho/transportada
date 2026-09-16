@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -26,17 +26,21 @@ export type PackageBoxCameraFlowProps = Readonly<{
   /** Spec 152 D14: sem a função ligada na empresa, a etapa Medida nunca existe. */
   cameraEnabled: boolean
   isOpen: boolean
+  /** M7: a consulta falhou — é erro na tela, nunca "nenhuma caixa com este código". */
+  lookupFailed: boolean
   /** `true` enquanto a leitura da etiqueta está sendo casada contra a fila (mesma pergunta da busca). */
   matching: boolean
   matches: readonly PackageBox[] | undefined
   onClose: () => void
   onLookup: (text: string) => void
-  /**
-   * ⚠️ Sem `await`: a mesma regra de `usePackageBoxQueue`
-   * (`test/shared/mutation-pending-state.contract.ts`) — segurar a transição de etapa esperando a
-   * mutação travaria o botão. A UI é otimista, como já é o formulário digitado da linha.
-   */
   onSave: (boxId: string, submission: PackageBoxMeasurementFormSubmission) => void
+  /** A1: o código da recusa do último `PUT`, para a Conferência dizer o que aconteceu. */
+  saveErrorCode: string | undefined
+  /**
+   * A1: o desfecho da gravação. A etapa só sai de "Gravando" quando ele chega — despachar `saved`
+   * no mesmo tick do `onSave` mandava o operador de volta à etiqueta com a caixa ainda sem medida.
+   */
+  saveStatus: 'error' | 'idle' | 'pending' | 'success'
 }>
 
 const TITLE_ID = 'package-box-camera-flow-title'
@@ -62,11 +66,14 @@ function canPreload(): boolean {
 export function PackageBoxCameraFlow({
   cameraEnabled,
   isOpen,
+  lookupFailed,
   matches,
   matching,
   onClose,
   onLookup,
   onSave,
+  saveErrorCode,
+  saveStatus,
 }: PackageBoxCameraFlowProps) {
   const { t } = useTranslation('nfeWorkspace')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
@@ -85,6 +92,7 @@ export function PackageBoxCameraFlow({
     createInitialPackageBoxCameraFlowState,
   )
   const preloadWorkerRef = useRef<Worker | undefined>(undefined)
+  const [engineWorker, setEngineWorker] = useState<Worker | undefined>(undefined)
   const { status: barcodeStatus, videoRef } = useBarcodeScanner({
     isActive: isOpen && state.step === 'label',
     onRead: (text) => {
@@ -98,13 +106,33 @@ export function PackageBoxCameraFlow({
     dispatch({ enabled: cameraEnabled, kind: 'cameraSettingsLoaded' })
   }, [cameraEnabled])
 
-  /** R1: a resposta da mesma pergunta que a busca de texto já faz para a fila (spec 085). */
+  /**
+   * R1: a resposta da mesma pergunta que a busca de texto já faz para a fila (spec 085).
+   *
+   * ⚠️ M7: consulta que **falhou** não é consulta vazia. Tratar as duas igual dizia "Nenhuma caixa
+   * com este código" para uma caixa que existe, e o conferente separava a nota sem medida.
+   */
   useEffect(() => {
-    if (matching || state.step !== 'identifying') return
+    if (matching || lookupFailed || state.step !== 'identifying') return
     dispatch({ candidates: matches ?? [], kind: 'matchesLoaded' })
-  }, [matches, matching, state.step])
+  }, [lookupFailed, matches, matching, state.step])
 
-  /** D18: pré-carga do OpenCV ao abrir o fluxo com a função ligada — digitar continua disponível. */
+  /** A1: a etapa só sai de "Gravando" com o desfecho do `PUT` na mão. */
+  useEffect(() => {
+    if (state.step !== 'saving') return
+    if (saveStatus === 'success') dispatch({ kind: 'saved' })
+    if (saveStatus === 'error') dispatch({ kind: 'saveFailed' })
+  }, [saveStatus, state.step])
+
+  /**
+   * D18: pré-carga do OpenCV ao abrir o fluxo com a função ligada — digitar continua disponível.
+   *
+   * ⚠️ **O worker da pré-carga é o mesmo da etapa Medida** (T14 item M6). Ele era terminado assim
+   * que respondia `ready`, e o scanner subia outro: o WASM do OpenCV era baixado, instanciado e
+   * compilado duas vezes por sessão, e a segunda vez não adiantava nada. Agora ele sobrevive até o
+   * fluxo fechar e desce por `worker={engineWorker}`; o hook da medida repete o `preload` nele, que
+   * responde `ready` na hora (o `cvPromise` do worker já está resolvido).
+   */
   useEffect(() => {
     if (!isOpen || !cameraEnabled || !canPreload()) return
     dispatch({ kind: 'enginePreloadStarted' })
@@ -113,14 +141,16 @@ export function PackageBoxCameraFlow({
       { type: 'module' },
     )
     preloadWorkerRef.current = worker
+    setEngineWorker(worker)
     worker.onmessage = (event: MessageEvent<Readonly<{ kind: string }>>) => {
       dispatch({ kind: event.data.kind === 'ready' ? 'enginePreloadReady' : 'enginePreloadFailed' })
-      worker.terminate()
+      worker.onmessage = null
     }
     worker.postMessage({ kind: 'preload' })
     return () => {
       worker.terminate()
       preloadWorkerRef.current = undefined
+      setEngineWorker(undefined)
     }
   }, [cameraEnabled, isOpen])
 
@@ -131,7 +161,6 @@ export function PackageBoxCameraFlow({
     if (box === undefined) return
     dispatch({ kind: 'saveRequested' })
     onSave(box.id, submission)
-    dispatch({ kind: 'saved' })
   }
 
   const showBackToLabel = state.step !== 'label' && state.step !== 'saving'
@@ -177,6 +206,11 @@ export function PackageBoxCameraFlow({
 
         {state.step === 'label' || state.step === 'identifying' ? (
           <>
+            {lookupFailed ? (
+              <p className={styles.notice} role="alert">
+                {t('packageBoxes.camera.lookupFailed')}
+              </p>
+            ) : null}
             {state.noMatch ? (
               <p className={styles.notice} role="alert">
                 {t('packageBoxes.scanner.notFound')}
@@ -265,6 +299,7 @@ export function PackageBoxCameraFlow({
             <BoxDimensionScanner
               captureLabel={t('packageBoxes.camera.captureLabel')}
               confirmLabel={t('packageBoxes.camera.confirmLabel')}
+              experimentalLabel={t('packageBoxes.experimentalBadge')}
               instructionLabel={t('packageBoxes.camera.measureInstruction')}
               isActive={cameraStatus === 'ready'}
               loadingLabel={t('packageBoxes.camera.loadingLabel')}
@@ -289,6 +324,7 @@ export function PackageBoxCameraFlow({
                 steepAngle: t('packageBoxes.warnings.steepAngle'),
                 unstable: t('packageBoxes.warnings.unstable'),
               }}
+              worker={engineWorker}
             />
           </>
         ) : null}
@@ -298,6 +334,12 @@ export function PackageBoxCameraFlow({
             {state.unsupportedReason === undefined ? null : (
               <p className={styles.notice} role="alert">
                 {t('packageBoxes.camera.unsupportedNotice')}
+              </p>
+            )}
+            {/* A1: a recusa do `PUT` aparece com o código — o 422 da função desligada não é igual ao 400. */}
+            {saveErrorCode === undefined ? null : (
+              <p className={styles.notice} role="alert">
+                {t('packageBoxes.camera.saveFailed', { code: saveErrorCode })}
               </p>
             )}
             <PackageBoxMeasurementForm
