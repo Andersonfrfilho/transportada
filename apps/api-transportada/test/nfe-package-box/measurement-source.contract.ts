@@ -346,6 +346,15 @@ describe('isEditedDimension (D16)', () => {
   test('sem proposta e margem acima de 30 mm (D6): editada — a câmera não leu isso', () => {
     expect(isEditedDimension({ lengthMarginMm: 45 }, dimension, 340)).toBe(true)
   })
+
+  /**
+   * BAIXO-3 (T14, 5ª revisão): o ramo `?? 0` (margem ausente, não só zero) não tinha teste — sem
+   * proposta e sem margem nenhuma no bloco `camera`, o lado seguro (0 mm) tem que ficar abaixo do
+   * teto e marcar como não editada, igual ao caso com margem informada.
+   */
+  test('sem proposta e sem margem nenhuma informada (lado seguro do "?? 0"): não editada', () => {
+    expect(isEditedDimension({}, dimension, 340)).toBe(false)
+  })
 })
 
 describe('assertCameraMeasurementEnabled (D14)', () => {
