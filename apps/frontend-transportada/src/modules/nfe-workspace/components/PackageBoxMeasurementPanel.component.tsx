@@ -149,10 +149,13 @@ export function PackageBoxMeasurementPanel({
   const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
   const closeScanTimer = useRef<number | undefined>(undefined)
   /**
-   * Spec 152 T11: `PackageBoxCameraFlow` é a porta de entrada da medida pela câmera — dona da
-   * própria sessão (`useCameraStream`, D19), separada do leitor digitado de hoje. Aberta, ela casa
-   * a etiqueta com a fila pela mesma pergunta (`onScan`/`matching`/`queue`), então o efeito abaixo
-   * (que abre a edição digitada / a lista de candidatas) precisa ficar de fora enquanto ela decide.
+   * Spec 152 T11 (entrada unificada): com a função ligada, "Ler etiqueta" abre o
+   * `PackageBoxCameraFlow` em vez do leitor de sempre — dono da própria sessão de câmera
+   * (`useCameraStream`, D19), que encadeia etiqueta → produto → medida → conferência sem reabrir
+   * permissão. Aberto, ele casa a etiqueta com a fila pela mesma pergunta
+   * (`onScan`/`matching`/`queue`), então o efeito abaixo (que abre a edição digitada / a lista de
+   * candidatas) precisa ficar de fora enquanto ele decide. Com a função desligada este estado nunca
+   * vira `true` — o botão sempre abre o leitor antigo, comportamento idêntico ao de antes da T11.
    */
   const [isCameraFlowOpen, setIsCameraFlowOpen] = useState(false)
   const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
@@ -297,16 +300,16 @@ export function PackageBoxMeasurementPanel({
             value={search}
           />
         </label>
-        <Button onClick={() => setIsScannerOpen(true)} type="button" variant="secondary">
+        <Button
+          onClick={() =>
+            cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)
+          }
+          type="button"
+          variant="secondary"
+        >
           <Icon name="camera" />
           {t('packageBoxes.scan')}
         </Button>
-        {cameraMeasurementEnabled ? (
-          <Button onClick={() => setIsCameraFlowOpen(true)} type="button" variant="secondary">
-            <Icon name="camera" />
-            {t('packageBoxes.camera.openFlow')}
-          </Button>
-        ) : null}
       </div>
 
       <label className={styles.field} htmlFor="package-box-status">
