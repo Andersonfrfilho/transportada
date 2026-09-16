@@ -1221,3 +1221,176 @@ Modificados: `src/components/ui/useBarcodeScanner.hook.ts` (parâmetro `stream` 
   aceite da T7 no `tasks.md` cobra isso e não há consumidor da lanterna ainda (só entra em T8/T11,
   no primitivo de medida). Deixei de fora para não introduzir código sem teste que o exercite;
   entra com o primeiro consumidor real, sem precisar tocar em `useCameraStream` de novo.
+
+## T8 — Primitivo `box-dimension-scanner`, worker e carga (D18)
+
+Data: 2026-09-15. Modelo: `sonnet`.
+
+### O que entrou
+
+- `src/components/ui/boxDimension.worker.ts`: só ele importa o OpenCV
+  (`import('../../../vendor/opencv/opencv.js')`, literal e dinâmico). Detecta o marcador
+  (`cv.aruco_ArucoDetector`, `DICT_4X4_50`) e calcula as estatísticas do quadro
+  (`cvtColor`/`meanStdDev`/`Laplacian`, todas na whitelist do build próprio) — pose e margem
+  continuam fora, no motor puro da T6. Expõe `preload`/`frame` por `postMessage`, sem estado além
+  da instância de `cv` cacheada.
+- `src/components/ui/opencv.types.ts`: tipo mínimo do build próprio (sem `.d.ts` oficial) — só o
+  que o worker usa.
+- `src/components/ui/useBoxDimensionScanner.hook.ts`: cria o worker por
+  `new Worker(new URL('./boxDimension.worker.ts', import.meta.url), { type: 'module' })`, nunca
+  `blob:`. Preload com teto de 15s (`ENGINE_LOAD_TIMEOUT_MS`), laço de captura a cada 250ms (como
+  `useBarcodeScanner`), 3 quadros seguidos acima de 800ms derruba para `tooSlow`, e
+  `typeof WebAssembly === 'undefined'` barra antes de criar o worker (`noWasm`). "Capturar" congela
+  um retrato próprio (`canvas.toDataURL`, nunca o `<video>` pausado) que alimenta a tela e a lupa;
+  "Usar esta medida" chama `measureBox`/`estimateMargins`/`classifyMeasurement`/`detectWarnings` da
+  T6 e devolve o resultado por `onMeasured`. Video e worker são encerrados em todo caminho de saída
+  (`stopCameraStream` não se aplica aqui — o stream é sempre injetado; `video.srcObject = null` e
+  `worker.terminate()` cobrem o desmonte).
+- `src/components/ui/boxDimensionMarking.service.ts`: aritmética pura (porta do `marking.ts` do
+  spike) — `clampPointToBounds`, `nudgePoint` (1px, 8px com Shift) e `magnifierViewportFor`.
+- `src/components/ui/box-dimension-scanner.tsx` + `.module.css`: o primitivo — vídeo, `Skeleton`
+  durante a carga, indicador ao vivo (`aria-live="polite"`), "Capturar", 5 pontos arrastáveis
+  (A/B/C/D da face + o pé da aresta vertical — `measureBox` pede os 5; o `plan.md` fala em "4
+  pontos", ver "Pontos para o usuário" abaixo) com lupa, "Usar esta medida".
+- `docs/frontend/box-dimension-scanner.md` + linha nova na tabela do
+  `apps/frontend-transportada/CLAUDE.md`.
+- `test/design-system/box-dimension-scanner.contract.ts` (12 testes, importado por
+  `test/design-system.contract.test.ts`).
+
+### Pendências da T1 (architect), resolvidas nesta task
+
+- **`worker: { format: 'es' }`** em `vite.config.ts` — sem isso o Vite empacota o worker em IIFE, e
+  o `import()` dinâmico do OpenCV não funciona.
+- **Chunk fora do precache + `CacheFirst` próprio**: `globIgnores: ['**/background-removal/**',
+OPENCV_CHUNK_GLOB]` e uma regra `runtimeCaching` com `handler: 'CacheFirst'`,
+  `cacheName: 'transportada-opencv'`, `maxEntries: 2`.
+- **Chunk comprimido**: `openCvCompressionPlugin` (novo, `vite.config.ts`) grava `.gz` (nível 9) e
+  `.br` (qualidade máxima) ao lado do chunk no `generateBundle`. `server.ts` ganhou
+  `precompressedResponse`: escolhe Brotli, cai para gzip, serve o arquivo cru se nenhum dos dois
+  existir ou o cliente não anunciar `Accept-Encoding` — nunca lança, nunca 404 por falta de
+  compressão.
+- **Fallback**: `noWasm` (sem criar worker) → `engineFailed` (15s sem `ready`, ou erro) →
+  `tooSlow` (3 quadros seguidos > 800ms) → `onUnsupported`, e quem monta a etapa decide o
+  formulário digitado (T9–T11); o primitivo nunca grava nada sozinho.
+- **`test/shared/opencv-build.contract.ts`**: as duas asserções pendentes viraram positivas —
+  `'só o worker de medida importa o OpenCV'` agora é `toEqual` com a lista exata (não subconjunto),
+  e `'fica fora de public/, portanto fora do precache'` virou `'fica fora de public/ e fora do
+precache; o chunk ganha CacheFirst próprio (T8)'`, checando `globIgnores`/`CacheFirst` no
+  `vite.config.ts` em vez de `not.toContain('vendor/opencv')`.
+
+### O import do OpenCV: literal, não `/* @vite-ignore */`
+
+A primeira versão usava uma constante de caminho com `/* @vite-ignore */`, copiando o padrão do
+worker do MapLibre visto no `vite.config.ts`. Build de verificação (import temporário do primitivo
+a partir de `main.tsx`, revertido depois) mostrou que isso **não separa chunk nenhum**: o Vite não
+analisa uma string dinâmica, e o `import()` sobra como caminho relativo cru resolvido em runtime a
+partir do chunk do worker em `dist/assets/` — que não tem `vendor/opencv/` três níveis acima.
+Trocado para `import('../../../vendor/opencv/opencv.js')` literal (dinâmico continua, só o
+especificador é fixo): o Vite acha o módulo em build, separa o chunk e o worker some do IIFE.
+Segunda rodada da mesma verificação:
+
+```
+dist/assets/opencv-AunnWb8E.js      3.053.658 B  (ADR-0065: 3.053.658 B — igual)
+dist/assets/opencv-AunnWb8E.js.gz     891.131 B  (ADR-0065: ~891.150 B)
+dist/assets/opencv-AunnWb8E.js.br     697.642 B  (ADR-0065: 697.642 B — igual)
+```
+
+`dist/sw.js`: nenhuma entrada `"assets/opencv...` no manifest de precache; a única ocorrência da
+palavra é a regra `runtimeCaching` (`cacheName: transportada-opencv`). `dist/content-security-policy.txt`
+idêntico ao de antes desta task (`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self'`, sem
+`'unsafe-eval'`). O worker compilado (`dist/assets/boxDimension.worker-*.js`) usa
+`import("./opencv-AunnWb8E.js")` — ESM real, confirmando que `worker: { format: 'es' }` funcionou.
+
+Essa verificação foi feita com um `import()` temporário em `src/main.tsx`, só para forçar o
+primitivo a entrar no grafo do build (hoje nada o importa — T9–T11 ainda não existem). Revertido
+antes do commit; `git diff src/main.tsx` fica vazio.
+
+### O wrapper UMD do OpenCV: dois caminhos, o worker aceita os dois
+
+Sem `.d.ts` e sem sonda dinâmica do artefato real dentro desta task (a sonda da T1 rodou contra o
+pacote npm, não contra o build próprio em runtime), o `loadOpenCv()` foi escrito por leitura do
+próprio artefato: `python3` decodificando `vendor/opencv/opencv.js` como `latin1` mostrou o UMD
+clássico —
+
+```
+} else if (typeof module === 'object' && module.exports) {
+  module.exports = factory();
+} else if (typeof window === 'object') {
+  root.cv = factory();
+} else if (typeof importScripts === 'function') {
+  root.cv = factory();
+}
+```
+
+— com `factory()` retornando `cv(Module)` (uma Promise que resolve para o objeto com `Mat`,
+`aruco_ArucoDetector` etc. diretamente, incluindo `matFromImageData` anexado à mão no fim do
+arquivo). Empacotado pelo Rollup (que converte o `module.exports` via `@rollup/plugin-commonjs`),
+isso vira `.default`; carregado sem bundler, cai no ramo de navegador/worker e atribui a
+`globalThis.cv`. `loadOpenCv()` tenta `namespace.default` e cai para `globalThis.cv` — cobre os
+dois sem depender de qual ramo roda.
+
+⚠️ **Isto não foi exercitado chamando o `cv` de verdade** (nenhum teste desta task instancia o
+WASM) — a confirmação é por leitura do artefato + o mecanismo de import (que o build verificou de
+ponta a ponta), não por uma detecção real de marcador rodando no worker. Ver "Pontos para o
+usuário".
+
+### Vermelho antes da implementação
+
+Nenhum dos arquivos novos existia (`boxDimension.worker.ts`, `useBoxDimensionScanner.hook.ts`,
+`box-dimension-scanner.tsx`, `opencv.types.ts`, `boxDimensionMarking.service.ts`) — o contrato de
+design-system falharia por `ENOENT` em todo `readApplicationFile`. As duas asserções trocadas em
+`opencv-build.contract.ts` reprovariam contra o `vite.config.ts` anterior à task: sem
+`OPENCV_CHUNK_GLOB`/`CacheFirst`, e `collectOpenCvImporters()` devolvia `[]` (lista vazia,
+diferente de `ALLOWED_IMPORTERS`).
+
+### Gates
+
+| Gate                                                                    | Resultado                                                                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                         | verde (`Checked 747 installs`, sem mudança)                                                                             |
+| `bun run --cwd apps/frontend-transportada typecheck`                    | verde                                                                                                                   |
+| `bun run --cwd apps/frontend-transportada lint`                         | 1 erro (`no-unnecessary-type-assertion`), corrigido; verde depois                                                       |
+| `bun run --cwd apps/frontend-transportada test`                         | **3920 pass, 0 fail**, 35308 `expect()` (era 3908 — +12 do contrato novo, nenhum quebrado)                              |
+| `bun run --cwd apps/frontend-transportada build`                        | verde (`built in 5.48s`, PWA 131 entradas de precache — igual a antes, opencv não entra por não haver consumidor ainda) |
+| Build de verificação com import temporário (chunk/compressão/sw.js/CSP) | verde — ver seção acima, revertido antes do commit                                                                      |
+| `bunx prettier --check` (arquivos tocados)                              | verde                                                                                                                   |
+| `locale-accents.contract.ts`                                            | verde dentro da suíte completa — nenhum `*.locale.json` tocado                                                          |
+
+`bun run lint`/`typecheck` na raiz (as 6 apps) também rodaram verdes antes e depois desta task, sem
+tocar em API/worker/cron. `make check` completo (com `format:check`, `test` e `build` das 6 apps)
+não rodou nesta sessão — fora do escopo de frontend tocado pela T8, e a integração da API exige
+`.env.test`/Postgres descartável que este worktree não tinha de pé; os gates da app alterada
+(frontend) e os dois `typecheck`/`lint` de raiz cobrem o que a T8 mudou.
+
+### Arquivos
+
+Novos: `src/components/ui/boxDimension.worker.ts`, `src/components/ui/opencv.types.ts`,
+`src/components/ui/useBoxDimensionScanner.hook.ts`, `src/components/ui/boxDimensionMarking.service.ts`,
+`src/components/ui/box-dimension-scanner.tsx`, `src/components/ui/box-dimension-scanner.module.css`,
+`docs/frontend/box-dimension-scanner.md`, `test/design-system/box-dimension-scanner.contract.ts`.
+Modificados: `vite.config.ts` (`worker.format`, `globIgnores`, `runtimeCaching`, `chunkFileNames`,
+`openCvCompressionPlugin`), `server.ts` (`precompressedResponse`, `OPENCV_CHUNK_PATTERN`),
+`src/vite-env.d.ts` (módulo ambiente do artefato), `test/shared/opencv-build.contract.ts` (duas
+asserções trocadas para positivas), `test/design-system.contract.test.ts` (import do contrato
+novo), `apps/frontend-transportada/CLAUDE.md` (linha nova na tabela).
+
+### Pontos para o usuário
+
+- **O worker nunca rodou contra o artefato real do OpenCV nesta task.** A integração
+  (`loadOpenCv()`, o detector ArUco, `cvtColor`/`meanStdDev`/`Laplacian`) foi escrita a partir da
+  leitura do wrapper UMD do arquivo versionado e da whitelist do ADR-0065 — não há sonda tipo a da
+  T1 chamando `cv.aruco_ArucoDetector` de dentro deste worker em runtime. O que **foi** verificado
+  de ponta a ponta é o mecanismo de carregamento (chunk separado, fora do precache, `CacheFirst`,
+  compressão, CSP intacta — ver seção acima). Antes de confiar na detecção real do marcador, vale
+  rodar o worker contra a câmera de verdade (o smoke da T11, ou uma sonda dedicada como a da T1).
+- **5 pontos arrastáveis, não 4.** O `plan.md`/`tasks.md` da T8 falam em "4 pontos arrastáveis",
+  mas `measureBox` (T6) pede `facePoints` (4: A, B, C, D) **e** `footPoint` (1, a base da aresta
+  vertical) — sem o quinto ponto não dá para calcular a altura. Marquei os 5; se a intenção era
+  mesmo 4 e a altura vier de outro lugar (ex.: derivada automaticamente), isso volta para decisão
+  do usuário antes da T11 usar este primitivo.
+- **Nada consome `box-dimension-scanner` ainda** — como a T7 deixou `useCameraStream` pronto e sem
+  uso, esta task deixa o primitivo pronto e sem uso. `bun run build` normal (sem o import
+  temporário) não gera o chunk do OpenCV porque nada o alcança; isso é esperado até a T11 montar
+  `PackageBoxCameraFlow` sobre este primitivo.
+- **`make check` completo não rodou** (só os gates da app tocada + lint/typecheck de raiz) — sem
+  infraestrutura de banco de pé neste worktree para a integração da API, que esta task não tocou.

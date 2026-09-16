@@ -25,6 +25,12 @@ const CONTENT_SECURITY_POLICY_PATH = 'content-security-policy.txt'
 const MAP_TILES_PREFIX = '/map-tiles/'
 /** Mapa envelhece por lei e por obra, não por semana; e o nome muda quando ele é refeito. */
 const MAP_TILES_CACHE_CONTROL = 'public, max-age=2592000'
+/**
+ * O chunk do OpenCV (spec 152 T8, ADR-0065 §4): 3,05 MB brutos, ~0,89 MB comprimido. O Vite não
+ * comprime nada — `openCvCompressionPlugin` do `vite.config.ts` grava `.gz`/`.br` ao lado do chunk
+ * no build, e aqui a gente escolhe pelo `Accept-Encoding` do pedido, igual a um proxy faria.
+ */
+const OPENCV_CHUNK_PATTERN = /^\/assets\/opencv-[^/]+\.js$/u
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -65,6 +71,12 @@ Bun.serve({
     if (await asset.exists()) {
       if (url.pathname.startsWith(MAP_TILES_PREFIX)) {
         return respond(rangeResponse(asset, request), MAP_TILES_CACHE_CONTROL)
+      }
+      if (OPENCV_CHUNK_PATTERN.test(url.pathname)) {
+        return respond(
+          await precompressedResponse(asset, url.pathname, request),
+          cacheControlFor(url.pathname),
+        )
       }
       return respond(new Response(asset), cacheControlFor(url.pathname))
     }
@@ -114,6 +126,32 @@ function rangeResponse(file: Bun.BunFile, request: Request): Response {
     },
     status: 206,
   })
+}
+
+/**
+ * Prefere Brotli, cai para gzip, e serve o arquivo original se nenhum dos dois existir ou se o
+ * cliente não anunciar a codificação — nunca lança e nunca falha 404 por falta de compressão.
+ */
+async function precompressedResponse(
+  original: Bun.BunFile,
+  pathname: string,
+  request: Request,
+): Promise<Response> {
+  const acceptEncoding = request.headers.get('accept-encoding') ?? ''
+  const candidates: readonly [string, string][] = [
+    ['br', `${pathname}.br`],
+    ['gzip', `${pathname}.gz`],
+  ]
+  for (const [encoding, encodedPathname] of candidates) {
+    if (!acceptEncoding.includes(encoding)) continue
+    const encodedAsset = resolveAsset(encodedPathname)
+    if (!(await encodedAsset.exists())) continue
+    const response = new Response(encodedAsset)
+    response.headers.set('Content-Encoding', encoding)
+    response.headers.set('Vary', 'Accept-Encoding')
+    return response
+  }
+  return new Response(original)
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {
