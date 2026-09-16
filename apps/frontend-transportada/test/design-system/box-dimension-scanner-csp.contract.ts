@@ -1,8 +1,34 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { existsSync } from 'node:fs'
+
 import { afterAll, describe, expect, it } from 'bun:test'
 import { chromium, type Browser, type Page } from '@playwright/test'
 
 import { buildContentSecurityPolicy } from '../../src/modules/shared/contentSecurityPolicy.service.js'
+
+/**
+ * ⚠️ **Navegador é dependência do job, não do teste.** O gate `quality-app` roda só a bateria de
+ * testes e nunca executou `playwright install` (isso é do gate de integração e do smoke) — a sonda
+ * derrubava o gate inteiro por executável ausente, nunca por defeito de CSP, e com ele todos os
+ * `deploy-*`. Onde o Chromium existe (máquina do desenvolvedor, job que instala os navegadores) ela
+ * roda de verdade; onde não existe, pula com aviso. A asserção de texto abaixo — `img-src` sem
+ * `data:` — não depende de navegador nenhum e continua valendo sempre.
+ */
+function hasChromiumExecutable(): boolean {
+  try {
+    return existsSync(chromium.executablePath())
+  } catch {
+    return false
+  }
+}
+
+const CHROMIUM_IS_AVAILABLE = hasChromiumExecutable()
+
+if (!CHROMIUM_IS_AVAILABLE) {
+  console.warn(
+    'sonda de CSP pulada: Chromium do Playwright ausente. Rode `bunx playwright install chromium` para exercitá-la.',
+  )
+}
 
 /**
  * Sonda T14: a suíte de `content-security-policy.contract.ts` só lê o texto da diretiva — nunca
@@ -66,43 +92,49 @@ describe('sonda headless: img-src real bloqueia data: e permite blob: (T14 item 
     expect(imgSrcDirective).not.toContain('data:')
   })
 
-  it('prova o defeito antigo: um <img src="data:..."> viola a CSP real (o que quebrava em produção)', async () => {
-    browser = await chromium.launch()
-    const { page, violations } = await pageWithRealPolicy(browser)
+  it.skipIf(!CHROMIUM_IS_AVAILABLE)(
+    'prova o defeito antigo: um <img src="data:..."> viola a CSP real (o que quebrava em produção)',
+    async () => {
+      browser = await chromium.launch()
+      const { page, violations } = await pageWithRealPolicy(browser)
 
-    await page.evaluate((base64) => {
-      const image = document.createElement('img')
-      image.src = `data:image/png;base64,${base64}`
-      document.body.appendChild(image)
-    }, TRANSPARENT_PNG_BASE64)
-    await page.waitForTimeout(200)
+      await page.evaluate((base64) => {
+        const image = document.createElement('img')
+        image.src = `data:image/png;base64,${base64}`
+        document.body.appendChild(image)
+      }, TRANSPARENT_PNG_BASE64)
+      await page.waitForTimeout(200)
 
-    expect(violations).toContain('img-src')
-    await page.close()
-  })
+      expect(violations).toContain('img-src')
+      await page.close()
+    },
+  )
 
-  it('prova a correção: um <img src="blob:..."> carrega sob a mesma CSP real, sem violação', async () => {
-    const { page, violations } = await pageWithRealPolicy(browser)
+  it.skipIf(!CHROMIUM_IS_AVAILABLE)(
+    'prova a correção: um <img src="blob:..."> carrega sob a mesma CSP real, sem violação',
+    async () => {
+      const { page, violations } = await pageWithRealPolicy(browser)
 
-    const loaded = await page.evaluate(async (base64) => {
-      const binary = atob(base64)
-      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-      const blob = new Blob([bytes], { type: 'image/png' })
-      const objectUrl = URL.createObjectURL(blob)
-      const image = document.createElement('img')
-      const outcome = new Promise<boolean>((resolve) => {
-        image.addEventListener('load', () => resolve(true))
-        image.addEventListener('error', () => resolve(false))
-      })
-      image.src = objectUrl
-      document.body.appendChild(image)
-      const result = await outcome
-      URL.revokeObjectURL(objectUrl)
-      return result
-    }, TRANSPARENT_PNG_BASE64)
+      const loaded = await page.evaluate(async (base64) => {
+        const binary = atob(base64)
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+        const blob = new Blob([bytes], { type: 'image/png' })
+        const objectUrl = URL.createObjectURL(blob)
+        const image = document.createElement('img')
+        const outcome = new Promise<boolean>((resolve) => {
+          image.addEventListener('load', () => resolve(true))
+          image.addEventListener('error', () => resolve(false))
+        })
+        image.src = objectUrl
+        document.body.appendChild(image)
+        const result = await outcome
+        URL.revokeObjectURL(objectUrl)
+        return result
+      }, TRANSPARENT_PNG_BASE64)
 
-    expect(loaded).toBe(true)
-    expect(violations).not.toContain('img-src')
-    await page.close()
-  })
+      expect(loaded).toBe(true)
+      expect(violations).not.toContain('img-src')
+      await page.close()
+    },
+  )
 })
