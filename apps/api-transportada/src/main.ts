@@ -511,6 +511,7 @@ import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-docume
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
 import { DrizzlePackageBoxRepository } from './nfe-documents/infrastructure/drizzle-package-box.repository'
+import { DrizzleCameraMeasurementSettingsRepository } from './nfe-documents/infrastructure/drizzle-camera-measurement-settings.repository'
 import { createPackageBoxRoutes } from './nfe-documents/presentation/package-box.routes'
 import { createOperationsUseCase } from './operations/application/operations.use-case'
 import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
@@ -1532,6 +1533,9 @@ function createApplicationRoutes({
     repository: new DrizzleNfeDocumentEventRepository(database),
   })
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
+  const cameraMeasurementSettingsRepository = new DrizzleCameraMeasurementSettingsRepository(
+    database,
+  )
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
   const requestImport = createRequestNfeImportUseCase({
@@ -2923,7 +2927,10 @@ function createApplicationRoutes({
     }),
     ...createPackageBoxRoutes({
       listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
-      measurePackageBox: createMeasurePackageBox({ repository: packageBoxRepository }),
+      measurePackageBox: createMeasurePackageBox({
+        cameraMeasurementSettings: cameraMeasurementSettingsRepository,
+        repository: packageBoxRepository,
+      }),
     }),
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),

@@ -1,6 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type {
+  PackageBoxMeasurementSource,
+  PackageBoxMeasurementWarning,
+} from '../domain/package-box-measurement.constant.js'
 
 export type PackageBoxView = {
   readonly cartonGtin: string | null
@@ -12,6 +16,9 @@ export type PackageBoxView = {
   readonly id: string
   readonly lengthMm: number | null
   readonly measuredAt: string | null
+  /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
+  readonly measurementMarginMm: number | null
+  readonly measurementSource: PackageBoxMeasurementSource | null
   readonly productCode: string
   readonly unitsPerBox: number
   /** Volumes já transportados desta caixa — é o que ordena a fila do conferente. */
@@ -38,12 +45,33 @@ export type PackageBoxFilters = {
   readonly status?: PackageBoxStatusFilter
 }
 
+/**
+ * Spec 152 (D17, experimental): o que a câmera propôs antes de qualquer edição do operador — guardado
+ * só no histórico (`nfe_package_box_measurements`), nunca na caixa. Margem ausente numa dimensão é
+ * "câmera não propôs nada ali" (D6, acima de 30 mm o campo nem preenche).
+ */
+export type PackageBoxCameraMeasurement = {
+  readonly engine: string
+  readonly heightMarginMm?: number | undefined
+  readonly impreciseConfirmed: boolean
+  readonly lengthMarginMm?: number | undefined
+  readonly proposedHeightMm?: number | undefined
+  readonly proposedLengthMm?: number | undefined
+  readonly proposedWidthMm?: number | undefined
+  readonly warnings: readonly PackageBoxMeasurementWarning[]
+  readonly widthMarginMm?: number | undefined
+}
+
 export type PackageBoxMeasurement = {
+  /** Presente só com `source` diferente de `typed` (D8) — a câmera participou desta medida. */
+  readonly camera?: PackageBoxCameraMeasurement | undefined
   readonly grossWeightGrams: number | null
   readonly heightMm: number
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   readonly unitsPerBox: number
   readonly lengthMm: number
+  /** `typed` é o padrão retrocompatível (D8 revista: `manual` nunca existiu no contrato). */
+  readonly source: PackageBoxMeasurementSource
   readonly widthMm: number
 }
 
@@ -58,10 +86,17 @@ export type PackageBoxRepositoryPort = {
    * `cumulativeShare`, `withinCoverage`), que nascem da política de ordenação — devolvê-la obrigava
    * o cliente a validar dois formatos com um guard só, e toda medição bem-sucedida virava erro na
    * tela com a medida já gravada no banco. Quem recarrega a fila é a releitura, que já existe.
+   *
+   * Spec 152 (D5, D17, experimental): grava a caixa **e** insere o histórico append-only na mesma
+   * transação. Sem casar nenhuma caixa (outra empresa ou id inexistente), nada é gravado — nem a
+   * caixa, nem o histórico.
    */
   measure(input: {
     readonly boxId: string
     readonly companyId: string
     readonly measurement: PackageBoxMeasurement
+    /** D17: a maior margem, já resolvida pelo domínio — `null` para `source: typed`. */
+    readonly measurementMarginMm: number | null
+    readonly measuredByUserId: string
   }): Promise<boolean>
 }

@@ -21,6 +21,8 @@ function buildBox(overrides: Partial<PackageBoxView>): PackageBoxView {
     id: 'id',
     lengthMm: null,
     measuredAt: null,
+    measurementMarginMm: null,
+    measurementSource: null,
     productCode: '7896004003405',
     transportedVolumes: 10,
     unitsPerBox: 1,

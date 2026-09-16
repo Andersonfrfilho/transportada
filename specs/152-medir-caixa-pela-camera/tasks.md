@@ -68,7 +68,8 @@ Contrato/aceite **antes** da implementação em toda task de código.
       `company_cargo_settings.camera_measurement_enabled boolean not null default false`.
       **Aceite:** `make migration-test` verde (sobe e desce), contrato `schema-snapshot` verde,
       nenhuma coluna existente alterada, nenhum `DROP` fora do `rollback.sql`.
-- [ ] **T3 — Rota de medida com origem, margem e histórico (teste antes).** Primeiro
+- [x] **T3 — Rota de medida com origem, margem e histórico (teste antes).** Feito (evidence.md § T3).
+      Primeiro
       `test/nfe-package-box/measurement-source.contract.ts` e
       `test/integration/measurement-history.integration.ts`. Depois: `refine` do schema
       (`source` `typed` padrão · `camera` · `camera_adjusted`; bloco `camera` com margens, motivos,
