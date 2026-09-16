@@ -47,6 +47,10 @@ import type { ManageCompanyUserIdentifiersUseCase } from '../application/manage-
 import type { FillProfilesFromRealmUseCase } from '../application/fill-profiles-from-realm.use-case.js'
 import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
 import type { SetCompanyUserPasswordUseCase } from '../application/set-company-user-password.use-case.js'
+import type {
+  ActivateCompanyUserInput,
+  ActivateCompanyUserUseCase,
+} from '../application/activate-company-user.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
@@ -59,6 +63,7 @@ import {
   parseAddCompanyUserIdentifierRequest,
   parseAdoptRealmFieldsRequest,
   parseFillProfilesFromRealmRequest,
+  parseActivateCompanyUserRequest,
   parseSetCompanyUserPasswordRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
@@ -86,6 +91,7 @@ const USER_ROLES_PATH = `${USER_PATH}/roles`
  * perfil viaja com nome e contato — misturá-los poria a senha no mesmo lugar que se repete ao
  * corrigir um telefone. */
 const USER_PASSWORD_PATH = `${USER_PATH}/password`
+const USER_ACTIVATION_PATH = `${USER_PATH}/activation`
 /** O conjunto por onde a pessoa se identifica e por onde se fala com ela. */
 const USER_IDENTIFIERS_PATH = `${USER_PATH}/identifiers`
 const USER_IDENTIFIER_PATH = `${USER_IDENTIFIERS_PATH}/:identifierId`
@@ -97,6 +103,7 @@ const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as 
 const USERS_REVEAL_POLICY = { permission: 'users.reveal', scope: 'company' } as const
 
 type Dependencies = {
+  readonly activate: ActivateCompanyUserUseCase
   readonly changeStatus: ChangeCompanyUserStatusUseCase
   readonly invite: InviteCompanyUserUseCase
   readonly list: ListCompanyUsersUseCase
@@ -424,6 +431,32 @@ export function createUserAdministrationRoutes(
         }
       },
       pathname: USER_PASSWORD_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * `POST` porque ativar é um evento com trilha, não um campo do recurso. Repetir converge: o
+     * provedor já habilitado continua habilitado, e o convite já fechado não é reescrito.
+     */
+    defineRoute<Omit<ActivateCompanyUserInput, 'context'>>({
+      async handle({ context, input }) {
+        const companyUser = await dependencies.activate.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeCompanyUser(companyUser) }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request, pathParameters }) {
+        const body = await parseActivateCompanyUserRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(body.password === undefined ? {} : { password: body.password }),
+          ...(body.temporary === undefined ? {} : { temporary: body.temporary }),
+        }
+      },
+      pathname: USER_ACTIVATION_PATH,
       pathParameterFormat: 'raw',
       policy: USERS_MANAGE_POLICY,
     }),

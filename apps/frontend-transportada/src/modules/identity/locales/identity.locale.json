@@ -40,6 +40,9 @@
     "resend": "Reenviar",
     "resendSucceeded": "Convite reenviado. O código anterior deixou de valer.",
     "activate": "Reativar",
+    "activateInvited": "Ativar agora",
+    "activateInvitedHint": "Libera o acesso sem esperar o código do convite. Defina a senha na edição se a pessoa ainda não tem uma.",
+    "activateInvitedSucceeded": "Acesso ativado. Se a pessoa ainda não tem senha, defina uma em Editar.",
     "suspend": "Suspender",
     "remove": "Remover",
     "copyMembershipId": "Copiar o identificador do vínculo",
@@ -133,7 +136,11 @@
         "save": "Definir senha",
         "saved": "Senha definida.",
         "sendReset": "Enviar link de redefinição",
-        "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado."
+        "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado.",
+        "activate": "Ativar com esta senha",
+        "activateWithoutPassword": "Ativar sem definir senha",
+        "activateHint": "O convite ainda não foi aceito. Ativar libera o acesso agora e encerra o convite.",
+        "activated": "Acesso ativado."
       },
       "edit": "Alterar",
       "cancelEdit": "Manter",

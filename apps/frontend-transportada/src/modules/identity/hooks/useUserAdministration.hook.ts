@@ -36,6 +36,7 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
+  const [activatedUserId, setActivatedUserId] = useState<null | string>(null)
   /**
    * O diálogo fecha no sucesso, então o aviso do vínculo com a frota não cabe dentro dele: vive
    * na página até quem convidou dispensá-lo.
@@ -70,7 +71,7 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
-  const password = useCompanyUserPassword()
+  const password = useCompanyUserPassword({ onActivated: () => void users.invalidate() })
 
   /** O espelho é da pessoa aberta, casado pelo vínculo — nunca pelo e-mail, que pode ser palpite. */
   const editRealmEntry = reconciliation.data?.items.find(
@@ -137,6 +138,13 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     setRemoveTarget(null)
   }
 
+  /** O aviso some ao próximo clique: um "ativado" parado na tela não diz de quem era. */
+  async function activateUser(user: CompanyUser): Promise<void> {
+    setActivatedUserId(null)
+    await users.activateUserMutation.mutateAsync({ userId: user.id })
+    setActivatedUserId(user.id)
+  }
+
   async function resendInvitation(user: CompanyUser): Promise<void> {
     setResentUserId(null)
     await users.resendInvitationMutation.mutateAsync({ userId: user.id })
@@ -144,6 +152,8 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   }
 
   return {
+    activatedUserId,
+    activateUser,
     authQuery,
     closeEdit,
     closeInvite,

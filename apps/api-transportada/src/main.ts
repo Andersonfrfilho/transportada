@@ -478,6 +478,7 @@ import { createManageCompanyUserIdentifiersUseCase } from './identity/applicatio
 import { createSendTemplateTestUseCase } from './notification/application/send-template-test.use-case'
 import { createNotificationTemplateTestRoutes } from './notification/presentation/notification-template-test.routes'
 import { createSetCompanyUserPasswordUseCase } from './identity/application/set-company-user-password.use-case'
+import { createActivateCompanyUserUseCase } from './identity/application/activate-company-user.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
@@ -2885,6 +2886,13 @@ function createApplicationRoutes({
       }),
     }),
     ...createUserAdministrationRoutes({
+      activate: createActivateCompanyUserUseCase({
+        audit: groupAudit,
+        identityGateway: identityAccessGateway,
+        invitations: invitationRepository,
+        now: () => new Date(),
+        repository: companyUserRepository,
+      }),
       changeStatus: changeCompanyUserStatus,
       invite: inviteCompanyUser,
       list: listCompanyUsers,

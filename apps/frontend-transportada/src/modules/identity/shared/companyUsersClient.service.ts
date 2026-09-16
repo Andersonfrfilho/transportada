@@ -5,6 +5,7 @@ import {
   COMPANY_USERS_PATH,
 } from './companyUsers.constant'
 import type {
+  ActivateCompanyUserInput,
   AssignCompanyUserRolesInput,
   AssignCompanyGroupsInput,
   AssignedCompanyUserRoles,
@@ -55,6 +56,7 @@ type ClientDependencies = Readonly<{
 }>
 
 export type CompanyUsersClient = Readonly<{
+  activateUser: (input: ActivateCompanyUserInput) => Promise<CompanyUser>
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
   inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
@@ -240,6 +242,16 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
   }
 
   return {
+    activateUser: (input) =>
+      requestUser({
+        body: JSON.stringify(
+          input.password === undefined
+            ? {}
+            : { password: input.password, temporary: input.temporary ?? true },
+        ),
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/activation`,
+      }),
     changeStatus: (input) =>
       requestUser({
         body: JSON.stringify({ status: input.status }),
