@@ -10,7 +10,6 @@ import { Icon } from '@/components/ui/icon'
 import type { BoxDimensionMeasuredResult } from '@/components/ui/useBoxDimensionScanner.hook'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
-import type { PackageBoxMeasurementInput } from '../shared/packageBoxClient.service'
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '../shared/packageBoxMeasurement.constant'
 import {
   dimensionReliability,
@@ -18,13 +17,16 @@ import {
   initialDimensionCentimetres,
   PACKAGE_BOX_DIMENSION_KEYS,
   proposedMarginMillimetres,
-  proposedMillimetres,
   type PackageBoxDimensionKey,
 } from '../shared/packageBoxMeasurementProposal.service'
+import {
+  buildPackageBoxMeasurementSubmission,
+  type PackageBoxMeasurementFormSubmission,
+} from '../shared/packageBoxMeasurementSubmission.service'
 import { MAX_CENTIMETRES, toMillimetres } from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
-export type PackageBoxMeasurementFormSubmission = Omit<PackageBoxMeasurementInput, 'id'>
+export type { PackageBoxMeasurementFormSubmission }
 
 type DimensionKey = PackageBoxDimensionKey
 
@@ -132,42 +134,16 @@ export function PackageBoxMeasurementForm({
     impreciseConfirmed: boolean,
   ): PackageBoxMeasurementFormSubmission | undefined {
     if (parsed.length === null || parsed.width === null || parsed.height === null) return undefined
-    const unitsValue = Math.max(1, Math.round(Number(units.trim()) || 1))
-    const measurement = {
+    return buildPackageBoxMeasurementSubmission({
+      edited,
       grossWeightGrams,
       heightMm: parsed.height,
-      lengthMm: parsed.length,
-      unitsPerBox: unitsValue,
-      widthMm: parsed.width,
-    }
-    if (proposal === undefined) return { ...measurement, source: 'typed' }
-
-    const hasEditedAnyField = edited.length || edited.width || edited.height
-    const proposedLength = proposedMillimetres(proposal, 'length')
-    const proposedWidth = proposedMillimetres(proposal, 'width')
-    const proposedHeight = proposedMillimetres(proposal, 'height')
-    /**
-     * D17: a margem é da proposta da câmera, não do valor final — continua indo junto mesmo quando o
-     * operador corrige o campo por cima (`camera_adjusted`). É essa margem que a validação (R6/T15)
-     * compara contra o erro real; sem ela, editar (o protocolo de D16 pede editar sempre) apagaria a
-     * amostra quase inteira.
-     */
-    const camera = {
-      engine: proposal.engine,
-      heightMarginMm: proposal.heightMarginMm,
       impreciseConfirmed,
-      lengthMarginMm: proposal.lengthMarginMm,
-      warnings: proposal.warnings,
-      widthMarginMm: proposal.widthMarginMm,
-      ...(proposedLength === undefined ? {} : { proposedLengthMm: proposedLength }),
-      ...(proposedWidth === undefined ? {} : { proposedWidthMm: proposedWidth }),
-      ...(proposedHeight === undefined ? {} : { proposedHeightMm: proposedHeight }),
-    }
-    return {
-      ...measurement,
-      camera,
-      source: hasEditedAnyField ? 'camera_adjusted' : 'camera',
-    }
+      lengthMm: parsed.length,
+      proposal,
+      unitsPerBox: Math.max(1, Math.round(Number(units.trim()) || 1)),
+      widthMm: parsed.width,
+    })
   }
 
   function handleSubmit(): void {

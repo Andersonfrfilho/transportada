@@ -168,7 +168,14 @@ describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', 
     expect(hook).toContain("from './boxDimension.service'")
     expect(hook).toContain('measureBox(')
     expect(hook).toContain('estimateMargins(')
-    expect(hook).toContain('classifyMeasurement(')
+    /**
+     * A classificação foi com a proposta para `boxDimensionProposal.service` (T14, 2ª revisão): é
+     * lá que as seis grandezas são arredondadas antes de classificar, e é de lá que o contrato de
+     * fronteira parte. O motor continua puro e fora do worker — que é o que este contrato guarda.
+     */
+    expect(hook).toContain('buildMeasuredProposal(')
+    const proposal = await readApplicationFile('src/components/ui/boxDimensionProposal.service.ts')
+    expect(proposal).toContain('classifyMeasurement(')
     const worker = await readApplicationFile(WORKER_PATH)
     expect(worker).not.toContain('measureBox')
     expect(worker).not.toContain('solvePnP')
