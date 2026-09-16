@@ -75,8 +75,26 @@ function CameraMeasurementValidationSummaryView(
 ) {
   const { summary, t } = props
 
+  /**
+   * ⚠️ **A sessão fora do protocolo não pode parecer sessão vazia.** As leituras `camera` puras
+   * ficam fora das duas taxas de propósito (o valor gravado É a proposta, o erro seria zero por
+   * construção, A4) — mas some-las do resumo fazia uma sessão inteira medida sem encostar na fita
+   * aparecer exatamente como "ninguém mediu".
+   */
+  const cameraOnlyHint =
+    summary.cameraOnlyCount === 0 ? null : (
+      <p className={styles.fieldHint}>
+        {t('cameraMeasurementValidationCameraOnly', { count: summary.cameraOnlyCount })}
+      </p>
+    )
+
   if (summary.readingCount === 0) {
-    return <p className={styles.fieldHint}>{t('cameraMeasurementValidationEmpty')}</p>
+    return (
+      <div className={styles.settingsPanel}>
+        <p className={styles.fieldHint}>{t('cameraMeasurementValidationEmpty')}</p>
+        {cameraOnlyHint}
+      </div>
+    )
   }
 
   const verdictKey = {
@@ -91,6 +109,7 @@ function CameraMeasurementValidationSummaryView(
       <p className={styles.fieldHint}>
         {t('cameraMeasurementValidationReadingCount', { count: summary.readingCount })}
       </p>
+      {cameraOnlyHint}
       <p className={styles.fieldHint}>
         {t('cameraMeasurementValidationWithinTen', {
           percent: toPercent(summary.withinTenMillimetreRate),

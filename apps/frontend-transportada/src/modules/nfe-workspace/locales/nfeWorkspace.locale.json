@@ -476,6 +476,7 @@
   "cameraMeasurementValidationReadingCount": "{{count}} leituras com proposta da câmera no período",
   "cameraMeasurementValidationWithinTen": "{{percent}}% com erro até 10 mm (critério de R6: pelo menos 80%)",
   "cameraMeasurementValidationWithinMargin": "{{percent}}% dentro da margem estimada, de {{known}} leituras com margem registrada (critério de R6: pelo menos 90%)",
+  "cameraMeasurementValidationCameraOnly": "{{count}} leituras gravadas direto da câmera, sem conferência com a fita métrica — elas ficam fora das duas taxas, porque o valor gravado é a própria proposta.",
   "cameraMeasurementValidationMarginHint": "A margem é da proposta da câmera e continua registrada mesmo quando o operador digita a fita por cima — a taxa de margem só fica abaixo do total de leituras quando a câmera não chegou a propor aquela dimensão.",
   "cameraMeasurementValidationVerdictGo": "Critério de R6 atingido: pelo menos 80% com erro até 10 mm e 90% dentro da margem.",
   "cameraMeasurementValidationVerdictNoGo": "Critério de R6 ainda não atingido: a função continua experimental e desligada em produção.",

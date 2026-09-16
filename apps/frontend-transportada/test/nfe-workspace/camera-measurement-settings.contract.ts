@@ -110,6 +110,31 @@ describe('export e resumo da validação (spec 152 T12, R6/R8)', () => {
     expect(panel).toContain('<Icon name={VERDICT_ICON[summary.verdict]} />')
   })
 
+  /**
+   * ⚠️ **Leitura fora do protocolo tem que aparecer.** `cameraOnlyCount` era calculado e nunca
+   * chegava à tela: o ramo vazio saía por `readingCount === 0` antes de qualquer coisa, e uma sessão
+   * inteira medida sem conferir com a fita ficava idêntica a "ninguém mediu" (2ª revisão, item A-a).
+   * A contagem aparece nos dois ramos, dizendo que são leituras não conferidas e fora da conta.
+   */
+  test('as leituras camera puras aparecem na tela, no ramo vazio e ao lado do total', () => {
+    const panel = read(PANEL)
+
+    expect(panel).toContain('summary.cameraOnlyCount')
+    expect(panel).toContain('cameraMeasurementValidationCameraOnly')
+    /** O mesmo nó nos dois ramos — o vazio e o normal —, nunca só no de baixo. */
+    expect(panel.match(/\{cameraOnlyHint\}/gu)?.length).toBe(2)
+    expect(panel).not.toContain('if (summary.readingCount === 0) {\n    return <p')
+  })
+
+  test('o rótulo das leituras camera puras existe nos dois idiomas, acentuado', () => {
+    for (const path of LOCALE_PATHS) {
+      expect(typeof readLocale(path)['cameraMeasurementValidationCameraOnly']).toBe('string')
+    }
+    expect(
+      readLocale(LOCALE_PATHS[0] as string)['cameraMeasurementValidationCameraOnly'],
+    ).toContain('câmera')
+  })
+
   test('a taxa de margem mostra quantas leituras têm margem conhecida (D17/T10)', () => {
     const panel = read(PANEL)
 
