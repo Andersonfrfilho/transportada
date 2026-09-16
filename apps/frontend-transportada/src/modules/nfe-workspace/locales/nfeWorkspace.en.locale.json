@@ -445,7 +445,9 @@
         "c": "Corner C of the top face",
         "d": "Corner D of the top face",
         "foot": "Base of the vertical edge"
-      }
+      },
+      "framingHint": "Card flat on the lid · diagonal · 4 lid corners and one edge down to the floor",
+      "markingHint": "Drag A, B, C and D to the lid corners and E to the foot of the edge"
     },
     "source": {
       "camera": "By camera, ±{{margin}} cm",
@@ -468,6 +470,27 @@
       "measured": "Measured",
       "all": "All"
     },
-    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box"
+    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box",
+    "guide": {
+      "open": "How to measure",
+      "title": "How to measure the box with the camera",
+      "close": "Got it",
+      "illustration": "Box seen diagonally, with the card lying on the lid, lid corners A, B, C and D and point E at the foot of the vertical edge",
+      "steps": {
+        "1": "Print the card at 100% and check it with a tape: the ruler reads 10 cm and the black square, 15 cm.",
+        "2": "Lay the card flat on the box lid. Never on a side.",
+        "3": "Stand diagonally, above and to the side, as in the drawing: the whole card, the 4 lid corners and one vertical edge down to the floor.",
+        "4": "When the screen stops warning about anything, tap Capture.",
+        "5": "On the photo, drag each point into place: A, B, C and D on the lid corners (A is the edge corner) and E at the foot of the edge, on the floor.",
+        "6": "Check the numbers with the tape before saving. When in doubt, type them."
+      },
+      "avoidTitle": "What spoils the measurement",
+      "avoid": {
+        "1": "Card standing, folded or leaning on a side.",
+        "2": "Camera too far overhead: the vertical edge disappears.",
+        "3": "A stack or another box hiding the base.",
+        "4": "Glare or shadow over the card."
+      }
+    }
   }
 }

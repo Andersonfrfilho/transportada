@@ -1,0 +1,88 @@
+/* Caixa isométrica: tampa (50,10)-(85,28)-(50,46)-(15,28), altura 40, quina vertical em x = 50. */
+.illustration {
+  position: relative;
+  width: 100%;
+  max-width: 14rem;
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+
+.thumbnail {
+  max-width: 5rem;
+  opacity: 0.85;
+}
+
+.shape {
+  position: absolute;
+  inset: 0;
+}
+
+.topFace {
+  clip-path: polygon(50% 10%, 85% 28%, 50% 46%, 15% 28%);
+  background: color-mix(in srgb, var(--color-copper) 55%, var(--color-fog));
+}
+
+.leftFace {
+  clip-path: polygon(15% 28%, 50% 46%, 50% 86%, 15% 68%);
+  background: color-mix(in srgb, var(--color-copper) 70%, var(--color-asphalt));
+}
+
+.rightFace {
+  clip-path: polygon(50% 46%, 85% 28%, 85% 68%, 50% 86%);
+  background: color-mix(in srgb, var(--color-copper) 45%, var(--color-asphalt));
+}
+
+.cardBorder {
+  clip-path: polygon(50% 18%, 69.4% 28%, 50% 38%, 30.6% 28%);
+  background: var(--color-fog);
+}
+
+.card {
+  clip-path: polygon(50% 20.5%, 64.6% 28%, 50% 35.5%, 35.4% 28%);
+  background: var(--color-asphalt);
+}
+
+.verticalEdge {
+  clip-path: polygon(49.2% 46%, 50.8% 46%, 50.8% 86%, 49.2% 86%);
+  background: var(--color-ready);
+}
+
+.point {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  transform: translate(-50%, -50%);
+  color: var(--color-asphalt);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 50%;
+  background: var(--color-fog);
+}
+
+.point[data-point='a'] {
+  left: 50%;
+  top: 46%;
+}
+
+.point[data-point='b'] {
+  left: 85%;
+  top: 28%;
+}
+
+.point[data-point='c'] {
+  left: 50%;
+  top: 10%;
+}
+
+.point[data-point='d'] {
+  left: 15%;
+  top: 28%;
+}
+
+.point[data-point='foot'] {
+  left: 50%;
+  top: 86%;
+  background: var(--color-ready);
+}

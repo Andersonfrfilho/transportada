@@ -15,11 +15,17 @@ import {
   PackageBoxMeasurementForm,
   type PackageBoxMeasurementFormSubmission,
 } from './PackageBoxMeasurementForm.component'
+import { PackageBoxMeasurementGuide } from './PackageBoxMeasurementGuide.component'
 import type { PackageBox } from '../shared/packageBoxClient.service'
 import {
   createInitialPackageBoxCameraFlowState,
   packageBoxCameraFlowReducer,
 } from '../shared/packageBoxCameraFlow.service'
+import {
+  hasSeenMeasurementGuide,
+  markMeasurementGuideSeen,
+  readMeasurementGuideStorage,
+} from '../shared/measurementGuideSeen.service'
 import styles from '../styles/packageBoxCameraFlow.module.css'
 
 export type PackageBoxCameraFlowProps = Readonly<{
@@ -46,6 +52,9 @@ export type PackageBoxCameraFlowProps = Readonly<{
 }>
 
 const TITLE_ID = 'package-box-camera-flow-title'
+
+/** A mesma letra no ponto da foto, no desenho e no texto do guia. */
+const POINT_SHORT_LABELS = { a: 'A', b: 'B', c: 'C', d: 'D', foot: 'E' } as const
 
 /** D18: sem `WebAssembly`, sem sentido nem pedir a pré-carga — a etapa Medida nunca vai existir. */
 function canPreload(): boolean {
@@ -95,6 +104,7 @@ export function PackageBoxCameraFlow({
     createInitialPackageBoxCameraFlowState,
   )
   const [engineWorker, setEngineWorker] = useState<Worker | undefined>(undefined)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
   const { status: barcodeStatus, videoRef } = useBarcodeScanner({
     isActive: isOpen && state.step === 'label',
     onRead: (text) => {
@@ -107,6 +117,12 @@ export function PackageBoxCameraFlow({
   useEffect(() => {
     dispatch({ enabled: cameraEnabled, kind: 'cameraSettingsLoaded' })
   }, [cameraEnabled])
+
+  /** Na primeira medida do aparelho o guia abre sozinho; depois fica no botão "Como medir". */
+  useEffect(() => {
+    if (state.step !== 'measure') return
+    if (!hasSeenMeasurementGuide(readMeasurementGuideStorage())) setIsGuideOpen(true)
+  }, [state.step])
 
   /** Cada abertura começa limpa: sem isso, abrir pela etiqueta herdava a caixa da lista anterior. */
   useEffect(() => {
@@ -195,6 +211,11 @@ export function PackageBoxCameraFlow({
   }, [cameraEnabled, isOpen])
 
   if (!isOpen) return null
+
+  function closeGuide(): void {
+    markMeasurementGuideSeen(readMeasurementGuideStorage())
+    setIsGuideOpen(false)
+  }
 
   function handleSave(submission: PackageBoxMeasurementFormSubmission): void {
     const box = state.identified
@@ -330,6 +351,17 @@ export function PackageBoxCameraFlow({
 
         {state.step === 'measure' ? (
           <>
+            {isGuideOpen ? (
+              <PackageBoxMeasurementGuide
+                onClose={closeGuide}
+                pointShortLabels={POINT_SHORT_LABELS}
+              />
+            ) : (
+              <Button onClick={() => setIsGuideOpen(true)} size="sm" type="button" variant="ghost">
+                <Icon name="document" />
+                {t('packageBoxes.guide.open')}
+              </Button>
+            )}
             {hasTorch ? (
               <Button onClick={toggleTorch} size="sm" type="button" variant="secondary">
                 <Icon name="sun" />
@@ -340,9 +372,11 @@ export function PackageBoxCameraFlow({
               captureLabel={t('packageBoxes.camera.captureLabel')}
               confirmLabel={t('packageBoxes.camera.confirmLabel')}
               experimentalLabel={t('packageBoxes.experimentalBadge')}
+              framingHintLabel={t('packageBoxes.camera.framingHint')}
               instructionLabel={t('packageBoxes.camera.measureInstruction')}
               isActive={cameraStatus === 'ready'}
               loadingLabel={t('packageBoxes.camera.loadingLabel')}
+              markingHintLabel={t('packageBoxes.camera.markingHint')}
               onMeasured={(proposal) => dispatch({ kind: 'measured', proposal })}
               onUnsupported={(reason) => dispatch({ kind: 'unsupported', reason })}
               pointLabels={{
@@ -352,6 +386,7 @@ export function PackageBoxCameraFlow({
                 d: t('packageBoxes.camera.point.d'),
                 foot: t('packageBoxes.camera.point.foot'),
               }}
+              pointShortLabels={POINT_SHORT_LABELS}
               retryLabel={t('packageBoxes.camera.retryLabel')}
               stream={stream}
               title={t('packageBoxes.camera.measureTitle')}
