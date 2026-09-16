@@ -42,7 +42,7 @@ Registro por task: comando, saída relevante, commit.
 | Lint          | `bun run lint`                                                     | ✅ limpo                                                                      |
 | Formatação    | `bun run format:check`                                             | ✅ limpo (após `prettier --write` no arquivo novo)                            |
 | Rollback      | `bun test ./test/database-migration.contract.test.ts` (PG18 local) | ✅ **60 pass · 0 fail** com o replay do rollback (ver "Replay do rollback")   |
-| Migration     | `make migration-test`                                              | ⛔ **PENDENTE — Docker indisponível (2026-09-16)**                            |
+| Migration     | `make migration-test`                                              | ✅ **96 pass · 0 fail** · 1268 expect() · 8 arquivos · 36,24 s                |
 
 ### Replay do rollback — defeito encontrado e corrigido
 
@@ -91,20 +91,24 @@ Sanidade da asserção: trocando de propósito a mensagem esperada da terceira g
 com `Received: "company_driver_allowance_settings has rows, refusing rollback"` — ou seja, as três
 recusas são realmente alcançadas e comparadas, nenhuma passa por omissão.
 
-### ⛔ Gate pendente
+### Gate formal — `make migration-test` verde
 
-`make migration-test` **continua sem rodar**: o Docker Desktop desta máquina sobe e morre em
-segundos, sem runtime de container alternativo. Falta rodar exatamente:
+O Docker voltou (`docker desktop stop` + `pkill -9` dos processos `com.docker`/`Docker Desktop` +
+`docker desktop start`) e o gate rodou inteiro, na imagem do compose, **sem nenhum ajuste local**:
 
 ```bash
 make migration-test
+# Container transportada-local-postgres-1  Healthy
+# 96 pass · 0 fail · 1268 expect() · 8 arquivos · 36,24 s · exit code 0
 ```
 
-O que mudou: **o `rollback.sql` já está provado contra Postgres real**, com o replay
-aplicar → rollback → reaplicar passando (seção acima). O gate formal segue pendente só pelo Docker,
-e o que ele ainda adicionaria é rodar na mesma imagem do compose, sem a neutralização local.
+Isso fecha três coisas de uma vez:
 
-**O que impede rodar o arquivo inteiro sem ajuste local:** `cte-profile-output-constraints.assertion.ts:134`
-espera SQLSTATE `23503` e recebe `23001` — **pré-existente e alheia a esta task**, reproduzida em
-árvore limpa com `git stash`; é diferença entre o Postgres 18 local e a imagem do compose. Ela aborta
-o teste antes do replay, e por isso foi neutralizada só durante a medição, nunca no commit.
+1. A migration e o `rollback.sql` da T1 estão corretos ponta a ponta, **incluindo o replay**
+   (aplicar → rollback de todas → reaplicar).
+2. A correção `driver-allowance-rollback.assertion.ts` funciona na imagem real, não só no PG local.
+3. A falha de `cte-profile-output-constraints.assertion.ts:134` (SQLSTATE `23503` esperado,
+   `23001` recebido) era mesmo **diferença do Postgres 18.4 local contra a imagem do compose**:
+   aqui ela passa. Pré-existente e alheia a esta task de qualquer forma — foi reproduzida em árvore
+   limpa com `git stash` —, e a neutralização usada no diagnóstico local **nunca entrou na branch**
+   (conferido: a chamada segue em `database-migration.integration.ts:107`, árvore limpa).
