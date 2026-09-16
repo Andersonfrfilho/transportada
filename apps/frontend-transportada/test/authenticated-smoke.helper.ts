@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { expect, type Page } from '@playwright/test'
 
+import { registerInstallationBrandMock } from './installation-brand-smoke.helper'
 import { registerNotificationMocks } from './notification-smoke.helper'
 import { getApiBaseUrl, isAuthMeResponseUrl } from './smoke-api-url.helper'
 
@@ -39,6 +40,7 @@ function getLocalUserPassword(): string {
 
 export async function loginAsLocalUser(page: Page): Promise<void> {
   await registerNotificationMocks(page)
+  await registerInstallationBrandMock(page)
 
   if (process.env.VITE_SMOKE_AUTH_BYPASS === 'true') {
     await page.goto('/')

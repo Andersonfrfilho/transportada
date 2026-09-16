@@ -77,6 +77,34 @@ describe('todo helper de smoke mocka o que o shell pede sozinho', () => {
 })
 
 /**
+ * A marca da instalação é a segunda leitura que o shell faz sozinho em toda página. Ela entrou sem
+ * mock e derrubou o smoke de staging inteiro com `net::ERR_FAILED` em `/public/landing-settings`.
+ */
+describe('o login do smoke mocka a marca da instalação', () => {
+  test('o shell lê a marca, e o login do smoke registra o mock dela', () => {
+    const shell = readFileSync(SHELL_PATH, 'utf8')
+    const login = read('authenticated-smoke.helper.ts')
+
+    expect(shell).toContain('useInstallationBrandView()')
+    expect(login).toContain('await registerInstallationBrandMock(page)')
+  })
+
+  test('o mock cobre a rota que o cliente da marca chama', () => {
+    const client = readFileSync(
+      fileURLToPath(
+        new URL('../../src/modules/identity/shared/installationBrand.service.ts', import.meta.url),
+      ),
+      'utf8',
+    )
+    const mock = read('installation-brand-smoke.helper.ts')
+
+    expect(client).toContain("'/public/landing-settings'")
+    expect(client).toContain("'/public/landing-logo'")
+    expect(mock).toContain('landing-(?:settings|logo)')
+  })
+})
+
+/**
  * Mockar não basta: o cabeçalho dispara a busca da foto assim que a sessão resolve, e o login navega
  * logo depois — a requisição em voo morre com a página e o Playwright a reporta como
  * `net::ERR_ABORTED`. Contar isso como falha de API transformava uma corrida sem consequência em
