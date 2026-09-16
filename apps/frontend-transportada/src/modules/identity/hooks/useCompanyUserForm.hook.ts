@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useState } from 'react'
 
+import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { stripPhone } from '@/modules/shared/phone.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
@@ -80,7 +81,8 @@ export function useCompanyUserInviteForm(): CompanyUserInviteForm {
     roles,
     setChannel,
     setEmail,
-    setName,
+    /** Maiúscula em cada palavra e ligação minúscula enquanto se digita — mesma regra da frota. */
+    setName: (value) => setName(toDisplayPersonName(value)),
     setPhone,
     setTaxId,
     taxId,
@@ -186,7 +188,8 @@ export function useCompanyUserEditForm(user: CompanyUser | null): CompanyUserEdi
     setChannel,
     setContact,
     setEmail,
-    setName,
+    /** Maiúscula em cada palavra e ligação minúscula enquanto se digita — mesma regra da frota. */
+    setName: (value) => setName(toDisplayPersonName(value)),
     setPhone,
     setTaxId,
     setUsername,

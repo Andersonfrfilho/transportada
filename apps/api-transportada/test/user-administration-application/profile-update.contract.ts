@@ -32,6 +32,7 @@ type UpdateCall = Record<string, unknown>
 function createFakes() {
   const profileUpdates: UpdateCall[] = []
   const attributeUpdates: UpdateCall[] = []
+  const userUpdates: UpdateCall[] = []
 
   return {
     attributeUpdates,
@@ -39,7 +40,9 @@ function createFakes() {
       async updateAttributes(input: UpdateCall) {
         attributeUpdates.push(input)
       },
-      async updateUser() {},
+      async updateUser(input: UpdateCall) {
+        userUpdates.push(input)
+      },
     },
     pictures: {
       find: (): Promise<{
@@ -50,6 +53,7 @@ function createFakes() {
       } | null> => Promise.resolve(null),
     },
     profileUpdates,
+    userUpdates,
     repository: {
       async findByUserId() {
         return EXISTING
@@ -250,5 +254,28 @@ describe('edição de perfil — o login recusado pelo provedor volta atrás', (
       .catch(() => undefined)
 
     expect(fakes.profileUpdates).toHaveLength(1)
+  })
+})
+
+/**
+ * O nome se grava minúsculo, como a frota já fazia: `JOSÉ DA SILVA` e `José da Silva` não viram duas
+ * grafias da mesma pessoa. Quem lê formata — e o provedor, que mostra o nome no login, recebe já
+ * formatado.
+ */
+describe('edição de perfil — nome minúsculo no banco, formatado no provedor', () => {
+  test('grava minúsculo e manda nome e sobrenome formatados ao realm', async () => {
+    const fakes = createFakes()
+
+    const view = await createUseCase(fakes).execute({
+      context: { companyId: COMPANY_ID, userId: USER_ID },
+      name: '  DEISY   campos DA coimbra ',
+      userId: USER_ID,
+    } as Parameters<ReturnType<typeof createUseCase>['execute']>[0])
+
+    expect(fakes.profileUpdates[0]).toMatchObject({ name: 'deisy campos da coimbra' })
+    expect(fakes.userUpdates[0]).toMatchObject({
+      user: { firstName: 'Deisy', lastName: 'Campos da Coimbra' },
+    })
+    expect(view.name).toBe('Deisy Campos da Coimbra')
   })
 })
