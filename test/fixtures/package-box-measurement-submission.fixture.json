@@ -65,6 +65,69 @@
         "unitsPerBox": 2,
         "widthMm": 401
       }
+    },
+    {
+      "name": "camera_adjusted, a fita concorda com a proposta imprecisa e o conferente confirma (D16)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 10,
+          "impreciseConfirmed": true,
+          "lengthMarginMm": 11,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "camera_adjusted",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera pura com os sete avisos do dominio de uma vez (D9)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 10,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 7,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [
+            "markerNotFound",
+            "markerTooSmall",
+            "steepAngle",
+            "lowLight",
+            "blurry",
+            "boxOutOfFrame",
+            "unstable"
+          ],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "camera",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "digitado comum, sem bloco de camera nenhum (D11)",
+      "body": {
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "typed",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
     }
   ]
 }

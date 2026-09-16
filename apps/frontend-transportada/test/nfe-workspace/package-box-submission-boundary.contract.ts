@@ -1,8 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import { BOX_DIMENSION_DOMAIN_WARNINGS } from '../../src/components/ui/boxDimension.constant'
 import type { BoxMargins, BoxMeasurementResult } from '../../src/components/ui/boxDimension.service'
-import { buildMeasuredProposal } from '../../src/components/ui/boxDimensionProposal.service'
+import {
+  buildMeasuredProposal,
+  type BoxDimensionMeasuredResult,
+} from '../../src/components/ui/boxDimensionProposal.service'
+import {
+  dimensionReliability,
+  PACKAGE_BOX_DIMENSION_KEYS,
+} from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementProposal.service'
 import {
   buildPackageBoxMeasurementSubmission,
   type PackageBoxMeasurementFormSubmission,
@@ -50,7 +58,7 @@ const POSE = {
 function proposalOf(
   nominal: Readonly<{ heightMm: number; lengthMm: number; widthMm: number }>,
   margins: BoxMargins,
-  warnings: readonly 'steepAngle'[] = [],
+  warnings: readonly (typeof BOX_DIMENSION_DOMAIN_WARNINGS)[number][] = [],
 ) {
   return buildMeasuredProposal({
     margins,
@@ -133,4 +141,86 @@ describe('o corpo que o formulário da câmera envia atravessa o schema da API (
       bodyOf('camera_adjusted, comprimento corrigido por cima e altura imprecisa confirmada'),
     )
   })
+
+  /**
+   * ⚠️ **O protocolo de validação (D16) cai exatamente aqui.** O conferente confere a proposta com a
+   * fita, concorda, e digita o mesmo número: a tela via `edited[dimension]` e isentava a dimensão —
+   * enviava `impreciseConfirmed: false` — enquanto o schema da API compara valor com valor, via
+   * `599 === 599` (não editada) e recusava a margem de 11 mm sem confirmação com `400`. Numa sessão
+   * de 20 caixas, toda concordância câmera↔fita numa dimensão imprecisa virava erro. Tela e API
+   * respondem a mesma pergunta: **editada é a dimensão cujo valor difere da proposta.**
+   */
+  it('a fita que concorda com a proposta imprecisa ainda pede confirmação (D16)', () => {
+    const proposal = proposalOf(FLOAT_NOMINAL, { ...FLOAT_MARGINS, lengthMarginMm: 11.2 })
+    const edited = { height: false, length: true, width: false } as const
+    const recorded = { height: 352, length: 599, width: 401 } as const
+
+    expect(requiresConfirmation({ edited, proposal, recorded })).toBe(true)
+
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited,
+      grossWeightGrams: null,
+      heightMm: recorded.height,
+      impreciseConfirmed: requiresConfirmation({ edited, proposal, recorded }),
+      lengthMm: recorded.length,
+      proposal,
+      unitsPerBox: 1,
+      widthMm: recorded.width,
+    })
+
+    expect(submission).toEqual(
+      bodyOf(
+        'camera_adjusted, a fita concorda com a proposta imprecisa e o conferente confirma (D16)',
+      ),
+    )
+  })
+
+  /**
+   * D9: os sete códigos de uma vez. As duas listas de avisos são cópia por valor uma da outra
+   * (`BOX_DIMENSION_DOMAIN_WARNINGS` aqui, `PACKAGE_BOX_MEASUREMENT_WARNINGS` na API) — com um caso
+   * de um aviso só, tirar seis códigos de uma delas passava verde nas duas metades.
+   */
+  it('os sete avisos do domínio atravessam juntos', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: NOTHING_EDITED,
+      grossWeightGrams: null,
+      heightMm: 352,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: proposalOf(FLOAT_NOMINAL, FLOAT_MARGINS, [...BOX_DIMENSION_DOMAIN_WARNINGS]),
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(bodyOf('camera pura com os sete avisos do dominio de uma vez (D9)'))
+  })
+
+  /** D11: sem proposta nenhuma o corpo não leva bloco de câmera — a metade da API cobra a ausência. */
+  it('digitado comum não leva bloco de câmera', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: NOTHING_EDITED,
+      grossWeightGrams: null,
+      heightMm: 352,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: undefined,
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(bodyOf('digitado comum, sem bloco de camera nenhum (D11)'))
+  })
 })
+
+/** A mesma conta do formulário (`unconfirmedImpreciseDimensions`), sem montar o React inteiro. */
+function requiresConfirmation(
+  input: Readonly<{
+    edited: Readonly<Record<'height' | 'length' | 'width', boolean>>
+    proposal: BoxDimensionMeasuredResult
+    recorded: Readonly<Record<'height' | 'length' | 'width', null | number>>
+  }>,
+): boolean {
+  return PACKAGE_BOX_DIMENSION_KEYS.some(
+    (dimension) => dimensionReliability({ ...input, dimension }) === 'imprecise',
+  )
+}
