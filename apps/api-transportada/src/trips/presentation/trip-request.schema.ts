@@ -3,6 +3,8 @@
  */
 import { z } from 'zod'
 
+import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
+
 /**
  * spec.md linha 66 exige "mínimo 1" condutor na criação — T006 não impôs a regra no domínio/
  * aplicação (aceitava `driverIds: []`). Fechado aqui, na fronteira HTTP, espelhando o mesmo teto
@@ -157,6 +159,24 @@ export const dispatchTripSchema = z
   .strict()
 
 export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
+
+/**
+ * RF3 (spec 153 T201): sem corpo, o congelamento reproduz a mais barata conhecida. Um critério
+ * fora de `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
+ */
+export const planTripRouteSchema = z
+  .object({
+    routeChoice: z
+      .object({
+        criterion: z.enum(ROUTE_CHOICE_CRITERIA),
+        signature: z.string().nullable(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+
+export type PlanTripRouteBody = z.infer<typeof planTripRouteSchema>
 
 /**
  * O recorte da seleção da tela. Lista **vazia é a viagem inteira**, igual a corpo ausente: o painel

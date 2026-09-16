@@ -135,6 +135,57 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(response.status).toBe(200)
     const data = await responseData(response)
     expect(data).toEqual({ tripStatus: 'route_planned' })
+    expect(fixture.planTripRouteCalls).toHaveLength(1)
+    expect(fixture.planTripRouteCalls[0]).not.toHaveProperty('routeChoice')
+  })
+
+  /** RF3 (spec 153 T201): o corpo é opcional, e a escolha declarada chega ao use case sem se perder. */
+  test('plans the route with a routeChoice body', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'fastest', signature: null } },
+        method: 'POST',
+        path: tripPlanRoutePath(),
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.planTripRouteCalls).toHaveLength(1)
+    expect(fixture.planTripRouteCalls[0]).toMatchObject({
+      routeChoice: { criterion: 'fastest', signature: null },
+    })
+  })
+
+  test('rejects an unknown routeChoice criterion — never a silent fallback', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'shortest', signature: null } },
+        method: 'POST',
+        path: tripPlanRoutePath(),
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.planTripRouteCalls).toHaveLength(0)
+  })
+
+  test('rejects a companyId in the plan-route body — it only ever comes from the authenticated context', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { companyId: '99999999-9999-4999-8999-999999999999' },
+        method: 'POST',
+        path: tripPlanRoutePath(),
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.planTripRouteCalls).toHaveLength(0)
   })
 
   test('dispatches without force by default', async () => {

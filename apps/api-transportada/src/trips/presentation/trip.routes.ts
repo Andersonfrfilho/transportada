@@ -92,6 +92,7 @@ import {
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
   parseLinkTripDocumentsBatchRequest,
+  parsePlanTripRouteRequest,
   parsePreviewTripCargoRequest,
   parsePreviewTripValuationRequest,
   parseRouteGeometryRequest,
@@ -103,6 +104,7 @@ import {
   parseUuidPathIdentifier,
   type RouteGeometryBody,
 } from './trip.schema.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
@@ -267,6 +269,8 @@ type DispatchInput = {
   readonly tripId: string
 }
 type TripIdInput = { readonly tripId: string }
+/** RF3 (spec 153 T201): `routeChoice` é opcional — sem corpo, o congelamento usa o default dele. */
+type PlanTripRouteRequestInput = TripIdInput & { readonly routeChoice?: RouteChoice }
 type SaveScheduleInput = TripIdInput & {
   readonly stopId: string
   readonly values: TripStopScheduleWrite
@@ -414,7 +418,9 @@ type Dependencies = {
   readonly loadTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
-  readonly planTripRoute: { execute(input: TenantInput<TripIdInput>): Promise<PlanTripRouteResult> }
+  readonly planTripRoute: {
+    execute(input: TenantInput<PlanTripRouteRequestInput>): Promise<PlanTripRouteResult>
+  }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
   }
@@ -1169,7 +1175,7 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENTS_BATCH_STATUS_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
-    defineRoute<Omit<TripIdInput, 'context'>>({
+    defineRoute<Omit<PlanTripRouteRequestInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.planTripRoute.execute({
           context: context.scope,
@@ -1178,9 +1184,13 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
+      async parse({ pathParameters, request }) {
+        const body = await parsePlanTripRouteRequest(request)
+        return {
+          ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
       pathname: TRIP_PLAN_ROUTE_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),

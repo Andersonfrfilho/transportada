@@ -690,3 +690,155 @@ chamadas ao roteirizador no cenário de `toll-parcel.contract.ts`, corrigida no 
 - **A divergência pinada**: `cheapestIndex` (rótulo, pode ser `null`) e `selectedIndex` (seleção,
   quase sempre não-`null` quando há candidata) continuam sendo números diferentes de propósito — a
   tela da Fase 2 não pode assumir que "sem `cheapestIndex`" significa "sem rota selecionada".
+
+## T201
+
+Congelamento da rota inteira (`freeze-trip-planned-route`, renomeado de `freeze-trip-route-toll`),
+`plan-route` aceitando `routeChoice` (RF3), D3 (assinatura não reproduzida cai para o critério) e D5
+(OSRM fora vira rota+pedágio `null`, nunca zero) — provados por contrato e por integração contra
+Postgres de verdade.
+
+### Evidência RED
+
+⚠️ Não tenho em mãos o texto literal da saída RED capturada antes da implementação — a sessão que a
+gerou foi interrompida por rate limit e o terminal daquela execução não sobreviveu à retomada. Não
+vou reconstruí-la de memória. O que fica registrado é a evidência GREEN abaixo, incluindo os testes
+novos (`freeze-trip-planned-route.contract.ts`, 7 casos; `freeze-trip-planned-route.integration.ts`,
+4 casos) que só existem porque a implementação os satisfaz — não uma reconstrução do estado anterior.
+
+### Comandos e saída real
+
+```bash
+$ bun run typecheck   # raiz — 6 apps
+# api-transportada, worker-transportada, cron-transportada, frontend-transportada,
+# frontend-client, frontend-landing: tsc --noEmit limpo em todas
+
+$ bun run lint        # raiz — 6 apps
+# eslint --max-warnings=0 limpo em todas
+
+$ bun run format:check   # raiz
+Checking formatting...
+All matched files use Prettier code style!
+
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+6146 pass
+23 skip
+0 fail
+21620 expect() calls
+Ran 6169 tests across 177 files. [10.53s]
+```
+
+Base do T103/fases anteriores: 6139 pass / 23 skip / 0 fail / 177 arquivos. Delta: **+7 pass**, skip
+e arquivos inalterados — exatamente os 7 casos novos de `freeze-trip-planned-route.contract.ts`. Sem
+quebra líquida. `.integration.ts` não entra nesta contagem por convenção do Bun (arquivo sem `.test`/
+`.spec` no nome não é descoberto por filtro vazio) — confirmado também neste ciclo.
+
+```bash
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+4 pass
+0 fail
+12 expect() calls
+Ran 4 tests across 1 file. [4.40s]
+```
+
+**Os 4 testes do arquivo novo caíram na contagem de pass, não na de skip** — confirmado tanto isolado
+(acima, 0 skip) quanto dentro do `test:integration` agregado (abaixo), o que prova que `.env.test`
+alcançou o arquivo e ele realmente exercitou o Postgres descartável (`transportada_t201_*`).
+
+```bash
+$ bun --env-file=../../.env.test run test:integration --timeout 120000
+363 pass
+4 skip
+2 fail
+2474 expect() calls
+Ran 369 tests across 72 files. [229.44s]
+```
+
+As 2 falhas são pré-existentes e não relacionadas ao T201: `cte-archive-gateway.integration.ts`
+falhou por `transportada-test-minio-1` estar parado no início da sessão (`ObjectStorageError:
+Object storage is unavailable`) — nada a ver com trips/Postgres. Confirmado com
+`docker ps -a --filter name=transportada-test`, e reiniciado o container para não deixar falso
+negativo registrado; a causa raiz (container de MinIO do ambiente de teste desligado) é anterior a
+este trabalho.
+
+```bash
+$ make config
+18 pass
+0 fail
+99 expect() calls
+
+$ make migration-test
+96 pass
+0 fail
+1288 expect() calls
+Ran 96 tests across 8 files. [28.25s]
+```
+
+`make migration-test` é o gate que mais importa para o T201: é a primeira vez que código de
+aplicação escreve _através_ dos CHECKs de T101 (`trips_planned_route_check`,
+`trips_planned_route_metrics_check`). Passou limpo, incluindo `trip-constraints.assertion.ts`.
+
+### A prova de escrita única (D4)
+
+O `DrizzleTripPlannedRouteRepository.writePlannedRoute` faz **um único** `update` (uma chamada
+Drizzle, uma instrução SQL) que grava rota, métricas e pedágio juntos, com `now()` avaliado uma vez
+para os dois carimbos. Duas provas, não uma:
+
+1. **Contrato de aplicação** (`freeze-trip-planned-route.integration.ts`, terceiro caso): grava
+   `FULL_ROUTE`/`FULL_TOLL` e confere
+   `row.plannedRouteFrozenAt.getTime() === row.plannedTollFrozenAt.getTime()` — se fossem duas
+   escritas separadas (ainda que sequenciais e bem-sucedidas), os carimbos discordariam em
+   microssegundos; iguais só acontece se vierem do mesmo `now()` de uma única instrução.
+2. **Regressão de banco** (`freeze-trip-planned-route.integration.ts`, quarto caso, adicionado a
+   pedido explícito do coordenador): abre uma conexão `SQL` crua para o mesmo banco descartável e
+   tenta `update trips set planned_route = '{}'::jsonb where id = ...` — uma escrita parcial que
+   _não_ passa pelo repositório. O banco rejeita com SQLSTATE `23514` e a constraint
+   `trips_planned_route_check`, confirmando que o CHECK de T101 protege a invariante mesmo contra
+   quem tentar escrever fora do caminho do repositório — não é o repositório que garante o D4
+   sozinho, é o banco.
+
+### Decisões e porquês
+
+- **Pedágio fora do JSONB de rota**: `planned_toll` continua sendo a coluna própria da spec 090 —
+  `planned_route` (JSONB novo) carrega só `{ criterion, signature, choiceReproduced, points, legs,
+depot }`. Misturar os dois num único JSONB obrigaria reler/reescrever pedágio toda vez que a rota
+  mudasse de forma, e quebraria consumidores existentes de `planned_toll` sem necessidade.
+- **`signature` persistida é a da rota realmente congelada, não a pedida (D3)**: quando a assinatura
+  do pedido não bate com nenhuma opção candidata, `readRouteGeometry` cai para o critério e
+  `choiceReproduced: false`; o `signature` gravado é `selected.signature` — a identidade da opção que
+  _de fato_ foi escolhida, nunca a string que o cliente mandou e que não existia mais. Ver
+  `freeze-trip-planned-route.use-case.ts:150`.
+- **Qualquer métrica desconhecida zera a rota inteira, não zera cada campo (D5)**: `toFrozenRoute`
+  devolve `null` se `distanceMeters`, `durationSeconds` ou `returnDistanceMeters` vier `null` —
+  nunca grava duas métricas e cala a terceira, porque o CHECK `trips_planned_route_metrics_check`
+  (T101) e o CHECK de "tudo ou nada" (`trips_planned_route_check`) exigem exatamente essa
+  atomicidade; gravar parcial teria sido rejeitado pelo banco de qualquer forma.
+- **`routeChoice` com `.strict()` e sem fallback silencioso**: critério fora de
+  `ROUTE_CHOICE_CRITERIA` é 400, nunca um `cheapest` implícito — um cliente que erra o nome do
+  critério precisa saber que errou, não descobrir semanas depois que a rota congelada não é a que
+  pediu.
+- **`companyId` nunca vem do corpo**: `PlanTripRouteRequestInput` carrega `routeChoice` opcional, mas
+  `companyId` continua vindo só do contexto autenticado (`trip.routes.ts`), como em toda rota da
+  API.
+- Violação pré-existente de >200 linhas em `trip-request.schema.ts` (235 linhas) não foi introduzida
+  por esta task — o arquivo já estava perto do limite antes do `routeChoice`; não escopo desta task
+  dividir o arquivo.
+
+### O que a T202/T203 recebe daqui
+
+- **Onde ler o congelado**: `trips.plannedRoute` (JSONB: `criterion`, `signature`,
+  `choiceReproduced`, `points`, `legs`, `depot`), `trips.plannedDistanceMeters`,
+  `trips.plannedReturnDistanceMeters`, `trips.plannedDurationSeconds`, `trips.plannedRouteFrozenAt`
+  — todos `null` juntos (D5) ou todos preenchidos juntos, nunca mistura. `trips.plannedToll`/
+  `plannedTollFrozenAt` continuam como sempre (spec 090), e `plannedRouteFrozenAt` ==
+  `plannedTollFrozenAt` sempre que ambos existem.
+  - **T202** (valuation): pode ler distância e pedágio direto dessas colunas sem recalcular nada —
+    a paridade prévia × viagem depende de nenhuma release resolver a rota duas vezes.
+  - **T203** (`GET /trips/:id/route-geometry`): a resposta "frozen" é uma projeção de
+    `plannedRoute` + as três métricas — sem tocar OSRM.
+- **`freeze-trip-planned-route.use-case.ts`** exporta `FreezeTripPlannedRoutePort`,
+  `FreezeTripPlannedRouteVehicleContext`, `FrozenPlannedRoute` e `WritePlannedRouteInput` — os tipos
+  que qualquer leitor de rota congelada (T202/T203) deve espelhar, não reinventar.
+- **`freeze-trip-route-toll.use-case.ts` e `drizzle-trip-route-toll.repository.ts` não existem
+  mais** — todo importador foi migrado para os nomes novos (`freeze-trip-planned-route.*`); nenhum
+  código deve mais referenciar os nomes antigos.

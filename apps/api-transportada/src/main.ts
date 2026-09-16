@@ -186,11 +186,11 @@ import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-p
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
-import { freezeTripRouteToll } from './trips/application/freeze-trip-route-toll.use-case.js'
+import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
-import { DrizzleTripRouteTollRepository } from './trips/infrastructure/drizzle-trip-route-toll.repository.js'
+import { DrizzleTripPlannedRouteRepository } from './trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
@@ -296,6 +296,7 @@ import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation
 import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
 import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
 import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
+import type { RouteChoice } from './trips/domain/route-choice.policy.js'
 import {
   CARGO_LAYOUT_MAX_ATTEMPTS,
   resolveCargoLayoutLeaseMs,
@@ -1480,15 +1481,21 @@ function createApplicationRoutes({
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
-  const tripRouteTollRepository = new DrizzleTripRouteTollRepository(database)
+  const tripPlannedRouteRepository = new DrizzleTripPlannedRouteRepository(database)
   /**
-   * Spec 090 T11: congela o pedágio na mesma chamada que planeja o roteiro, com o mesmo
-   * roteirizador, catálogo de praças e barracão que `readTripRouteGeometry` já usa para o mapa —
-   * nunca uma segunda rota, que poderia discordar (D4).
+   * Spec 153 T201 (substitui a spec 090 T11): congela a rota inteira — traçado, métricas e
+   * pedágio — na mesma chamada que planeja o roteiro, com o mesmo roteirizador, catálogo de
+   * praças e barracão que `readTripRouteGeometry` já usa para o mapa — nunca uma segunda rota,
+   * que poderia discordar (D4).
    */
   const tripRouteTollFreezer = {
-    freeze: (input: { readonly companyId: string; readonly tripId: string }) =>
-      freezeTripRouteToll({
+    freeze: (input: {
+      readonly companyId: string
+      readonly routeChoice?: RouteChoice
+      readonly tripId: string
+    }) =>
+      freezeTripPlannedRoute({
+        ...(input.routeChoice === undefined ? {} : { choice: input.routeChoice }),
         companyId: input.companyId,
         depot: {
           readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
@@ -1498,7 +1505,7 @@ function createApplicationRoutes({
           routingMatrixUrl === undefined
             ? { readRouteGeometry: async () => null }
             : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
-        repository: tripRouteTollRepository,
+        repository: tripPlannedRouteRepository,
         tollBooths: createCompanyScopedTollBoothGateway({
           catalog: tollBoothRepository,
           charges: tollBoothChargeRepository,

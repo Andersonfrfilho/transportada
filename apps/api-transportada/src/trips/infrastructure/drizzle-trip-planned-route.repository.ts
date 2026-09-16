@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 090 T11: lê o veículo da viagem para saber o eixo e se ela paga com tag, e grava o pedágio
- * congelado no momento do planejamento.
+ * Spec 153 T201 (substitui a spec 090 T11): lê o veículo da viagem para saber o eixo e se ela paga
+ * com tag, e grava a rota planejada inteira — traçado, métricas e pedágio — numa única escrita.
  */
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -10,22 +10,22 @@ import { fleetVehicles } from '../../database/fleet.schema.js'
 import { trips } from '../../database/trip.schema.js'
 import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
-import type { TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type {
-  FreezeTripRouteTollPort,
-  FreezeTripRouteTollVehicleContext,
-} from '../application/freeze-trip-route-toll.use-case.js'
+  FreezeTripPlannedRoutePort,
+  FreezeTripPlannedRouteVehicleContext,
+  WritePlannedRouteInput,
+} from '../application/freeze-trip-planned-route.use-case.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
-export class DrizzleTripRouteTollRepository implements FreezeTripRouteTollPort {
+export class DrizzleTripPlannedRouteRepository implements FreezeTripPlannedRoutePort {
   public constructor(private readonly database: TripDatabase) {}
 
-  public async readTollContext(input: {
+  public async readVehicleContext(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<FreezeTripRouteTollVehicleContext | null> {
+  }): Promise<FreezeTripPlannedRouteVehicleContext | null> {
     const [row] = await this.database
       .select({
         axleCount: fleetVehicles.axleCount,
@@ -56,16 +56,33 @@ export class DrizzleTripRouteTollRepository implements FreezeTripRouteTollPort {
     return listTripStopCoordinates(this.database, input)
   }
 
-  public async writePlannedToll(input: {
-    readonly companyId: string
-    readonly toll: null | TollRouteCost
-    readonly tripId: string
-  }): Promise<void> {
+  /**
+   * Rota, métricas e pedágio na mesma chamada (D4) — nunca duas escritas que poderiam deixar a
+   * viagem com um traçado novo e um pedágio velho, ou vice-versa.
+   */
+  public async writePlannedRoute(input: WritePlannedRouteInput): Promise<void> {
+    const { route, toll } = input
+
     await this.database
       .update(trips)
       .set({
-        plannedToll: input.toll,
-        plannedTollFrozenAt: input.toll === null ? null : sql`now()`,
+        plannedDistanceMeters: route === null ? null : route.distanceMeters,
+        plannedDurationSeconds: route === null ? null : route.durationSeconds,
+        plannedReturnDistanceMeters: route === null ? null : route.returnDistanceMeters,
+        plannedRoute:
+          route === null
+            ? null
+            : {
+                choiceReproduced: route.choiceReproduced,
+                criterion: route.criterion,
+                depot: route.depot,
+                legs: route.legs,
+                points: route.points,
+                signature: route.signature,
+              },
+        plannedRouteFrozenAt: route === null ? null : sql`now()`,
+        plannedToll: toll,
+        plannedTollFrozenAt: toll === null ? null : sql`now()`,
         updatedAt: sql`now()`,
       })
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))

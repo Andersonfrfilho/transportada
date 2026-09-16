@@ -28,7 +28,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T201 Congelamento da rota inteira (`freeze-trip-planned-route`), `plan-route` com
+- [x] T201 Congelamento da rota inteira (`freeze-trip-planned-route`), `plan-route` com
       `routeChoice`, D3 e D5 — contratos + integração.
 - [ ] T202 Valuation da viagem lê distância e pedágio gravados; prévia aceita `routeChoice`;
       paridade prévia × viagem (aceite 2).

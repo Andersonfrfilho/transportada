@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import { cancelTrip, type CancelTripPort } from './cancel-trip.use-case.js'
 import { dispatchTrip, type DispatchTripPort } from './dispatch-trip.use-case.js'
@@ -209,10 +210,15 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       },
     },
     planRoute: {
-      async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
+      async execute(input: {
+        readonly context: CompanyContext
+        readonly routeChoice?: RouteChoice
+        readonly tripId: string
+      }) {
         return planTripRoute({
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
+          ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
           tripId: input.tripId,
           ...(dependencies.tollFreezer === undefined
             ? {}

@@ -13,6 +13,7 @@ import type {
   TripRouteState,
 } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
+import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const TRIP_ID = '22222222-2222-4222-8222-222222222222'
@@ -32,14 +33,22 @@ function createPort(overrides: {
 }
 
 function createFreezer(): {
-  readonly calls: readonly { readonly tripId: string }[]
-  freeze: (input: { readonly companyId: string; readonly tripId: string }) => Promise<void>
+  readonly calls: readonly { readonly routeChoice?: RouteChoice; readonly tripId: string }[]
+  freeze: (input: {
+    readonly companyId: string
+    readonly routeChoice?: RouteChoice
+    readonly tripId: string
+  }) => Promise<void>
 } {
-  const calls: { readonly tripId: string }[] = []
+  const calls: { readonly routeChoice?: RouteChoice; readonly tripId: string }[] = []
   return {
     calls,
     async freeze(input) {
-      calls.push({ tripId: input.tripId })
+      calls.push(
+        input.routeChoice === undefined
+          ? { tripId: input.tripId }
+          : { routeChoice: input.routeChoice, tripId: input.tripId },
+      )
     },
   }
 }
@@ -104,6 +113,32 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     const result = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
 
     expect(result.tripStatus).toBe('route_planned')
+  })
+
+  /** RF3 (spec 153 T201): a rota pedida no corpo do HTTP chega ao congelamento sem se perder. */
+  test('a escolha de rota do pedido chega ao congelador (spec 153 RF3)', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    const tollFreezer = createFreezer()
+    const routeChoice: RouteChoice = { criterion: 'fastest', signature: null }
+
+    await planTripRoute({
+      companyId: COMPANY_ID,
+      repository,
+      routeChoice,
+      tollFreezer,
+      tripId: TRIP_ID,
+    })
+
+    expect(tollFreezer.calls).toEqual([{ routeChoice, tripId: TRIP_ID }])
+  })
+
+  test('sem escolha declarada no pedido, o congelador não recebe `routeChoice`', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    const tollFreezer = createFreezer()
+
+    await planTripRoute({ companyId: COMPANY_ID, repository, tollFreezer, tripId: TRIP_ID })
+
+    expect(tollFreezer.calls).toEqual([{ tripId: TRIP_ID }])
   })
 })
 

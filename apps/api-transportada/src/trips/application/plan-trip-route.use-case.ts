@@ -4,6 +4,7 @@
 import type { TripStatus } from '../../database/trip.schema.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 export type TripRouteState = {
   /**
@@ -32,12 +33,18 @@ export type PlanTripRoutePort = {
  * idêntico ao de antes desta task.
  */
 export type PlanTripRouteTollFreezer = {
-  freeze(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  freeze(input: {
+    readonly companyId: string
+    readonly routeChoice?: RouteChoice
+    readonly tripId: string
+  }): Promise<void>
 }
 
 export type PlanTripRouteInput = {
   readonly companyId: string
   readonly repository: PlanTripRoutePort
+  /** RF3 (spec 153 T201): qual rota reproduzir. Ausente segue o default do congelador. */
+  readonly routeChoice?: RouteChoice
   readonly tollFreezer?: PlanTripRouteTollFreezer
   readonly tripId: string
 }
@@ -86,7 +93,11 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
    */
   if (input.tollFreezer !== undefined) {
     try {
-      await input.tollFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
+      await input.tollFreezer.freeze({
+        companyId: input.companyId,
+        ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
+        tripId: input.tripId,
+      })
     } catch {
       /* o roteiro está planejado; o pedágio congela no próximo replanejamento */
     }
