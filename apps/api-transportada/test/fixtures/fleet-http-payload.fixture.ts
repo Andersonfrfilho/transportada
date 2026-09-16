@@ -90,6 +90,9 @@ export const EMPTY_DRIVER_ADDRESS = {
   street: '',
 } as const
 
+/** Spec 143 D5/D6: a diária combinada só deste motorista — `null` é o normal, vale o valor da empresa. */
+export const DAILY_ALLOWANCE_AMOUNT = '180.0000'
+
 export const DRIVER_FIELDS = {
   address: EMPTY_DRIVER_ADDRESS,
   linkedAddress: EMPTY_DRIVER_ADDRESS,
@@ -98,6 +101,7 @@ export const DRIVER_FIELDS = {
   birthCity: 'Ribeirao Preto',
   birthDate: null,
   birthState: 'SP',
+  dailyAllowanceAmount: null,
   email: 'jose.silva@example.com',
   fatherName: 'Antonio da Silva',
   licenseCategory: 'E',

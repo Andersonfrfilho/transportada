@@ -309,6 +309,8 @@ export type FleetDriverBody = Readonly<{
   birthCity: string
   birthDate: null | string
   birthState: string
+  /** Diária que só este motorista recebe; ausente é null e a diária cai para a geral da empresa (spec 143 D7). */
+  dailyAllowanceAmount: null | string
   email: string
   /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
   fatherName: string
@@ -505,6 +507,7 @@ export type FleetDriverFormState = Readonly<{
   birthCity: string
   birthDate: string
   birthState: string
+  dailyAllowanceAmount: string
   email: string
   fatherName: string
   firstLicenseAt: string

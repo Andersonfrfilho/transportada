@@ -1086,3 +1086,161 @@ Os 23 `skip` são pré-existentes e não relacionados a T8 (`test/database-migra
 3. A política de leitura de `trip.financials` (`TRIP_FINANCIALS_POLICY`) já cobre `GET
 /trips/:id/costs` — se T9 expõe mais dado financeiro na mesma viagem, o padrão é a mesma política,
    não uma nova, a menos que o dado seja de fato menos sensível que custo lançado.
+
+## T9 — Diária no cadastro do motorista (API + FE)
+
+**Data:** 2026-09-16 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+
+Escopo: `driverFieldsSchema` (backend), a resposta HTTP da frota, `DriverForm` +
+`DriverQuickCreateDialog` (paridade de rótulo/dica exigida por `driver-form-parity.contract.ts`).
+`fleet_drivers.daily_allowance_amount` já existia (T1) — T9 abre o caminho de escrita/leitura, sem
+migration.
+
+### Regra de negócio
+
+`dailyAllowanceAmount` é decimal-string, nunca número. Três estados, não dois:
+
+- **valor** — a diária combinada só com este motorista, vence sempre no cálculo (D3/T2).
+- **`null` explícito** — apaga o valor do motorista e devolve o cálculo ao valor geral da empresa.
+- **chave ausente** (`exactOptionalPropertyTypes`) — "não mexeram nela": a ficha grava por inteiro a
+  cada edição e o ausente não pode colapsar no mesmo caminho do `null`, ou apagaria o valor gravado
+  toda vez que alguém só corrigisse o telefone.
+
+Zod rejeita `<= 0` com 400; o CHECK `fleet_drivers_daily_allowance_check` (T1) é a segunda barreira.
+
+### Vermelho backend — capturado depois, com a produção isolada por `git stash`
+
+Mesma técnica que T5/T6/T8 já registraram aqui: os quatro arquivos de produção
+(`fleet.port.ts`, `fleet.mapper.ts`, `fleet-request.schema.ts`, `fleet.routes.ts`) foram isolados via
+`git stash push --keep-index -- <4 arquivos>`, mantendo os testes já escritos, para provar que o
+vermelho é pelo motivo certo — não módulo ausente, não erro de fixture:
+
+```
+$ bun test test/fleet-domain.contract.test.ts
+
+ZodError: [
+  {
+    "code": "unrecognized_keys",
+    "keys": [
+      "dailyAllowanceAmount"
+    ],
+    "path": [],
+    "message": "Unrecognized key: \"dailyAllowanceAmount\""
+  }
+]
+(fail) a diária que só este motorista recebe (spec 143 D5/D6) > aceita a diária como string decimal, nunca como número
+(fail) a diária que só este motorista recebe (spec 143 D5/D6) > null apaga a diária combinada com o motorista
+(fail) a diária que só este motorista recebe (spec 143 D5/D6) > a criação aceita o mesmo campo, ao lado dos demais da ficha
+
+ 96 pass
+ 3 fail
+ 280 expect() calls
+```
+
+`unrecognized_keys` é o `.strict()` do schema recusando uma chave que a produção ainda não conhece —
+prova de conteúdo, não de import quebrado. Rodar as duas suítes HTTP+domínio juntas nesse mesmo
+estado mostra o efeito em cascata correto: como `CREATE_DRIVER_BODY`/`UPDATE_DRIVER_BODY`
+(`test/fixtures/fleet-http-payload.fixture.ts`) já carregam `dailyAllowanceAmount` para todo teste
+que os usa, **14 testes falham**, não só os 2 novos de HTTP — inclusive testes que não falam de
+diária (`accepts a partially filled address`, `propagates a duplicate document as 409`), todos pelo
+mesmo `Unrecognized key`. Depois do `git stash pop`, as duas suítes voltam a 195 pass / 0 fail.
+
+### Vermelho frontend — genuíno, seis falhas de conteúdo
+
+```
+$ bun test test/fleet.contract.test.ts
+
+expect(createDriverDraft().dailyAllowanceAmount).toBe('')
+  Received: undefined
+expect(body.dailyAllowanceAmount).toBeNull()
+  Received: undefined
+expect(body.dailyAllowanceAmount).toBe('180.0000')
+  Received: undefined
+expect(withAllowance.dailyAllowanceAmount).toBe('180,00')
+  Received: undefined
+expect(source).toContain("label={t('driverDailyAllowanceAmount')}")
+  — not found in DriverQuickCreateDialog.component.tsx
+expect(ptBrLocale.driverDailyAllowanceAmount).toBeString()
+  Received: undefined
+
+ 519 pass
+ 6 fail
+ 6545 expect() calls
+```
+
+Todas as seis são `Received: undefined` ou `toContain` não encontrado — nenhuma é "module not
+found"; a suíte nova (`test/fleet/driver-daily-allowance.contract.ts`) já estava importada em
+`test/fleet.contract.test.ts` quando o vermelho foi tirado.
+
+### `null` × ausente — onde a distinção mora
+
+`apps/api-transportada/src/fleet/infrastructure/fleet.mapper.ts`, `toDriverColumns()`:
+
+```ts
+...(driver.dailyAllowanceAmount === undefined
+  ? {}
+  : { dailyAllowanceAmount: driver.dailyAllowanceAmount }),
+```
+
+Chave ausente (`undefined`) não entra no objeto de colunas — o Drizzle não toca na coluna, e o valor
+gravado sobrevive. `null` explícito entra e escreve `NULL` de verdade, que é o que apaga e devolve ao
+valor geral da empresa. `mapDriver()` faz o caminho de leitura: `dailyAllowanceAmount:
+record.dailyAllowanceAmount` — a coluna já é `string | null`, sem tradução.
+
+### O que entrou
+
+- **`driverFieldsSchema`** (`fleet-request.schema.ts`): `dailyAllowanceAmount` como
+  `z.string().regex(MONEY_DECIMAL).refine(value => Number.parseFloat(value) > 0).nullable().optional()`
+  — o único campo do schema com essa combinação `.nullable().optional()` (os demais campos de data
+  usam `optionalDate()`/`optionalPastDate()`, que não têm o terceiro estado).
+- **`FleetDriverInput.dailyAllowanceAmount?: string | null | undefined`** (`fleet.port.ts`) — o
+  `| undefined` explícito **é o que o zod de fato infere** para uma propriedade `.optional()` sob
+  `exactOptionalPropertyTypes`; sem ele, `bun run typecheck` reprovava em `fleet.routes.ts:192,205`
+  (`Type 'string | null | undefined' is not assignable to type 'string | null'`) porque
+  `CreateDriverBody`/`UpdateDriverBody` (`fleet.schema.ts`, derivados de
+  `z.infer<typeof driverFieldsSchema>`) chegam com esse terceiro estado até a rota. O alargamento não
+  muda `toDriverColumns()`: `=== undefined` lê igual tanto para chave ausente quanto para chave
+  presente com valor `undefined`.
+- **`serializeDriver()`** (`fleet.routes.ts`) e **`mapDriver()`** (`fleet.mapper.ts`) devolvem o campo
+  cru, sem tradução.
+- **Frontend** — `fleet.types.ts` (`FleetDriverBody.dailyAllowanceAmount: null | string`,
+  `FleetDriverFormState.dailyAllowanceAmount: string`); três arrays de `fleet.constant.ts`
+  (`DRIVER_BODY_KEYS`, `DRIVER_CREATE_BODY_KEYS`, `DRIVER_FORM_KEYS` — as duas primeiras gateiam
+  `pickKeys()` em `fleetClient.service.ts`, e ficar de fora delas teria tipado certo e nunca chegado
+  à API); `fleetForm.service.ts` importa `parseTypedAmount`/`toTypedAmount`/`AMOUNT_MAX_SCALE`/
+  `AMOUNT_DISPLAY_SCALE` de `decimalAmount.service.ts` (nunca redeclara, code-standart §16) com um
+  guard de branco explícito para o `null` (`parseTypedAmount` normaliza branco para zero, não para
+  `null` — o guard é quem decide apagar); `DriverForm.component.tsx` e
+  `DriverQuickCreateDialog.component.tsx` ganham o mesmo `FleetMoneyField` (`optional`, escala de
+  exibição 2) e o mesmo parágrafo de dica — `FleetMoneyField` não tem prop `hint`, diferente de
+  `FleetMeasureField`; locales pt-BR/en com rótulo e dica.
+
+### Achado de lint, corrigido sem tocar em config compartilhada
+
+Duas suítes usavam destructuring-para-omitir uma chave (`const { chave: _nome, ...resto } = objeto`),
+e o `no-unused-vars` do eslint deste app não tem `ignoreRestSiblings` nem `varsIgnorePattern`
+configurados — o prefixo `_` não isenta nada aqui. Trocado por clonar e `delete` explícito
+(`test/fleet-domain/driver-daily-allowance.contract.ts`, `test/fleet-http/drivers.contract.ts`), sem
+mexer em `eslint.config.js`: a regra do app não muda, só a forma de descartar a chave.
+
+### Gates
+
+| Gate               | Comando                                                | Resultado                                                                   |
+| ------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo — inclui frontend-transportada, frontend-client, frontend-landing  |
+| Testes da API      | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6120 pass · 23 skip · 0 fail** · 21507 expect() · 177 arquivos · ~11 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4079 pass · 0 fail** · 35842 expect() · 29 arquivos                    |
+| Lint               | `bun run lint`                                         | ✅ limpo — 6 apps                                                           |
+| Formatação         | `bun run format:check`                                 | ✅ limpo (após `prettier --write` em três arquivos)                         |
+
+### Contrato que a T9 impõe à T10
+
+1. `DAILY_ALLOWANCE_RATE_ORIGIN` (T2) e `resolveDailyAllowance` já sabem ler `driverAmount` de
+   `fleet_drivers.daily_allowance_amount` — T10, ao abrir `company_driver_allowance_settings`, só
+   precisa alimentar `companyAmount` no mesmo par; a função não muda.
+2. O padrão `.nullable().optional()` para "apaga vs. não mexe" agora tem um precedente concreto no
+   schema de motorista — T10 (`PUT/DELETE /company-settings/driver-allowance`) pode seguir o mesmo
+   par (`FleetDriverInput.dailyAllowanceAmount` + `toDriverColumns()`) em vez de inventar um novo.
+3. `AMOUNT_MAX_SCALE`/`AMOUNT_DISPLAY_SCALE`/`parseTypedAmount`/`toTypedAmount`
+   (`decimalAmount.service.ts`) são o par certo para qualquer novo campo de dinheiro do frontend —
+   T10 os importa, não redeclara.

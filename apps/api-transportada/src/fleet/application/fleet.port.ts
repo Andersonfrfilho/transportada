@@ -167,6 +167,11 @@ export type FleetDriverInput = {
   readonly birthDate: string | null
   /** UF da naturalidade; a cidade pode existir sem ela em ficha antiga. */
   readonly birthState: string
+  /**
+   * A diária combinada só com este motorista (spec 143 D5/D6). `null` apaga e devolve ao valor
+   * geral da empresa; ausente é "não mexeram nela" — a ficha não decide sozinha apagar o gravado.
+   */
+  readonly dailyAllowanceAmount?: string | null | undefined
   readonly email: string
   /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
   readonly fatherName: string

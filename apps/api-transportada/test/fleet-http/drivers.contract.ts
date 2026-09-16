@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { ApiError } from '../../src/shared/api.error.js'
 import {
   CREATE_DRIVER_BODY,
+  DAILY_ALLOWANCE_AMOUNT,
   DRIVER,
   DRIVER_AVAILABILITY,
   DRIVER_FIELDS,
@@ -407,5 +408,87 @@ describe('fleet drivers http contract', () => {
 
     expect(response.status).toBe(409)
     expect((await responseApiError(response)).code).toBe('FLEET_DRIVER_TAX_ID_TAKEN')
+  })
+
+  /** Spec 143 D5/D6: a diária combinada só deste motorista, ao lado dos demais campos da ficha. */
+  test('persists a daily allowance amount set on create', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, dailyAllowanceAmount: DAILY_ALLOWANCE_AMOUNT },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: { ...DRIVER_FIELDS, dailyAllowanceAmount: DAILY_ALLOWANCE_AMOUNT },
+        profile: CREATE_DRIVER_BODY.profile,
+      },
+    ])
+  })
+
+  /** `null` devolve o motorista ao valor geral da empresa — é apagar, não silêncio. */
+  test('erases the daily allowance amount with an explicit null on update', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...UPDATE_DRIVER_BODY, dailyAllowanceAmount: null },
+        method: 'PATCH',
+        path: DRIVER_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateDriverCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        correlationId: 'fleet-http-correlation',
+        driver: { ...DRIVER_INPUT, membershipId: MEMBERSHIP_ID, dailyAllowanceAmount: null },
+        driverId: DRIVER_ID,
+        expectedVersion: '1',
+        status: 'active',
+      },
+    ])
+  })
+
+  /**
+   * ⚠️ Ausente é "não mexeram nela", nunca "apague". A ficha é salva inteira a cada edição, e a
+   * chave ausente não pode colapsar no mesmo caminho do `null` explícito.
+   */
+  test('leaves the stored daily allowance amount untouched when the field is absent from update', async () => {
+    const fixture = await createFleetHttpFixture()
+    const bodyWithoutAllowance: Record<string, unknown> = { ...UPDATE_DRIVER_BODY }
+    delete bodyWithoutAllowance.dailyAllowanceAmount
+
+    const response = await fixture.handle(
+      jsonRequest({ body: bodyWithoutAllowance, method: 'PATCH', path: DRIVER_PATH }),
+    )
+
+    expect(response.status).toBe(200)
+    const [call] = fixture.updateDriverCalls
+    expect(Object.hasOwn((call as { driver: object }).driver, 'dailyAllowanceAmount')).toBeFalse()
+  })
+
+  test('rejects a daily allowance amount that is not positive (aceite 8)', async () => {
+    const fixture = await createFleetHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_DRIVER_BODY, dailyAllowanceAmount: '0.0000' },
+        method: 'POST',
+        path: FLEET_DRIVERS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect((await responseApiError(response)).code).toBe('INVALID_REQUEST')
+    expect(fixture.createDriverCalls).toEqual([])
   })
 })

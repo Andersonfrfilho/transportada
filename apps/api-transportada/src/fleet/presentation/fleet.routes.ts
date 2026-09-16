@@ -285,6 +285,7 @@ function serializeDriver(driver: FleetDriver): object {
     birthDate: driver.birthDate,
     birthState: driver.birthState,
     createdAt: driver.createdAt,
+    dailyAllowanceAmount: driver.dailyAllowanceAmount,
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt,

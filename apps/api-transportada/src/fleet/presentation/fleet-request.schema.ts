@@ -201,6 +201,16 @@ const driverFieldsSchema = z.object({
   birthCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
   birthDate: optionalPastDate(),
   birthState: z.literal('').or(z.string().regex(STATE)),
+  /**
+   * Spec 143 D5/D6: a diária combinada só deste motorista. `null` apaga e devolve ao valor geral da
+   * empresa; ausente (`exactOptionalPropertyTypes`) é silêncio — a ficha não mexe no que já existe.
+   */
+  dailyAllowanceAmount: z
+    .string()
+    .regex(MONEY_DECIMAL)
+    .refine((value) => Number.parseFloat(value) > 0, { message: 'must be positive' })
+    .nullable()
+    .optional(),
   email: z.literal('').or(z.string().trim().max(EMAIL_MAX_LENGTH).regex(EMAIL)),
   // A primeira habilitação já aconteceu: data futura ali é digitação errada, não cadastro
   fatherName: z.string().trim().max(NAME_MAX_LENGTH),

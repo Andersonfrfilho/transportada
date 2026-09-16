@@ -271,6 +271,8 @@
     "remove": "Remover cobertura",
     "zonePill": "Rota inteira"
   },
+  "driverDailyAllowanceAmount": "Diária (R$/dia)",
+  "driverDailyAllowanceAmountHint": "Vazio usa o valor geral da empresa.",
   "driverEmail": "E-mail",
   "driverEmailHint": "Endereço do motorista para o acesso ao aplicativo de entregas. O convite sai por e-mail ou por telefone: um dos dois basta.",
   "driverFatherName": "Nome do pai",
