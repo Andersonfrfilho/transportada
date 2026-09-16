@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+/** D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida. */
+export const PACKAGE_BOX_MEASUREMENT_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
+
 export type PackageBox = Readonly<{
   cartonGtin: null | string
   commercialUnit: string
@@ -11,6 +15,9 @@ export type PackageBox = Readonly<{
   id: string
   lengthMm: null | number
   measuredAt: null | string
+  /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
+  measurementMarginMm: null | number
+  measurementSource: null | PackageBoxMeasurementSource
   productCode: string
   share: number
   transportedVolumes: number
@@ -31,11 +38,32 @@ export type PackageBoxQueue = Readonly<{
   totalVolumes: number
 }>
 
+/**
+ * D17: a proposta da câmera guardada por auditoria. `.strict()` do lado da API — campo a mais é
+ * recusa, não silêncio (mesma razão do `cameraMeasurementSchema`). Margens ausentes numa dimensão
+ * dizem "essa dimensão foi editada por cima" (D6): a regra de imprecisão não se aplica a ela.
+ */
+export type PackageBoxCameraMeasurementInput = Readonly<{
+  engine: string
+  heightMarginMm?: number
+  impreciseConfirmed: boolean
+  lengthMarginMm?: number
+  proposedHeightMm?: number
+  proposedLengthMm?: number
+  proposedWidthMm?: number
+  warnings: readonly string[]
+  widthMarginMm?: number
+}>
+
 export type PackageBoxMeasurementInput = Readonly<{
+  /** Só presente quando `source` é `camera`/`camera_adjusted` (R5). */
+  camera?: PackageBoxCameraMeasurementInput
   grossWeightGrams: null | number
   heightMm: number
   id: string
   lengthMm: number
+  /** D8: ausente grava `typed` (retrocompatível) — o corpo antigo continua válido. */
+  source?: PackageBoxMeasurementSource
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   unitsPerBox: number
   widthMm: number
@@ -130,7 +158,17 @@ function isPackageBox(value: unknown): value is PackageBox {
     isNumber(value.unitsPerBox) &&
     isNumber(value.share) &&
     isNumber(value.cumulativeShare) &&
-    typeof value.withinCoverage === 'boolean'
+    typeof value.withinCoverage === 'boolean' &&
+    isNullableMeasurementSource(value.measurementSource) &&
+    isNullableNumber(value.measurementMarginMm)
+  )
+}
+
+function isNullableMeasurementSource(value: unknown): value is null | PackageBoxMeasurementSource {
+  return (
+    value === null ||
+    (typeof value === 'string' &&
+      PACKAGE_BOX_MEASUREMENT_SOURCES.some((source) => source === value))
   )
 }
 

@@ -5,6 +5,7 @@ import {
   createPackageBoxClient,
   packageBoxQueueFromApi,
 } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
+import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '@/modules/nfe-workspace/shared/packageBoxMeasurement.constant'
 
 const BOX = {
   cartonGtin: null,
@@ -17,6 +18,8 @@ const BOX = {
   id: '11111111-1111-4111-8111-111111111111',
   lengthMm: null,
   measuredAt: null,
+  measurementMarginMm: null,
+  measurementSource: null,
   productCode: '18245',
   share: 0.6,
   transportedVolumes: 60,
@@ -143,18 +146,28 @@ describe('o ciclo do leitor no painel de medição', () => {
  * ⚠️ Os tetos da medida são cópia por valor dos CHECKs da coluna. Divergir deles devolve `400`
  * genérico do servidor, que a tela não sabe ancorar em campo nenhum — o operador lê "não foi
  * possível gravar" numa ficha de três campos e não sabe qual refazer.
+ *
+ * ⚠️ Extraído para `packageBoxMeasurementUnits.service.ts` e `PackageBoxMeasurementForm.component.tsx`
+ * na T10 (spec 152): o formulário digitado e o formulário da câmera passaram a compartilhar a mesma
+ * conversão, em vez de duas cópias dentro de `PackageBoxMeasurementPanel`.
  */
 describe('os tetos da medida na tela e no banco', () => {
   it('a tela declara os mesmos limites do CHECK da coluna', async () => {
-    const panel = await Bun.file(
+    const units = await Bun.file(
       new URL(
-        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        '../../src/modules/nfe-workspace/shared/packageBoxMeasurementUnits.service.ts',
+        import.meta.url,
+      ),
+    ).text()
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
         import.meta.url,
       ),
     ).text()
 
-    expect(panel).toContain('{ heightMm: 300, lengthMm: 600, widthMm: 300 }')
-    expect(panel).toContain('aria-invalid=')
+    expect(units).toContain('{ heightMm: 300, lengthMm: 600, widthMm: 300 }')
+    expect(form).toContain('aria-invalid=')
   })
 
   /**
@@ -164,19 +177,19 @@ describe('os tetos da medida na tela e no banco', () => {
    * lugar só, e é este teste que a prende ali.
    */
   it('converte centímetro em milímetro num lugar só, aceitando vírgula', async () => {
-    const panel = await Bun.file(
+    const units = await Bun.file(
       new URL(
-        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        '../../src/modules/nfe-workspace/shared/packageBoxMeasurementUnits.service.ts',
         import.meta.url,
       ),
     ).text()
 
-    expect(panel).toContain('const MILLIMETRES_PER_CENTIMETRE = 10')
-    expect(panel).toContain('Math.round(centimetres * MILLIMETRES_PER_CENTIMETRE)')
+    expect(units).toContain('const MILLIMETRES_PER_CENTIMETRE = 10')
+    expect(units).toContain('Math.round(centimetres * MILLIMETRES_PER_CENTIMETRE)')
     /** O teclado do celular manda `38,5`, e meio centímetro é medida legítima. */
-    expect(panel).toContain("replace(',', '.')")
+    expect(units).toContain("replace(',', '.')")
     /** O teto é conferido **em centímetro**, antes de multiplicar: senão 600 cm passaria. */
-    expect(panel).toContain('if (centimetres > MAX_CENTIMETRES[field]) return null')
+    expect(units).toContain('if (centimetres > MAX_CENTIMETRES[field]) return null')
   })
 })
 
@@ -588,12 +601,317 @@ describe('editar a medida de uma caixa já medida', () => {
         import.meta.url,
       ),
     ).text()
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
 
-    expect(panel).toContain('useState(() => toCentimetres(box.lengthMm))')
-    expect(panel).toContain('useState(() => String(box.unitsPerBox))')
+    expect(form).toContain("toCentimetres(proposedMillimetres(proposal, 'length') ?? lengthMm)")
+    expect(form).toContain('useState(() => String(unitsPerBox))')
     /** A linha remonta quando a medida muda: sem isso o estado inicial ficaria preso ao antigo. */
     expect(panel).toContain("key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}")
     /** E a medida aparece na linha, para conferir sem precisar abrir o formulário. */
     expect(panel).toContain("t('packageBoxes.measured'")
+  })
+})
+
+/**
+ * ⚠️ T10 (spec 152): o formulário digitado ganhou um segundo modo, aberto com a proposta da câmera
+ * (`BoxDimensionMeasuredResult`, T8/T6). Sem DOM nesta app, o contrato lê a fonte de
+ * `PackageBoxMeasurementForm.component.tsx` — mesmo padrão já usado para o painel.
+ */
+describe('selo experimental na tela de medida (D13, R8)', () => {
+  it('a constante única decide o selo, e só ela muda na T16', async () => {
+    const constant = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/shared/packageBoxMeasurement.constant.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(CAMERA_MEASUREMENT_IS_EXPERIMENTAL).toBe(true)
+    expect(constant).toContain('export const CAMERA_MEASUREMENT_IS_EXPERIMENTAL = true')
+  })
+
+  it('o selo só aparece com a proposta da câmera, é texto + ícone (nunca só cor)', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain(
+      'proposal === undefined || !CAMERA_MEASUREMENT_IS_EXPERIMENTAL ? null : (',
+    )
+    const badgeBlock = form.split('<Badge variant="secondary">')[1]?.split('</Badge>')[0]
+    expect(badgeBlock).toBeDefined()
+    expect(badgeBlock).toContain('<Icon name="alert" size="sm" />')
+    expect(badgeBlock).toContain("t('packageBoxes.experimentalBadge')")
+  })
+
+  it('o texto do selo é o de D13, acentuado nos dois idiomas', async () => {
+    const ptLocale = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/locales/nfeWorkspace.locale.json', import.meta.url),
+    ).text()
+    const enLocale = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(ptLocale).toContain(
+      '"experimentalHint": "A medida pela câmera é uma estimativa. Confira com a fita antes de gravar; na dúvida, digite."',
+    )
+    expect(enLocale).toContain('"experimentalBadge": "Experimental"')
+  })
+
+  it('cada motivo relatado pela câmera (D9) aparece traduzido junto do selo', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain('t(`packageBoxes.warnings.${warning}`)')
+  })
+})
+
+/**
+ * R2: cada faixa de margem tem um comportamento próprio — confiável não avisa, imprecisa avisa e
+ * pede confirmação explícita para gravar, e acima de 30 mm o campo nem vem preenchido.
+ */
+describe('margem por dimensão e aviso de imprecisão (R2)', () => {
+  it('até 10 mm mostra só a margem, sem aviso', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const reliableBlock = form.split('<span className={styles.marginText}')[1]?.split('</span>')[0]
+    expect(reliableBlock).toBeDefined()
+    expect(reliableBlock).toContain("t('packageBoxes.margin'")
+    expect(reliableBlock).not.toContain('role="alert"')
+  })
+
+  it('entre 10 e 30 mm avisa com texto, ícone e role=alert — nunca só cor', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const impreciseBlock = form
+      .split('<span className={styles.marginWarning} role="alert">')[1]
+      ?.split('</span>')[0]
+    expect(impreciseBlock).toBeDefined()
+    expect(impreciseBlock).toContain('<Icon name="alert" size="sm" />')
+    expect(impreciseBlock).toContain("t('packageBoxes.imprecise'")
+  })
+
+  it('acima de 30 mm o campo fica vazio e o foco vai para ele', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    /** `proposedMillimetres` devolve `undefined` para o valor sentinela `0` — campo nasce vazio. */
+    expect(form).toContain('return value > 0 ? value : undefined')
+    expect(form).toContain('firstUnreliableRef.current?.focus()')
+    expect(form).toContain(
+      "{...(reliabilityOf(dimension) === 'unreliable' ? { inputRef: firstUnreliableRef } : {})}",
+    )
+    const unreliableBlock = form
+      .split('<span className={styles.fieldError} role="alert">')[1]
+      ?.split('</span>')[0]
+    expect(unreliableBlock).toBeDefined()
+    expect(unreliableBlock).toContain("t('packageBoxes.unreliable')")
+  })
+
+  it('imprecisa e não editada pede confirmação explícita antes de gravar — nada grava sem ela', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain('if (requiresConfirmation) {')
+    expect(form).toContain("setImpreciseChoice('confirming')")
+    /** `handleSubmit` só chama `onSubmit` quando não precisa de confirmação. */
+    const handleSubmitBlock = form.split('function handleSubmit(): void {')[1]?.split('}\n\n')[0]
+    expect(handleSubmitBlock).toBeDefined()
+    expect(handleSubmitBlock).toContain('return')
+
+    expect(form).toContain("t('packageBoxes.impreciseConfirmTitle'")
+    expect(form).toContain("t('packageBoxes.impreciseConfirmSave')")
+    expect(form).toContain("t('packageBoxes.impreciseConfirmType')")
+    /** As duas saídas do diálogo: "Gravar assim" chama `onConfirm`, "Digitar a medida" só fecha. */
+    expect(form).toContain('onClick={onConfirm}')
+    expect(form).toContain('onClick={onTypeInstead}')
+  })
+})
+
+/**
+ * R3/D17: editar um campo aberto pela câmera muda a origem para `camera_adjusted`, mas a proposta
+ * original continua no bloco `camera` (o histórico compara as duas). Digitar continua o caminho
+ * padrão, disponível mesmo sem proposta nenhuma.
+ */
+describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
+  it('sem proposta a origem é sempre typed, sem bloco camera', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain("if (proposal === undefined) return { ...measurement, source: 'typed' }")
+  })
+
+  it('editar um campo marca a dimensão como editada, e isso sai da origem final', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain('setEdited((current) => ({ ...current, [dimension]: true }))')
+    expect(form).toContain("source: hasEditedAnyField ? 'camera_adjusted' : 'camera',")
+    expect(form).toContain(
+      'const hasEditedAnyField = edited.length || edited.width || edited.height',
+    )
+  })
+
+  it('a margem sai do bloco camera quando a dimensão foi editada — a proposta continua', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(form).toContain('...(edited.length ? {} : { lengthMarginMm: proposal.lengthMarginMm }),')
+    expect(form).toContain('...(edited.width ? {} : { widthMarginMm: proposal.widthMarginMm }),')
+    expect(form).toContain('...(edited.height ? {} : { heightMarginMm: proposal.heightMarginMm }),')
+    /** Proposto (D17) continua indo para o histórico mesmo quando o campo foi editado por cima. */
+    expect(form).toContain(
+      '...(proposedLength === undefined ? {} : { proposedLengthMm: proposedLength }),',
+    )
+  })
+
+  it('"Digitar medida" continua disponível — o formulário nunca exige a câmera', async () => {
+    const form = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    /** `proposal` é opcional na assinatura — o mesmo componente atende o caminho 100% digitado. */
+    expect(form).toContain('proposal: BoxDimensionMeasuredResult | undefined')
+  })
+})
+
+/**
+ * R5: a API grava origem e margem por auditoria — o cliente manda `source`/`camera`, e a leitura
+ * (`GET /nfe-package-boxes`) devolve `measurementSource`/`measurementMarginMm` por caixa.
+ */
+describe('origem e margem gravadas para auditoria (R5)', () => {
+  it('o PUT manda source e o bloco camera quando a medida veio da câmera', async () => {
+    const captured: { init?: RequestInit; url?: string } = {}
+    await buildClient({ data: BOX }, captured).measureBox({
+      camera: {
+        engine: 'aruco-homography-v1',
+        heightMarginMm: 4,
+        impreciseConfirmed: true,
+        lengthMarginMm: 18,
+        proposedHeightMm: 200,
+        proposedLengthMm: 400,
+        proposedWidthMm: 300,
+        warnings: ['lowLight'],
+        widthMarginMm: 6,
+      },
+      grossWeightGrams: null,
+      heightMm: 200,
+      id: BOX.id,
+      lengthMm: 400,
+      source: 'camera',
+      unitsPerBox: 1,
+      widthMm: 300,
+    })
+
+    const body = JSON.parse(captured.init?.body as string) as Record<string, unknown>
+    expect(body.source).toBe('camera')
+    expect(body.camera).toEqual({
+      engine: 'aruco-homography-v1',
+      heightMarginMm: 4,
+      impreciseConfirmed: true,
+      lengthMarginMm: 18,
+      proposedHeightMm: 200,
+      proposedLengthMm: 400,
+      proposedWidthMm: 300,
+      warnings: ['lowLight'],
+      widthMarginMm: 6,
+    })
+  })
+
+  /** Corpo antigo, sem `source`/`camera`, continua válido — o cliente não os inventa. */
+  it('sem source nem camera o corpo continua igual ao de hoje (retrocompatível)', async () => {
+    const captured: { init?: RequestInit; url?: string } = {}
+    await buildClient({ data: BOX }, captured).measureBox({
+      grossWeightGrams: null,
+      heightMm: 200,
+      id: BOX.id,
+      lengthMm: 400,
+      unitsPerBox: 1,
+      widthMm: 300,
+    })
+
+    const body = JSON.parse(captured.init?.body as string) as Record<string, unknown>
+    expect(body.source).toBeUndefined()
+    expect(body.camera).toBeUndefined()
+    expect(Object.keys(body).sort()).toEqual([
+      'grossWeightGrams',
+      'heightMm',
+      'lengthMm',
+      'unitsPerBox',
+      'widthMm',
+    ])
+  })
+
+  it('a leitura da fila aceita measurementSource e measurementMarginMm por caixa', () => {
+    const queue = packageBoxQueueFromApi({
+      data: {
+        coveredCount: 1,
+        items: [{ ...BOX, measurementMarginMm: 18, measurementSource: 'camera_adjusted' }],
+        totalVolumes: 100,
+      },
+    })
+
+    expect(queue.items[0]?.measurementSource).toBe('camera_adjusted')
+    expect(queue.items[0]?.measurementMarginMm).toBe(18)
+  })
+
+  it('origem fora do domínio fechado é recusada, não silenciada', () => {
+    expect(() =>
+      packageBoxQueueFromApi({
+        data: {
+          coveredCount: 1,
+          items: [{ ...BOX, measurementSource: 'invented' }],
+          totalVolumes: 100,
+        },
+      }),
+    ).toThrow()
   })
 })
