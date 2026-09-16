@@ -9,6 +9,8 @@ import {
 } from '../../src/nfe-documents/domain/package-box-measurement.constant.js'
 import {
   assertCameraMeasurementEnabled,
+  CAMERA_DIMENSIONS,
+  isEditedDimension,
   resolveMeasurementMargin,
 } from '../../src/nfe-documents/domain/package-box-measurement.policy.js'
 import { PackageBoxCameraMeasurementDisabledError } from '../../src/nfe-documents/domain/package-box-measurement.error.js'
@@ -317,6 +319,32 @@ describe('resolveMeasurementMargin (D17)', () => {
     expect(
       resolveMeasurementMargin({ camera: {}, recorded: RECORDED, source: 'camera' }),
     ).toBeNull()
+  })
+})
+
+/**
+ * BAIXO-2 (T14, 4ª revisão): `isEditedDimension` é exportada porque precisa ser lida em paralelo
+ * com a mesma pergunta na tela (`isOverriddenDimension`, frontend) — sem teste próprio, o `export`
+ * ficava sem justificativa nenhuma no arquivo.
+ */
+describe('isEditedDimension (D16)', () => {
+  const dimension = CAMERA_DIMENSIONS.find((entry) => entry.recorded === 'lengthMm')
+  if (dimension === undefined) throw new Error('dimensão "length" ausente em CAMERA_DIMENSIONS')
+
+  test('valor gravado igual ao proposto: não editada', () => {
+    expect(isEditedDimension({ proposedLengthMm: 300 }, dimension, 300)).toBe(false)
+  })
+
+  test('valor gravado diferente do proposto: editada', () => {
+    expect(isEditedDimension({ proposedLengthMm: 300 }, dimension, 340)).toBe(true)
+  })
+
+  test('sem proposta e margem dentro do teto de 30 mm (lado seguro): não editada', () => {
+    expect(isEditedDimension({ lengthMarginMm: 20 }, dimension, 340)).toBe(false)
+  })
+
+  test('sem proposta e margem acima de 30 mm (D6): editada — a câmera não leu isso', () => {
+    expect(isEditedDimension({ lengthMarginMm: 45 }, dimension, 340)).toBe(true)
   })
 })
 
