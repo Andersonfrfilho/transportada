@@ -97,15 +97,53 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
   })
 
   /**
-   * T14 item 3 (revisão de segurança): `camera_adjusted` não escapa mais do teto de imprecisão.
-   * A margem acima de 30 mm é sobre a PROPOSTA da câmera, não sobre o valor que o operador digitou
-   * por cima — e a câmera nunca poderia ter proposto algo tão impreciso, então o bloco `camera`
-   * continua sendo recusado mesmo depois da edição.
+   * ⚠️ **O teto de 30 mm é por dimensão, e a digitada por cima é isenta** (R5, spec.md:383-385 —
+   * "Se o conferente digitou por cima, a origem é `camera_adjusted` e a regra não se aplica a essa
+   * dimensão"). A 2ª revisão mediu que aplicar o teto sobre o MÁXIMO das três recusava o caminho
+   * D6 inteiro: a dimensão que a câmera não leu nasce vazia na tela, o conferente digita, e a
+   * gravação voltava `400`. O teto roda sobre o mesmo conjunto de dimensões NÃO editadas que a
+   * regra de 10 mm já usa — com `source: camera` as três contam sempre.
    */
-  test('margem acima de 30 mm proposta pela câmera é recusada mesmo com camera_adjusted', () => {
+  test('camera_adjusted: margem acima de 30 mm na dimensão digitada por cima grava — a regra não se aplica a ela', () => {
+    const parsed = parsePackageBoxMeasurement(
+      cameraBody({ impreciseConfirmed: true, lengthMarginMm: 31 }, 'camera_adjusted'),
+    )
+
+    expect(parsed.source).toBe('camera_adjusted')
+    expect(parsed.camera?.lengthMarginMm).toBe(31)
+  })
+
+  /**
+   * D6 ponta a ponta: a câmera leu comprimento e largura (propostas gravadas, aceitas como estão) e
+   * não leu a altura (margem 45 mm, nenhuma proposta) — o conferente digitou 450 mm por cima.
+   */
+  test('camera_adjusted: altura não lida (45 mm) e digitada por cima grava', () => {
+    const parsed = parsePackageBoxMeasurement(
+      cameraBody(
+        {
+          heightMarginMm: 45,
+          impreciseConfirmed: false,
+          proposedLengthMm: TYPED_BODY.lengthMm,
+          proposedWidthMm: TYPED_BODY.widthMm,
+        },
+        'camera_adjusted',
+      ),
+    )
+
+    expect(parsed.source).toBe('camera_adjusted')
+    expect(parsed.camera?.heightMarginMm).toBe(45)
+  })
+
+  /**
+   * T14 item M2 da 2ª revisão: `proposed<Dim>Mm` é opcional, e comparar `undefined` com o valor
+   * gravado dava "editada" às três de uma vez — `camera_adjusted` sem proposta nenhuma dispensava a
+   * confirmação de imprecisão inteira. Dimensão sem proposta conhecida é tratada como NÃO editada
+   * (lado seguro); a exceção é a que a câmera declarou não ter lido (margem acima do teto, D6).
+   */
+  test('camera_adjusted sem nenhuma proposta não dispensa a confirmação de imprecisão', () => {
     expect(() =>
       parsePackageBoxMeasurement(
-        cameraBody({ impreciseConfirmed: true, lengthMarginMm: 31 }, 'camera_adjusted'),
+        cameraBody({ impreciseConfirmed: false, lengthMarginMm: 11 }, 'camera_adjusted'),
       ),
     ).toThrow()
   })
@@ -113,13 +151,21 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
   /**
    * Decisão de 2026-09-16 (T12, achado da T10/T3): a margem é da proposta da câmera (D17) e continua
    * indo mesmo quando o operador edita — mas a regra de confirmação de imprecisão do D15 é sobre o
-   * *valor gravado*, e um valor `camera_adjusted` já foi corrigido à mão. Sem confirmação e sem
-   * margem editada não é o mesmo risco de "número plausível sem aviso" (ADR-0044 §1) que um valor
-   * puro da câmera sem revisão nenhuma.
+   * *valor gravado*, e a dimensão que o operador corrigiu à mão já foi revista. Sem confirmação e com
+   * a dimensão editada não é o mesmo risco de "número plausível sem aviso" (ADR-0044 §1) que um
+   * valor puro da câmera sem revisão nenhuma. ⚠️ Vale só para a dimensão **comprovadamente** editada
+   * — `proposed<Dim>Mm` presente e diferente do gravado (T14 item M2 da 2ª revisão).
    */
-  test('margem acima de 10 mm sem confirmação com camera_adjusted grava — o operador já editou por cima', () => {
+  test('margem acima de 10 mm sem confirmação com camera_adjusted grava na dimensão editada por cima', () => {
     const parsed = parsePackageBoxMeasurement(
-      cameraBody({ impreciseConfirmed: false, lengthMarginMm: 11 }, 'camera_adjusted'),
+      cameraBody(
+        {
+          impreciseConfirmed: false,
+          lengthMarginMm: 11,
+          proposedLengthMm: TYPED_BODY.lengthMm + 40,
+        },
+        'camera_adjusted',
+      ),
     )
     expect(parsed.source).toBe('camera_adjusted')
     expect(parsed.camera?.lengthMarginMm).toBe(11)

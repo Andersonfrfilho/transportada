@@ -38,12 +38,35 @@ const cameraMeasurementSchema = z
   })
   .strict()
 
-/** A trinca de chaves de cada dimensão, para a regra de imprecisão olhar uma dimensão por vez. */
+/** A trinca de chaves de cada dimensão, para as duas regras olharem uma dimensão por vez. */
 const CAMERA_DIMENSIONS = [
   { margin: 'heightMarginMm', proposed: 'proposedHeightMm', recorded: 'heightMm' },
   { margin: 'lengthMarginMm', proposed: 'proposedLengthMm', recorded: 'lengthMm' },
   { margin: 'widthMarginMm', proposed: 'proposedWidthMm', recorded: 'widthMm' },
 ] as const
+
+type CameraDimension = (typeof CAMERA_DIMENSIONS)[number]
+type CameraBlock = z.infer<typeof cameraMeasurementSchema>
+
+/**
+ * "O conferente digitou este valor por cima" — a condição que isenta a dimensão das duas regras.
+ *
+ * ⚠️ **Sem proposta conhecida a dimensão conta como NÃO editada** (lado seguro): comparar
+ * `undefined` com o valor gravado dava "editada" às três de uma vez, e um `camera_adjusted` sem
+ * nenhum `proposed<Dim>Mm` dispensava a confirmação de imprecisão inteira (T14 item M2 da 2ª
+ * revisão). A única exceção é a dimensão que a própria câmera declarou não ter lido — margem acima
+ * do teto, D6: ali não existe proposta nenhuma para comparar, o campo nasce vazio na tela e o valor
+ * gravado é necessariamente digitado.
+ */
+function isEditedDimension(
+  camera: CameraBlock,
+  dimension: CameraDimension,
+  recordedMm: number,
+): boolean {
+  const proposed = camera[dimension.proposed]
+  if (proposed === undefined) return (camera[dimension.margin] ?? 0) > MARGIN_UNRELIABLE_MM
+  return proposed !== recordedMm
+}
 
 /** Os mesmos tetos do CHECK da coluna: recusar aqui devolve 400, e não o 500 da constraint. */
 const measurementSchema = z
@@ -59,16 +82,17 @@ const measurementSchema = z
   })
   .strict()
   /**
-   * R5: `camera` só existe com `source` diferente de `typed`. Margem acima de 30 mm proposta pela
-   * câmera (D6, a câmera nunca propõe o que não consegue ler com confiança) recusa para QUALQUER
-   * origem que carregue bloco `camera` — inclusive `camera_adjusted` (T14 item 3, revisão de
-   * segurança): o operador pode ter editado o *valor*, mas a *proposta* continua tão imprecisa
-   * quanto a câmera relatou, e a margem gravada é da proposta, nunca do dígito por cima (D17).
+   * R5: `camera` só existe com `source` diferente de `typed`. As duas regras de margem são **por
+   * dimensão**, e rodam sobre o mesmo conjunto: as dimensões que o operador NÃO digitou por cima.
    *
-   * Já a confirmação explícita acima de 10 mm (D6/D15) é sobre o *valor gravado*, então ela é
-   * dispensada **só na dimensão que o operador editou** — nunca nas três de uma vez porque uma
-   * delas mudou (T14 item M1). Dimensão editada é a que tem `proposed<Dim>Mm` diferente do valor
-   * gravado; `source: camera` nunca edita nada, e por isso as três contam sempre.
+   * - acima de 30 mm (D6): a câmera nunca propõe o que não consegue ler com confiança, então um
+   *   bloco que afirma ter proposto isso é recusado. A dimensão digitada por cima é isenta, porque
+   *   ali a câmera não propôs nada (spec.md:383-385) — aplicar o teto sobre o máximo das três
+   *   recusava o caminho D6 inteiro (2ª revisão de código);
+   * - acima de 10 mm (D6/D15): grava só com confirmação explícita, e a dispensa vale **só na
+   *   dimensão editada** — nunca nas três de uma vez porque uma delas mudou (T14 item M1).
+   *
+   * `source: camera` nunca edita nada, e por isso as três contam sempre.
    */
   .superRefine((value, ctx) => {
     if (value.source === 'typed') {
@@ -91,19 +115,21 @@ const measurementSchema = z
       ctx.addIssue({ code: 'custom', message: 'a camera measurement requires at least one margin' })
     }
 
-    if ((resolveMeasurementMargin(camera) ?? 0) > MARGIN_UNRELIABLE_MM) {
+    const uneditedMargins = CAMERA_DIMENSIONS.filter(
+      (dimension) =>
+        value.source === 'camera' ||
+        !isEditedDimension(camera, dimension, value[dimension.recorded]),
+    ).map((dimension) => camera[dimension.margin] ?? 0)
+    const worstUneditedMargin = Math.max(0, ...uneditedMargins)
+
+    if (worstUneditedMargin > MARGIN_UNRELIABLE_MM) {
       ctx.addIssue({
         code: 'custom',
         message: 'the camera cannot propose an unreliable measurement',
       })
     }
 
-    const uneditedMargins = CAMERA_DIMENSIONS.filter(
-      (dimension) =>
-        value.source === 'camera' || camera[dimension.proposed] === value[dimension.recorded],
-    ).map((dimension) => camera[dimension.margin] ?? 0)
-
-    if (Math.max(0, ...uneditedMargins) > MARGIN_RELIABLE_MM && !camera.impreciseConfirmed) {
+    if (worstUneditedMargin > MARGIN_RELIABLE_MM && !camera.impreciseConfirmed) {
       ctx.addIssue({ code: 'custom', message: 'an imprecise measurement requires confirmation' })
     }
   })
