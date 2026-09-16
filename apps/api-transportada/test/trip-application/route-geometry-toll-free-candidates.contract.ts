@@ -216,3 +216,135 @@ describe('candidatas de rota com exclude=toll (spec 153 T103)', () => {
     expect(chamadas).toContain(undefined)
   })
 })
+
+/** Logger falso que só grava o que recebeu — sem tocar em `console`, sem infraestrutura real. */
+function recordingLogger(): {
+  readonly calls: readonly {
+    readonly message: string
+    readonly metadata: Record<string, unknown> | undefined
+  }[]
+  warn(message: string, metadata?: Record<string, unknown>): void
+} {
+  const calls: { message: string; metadata: Record<string, unknown> | undefined }[] = []
+  return {
+    calls,
+    warn: (message, metadata) => {
+      calls.push({ message, metadata })
+    },
+  }
+}
+
+describe('aviso de exclude=toll sem suporte, uma vez por processo (spec.md:144, T103)', () => {
+  it('avisa quando a chamada sem pedágio falha e a principal deu certo', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => {
+        throw new Error('OSRM não suporta exclude=toll neste perfil')
+      },
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    expect(logger.calls).toHaveLength(1)
+  })
+
+  it('avisa quando a chamada sem pedágio devolve null e a principal deu certo', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => null,
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    expect(logger.calls).toHaveLength(1)
+  })
+
+  it('não avisa quando as duas chamadas dão certo', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => ESTRADA_SEM_PEDAGIO,
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    expect(logger.calls).toHaveLength(0)
+  })
+
+  /**
+   * ⚠️ As duas chamadas sem rota nenhuma são o serviço fora do ar, não um perfil sem `excludable`
+   * — esse caso já degrada para reta (spec 153 D5) e não é o que este aviso aponta.
+   */
+  it('não avisa quando as duas chamadas falham', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => null,
+      tollFree: async () => null,
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    expect(logger.calls).toHaveLength(0)
+  })
+
+  it('avisa só uma vez por logger mesmo com falhas repetidas — uma vez por processo', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => null,
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    expect(logger.calls).toHaveLength(1)
+  })
+
+  /**
+   * ⚠️ Cada logger novo é um processo novo, para efeito do contador — é o que faz este contrato
+   * não depender de rodar antes ou depois de qualquer outro, sem precisar de um `reset` exportado
+   * só para teste.
+   */
+  it('um logger novo tem o próprio contador, independente de outro já ter avisado', async () => {
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => null,
+    })
+    const firstLogger = recordingLogger()
+    const secondLogger = recordingLogger()
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger: firstLogger, points: PARADAS })
+    await readRouteGeometryTollFreeCandidates({ geometry, logger: secondLogger, points: PARADAS })
+
+    expect(firstLogger.calls).toHaveLength(1)
+    expect(secondLogger.calls).toHaveLength(1)
+  })
+
+  it('a mensagem do aviso não carrega coordenada nem URL', async () => {
+    const logger = recordingLogger()
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => null,
+    })
+
+    await readRouteGeometryTollFreeCandidates({ geometry, logger, points: PARADAS })
+
+    const serialized = JSON.stringify(logger.calls)
+    expect(serialized).not.toContain('-47.8103')
+    expect(serialized.toLowerCase()).not.toContain('http')
+  })
+
+  it('funciona sem logger nenhum — quem não avisa não quebra', async () => {
+    const geometry = fakePort({
+      normal: async () => ESTRADA_COM_PEDAGIO,
+      tollFree: async () => null,
+    })
+
+    const candidates = await readRouteGeometryTollFreeCandidates({ geometry, points: PARADAS })
+
+    expect(candidates).toHaveLength(1)
+  })
+})

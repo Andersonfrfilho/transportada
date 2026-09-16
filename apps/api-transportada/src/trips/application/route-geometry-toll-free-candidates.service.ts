@@ -10,6 +10,23 @@ import { buildRouteSignature } from '../domain/route-choice.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort, RouteGeometryRoad } from './route-geometry.port.js'
 
+const TOLL_FREE_EXCLUDE_UNSUPPORTED_EVENT = 'trip_route_geometry_exclude_toll_unsupported'
+
+type RouteGeometryTollFreeLogger = Readonly<{
+  warn(message: string, metadata?: Record<string, unknown>): void
+}>
+
+const NO_OP_LOGGER: RouteGeometryTollFreeLogger = { warn: () => {} }
+
+/**
+ * Quem já avisou, **por instância de logger**, não um `boolean` solto no módulo. Em produção há um
+ * logger só para o processo inteiro, então o efeito é exatamente "uma vez por processo" (spec.md
+ * linha 144); em teste, cada logger novo é uma chave nova no `WeakSet`, e o aviso de um contrato
+ * não vaza para o outro nem depende da ordem em que rodam — sem precisar de um `reset` exportado só
+ * para teste.
+ */
+const warnedLoggers = new WeakSet<RouteGeometryTollFreeLogger>()
+
 /** Uma estrada candidata, com a identidade e a marca de sem pedágio que a T104 vai consumir. */
 export type RouteGeometryTollFreeCandidate = Readonly<{
   road: RouteGeometryRoad
@@ -30,9 +47,11 @@ export type RouteGeometryTollFreeCandidate = Readonly<{
  */
 export async function readRouteGeometryTollFreeCandidates(input: {
   readonly geometry: RouteGeometryPort
+  readonly logger?: RouteGeometryTollFreeLogger
   readonly points: readonly RouteGeometryPoint[]
 }): Promise<readonly RouteGeometryTollFreeCandidate[]> {
   const { geometry, points } = input
+  const logger = input.logger ?? NO_OP_LOGGER
 
   const [normalResult, tollFreeResult] = await Promise.allSettled([
     geometry.readRouteGeometry(points),
@@ -45,9 +64,25 @@ export async function readRouteGeometryTollFreeCandidates(input: {
   const candidates = [principal, ...(principal.alternatives ?? [])].map(toCandidate)
 
   const tollFreeRoad = tollFreeResult.status === 'fulfilled' ? tollFreeResult.value : null
-  if (tollFreeRoad === null) return candidates
+  if (tollFreeRoad === null) {
+    warnExcludeTollUnsupportedOnce(logger)
+    return candidates
+  }
 
   return mergeTollFreeRoad(candidates, tollFreeRoad)
+}
+
+/**
+ * ⚠️ **A chamada `exclude=toll` falhando isolada, com a principal em pé, é o sinal de perfil OSRM
+ * sem `excludable`** (spec.md linha 144) — se o serviço estivesse fora do ar, a principal também
+ * teria falhado, e aí a lista já sai vazia antes de chegar aqui. Sem este aviso, uma instalação sem
+ * `excludable` para de oferecer rota sem pedágio para sempre, e nada avisa ninguém — o defeito
+ * silencioso que esta spec existe para matar.
+ */
+function warnExcludeTollUnsupportedOnce(logger: RouteGeometryTollFreeLogger): void {
+  if (warnedLoggers.has(logger)) return
+  warnedLoggers.add(logger)
+  logger.warn(TOLL_FREE_EXCLUDE_UNSUPPORTED_EVENT)
 }
 
 function toCandidate(road: RouteGeometryRoad): RouteGeometryTollFreeCandidate {

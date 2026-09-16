@@ -323,10 +323,38 @@ sozinha não tem principal ao lado para ser oferta _de_, então não há nada pu
 decidir o que a API responde quando não há candidata nenhuma (provavelmente a queda para reta que o
 gateway já produz hoje), consome essa lista vazia como sinal de "sem geometria alguma", igual a hoje.
 
-**Log de aviso "exclude não suportado" (caso extremo do `spec.md`) não foi implementado.** Fora dos 5
-itens do aceite desta task e exigiria uma dependência de logger ainda não decidida para este módulo;
-fica registrado como gap para quem tratar aquele caso extremo, e não foi simulado com números
-inventados.
+**Log de aviso "exclude não suportado" — implementado como follow-up sobre o commit original.** A
+revisão apontou, corretamente, que este `warn` é a segunda metade da mesma frase do `spec.md` linha
+144 cuja primeira metade (chamada isolada falhando, "as demais seguem") já estava implementada: sem
+o aviso, uma instalação OSRM sem `excludable` no perfil para de oferecer rota sem pedágio para sempre
+e nada acusa o defeito. Não é um gap fora do aceite — é o aceite incompleto.
+
+**O sinal é a assimetria, não a falha em si.** A chamada `exclude=toll` falhando (ou devolvendo
+`null`) **enquanto a principal deu certo** é o que indica perfil sem `excludable` — se o OSRM
+estivesse fora do ar, a principal também teria falhado, e a função já devolve lista vazia antes de
+chegar no aviso (`if (principal === null) return []`). Por isso o aviso só é alcançável quando a
+principal está de pé; as duas falhando junto (serviço fora do ar, degradação para reta, spec 153 D5)
+nunca aciona o `warn`.
+
+**Convenção de log seguida: a existente em `occurrence-notifier.gateway.ts`.** Tipo `Logger` local,
+não exportado (`warn(message, metadata?)`), injetado por parâmetro opcional na função — sem importar
+`ApiLogger` nem instanciar logger novo, sem `console.log`. Sem `logger` informado, um `NO_OP_LOGGER`
+de módulo absorve a chamada, então nenhum dos 10 testes originais do T103 precisou mudar.
+
+**Sem PII, sem URL, sem coordenada na linha de log.** A chamada de aviso não carrega `metadata`
+nenhum — só o nome do evento, `trip_route_geometry_exclude_toll_unsupported` — porque a mensagem de
+erro capturada do `Promise.allSettled` poderia, em tese, embutir fragmento de URL (que carrega
+coordenada de parada), e a spec veda isso explicitamente. Testado serializando as chamadas do logger
+falso e checando que nem a coordenada `-47.8103` nem a substring `http` aparecem.
+
+**"Uma vez por processo" (spec.md linha 144) via `WeakSet` por instância de logger, sem `reset`
+exportado para teste.** Um `boolean` solto no módulo travaria depois do primeiro teste que dispara o
+aviso, e ficaria dependente da ordem de execução dos contratos. Em vez disso, `warnedLoggers` é um
+`WeakSet<Logger>`: em produção há exatamente um logger para o processo inteiro (criado uma vez em
+`main.ts`), então o efeito prático é idêntico a "uma vez por processo"; em teste, cada contrato cria
+seu próprio logger falso via `recordingLogger()`, então cada um é uma chave nova no `WeakSet` — o
+aviso de um contrato não vaza para o outro, não depende de rodar antes ou depois de qualquer outro, e
+nada precisou ser exportado só para permitir resetar estado entre testes.
 
 ### Contrato vermelho, antes de implementar
 
@@ -416,6 +444,56 @@ Ran 6144 tests across 177 files. [11.26s]
 ```
 
 14 testes a mais que a base da T102 (6130 → 6144), sem nenhuma quebra nas 6107 já existentes.
+
+### Contrato vermelho do aviso, antes de implementar
+
+Oito testes novos em `route-geometry-toll-free-candidates.contract.ts`, incluindo o `recordingLogger()`
+falso (só grava o que recebeu, sem tocar em infraestrutura real), antes de o `warn` existir no
+serviço:
+
+```
+14 pass
+4 fail
+35 expect() calls
+Ran 18 tests across 1 file. [90.00ms]
+```
+
+As 4 falhas são todas `expect(logger.calls).toHaveLength(1)` recebendo `0` — as duas chamadas de
+"avisa quando..." (rejeita e `null`), a de "avisa só uma vez... falhas repetidas" e a de "logger novo
+tem o próprio contador" — exatamente os quatro casos que dependem do `warn` existir. Os quatro que já
+passavam de cara ("não avisa quando as duas dão certo", "não avisa quando as duas falham", "mensagem
+sem coordenada nem URL" porque `logger.calls` vazio também não contém as substrings vetadas, e
+"funciona sem logger nenhum") confirmam que a ausência do aviso já não quebrava nada — só faltava o
+aviso em si.
+
+Depois de implementar `warnExcludeTollUnsupportedOnce` no serviço:
+
+```
+22 pass
+0 fail
+43 expect() calls
+Ran 22 tests across 2 files. [91.00ms]
+```
+
+### Gates do follow-up
+
+`bun run typecheck` (raiz): limpo nas 6 apps depois de trocar `metadata?: Record<string, unknown>`
+por `metadata: Record<string, unknown> | undefined` no tipo de retorno de `recordingLogger()` —
+`exactOptionalPropertyTypes` não aceita atribuir `undefined` explícito a uma propriedade opcional.
+`bun run lint`: limpo. `bun run format:check`: acusou o arquivo de teste na primeira passada;
+`bunx prettier --write` nos dois arquivos tocados resolveu (o serviço já veio formatado). Suíte
+completa (`cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000`):
+
+```
+6129 pass
+23 skip
+0 fail
+21551 expect() calls
+Ran 6152 tests across 177 files.
+```
+
+8 testes a mais que a base do T103 original (6144 → 6152), sem nenhuma quebra nas 6144 já
+existentes.
 
 ### O que a T104 recebe daqui
 
