@@ -71,7 +71,7 @@ const server = startApiServer({
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     databasePool: { connectTimeoutSeconds: 5, max: 10, queryTimeoutMs: 8000 },
-    emailDelivery: undefined,
+    emailChannelEnabled: false,
     frontendOrigins: ['http://localhost:53000'],
     keycloak: {
       admin: {

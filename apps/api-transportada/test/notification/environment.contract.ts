@@ -11,6 +11,10 @@ import {
   IDEMPOTENCY_HMAC_KEY,
   NOTIFICATION_SUPPRESSION_HMAC_KEY,
 } from '../fixtures/cryptographic-environment.fixture'
+import {
+  createWorkerOwnedEmailDriver,
+  WORKER_OWNED_EMAIL_ERROR_CODE,
+} from '../../src/notification/infrastructure/worker-owned-email.driver'
 
 describe('contrato do segredo de supressão de notificações', () => {
   test('a chave declarada chega à configuração', () => {
@@ -90,5 +94,39 @@ describe('contrato da conexão de fila do módulo', () => {
     ['sem nenhum', { QUEUE_PREFIX: undefined, RABBITMQ_URL: undefined }],
   ])('fica sem fila %s', (_name, overrides) => {
     expect(parseEnvironment({ ...API_ENVIRONMENT, ...overrides }).messaging).toBeUndefined()
+  })
+})
+
+/**
+ * O e-mail sai só do worker: a API não guarda remetente nem chave de provedor. Ela só decide se o
+ * canal é oferecido, e o driver dela recusa enviar — com fila, `send` nunca roda aqui.
+ */
+describe('contrato do canal de e-mail enfileirado', () => {
+  test('desligado por padrão, e a credencial de SMTP não é mais lida aqui', () => {
+    const environment = parseEnvironment({
+      ...API_ENVIRONMENT,
+      EMAIL_FROM: 'no-reply@exemplo.com.br',
+      SMTP_URL: 'smtp://localhost:51025',
+    })
+
+    expect(environment.emailChannelEnabled).toBe(false)
+    expect(JSON.stringify(environment)).not.toContain('smtp://')
+  })
+
+  test('ligado, anuncia o canal', () => {
+    expect(
+      parseEnvironment({ ...API_ENVIRONMENT, EMAIL_CHANNEL_ENABLED: 'true' }).emailChannelEnabled,
+    ).toBe(true)
+  })
+
+  test('o driver da API nunca finge que enviou', async () => {
+    const outcome = await createWorkerOwnedEmailDriver().send({
+      html: '<p>corpo</p>',
+      subject: 'assunto',
+      text: 'corpo',
+      to: 'pessoa@exemplo.com.br',
+    })
+
+    expect(outcome).toEqual({ errorCode: WORKER_OWNED_EMAIL_ERROR_CODE, outcome: 'permanent' })
   })
 })

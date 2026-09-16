@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { InvitationDeliveryEnvelopeV1 } from '../../messaging/invitation-delivery-envelope.schema.js'
+import { readDeliveryFailure } from './delivery-failure.service.js'
 
 export type InvitationContactChannel = 'email' | 'sms' | 'whatsapp'
 
@@ -117,6 +118,7 @@ export async function handleInvitationDelivery(
     })
   } catch (error) {
     logger.error('invitation delivery failed', {
+      ...readDeliveryFailure(error),
       channel: invitation.contactChannel,
       invitationId: invitation.id,
     })

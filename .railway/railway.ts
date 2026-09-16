@@ -87,6 +87,8 @@ export default defineRailway((ctx) => {
        * todo serviço que o CI publica: no IaC, omitir é apagar, e o `apply` a removeria.
        */
       DEPLOYED_REVISION: preserve(),
+      /** Só anuncia o canal nas notificações: quem envia é o worker, dono da chave do provedor. */
+      EMAIL_CHANNEL_ENABLED: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
@@ -166,6 +168,8 @@ export default defineRailway((ctx) => {
       QUEUE_PREFIX: preserve(),
       RABBITMQ_URL: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+      /** Envio por HTTPS: com a chave, o `SMTP_URL` é ignorado e a porta SMTP deixa de importar. */
+      RESEND_API_KEY: preserve(),
       ROUTING_MATRIX_URL: preserve(),
       SENTRY_DSN: preserve(),
       SMTP_URL: preserve(),

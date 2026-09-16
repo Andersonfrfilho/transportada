@@ -108,6 +108,46 @@ describe('worker environment contract', () => {
     expect(config.sentryEnvironment).toBe(config.appEnv)
   })
 
+  /**
+   * O e-mail sai só do worker. Resend vai por HTTPS e vence o SMTP quando os dois existem: porta SMTP
+   * de saída é justamente o que trava em hospedagem, e a chave presente é a escolha explícita.
+   */
+  test('com RESEND_API_KEY, o e-mail vai pelo Resend mesmo com SMTP_URL declarado', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      EMAIL_FROM: 'no-reply@exemplo.com.br',
+      RESEND_API_KEY: 're_chave_de_contrato',
+      SMTP_URL: 'smtp://localhost:51025',
+    })
+
+    expect(parsed.emailDelivery).toEqual({
+      from: 'no-reply@exemplo.com.br',
+      transport: { apiKey: 're_chave_de_contrato', kind: 'resend' },
+    })
+  })
+
+  test('sem chave do Resend, o SMTP local continua servindo', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      EMAIL_FROM: 'no-reply@localhost',
+      SMTP_URL: 'smtp://localhost:51025',
+    })
+
+    expect(parsed.emailDelivery?.transport).toEqual({
+      kind: 'smtp',
+      smtpUrl: 'smtp://localhost:51025',
+    })
+  })
+
+  test('remetente sem transporte, ou transporte sem remetente, recusa subir', () => {
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, EMAIL_FROM: 'no-reply@exemplo.com.br' }),
+    ).toThrow(WorkerConfigurationError)
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, RESEND_API_KEY: 're_chave_de_contrato' }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
   // O responsável técnico é da instalação, não da empresa: sem as quatro variáveis o CT-e sai como
   // sempre saiu, e com três de quatro o worker recusa subir em vez de emitir um grupo incompleto.
   test('reads the technical responsible of the issuing software from the installation', () => {

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { PasswordResetDeliveryEnvelopeV1 } from '../../messaging/password-reset-delivery-envelope.schema.js'
+import { readDeliveryFailure } from './delivery-failure.service.js'
 
 export type PasswordResetContactChannel = 'email' | 'sms' | 'whatsapp'
 
@@ -116,6 +117,7 @@ export async function handlePasswordResetDelivery(
     })
   } catch (error) {
     logger.error('password reset delivery failed', {
+      ...readDeliveryFailure(error),
       channel: reset.contactChannel,
       requestId: reset.id,
     })
