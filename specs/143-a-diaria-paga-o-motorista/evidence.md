@@ -112,3 +112,50 @@ Isso fecha três coisas de uma vez:
    aqui ela passa. Pré-existente e alheia a esta task de qualquer forma — foi reproduzida em árvore
    limpa com `git stash` —, e a neutralização usada no diagnóstico local **nunca entrou na branch**
    (conferido: a chamada segue em `database-migration.integration.ts:107`, árvore limpa).
+
+## T2 — Política da diária
+
+**Data:** 2026-09-16 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+
+### Entregas
+
+- `apps/api-transportada/src/trips/domain/daily-allowance.constant.ts` (novo):
+  `DEFAULT_DAILY_ALLOWANCE_AMOUNT = '200.0000'`, `DAILY_ALLOWANCE_DAY_SECONDS = 86400`,
+  `MINIMUM_ALLOWANCE_DAYS = 1`.
+- `apps/api-transportada/src/trips/domain/daily-allowance.policy.ts` (novo): `resolveDailyAllowance`
+  (D3) e `suggestAllowanceDays` (D4), com o const-object `DAILY_ALLOWANCE_RATE_ORIGIN` (`driver` /
+  `company` / `default`) no molde de `VALUATION_SOURCES`/`TRIP_OCCUPANCY_SOURCE` já usados no domínio
+  de viagem.
+- `apps/api-transportada/test/trip-valuation/daily-allowance.contract.ts` (novo, escrito **antes** da
+  implementação): três casos de origem (D3) e os quatro casos de dias do plan (D4).
+- `apps/api-transportada/test/trip-valuation.contract.test.ts`: import da suíte nova. Nenhuma entrada
+  no `package.json` — o entrypoint `./test/trip-valuation.contract.test.ts` já estava declarado.
+
+### Decisões
+
+- `resolveDailyAllowance({ driverAmount, companyAmount })` **substitui**, não soma — confirmado pela
+  premissa já validada da spec (D3): motorista com valor vence sempre, mesmo com empresa configurada;
+  sem motorista, vale a empresa; sem nenhum dos dois, o padrão `'200.0000'`. Os dois parâmetros e o
+  valor de retorno são strings `numeric` (Decimal-as-string) — a função só escolhe qual string usar,
+  não faz aritmética nenhuma, então não há risco de float binário.
+- `suggestAllowanceDays(durationSeconds)` fica com parâmetro primitivo único (não objeto): a regra do
+  repo de objeto tipado vale para mais de um parâmetro, e o próprio `plan.md` já assinava a função
+  assim. `Math.ceil(durationSeconds / 86400)` com piso em `Math.max(1, …)`.
+- Tipos com sufixo `Params`/`Result` seguindo o precedente de `ResolveTripOccupancyParams` /
+  `ResolvedTripOccupancy` (`trip-occupancy.policy.ts`): `ResolveDailyAllowanceParams` e
+  `ResolvedDailyAllowance`.
+- Escopo mantido estrito: **não** tocou em `buildTripDriverCost`, `trip-driver-cost.policy.ts`, query,
+  rota ou frontend — isso é T3 em diante, como o prompt determinou.
+
+### Gates
+
+| Gate          | Comando                                    | Resultado                                                                     |
+| ------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
+| Typecheck     | `bun run typecheck` (raiz, 6 apps)         | ✅ limpo — `tsc --noEmit` sem erro nas 6 apps                                 |
+| Testes da API | `bun run --cwd apps/api-transportada test` | ✅ **6098 pass · 23 skip · 0 fail** · 21469 expect() · 177 arquivos · 12,13 s |
+| Lint          | `bun run lint`                             | ✅ limpo — eslint sem warning nas 6 apps                                      |
+| Formatação    | `bun run format:check`                     | ✅ limpo (após `prettier --write` no contrato novo)                           |
+
+Os sete testes novos (`daily-allowance.contract.ts`) entram nos 6098 pass acima; nenhuma suíte
+existente mudou de comportamento — T2 é só domínio puro, sem tocar em `trip-driver-cost.policy.ts`
+nem em nada que outra suíte já exercite.
