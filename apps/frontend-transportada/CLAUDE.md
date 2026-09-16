@@ -112,5 +112,7 @@ histórico.
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 
-Segurança: `Permissions-Policy: camera=(self), geolocation=(), microphone=()` — `camera=()`
-negaria a própria origem. Contrato: `test/shared/security-headers.contract.ts`.
+Segurança: `Permissions-Policy: camera=(self), geolocation=(self), microphone=()` — `()` nega a
+**própria** origem, e a API falha antes de qualquer diálogo do navegador. `geolocation=(self)` entrou
+com a spec 057 (a entrega do motorista carimba onde aconteceu, ADR-0045 §3); o microfone segue
+fechado para todo mundo. Contrato: `test/shared/security-headers.contract.ts`.

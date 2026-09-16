@@ -1,19 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { BoxMeasurementInput } from './boxDimension.service'
+import { MAXIMUM_FRAME_WIDTH } from './cameraFrame.constant'
 import type { Point } from './boxDimensionGeometry.service'
 import { clampPointToBounds, type MarkingBounds } from './boxDimensionMarking.service'
 
 /**
  * ⚠️ **Um espaço só para toda a medida: o quadro reduzido que o worker recebeu.**
  *
- * O quadro vai para o OpenCV reduzido a `MAXIMUM_FRAME_WIDTH` (um telefone moderno filma em 1920 ou
- * mais, e o ArUco não precisa disso para ser achado), então os cantos do marcador voltam em pixels
- * **do quadro**. Misturar esses cantos com a largura nativa do `<video>` — que é o que a T14
- * encontrou — não falha: devolve medida plausível 1,8× a 2,7× errada, com margem pequena ao lado,
- * porque o ponto principal e a focal de reserva saem de uma imagem que ninguém mediu. Por isso
+ * O quadro vai para o OpenCV reduzido a `MAXIMUM_FRAME_WIDTH` (declarado em
+ * `cameraFrame.constant.ts`, o mesmo teto do leitor de etiqueta), então os cantos do marcador voltam
+ * em pixels **do quadro**. Misturar esses cantos com a largura nativa do `<video>` — que é o que a
+ * T14 encontrou — não falha: devolve medida plausível 1,8× a 2,7× errada, com margem pequena ao
+ * lado, porque o ponto principal e a focal de reserva saem de uma imagem que ninguém mediu. Por isso
  * tanto os pontos tocados quanto `imageWidth`/`imageHeight` nascem aqui, no mesmo espaço dos cantos.
  */
-export const MAXIMUM_FRAME_WIDTH = 720
+export { MAXIMUM_FRAME_WIDTH }
 
 export type ScannerFrame = MarkingBounds
 

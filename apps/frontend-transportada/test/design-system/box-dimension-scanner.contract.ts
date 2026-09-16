@@ -180,4 +180,21 @@ describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', 
     expect(worker).not.toContain('measureBox')
     expect(worker).not.toContain('solvePnP')
   })
+
+  /**
+   * §16 do padrão de código: o teto do quadro vale para os dois leitores e era declarado duas vezes
+   * (`boxDimensionFrame.service` e `useBarcodeScanner.hook`) — mudar num só deixaria a etiqueta e a
+   * medida decidindo em espaços diferentes (2ª revisão, item B-c).
+   */
+  it('o teto do quadro é declarado uma vez só, e os dois leitores o importam', async () => {
+    const constant = await readApplicationFile('src/components/ui/cameraFrame.constant.ts')
+    const frame = await readApplicationFile('src/components/ui/boxDimensionFrame.service.ts')
+    const barcode = await readApplicationFile('src/components/ui/useBarcodeScanner.hook.ts')
+
+    expect(constant).toContain('export const MAXIMUM_FRAME_WIDTH = 720')
+    for (const source of [frame, barcode]) {
+      expect(source).toContain("from './cameraFrame.constant'")
+      expect(source).not.toContain('MAXIMUM_FRAME_WIDTH = 720')
+    }
+  })
 })

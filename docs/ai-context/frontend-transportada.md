@@ -236,12 +236,13 @@ pendentes **direto de `trip.documents`** (mesmo filtro `pending`/`separated` do 
 decodificar `error.details` depois de uma tentativa recusada — evita o round-trip e é o mesmo dado.
 
 **A câmera é permitida à própria origem, e só ela.** `server.ts` responde
-`Permissions-Policy: camera=(self), geolocation=(), microphone=()` — `camera=()` negava a **própria**
-origem e fazia `getUserMedia` falhar antes de qualquer diálogo do navegador. `(self)` não é `*`:
-nenhum terceiro herda a câmera, e a CSP já declara `frame-src 'none'` desde a ADR-0037. O contrato
-`test/shared/security-headers.contract.ts` guarda os dois sentidos — falha se `camera` voltar a `()`
-e falha se `geolocation` ou `microphone` deixarem de ser `()`, que é a carona de capacidade de
-dispositivo seis meses adiante. Achado datado em `docs/SECURITY.md`.
+`Permissions-Policy: camera=(self), geolocation=(self), microphone=()` — `camera=()` negava a
+**própria** origem e fazia `getUserMedia` falhar antes de qualquer diálogo do navegador. `(self)` não
+é `*`: nenhum terceiro herda a câmera. ⚠️ `geolocation` **deixou de ser `()` na spec 057** — a
+entrega do motorista carimba onde aconteceu (ADR-0045 §3), e a permissão segue a mesma regra da
+câmera. O microfone continua `()` para todo mundo, e o contrato
+`test/shared/security-headers.contract.ts` guarda o cabeçalho inteiro num `toEqual` só: qualquer um
+dos três mudando de valor reprova ali. Achado datado em `docs/SECURITY.md`.
 
 **Marca e modelo do veículo têm saída da lista, e a frota realimenta a lista.** O catálogo FIPE não
 tem implemento, marca regional nem cavalo antigo: `VehicleCatalogField.component.tsx` acrescenta a
