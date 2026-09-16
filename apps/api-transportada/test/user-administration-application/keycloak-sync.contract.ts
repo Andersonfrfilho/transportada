@@ -159,6 +159,71 @@ describe('sincronização com o Keycloak — convite', () => {
   })
 })
 
+/**
+ * O convite gravava o id interno como login. O login nasce do nome, e o mesmo valor vai para o
+ * provedor e para a ficha daqui: dois logins diferentes para a mesma pessoa é a divergência que a
+ * reconciliação existe para achar.
+ */
+describe('login gerado no convite', () => {
+  async function inviteNamed(params: {
+    readonly name: string
+    readonly takenUsernames?: string[]
+  }) {
+    const gateway = createIdentityGatewayFake()
+    const created: Record<string, unknown>[] = []
+    const repository = createCompanyUserRepositoryFake(
+      params.takenUsernames === undefined ? {} : { takenUsernames: params.takenUsernames },
+    )
+
+    const view = await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
+      identityGateway: gateway,
+      invitations: createInvitationRepositoryFake(),
+      issuer: 'https://keycloak.test/realms/transportada',
+      now: () => new Date('2026-08-06T12:00:00.000Z'),
+      repository: {
+        ...repository,
+        createInvitedUser(input) {
+          created.push(input)
+          return repository.createInvitedUser(input)
+        },
+      },
+    }).execute({
+      channel: 'email',
+      contact: 'pessoa@empresa.test',
+      context: { companyId: COMPANY_ID },
+      name: params.name,
+      roles: ['operator'],
+    })
+
+    return { created, gateway, view }
+  }
+
+  test('primeiro nome e último sobrenome, igual no provedor e na ficha', async () => {
+    const { created, gateway, view } = await inviteNamed({ name: 'Deisy Campos Coimbra' })
+
+    expect(gateway.createUserCalls[0]?.username).toBe('deisy.coimbra')
+    expect(created[0]?.['username']).toBe('deisy.coimbra')
+    expect(view.username).toBe('deisy.coimbra')
+  })
+
+  test('login em uso passa ao próximo candidato livre', async () => {
+    const { gateway } = await inviteNamed({
+      name: 'Deisy Campos Coimbra',
+      takenUsernames: ['deisy.coimbra', 'deisy.campos'],
+    })
+
+    expect(gateway.createUserCalls[0]?.username).toBe('deisy.coimbra2')
+  })
+
+  test('nome sem login válido cai no id interno', async () => {
+    const { gateway, view } = await inviteNamed({ name: 'Jo' })
+
+    expect(gateway.createUserCalls[0]?.username).toMatch(/^[0-9a-f-]{36}$/u)
+    expect(view.username).toBe(view.id)
+  })
+})
+
 describe('sincronização com o Keycloak — ativação', () => {
   test('endereça o Admin API pelo subject do provedor, não pelo id interno', async () => {
     const gateway = createIdentityGatewayFake()

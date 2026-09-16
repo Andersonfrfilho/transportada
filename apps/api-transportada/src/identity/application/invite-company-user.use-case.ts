@@ -8,6 +8,10 @@ import {
   toCompanyUserView,
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
+import {
+  buildUsernameCandidates,
+  pickAvailableUsername,
+} from '../domain/generated-username.policy.js'
 import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
@@ -37,7 +41,7 @@ type InviteCompanyUserDependencies = {
   readonly issuer: string
   readonly now: () => Date
   readonly outbox: InvitationDeliveryOutboxPort
-  readonly repository: Pick<CompanyUserRepositoryPort, 'createInvitedUser'>
+  readonly repository: Pick<CompanyUserRepositoryPort, 'createInvitedUser' | 'listTakenUsernames'>
 }
 
 export type InviteCompanyUserInput = {
@@ -69,7 +73,8 @@ const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 /**
  * Usuário nasce desabilitado e sem senha no Keycloak: só a ativação (código → senha) habilita.
- * `username` sintetiza o id interno porque o contato pode ser telefone, sem formato de login.
+ * O login nasce do nome (`deisy.coimbra`), e só cai no id interno quando o nome não rende login
+ * válido nem livre: ninguém lembra de um UUID, e o contato pode ser telefone, sem formato de login.
  */
 export function createInviteCompanyUserUseCase({
   envelopeProvider,
@@ -83,6 +88,12 @@ export function createInviteCompanyUserUseCase({
   return {
     async execute({ channel, context, contact, correlationId, email, name, phone, roles, taxId }) {
       const userId = crypto.randomUUID()
+      const candidates = buildUsernameCandidates(name)
+      const username =
+        pickAvailableUsername({
+          candidates,
+          taken: await repository.listTakenUsernames({ usernames: candidates }),
+        }) ?? userId
       /** O contato é o canal do convite, não a identidade: quem escolheu SMS também tem e-mail. */
       const profileEmail = email ?? (channel === 'email' ? contact : '')
       const profilePhone = phone ?? (channel === 'email' ? '' : contact)
@@ -102,7 +113,7 @@ export function createInviteCompanyUserUseCase({
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,
         ...splitPersonName(name),
-        username: userId,
+        username,
       })
 
       const { linkedFleetDriverId, membershipId } = await repository.createInvitedUser({
@@ -117,7 +128,7 @@ export function createInviteCompanyUserUseCase({
         taxId: profileTaxId,
         subject,
         userId,
-        username: userId,
+        username,
       })
 
       const plan = planInvitationResend({ invitation: undefined, now: now() })
@@ -163,7 +174,7 @@ export function createInviteCompanyUserUseCase({
           roles,
           taxId: profileTaxId,
           userId,
-          username: userId,
+          username,
         }),
         fleetLink: resolveFleetLink({ linkedFleetDriverId, roles }),
       }

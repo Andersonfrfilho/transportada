@@ -107,6 +107,7 @@ function createHarness() {
       },
     },
     repository: {
+      listTakenUsernames: () => Promise.resolve(new Set<string>()),
       createInvitedUser(input: { readonly roles?: readonly string[] }) {
         membershipsCreated.push({ roles: input.roles })
 
