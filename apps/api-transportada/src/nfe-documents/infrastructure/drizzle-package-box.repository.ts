@@ -7,6 +7,7 @@ import { and, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm
 import {
   nfeDocuments,
   nfePackageBoxes,
+  nfePackageBoxMeasurements,
   nfeParticipants,
   nfeProducts,
 } from '../../database/nfe.schema.js'
@@ -75,6 +76,8 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         id: nfePackageBoxes.id,
         lengthMm: nfePackageBoxes.lengthMm,
         measuredAt: nfePackageBoxes.measuredAt,
+        measurementMarginMm: nfePackageBoxes.measurementMarginMm,
+        measurementSource: nfePackageBoxes.measurementSource,
         productCode: nfePackageBoxes.productCode,
         transportedVolumes: sql<string>`coalesce(${transported.volumes}, 0)`,
         unitsPerBox: nfePackageBoxes.unitsPerBox,
@@ -119,28 +122,61 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     }))
   }
 
+  /**
+   * Spec 152 (D5, D17, experimental): a caixa e o histórico append-only gravam na **mesma**
+   * transação — sem casar caixa nenhuma (outra empresa ou id inexistente), nem a caixa nem o
+   * histórico mudam.
+   */
   async measure(input: {
     readonly boxId: string
     readonly companyId: string
     readonly measurement: PackageBoxMeasurement
+    readonly measurementMarginMm: number | null
+    readonly measuredByUserId: string
   }): Promise<boolean> {
-    const rows = await this.#database
-      .update(nfePackageBoxes)
-      .set({
-        grossWeightGrams: input.measurement.grossWeightGrams,
+    return this.#database.transaction(async (transaction) => {
+      const rows = await transaction
+        .update(nfePackageBoxes)
+        .set({
+          grossWeightGrams: input.measurement.grossWeightGrams,
+          heightMm: input.measurement.heightMm,
+          lengthMm: input.measurement.lengthMm,
+          measuredAt: new Date(),
+          measurementMarginMm: input.measurementMarginMm,
+          measurementSource: input.measurement.source,
+          unitsPerBox: input.measurement.unitsPerBox,
+          updatedAt: new Date(),
+          widthMm: input.measurement.widthMm,
+        })
+        .where(
+          and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
+        )
+        .returning({ id: nfePackageBoxes.id })
+
+      if (rows.length === 0) return false
+
+      const camera = input.measurement.camera
+      await transaction.insert(nfePackageBoxMeasurements).values({
+        companyId: input.companyId,
+        engine: camera?.engine ?? null,
+        heightMarginMm: camera?.heightMarginMm ?? null,
         heightMm: input.measurement.heightMm,
+        impreciseConfirmed: camera?.impreciseConfirmed ?? false,
+        lengthMarginMm: camera?.lengthMarginMm ?? null,
         lengthMm: input.measurement.lengthMm,
-        measuredAt: new Date(),
-        unitsPerBox: input.measurement.unitsPerBox,
-        updatedAt: new Date(),
+        measuredByUserId: input.measuredByUserId,
+        packageBoxId: input.boxId,
+        proposedHeightMm: camera?.proposedHeightMm ?? null,
+        proposedLengthMm: camera?.proposedLengthMm ?? null,
+        proposedWidthMm: camera?.proposedWidthMm ?? null,
+        source: input.measurement.source,
+        warnings: camera?.warnings === undefined ? [] : [...camera.warnings],
+        widthMarginMm: camera?.widthMarginMm ?? null,
         widthMm: input.measurement.widthMm,
       })
-      .where(
-        and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
-      )
-      .returning({ id: nfePackageBoxes.id })
 
-    return rows.length > 0
+      return true
+    })
   }
 }
 

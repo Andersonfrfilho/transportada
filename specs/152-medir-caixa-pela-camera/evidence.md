@@ -654,3 +654,146 @@ reapplies the fiscal migration` espera SQLSTATE `23503` e recebe `23001` em
 Reproduzido também **antes** de qualquer mudança da T2 (primeira rodada de gates, ainda sem A1–A7),
 com o mesmo Postgres 18 nativo — é o motor relatando `restrict_violation` onde a suíte foi escrita
 esperando `foreign_key_violation` de outra versão de Postgres. Fora do escopo desta task.
+
+### Correção pós-staging: ordem do rollback (CI run 35036660623, gate integration)
+
+Data: 2026-09-16. O CI de staging pegou o que os gates locais não pegaram: `assertCteProfileOutputConstraints`
+falha ali com o SQLSTATE esperado (`23503`), então a suíte segue até o laço que roda **todo**
+`rollback.sql` em ordem reversa — e é só nesse ponto que meu `rollback.sql` original quebrava.
+Localmente, o `(fail)` pré-existente acima acontece **antes** desse laço (Postgres 18 nativo relata
+`23001`), então os gates da rodada anterior nunca chegaram a exercitar o rollback desta migration de
+verdade — só a leitura, não a execução.
+
+**Defeito**: `DROP TABLE "nfe_package_box_measurements"` vinha **depois** de
+`ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_company_id_id_unique"` no
+`rollback.sql`. A FK composta `nfe_package_box_measurements_company_package_box_fk` depende do
+índice dessa UNIQUE, e o Postgres recusa derrubar um índice com dependente vivo:
+`cannot drop constraint nfe_package_boxes_company_id_id_unique on table nfe_package_boxes because
+other objects depend on it`.
+
+**Correção**: `DROP TABLE "nfe_package_box_measurements"` movido para logo depois da guarda de dados
+(início do rollback) e antes de qualquer `ALTER TABLE` em `nfe_package_boxes` — a tabela que carrega
+a FK dependente sai primeiro, e só então a UNIQUE que ela apontava pode cair. Sem `CASCADE` em lugar
+nenhum; a guarda de recusa com dados no topo e a remoção da linha do journal no fim continuam
+intactas. Conferi o resto do arquivo por essa mesma classe de problema: os `DROP CONSTRAINT` dos
+CHECKs de `nfe_package_boxes` continuam antes dos `DROP COLUMN` das colunas que eles referenciam (já
+estava correto), e nenhuma outra constraint nova depende de índice de outra tabela.
+
+**Prova local** (sem depender do `(fail)` pré-existente, que mascara o laço de rollback neste
+Postgres): Postgres nativo Homebrew 18 descartável no scratchpad da sessão, porta 65442 (65433,
+65434, 65440 e 65441 evitadas — já usadas nesta spec ou por outra sessão), subido e derrubado neste
+turno.
+
+1. `bun run db:migrate` até a ponta (`20260916000000_nfe_package_box_measurement_source` aplicada).
+2. `psql -f rollback.sql` — **sem erro** (antes da correção, este passo reproduzia exatamente o erro
+   do CI). Conferido que `nfe_package_box_measurements` some (`to_regclass` retorna vazio) e as
+   colunas de `nfe_package_boxes` voltam a não ter `measurement_*`.
+3. `bun run db:migrate` de novo — reaplica a migration com sucesso (`__drizzle_migrations` volta a
+   ter `20260916000000_nfe_package_box_measurement_source` no topo).
+
+| Gate                                                                                              | Resultado                                                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bun run typecheck` / `bun run lint`                                                              | verdes                                                                   |
+| Contratos da API (`bun test`, sem `.env.test`)                                                    | 6006 pass, 0 fail                                                        |
+| Integração da API (`bun --env-file=../../.env.test test --timeout 120000`, Postgres nativo 65442) | 6028 pass, 1 `(fail)` pré-existente e não relacionado (mesmo caso acima) |
+| `db:test` (migration-test, mesmo Postgres)                                                        | 94 pass, 1 `(fail)` pré-existente e não relacionado (mesmo caso acima)   |
+| Rollback manual via `psql` (ponta a ponta: migrate → rollback → migrate)                          | sem erro — reproduz e corrige o defeito exato do CI                      |
+
+O `(fail)` pré-existente (`assertCteProfileOutputConstraints`, SQLSTATE `23001` vs `23503`) continua
+fora do escopo desta correção — é o mesmo caso já registrado acima, e é ele que impede o Postgres 18
+nativo de alcançar o laço de rollback pela suíte automatizada; a prova ponta a ponta acima supre essa
+lacuna rodando o rollback diretamente.
+
+## T3 — Rota de medida com origem, margem e histórico
+
+Data: 2026-09-15. Modelo: `sonnet` (executor).
+
+### Contrato antes da implementação
+
+`test/nfe-package-box/measurement-source.contract.ts` (schema/refine, `resolveMeasurementMargin`,
+`assertCameraMeasurementEnabled`, `createMeasurePackageBox`) e
+`test/integration/measurement-history.integration.ts` (a transação grava a caixa e o histórico,
+tenant 404, corpo antigo = `typed`, função desligada = 422) escritos antes de qualquer código de
+produção, e falhavam por import ausente até a implementação existir.
+
+### Desenho
+
+- `domain/package-box-measurement.constant.ts`: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES`
+  e `PACKAGE_BOX_MEASUREMENT_WARNINGS` (o domínio não importa `database/nfe.schema.ts`, camada sem
+  I/O) mais `MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM` (10/30, comentário "provisório até T15").
+  Contrato de paridade compara as duas listas contra as da tabela.
+- `domain/package-box-measurement.error.ts`: `PackageBoxCameraMeasurementDisabledError` (`ApiError`,
+  422, `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED`) — mesmo padrão de classe por domínio já usado em
+  `mdfe-manifest.error.ts` etc., não a hierarquia genérica do CLAUDE.md global.
+- `domain/package-box-measurement.policy.ts`: `resolveMeasurementMargin` (a maior das três margens
+  informadas, `null` sem bloco `camera`) e `assertCameraMeasurementEnabled` (D14 — `source ≠ typed`
+  com a função desligada lança o erro acima).
+- `application/camera-measurement-settings.port.ts` + `infrastructure/drizzle-camera-measurement-settings.repository.ts`:
+  porta e adaptador que leem `company_cargo_settings.camera_measurement_enabled` direto pelo schema
+  partilhado (sem importar o repositório de `companies`, que é `settings.manage`). Fica pronta para a
+  T4 reutilizar na rota `GET /nfe-package-boxes/measurement-settings`.
+- `presentation/package-box.schema.ts`: corpo ganha `source` (`.default('typed')`, retrocompatível) e
+  `camera?` (`.strict()`, mesmos tetos dos CHECKs — margem 0–3000, proposta com o teto da dimensão).
+  `superRefine` cobre as três recusas de R5: `camera` só com `source ≠ typed`; margem acima de 10 mm
+  sem `impreciseConfirmed` é 400; margem acima de 30 mm com `source: camera` é 400 (com
+  `camera_adjusted` não, porque o operador editou por cima — D8).
+- `application/measure-package-box.use-case.ts`: para `source ≠ typed`, lê o interruptor pela porta
+  acima e lança `PackageBoxCameraMeasurementDisabledError` (422) se desligado — checagem em I/O, não
+  só no schema. O ator (`measuredByUserId`) vem sempre de `context.userId` (o token, nunca do corpo).
+- `infrastructure/drizzle-package-box.repository.ts`: `measure` passa a rodar numa transação —
+  `UPDATE` em `nfe_package_boxes` (grava `measurement_source`/`measurement_margin_mm`) e, só se a
+  linha existir (mesma empresa), `INSERT` append-only em `nfe_package_box_measurements` com as três
+  medidas, margens, `warnings`, `impreciseConfirmed`, `engine`, `proposed_*_mm` e o ator. Caixa de
+  outra empresa: `UPDATE` afeta zero linhas, a transação devolve `false` e **nada** entra no
+  histórico (nem a caixa, nem a auditoria) — contrato de tenant. `list` passou a devolver
+  `measurementSource`/`measurementMarginMm` (R5, `GET /nfe-package-boxes`).
+- `main.ts`: composição nova (`DrizzleCameraMeasurementSettingsRepository`) injetada em
+  `createMeasurePackageBox`, ao lado do repositório de caixas já existente.
+- `package-box.port.ts`: `PackageBoxMeasurement` ganha `source`/`camera?`
+  (`PackageBoxCameraMeasurement`), `PackageBoxView` ganha `measurementSource`/`measurementMarginMm`,
+  e `measure()` do repositório ganha `measurementMarginMm`/`measuredByUserId`. Campos opcionais
+  tipados `?: number | undefined` (não só `?: number`) para bater com `exactOptionalPropertyTypes` e
+  com o que o Zod `.optional()` infere.
+
+### O que ficou fora de propósito (não é T3)
+
+- `GET /nfe-package-boxes/measurement-settings` e `PUT /company-settings/cargo/camera-measurement`
+  (rota HTTP do interruptor e do painel) são T4 — a porta e o adaptador já existem, só falta a rota.
+- `GET /nfe-package-box-measurements` (export para a validação) é T5.
+- Nenhuma coluna nova em banco: a T2 já criou tudo (`measurement_source`, `measurement_margin_mm`,
+  `nfe_package_box_measurements`, `company_cargo_settings.camera_measurement_enabled`).
+
+### Gates
+
+Postgres nativo Homebrew 18 descartável no scratchpad da sessão (`initdb` + `pg_ctl`), porta 65442
+(65433/65434/65440/65441 evitadas — já usadas por esta ou outras sessões), subido e derrubado neste
+turno. `LC_ALL=C` foi necessário para o `postmaster` não recusar o start com "became multithreaded
+during startup" (falha conhecida do Postgres 18 do Homebrew nesta máquina).
+
+| Gate                                                                                                                                   | Resultado                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck`                                                                                                                    | verde                                                                                                                                                |
+| `bun run lint`                                                                                                                         | verde                                                                                                                                                |
+| `bunx prettier --check` (arquivos tocados)                                                                                             | verde (2 arquivos formatados com `--write` antes da rodada final)                                                                                    |
+| Contratos da API (`bun run test`, sem `.env.test`)                                                                                     | 6025 pass, 0 fail (era 6006 antes da T3 — +19 testes novos, nenhum quebrado)                                                                         |
+| Integração da API (`bun --env-file=<env apontando para o Postgres 65442> test --timeout 120000`, de dentro de `apps/api-transportada`) | 6047 pass, 1 `(fail)` pré-existente e não relacionado (o mesmo `cte-profile-output-constraints`, SQLSTATE `23001` vs `23503`, registrado desde a T2) |
+| `test/integration/measurement-history.integration.ts` isolado                                                                          | 4 pass, 0 fail                                                                                                                                       |
+| `test/nfe-package-box.contract.test.ts` isolado (com `measurement-source.contract.ts` novo)                                            | 37 pass, 0 fail                                                                                                                                      |
+
+⚠️ **Nota sobre o `.env.test`**: o Postgres do Docker (`localhost:65432`, apontado pelo `.env.test`
+via link simbólico) não respondeu nesta sessão (`docker ps` também travou — mesmo sintoma da T1:
+"docker info sem resposta"). Segui a instrução do usuário ("se precisar, suba um Postgres nativo
+descartável") e rodei a integração com um arquivo de env no scratchpad, cópia do `.env.test` com
+`DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL` apontando para o Postgres nativo
+65442 — mesma forma do `bun --env-file=... test --timeout 120000` de dentro de
+`apps/api-transportada`, só a origem do Postgres muda. O `.env.test` do link simbólico **não foi
+editado**.
+
+### Arquivos novos
+
+`domain/package-box-measurement.constant.ts`, `domain/package-box-measurement.error.ts`,
+`domain/package-box-measurement.policy.ts`, `application/camera-measurement-settings.port.ts`,
+`infrastructure/drizzle-camera-measurement-settings.repository.ts`,
+`test/nfe-package-box/measurement-source.contract.ts`,
+`test/integration/measurement-history.integration.ts` (adicionado ao `package.json` da API, `test` e
+`test:integration`).
