@@ -87,8 +87,12 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     /**
      * Sem `await`: aguardar a releitura aqui segura o botão, e a varredura de fonte de
      * `test/shared/mutation-pending-state.contract.ts` reprova isso.
+     *
+     * ⚠️ Limpar aqui também: só em `onMutate` o código sobrevivia até a próxima tentativa, e a
+     * Conferência da caixa **seguinte** abria com a recusa da anterior estampada.
      */
     onSuccess: () => {
+      setMeasureErrorCode(undefined)
       void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
     },
   })
@@ -105,6 +109,11 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     /** O código da recusa da última gravação — `undefined` enquanto nada falhou (A1). */
     measureErrorCode,
     queue: query.data ?? null,
+    /** Zera o desfecho da gravação anterior — quem abre o fluxo chama antes de começar do zero. */
+    resetMeasure: () => {
+      measure.reset()
+      setMeasureErrorCode(undefined)
+    },
     scanned,
     search,
     setStatus,

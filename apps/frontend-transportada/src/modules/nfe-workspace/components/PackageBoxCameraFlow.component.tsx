@@ -91,7 +91,6 @@ export function PackageBoxCameraFlow({
     { cameraEnabled },
     createInitialPackageBoxCameraFlowState,
   )
-  const preloadWorkerRef = useRef<Worker | undefined>(undefined)
   const [engineWorker, setEngineWorker] = useState<Worker | undefined>(undefined)
   const { status: barcodeStatus, videoRef } = useBarcodeScanner({
     isActive: isOpen && state.step === 'label',
@@ -117,12 +116,40 @@ export function PackageBoxCameraFlow({
     dispatch({ candidates: matches ?? [], kind: 'matchesLoaded' })
   }, [lookupFailed, matches, matching, state.step])
 
-  /** A1: a etapa só sai de "Gravando" com o desfecho do `PUT` na mão. */
+  /**
+   * A1: a etapa só sai de "Gravando" com o desfecho do `PUT` na mão.
+   *
+   * ⚠️ **E com o desfecho DESTA tentativa.** O `dispatch` daqui e o `mutate` do painel são dois
+   * caminhos diferentes, e não há garantia de caírem no mesmo lote de render: a etapa podia entrar
+   * em `saving` vendo ainda o `success` da caixa anterior e sair na hora, mandando o conferente de
+   * volta à etiqueta com esta caixa ainda sem medida (2ª revisão, item M-c). Só conta o desfecho que
+   * chega depois de a tentativa ficar `pending`.
+   */
+  const attemptIsPendingRef = useRef(false)
+
   useEffect(() => {
-    if (state.step !== 'saving') return
+    if (state.step !== 'saving') {
+      attemptIsPendingRef.current = false
+      return
+    }
+    if (saveStatus === 'pending') {
+      attemptIsPendingRef.current = true
+      return
+    }
+    if (!attemptIsPendingRef.current) return
     if (saveStatus === 'success') dispatch({ kind: 'saved' })
     if (saveStatus === 'error') dispatch({ kind: 'saveFailed' })
   }, [saveStatus, state.step])
+
+  /**
+   * B-b: consulta que falhou volta a etapa para a etiqueta. O aviso de falha aparece nas duas
+   * etapas, mas `useBarcodeScanner` só fica ativo em `label` — em `identifying` o texto pedia para
+   * ler a etiqueta de novo com o leitor desligado, e ler não fazia nada.
+   */
+  useEffect(() => {
+    if (!lookupFailed || state.step !== 'identifying') return
+    dispatch({ kind: 'backToLabel' })
+  }, [lookupFailed, state.step])
 
   /**
    * D18: pré-carga do OpenCV ao abrir o fluxo com a função ligada — digitar continua disponível.
@@ -140,7 +167,6 @@ export function PackageBoxCameraFlow({
       new URL('../../../components/ui/boxDimension.worker.ts', import.meta.url),
       { type: 'module' },
     )
-    preloadWorkerRef.current = worker
     setEngineWorker(worker)
     worker.onmessage = (event: MessageEvent<Readonly<{ kind: string }>>) => {
       dispatch({ kind: event.data.kind === 'ready' ? 'enginePreloadReady' : 'enginePreloadFailed' })
@@ -149,7 +175,6 @@ export function PackageBoxCameraFlow({
     worker.postMessage({ kind: 'preload' })
     return () => {
       worker.terminate()
-      preloadWorkerRef.current = undefined
       setEngineWorker(undefined)
     }
   }, [cameraEnabled, isOpen])
