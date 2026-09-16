@@ -1,10 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef, useState } from 'react'
 
+import { cn } from '@/lib/utils'
+
 import type { MediaStreamLike } from './barcodeScanner.service'
 import { isArrowKey, magnifierViewportFor, nudgePoint } from './boxDimensionMarking.service'
 import { overlayPointToFrame } from './boxDimensionFrame.service'
 import { Badge } from './badge'
+import { BoxMeasurementIllustration } from './box-measurement-illustration'
 import type { Point } from './boxDimensionGeometry.service'
 import type { BoxDimensionDomainWarning } from './boxDimension.constant'
 import type { BoxDimensionMeasuredResult } from './boxDimensionProposal.service'
@@ -25,12 +28,18 @@ export type BoxDimensionScannerProps = Readonly<{
   confirmLabel: string
   /** D13: o selo "Experimental" acompanha a medida nas DUAS etapas — aqui e na Conferência. */
   experimentalLabel: string
+  /** Ao vivo: onde vai o cartão e o que precisa aparecer no quadro. */
+  framingHintLabel: string
   instructionLabel: string
   isActive: boolean
   loadingLabel: string
+  /** Foto congelada: o que cada letra marca. */
+  markingHintLabel: string
   onMeasured: (result: BoxDimensionMeasuredResult) => void
   onUnsupported: (reason: BoxDimensionUnsupportedReason) => void
   pointLabels: Readonly<Record<MarkedPointKey, string>>
+  /** A letra que aparece dentro do ponto e no desenho — a mesma nos dois lugares. */
+  pointShortLabels: Readonly<Record<MarkedPointKey, string>>
   retryLabel: string
   stream: MediaStreamLike | undefined
   title: string
@@ -49,12 +58,15 @@ export function BoxDimensionScanner({
   captureLabel,
   confirmLabel,
   experimentalLabel,
+  framingHintLabel,
   instructionLabel,
   isActive,
   loadingLabel,
+  markingHintLabel,
   onMeasured,
   onUnsupported,
   pointLabels,
+  pointShortLabels,
   retryLabel,
   stream,
   title,
@@ -139,6 +151,19 @@ export function BoxDimensionScanner({
           </div>
         ) : null}
         {status === 'live' ? (
+          <div className={styles.framingGuide}>
+            <BoxMeasurementIllustration
+              ariaLabel={undefined}
+              pointShortLabels={pointShortLabels}
+              variant="thumbnail"
+            />
+            <p className={styles.guideHint}>{framingHintLabel}</p>
+          </div>
+        ) : null}
+        {status === 'capturing' ? (
+          <p className={cn(styles.guideHint, styles.markingHint)}>{markingHintLabel}</p>
+        ) : null}
+        {status === 'live' ? (
           <p aria-live="polite" className={styles.liveIndicator} role="status">
             {announcedWarning === undefined
               ? instructionLabel
@@ -167,7 +192,11 @@ export function BoxDimensionScanner({
                   onPointerUp={() => setMagnifierFor(undefined)}
                   style={{ left: `${leftPercent}%`, top: `${topPercent}%` }}
                   type="button"
-                />
+                >
+                  <span aria-hidden="true" className={styles.markedPointLabel}>
+                    {pointShortLabels[key]}
+                  </span>
+                </button>
               )
             })
           : null}

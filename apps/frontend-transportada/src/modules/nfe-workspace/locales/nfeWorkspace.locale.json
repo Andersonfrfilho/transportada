@@ -694,7 +694,9 @@
         "c": "Canto C da face de cima",
         "d": "Canto D da face de cima",
         "foot": "Pé da aresta vertical"
-      }
+      },
+      "framingHint": "Cartão deitado na tampa · diagonal · 4 cantos da tampa e uma quina até o chão",
+      "markingHint": "Arraste A, B, C e D para os cantos da tampa e E para o pé da quina"
     },
     "source": {
       "camera": "Pela câmera, ±{{margin}} cm",
@@ -710,6 +712,27 @@
       "print": "Imprimir",
       "close": "Fechar",
       "rulerLabel": "Régua de controle de 100 milímetros"
+    },
+    "guide": {
+      "open": "Como medir",
+      "title": "Como medir a caixa pela câmera",
+      "close": "Entendi",
+      "illustration": "Caixa vista na diagonal, com o cartão deitado na tampa, os cantos A, B, C e D da tampa e o ponto E no pé da quina vertical",
+      "steps": {
+        "1": "Imprima o cartão em 100% e confira com a trena: a régua dá 10 cm e o quadrado preto, 15 cm.",
+        "2": "Deite o cartão na tampa da caixa, bem plano. Nunca na lateral.",
+        "3": "Fique na diagonal, de cima e de lado, como no desenho: o cartão inteiro, os 4 cantos da tampa e uma quina vertical até o chão.",
+        "4": "Quando o aviso da tela não reclamar de nada, toque em Capturar.",
+        "5": "Na foto, arraste cada ponto até o lugar: A, B, C e D nos cantos da tampa (A é o canto da quina) e E no pé da quina, rente ao chão.",
+        "6": "Confira os números com a trena antes de gravar. Na dúvida, digite."
+      },
+      "avoidTitle": "Atrapalha a medida",
+      "avoid": {
+        "1": "Cartão em pé, dobrado ou encostado na lateral.",
+        "2": "Câmera de cima demais: a quina vertical some.",
+        "3": "Pilha ou outra caixa escondendo a base.",
+        "4": "Reflexo de luz ou sombra em cima do cartão."
+      }
     }
   },
   "addressCorrection": {

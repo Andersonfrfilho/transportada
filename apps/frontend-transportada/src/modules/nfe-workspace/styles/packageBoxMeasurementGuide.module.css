@@ -1,0 +1,31 @@
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-slate);
+  background: var(--color-graphite);
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.steps,
+.avoid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: 0.9rem;
+}
+
+.avoidTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 600;
+}

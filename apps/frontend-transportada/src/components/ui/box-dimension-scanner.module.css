@@ -64,6 +64,8 @@
  */
 .markedPoint {
   position: absolute;
+  display: grid;
+  place-items: center;
   width: 2.75rem;
   height: 2.75rem;
   padding: 0;
@@ -98,4 +100,38 @@
   border-radius: 50%;
   background-repeat: no-repeat;
   box-shadow: 0 0.5rem 1rem color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.framingGuide {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.guideHint {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-fog);
+  font-size: 0.8rem;
+  background: color-mix(in srgb, var(--color-asphalt) 65%, transparent);
+}
+
+.markingHint {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  left: var(--space-2);
+  pointer-events: none;
+}
+
+.markedPointLabel {
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
 }
