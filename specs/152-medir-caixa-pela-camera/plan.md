@@ -195,8 +195,10 @@ false`, `engine varchar(32) null`; - `measured_by_user_id uuid not null`, `creat
 - `presentation/package-box.schema.ts`:
   - o corpo aceita `source` (padrão `typed`) e `camera?` (`.strict()`, com `lengthMarginMm`,
     `widthMarginMm`, `heightMarginMm`, `warnings` do enum de D9, `impreciseConfirmed` e `engine`);
-  - `refine` para: `camera` só com `source ≠ typed`; margem acima de 10 sem `impreciseConfirmed`
-    dá 400; margem acima de 30 com `source = camera` dá 400;
+  - `refine` para: `camera` só com `source ≠ typed`; com `source = camera` (revisto em
+    2026-09-16, T12): margem acima de 10 sem `impreciseConfirmed` dá 400, e margem acima de 30 dá
+    400 também. Nenhuma das duas recusa `camera_adjusted` — o operador já editou o valor por cima, e
+    a margem enviada é só a da proposta (D17, auditoria), não mais uma condição do valor gravado;
   - os códigos de motivo ficam em `domain/package-box-measurement.constant.ts`, cópia por valor com
     o frontend e guardada por contrato de paridade.
 - `domain/package-box-measurement.policy.ts`: `resolveMeasurementMargin(camera)` (a maior margem) e
@@ -246,9 +248,8 @@ false`, `engine varchar(32) null`; - `measured_by_user_id uuid not null`, `creat
 }
 ```
 
-Respostas: `204` quando grava. `400` para: corpo inválido, `camera` com `source: typed`, margem
-acima de 10 sem `impreciseConfirmed`, ou margem acima de 30 com `source: camera`. `404` para caixa
-de outra empresa ou inexistente.
+Respostas: `204` quando grava. `400` para: corpo inválido, `camera` com `source: typed`, ou —
+só com `source: camera` (T12) — margem acima de 10 sem `impreciseConfirmed` ou margem acima de 30. `404` para caixa de outra empresa ou inexistente.
 
 `GET /nfe-package-boxes`: cada item ganha `measurementSource: null | 'typed' | 'camera' |
 'camera_adjusted'` e `measurementMarginMm: null | number`.

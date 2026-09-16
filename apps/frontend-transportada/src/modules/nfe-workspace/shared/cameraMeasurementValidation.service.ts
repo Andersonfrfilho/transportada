@@ -46,10 +46,11 @@ function toReading(candidate: DimensionCandidate): DimensionReading | undefined 
 }
 
 /**
- * D17: a proposta some do bloco `camera` quando o operador edita a dimensão (T10), mas o valor
- * proposto continua indo para a API mesmo depois de editado — por isso `proposedXxxMm` é a única
- * fonte de "houve leitura da câmera" aqui, e a margem some junto (`marginMm: null`) exatamente nas
- * dimensões editadas.
+ * D17: `proposedXxxMm` é a fonte de "houve leitura da câmera" aqui — nasce nulo só quando a
+ * dimensão veio `unreliable` (D6, margem acima de 30 mm, a câmera nunca chegou a propor valor).
+ * Decisão de 2026-09-16 (T12): a margem pertence à proposta, não ao valor gravado, então continua
+ * indo para a API mesmo em dimensão editada (`camera_adjusted`) — `marginMm: null` só acontece
+ * quando a proposta nunca teve margem para aquela dimensão, não mais por causa de edição.
  */
 function readingsOf(entry: CameraMeasurementExportEntry): readonly DimensionReading[] {
   if (entry.source === 'typed') return []
@@ -107,11 +108,13 @@ function resolveVerdict(
 /**
  * Spec 152 R6/T15: porta o `session.ts` do spike para o formato real do histórico (T5). "Fita" é o
  * valor GRAVADO de cada dimensão — só é a medida da fita de verdade quando o protocolo de D16 foi
- * seguido (digitar por cima de toda dimensão depois de ver a proposta, mesmo quando ela bate). Como
- * editar uma dimensão apaga a margem daquela dimensão no histórico (T10), a taxa "dentro da margem"
- * só conta as leituras com margem gravada (`withinMarginKnownCount`) — dimensões editadas (o caso
- * comum da sessão real de validação) entram na taxa de 10 mm mas ficam fora da taxa de margem. A
- * tela mostra as duas contagens lado a lado, nunca uma taxa que finge cobrir tudo.
+ * seguido (digitar por cima de toda dimensão depois de ver a proposta, mesmo quando ela bate). Desde
+ * a decisão de 2026-09-16 (T12), a margem viaja com a proposta e não é apagada pela edição — a taxa
+ * "dentro da margem" continua contando só as leituras com margem gravada
+ * (`withinMarginKnownCount`), mas na prática essa passa a ser a quase totalidade das leituras da
+ * sessão real (o protocolo de D16 edita toda dimensão). `withinMarginKnownCount` só fica abaixo de
+ * `readingCount` para uma dimensão que nasceu `unreliable` (D6) e nunca teve margem proposta. A tela
+ * mostra as duas contagens lado a lado, nunca uma taxa que finge cobrir tudo.
  */
 export function summarizeCameraMeasurementValidation(
   entries: readonly CameraMeasurementExportEntry[],

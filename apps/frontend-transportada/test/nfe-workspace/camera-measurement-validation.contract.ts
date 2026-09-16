@@ -32,8 +32,10 @@ function entry(overrides: Partial<CameraMeasurementExportEntry>): CameraMeasurem
 }
 
 /**
- * Spec 152 T12 (R6/R8): resumo da validação com o dado real do histórico (T5) — margem some quando
- * a dimensão foi editada (T10), então "dentro da margem" só conta leituras com margem conhecida.
+ * Spec 152 T12 (R6/R8): resumo da validação com o dado real do histórico (T5). Desde a decisão de
+ * 2026-09-16, editar uma dimensão não apaga a margem gravada (ela é da proposta, D17) — "dentro da
+ * margem" continua contando só leituras com margem conhecida, mas isso agora cobre a quase
+ * totalidade das leituras (a exceção é a dimensão `unreliable` que nunca teve margem proposta).
  */
 describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
   test('caixa typed não gera leitura nenhuma (sem proposta para comparar)', () => {
@@ -45,7 +47,23 @@ describe('resumo da validação da medida pela câmera (spec 152 R6)', () => {
     expect(summary.verdict).toBe('insufficient-data')
   })
 
-  test('dimensão editada perde a margem, mas continua contando para o erro de 10 mm', () => {
+  test('dimensão editada (camera_adjusted) continua com a margem da proposta — conta nas duas taxas', () => {
+    const summary = summarizeCameraMeasurementValidation([
+      entry({
+        lengthMarginMm: 8,
+        lengthMm: 305,
+        proposedLengthMm: 300,
+        source: 'camera_adjusted',
+      }),
+    ])
+
+    expect(summary.readingCount).toBe(1)
+    expect(summary.withinTenMillimetreCount).toBe(1)
+    expect(summary.withinMarginKnownCount).toBe(1)
+    expect(summary.withinMarginRate).toBe(1)
+  })
+
+  test('dimensão unreliable (nunca propôs margem) fica fora da taxa de margem, mesmo editada', () => {
     const summary = summarizeCameraMeasurementValidation([
       entry({
         lengthMarginMm: null,
@@ -178,7 +196,7 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
 
     const lengthRow = lines[1]
     expect(lengthRow).toBeDefined()
-    // largura sem proposta (widthMm null) e comprimento editado, sem margem gravada
+    // largura sem proposta (widthMm null) e comprimento sem margem conhecida na proposta
     expect(lengthRow).toContain('""') // margem em branco
   })
 })

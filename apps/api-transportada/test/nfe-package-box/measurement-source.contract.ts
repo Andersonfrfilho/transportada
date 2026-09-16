@@ -103,6 +103,21 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
     expect(parsed.source).toBe('camera_adjusted')
   })
 
+  /**
+   * Decisão de 2026-09-16 (T12, achado da T10/T3): a margem é da proposta da câmera (D17) e continua
+   * indo mesmo quando o operador edita — mas a regra de confirmação de imprecisão do D15 é sobre o
+   * *valor gravado*, e um valor `camera_adjusted` já foi corrigido à mão. Sem confirmação e sem
+   * margem editada não é o mesmo risco de "número plausível sem aviso" (ADR-0044 §1) que um valor
+   * puro da câmera sem revisão nenhuma.
+   */
+  test('margem acima de 10 mm sem confirmação com camera_adjusted grava — o operador já editou por cima', () => {
+    const parsed = parsePackageBoxMeasurement(
+      cameraBody({ impreciseConfirmed: false, lengthMarginMm: 11 }, 'camera_adjusted'),
+    )
+    expect(parsed.source).toBe('camera_adjusted')
+    expect(parsed.camera?.lengthMarginMm).toBe(11)
+  })
+
   test('motivo fora do enum de D9 é recusado (400)', () => {
     expect(() => parsePackageBoxMeasurement(cameraBody({ warnings: ['naoExiste'] }))).toThrow()
   })

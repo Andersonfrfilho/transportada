@@ -52,9 +52,11 @@ const measurementSchema = z
   })
   .strict()
   /**
-   * R5: `camera` só existe com `source` diferente de `typed`; margem acima de 10 mm sem confirmação
+   * R5: `camera` só existe com `source` diferente de `typed`. Margem acima de 10 mm sem confirmação
    * explícita (D6) e margem acima de 30 mm proposta pela câmera (D6, a câmera nunca propõe o que não
-   * consegue ler com confiança) são as duas recusas de imprecisão.
+   * consegue ler com confiança) só recusam quando `source: camera` — a margem viaja com a proposta
+   * mesmo em `camera_adjusted` (D17, guardada por auditoria), mas a regra de imprecisão do D15 não
+   * se aplica a um valor que o operador já digitou por cima.
    */
   .superRefine((value, ctx) => {
     if (value.source === 'typed') {
@@ -67,12 +69,13 @@ const measurementSchema = z
       ctx.addIssue({ code: 'custom', message: 'a non-typed source requires the camera block' })
       return
     }
+    if (value.source !== 'camera') return
 
     const marginMm = resolveMeasurementMargin(value.camera) ?? 0
     if (marginMm > MARGIN_RELIABLE_MM && !value.camera.impreciseConfirmed) {
       ctx.addIssue({ code: 'custom', message: 'an imprecise measurement requires confirmation' })
     }
-    if (value.source === 'camera' && marginMm > MARGIN_UNRELIABLE_MM) {
+    if (marginMm > MARGIN_UNRELIABLE_MM) {
       ctx.addIssue({
         code: 'custom',
         message: 'the camera cannot propose an unreliable measurement',
