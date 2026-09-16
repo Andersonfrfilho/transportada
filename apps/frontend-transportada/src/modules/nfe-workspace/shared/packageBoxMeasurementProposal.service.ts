@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { classifyMargin, type MeasurementReliability } from '@/components/ui/boxDimension.service'
-import type { BoxDimensionMeasuredResult } from '@/components/ui/useBoxDimensionScanner.hook'
+import type { BoxDimensionMeasuredResult } from '@/components/ui/boxDimensionProposal.service'
 
 import { toCentimetres } from './packageBoxMeasurementUnits.service'
 

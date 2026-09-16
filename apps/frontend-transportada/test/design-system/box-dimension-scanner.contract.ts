@@ -197,4 +197,27 @@ describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', 
       expect(source).not.toContain('MAXIMUM_FRAME_WIDTH = 720')
     }
   })
+
+  /**
+   * ⚠️ **Um símbolo, um caminho de import.** `MAXIMUM_FRAME_WIDTH` chegava a quem o usa em três
+   * saltos (constante → serviço do quadro → hook do scanner) e `BoxDimensionMeasuredResult` tinha
+   * dois endereços (o serviço que o declara e o hook que o reexportava): quem lê um `import` não
+   * sabia qual dos dois é a declaração, e buscar por ela achava o reexporte (3ª revisão, itens
+   * [BAIXO]). Cada um se importa de onde nasce.
+   */
+  it('nem o teto do quadro nem a proposta medida são reexportados por terceiros', async () => {
+    const frame = await readApplicationFile('src/components/ui/boxDimensionFrame.service.ts')
+    const hook = await readApplicationFile('src/components/ui/useBoxDimensionScanner.hook.ts')
+
+    const reexports = [frame, hook].flatMap((source) =>
+      source
+        .split('\n')
+        .filter((line) => line.startsWith('export {') || line.startsWith('export type {')),
+    )
+
+    for (const line of reexports) {
+      expect(line).not.toContain('MAXIMUM_FRAME_WIDTH')
+      expect(line).not.toContain('BoxDimensionMeasuredResult')
+    }
+  })
 })

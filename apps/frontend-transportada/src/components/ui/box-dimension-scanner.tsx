@@ -7,10 +7,10 @@ import { overlayPointToFrame } from './boxDimensionFrame.service'
 import { Badge } from './badge'
 import type { Point } from './boxDimensionGeometry.service'
 import type { BoxDimensionDomainWarning } from './boxDimension.constant'
+import type { BoxDimensionMeasuredResult } from './boxDimensionProposal.service'
 import {
   MARKED_POINT_KEYS,
   useBoxDimensionScanner,
-  type BoxDimensionMeasuredResult,
   type BoxDimensionUnsupportedReason,
   type MarkedPointKey,
 } from './useBoxDimensionScanner.hook'

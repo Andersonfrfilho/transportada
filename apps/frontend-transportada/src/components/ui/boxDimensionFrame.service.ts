@@ -14,8 +14,6 @@ import { clampPointToBounds, type MarkingBounds } from './boxDimensionMarking.se
  * lado, porque o ponto principal e a focal de reserva saem de uma imagem que ninguém mediu. Por isso
  * tanto os pontos tocados quanto `imageWidth`/`imageHeight` nascem aqui, no mesmo espaço dos cantos.
  */
-export { MAXIMUM_FRAME_WIDTH }
-
 export type ScannerFrame = MarkingBounds
 
 export function frameSizeFor(videoWidth: number, videoHeight: number): ScannerFrame {
