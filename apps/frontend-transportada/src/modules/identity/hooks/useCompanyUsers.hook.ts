@@ -16,6 +16,7 @@ import {
   USERS_MANAGE_PERMISSION,
 } from '../shared/companyUsers.constant'
 import type {
+  ActivateCompanyUserInput,
   AssignCompanyUserRolesInput,
   AssignedCompanyUserRoles,
   ChangeCompanyUserStatusInput,
@@ -39,6 +40,7 @@ export const COMPANY_USERS_ADMINISTRATION_QUERY_KEY = 'company-users-administrat
 export type CompanyUsersClient = Client
 
 export type CompanyUsersController = Readonly<{
+  activateUser: (input: ActivateCompanyUserInput) => Promise<CompanyUser>
   assignRoles: (input: AssignCompanyUserRolesInput) => Promise<AssignedCompanyUserRoles>
   canManageUsers: boolean
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
@@ -63,6 +65,7 @@ export function createCompanyUsersController(input: ControllerInput): CompanyUse
   const canManageUsers = input.permissions.includes(USERS_MANAGE_PERMISSION)
 
   return {
+    activateUser: (request) => (canManageUsers ? input.client.activateUser(request) : forbidden()),
     canManageUsers,
     changeStatus: (request) => (canManageUsers ? input.client.changeStatus(request) : forbidden()),
     inviteUser: (request) => (canManageUsers ? input.client.inviteUser(request) : forbidden()),
@@ -132,6 +135,10 @@ export function useCompanyUsers(
     mutationFn: controller.changeStatus,
     onSuccess: invalidateUsers,
   })
+  const activateUserMutation = useMutation({
+    mutationFn: controller.activateUser,
+    onSuccess: invalidateUsers,
+  })
   const removeUserMutation = useMutation({
     mutationFn: controller.removeUser,
     onSuccess: invalidateUsers,
@@ -145,6 +152,7 @@ export function useCompanyUsers(
   })
 
   return {
+    activateUserMutation,
     canGoToPreviousPage: canGoToPreviousCursorPage(page),
     changeStatusMutation,
     controller,

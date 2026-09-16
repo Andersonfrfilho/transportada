@@ -16,6 +16,8 @@ import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserTableProps = Readonly<{
+  isActivating: boolean
+  onActivate: (user: CompanyUser) => void
   onChangeStatus: (input: Readonly<{ status: 'active' | 'suspended'; userId: string }>) => void
   onEdit: (user: CompanyUser) => void
   onOpenPermissions: (user: CompanyUser) => void
@@ -36,6 +38,8 @@ const STATUS_CLASS: Readonly<Record<string, string | undefined>> = {
 
 export function CompanyUserTable({
   currentUserId,
+  isActivating,
+  onActivate,
   onChangeStatus,
   onEdit,
   onOpenPermissions,
@@ -146,6 +150,20 @@ export function CompanyUserTable({
                   >
                     <Icon name="shield" />
                   </Button>
+                  {/* O código às vezes não chega: sem esta saída, o convidado fica preso para sempre. */}
+                  {user.status === 'invited' ? (
+                    <Button
+                      disabled={isActivating}
+                      size="sm"
+                      title={t('users.activateInvitedHint')}
+                      type="button"
+                      variant="secondary"
+                      onClick={() => onActivate(user)}
+                    >
+                      <Icon name="check" />
+                      {t('users.activateInvited')}
+                    </Button>
+                  ) : null}
                   {user.invitation === undefined ? null : (
                     <Button
                       size="sm"

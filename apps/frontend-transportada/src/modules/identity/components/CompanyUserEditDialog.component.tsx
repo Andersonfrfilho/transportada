@@ -299,6 +299,7 @@ export function CompanyUserEditDialog({
 
         <CompanyUserPasswordPanel
           disabled={isPending}
+          isInvited={user.status === 'invited'}
           password={password}
           userId={user.id}
           username={user.username}

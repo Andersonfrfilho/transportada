@@ -9,7 +9,15 @@ import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.h
 import { COMPANY_USER_PASSWORD_MIN_LENGTH } from '../shared/companyUsers.constant'
 import styles from '../styles/userAdministration.module.css'
 
+const PASSWORD_STATUS_MESSAGE = {
+  activated: 'activated',
+  idle: 'saved',
+  'reset-sent': 'resetSent',
+  saved: 'saved',
+} as const
+
 type CompanyUserPasswordPanelProps = Readonly<{
+  isInvited: boolean
   password: CompanyUserPasswordState
   userId: string
   username: string
@@ -27,6 +35,7 @@ type CompanyUserPasswordPanelProps = Readonly<{
  */
 export function CompanyUserPasswordPanel({
   disabled = false,
+  isInvited,
   password,
   userId,
   username,
@@ -35,6 +44,9 @@ export function CompanyUserPasswordPanel({
   /** O olho é do campo, não da sessão: ele volta a esconder quando o diálogo remonta. */
   const [isVisible, setVisible] = useState(false)
   const isBusy = disabled || password.isPending
+  const hasPassword = password.password !== ''
+  /** O convite fechado por aqui some da ficha só quando a lista recarrega: o estado local avisa antes. */
+  const canActivate = isInvited && password.status !== 'activated'
 
   return (
     <div className={styles.mirrorPanel}>
@@ -77,7 +89,23 @@ export function CompanyUserPasswordPanel({
       />
       <p className={styles.fieldHint}>{t('users.editDialog.password.temporaryHint')}</p>
 
+      {canActivate ? (
+        <p className={styles.fieldHint}>{t('users.editDialog.password.activateHint')}</p>
+      ) : null}
+
       <div className={styles.panelActions}>
+        {canActivate ? (
+          <Button
+            disabled={isBusy || (hasPassword && !password.isLongEnough)}
+            onClick={() => void password.activate(userId)}
+            type="button"
+          >
+            <Icon name="check" />
+            {hasPassword
+              ? t('users.editDialog.password.activate')
+              : t('users.editDialog.password.activateWithoutPassword')}
+          </Button>
+        ) : null}
         <Button
           disabled={isBusy || !password.isLongEnough}
           onClick={() => void password.submit(userId)}
@@ -105,9 +133,7 @@ export function CompanyUserPasswordPanel({
         /* Sucesso não pode sair na cor do erro: `feedback` sozinha é vermelha, e "Senha definida."
          * em vermelho manda o operador procurar um defeito que não existe. */
         <p className={`${styles.feedback ?? ''} ${styles.noticeReady ?? ''}`} role="status">
-          {password.status === 'saved'
-            ? t('users.editDialog.password.saved')
-            : t('users.editDialog.password.resetSent')}
+          {t(`users.editDialog.password.${PASSWORD_STATUS_MESSAGE[password.status]}`)}
         </p>
       )}
     </div>

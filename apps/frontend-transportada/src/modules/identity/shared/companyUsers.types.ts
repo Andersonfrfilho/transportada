@@ -225,6 +225,13 @@ export type IdentitySyncOutcome = Readonly<{
  * `temporary` é escolha explícita de quem administra: definitiva serve a quem está sem canal de
  * e-mail, temporária obriga a troca no primeiro login.
  */
+/** Sem senha, só habilita; com senha, `temporary` vai junto — a API recusa um sem o outro. */
+export type ActivateCompanyUserInput = Readonly<{
+  password?: string
+  temporary?: boolean
+  userId: string
+}>
+
 export type SetCompanyUserPasswordInput = Readonly<{
   password: string
   temporary: boolean
