@@ -89,6 +89,68 @@ describe('a caixa e o histórico da medida (spec 152, R5/R7)', () => {
     60_000,
   )
 
+  /**
+   * ⚠️ **O caminho D6 nunca tinha sido exercitado contra o Postgres.** É o corpo exato do 2º caso da
+   * fixture de fronteira: a câmera não leu a altura (margem 45 mm, acima do teto), o campo nasceu
+   * vazio e o conferente digitou 45 cm com a fita. A caixa guarda a incerteza do que a **câmera**
+   * mediu — 7 mm, do comprimento — e não os 45 mm de uma dimensão que a câmera nem propôs (3ª
+   * revisão); a proposta de altura fica nula no histórico, porque nunca existiu.
+   */
+  testWithPostgres(
+    'D6: a altura não lida pela câmera fica sem proposta no histórico, e não vira a margem da caixa',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { boxId, companyId } = await seedCompanyWithBox(database, {
+          cameraMeasurementEnabled: true,
+        })
+        const measurePackageBox = buildMeasurePackageBox(database)
+
+        const measured = await measurePackageBox.execute({
+          boxId,
+          context: { companyId, userId: crypto.randomUUID() },
+          measurement: {
+            camera: {
+              engine: 'aruco-homography-v1',
+              heightMarginMm: 45,
+              impreciseConfirmed: false,
+              lengthMarginMm: 7,
+              proposedLengthMm: 599,
+              proposedWidthMm: 401,
+              warnings: [],
+              widthMarginMm: 4,
+            },
+            grossWeightGrams: null,
+            heightMm: 450,
+            lengthMm: 599,
+            source: 'camera_adjusted',
+            unitsPerBox: 1,
+            widthMm: 401,
+          },
+        })
+
+        expect(measured).toBe(true)
+
+        const [box] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, boxId))
+        expect(box?.measurementSource).toBe('camera_adjusted')
+        expect(box?.measurementMarginMm).toBe(7)
+        expect(box?.heightMm).toBe(450)
+
+        const history = await database.db
+          .select()
+          .from(nfePackageBoxMeasurements)
+          .where(eq(nfePackageBoxMeasurements.packageBoxId, boxId))
+        expect(history).toHaveLength(1)
+        expect(history[0]?.proposedHeightMm).toBeNull()
+        expect(history[0]?.heightMarginMm).toBe(45)
+        expect(history[0]?.proposedLengthMm).toBe(599)
+      })
+    },
+    60_000,
+  )
+
   testWithPostgres(
     'o corpo antigo (sem source) continua gravando typed, sem margem e sem histórico de câmera',
     async () => {

@@ -43,7 +43,11 @@ export function createMeasurePackageBox(dependencies: {
         companyId: input.context.companyId,
         measuredByUserId: input.context.userId,
         measurement: input.measurement,
-        measurementMarginMm: resolveMeasurementMargin(input.measurement.camera),
+        measurementMarginMm: resolveMeasurementMargin({
+          camera: input.measurement.camera,
+          recorded: input.measurement,
+          source: input.measurement.source,
+        }),
       })
     },
   }
