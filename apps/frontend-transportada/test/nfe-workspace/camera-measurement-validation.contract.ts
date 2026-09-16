@@ -154,6 +154,19 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
     ])
   })
 
+  /**
+   * T14 item 2: `productCode`/`cartonGtin` vêm do XML de NF-e de terceiro, sem validação de
+   * conteúdo. Um código começando com `=` é fórmula para o Excel — precisa sair prefixado com `'`.
+   */
+  test('neutraliza productCode que começa com = (injeção de fórmula, dado de XML de terceiro)', () => {
+    const csv = buildCameraMeasurementCsv([
+      entry({ productCode: "=cmd|'/C calc'!A1", source: 'camera' }),
+    ])
+
+    expect(csv).toContain('"\'=cmd')
+    expect(csv).not.toMatch(/;"=cmd/u)
+  })
+
   test('linha typed não entra (não há proposta da câmera para validar)', () => {
     const csv = buildCameraMeasurementCsv([entry({ source: 'typed' })])
     const lines = csv.replace('﻿', '').split('\r\n')

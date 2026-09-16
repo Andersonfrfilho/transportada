@@ -1,4 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  CSV_BYTE_ORDER_MARK,
+  CSV_FIELD_SEPARATOR,
+  CSV_LINE_SEPARATOR,
+  escapeCsvField,
+} from '@/modules/shared/csv.service'
+
 import type { CameraMeasurementExportEntry } from './cameraMeasurementValidation.service'
 
 type ExportDimension = 'height' | 'length' | 'width'
@@ -27,19 +34,6 @@ export const CAMERA_MEASUREMENT_EXPORT_COLUMNS = [
 
 export const CAMERA_MEASUREMENT_EXPORT_FILE_NAME = 'medidas-camera.csv'
 export const CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE = 'text/csv;charset=utf-8'
-
-/**
- * Ponto e vírgula, CRLF e BOM: mesmo padrão de `freightRegionExport.service.ts` — é o que o Excel em
- * pt-BR abre sem assistente de importação e sem comer o acento.
- */
-const FIELD_SEPARATOR = ';'
-const LINE_SEPARATOR = '\r\n'
-const BYTE_ORDER_MARK = '﻿'
-const QUOTE_PATTERN = /"/g
-
-function escapeField(value: string): string {
-  return `"${value.replace(QUOTE_PATTERN, '""')}"`
-}
 
 /** R8: nunca a descrição do produto — só o código do produto e o GTIN da caixa identificam a linha. */
 function boxLabel(entry: CameraMeasurementExportEntry): string {
@@ -101,12 +95,12 @@ export function buildCameraMeasurementCsv(
   entries: readonly CameraMeasurementExportEntry[],
 ): string {
   const relevant = entries.filter((entry) => entry.source !== 'typed')
-  const header = CAMERA_MEASUREMENT_EXPORT_COLUMNS.map(escapeField).join(FIELD_SEPARATOR)
+  const header = CAMERA_MEASUREMENT_EXPORT_COLUMNS.map(escapeCsvField).join(CSV_FIELD_SEPARATOR)
   const rows = relevant.flatMap((entry) =>
     EXPORT_DIMENSIONS.map((dimension) =>
-      toRow(entry, dimension).map(escapeField).join(FIELD_SEPARATOR),
+      toRow(entry, dimension).map(escapeCsvField).join(CSV_FIELD_SEPARATOR),
     ),
   )
 
-  return `${BYTE_ORDER_MARK}${[header, ...rows].join(LINE_SEPARATOR)}`
+  return `${CSV_BYTE_ORDER_MARK}${[header, ...rows].join(CSV_LINE_SEPARATOR)}`
 }

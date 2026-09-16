@@ -52,11 +52,14 @@ const measurementSchema = z
   })
   .strict()
   /**
-   * R5: `camera` só existe com `source` diferente de `typed`. Margem acima de 10 mm sem confirmação
-   * explícita (D6) e margem acima de 30 mm proposta pela câmera (D6, a câmera nunca propõe o que não
-   * consegue ler com confiança) só recusam quando `source: camera` — a margem viaja com a proposta
-   * mesmo em `camera_adjusted` (D17, guardada por auditoria), mas a regra de imprecisão do D15 não
-   * se aplica a um valor que o operador já digitou por cima.
+   * R5: `camera` só existe com `source` diferente de `typed`. Margem acima de 30 mm proposta pela
+   * câmera (D6, a câmera nunca propõe o que não consegue ler com confiança) recusa para QUALQUER
+   * origem que carregue bloco `camera` — inclusive `camera_adjusted` (T14 item 3, revisão de
+   * segurança): o operador pode ter editado o *valor*, mas a *proposta* continua tão imprecisa
+   * quanto a câmera relatou, e a margem gravada é da proposta, nunca do dígito por cima (D17).
+   * Já a confirmação explícita acima de 10 mm (D6) só se aplica a `source: camera` — a regra de
+   * imprecisão do D15 é sobre o *valor gravado*, e um valor `camera_adjusted` já foi corrigido à
+   * mão, não é mais "número plausível sem aviso" (ADR-0044 §1).
    */
   .superRefine((value, ctx) => {
     if (value.source === 'typed') {
@@ -69,17 +72,17 @@ const measurementSchema = z
       ctx.addIssue({ code: 'custom', message: 'a non-typed source requires the camera block' })
       return
     }
-    if (value.source !== 'camera') return
 
     const marginMm = resolveMeasurementMargin(value.camera) ?? 0
-    if (marginMm > MARGIN_RELIABLE_MM && !value.camera.impreciseConfirmed) {
-      ctx.addIssue({ code: 'custom', message: 'an imprecise measurement requires confirmation' })
-    }
     if (marginMm > MARGIN_UNRELIABLE_MM) {
       ctx.addIssue({
         code: 'custom',
         message: 'the camera cannot propose an unreliable measurement',
       })
+    }
+    if (value.source !== 'camera') return
+    if (marginMm > MARGIN_RELIABLE_MM && !value.camera.impreciseConfirmed) {
+      ctx.addIssue({ code: 'custom', message: 'an imprecise measurement requires confirmation' })
     }
   })
 

@@ -79,7 +79,7 @@ export type BoxDimensionScannerController = Readonly<{
   markedPoints: MarkedPoints
   returnToLive: () => void
   setMarkedPoint: (key: MarkedPointKey, point: Point) => void
-  snapshotDataUrl: string | undefined
+  snapshotUrl: string | undefined
   status: BoxDimensionScannerStatus
   videoRef: React.RefObject<HTMLVideoElement | null>
 }>
@@ -115,7 +115,8 @@ export function useBoxDimensionScanner({
   const [status, setStatus] = useState<BoxDimensionScannerStatus>('idle')
   const [liveFrameStats, setLiveFrameStats] = useState<FrameStats | undefined>(undefined)
   const [markedPoints, setMarkedPoints] = useState<MarkedPoints>(() => defaultMarkedPoints(0, 0))
-  const [snapshotDataUrl, setSnapshotDataUrl] = useState<string | undefined>(undefined)
+  const [snapshotUrl, setSnapshotUrl] = useState<string | undefined>(undefined)
+  const snapshotObjectUrlRef = useRef<string | undefined>(undefined)
   const capturedRef = useRef<
     Readonly<{ markerCorners: readonly Point[]; width: number; height: number }> | undefined
   >(undefined)
@@ -227,14 +228,24 @@ export function useBoxDimensionScanner({
       workerRef.current = undefined
       const video = videoRef.current
       if (video !== null) video.srcObject = null
+      revokeSnapshotObjectUrl()
     }
   }, [isActive, stream])
 
+  /** `img-src` real não tem `data:` — revogar a URL de objeto é o par de cada criação. */
+  function revokeSnapshotObjectUrl(): void {
+    const objectUrl = snapshotObjectUrlRef.current
+    if (objectUrl === undefined) return
+    URL.revokeObjectURL(objectUrl)
+    snapshotObjectUrlRef.current = undefined
+  }
+
   /**
-   * A foto congelada é um retrato próprio (`canvas.toDataURL`), não o `<video>` pausado: o
-   * navegador nem sempre mostra o quadro parado de forma estável, e o retrato também alimenta a
-   * lupa sem precisar de um segundo `<video>` ligado à mesma trilha. Nunca sai do aparelho — fica
-   * só em memória, como `data:`.
+   * A foto congelada é um retrato próprio (`canvas.toBlob` + `URL.createObjectURL`), não o
+   * `<video>` pausado: o navegador nem sempre mostra o quadro parado de forma estável, e o
+   * retrato também alimenta a lupa sem precisar de um segundo `<video>` ligado à mesma trilha.
+   * Nunca sai do aparelho — fica só em memória, como URL de objeto local. A URL de dados em base64
+   * foi descartada porque a CSP real de produção não tem essa palavra em `img-src` (T14 item 1).
    */
   function captureFrame(): void {
     const video = videoRef.current
@@ -250,15 +261,29 @@ export function useBoxDimensionScanner({
       markerCorners: lastMarkerCornersRef.current,
       width: video.videoWidth,
     }
-    setSnapshotDataUrl(context === null ? undefined : canvas.toDataURL('image/png'))
     setMarkedPoints(defaultMarkedPoints(video.videoWidth, video.videoHeight))
     setStatus('capturing')
+    if (context === null) {
+      setSnapshotUrl(undefined)
+      return
+    }
+    canvas.toBlob((blob) => {
+      revokeSnapshotObjectUrl()
+      if (blob === null) {
+        setSnapshotUrl(undefined)
+        return
+      }
+      const objectUrl = URL.createObjectURL(blob)
+      snapshotObjectUrlRef.current = objectUrl
+      setSnapshotUrl(objectUrl)
+    }, 'image/png')
   }
 
   function returnToLive(): void {
     const video = videoRef.current
     capturedRef.current = undefined
-    setSnapshotDataUrl(undefined)
+    revokeSnapshotObjectUrl()
+    setSnapshotUrl(undefined)
     if (video !== null) void video.play().catch(() => undefined)
     setStatus('live')
   }
@@ -313,7 +338,7 @@ export function useBoxDimensionScanner({
   return {
     captureFrame,
     confirmMeasurement,
-    snapshotDataUrl,
+    snapshotUrl,
     liveWarnings: selectDomainWarnings(
       liveFrameStats === undefined ? [] : detectWarnings(liveFrameStats),
     ),

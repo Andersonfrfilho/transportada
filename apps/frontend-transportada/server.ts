@@ -129,21 +129,43 @@ function rangeResponse(file: Bun.BunFile, request: Request): Response {
 }
 
 /**
+ * `Accept-Encoding` é lista separada por vírgula, cada token com `;q=` opcional (RFC 9110 §12.5.3).
+ * `.includes('br')` cru casava `br;q=0` — que É o cliente dizendo que **não** aceita — e `gzip`
+ * como substring de `x-gzip`, um token diferente. T14 item 5: parseia de verdade, ignora `q=0`, e
+ * devolve só o que o cliente realmente aceita, na ordem em que apareceu.
+ */
+function acceptedEncodings(acceptEncodingHeader: string): readonly string[] {
+  return acceptEncodingHeader
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token !== '')
+    .flatMap((token) => {
+      const [rawEncoding = '', ...parameters] = token.split(';').map((part) => part.trim())
+      const qualityParameter = parameters.find((parameter) => parameter.startsWith('q='))
+      const quality = qualityParameter === undefined ? 1 : Number(qualityParameter.slice(2))
+      const encoding = rawEncoding.toLowerCase()
+      return encoding === '' || quality === 0 ? [] : [encoding]
+    })
+}
+
+/**
  * Prefere Brotli, cai para gzip, e serve o arquivo original se nenhum dos dois existir ou se o
  * cliente não anunciar a codificação — nunca lança e nunca falha 404 por falta de compressão.
+ * `Vary: Accept-Encoding` vai em TODO ramo, inclusive o não comprimido: sem ele um cache
+ * intermediário pode devolver a resposta sem compressão para um cliente que aceitava Brotli.
  */
 async function precompressedResponse(
   original: Bun.BunFile,
   pathname: string,
   request: Request,
 ): Promise<Response> {
-  const acceptEncoding = request.headers.get('accept-encoding') ?? ''
+  const accepted = acceptedEncodings(request.headers.get('accept-encoding') ?? '')
   const candidates: readonly [string, string][] = [
     ['br', `${pathname}.br`],
     ['gzip', `${pathname}.gz`],
   ]
   for (const [encoding, encodedPathname] of candidates) {
-    if (!acceptEncoding.includes(encoding)) continue
+    if (!accepted.includes(encoding)) continue
     const encodedAsset = resolveAsset(encodedPathname)
     if (!(await encodedAsset.exists())) continue
     // O `.br`/`.gz` no nome faz o Bun adivinhar `application/octet-stream` pela extensão errada —
@@ -155,7 +177,9 @@ async function precompressedResponse(
     response.headers.set('Vary', 'Accept-Encoding')
     return response
   }
-  return new Response(original)
+  const fallback = new Response(original)
+  fallback.headers.set('Vary', 'Accept-Encoding')
+  return fallback
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {
