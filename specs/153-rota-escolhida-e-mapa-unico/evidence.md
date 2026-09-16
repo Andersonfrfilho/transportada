@@ -268,3 +268,159 @@ chega como `trailingLegs: 0`.
   `road.legs.reduce(...)` de hoje por esta chamada e passa a ter a volta e a duração que antes não
   calculava — `distanceMeters` mantém exatamente o número atual, o que é o que faz a paridade do
   aceite 2 valer entre prévia e viagem gravada.
+
+## T103 — Gateway com `exclude=toll` em paralelo, dedupe por assinatura, `isNoToll` ✅
+
+Split do `plan.md`: o **gateway** só ganha a flag; **paralelismo, dedupe e `isNoToll` moram no
+chamador**. `read-route-geometry.use-case.ts` (456 linhas, `rawRoads`/`options[]`/`selectedIndex`)
+não foi tocado — é escopo da T104.
+
+- `apps/api-transportada/src/trips/application/route-geometry.port.ts` — `readRouteGeometry` ganha
+  um segundo parâmetro opcional, `options?: Readonly<{ excludeToll?: boolean }>`. Aditivo: todo call
+  site existente (`osrm-route-geometry.gateway.ts`, `read-route-geometry.use-case.ts:295`, fakes de
+  teste) chamava com um argumento só e continua válido.
+- `apps/api-transportada/src/trips/infrastructure/osrm-route-geometry.gateway.ts` — a URL ganha
+  `&exclude=toll` quando `options?.excludeToll === true`; os parâmetros existentes
+  (`overview`/`geometries`/`annotations`/`alternatives`) continuam intactos, só concatenados.
+- `apps/api-transportada/src/trips/application/route-geometry-toll-free-candidates.service.ts`
+  (73 linhas) — `RouteGeometryTollFreeCandidate` (`road`, `isNoToll`, `signature`) e
+  `readRouteGeometryTollFreeCandidates({ geometry, points })`: o chamador que faz as duas chamadas,
+  deduplica e marca. Reusa `buildRouteSignature` da T102 — nenhuma segunda lógica de assinatura.
+
+Contratos em `test/trip-infrastructure/route-geometry-exclude-toll.contract.ts` (importado por
+`test/trip-infrastructure.contract.test.ts`, já na lista do `package.json`) e
+`test/trip-application/route-geometry-toll-free-candidates.contract.ts` (importado por
+`test/trip-application.contract.test.ts`, mesma situação) — nenhuma das duas listas precisou de
+edição.
+
+### Decisões
+
+**`Promise.allSettled`, não `Promise.all`.** O gateway real já converte toda falha em `null` dentro
+do próprio `try/catch` (nunca rejeita), então na prática as duas formas isolariam a falha da mesma
+forma. `allSettled` foi escolhido porque o contrato do chamador não deve **depender** desse detalhe
+de implementação do gateway — uma porta falsa (ou um gateway futuro) que rejeite a promise em vez de
+resolver `null` não pode derrubar a rota principal só porque o chamador usou a forma errada de
+`Promise`. Isola por construção, não por acordo tácito com quem implementa `RouteGeometryPort`.
+
+**Assinatura nula nunca deduplica.** `buildRouteSignature` devolve `null` para rota sem
+`nodeIdsByLeg` (sem anotação do OSRM). Tratar dois `null` como iguais daria a mesma identidade a toda
+rota sem anotação — a colisão que a própria T102 recusa. Por isso o merge só procura candidata
+existente quando a assinatura da rota sem pedágio **não é nula**; sendo nula, ela sempre vira
+candidata nova, com `isNoToll: true` e `signature: null`.
+
+**Rota sem pedágio que bate com a principal marca `isNoToll: true` na mesma entrada, sem duplicar.**
+É o caso sutil do aceite: uma estrada que responde às duas chamadas (mesma assinatura) precisa
+continuar como **uma** candidata — perder a marca ao dedupear seria esconder da T104 que aquela rota
+é, de fato, a rota sem pedágio.
+
+**A chamada `exclude=toll` falhando (rejeita ou devolve `null`) preserva a principal sozinha.** É o
+caso descrito no `plan.md` ("falha da chamada com `exclude` não derruba a outra").
+
+**A chamada principal falhando esvazia a lista, mesmo com a sem pedágio OK.** Decisão nova desta
+task, não coberta literalmente pelo `plan.md`: toda candidata (inclusive a sem pedágio) é ancorada na
+rota principal — spec 096 D2, "a alternativa é oferta, nunca troca automática". Uma rota sem pedágio
+sozinha não tem principal ao lado para ser oferta _de_, então não há nada publicável. A T104, que vai
+decidir o que a API responde quando não há candidata nenhuma (provavelmente a queda para reta que o
+gateway já produz hoje), consome essa lista vazia como sinal de "sem geometria alguma", igual a hoje.
+
+**Log de aviso "exclude não suportado" (caso extremo do `spec.md`) não foi implementado.** Fora dos 5
+itens do aceite desta task e exigiria uma dependência de logger ainda não decidida para este módulo;
+fica registrado como gap para quem tratar aquele caso extremo, e não foi simulado com números
+inventados.
+
+### Contrato vermelho, antes de implementar
+
+```bash
+git stash push -- src/trips/application/route-geometry.port.ts \
+  src/trips/infrastructure/osrm-route-geometry.gateway.ts
+cd apps/api-transportada && bun test ./test/trip-infrastructure/route-geometry-exclude-toll.contract.ts
+```
+
+```
+3 pass
+1 fail
+7 expect() calls
+Ran 4 tests across 1 file. [9.00ms]
+```
+
+(a que falha é `asks OSRM for the toll-free route when the caller requests it` — `exclude=toll`
+ausente da URL sem a mudança no gateway; `git stash pop` restaurou a implementação depois.)
+
+```bash
+cd apps/api-transportada && bun test ./test/trip-application/route-geometry-toll-free-candidates.contract.ts
+```
+
+```
+error: Cannot find module '../../src/trips/application/route-geometry-toll-free-candidates.service.js' from '.../test/trip-application/route-geometry-toll-free-candidates.contract.ts'
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [11.00ms]
+```
+
+### Verde, depois de implementar
+
+```bash
+cd apps/api-transportada && bun test ./test/trip-application/route-geometry-toll-free-candidates.contract.ts ./test/trip-infrastructure/route-geometry-exclude-toll.contract.ts
+```
+
+```
+14 pass
+0 fail
+33 expect() calls
+Ran 14 tests across 2 files. [22.00ms]
+```
+
+10 contratos novos no chamador (duas rotas diferentes → duas candidatas com `isNoToll` correto e as
+duas chamadas de fato paralelas; mesma estrada nas duas chamadas → uma candidata só com
+`isNoToll: true`; falha isolada da chamada sem pedágio, por exceção e por `null`, preservando a
+principal; principal falhando por exceção e por `null` esvaziando a lista; rota sem pedágio sem
+anotação nunca tratada como duplicata; alternativas da principal continuam na lista sem marca; rota
+sem pedágio que bate com uma alternativa marca a alternativa certa, não a principal; a chamada sem
+pedágio pedida pela flag do gateway) e 4 no gateway (sem `exclude=toll` por padrão, sem ele com
+`excludeToll: false` explícito, com ele em `excludeToll: true`, parâmetros existentes intactos).
+
+### Gates
+
+```bash
+bun run typecheck   # raiz do worktree
+```
+
+6 `tsc --noEmit` limpos, sem erro.
+
+```bash
+bun run lint        # raiz do worktree
+```
+
+6 `eslint --max-warnings=0` / `eslint .` limpos, sem erro nem warning.
+
+```bash
+bun run format:check   # raiz do worktree
+```
+
+Reprovou uma vez nos dois arquivos novos (`route-geometry-toll-free-candidates.service.ts` e o
+contrato correspondente), corrigido com `prettier --write`; depois, `All matched files use Prettier
+code style!`.
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+```
+
+```
+6121 pass
+23 skip
+0 fail
+21541 expect() calls
+Ran 6144 tests across 177 files. [11.26s]
+```
+
+14 testes a mais que a base da T102 (6130 → 6144), sem nenhuma quebra nas 6107 já existentes.
+
+### O que a T104 recebe daqui
+
+`readRouteGeometryTollFreeCandidates({ geometry, points })` devolve
+`readonly RouteGeometryTollFreeCandidate[]` (`road`, `isNoToll`, `signature`) já deduplicada — a
+T104 monta `options[]`/`selectedIndex` a partir desta lista, e decide o que fazer quando ela vem
+vazia (principal falhou) dentro do fluxo existente de `read-route-geometry.use-case.ts`, sem repetir
+a lógica de paralelismo ou de assinatura.

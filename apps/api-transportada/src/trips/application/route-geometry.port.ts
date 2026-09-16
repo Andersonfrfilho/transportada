@@ -53,6 +53,12 @@ export type RouteGeometryPort = {
   /**
    * A linha da estrada que liga os pontos, na ordem em que eles vêm. `null` quando o serviço não
    * está configurado ou não respondeu — nunca uma reta inventada no lugar dela.
+   *
+   * `excludeToll` pede a rota **sem pedágio** (`exclude=toll`, spec 153 D1/T001) em vez da rota de
+   * sempre — é uma segunda pergunta ao mesmo serviço, não uma opção da rota principal.
    */
-  readRouteGeometry(points: readonly RouteGeometryPoint[]): Promise<RouteGeometryRoad | null>
+  readRouteGeometry(
+    points: readonly RouteGeometryPoint[],
+    options?: Readonly<{ excludeToll?: boolean }>,
+  ): Promise<RouteGeometryRoad | null>
 }

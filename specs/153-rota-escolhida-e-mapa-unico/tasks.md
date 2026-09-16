@@ -19,7 +19,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 - [x] T102 🧠 Assinatura de rota, `selectRouteOption` e `summarizeRoadDistance` (domínio puro) —
       contratos de domínio (assinatura estável, critérios, não reproduzida, volta `0` em
       `last_stop`).
-- [ ] T103 Gateway com `exclude=toll` em paralelo, dedupe por assinatura, `isNoToll`, falha isolada —
+- [x] T103 Gateway com `exclude=toll` em paralelo, dedupe por assinatura, `isNoToll`, falha isolada —
       contrato com gateway falso.
 - [ ] T104 `read-route-geometry`: `signature`, `isNoToll`, `selectedIndex` na mais barata, topo = a
       selecionada — contratos de route-geometry atualizados.
