@@ -1019,3 +1019,111 @@ simbólico **não foi editado**.
 `test/nfe-package-box.contract.test.ts`),
 `test/integration/package-box-measurement-export.integration.ts` (adicionado ao `package.json` da
 API, `test:integration`).
+
+## T6 — Motor puro de medida, portado do spike
+
+Contrato vermelho antes: `bun test ./test/nfe-workspace/box-dimension.contract.ts` com os módulos
+ainda inexistentes → `0 pass, 1 fail, 1 error`
+(`Cannot find module '@/components/ui/boxDimension.constant'`). Só depois a implementação.
+
+### Onde o motor ficou
+
+Tudo em `apps/frontend-transportada/src/components/ui/` (o CLAUDE.md da app proíbe implementação
+própria de câmera fora do design system), **sem I/O, sem DOM, sem OpenCV**:
+
+| Arquivo                           | O que é                                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `boxDimension.constant.ts`        | todas as constantes nomeadas: marcador, limites de precisão, parâmetros de incerteza, semente, limites do indicador, motivos |
+| `boxDimensionGeometry.service.ts` | homografia DLT, focal por Zhang, pose, projeção, ângulo de visão, altura pela aresta vertical                                |
+| `boxDimension.service.ts`         | `measureBox`, `estimateMarkerView`, `createSeededRandom`, `estimateMargins`, `classifyMargin`, `classifyMeasurement`         |
+| `boxDimensionWarnings.service.ts` | `detectWarnings` (D9) e `selectDomainWarnings`                                                                               |
+
+O motor **não decide gravar nada**: devolve medida (`BoxMeasurementResult`), margem (`BoxMargins`) e
+motivos (`BoxDimensionWarning[]`). Quem grava é a T10/T11.
+
+Teste: `test/nfe-workspace/box-dimension.contract.ts`, importado por
+`test/nfe-workspace.contract.test.ts` — entrypoint **já listado** no `test` do `package.json` da app,
+então nenhuma linha do `package.json` mudou (o arquivo novo roda porque entrou no entrypoint certo).
+
+### Como a margem é calculada
+
+`m = 2σ + piso de impressão`, por dimensão (D7):
+
+- σ sai de um Monte Carlo de `MONTE_CARLO_SAMPLES = 400` perturbações. Cada amostra sacode os quatro
+  cantos do marcador por `σ_canto = hypot(CORNER_SIGMA_FLOOR_PX 0,3 px, erro de reprojeção)` e os
+  cinco pontos tocados por `TOUCH_SIGMA_PX = 1,5 px`, e remede a caixa inteira;
+- quando a focal veio do FOV padrão (`focalSource: 'defaultFov'`), a amostra também sacode a focal
+  por `FALLBACK_FOCAL_RELATIVE_SIGMA = 10%` — a incerteza da focal entra na margem em vez de sumir;
+- amostra degenerada (sistema singular) é descartada da estatística, nunca vira número plausível;
+- piso: `printFloorMm(d) = PRINT_FLOOR_MM 2 mm + PRINT_SCALE_TOLERANCE 0,2% × d`.
+
+**Determinismo:** `MONTE_CARLO_SEED = 150` é a semente padrão e o gerador é Mulberry32 criado a cada
+chamada — mesma entrada, mesma margem. Provado por dois testes: com semente injetada igual
+(`createSeededRandom(7)` duas vezes → `toEqual`) e **sem semente nenhuma** (duas chamadas de
+`estimateMargins(input, nominal)` → `toEqual`), mais o negativo (sementes 7 e 8 → `not.toEqual`),
+que impede um "determinismo" trivial por margem constante.
+
+### Faixas de D15 e motivos de D9
+
+`MARGIN_RELIABLE_MM = 10` e `MARGIN_UNRELIABLE_MM = 30`, com o comentário "provisório até a
+validação da spec 152 (T15): apertar pode, afrouxar volta ao usuário" — **nenhum limite foi
+afrouxado**. `classifyMargin` dá as fronteiras (10 → `reliable`, 10,01 → `imprecise`, 30 →
+`imprecise`, 30,01 → `unreliable`) e `classifyMeasurement` aplica D6 por dimensão: `filled` fica
+`false` só na dimensão acima de 30 mm (o campo fica para digitar) e `requiresConfirmation` é `true`
+quando alguma dimensão está na faixa 10–30 mm. Uma dimensão `unreliable` sozinha **não** vira pedido
+de confirmação — ela simplesmente não preenche (teste próprio).
+
+Os motivos são cópia por valor do CHECK `nfe_package_box_measurements_warnings_domain_check`:
+`markerNotFound`, `markerTooSmall`, `steepAngle`, `lowLight`, `blurry`, `boxOutOfFrame`, `unstable`,
+com contrato que compara a lista inteira e um teste que exercita o motor até produzir **cada um** dos
+sete. `markerAtEdge` fica em `BOX_DIMENSION_INTERNAL_WARNINGS` — útil ao indicador ao vivo, fora do
+enum da API por decisão da T6 — e `selectDomainWarnings` é o filtro que entrega só o gravável.
+
+### O que mudou em relação ao spike
+
+- as constantes saíram de dentro de `measurement.ts`/`warnings.ts` e viraram `boxDimension.constant.ts`
+  (nenhum valor mudou de número);
+- `WARNING_TEXT` **não foi portado**: texto é da tela (prop/locale), não do motor — o motor devolve
+  código;
+- `markerAtEdge` deixou de ser um motivo qualquer e virou código explicitamente interno, separado do
+  domínio gravável;
+- `classifyMeasurement` é novo (o spike só tinha `classifyMargin` por número solto) e é quem carrega
+  a regra de D6 por dimensão;
+- a semente do Monte Carlo (150) e os ângulos da faixa física de FOV (40°/100°) eram literais soltos
+  no spike e agora são `MONTE_CARLO_SEED`, `MIN_PLAUSIBLE_FOV_DEGREES`, `MAX_PLAUSIBLE_FOV_DEGREES`;
+  o mesmo para os epsilons de sistema singular e o `4` de cantos do marcador (`MARKER_CORNER_COUNT`);
+- `estimateMarkerView` não usa mais o cast `{ imageWidth } as MeasurementInput` do spike —
+  `resolveFocal` passou a receber os três valores de que precisa;
+- geometria separada do cálculo da medida (o arquivo único do spike passaria de 200 linhas);
+- `session.ts`/`marking.ts` **não** foram portados: são T12 e T8.
+
+### Gates
+
+| Gate                                                              | Resultado                                                                     |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `bun test ./test/nfe-workspace/box-dimension.contract.ts` (antes) | 0 pass, **1 `(fail)`** — vermelho obrigatório                                 |
+| `bun test ./test/nfe-workspace/box-dimension.contract.ts`         | **39 pass, 0 `(fail)`**, 130 `expect()`                                       |
+| `bun run typecheck` (raiz, as 6 apps)                             | verde                                                                         |
+| `bun run lint` (raiz, as 6 apps)                                  | verde                                                                         |
+| `bun run --cwd apps/frontend-transportada test`                   | **3900 pass, 0 `(fail)`**, 35243 `expect()` (era 3861 — +39, nenhum quebrado) |
+| `bun run --cwd apps/frontend-transportada build`                  | verde (`built in 4.95s`, PWA 131 entradas de precache)                        |
+| `bunx prettier --check` (6 arquivos tocados)                      | verde (1 arquivo formatado com `--write` antes da rodada final)               |
+| `locale-accents.contract.ts` (contrato de acentos)                | verde dentro da suíte — nenhum `*.locale.json` foi tocado nesta task          |
+
+Contagem de `(fail)` na task: **1** (o vermelho do contrato, antes da implementação) e **0** depois.
+
+### Arquivos novos
+
+`src/components/ui/boxDimension.constant.ts`, `src/components/ui/boxDimension.service.ts`,
+`src/components/ui/boxDimensionGeometry.service.ts`,
+`src/components/ui/boxDimensionWarnings.service.ts`,
+`test/nfe-workspace/box-dimension.contract.ts` (importado por `test/nfe-workspace.contract.test.ts`).
+
+### Pontos para o usuário
+
+- O `tasks.md` manda o contrato em `test/nfe-workspace/box-dimension.contract.ts` e o `plan.md`
+  coloca o motor em `src/components/ui/` (design system). Segui os dois como escritos: teste em
+  `nfe-workspace`, código em `components/ui`. Se preferir o contrato junto do código
+  (`test/design-system/`), é uma renomeação de um arquivo.
+- A T8 é quem vai alimentar `FrameStats` a partir do quadro do OpenCV; o motor já está fechado em
+  números puros e não precisa mudar para isso.
