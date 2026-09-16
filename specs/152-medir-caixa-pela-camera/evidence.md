@@ -1978,26 +1978,41 @@ wiring do export/CSV), `src/modules/nfe-workspace/locales/nfeWorkspace.locale.js
 `nfeWorkspace.en.locale.json` (+18 chaves cada), `test/nfe-workspace/camera-measurement-settings.contract.ts`
 (describe novo), `test/nfe-workspace.contract.test.ts` (import da suíte nova).
 
-### Ponto que exige decisão do usuário
+### Ponto que exigia decisão do usuário — decidido em 2026-09-16
 
-**A taxa "dentro da margem" da T15 não vai cobrir 100% das leituras da sessão real, por desenho já
-existente da T10** — editar uma dimensão (o que o protocolo de D16 pede em toda dimensão, sempre)
-apaga a margem gravada daquela dimensão no histórico, e sem margem gravada não há como recalcular
-"a leitura ficaria dentro da margem estimada?" depois do fato. O resumo desta task lida com isso
-mostrando as duas contagens (`readingCount` vs `withinMarginKnownCount`) em vez de fingir que a taxa
-cobre tudo, mas isso significa que, na prática, a sessão da T15 pode chegar ao fim com
-`withinMarginKnownCount` baixo ou zero (se o operador editar sempre as três dimensões, como o
-protocolo manda). Três saídas possíveis, nenhuma tomada aqui por ser mudança de escopo/contrato já
-fechado por outra task:
+**Decisão tomada (opção 3 da lista original, abaixo): a margem estimada pertence à proposta da
+câmera, não ao valor final gravado (alinhado a D17 — "o histórico guarda a proposta").** Ela
+continua sendo enviada e gravada mesmo quando o operador corrige o valor por cima — junto de
+`proposed*Mm` — e o que muda com a edição é só a origem (`camera_adjusted`) e a dispensa da regra de
+confirmação de imprecisão (D15) para o valor digitado, não a margem em si.
 
-1. Aceitar o resumo como está — a taxa de 10 mm (que não depende de margem) já cobre o critério
-   principal de R6, e a taxa de margem vira "melhor esforço", calculada só quando o operador aceitar
-   a proposta sem editar (rodando parte da sessão sem o protocolo de "digitar por cima de tudo").
-2. Mudar o protocolo de D16 para "digitar só quando divergir visivelmente da proposta" — mas isso é
-   exatamente o risco de contaminação que D16 já registrou (erro parecer zero).
-3. Mudar a T10 para manter a margem no histórico mesmo em dimensão editada — reabre uma task já
-   fechada e publicada em `staging`, fora do pedido desta task ("Não afrouxar limites de precisão" e
-   escopo de T12 é só o painel/export/resumo).
+O que mudou nas camadas (task de correção pós-T12, antes da T15 rodar):
 
-Registro para o usuário decidir antes ou durante a T15 — nenhuma das três opções foi escolhida por
-esta task.
+- **Frontend (T10/T11)** — `PackageBoxMeasurementForm.component.tsx`: `buildSubmission` não filtra
+  mais `lengthMarginMm`/`widthMarginMm`/`heightMarginMm` por `edited[dimension]`; as três margens da
+  proposta vão sempre no bloco `camera`, ao lado de `proposed*Mm`. `reliabilityOf` continua
+  escondendo o selo/aviso de margem **na tela** do campo editado (e continua tirando aquele campo da
+  exigência de confirmação de imprecisão) — só o envio à API deixou de depender da edição.
+- **API (T3)** — `package-box.schema.ts`: as duas recusas de imprecisão (margem > 10 mm sem
+  `impreciseConfirmed`, margem > 30 mm) agora só se aplicam com `source: "camera"` (puro). Antes, a
+  recusa de >10 mm valia para `camera` **e** `camera_adjusted` — o que teria passado a barrar toda
+  edição de dimensão imprecisa depois desta correção, já que a margem some de deixar de ser
+  filtrada. `camera_adjusted` segue sem as duas recusas (o operador já revisou o valor à mão), como
+  já valia para o limite de 30 mm antes desta correção. `resolveMeasurementMargin` e o use case não
+  mudaram — já aceitavam margem em qualquer origem.
+- **T12 (este resumo)** — `cameraMeasurementValidation.service.ts` não precisou de mudança de
+  lógica: `readingsOf`/`hasKnownMargin` já calculavam a taxa "dentro da margem" só sobre leituras com
+  margem conhecida, e essa passa a ser a quase totalidade das leituras da sessão real (a exceção
+  passa a ser só a dimensão `unreliable`, que nunca teve margem proposta). Só os comentários do
+  código e o texto da tela (`cameraMeasurementValidationMarginHint`, pt-BR/en) foram corrigidos —
+  diziam que editar apagava a margem, o que deixou de ser verdade.
+
+Texto anterior desta seção (as três opções em aberto) fica registrado abaixo por histórico; a opção
+escolhida foi a 3.
+
+1. Aceitar o resumo como estava — a taxa de 10 mm (que não depende de margem) já cobre o critério
+   principal de R6, e a taxa de margem viraria "melhor esforço".
+2. Mudar o protocolo de D16 para "digitar só quando divergir visivelmente da proposta" — descartada:
+   é o risco de contaminação que D16 já registra (erro parecer zero).
+3. **Escolhida.** Manter a margem no histórico mesmo em dimensão editada, restringindo as recusas de
+   imprecisão do schema a `source: "camera"` puro.

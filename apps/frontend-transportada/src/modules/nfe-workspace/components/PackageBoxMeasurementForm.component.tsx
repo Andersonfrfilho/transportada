@@ -65,10 +65,12 @@ function proposedMarginMillimetres(
  * Extraído de `PackageBoxMeasurementPanel` (spec 152 T10): o formulário de três campos que grava
  * uma caixa, agora capaz de abrir com a proposta da câmera (D6/D13/D17) além do digitado comum.
  *
- * ⚠️ **Margem e selo só existem enquanto o campo continua com o valor da câmera.** Editar um campo
- * (`edited[dimension] = true`) some com a margem/aviso dele — a partir daí é medida digitada por
- * cima, e a regra de imprecisão (D6) não se aplica mais àquela dimensão. `impreciseConfirmed`
- * cobre só as dimensões que continuam sem edição (a API confere o mesmo bloco `camera`).
+ * ⚠️ **Editar um campo muda a origem, não a margem enviada.** Editar (`edited[dimension] = true`)
+ * some com o selo de margem/aviso **na tela** daquele campo e tira a confirmação de imprecisão dele
+ * (D15 não se aplica a valor digitado por cima) — mas a margem da proposta continua indo para a API
+ * junto de `proposed*Mm` (D17), porque ela pertence à proposta da câmera, não ao valor final. Sem
+ * isso, o protocolo de validação (D16, "digite a fita em todos os campos") apagaria a margem de
+ * quase toda leitura da sessão real.
  */
 export function PackageBoxMeasurementForm({
   boxId,
@@ -154,13 +156,19 @@ export function PackageBoxMeasurementForm({
     const proposedLength = proposedMillimetres(proposal, 'length')
     const proposedWidth = proposedMillimetres(proposal, 'width')
     const proposedHeight = proposedMillimetres(proposal, 'height')
+    /**
+     * D17: a margem é da proposta da câmera, não do valor final — continua indo junto mesmo quando o
+     * operador corrige o campo por cima (`camera_adjusted`). É essa margem que a validação (R6/T15)
+     * compara contra o erro real; sem ela, editar (o protocolo de D16 pede editar sempre) apagaria a
+     * amostra quase inteira.
+     */
     const camera = {
       engine: proposal.engine,
+      heightMarginMm: proposal.heightMarginMm,
       impreciseConfirmed,
+      lengthMarginMm: proposal.lengthMarginMm,
       warnings: proposal.warnings,
-      ...(edited.length ? {} : { lengthMarginMm: proposal.lengthMarginMm }),
-      ...(edited.width ? {} : { widthMarginMm: proposal.widthMarginMm }),
-      ...(edited.height ? {} : { heightMarginMm: proposal.heightMarginMm }),
+      widthMarginMm: proposal.widthMarginMm,
       ...(proposedLength === undefined ? {} : { proposedLengthMm: proposedLength }),
       ...(proposedWidth === undefined ? {} : { proposedWidthMm: proposedWidth }),
       ...(proposedHeight === undefined ? {} : { proposedHeightMm: proposedHeight }),

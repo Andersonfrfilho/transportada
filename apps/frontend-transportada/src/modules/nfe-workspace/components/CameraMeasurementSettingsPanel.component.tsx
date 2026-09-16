@@ -63,8 +63,9 @@ const VERDICT_STATUS_CLASS: Readonly<
 
 /**
  * Spec 152 T12 (R6/R8): o resumo da validação — nunca só um número; texto e ícone dizem o veredito,
- * a contagem de leituras com margem conhecida vem ao lado da taxa de margem (D17/T10: editar uma
- * dimensão apaga a margem gravada dela).
+ * a contagem de leituras com margem conhecida vem ao lado da taxa de margem (D17: a margem é da
+ * proposta e continua gravada mesmo em dimensão editada; só falta quando a câmera nunca propôs
+ * aquela dimensão).
  */
 function CameraMeasurementValidationSummaryView(
   props: Readonly<{

@@ -793,7 +793,7 @@ describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
     )
   })
 
-  it('a margem sai do bloco camera quando a dimensão foi editada — a proposta continua', async () => {
+  it('a margem da proposta continua no bloco camera mesmo quando a dimensão foi editada (D17)', async () => {
     const form = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
@@ -801,9 +801,17 @@ describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
       ),
     ).text()
 
-    expect(form).toContain('...(edited.length ? {} : { lengthMarginMm: proposal.lengthMarginMm }),')
-    expect(form).toContain('...(edited.width ? {} : { widthMarginMm: proposal.widthMarginMm }),')
-    expect(form).toContain('...(edited.height ? {} : { heightMarginMm: proposal.heightMarginMm }),')
+    /**
+     * A margem pertence à proposta da câmera, não ao valor final (decisão de 2026-09-16, T12): editar
+     * um campo não apaga a margem enviada, senão o protocolo de validação (D16, "digite a fita em
+     * todos os campos") apagaria a margem de quase toda leitura da sessão real.
+     */
+    expect(form).toContain('heightMarginMm: proposal.heightMarginMm,')
+    expect(form).toContain('lengthMarginMm: proposal.lengthMarginMm,')
+    expect(form).toContain('widthMarginMm: proposal.widthMarginMm,')
+    expect(form).not.toContain('edited.length ? {} : { lengthMarginMm')
+    expect(form).not.toContain('edited.width ? {} : { widthMarginMm')
+    expect(form).not.toContain('edited.height ? {} : { heightMarginMm')
     /** Proposto (D17) continua indo para o histórico mesmo quando o campo foi editado por cima. */
     expect(form).toContain(
       '...(proposedLength === undefined ? {} : { proposedLengthMm: proposedLength }),',
