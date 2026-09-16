@@ -543,6 +543,21 @@ bem-sucedida virava erro na tela, com a medida já no banco, e o conferente reme
 de `nfe-workspace`, mobile-first, com o leitor da ADR-0042; ⚠️ quem chegou pela câmera **volta para
 ela** depois de gravar (o conferente varre uma pilha inteira), e quem chegou digitando fica na busca.
 
+**Medida pela câmera (experimental, spec 152, ADR-0065):** `PUT /nfe-package-boxes/:id` aceita
+`source: "camera" | "camera_adjusted"` (além do padrão `typed`) com um bloco `camera` contendo
+`margins` (±mm por dimensão), `motivos` (dos 7 códigos fechados de D9), `impreciseConfirmed` (quando a
+margem está entre 10–30 mm) e `engine` (motor da medida, ex. `aruco-homography-v1`). A caixa grava
+`measurement_source` e `measurement_margin_mm` (a maior das três margens, nulo quando `typed`).
+Histórico append-only em `nfe_package_box_measurements` guarda as três medidas, as três margens, os
+motivos, a proposta da câmera por dimensão (`proposed_*_mm`), confirmação de imprecisão, o motor, o
+ator do token e o timestamp. Editar um valor que veio da câmera muda a origem para `camera_adjusted`.
+O interruptor `company_cargo_settings.camera_measurement_enabled` (`default false`, por empresa)
+controla se a câmera está ligada na aba **Caixas** — com a função desligada, `PUT` com `source`
+`camera`/`camera_adjusted` retorna **422** `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED`. Rota de leitura
+`GET /nfe-package-boxes/measurement-settings` (`cargo.measure`, por porta) devolve o estado do
+interruptor. Export do histórico por período: `GET /nfe-package-box-measurements?from=&to=&cursor=`
+(`settings.manage`, `perPage ≤ 100`) para validação com caixas reais (spec 152 T15).
+
 ⚠️ **Etiqueta que não vira código nenhum é busca vazia, nunca busca sem filtro** — tratá-la como
 ausência de filtro mostrava as cinquenta primeiras caixas como se a leitura tivesse achado algo, e o
 conferente media a primeira da lista. E a fila ordena por `coalesce(volumes, 0) desc`: em Postgres

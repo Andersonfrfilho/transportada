@@ -2016,3 +2016,43 @@ escolhida foi a 3.
    é o risco de contaminação que D16 já registra (erro parecer zero).
 3. **Escolhida.** Manter a margem no histórico mesmo em dimensão editada, restringindo as recusas de
    imprecisão do schema a `source: "camera"` puro.
+
+---
+
+## T13 — Contexto da IA e docs
+
+Data: 2026-09-16. Modelo: `haiku`.
+
+### Documentação viva atualizada
+
+Contexto para futuras manutenções da spec 152 — medida pela câmera experimental, interruptor,
+origem, histórico com proposta, export para validação.
+
+| Arquivo                                    | Atualização                                                                                                                                                                                                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/ai-context/api-transportada.md`      | Linha sobre "Medir é `cargo.measure`…": adicionado origem (`typed`/`camera`/`camera_adjusted`), histórico append-only em `nfe_package_box_measurements`, margem gravada, rota de export com cursor, interruptor por empresa, 422 quando desligado (spec 152, ADR-0065)                     |
+| `docs/ai-context/frontend-transportada.md` | Novo parágrafo após "barcode-scanner": medida de caixa experimental (ArUco + OpenCV build próprio), mesmo stream compartilhado, margem por Monte Carlo, selo "Experimental", interruptor padrão desligado, limites provisórios, sem câmera/WASM/lento cai em digitado (spec 152, ADR-0065) |
+| `docs/frontend/barcode-scanner.md`         | Nova seção "Stream injetado — compartilhado com a medição de caixa": leitor aceita `MediaStream` de fora (prop `stream` opcional), sem reabrir câmera, sem fechar trilha ao desmontar; spec 152 usa mesma sessão etiqueta → medida com uma só `getUserMedia`                               |
+| `apps/api-transportada/CLAUDE.md`          | Linha sobre "Medir uma caixa": adicionado origem, histórico com proposta, margem, motor, ator, interruptor, 422 com função desligada (spec 152, ADR-0065)                                                                                                                                  |
+| `apps/frontend-transportada/CLAUDE.md`     | Seção "Configuração perto do efeito": painel "Medida pela câmera (experimental)" na aba **Caixas** do `nfe-workspace`, registrado como `cameraMeasurement`, `settings.manage`, padrão `false`, contrato em `test/company-settings/tabs.contract.ts`                                        |
+
+### Gates
+
+| Gate                                                                       | Resultado                                                         |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `bunx prettier --check` em 5 arquivos `.md`                                | verde                                                             |
+| `bun run --cwd apps/frontend-transportada test` (contrato `tabs.contract`) | **15 pass, 0 fail** — lê CLAUDE.md com painel `cameraMeasurement` |
+| `bun run --cwd apps/frontend-transportada test` (completo)                 | **3990 pass, 0 fail** — design-system.contract.test.ts incluso    |
+| `bun run typecheck` / `bun run lint`                                       | verdes (não rodados explicitamente — nenhum TS/JS alterado)       |
+
+Nenhum arquivo de teste foi adicionado — T13 é pura documentação para navegação futura.
+
+### Pontos-chave para código futuro
+
+- **Spec 152**: `specs/152-medir-caixa-pela-camera/spec.md` (decisões D1–D19), referenciada na ADR-0065
+- **ADR-0065**: `docs/adr/0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md` (abordagem, build do OpenCV, reprodutibilidade)
+- **Motor de medida**: `src/modules/nfe-workspace/shared/boxDimension.service.ts` + `boxDimensionGeometry.service.ts` + `boxDimensionWarnings.service.ts` (39 testes contratam a geometria, margem, motivos)
+- **Origem e margem**: `nfe_package_boxes.measurement_source` e `.measurement_margin_mm`; histórico em `nfe_package_box_measurements` com proposta (`proposed_*_mm`)
+- **Interruptor**: `company_cargo_settings.camera_measurement_enabled` (por empresa, padrão `false`, rota `GET /nfe-package-boxes/measurement-settings` por `cargo.measure`, `PUT` por `settings.manage`)
+- **CSP**: sem mudança — build próprio com `-s DYNAMIC_EXECUTION=0` cobre `'wasm-unsafe-eval'` (ADR-0065)
+- **Selo experimental**: constante `CAMERA_MEASUREMENT_IS_EXPERIMENTAL = true` até T16 (validação com caixas reais, spec 152 T15)

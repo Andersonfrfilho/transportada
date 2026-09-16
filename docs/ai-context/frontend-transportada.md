@@ -96,6 +96,23 @@ não a afrouxa (ADR-0042). Câmera ausente ou permissão negada devolvem indispo
 exceção — o campo digitado continua sendo o caminho. Regra em `docs/frontend/barcode-scanner.md`,
 contrato em `test/design-system/barcode-scanner.contract.ts`.
 
+**Medida de caixa pela câmera (experimental, spec 152, ADR-0065):** o mesmo `MediaStream` do leitor de
+etiqueta continua aberto após identificar a caixa, passando para a etapa de medição. O componente
+`@/components/ui/box-dimension-scanner` propõe as dimensões C×L×A pela detecção do cartão ArUco
+`DICT_4X4_50` (150 mm) com OpenCV 5 (build próprio sem execução dinâmica, 2,6 MB / 0,89 MB
+comprimido), e a margem de precisão é calculada por propagação de incerteza (Monte Carlo). A medida
+proposta preenche os campos de um formulário abaixo do vídeo; o conferente confirma tocando "Capturar",
+arrasta os cinco pontos de referência se necessário, e salva. Editar a proposta muda a origem para
+`camera_adjusted`. O histórico append-only guarda a proposta da câmera ao lado do valor gravado
+(especificação de auditoria). A função é **experimental** — selo "Experimental" e texto de estimativa
+na tela, digitação sempre disponível como caminho equivalente, operador **sempre** confirma antes de
+gravar (nunca automático). Interruptor por empresa em `company_cargo_settings.camera_measurement_enabled`
+(padrão `false`, painel "Medida pela câmera (experimental)" na aba **Caixas** de `nfe-workspace`,
+`settings.manage`). Limites de margem provisórios (10 mm = confiável, 30 mm = sem leitura) até a
+validação com caixas reais (spec 152 T15). Sem câmera, permissão negada, falha de WASM, carregamento
+acima de 15 s ou análise lenta — tudo cai no formulário digitado da caixa lida. Regra completa em
+`docs/frontend/box-dimension-scanner.md`, contrato em `test/design-system/box-dimension-scanner.contract.ts`.
+
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.

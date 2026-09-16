@@ -72,6 +72,16 @@ Desmontar o componente ou fechar o painel encerra **toda** trilha do stream (`st
 termina o worker e limpa o `srcObject` do vídeo. Câmera acesa atrás de painel fechado é a luz do
 celular denunciando o vazamento — e é bateria do separador.
 
+## Stream injetado — compartilhado com a medição de caixa
+
+O leitor aceita um `MediaStream` já aberto de fora (prop `stream` opcional): quando injetado, não
+abre câmera própria nem fecha a trilha ao desmontar. A spec 152 (medida pela câmera) usa a mesma
+sessão de câmera para duas etapas — leitura da etiqueta e medição das dimensões — mantendo uma só
+chamada de `getUserMedia` de ponta a ponta. O componente `boxDimensionScanner` abre o stream quando
+entra na etapa **Medida**, e o leitor naquela instalação recebe o stream injetado. Sem a prop, a
+leitura da etiqueta na instalação de scan-only abre e fecha a câmera como sempre. Backward-compatible:
+leitor sem instalação de medida continua abrindo câmera própria.
+
 ## Props
 
 | Prop                 | Tipo                     | Papel                                            |
