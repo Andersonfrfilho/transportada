@@ -83,6 +83,84 @@ export async function assertTripConstraints(
     'trips_status_check',
   )
 
+  // Spec 153 D4: a rota nasce inteira numa escrita — meia gravação é proibida, uma coluna por vez.
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = 0, planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  // Casos extremos: `end_policy = 'last_stop'` grava volta zero, nunca nula — 0 é valor legal.
+  await database`
+    update trips
+    set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+        planned_return_distance_meters = 0, planned_duration_seconds = 3600,
+        planned_route_frozen_at = now()
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set planned_route = null, planned_distance_meters = null,
+        planned_return_distance_meters = null, planned_duration_seconds = null,
+        planned_route_frozen_at = null
+    where id = ${tripId}
+  `
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = -1,
+          planned_return_distance_meters = 0, planned_duration_seconds = 3600,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = -1, planned_duration_seconds = 3600,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = 0, planned_duration_seconds = -1,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+
   // Spec 065 D4c: motivo so existe para a dispensa, e sobrescrita sem autor nao conta quem assinou.
   await expectQueryToFail(
     database`

@@ -258,6 +258,7 @@ describe('Drizzle migrations', () => {
       '20260915230000_contractor_mail_templates',
       '20260915233000_rate_limit_windows',
       '20260916000000_nfe_package_box_measurement_source',
+      '20260916174951_trip_planned_route',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1507,6 +1508,91 @@ describe('Drizzle migrations', () => {
     const dropTablePosition = rollbackSql.indexOf('DROP TABLE "whatsapp_flow_graph_versions"')
     expect(triggerPosition).toBeGreaterThan(-1)
     expect(dropTablePosition).toBeGreaterThan(triggerPosition)
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 153 RF1: a rota escolhida nasce inteira numa única escrita (D4) — traçado, distância, volta
+   * e duração compartilham `planned_route_frozen_at`, e o CHECK garante que nenhuma chega sozinha.
+   * `planned_toll`/`planned_toll_frozen_at` (spec 090 T11) não mudam: são gravados na mesma escrita
+   * pelo caso de uso, mas continuam sob a guarda própria deles.
+   */
+  test('versions the trip planned route as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_planned_route'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(migrationSql).not.toContain('"planned_toll"')
+    for (const column of [
+      'planned_route',
+      'planned_distance_meters',
+      'planned_return_distance_meters',
+      'planned_duration_seconds',
+      'planned_route_frozen_at',
+    ]) {
+      expect(migrationSql).toContain(`ADD COLUMN "${column}"`)
+    }
+    expect(migrationSql).toContain('ADD COLUMN "planned_route" jsonb;')
+    expect(migrationSql).toContain('ADD COLUMN "planned_route_frozen_at" timestamp with time zone;')
+
+    expect(migrationSql).toContain('CONSTRAINT "trips_planned_route_check" CHECK')
+    expect(migrationSql).toContain(
+      '("planned_route" is null) = ("planned_route_frozen_at" is null)',
+    )
+    expect(migrationSql).toContain(
+      '("planned_distance_meters" is null) = ("planned_route_frozen_at" is null)',
+    )
+    expect(migrationSql).toContain(
+      '("planned_return_distance_meters" is null) = ("planned_route_frozen_at" is null)',
+    )
+    expect(migrationSql).toContain(
+      '("planned_duration_seconds" is null) = ("planned_route_frozen_at" is null)',
+    )
+
+    expect(migrationSql).toContain('CONSTRAINT "trips_planned_route_metrics_check" CHECK')
+    expect(migrationSql).toContain(
+      '("planned_distance_meters" is null or "planned_distance_meters" >= 0)',
+    )
+    expect(migrationSql).toContain(
+      '("planned_return_distance_meters" is null or "planned_return_distance_meters" >= 0)',
+    )
+    expect(migrationSql).toContain(
+      '("planned_duration_seconds" is null or "planned_duration_seconds" >= 0)',
+    )
+
+    expect(rollbackSql).toContain('DROP CONSTRAINT IF EXISTS "trips_planned_route_metrics_check"')
+    expect(rollbackSql).toContain('DROP CONSTRAINT IF EXISTS "trips_planned_route_check"')
+    for (const column of [
+      'planned_route',
+      'planned_distance_meters',
+      'planned_return_distance_meters',
+      'planned_duration_seconds',
+      'planned_route_frozen_at',
+    ]) {
+      expect(rollbackSql).toContain(`DROP COLUMN IF EXISTS "${column}"`)
+    }
+    // Os dois CHECKs saem antes das colunas que eles referenciam, na mesma ordem inversa da migration.
+    const metricsCheckPosition = rollbackSql.indexOf(
+      'DROP CONSTRAINT IF EXISTS "trips_planned_route_metrics_check"',
+    )
+    const routeCheckPosition = rollbackSql.indexOf(
+      'DROP CONSTRAINT IF EXISTS "trips_planned_route_check"',
+    )
+    const firstColumnDropPosition = rollbackSql.indexOf('DROP COLUMN IF EXISTS "planned_route"')
+    expect(metricsCheckPosition).toBeGreaterThan(-1)
+    expect(routeCheckPosition).toBeGreaterThan(metricsCheckPosition)
+    expect(firstColumnDropPosition).toBeGreaterThan(routeCheckPosition)
+
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

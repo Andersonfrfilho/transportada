@@ -120,6 +120,17 @@ export const trips = pgTable(
     plannedToll: jsonb('planned_toll'),
     plannedTollFrozenAt: timestamp('planned_toll_frozen_at', { withTimezone: true }),
     /**
+     * Spec 153 D4: **a rota nasce inteira numa escrita.** Traçado simplificado, pernas, assinatura e
+     * critério da escolha — o pedágio congelado continua em `planned_toll`, gravado na mesma escrita
+     * pelo caso de uso, não nesta coluna. `null` é "roteiro nunca planejado", nunca rota parcial.
+     */
+    plannedRoute: jsonb('planned_route'),
+    plannedDistanceMeters: bigint('planned_distance_meters', { mode: 'number' }),
+    /** Spec 153 D9 / "Casos extremos": `end_policy = 'last_stop'` grava `0`, nunca nulo. */
+    plannedReturnDistanceMeters: bigint('planned_return_distance_meters', { mode: 'number' }),
+    plannedDurationSeconds: bigint('planned_duration_seconds', { mode: 'number' }),
+    plannedRouteFrozenAt: timestamp('planned_route_frozen_at', { withTimezone: true }),
+    /**
      * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
      * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
@@ -166,6 +177,24 @@ export const trips = pgTable(
     check(
       'trips_planned_toll_check',
       sql`(${table.plannedToll} is null) = (${table.plannedTollFrozenAt} is null)`,
+    ),
+    /**
+     * Spec 153 D4: as quatro colunas da rota escolhida nascem e morrem com `planned_route_frozen_at`
+     * — a mesma forma de `trips_planned_toll_check`, sem misturar as duas guardas.
+     */
+    check(
+      'trips_planned_route_check',
+      sql`(${table.plannedRoute} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedDistanceMeters} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedReturnDistanceMeters} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedDurationSeconds} is null) = (${table.plannedRouteFrozenAt} is null)`,
+    ),
+    /** RF1: distância e duração gravadas nunca são negativas — desconhecido é `null`, nunca zero. */
+    check(
+      'trips_planned_route_metrics_check',
+      sql`(${table.plannedDistanceMeters} is null or ${table.plannedDistanceMeters} >= 0)
+        and (${table.plannedReturnDistanceMeters} is null or ${table.plannedReturnDistanceMeters} >= 0)
+        and (${table.plannedDurationSeconds} is null or ${table.plannedDurationSeconds} >= 0)`,
     ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],
