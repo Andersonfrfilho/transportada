@@ -16,6 +16,7 @@ import {
   tripDocumentSeparatePath,
   tripDocumentsBatchStatusPath,
   tripPlanRoutePath,
+  tripRouteGeometryPath,
   tripStopsOrderPath,
   tripStopsPath,
   TRIP_DOCUMENT_ID,
@@ -25,7 +26,9 @@ import {
   createTripHttpFixture,
   FLEET_ONLY_PERMISSIONS,
   NO_PERMISSIONS,
+  READ_ONLY_PERMISSIONS,
 } from '../fixtures/trip-http.fixture'
+import { readTripRouteGeometry } from '../../src/trips/application/read-trip-route-geometry.use-case.js'
 
 /**
  * ADR-0043 §1, §2: as rotas de estado da spec 056 RF-6, testadas na fronteira HTTP — o encanamento
@@ -401,6 +404,187 @@ describe('trip state routes (spec 056 T012)', () => {
 
     const response = await fixture.handle(
       jsonRequest({ method: 'POST', path: tripDocumentSeparatePath() }),
+    )
+
+    expect(response.status).toBe(403)
+  })
+})
+
+/**
+ * Spec 153 T203: `GET /trips/:id/route-geometry` devolve a rota **congelada** quando ela existe
+ * (T201), nunca recalculando ao vivo em cima de uma viagem já precificada e despachada num traçado
+ * específico (D4). Sem congelamento — rascunho, OSRM fora do ar na hora de congelar (D5), ou viagem
+ * anterior à spec (D8) — cai para a mesma leitura ao vivo de sempre, nunca fingindo zero.
+ *
+ * ⚠️ Aqui o teste liga a fixture ao caso de uso real (`readTripRouteGeometryExecute`), não a um
+ * resultado enlatado: os outros contratos deste arquivo testam só o encanamento HTTP porque a
+ * lógica de negócio mora noutro use case já testado à parte, mas T203 nasce sem nenhum use case
+ * ainda — testar contra um objeto congelado à mão passaria mesmo antes de existir a implementação.
+ */
+describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)', () => {
+  const FROZEN_ROUTE = {
+    choiceReproduced: false,
+    criterion: 'fastest' as const,
+    depot: null,
+    distanceMeters: 128_450,
+    durationSeconds: 9_360,
+    legs: [{ distanceMetres: 128_450, durationSeconds: 9_360 }],
+    points: [
+      { latitude: '-23.550520', longitude: '-46.633308' },
+      { latitude: '-22.906847', longitude: '-43.172897' },
+    ],
+    returnDistanceMeters: 15_000,
+    signature: 'frozen-signature-abc',
+    toll: null,
+  }
+
+  const LIVE_ROAD_VIEW = {
+    cheapestIndex: 0,
+    choiceReproduced: false,
+    costGap: null,
+    depot: null,
+    fastestIndex: 0,
+    hasChoice: false,
+    legs: [{ distanceMetres: 42_000, durationSeconds: 3_000 }],
+    options: [
+      {
+        distanceMeters: 42_000,
+        durationSeconds: 3_000,
+        fuelTotal: null,
+        isNoToll: false,
+        legs: [{ distanceMetres: 42_000, durationSeconds: 3_000 }],
+        points: [],
+        signature: 'live-signature-xyz',
+        toll: null,
+        totalCost: null,
+      },
+    ],
+    points: [],
+    selectedIndex: 0,
+    source: 'road' as const,
+    toll: null,
+  }
+
+  const LIVE_UNAVAILABLE_VIEW = {
+    cheapestIndex: null,
+    choiceReproduced: false,
+    costGap: null,
+    depot: null,
+    fastestIndex: null,
+    hasChoice: false,
+    legs: [],
+    options: [],
+    points: [],
+    selectedIndex: null,
+    source: 'unavailable' as const,
+    toll: null,
+  }
+
+  test('is frozen: true with the stored criterion, signature, choiceReproduced and metrics', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: READ_ONLY_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => {
+            throw new Error('não deveria calcular ao vivo com rota congelada')
+          },
+          route: { readFrozenRoute: () => Promise.resolve(FROZEN_ROUTE) },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toMatchObject({
+      choiceReproduced: false,
+      criterion: 'fastest',
+      distanceMeters: 128_450,
+      durationSeconds: 9_360,
+      frozen: true,
+      hasChoice: false,
+      returnDistanceMeters: 15_000,
+      selectedIndex: 0,
+      signature: 'frozen-signature-abc',
+      source: 'road',
+    })
+    expect((data as { options: readonly unknown[] }).options).toHaveLength(1)
+  })
+
+  test('falls back to the live route when nothing froze yet, keeping frozen: false', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: READ_ONLY_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => Promise.resolve(LIVE_ROAD_VIEW),
+          route: { readFrozenRoute: () => Promise.resolve(null) },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toMatchObject({
+      criterion: null,
+      distanceMeters: 42_000,
+      durationSeconds: 3_000,
+      frozen: false,
+      signature: 'live-signature-xyz',
+      source: 'road',
+    })
+  })
+
+  // ADR-0044 §5: sem OSRM, ausência é `null` — nunca zero fingindo rota medida.
+  test('never reports zero when the live road is unavailable — null instead', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: READ_ONLY_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => Promise.resolve(LIVE_UNAVAILABLE_VIEW),
+          route: { readFrozenRoute: () => Promise.resolve(null) },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toMatchObject({
+      distanceMeters: null,
+      durationSeconds: null,
+      frozen: false,
+      returnDistanceMeters: null,
+      source: 'unavailable',
+    })
+  })
+
+  test('still requires fleet.read — T203 does not widen the permission', async () => {
+    const fixture = await createTripHttpFixture({ permissions: NO_PERMISSIONS })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
     )
 
     expect(response.status).toBe(403)

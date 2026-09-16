@@ -1025,3 +1025,214 @@ bateria, dada a mistura de convenções entre arquivos). Nenhum teste foi marcad
   payload.
 - `summarizeRoadDistance` é o único ponto de soma de `legs` para distância — qualquer novo
   consumidor (inclusive T204) deve chamar essa função, nunca reimplementar o `reduce`.
+
+## T203
+
+`GET /trips/:id/route-geometry` (rota **com** viagem — `TRIP_ROUTE_GEOMETRY_PATH`) passa a servir a
+rota **congelada** por T201 quando ela existe, em vez de recalcular sempre ao vivo via OSRM. A outra
+rota de geometria, `POST /route-geometry` (`ROUTE_GEOMETRY_PATH`, tela de montagem sem viagem ainda
+criada), não foi tocada — ela é, por definição, sempre ao vivo.
+
+### Evidência RED
+
+Nenhuma das duas rotas de geometria tinha cobertura de contrato HTTP antes desta task —
+`RouteDependencies` (fixture) nem sequer declarava `readTripRouteGeometry`/`readRouteGeometry`. Para
+não nascer um teste cego à lógica de negócio (a fixture não sabe o que é uma rota congelada), a
+fixture ganhou um mecanismo de sobrescrita de `execute` inteiro
+(`readTripRouteGeometryExecute`), e o teste liga a fixture ao caso de uso real
+`readTripRouteGeometry` — que ainda não existia. RED genuíno, capturado com `tee` **antes** de
+qualquer arquivo de produção:
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/trips/routes.contract.ts --timeout 120000
+```
+
+`/private/tmp/.../scratchpad/t203-red.txt`:
+
+```
+bun test v1.3.14 (0d9b296a)
+
+test/trips/routes.contract.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '../../src/trips/application/read-trip-route-geometry.use-case.js' from '/Users/anderson.filho/Documents/personal/transportada-wt/spec-153/apps/api-transportada/test/trips/routes.contract.ts'
+-------------------------------
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [7.00ms]
+```
+
+(Bug de sintaxe do Bun encontrado no caminho: `bun test test/trips/routes.contract.ts` sem `./`
+na frente é interpretado como filtro de nome, não caminho, e devolve "did not match any test
+files" — o comando certo, usado daqui para frente, leva o `./`.)
+
+### Implementação
+
+- **`src/trips/domain/parse-planned-route.policy.ts`** (novo): leitura defensiva de
+  `trips.planned_route` (jsonb sem `.$type<>()`, o Drizzle devolve `unknown`) — forma inesperada
+  vira ausência (`null`), nunca meio preenchida. Mesmo idioma de `parseTollRouteCost` (spec 090).
+  Domínio declara os próprios tipos estruturais (`ParsedRouteLeg`, `ParsedRoutePoint`) em vez de
+  importar tipos da camada de aplicação — confirmado por grep que nenhum `.policy.ts` do
+  repositório importa de `application/` (`find src -path "*/application/*.policy.ts"` não achou
+  nada, e o padrão inverso, domínio declarando o próprio formato estrutural, já existe em
+  `planned-road-distance.policy.ts`'s `RoadLeg`). Por isso `depot` — que é tipado pela camada de
+  aplicação (`RouteGeometryView['depot']`) — fica fora desse parser; é resolvido no repositório.
+- **`src/trips/application/read-trip-route-geometry.use-case.ts`** (novo): `readTripRouteGeometry`
+  chama `route.readFrozenRoute`; se vier `null` (rascunho, D5 — OSRM fora do ar na hora de congelar,
+  ou D8 — viagem anterior à spec), cai para `readLiveRoute()` (a mesma leitura ao vivo de sempre) e
+  devolve `frozen: false`, `criterion: null`, `signature` da opção selecionada quando houver. Se
+  vier uma rota congelada, monta uma única `RouteGeometryOption` com os dados gravados e devolve
+  `frozen: true`, `criterion`/`signature`/`choiceReproduced` gravados, `hasChoice: false` (não há
+  outras opções para uma rota já congelada), `distanceMeters`/`durationSeconds`/
+  `returnDistanceMeters` vindos das colunas armazenadas (nunca recontados).
+  - `enrichFrozenToll` **nunca** chama `resolveTollRouteCost` (a função de repreço do caminho ao
+    vivo) sobre o pedágio congelado — confirmado lendo o corpo de `resolveRouteToll` que essa função
+    busca registros de praça **frescos** e reprecifica, o que violaria D4 (a rota congela inteira,
+    de uma vez, e nunca é reprecificada na leitura). Em vez disso, reusa só
+    `describeTollBoothCharges` (puro sobre o que já foi congelado) e recalcula apenas
+    `catalog`/`tariffObservedOn` — metadados de hoje sobre um pedágio de ontem, não o preço em si,
+    e o próprio arquivo do caminho ao vivo já documenta esses dois campos como "leitura fresca,
+    nunca congelada".
+  - Reusa o tipo `ReadRouteGeometryTollBoothsPort` já exportado por `read-route-geometry.use-case.ts`
+    em vez de declarar um duplicado — as instâncias de `createCompanyScopedTollBoothGateway(...)`
+    em `main.ts` já implementam essa forma, e o mesmo tipo serve os dois caminhos (ao vivo e
+    congelado).
+- **`src/trips/infrastructure/drizzle-trip-planned-route.repository.ts`**: ganhou
+  `readFrozenRoute`, e a classe passou a implementar também `ReadTripRouteGeometryRoutePort` (além
+  de `FreezeTripPlannedRoutePort`, que já tinha). Lê as seis colunas (`plannedRoute`,
+  `plannedDistanceMeters`, `plannedDurationSeconds`, `plannedReturnDistanceMeters`,
+  `plannedRouteFrozenAt`, `plannedToll`/`plannedTollFrozenAt`), confere `plannedRouteFrozenAt`/as
+  métricas individualmente como ausência (não confia cegamente na constraint do banco), chama
+  `parsePlannedRoute` (domínio, acima) e `parseTollRouteCost` (existente, spec 090) para o pedágio.
+  `depot` é extraído do próprio jsonb de `plannedRoute` com uma checagem estrutural leve
+  (`readPlannedRouteDepot`) — não precisa da validação funda do domínio porque quem grava esse jsonb
+  é só a própria escrita de T201 (`writePlannedRoute`), nunca payload externo.
+- **`src/main.ts`**: o bloco `readTripRouteGeometry: { execute: ... }` (dependência HTTP) passou a
+  delegar para o novo `readTripRouteGeometryUseCase`, com o corpo antigo inteiro (busca da viagem,
+  eixo do veículo, `readRouteGeometry` contra OSRM) virando o closure `readLiveRoute` — mesmo
+  comportamento de antes, só que chamado condicionalmente agora. Ganhou `route:
+tripPlannedRouteRepository` (já existia no módulo, criado para T201) e um `tollBooths` próprio
+  (`createCompanyScopedTollBoothGateway`). O `readRouteGeometry: { execute: ... }` irmão (rota
+  `POST /route-geometry`, sem viagem) **não foi tocado**.
+- **`src/trips/presentation/trip.routes.ts`**: só o tipo de retorno de
+  `Dependencies.readTripRouteGeometry.execute` mudou (`RouteGeometryView` → `TripRouteGeometryView`,
+  união com `frozen`/`criterion`/`signature`/etc.). O corpo do handler não mudou nem uma linha — já
+  era um repasse puro (`{ data: geometry }`, `status: 200`).
+
+### Contrato HTTP — formas exatas
+
+**Rota congelada** (`frozen: true`), campos principais do corpo (`data`):
+
+```json
+{
+  "frozen": true,
+  "criterion": "fastest",
+  "signature": "frozen-signature-abc",
+  "choiceReproduced": false,
+  "distanceMeters": 128450,
+  "durationSeconds": 9360,
+  "returnDistanceMeters": 15000,
+  "hasChoice": false,
+  "selectedIndex": 0,
+  "source": "road",
+  "options": [{ "...": "uma só opção, montada a partir do que foi congelado" }]
+}
+```
+
+**Sem congelamento — cai para ao vivo** (`frozen: false`): mesma forma de sempre de
+`RouteGeometryView`, mais `criterion: null` e `signature` da opção selecionada (ou `null` se
+`selectedIndex` também for `null`).
+
+**Ao vivo e sem estrada disponível** (`source: 'unavailable'`, D5): `distanceMeters`,
+`durationSeconds` e `returnDistanceMeters` vêm `null` — nunca `0` fingindo uma rota medida.
+`summarizeRoadDistance({legs: [], ...})` já devolve os três `null` juntos quando `legs.length === 0`,
+e o use case novo só repassa esse resultado.
+
+### Decisão: viagem ainda não congelada cai para leitura ao vivo (não para "ausência")
+
+Task pedia para decidir e justificar. Decisão: **cai para o mesmo cálculo ao vivo de sempre**, não
+para uma resposta de "sem rota". Razões:
+
+1. **É o comportamento que já existe hoje** para toda viagem em `draft`/sem congelamento — mudar
+   para "ausência" seria uma regressão visível na tela de detalhe (T405, fora de escopo), que hoje
+   depende de ver alguma rota.
+2. **D5 já cobre o caso "OSRM fora do ar"**: se o OSRM também estiver fora do ar na hora da leitura
+   ao vivo, a resposta já degrada honestamente pra `source: 'unavailable'`/métricas `null` — não
+   precisa de um terceiro estado.
+3. **D8 (nunca fazer backfill)** não pede um comportamento diferente na leitura — só proíbe migrar
+   viagens antigas para ganhar uma rota congelada que nunca existiu. Elas continuam lendo ao vivo,
+   exatamente como liam antes desta task.
+4. Não fingir "congelado" quando não está: por isso `frozen: false` some sempre que a leitura não
+   veio de `readFrozenRoute`, mesmo que o resultado pareça, superficialmente, uma rota só.
+
+### Fora de escopo — T301 (D10, redação monetária)
+
+`TRIP_READ_POLICY` não mudou (confirmado por um teste novo de `403` com `NO_PERMISSIONS` — T203 não
+alarga a permissão). Onde T301 vai precisar tocar:
+
+- **`toFrozenView`** (`read-trip-route-geometry.use-case.ts`): monta `option.totalCost: null` e
+  `option.toll` sem redação — T301 precisa envolver esse retorno (ou o de `readTripRouteGeometry`
+  como um todo) na mesma redação já aplicada no caminho ao vivo, condicionada a `trip.financials`.
+- **`enrichFrozenToll`**: devolve `RouteGeometryToll` completo (com `total`, `chargePerAxle`, etc.)
+  — os mesmos campos monetários que o pedágio ao vivo já expõe sem redação hoje. T301 trata os dois
+  caminhos (ao vivo e congelado) com o mesmo serviço de redação, aplicado uma vez na fronteira HTTP
+  ou dentro de ambos os use cases — não duplicar a lógica de "o que é dinheiro" entre eles.
+- Nenhuma mudança de forma foi feita para acomodar T301 além de manter os campos monetários
+  isolados dentro de `toll`/`option` (nunca espalhados soltos no nível raiz da resposta), o que já
+  ajuda T301 a redigir por sub-objeto sem precisar listar campo por campo no nível raiz.
+
+### Gates
+
+```bash
+# teste alvo (RED → GREEN)
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/trips/routes.contract.ts --timeout 120000
+ 26 pass
+ 0 fail
+ 71 expect() calls
+Ran 26 tests across 1 file. [279.00ms]
+
+# typecheck (raiz, todas as apps)
+bun run typecheck
+# 6 tsc --noEmit, todos limpos (api, worker, cron, frontend-transportada, frontend-client, frontend-landing)
+
+# lint (raiz, todas as apps)
+bun run lint
+# 6 eslint --max-warnings=0, todos limpos
+
+# format:check (raiz) — 1ª rodada acusou 3 arquivos fora do padrão Prettier
+# (main.ts, read-trip-route-geometry.use-case.ts, parse-planned-route.policy.ts);
+# corrigido com `prettier --write` nos mesmos arquivos, sem mudança de lógica, e revalidado:
+bun run format:check
+# All matched files use Prettier code style!
+
+# suíte completa da API
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6154 pass
+ 23 skip
+ 0 fail
+Ran 6177 tests across 177 files. [12.78s]
+```
+
+**Baseline (fim de T202): 6150 pass, 23 skip, 0 fail, 177 arquivos. Depois de T203: 6154 pass
+(+4, exatamente os 4 testes novos), 23 skip (inalterado — nenhum teste novo caiu em skip), 0 fail,
+177 arquivos (inalterado — `routes.contract.ts` já estava na lista explícita do `package.json`,
+nenhum arquivo novo de teste precisou ser adicionado).**
+
+### O que a T204/T205 recebem daqui
+
+- `GET /trips/:id/route-geometry` agora reflete a rota **realmente vigente** da viagem (congelada
+  quando existe) — T204/T205, ao recalcular rota em qualquer ponto do fluxo (multi-veículo,
+  reorder, link, release), não precisam (e não devem) ler essa rota de volta para decidir se
+  recalculam: a fonte de verdade para "existe rota congelada?" continua sendo
+  `trips.planned_route_frozen_at`, exposta agora também via `ReadTripRouteGeometryRoutePort` caso
+  outro use case precise da mesma leitura sem duplicar o parsing.
+- `ReadTripRouteGeometryRoutePort`/`StoredTripRoute` (novo, em `read-trip-route-geometry.use-case.ts`)
+  é o formato canônico de "rota congelada já validada" — se T204/T205 precisarem ler a rota gravada
+  para outro propósito (ex.: decidir se recalculam antes do despacho), devem reusar esse port em vez
+  de reimplementar a leitura+parse das seis colunas.
+- `parsePlannedRoute` (domínio) é o único lugar que sabe validar o jsonb de `trips.planned_route` —
+  qualquer novo leitor desse jsonb (T204/T205 inclusive) deve importar essa função, nunca duplicar a
+  validação campo a campo.

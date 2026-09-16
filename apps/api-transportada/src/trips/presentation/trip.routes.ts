@@ -4,6 +4,7 @@
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
+import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
@@ -321,7 +322,7 @@ type Dependencies = {
     ): Promise<RouteGeometryView>
   }
   readonly readTripRouteGeometry: {
-    execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
+    execute(input: TenantInput<{ readonly tripId: string }>): Promise<TripRouteGeometryView>
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>

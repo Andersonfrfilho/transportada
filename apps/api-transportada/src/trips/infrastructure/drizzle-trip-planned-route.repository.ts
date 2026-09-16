@@ -6,20 +6,29 @@
  */
 import { and, eq, sql } from 'drizzle-orm'
 
-import { fleetVehicles } from '../../database/fleet.schema.js'
 import { trips } from '../../database/trip.schema.js'
+import { fleetVehicles } from '../../database/fleet.schema.js'
+import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
 import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
+import type {
+  ReadTripRouteGeometryRoutePort,
+  StoredTripRoute,
+} from '../application/read-trip-route-geometry.use-case.js'
+import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type {
   FreezeTripPlannedRoutePort,
   FreezeTripPlannedRouteVehicleContext,
   WritePlannedRouteInput,
 } from '../application/freeze-trip-planned-route.use-case.js'
+import { parsePlannedRoute } from '../domain/parse-planned-route.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
-export class DrizzleTripPlannedRouteRepository implements FreezeTripPlannedRoutePort {
+export class DrizzleTripPlannedRouteRepository
+  implements FreezeTripPlannedRoutePort, ReadTripRouteGeometryRoutePort
+{
   public constructor(private readonly database: TripDatabase) {}
 
   public async readVehicleContext(input: {
@@ -87,4 +96,57 @@ export class DrizzleTripPlannedRouteRepository implements FreezeTripPlannedRoute
       })
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
   }
+
+  /**
+   * Spec 153 T203: `depot` sai só do que a própria escrita de T201 gravou (nunca payload externo),
+   * então basta a checagem estrutural leve — a validação funda mora no domínio, para `legs`/`points`.
+   */
+  public async readFrozenRoute(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<StoredTripRoute | null> {
+    const [row] = await this.database
+      .select({
+        plannedDistanceMeters: trips.plannedDistanceMeters,
+        plannedDurationSeconds: trips.plannedDurationSeconds,
+        plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
+        plannedRoute: trips.plannedRoute,
+        plannedRouteFrozenAt: trips.plannedRouteFrozenAt,
+        plannedToll: trips.plannedToll,
+        plannedTollFrozenAt: trips.plannedTollFrozenAt,
+      })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+    if (row === undefined || row.plannedRouteFrozenAt === null) return null
+    if (
+      row.plannedDistanceMeters === null ||
+      row.plannedDurationSeconds === null ||
+      row.plannedReturnDistanceMeters === null
+    )
+      return null
+
+    const parsedRoute = parsePlannedRoute(row.plannedRoute)
+    if (parsedRoute === null) return null
+
+    return {
+      choiceReproduced: parsedRoute.choiceReproduced,
+      criterion: parsedRoute.criterion,
+      depot: readPlannedRouteDepot(row.plannedRoute),
+      distanceMeters: row.plannedDistanceMeters,
+      durationSeconds: row.plannedDurationSeconds,
+      legs: parsedRoute.legs,
+      points: parsedRoute.points,
+      returnDistanceMeters: row.plannedReturnDistanceMeters,
+      signature: parsedRoute.signature,
+      toll: row.plannedTollFrozenAt === null ? null : parseTollRouteCost(row.plannedToll),
+    }
+  }
+}
+
+function readPlannedRouteDepot(value: unknown): RouteGeometryView['depot'] {
+  if (typeof value !== 'object' || value === null) return null
+  const depot = (value as Record<string, unknown>).depot
+  if (typeof depot !== 'object' || depot === null) return null
+  return depot as RouteGeometryView['depot']
 }

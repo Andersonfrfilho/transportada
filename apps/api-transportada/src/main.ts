@@ -186,6 +186,7 @@ import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-p
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
+import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
@@ -2537,40 +2538,52 @@ function createApplicationRoutes({
         },
       },
       readTripRouteGeometry: {
-        execute: async (input) => {
-          const trip = await trips.get(input)
-          const vehicleContext = await routeGeometryVehicleAxlesQuery.readVehicleContext({
+        execute: (input) =>
+          readTripRouteGeometryUseCase({
             companyId: input.context.companyId,
-            vehicleId: trip.vehicleId,
-          })
+            readLiveRoute: async () => {
+              const trip = await trips.get(input)
+              const vehicleContext = await routeGeometryVehicleAxlesQuery.readVehicleContext({
+                companyId: input.context.companyId,
+                vehicleId: trip.vehicleId,
+              })
 
-          return readRouteGeometry({
-            axles: vehicleContext.axles,
-            multiplier: vehicleContext.multiplier,
-            /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
-            depot: {
-              readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
-              readDescription: () =>
-                routeDepotQuery.readDescription({ companyId: input.context.companyId }),
+              return readRouteGeometry({
+                axles: vehicleContext.axles,
+                multiplier: vehicleContext.multiplier,
+                /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
+                depot: {
+                  readDepot: () =>
+                    routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+                  readDescription: () =>
+                    routeDepotQuery.readDescription({ companyId: input.context.companyId }),
+                },
+                fuelBaseline: vehicleContext.fuelBaseline,
+                hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
+                geometry:
+                  routingMatrixUrl === undefined
+                    ? { readRouteGeometry: async () => null }
+                    : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+                now: () => new Date(),
+                stops: await listTripStopCoordinates(database, {
+                  companyId: input.context.companyId,
+                  tripId: input.tripId,
+                }),
+                tollBooths: createCompanyScopedTollBoothGateway({
+                  catalog: tollBoothRepository,
+                  charges: tollBoothChargeRepository,
+                  companyId: input.context.companyId,
+                }),
+              })
             },
-            fuelBaseline: vehicleContext.fuelBaseline,
-            hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
-            geometry:
-              routingMatrixUrl === undefined
-                ? { readRouteGeometry: async () => null }
-                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
-            now: () => new Date(),
-            stops: await listTripStopCoordinates(database, {
-              companyId: input.context.companyId,
-              tripId: input.tripId,
-            }),
+            route: tripPlannedRouteRepository,
             tollBooths: createCompanyScopedTollBoothGateway({
               catalog: tollBoothRepository,
               charges: tollBoothChargeRepository,
               companyId: input.context.companyId,
             }),
-          })
-        },
+            tripId: input.tripId,
+          }),
       },
       readDeliveryProofs: {
         execute: (input) =>

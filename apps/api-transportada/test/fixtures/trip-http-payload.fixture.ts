@@ -94,6 +94,10 @@ export function tripDetailPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}`
 }
 
+export function tripRouteGeometryPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/route-geometry`
+}
+
 export const CREATE_TRIP_BODY = {
   driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
   vehicleId: VEHICLE_ID,

@@ -32,7 +32,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
       `routeChoice`, D3 e D5 — contratos + integração.
 - [x] T202 Valuation da viagem lê distância e pedágio gravados; prévia aceita `routeChoice`;
       paridade prévia × viagem (aceite 2).
-- [ ] T203 `GET /trips/:id/route-geometry` devolve a gravada (`frozen`) — contrato HTTP.
+- [x] T203 `GET /trips/:id/route-geometry` devolve a gravada (`frozen`) — contrato HTTP.
 - [ ] T204 Aceite multi-veículo com `routeChoice` por veículo; aceite por viagem grava rota.
 - [ ] T205 Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho —
       contratos nos caminhos, OSRM falhando sem derrubar.

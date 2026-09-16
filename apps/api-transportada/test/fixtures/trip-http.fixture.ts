@@ -51,6 +51,7 @@ type RouteDependencies = {
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readTripRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
   readonly requestCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
   readonly previewCargo: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
@@ -89,6 +90,12 @@ type CreateFixtureParams = {
   readonly listTripsError?: Error
   readonly loadTripDocumentError?: Error
   readonly permissions?: CompanyContext['permissions']
+  /**
+   * Sobrepõe o `execute` inteiro em vez de um resultado enlatado — a T203 exercita o use case real
+   * contra portas falsas, para o teste de contrato HTTP não ficar cego a uma regressão na lógica de
+   * congelamento (a fixture não conhece a rota congelada; o teste, sim).
+   */
+  readonly readTripRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   readonly overrideDeliveryAddressError?: Error
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
@@ -135,6 +142,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
+  readonly readTripRouteGeometryCalls: ExecuteCall[]
   readonly requestCargoLayoutCalls: ExecuteCall[]
   readonly previewCargoCalls: ExecuteCall[]
   readonly readCargoLayoutCalls: ExecuteCall[]
@@ -158,6 +166,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const readValuationCalls: ExecuteCall[] = []
+  const readTripRouteGeometryCalls: ExecuteCall[] = []
   const requestCargoLayoutCalls: ExecuteCall[] = []
   const previewCargoCalls: ExecuteCall[] = []
   const readCargoLayoutCalls: ExecuteCall[] = []
@@ -314,6 +323,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         }
       },
     },
+    readTripRouteGeometry: {
+      async execute(input) {
+        readTripRouteGeometryCalls.push(structuredClone(input))
+        if (params.readTripRouteGeometryExecute) return params.readTripRouteGeometryExecute(input)
+        return { choiceReproduced: false, frozen: false, source: 'unavailable' }
+      },
+    },
     logger: {
       error() {},
       info() {},
@@ -433,6 +449,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
     readValuationCalls,
+    readTripRouteGeometryCalls,
     listDeliveryAddressHistoryCalls,
     listStopsCalls,
     listTripsCalls,
