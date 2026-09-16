@@ -56,12 +56,13 @@ type PackageBoxMeasurementFormProps = Readonly<{
  * Extraído de `PackageBoxMeasurementPanel` (spec 152 T10): o formulário de três campos que grava
  * uma caixa, agora capaz de abrir com a proposta da câmera (D6/D13/D17) além do digitado comum.
  *
- * ⚠️ **Editar um campo muda a origem, não a margem enviada.** Editar (`edited[dimension] = true`)
- * some com o selo de margem/aviso **na tela** daquele campo e tira a confirmação de imprecisão dele
- * (D15 não se aplica a valor digitado por cima) — mas a margem da proposta continua indo para a API
- * junto de `proposed*Mm` (D17), porque ela pertence à proposta da câmera, não ao valor final. Sem
- * isso, o protocolo de validação (D16, "digite a fita em todos os campos") apagaria a margem de
- * quase toda leitura da sessão real.
+ * ⚠️ **Encostar no campo muda a origem; trocar o número é que isenta a dimensão.** `edited` decide
+ * `source` (`camera_adjusted`), mas o selo de margem e a confirmação de imprecisão só somem quando o
+ * valor digitado **difere** da proposta — a mesma pergunta que o schema da API faz, e por isso
+ * redigitar 59,9 sobre 599 mm continua pedindo confirmação em vez de virar `400` (3ª revisão).
+ * A margem da proposta continua indo para a API junto de `proposed*Mm` (D17), porque ela pertence à
+ * proposta da câmera, não ao valor final: sem isso o protocolo de validação (D16, "digite a fita em
+ * todos os campos") apagaria a margem de quase toda leitura da sessão real.
  */
 export function PackageBoxMeasurementForm({
   boxId,
@@ -116,11 +117,11 @@ export function PackageBoxMeasurementForm({
   }, [proposal])
 
   function reliabilityOf(dimension: DimensionKey): MeasurementReliability | undefined {
-    return dimensionReliability({ dimension, edited, proposal })
+    return dimensionReliability({ dimension, edited, proposal, recorded: parsed })
   }
 
   /** M9: o foco vai para a PRIMEIRA dimensão em branco, não para a última da lista. */
-  const focusedDimension = firstUnreliableDimension({ edited, proposal })
+  const focusedDimension = firstUnreliableDimension({ edited, proposal, recorded: parsed })
 
   /** D6/R2: só dimensões ainda não editadas carregam a imprecisão da câmera adiante. */
   const unconfirmedImpreciseDimensions = DIMENSION_KEYS.filter(

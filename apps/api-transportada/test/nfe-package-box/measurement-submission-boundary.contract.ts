@@ -32,7 +32,12 @@ describe('o corpo que o formulário da câmera envia é aceito pelo schema da ro
       const parsed = parsePackageBoxMeasurement(fixtureCase.body)
 
       expect(parsed.source).toBe(fixtureCase.body.source as typeof parsed.source)
-      expect(parsed.camera).toBeDefined()
+      /**
+       * D11: `typed` é o corpo **sem** bloco de câmera, e cobrar `camera` definido em todo caso
+       * fazia a metade da API passar verde sem nunca ter visto o formulário digitado comum.
+       */
+      if (fixtureCase.body.source === 'typed') expect(parsed.camera).toBeUndefined()
+      else expect(parsed.camera).toBeDefined()
     })
   }
 })

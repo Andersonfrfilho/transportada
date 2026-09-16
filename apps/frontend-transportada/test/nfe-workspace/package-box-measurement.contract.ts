@@ -806,9 +806,13 @@ describe('margem por dimensão e aviso de imprecisão (R2)', () => {
         storedMm: 999,
       }),
     ).toBe('25')
-    expect(firstUnreliableDimension({ edited: noneEdited, proposal: unreliableProposal })).toBe(
-      'length',
-    )
+    expect(
+      firstUnreliableDimension({
+        edited: noneEdited,
+        proposal: unreliableProposal,
+        recorded: { height: null, length: null, width: 250 },
+      }),
+    ).toBe('length')
 
     expect(form).toContain('firstUnreliableRef.current?.focus()')
     expect(form).toContain(
