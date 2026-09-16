@@ -2190,6 +2190,6 @@ ambiente `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` no processo do `bun`.
 
 ### Commit
 
-Um commit isolado com todas as mudanças dos 6 itens. Hash: ver mensagem de commit
-"fix(security): T14 — CSP sem data:, CSV sem injeção de fórmula, camera_adjusted sob teto de
-margem, rotas do separador e Accept-Encoding correto" no histórico do branch `work/spec-152`.
+Um commit isolado com todas as mudanças dos 6 itens: `fca6b63100f02c2f8dd41babdc0fa98e40127a7e`
+("fix(security): T14 — CSP sem data:, CSV sem injeção de fórmula, camera_adjusted sob teto de
+margem"), no branch `work/spec-152`.
