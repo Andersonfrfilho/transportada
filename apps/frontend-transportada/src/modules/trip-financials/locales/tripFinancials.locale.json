@@ -23,9 +23,12 @@
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
   },
   "ledger": {
-    "driverBasis": {
-      "fixed": "Motorista da casa: o custo é do período, e não é da viagem",
-      "route_table": "Zona {{zone}} ({{city}}) · {{vehicleClass}} · uma vez pela viagem, pela zona do destino mais distante"
+    "driverBasis_one": "{{amount}} × {{days}} dia · {{origin}}",
+    "driverBasis_other": "{{amount}} × {{days}} dias · {{origin}}",
+    "driverRateOrigin": {
+      "company": "valor geral",
+      "default": "valor padrão",
+      "driver": "valor do motorista"
     },
     "expenses": "Despesas",
     "fuelBasis": "{{consumption}} km/l × {{price}} por litro · {{litres}} litros no trajeto",
@@ -35,10 +38,7 @@
     "operating": "O que a operação custa",
     "revenue": "Receita do frete",
     "taxNote": "Imposto desce da receita, não é gasto de rodar — por isso ele não se mistura com a operação acima.",
-    "taxes": "O que o imposto leva",
-    "tieCityCount_one": "{{count}} cidade",
-    "tieCityCount_other": "{{count}} cidades",
-    "tieNoPrice": "sem preço"
+    "taxes": "O que o imposto leva"
   },
   "panel": {
     "amount": "Valor",

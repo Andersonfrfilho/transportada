@@ -1359,3 +1359,200 @@ recebido — desfeita em seguida, sem outra mudança na rota.
 | Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4086 pass · 0 fail** · 35877 expect() · 29 arquivos                    |
 | Lint               | `bun run lint`                                         | ✅ limpo — 6 apps                                                           |
 | Formatação         | `bun run format:check`                                 | ✅ limpo                                                                    |
+
+## T11 — A linha do motorista mostra diária, dias e origem (FE)
+
+**Data:** 2026-09-16 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+
+Escopo: a T3 trocou a forma da parcela do motorista na API (`basis.of === 'driver'` virou
+`{ crew, days, daysOrigin }`, uma linha por condutor, sem `paymentModel`/`regionCity`/`regionCode`/
+`tie`) e o frontend ficou para trás — o razão da viagem (`ValuationLedger`) ainda esperava a forma
+antiga e não compilava contra o tipo novo. Esta task migra o tipo, o validador e
+`composeCostParcelDetail` para compor, na tela, a mesma frase que `freeze-trip-financial-result.use-case.ts`
+já congela na viagem fechada: `R$ {valor} × {dias} {dia|dias} · {origem}`, uma linha por condutor,
+juntas por `'; '`.
+
+### Vermelho — a frase ainda não existe no frontend
+
+```
+$ bun test ./test/trip-financials/driver-route-tie-detail.contract.ts
+
+test/trip-financials/driver-route-tie-detail.contract.ts:
+80 |       basis: driverBasis([crewMember()]),
+81 |       detail: null,
+82 |       t: translate(financialsPt),
+83 |     })
+84 |
+85 |     expect(detail).toBe('R$ 250,00 × 3 dias · valor do motorista')
+                        ^
+error: expect(received).toBe(expected)
+
+Expected: "R$ 250,00 × 3 dias · valor do motorista"
+Received: null
+
+      at <anonymous> (/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/frontend-transportada/test/trip-financials/driver-route-tie-detail.contract.ts:85:20)
+(fail) the driver allowance sentence is composed on the screen (spec 143) > one driver, rate taken from the driver record [0.38ms]
+90 |       basis: driverBasis([crewMember()], { days: 1 }),
+91 |       detail: null,
+92 |       t: translate(financialsPt),
+93 |     })
+94 |
+95 |     expect(detail).toBe('R$ 250,00 × 1 dia · valor do motorista')
+                        ^
+error: expect(received).toBe(expected)
+
+Expected: "R$ 250,00 × 1 dia · valor do motorista"
+Received: null
+
+      at <anonymous> (/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/frontend-transportada/test/trip-financials/driver-route-tie-detail.contract.ts:95:20)
+(fail) the driver allowance sentence is composed on the screen (spec 143) > a single day uses the singular form [0.10ms]
+110 |       basis: driverBasis([crewMember({ rateOrigin: 'driver' })]),
+111 |       detail: null,
+112 |       t: translate(financialsPt),
+113 |     })
+114 |
+115 |     expect(company).toBe('R$ 250,00 × 3 dias · valor geral')
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: "R$ 250,00 × 3 dias · valor geral"
+Received: null
+
+      at <anonymous> (/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/frontend-transportada/test/trip-financials/driver-route-tie-detail.contract.ts:115:21)
+(fail) the driver allowance sentence is composed on the screen (spec 143) > each rate origin names itself [0.06ms]
+122 |       basis: driverBasis([crewMember({ dailyAmount: '1234.5600' })]),
+123 |       detail: null,
+124 |       t: translate(financialsPt),
+125 |     })
+126 |
+127 |     expect(detail).toBe(`${formatAmount('1234.5600')} × 3 dias · valor do motorista`)
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "R$ 1.234,56 × 3 dias · valor do motorista"
+Received: null
+
+      at <anonymous> (/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/frontend-transportada/test/trip-financials/driver-route-tie-detail.contract.ts:127:20)
+(fail) the driver allowance sentence is composed on the screen (spec 143) > the thousands separator groups before the decimal comma [0.49ms]
+136 |       ]),
+137 |       detail: null,
+138 |       t: translate(financialsPt),
+139 |     })
+140 |
+141 |     expect(detail).toBe('R$ 250,00 × 3 dias · valor do motorista; R$ 180,00 × 3 dias · valor geral')
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "R$ 250,00 × 3 dias · valor do motorista; R$ 180,00 × 3 dias · valor geral"
+Received: null
+
+      at <anonymous> (/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/frontend-transportada/test/trip-financials/driver-route-tie-detail.contract.ts:141:20)
+(fail) the driver allowance sentence is composed on the screen (spec 143) > two drivers become two sentences, separated by "; ", in crew order [0.14ms]
+
+ 3 pass
+ 5 fail
+ 13 expect() calls
+Ran 8 tests across 1 file. [19.00ms]
+```
+
+Vermelho pelo motivo certo: `composeCostParcelDetail` ainda lê `basis.tie` (que não existe mais na
+forma nova de `basis`), então cai direto no `detail` cru (`null` em todos os casos de teste) — as
+cinco asserções de conteúdo falham comparando `null` contra a frase esperada, não um módulo ausente
+ou erro de tipo. As 3 que passam são o fallback sem `basis` (compatibilidade) e as duas checagens de
+texto de fonte (que já eram verdadeiras antes desta task).
+
+### O que entrou
+
+- **Frontend** (`src/modules/trip-financials/shared/`): `tripValuation.service.ts` ganha os tipos
+  locais `DailyAllowanceRateOrigin` (`'company' | 'default' | 'driver'`), `DailyAllowanceDaysOrigin`
+  (`'estimated' | 'informed'`) e `TripDriverCostCrewLine` — cópias por valor dos equivalentes da API
+  (nenhuma app importa fonte de outra); a variante `'driver'` de `TripValuationCostParcelBasis` vira
+  `{ crew, days, daysOrigin, of: 'driver' }`, sem `paymentModel`/`regionCity`/`regionCode`/`tie`/
+  `vehicleClass`. `tripValuationResponse.validation.ts` troca `readTie` por `readCrew` (condutor
+  malformado é descartado do array, nunca invalida a parcela inteira — mesmo padrão de `isSource`) e
+  ganha os guards `isRateOrigin`/`isDaysOrigin` (fallback para `'estimated'` quando o valor não bate).
+  `tripCostParcelDetail.service.ts` é reescrito: `composeCostParcelDetail` monta, por condutor,
+  `t('ledger.driverBasis', { amount, count: days, days, origin })` e junta as linhas por `'; '`
+  (`DRIVER_ALLOWANCE_SEPARATOR`); sem `basis` ou `basis.of !== 'driver'` o `detail` cru sobe sem
+  tradução (compatibilidade com resultado congelado antes da spec 143). Removidos `formatTiedZone`,
+  `TIE_SEPARATOR`, `TIE_ZONES_SEPARATOR`.
+
+- **Locales** (`tripFinancials.locale.json` / `.en.locale.json`): `ledger.driverBasis.fixed`/
+  `.route_table` e `tieCityCount_one`/`_other`/`tieNoPrice` saem; entram `driverBasis_one`/`_other`
+  (`"{{amount}} × {{days}} dia(s) · {{origin}}"`) e `driverRateOrigin.company`/`.default`/`.driver`
+  (`"valor geral"`/`"valor padrão"`/`"valor do motorista"`, e os equivalentes em inglês). Todo o
+  namespace `gap.*` foi preservado sem alteração.
+
+- **`ValuationLedger.component.tsx`**: o comentário acima da chamada de `composeCostParcelDetail`
+  passa a referenciar a spec 143; o ramo final da derivação (que antes lia
+  `ledger.driverBasis.${basis.paymentModel}` com `city`/`vehicleClass`/`zone`) passa a usar
+  diretamente o `detail` já composto por `composeCostParcelDetail` — o contrato público
+  `<ValuationLedger valuation={valuation} />` não mudou.
+
+- **`SuggestionVehicleValuation.component.tsx`**: só o comentário acima da mesma chamada foi
+  corrigido (referenciava `basis.tie`, que não existe mais); a limitação conhecida e aceita — esta
+  tela só compõe a frase quando `parcel.gap !== null`, e a parcela do motorista não tem mais `gap`
+  depois da T3, então a frase da diária não aparece aqui hoje — ficou documentada no próprio
+  comentário. Não corrigida por estar fora do escopo desta task (é limitação pré-existente da T3).
+
+- **Testes**: `test/trip-financials/driver-route-tie-detail.contract.ts` reescrito no lugar (mesmo
+  arquivo, sem renomear) — 8 testes cobrindo um condutor, singular/plural de dia, as três origens,
+  separador de milhar, dois condutores unidos por `'; '`, o fallback sem `basis` (compatibilidade) e
+  a paridade literal com `freeze-trip-financial-result.use-case.ts` (lida por texto de fonte).
+  `test/trip-financials/valuation-ledger.contract.ts` e
+  `test/trip-financials/valuation-ledger-advisory.contract.ts` tiveram suas fixtures de parcela do
+  motorista migradas para a forma nova (a segunda usa `basis: null` — é o caso de resultado
+  congelado antes da spec, com a frase já pronta em `detail` cru).
+
+- **Correção (revisão do coordenador): o smoke também precisava migrar.** O relato original desta
+  task registrava, errado, que `test/multi-vehicle-smoke.helper.ts` e
+  `test/responsive.smoke.spec.ts` ficavam fora do alcance da migração — "não são type-checados" e
+  "não quebram nenhum gate". Os dois pontos estavam errados: `apps/frontend-transportada/tsconfig.json`
+  inclui `test/` no `include`, então o typecheck passava porque a fixture antiga é um objeto literal
+  solto entregue a `fulfillJson(route, body: unknown)`, sem anotação de tipo — não porque o arquivo
+  escapasse do compilador. E `responsive.smoke.spec.ts:1564` tinha uma **asserção viva** sobre a
+  frase antiga (`/Zona 1\.002 \(JABOTICABAL\) · toco/u`), num diálogo que passa pelo
+  `ValuationLedger`/`composeCostParcelDetail` de verdade — com a fixture nova essa asserção ficaria
+  vermelha (a base antiga é descartada pelo validador, `detail` vira `null`, nada é impresso). O
+  `t3-inventario.md` já listava `multi-vehicle-smoke.helper.ts` como "acompanha as fixtures": era
+  escopo desde o inventário, não achado novo.
+
+  Corrigido: `multi-vehicle-smoke.helper.ts:254-270` — `VEHICLE_VALUATION.costParcels[0].basis`
+  migrado para `{ crew: [{ dailyAmount: '370.0000', driverId: AGGREGATE_DRIVER_ID, driverName:
+'Agregado Sintetico', paymentModel: 'route_table', rateOrigin: 'company', subtotal: '1480.0000'
+}], days: 4, daysOrigin: 'estimated', of: 'driver' }` — `paymentModel: 'route_table'` é o mesmo
+  valor já usado antes da migração e um dos dois únicos literais aceitos por `DriverPaymentModel`
+  (`apps/api-transportada/src/database/fleet.schema.ts:111`, `['route_table', 'fixed']`); `370,00 ×
+4` fecha exato com `amount: '1480.00'` (Σ `crew[].subtotal` === `amount`, invariante da T3). O
+  comentário de `:249-253` (que prometia "R$ 1.480,00 em zona 1.002 (JABOTICABAL) · toco") foi
+  atualizado para a frase nova. `responsive.smoke.spec.ts:1564` passa a esperar
+  `/R\$ 370,00 × 4 dias · valor geral/u`, derivado do próprio `formatAmount('370.0000')` (conferido
+  por script: `"R$ 370,00"`, NBSP depois do "R$" — mas os testes deste smoke já casam esse
+  espaço com Playwright's `getByText`, que normaliza espaço em branco incluindo NBSP; o precedente
+  em `responsive.smoke.spec.ts:521` (`getByText('R$ 350,50')`) confirma) mais
+`driverBasis_other`/`driverRateOrigin.company`do locale pt-BR; o comentário de`:1563` também foi
+  atualizado.
+
+  ⚠️ **`make smoke` não foi executado** — a stack precisa de Docker, e o Docker não respondeu nesta
+  máquina. A correção acima é estática: conferida por leitura de código (tipo, invariante de soma,
+  locale, saída real de `formatAmount`), não por execução do Playwright. A confirmação em runtime
+  do smoke fica pendente da próxima vez que a stack subir.
+
+### Gates
+
+| Gate               | Comando                                                | Resultado                                                                   |
+| ------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo — inclui frontend-transportada, frontend-client, frontend-landing  |
+| Testes da API      | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6134 pass · 23 skip · 0 fail** · 21543 expect() · 177 arquivos · ~14 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4086 pass · 0 fail** · 35882 expect() · 29 arquivos                    |
+| Lint               | `bun run lint`                                         | ✅ limpo — 6 apps                                                           |
+| Formatação         | `bun run format:check`                                 | ✅ limpo                                                                    |
+
+Baseline da T10 batido igual: API 6134/0 e FE 4086/0 — nenhuma regressão, nenhum teste a mais fora
+do previsto (o total de arquivos e `expect()` do FE sobe de 35877 para 35882 só pelas asserções
+novas desta task). Os cinco gates foram re-executados inteiros depois da correção do smoke
+(revisão do coordenador) e batem os mesmos números — nenhuma regressão introduzida pela correção.
+
+⚠️ **`make smoke` não roda nesta evidência** — precisa da stack em Docker, indisponível nesta
+máquina; a correção do Playwright ficou provada por leitura (tipo, soma, locale, saída real de
+`formatAmount`), não por execução.

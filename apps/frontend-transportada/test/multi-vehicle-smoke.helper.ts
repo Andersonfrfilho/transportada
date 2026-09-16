@@ -249,18 +249,26 @@ export async function mockMultiVehicleApi(page: Page): Promise<MultiVehicleMockS
  * Spec 110: a conta da proposta, **com a base** de cada parcela derivada.
  *
  * ⚠️ Sem ela o razão desenha só os totais, e a derivação — que é o ponto da D7 — nunca passa pela
- * CI. É a base que transforma "R$ 1.480,00" em "zona 1.002 (JABOTICABAL) · toco".
+ * CI. É a base que transforma "R$ 1.480,00" em "R$ 370,00 × 4 dias · valor geral" (spec 143).
  */
 const VEHICLE_VALUATION = {
   costParcels: [
     {
       amount: '1480.00',
       basis: {
+        crew: [
+          {
+            dailyAmount: '370.0000',
+            driverId: AGGREGATE_DRIVER_ID,
+            driverName: 'Agregado Sintetico',
+            paymentModel: 'route_table',
+            rateOrigin: 'company',
+            subtotal: '1480.0000',
+          },
+        ],
+        days: 4,
+        daysOrigin: 'estimated',
         of: 'driver',
-        paymentModel: 'route_table',
-        regionCity: 'JABOTICABAL',
-        regionCode: '1.002',
-        vehicleClass: 'toco',
       },
       detail: null,
       gap: null,

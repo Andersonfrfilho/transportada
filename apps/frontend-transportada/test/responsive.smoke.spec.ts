@@ -1560,8 +1560,11 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   await trigger.click()
   await expect(assemblyMap).toBeVisible()
   await expect(dialog.getByText('Conta prevista')).toBeVisible()
-  /** A derivação agora é a do painel da criação manual, que abre a frase com maiúscula. */
-  await expect(dialog.getByText(/Zona 1\.002 \(JABOTICABAL\) · toco/u)).toBeVisible()
+  /**
+   * Spec 143: a derivação do motorista virou a diária composta na tela (valor × dias · origem),
+   * uma linha por condutor — não mais "zona · classe". A frase é a do `VEHICLE_VALUATION` acima.
+   */
+  await expect(dialog.getByText(/R\$ 370,00 × 4 dias · valor geral/u)).toBeVisible()
   await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
 
   /**

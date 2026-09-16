@@ -23,9 +23,12 @@
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },
   "ledger": {
-    "driverBasis": {
-      "fixed": "In-house driver: the cost belongs to the period, not to the trip",
-      "route_table": "Zone {{zone}} ({{city}}) · {{vehicleClass}} · paid once for the trip, by the farthest destination zone"
+    "driverBasis_one": "{{amount}} × {{days}} day · {{origin}}",
+    "driverBasis_other": "{{amount}} × {{days}} days · {{origin}}",
+    "driverRateOrigin": {
+      "company": "general rate",
+      "default": "default rate",
+      "driver": "driver's rate"
     },
     "expenses": "Expenses",
     "icmsBasis": "Projected from the emission profile: CST {{cst}} · rate {{rate}} · base reduction {{reduction}} — the authorized CT-e replaces this figure",
@@ -35,10 +38,7 @@
     "operating": "What the operation costs",
     "revenue": "Freight revenue",
     "taxNote": "Tax comes off revenue — it is not a cost of driving, so it does not mix with the operation above.",
-    "taxes": "What tax takes",
-    "tieCityCount_one": "{{count}} city",
-    "tieCityCount_other": "{{count}} cities",
-    "tieNoPrice": "no price"
+    "taxes": "What tax takes"
   },
   "panel": {
     "amount": "Amount",

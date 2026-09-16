@@ -29,11 +29,19 @@ function valuation(overrides: Partial<TripValuation> = {}): TripValuation {
       {
         amount: '1480.00',
         basis: {
+          crew: [
+            {
+              dailyAmount: '1480.0000',
+              driverId: 'driver-1',
+              driverName: 'condutor exemplo',
+              paymentModel: 'aggregate',
+              rateOrigin: 'driver',
+              subtotal: '1480.0000',
+            },
+          ],
+          days: 1,
+          daysOrigin: 'informed',
           of: 'driver',
-          paymentModel: 'route_table',
-          regionCity: 'JABOTICABAL',
-          regionCode: '1.002',
-          vehicleClass: 'toco',
         },
         detail: null,
         gap: null,
@@ -133,11 +141,19 @@ describe('valuation ledger contract', () => {
       pricePerLiter: '6.2900',
     })
     expect(driver?.basis).toEqual({
+      crew: [
+        {
+          dailyAmount: '1480.0000',
+          driverId: 'driver-1',
+          driverName: 'condutor exemplo',
+          paymentModel: 'aggregate',
+          rateOrigin: 'driver',
+          subtotal: '1480.0000',
+        },
+      ],
+      days: 1,
+      daysOrigin: 'informed',
       of: 'driver',
-      paymentModel: 'route_table',
-      regionCity: 'JABOTICABAL',
-      regionCode: '1.002',
-      vehicleClass: 'toco',
     })
   })
 

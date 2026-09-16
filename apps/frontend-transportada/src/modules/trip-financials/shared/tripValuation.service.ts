@@ -14,6 +14,22 @@
  */
 export type ValuationSource = 'estimated' | 'measured' | 'missing' | 'period'
 
+/** Spec 143 D3: de onde veio a diária — cópia por valor de `DailyAllowanceRateOrigin` da API. */
+export type DailyAllowanceRateOrigin = 'company' | 'default' | 'driver'
+
+/** Spec 143 D4: os dias vieram informados na operação, ou estimados da duração do roteiro. */
+export type DailyAllowanceDaysOrigin = 'estimated' | 'informed'
+
+/** Spec 143 D5: uma linha por condutor — cópia por valor de `TripDriverCostCrewLine` da API. */
+export type TripDriverCostCrewLine = Readonly<{
+  dailyAmount: string
+  driverId: string
+  driverName: null | string
+  paymentModel: string
+  rateOrigin: DailyAllowanceRateOrigin
+  subtotal: string
+}>
+
 /**
  * Spec 110 D7: **de onde o número veio**, em valores crus. Cópia por valor de `TripCostParcelBasis`
  * na API — o bundle não carrega código dela.
@@ -28,21 +44,12 @@ export type TripValuationCostParcelBasis =
       of: 'fuel'
       pricePerLiter: string
     }>
+  /** Spec 143 D2/D5: uma linha por condutor, na ordem da tripulação — a frase soma junto (T11). */
   | Readonly<{
+      crew: readonly TripDriverCostCrewLine[]
+      days: number
+      daysOrigin: DailyAllowanceDaysOrigin
       of: 'driver'
-      paymentModel: string
-      regionCity: null | string
-      regionCode: null | string
-      /**
-       * Spec 129: **cru** — quantas cidades empataram e cada faixa empatada com o preço dela (ou
-       * ausência). Cópia por valor de `TripCostParcelBasis['tie']` da API; a moeda e a frase são
-       * compostas na tela (`composeCostParcelDetail`), nunca aqui.
-       */
-      tie?: null | Readonly<{
-        cityCount: number
-        zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
-      }>
-      vehicleClass: string
     }>
   /** Spec 125: o ICMS projetado pelo perfil de emissão — CST e frações (não percentuais). */
   | Readonly<{

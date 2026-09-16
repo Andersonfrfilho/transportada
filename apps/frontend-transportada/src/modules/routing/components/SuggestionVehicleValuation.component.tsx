@@ -81,8 +81,12 @@ export function SuggestionVehicleValuation({
         .filter((parcel) => parcel.gap !== null)
         .map((parcel) => {
           /**
-           * Spec 129: mesma composição do razão da viagem — `basis.tie` cru, frase e moeda daqui,
-           * nunca da API. Duas implementações da mesma frase divergiriam caladas.
+           * Spec 143: mesma composição do razão da viagem — a diária vem crua da API, e a frase e a
+           * moeda nascem aqui. Duas implementações da mesma frase divergiriam caladas.
+           *
+           * ⚠️ Limitação conhecida: esta tela só chega aqui com `parcel.gap !== null`, e a parcela do
+           * motorista não tem mais `gap` depois da spec 143 — a frase da diária não aparece nesta
+           * tela hoje. Fora do escopo desta task corrigir.
            */
           const detail = composeCostParcelDetail({
             basis: parcel.basis,
