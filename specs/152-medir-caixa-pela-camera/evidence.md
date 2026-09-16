@@ -916,3 +916,106 @@ scratchpad, arquivo de env próprio (cópia do `.env.test` com `DATABASE_URL` ap
 `nfe-workspace/components/CameraMeasurementSettingsPanel.component.tsx`,
 `test/nfe-workspace/camera-measurement-settings.contract.ts` (adicionado ao entrypoint
 `test/nfe-workspace.contract.test.ts` do frontend).
+
+## T5 — Export do histórico para a validação
+
+Data: 2026-09-15. Modelo: `sonnet` (executor).
+
+### Contrato antes da implementação
+
+`test/nfe-package-box/measurement-export-schema.contract.ts` (parsing de `from`/`to`/`cursor`/
+`limit`, cursor malformado e período fora do ISO 8601 em `400`, parâmetro desconhecido em `400`,
+teto de `limit` em 100, e a rota publicada com a permissão) e
+`test/integration/package-box-measurement-export.integration.ts` (período, cursor, isolamento de
+tenant, ator resolvido pela membership) escritos antes de qualquer código de produção — falhavam por
+import ausente até a implementação existir.
+
+### Desenho
+
+- `application/package-box-measurement-export.port.ts`: `PackageBoxMeasurementExportEntry` (origem,
+  as três medidas gravadas, a proposta da câmera, as margens por dimensão, `warnings`,
+  `impreciseConfirmed`, `engine`, `createdAt`, `productCode`/`cartonGtin` da caixa — nunca a
+  descrição do produto nem o CNPJ do emitente) e `PackageBoxMeasurementActor` — mesma forma de
+  `NfeDocumentEventActor` (spec 149 D16/H13): `{ id, name }` quando a membership resolve o nome,
+  `{ removed: true }` (sem id, sem nome) quando `measured_by_user_id` (sem FK, decisão do architect
+  na T2) não casa mais nenhuma membership ativa na empresa. A coluna é `not null`, então nunca `null`
+  aqui — diferente do ator de `nfe-document-event`, que pode não ter ninguém gravado.
+- `application/list-package-box-measurements.use-case.ts`: camada fina, mesmo molde de
+  `createListNfeDocumentEvents` — o `join` com a caixa e a resolução do ator ficam no repositório.
+- `infrastructure/drizzle-package-box-measurement-export.repository.ts`: `inner join` com
+  `nfe_package_boxes` (empresa + id) para `productCode`/`cartonGtin`, `left join` com
+  `user_company_memberships` (status `active`, mesma empresa) + `identity_user_profiles` para o
+  ator, filtro `from`/`to` sobre `created_at` (`gte`/`lte`), cursor keyset por `(created_at, id)` com
+  o par `decodeKeysetCursor`/`encodeKeysetCursor` de `shared/keyset-cursor.support.ts` — reaproveitado
+  em vez de reescrito, já usado por `mdfe-manifests`. Ordenação e página seguem o índice da T2,
+  `nfe_package_box_measurements_company_created_idx (company_id, created_at desc, id desc)`, criado
+  para exatamente este uso.
+- `presentation/package-box-measurement-export.schema.ts`: `readListQuery` + `readPaging`
+  (`http/request-parsing.service.ts`, o mesmo helper genérico de `mdfe-manifest.schema.ts` e outros
+  seis módulos) resolve `cursor`/`limit` (teto 100, `400` em cursor malformado ou parâmetro
+  desconhecido) — decisão de reaproveitar o helper compartilhado em vez do decode de microssegundos
+  específico de `nfe-document-events.schema.ts` (que existe só para o `UNION` de dois ramos de alta
+  frequência daquele endpoint; aqui a medida é um evento manual, um por vez, sem esse risco de
+  colisão). `from`/`to` validados com `z.iso.datetime()` (mesmo padrão de
+  `nfe-imports.schema.ts`/`freight.schema.ts`), ambos opcionais.
+- `presentation/package-box-measurement-export.routes.ts`: `GET /nfe-package-box-measurements`,
+  `settings.manage` (não `cargo.measure` — decisão do `plan.md`: exportar o histórico inteiro da
+  empresa para validar precisão é administração de configuração, não conferência de caixa no
+  galpão). Resposta `{ data: [...], page: { nextCursor } }`, mesmo formato de
+  `GET /nfe-documents/:id/events`.
+- `main.ts`: composição nova (`DrizzlePackageBoxMeasurementExportRepository`,
+  `createListPackageBoxMeasurements`, `createPackageBoxMeasurementExportRoutes`) ao lado do
+  restante do módulo `nfe-documents`.
+- Nenhuma rota de OpenAPI foi adicionada — como a T3 já registrou, este repositório não tem
+  geração de OpenAPI nenhuma (busca por `openapi` no código-fonte não encontra nada); o texto do
+  `spec.md`/`tasks.md` sobre "documento OpenAPI" não corresponde a um mecanismo existente nesta
+  base, e a T3 já havia deixado o mesmo ponto fora de escopo pela mesma razão.
+- Nenhuma migration nova: a T2 já criou `nfe_package_box_measurements` e o índice
+  `..._company_created_idx` usado aqui.
+
+### O que ficou fora de propósito (não é T5)
+
+- O CSV e o resumo da validação no painel (`cameraMeasurementValidation.service.ts`) são T12 —
+  consomem esta rota, não fazem parte dela.
+- Nenhuma mudança em `package-box.routes.ts`/`CARGO_MEASURE_POLICY` — o export é rota nova, separada.
+
+### Gates
+
+Postgres nativo Homebrew 18 descartável no scratchpad da sessão (`initdb --encoding=UTF8
+--locale=en_US.UTF-8 -U postgres --auth=trust` + `pg_ctl`), porta **65443** (65432–65434/65440–65442/
+65450 evitadas — já usadas por esta ou outras sessões). `LC_ALL=C` necessário de novo para o
+`postmaster` não recusar o start com "became multithreaded during startup" (mesma falha conhecida do
+Postgres 18 do Homebrew nesta máquina, já registrada na T3/T4). Subido e derrubado neste turno.
+
+| Gate                                                                                                                                                                        | Resultado                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz, as 6 apps)                                                                                                                                       | verde                                                                                                                                                                                                               |
+| `bun run lint` (raiz, as 6 apps)                                                                                                                                            | verde                                                                                                                                                                                                               |
+| `bunx prettier --check` (arquivos tocados)                                                                                                                                  | verde (1 arquivo formatado com `--write` antes da rodada final)                                                                                                                                                     |
+| Contratos da API (`bun run --cwd apps/api-transportada test`, sem `.env.test`)                                                                                              | 6037 pass, 0 fail (era 6025 antes da T5 — +12 testes novos, nenhum quebrado)                                                                                                                                        |
+| Integração da API (`bun --env-file=<env no scratchpad, Postgres 65443> run test:integration`, de dentro de `apps/api-transportada`)                                         | 356 pass, 4 skip, **2 `(fail)`** pré-existentes em `test/integration/cte-archive-gateway.integration.ts` (sem MinIO nesta sessão — só subi Postgres — mesma falha já registrada na T4, não relacionada a esta task) |
+| `test/integration/package-box-measurement-export.integration.ts` isolado                                                                                                    | 2 pass, 0 fail                                                                                                                                                                                                      |
+| `test/integration/package-box-measurement-export.integration.ts` + `measurement-history.integration.ts` + `camera-measurement-flag.integration.ts` juntos (regressão T3/T4) | 10 pass, 0 fail                                                                                                                                                                                                     |
+| `test/nfe-package-box.contract.test.ts` isolado (com `measurement-export-schema.contract.ts` novo)                                                                          | 44 pass, 0 fail                                                                                                                                                                                                     |
+
+⚠️ **`cte-profile-output-constraints`** (SQLSTATE `23001` vs `23503`, registrada desde a T2) **não
+apareceu** nesta rodada — só os dois `(fail)` de `cte-archive-gateway` (falta de MinIO) se repetiram,
+mesmo padrão da T4.
+
+⚠️ **Nota sobre o `.env.test`**: como na T3/T4, o Postgres do Docker não respondeu nesta sessão. Segui
+a mesma instrução — Postgres nativo descartável no scratchpad, arquivo de env próprio (cópia do
+`.env.test` com só `DATABASE_URL` reapontado para `127.0.0.1:65443`), rodado com
+`bun --env-file=... run test:integration` de dentro de `apps/api-transportada`. O `.env.test` do link
+simbólico **não foi editado**.
+
+### Arquivos novos
+
+`application/package-box-measurement-export.port.ts`,
+`application/list-package-box-measurements.use-case.ts`,
+`infrastructure/drizzle-package-box-measurement-export.repository.ts`,
+`presentation/package-box-measurement-export.schema.ts`,
+`presentation/package-box-measurement-export.routes.ts`,
+`test/nfe-package-box/measurement-export-schema.contract.ts` (adicionado ao entrypoint
+`test/nfe-package-box.contract.test.ts`),
+`test/integration/package-box-measurement-export.integration.ts` (adicionado ao `package.json` da
+API, `test:integration`).
