@@ -1751,3 +1751,87 @@ arquivo novo precisou entrar lá).
 do interruptor (T12, `CameraMeasurementSettingsPanel` — já existe no worktree, mas sem o resumo da
 validação nem o export CSV) não foi alterado além de nada — T11 só **lê** o interruptor pela rota
 própria de `cargo.measure`, não mexe no painel de `settings.manage`.
+
+---
+
+## T11 — entrada unificada
+
+Data: 2026-09-15. Modelo: `sonnet` (executor). Resolve a pendência que a T11 original deixou
+explícita acima ("peço a leitura do arquiteto/usuário antes da T14"): pedido direto do usuário
+para fechar as **duas portas de câmera** da fila de caixas em **uma só**, R1 da spec.
+
+### Decisão
+
+Com `cameraMeasurementEnabled` **ligado**: o botão "Ler etiqueta" passa a abrir o
+`PackageBoxCameraFlow` (mesma sessão de câmera etiqueta → produto → medida → conferência, D4/T9).
+O botão separado "Medir pela câmera" **deixa de existir** — não sobrou como ação dentro do fluxo
+porque `PackageBoxCameraFlow` já é o próprio fluxo, sem lugar melhor para uma segunda entrada.
+
+Com a função **desligada** (`false`, padrão em todo ambiente hoje): comportamento **idêntico** ao
+de antes da T11 — "Ler etiqueta" abre o `<BarcodeScanner>` de sempre, medição digitada na linha.
+Nada mudou nesse caminho: os ~30 comportamentos que
+`test/nfe-workspace/package-box-measurement.contract.ts` trava por texto de fonte (`cameFromScan`,
+`awaitingScan`, `openMeasurementForScannedBox`, candidatas, pistola física) continuam intactos e
+verdes sem alteração nenhuma nesse arquivo.
+
+### Mudança
+
+Um botão só em `PackageBoxMeasurementPanel.component.tsx`, cujo `onClick` decide o destino pelo
+interruptor:
+
+```tsx
+onClick={() =>
+  cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)
+}
+```
+
+O segundo `<Button>` ("Medir pela câmera",
+`t('packageBoxes.camera.openFlow')`) foi removido, junto da chave de locale `openFlow` (pt e en,
+sem uso restante em `src/` nem `test/`). `PackageBoxCameraFlow` continua sempre montado (nunca
+condicionado a `cameraMeasurementEnabled` no JSX — só o `isCameraFlowOpen` que o abre muda de
+dono), e sua própria etapa "identificada" já escondia "Medir esta caixa" com a função desligada
+(R7, inalterado). A pistola pelo Enter no campo de busca não foi tocada — é um caminho
+independente dos dois botões, que já usava `onScan` direto.
+
+### Contrato ajustado
+
+`test/nfe-workspace/package-box-camera-flow-dialog.contract.ts`, describe "o painel entra no fluxo
+da câmera pela leitura própria do interruptor (R7)": o teste antigo só provava
+`{cameraMeasurementEnabled ? (` (a existência condicional do SEGUNDO botão) — ele travava
+exatamente a "segunda porta" que o usuário pediu para fechar, então precisou mudar. Substituído por
+três testes que provam o comportamento **por estado do interruptor**:
+
+1. ligada → o `onClick` do botão único contém
+   `cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)` e
+   `<PackageBoxCameraFlow` continua no JSX;
+2. desligada → dentro do bloco `<div className={styles.search}>`, o botão chama
+   `setIsScannerOpen(true)` (mesmo leitor de sempre);
+3. não existe mais `t('packageBoxes.camera.openFlow')` em lugar nenhum do painel nem das duas
+   locales, e só há uma chamada a `setIsCameraFlowOpen(true)` no arquivo inteiro (a porta é uma só).
+
+Vermelho antes da implementação (rodado com `bun test test/nfe-workspace.contract.test.ts -t
+"porta única"` — falhou porque o botão único ainda não existia), verde depois. Nenhuma asserção de
+`package-box-measurement.contract.ts` (o arquivo que trava o caminho desligado) foi tocada — a
+tarefa pedia explicitamente para não afrouxar essas.
+
+### Gates
+
+| Gate                                    | Resultado                                         |
+| --------------------------------------- | ------------------------------------------------- |
+| `bun run typecheck` (todas as apps)     | verde, sem erro                                   |
+| `bun run lint` (todas as apps)          | verde, sem erro                                   |
+| `bun run test` (frontend-transportada)  | 3973 pass, 0 fail, 0 `(fail)`, 35485 expect()     |
+| `bunx prettier --check .` (raiz)        | verde                                             |
+| `bun run build` (frontend-transportada) | verde — `dist/sw.js` com 132 entradas de precache |
+
+`git rev-parse --short HEAD` na base desta task: `1df2b667`.
+
+### Ponto que ainda cabe decisão do usuário
+
+Nenhum bloqueio novo. Um ponto de atenção que vale registrar: a etapa "identificada" do
+`PackageBoxCameraFlow` já mostra "Digitar medida" e "Não é esta — ler de novo" ao lado de "Medir
+esta caixa" — ou seja, mesmo com a porta única, o operador ainda escolhe entre câmera e digitado
+depois de identificar o produto (R4/R7, comportamento já existente e não alterado). Se o usuário
+quisesse que "Ler etiqueta" sempre terminasse medindo pela câmera sem essa escolha extra, seria uma
+mudança de R4/R7, fora do pedido desta task (que foi só sobre a ENTRADA, não sobre o que acontece
+depois de identificar a caixa).

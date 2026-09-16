@@ -172,9 +172,12 @@ describe('MeasurementCardPrint é o cartão imprimível do marcador (spec 152 D3
 })
 
 /**
- * R7/D14: a linha medida mostra a origem, e o painel só oferece a entrada da câmera quando a
- * função está ligada na empresa — o interruptor lido por uma rota própria de `cargo.measure`
- * (T4), não pela leitura de `settings.manage` que o painel de configuração usa.
+ * R7/D14/R1 (T11 — entrada unificada): a linha medida mostra a origem, e a entrada de câmera do
+ * painel é decidida pelo mesmo interruptor lido por uma rota própria de `cargo.measure` (T4), não
+ * pela leitura de `settings.manage` que o painel de configuração usa. Com a função ligada, "Ler
+ * etiqueta" é a ÚNICA porta e abre o `PackageBoxCameraFlow` (etiqueta → produto → medida →
+ * conferência numa sessão só) — não existe mais um segundo botão "Medir pela câmera". Com a função
+ * desligada, o mesmo botão continua abrindo o leitor de sempre (`BarcodeScanner`), idêntico a hoje.
  */
 describe('o painel entra no fluxo da câmera pela leitura própria do interruptor (R7)', () => {
   it('lê o interruptor por cargo.measure, não pela rota de settings.manage', async () => {
@@ -186,12 +189,36 @@ describe('o painel entra no fluxo da câmera pela leitura própria do interrupto
     )
   })
 
-  it('o painel só mostra a entrada da câmera com a função ligada', async () => {
+  it('ligada, "Ler etiqueta" é a porta única — abre o PackageBoxCameraFlow, nunca o leitor antigo', async () => {
     const panel = await read(PANEL)
 
     expect(panel).toContain('cameraMeasurementEnabled: boolean')
-    expect(panel).toContain('{cameraMeasurementEnabled ? (')
+    expect(panel).toContain(
+      'cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)',
+    )
     expect(panel).toContain('<PackageBoxCameraFlow')
+  })
+
+  it('desligada, o mesmo botão abre o leitor de sempre — comportamento idêntico ao de hoje', async () => {
+    const panel = await read(PANEL)
+
+    const searchBlock = panel.split('<div className={styles.search}>')[1]?.split('</div>')[0]
+    expect(searchBlock).toBeDefined()
+    expect(searchBlock).toContain('setIsScannerOpen(true)')
+    expect(searchBlock).toContain("t('packageBoxes.scan')")
+  })
+
+  it('não existe mais um segundo botão "Medir pela câmera" — a entrada é uma porta só', async () => {
+    const panel = await read(PANEL)
+
+    expect(panel).not.toContain("t('packageBoxes.camera.openFlow')")
+    const scanButtonOccurrences = panel.match(/setIsCameraFlowOpen\(true\)/g) ?? []
+    expect(scanButtonOccurrences).toHaveLength(1)
+
+    const ptLocale = await read(PT_LOCALE)
+    const enLocale = await read(EN_LOCALE)
+    expect(ptLocale).not.toContain('"openFlow"')
+    expect(enLocale).not.toContain('"openFlow"')
   })
 })
 
