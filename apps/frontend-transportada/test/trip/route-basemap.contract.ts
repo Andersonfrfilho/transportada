@@ -1,14 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'bun:test'
 
 import { buildTripBasemapPaths } from '@/modules/trip/shared/tripBasemap.service'
-
-const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripRouteMap.component.tsx',
-  import.meta.url,
-)
 
 const project = (point: { readonly latitude: number; readonly longitude: number }) => ({
   x: point.longitude,
@@ -43,8 +36,6 @@ const OUTRA = {
  * escala das paradas** para desenho e pontos falarem do mesmo lugar.
  */
 describe('o fundo do mapa do roteiro (spec 080 T005)', () => {
-  const source = readFileSync(COMPONENT, 'utf8')
-
   it('desenha só os municípios que a viagem toca', () => {
     const paths = buildTripBasemapPaths({
       cityCodes: [SAO_CARLOS.code],
@@ -70,26 +61,5 @@ describe('o fundo do mapa do roteiro (spec 080 T005)', () => {
     const [path] = buildTripBasemapPaths({ cityCodes: [ilha.code], features: [ilha], project })
 
     expect(path?.match(/Z/gu)).toHaveLength(2)
-  })
-
-  /** O fundo é referência: cobrir o roteiro com ele inverteria a leitura. */
-  it('o fundo entra atrás da linha e dos pinos', () => {
-    expect(source).toInclude('shapes={[...basemap, ...trace, ...pins]}')
-  })
-
-  /** Malha fora do ar não pode derrubar o mapa: fica sem fundo, com pinos e linha. */
-  it('malha ausente devolve mapa sem fundo', () => {
-    expect(source).toInclude('meshQuery.data ?? (')
-  })
-
-  /**
-   * ⚠️ Hook depois de retorno condicional muda a ordem entre renders e o React quebra — o `useQuery`
-   * fica **antes** do `if (map === null)`.
-   */
-  it('a consulta da malha vem antes do retorno condicional', () => {
-    // O comentário do componente cita a regra, então o alvo é o **código**: o retorno em si.
-    expect(source.indexOf('const meshQuery = useQuery(')).toBeLessThan(
-      source.indexOf('if (map === null) return null'),
-    )
   })
 })

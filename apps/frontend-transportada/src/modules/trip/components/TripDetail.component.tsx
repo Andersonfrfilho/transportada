@@ -544,34 +544,6 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
                 {t('detail.scan')}
               </Button>
             ) : null}
-
-            <TripStopList
-              actions={documentActions}
-              canReorder={isEditable}
-              onReorder={handleReorderStops}
-              selection={selection}
-              stops={trip.stops}
-            />
-
-            {unassignedDocuments.length === 0 ? null : (
-              <div className={styles.stopCard}>
-                <div className={styles.stopCardHead}>
-                  <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
-                  <span className={styles.stopCounter}>
-                    {t('stops.documentCount', { count: unassignedDocuments.length })}
-                  </span>
-                </div>
-                <TripStopDocumentGroup
-                  actions={documentActions}
-                  documents={unassignedDocuments}
-                  selection={selection}
-                />
-              </div>
-            )}
-
-            {trip.documents.length === 0 ? (
-              <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
-            ) : null}
           </div>
           <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
           <BarcodeScanner
@@ -587,6 +559,42 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
           />
         </div>
       ) : null}
+
+      {/*
+       * A lista de cargas é leitura antes de ser ação: ela fica fora do formulário de vínculo. Dentro
+       * dele caía na fileira flexível dos botões, embaralhada com eles, e sumia de vez quando a
+       * viagem saía do barracão — justamente quando o escritório acompanha as entregas.
+       */}
+      <section className={styles.stopSection}>
+        <h3>{t('stops.title')}</h3>
+        <TripStopList
+          actions={documentActions}
+          canReorder={canManage && isEditable}
+          onReorder={handleReorderStops}
+          selection={selection}
+          stops={trip.stops}
+        />
+
+        {unassignedDocuments.length === 0 ? null : (
+          <div className={styles.stopCard}>
+            <div className={styles.stopCardHead}>
+              <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+              <span className={styles.stopCounter}>
+                {t('stops.documentCount', { count: unassignedDocuments.length })}
+              </span>
+            </div>
+            <TripStopDocumentGroup
+              actions={documentActions}
+              documents={unassignedDocuments}
+              selection={selection}
+            />
+          </div>
+        )}
+
+        {trip.documents.length === 0 ? (
+          <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
+        ) : null}
+      </section>
 
       {/**
        * O roteiro se confere antes de a viagem sair. Ele fica acima das ações de propósito: quem

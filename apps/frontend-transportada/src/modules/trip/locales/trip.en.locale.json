@@ -755,6 +755,7 @@
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",
     "selectionCount_other": "{{count}} documents selected",
+    "title": "Trip cargo",
     "unassigned": "No stop"
   },
   "table": {

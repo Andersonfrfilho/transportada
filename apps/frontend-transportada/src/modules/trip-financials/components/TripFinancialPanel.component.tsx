@@ -17,6 +17,7 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
 import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
+import { ValuationLedger } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
@@ -83,25 +84,12 @@ export function TripFinancialPanel({
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
         {previsto === null ? null : (
           <>
-            <dl className={styles.totals}>
-              <div>
-                <dt>{t('panel.expectedRevenue')}</dt>
-                <dd>{formatAmount(previsto.revenue)}</dd>
-              </div>
-              <div>
-                <dt>{t('panel.expectedCost')}</dt>
-                <dd>{formatAmount(previsto.cost)}</dd>
-              </div>
-              <div>
-                <dt>{t('panel.expectedMargin')}</dt>
-                <dd className={isNegative(previsto.margin) ? styles.negative : undefined}>
-                  {formatAmount(previsto.margin)}
-                  {previsto.marginPercentage === null
-                    ? null
-                    : ` (${formatMargin(previsto.marginPercentage)})`}
-                </dd>
-              </div>
-            </dl>
+            {/*
+              A viagem aberta mostra **a mesma conta da criação**: receita em verde, cada custo com
+              a derivação — combustível em km/l × preço, pedágio praça a praça — e despesas em
+              vermelho. Três totais sem cor e sem parcela não diziam de onde o custo vinha.
+            */}
+            <ValuationLedger valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
             {previsto.hasGaps ? (
               <p className={styles.hint}>
@@ -145,20 +133,20 @@ export function TripFinancialPanel({
       <dl className={styles.totals}>
         <div>
           <dt>{t('panel.revenue')}</dt>
-          <dd>{result.revenueAmount}</dd>
+          <dd className={styles.amountIn}>{formatAmount(result.revenueAmount)}</dd>
         </div>
         <div>
           <dt>{t('panel.tax')}</dt>
-          <dd>{result.taxTotal}</dd>
+          <dd className={styles.amountOut}>{formatAmount(result.taxTotal)}</dd>
         </div>
         <div>
           <dt>{t('panel.cost')}</dt>
-          <dd>{result.costTotal}</dd>
+          <dd className={styles.amountOut}>{formatAmount(result.costTotal)}</dd>
         </div>
         <div>
           <dt>{t('panel.net')}</dt>
-          <dd className={isNegative(result.netAmount) ? styles.negative : undefined}>
-            {result.netAmount}
+          <dd className={isNegative(result.netAmount) ? styles.negative : styles.amountIn}>
+            {formatAmount(result.netAmount)}
             {margin === null ? '' : ` · ${margin}`}
           </dd>
         </div>
@@ -187,7 +175,7 @@ export function TripFinancialPanel({
           {[...taxes, ...costs].map((parcel) => (
             <tr key={parcel.kind}>
               <td>{t(`parcel.${parcel.kind}`)}</td>
-              <td>{parcel.amount}</td>
+              <td className={styles.amountOut}>{formatAmount(parcel.amount)}</td>
               <td>
                 {t(`source.${parcel.source}`)}
                 {parcel.note === ''

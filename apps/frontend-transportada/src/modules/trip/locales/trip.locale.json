@@ -854,6 +854,14 @@
     "cancel": "Cancelar",
     "correct": "Corrigir ponto no mapa",
     "correctionScope": "A correção é do endereço, não desta viagem: ela vale para todas as viagens que passarem por este portão.",
+    "cost": {
+      "distance": "Distância",
+      "fuel": "Combustível",
+      "kilometers": "{{distance}} km",
+      "notCalculated": "Não calculado",
+      "toll": "Pedágio",
+      "total": "Custo da rota"
+    },
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
     "latitude": "Latitude",
     "loadingGeometry": "Traçando a estrada entre as paradas…",
@@ -934,6 +942,7 @@
     "selectionClear": "Limpar seleção",
     "selectionCount": "{{count}} nota selecionada",
     "selectionCount_other": "{{count}} notas selecionadas",
+    "title": "Cargas da viagem",
     "unassigned": "Sem parada",
     "withoutEstimate": "Sem previsão de término: ainda não há paradas concluídas suficientes para medir o ritmo."
   },

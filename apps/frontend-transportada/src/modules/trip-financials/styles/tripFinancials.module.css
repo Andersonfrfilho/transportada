@@ -29,6 +29,15 @@
   font-weight: 700;
 }
 
+/* Verde entra, vermelho sai — a mesma leitura do razão da criação da viagem. */
+.amountIn {
+  color: var(--color-ready);
+}
+
+.amountOut {
+  color: var(--color-alert);
+}
+
 .panel {
   border: 1px solid var(--color-slate);
   border-radius: var(--space-2);

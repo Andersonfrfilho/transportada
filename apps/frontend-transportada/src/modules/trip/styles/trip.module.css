@@ -705,6 +705,12 @@
   list-style: none;
 }
 
+/* A lista de cargas fica numa coluna própria, fora da fileira de botões do vínculo. */
+.stopSection {
+  display: grid;
+  gap: var(--space-2);
+}
+
 .stopCard {
   display: grid;
   gap: var(--space-2);
@@ -1139,6 +1145,33 @@
   width: 100%;
   height: auto;
   color: var(--color-copper);
+}
+
+/* O custo da rota lido de relance: combustível, pedágio e total saem do caixa, e por isso em alerta. */
+.routeCost {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.routeCost div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.routeCost dt {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.routeCost dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.routeCostExpense {
+  color: var(--color-alert);
 }
 
 /* Cada grupo de tipos numa coluna: a lista é curta e quebra sozinha no celular (web.md §10). */

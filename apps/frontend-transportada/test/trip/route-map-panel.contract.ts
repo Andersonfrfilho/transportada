@@ -21,16 +21,15 @@ describe('o mapa do roteiro na tela (spec 079 T013)', () => {
   const source = readFileSync(COMPONENT, 'utf8')
 
   /**
-   * `VectorMap` já existia para a malha da aba Regiões e recebe geometria como **dado** — é o mesmo
-   * caso, e reusá-lo evita um segundo `<svg>` no produto.
-   *
-   * ⚠️ A proibição de `<svg>` cru fora de `components/ui/` é afirmada por
-   * `test/design-system/icon.contract.ts`, para a app inteira. Repeti-la aqui duplicaria a regra —
-   * e a primeira escrita deste teste reprovou por achar `<svg>` **no próprio comentário** do
-   * componente, que é o tipo de falso positivo que a duplicação traz junto.
+   * O detalhe desenha **o mesmo mapa da criação da viagem**. Ele tinha um desenho à parte, em
+   * contorno de município, e quem montava a viagem num mapa de ruas a reabria num mapa que não
+   * reconhecia — sem praça de pedágio nem custo da rota.
    */
-  it('desenha pelo primitivo do design system', () => {
-    expect(source).toInclude('<VectorMap')
+  it('desenha pelo mesmo mapa da montagem, com pedágio e custo da rota', () => {
+    expect(source).toInclude('<AssemblyVectorMap')
+    expect(source).toInclude('<RouteTollSummary')
+    expect(source).toInclude('route.fuelTotal')
+    expect(source).not.toInclude('<VectorMap')
   })
 
   /** A cor sai dos tokens: hexadecimal literal é rejeitado em code review (web.md §8). */

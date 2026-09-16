@@ -133,12 +133,18 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
             <Icon name="grip" />
           </button>
         ) : null}
-        <Checkbox
-          ariaLabel={t('stops.selectAll', { label: stop.label })}
-          checked={allSelected}
-          indeterminate={someSelected && !allSelected}
-          onChange={(checked) => selection.toggleMany(documentIds, checked)}
-        />
+        {/*
+          ⚠️ Parada de uma nota só não ganha a caixa da parada: ela marcaria exatamente a mesma coisa
+          que a caixa da linha logo abaixo, e duas seleções coladas para o mesmo item confundiam.
+        */}
+        {documentIds.length > 1 ? (
+          <Checkbox
+            ariaLabel={t('stops.selectAll', { label: stop.label })}
+            checked={allSelected}
+            indeterminate={someSelected && !allSelected}
+            onChange={(checked) => selection.toggleMany(documentIds, checked)}
+          />
+        ) : null}
         <span className={styles.stopSequence}>{stop.sequence}</span>
         <span className={styles.stopLabel}>{stop.label}</span>
         <span className={styles.stopCounter}>
