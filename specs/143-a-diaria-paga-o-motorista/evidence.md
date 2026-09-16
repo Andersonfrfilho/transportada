@@ -159,3 +159,109 @@ Isso fecha três coisas de uma vez:
 Os sete testes novos (`daily-allowance.contract.ts`) entram nos 6098 pass acima; nenhuma suíte
 existente mudou de comportamento — T2 é só domínio puro, sem tocar em `trip-driver-cost.policy.ts`
 nem em nada que outra suíte já exercite.
+
+## T3 — pré-requisito: o que cada suíte de zona/empate passa a dizer
+
+> O `tasks.md` exige este inventário **antes** de codar a T3. Levantado por `Explore` e conferido
+> pela validação arquitetural em `opus`. Decisão do usuário: **as suítes são reescritas no lugar** —
+> o arquivo continua existindo e muda de assunto, nenhuma é apagada.
+
+### Por que tanta suíte cai de uma vez
+
+O `buildTripDriverCost` de hoje não é uma soma: é uma **máquina de decisão sobre uma fonte incerta**.
+Metade do arquivo (`hasDetail`, `buildTieBasis`, `tieDriverNameDetail`, `buildRateDetail`, a escolha
+da lacuna preferida) existe para explicar ao operador _por que a tabela de região não respondeu_.
+Com `driverAmount ?? companyAmount ?? DEFAULT`, a incerteza acaba — e o subsistema de diagnóstico
+fica sem objeto. As suítes que morrem são as que testavam esse diagnóstico.
+
+### API — `apps/api-transportada/test/`
+
+| Suíte                                                | Hoje                                                                                                                          | Passa a dizer                                                                                                                                                          |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trip-valuation/driver-rate-gap.contract.ts`         | 10 de 13 casos são lacuna de rota sem valor                                                                                   | A única lacuna do custo do motorista é **tripulação vazia**; sem valor cadastrado não é mais lacuna, é a diária padrão                                                 |
+| `trip-valuation/driver-zone-table-price.contract.ts` | 8 de 9 casos são preço vindo da tabela de zona                                                                                | A zona não participa do custo do motorista; o preço é `diária × dias`                                                                                                  |
+| `trip-valuation/driver-route-tie.contract.ts`        | 7 de 21 casos são empate entre zonas                                                                                          | Empate deixa de existir no custo; os 14 casos restantes seguem válidos                                                                                                 |
+| `trip-valuation/driver-route-vote.contract.ts`       | 2 de 13 casos                                                                                                                 | Idem — a maioria não depende de empate                                                                                                                                 |
+| `trip-valuation/crew-zone-wiring.contract.ts`        | Afirma **por texto de fonte** que a query chama `resolveTripDriverZone` e que ambos os leitores delegam a `this.resolveCrew(` | Afirma a ausência do loop por motorista e o valor da empresa lido **uma vez**. ⚠️ Quebra na T4, não na T3                                                              |
+| `trip-valuation/read-valuation.contract.ts`          | 2 de 13 casos tocam custo por rota                                                                                            | Os dois passam a afirmar a parcela por diária                                                                                                                          |
+| `trip-valuation/driver-zone.contract.ts`             | Testa `trip-driver-zone.policy.ts` direto                                                                                     | **Intacta** — a política fica no repo (decisão do usuário), a suíte segue sendo o que prova que ela funciona                                                           |
+| `trip-financial/driver-and-tax.contract.ts`          | ≈8 de 13 casos; fixtures `AGGREGATE`/`SALARIED`                                                                               | O agregado e o da casa passam a ter a **mesma** conta (`diária × dias`); some o ramo `period`. Mantém `:152-154`, "viagem sem condutor é desconhecida, nunca gratuita" |
+| `trip-financial/freeze.contract.ts`                  | Congelamento                                                                                                                  | **Intacta** na T3 — muda na T6                                                                                                                                         |
+
+### Frontend — `apps/frontend-transportada/test/`
+
+⚠️ Duas destas leem o **fonte da API** e quebram na T3 mesmo sem ninguém tocar no frontend.
+
+| Suíte                                                          | Hoje                                                                                                                        | Passa a dizer                                                                                |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `trip-financials/driver-route-tie-detail.contract.ts`          | 8 de 8 casos são o detalhe do empate                                                                                        | Reescrita para a linha da diária: valor, dias e origem                                       |
+| `trip-financials/valuation-gap-labels.contract.ts`             | `:45-47` afirma que `apiGaps()` contém `NO_DRIVER_RATE`; `:50-65` exige rótulo em todos os dicionários para todo gap da API | Muda de assunto se entrar código novo de lacuna; a exigência de rótulo completo **continua** |
+| `trip-financials/valuation-ledger-advisory.contract.ts`        | 4 de 5 casos; recorta `ADVISORY_GAPS` do fonte da API e compara a lista exata (`:75`, `:79`)                                | ⚠️ **`ADVISORY_GAPS` não deve ser mexida** — esvaziar quebra esta suíte sem ganho nenhum     |
+| `trip-financials/valuation-ledger.contract.ts`                 | 1 de 6 casos                                                                                                                | O caso do motorista passa a ser a diária                                                     |
+| `trip-financials/valuation-ledger-strikethrough.contract.ts`   | Válida, 1 fixture datada                                                                                                    | Só a fixture muda                                                                            |
+| `trip-financials/gap-detail.contract.ts`                       | Válida, 2 de 3 fixtures datadas                                                                                             | Só as fixtures mudam                                                                         |
+| `trip-financials/panel.contract.ts`                            | —                                                                                                                           | **Intacta**                                                                                  |
+| `trip/proposal-toll-pending.contract.ts`                       | Válida, 1 fixture datada                                                                                                    | Só a fixture muda                                                                            |
+| `multi-vehicle-smoke.helper.ts`                                | Helper de fixture                                                                                                           | Acompanha as fixtures                                                                        |
+| `panel-error-state.contract.ts`, `valuation-panel.contract.ts` | —                                                                                                                           | **Alheias à feature**                                                                        |
+
+### O que a validação arquitetural mudou no desenho, antes de codar
+
+1. **O ramo `source: 'period'` morre, não é adaptado.** `freeze-trip-financial-result.use-case.ts:91`
+   zera toda parcela `period`, e o CHECK do banco exige `amount = 0` nesse caso
+   (`20260827124518_trip_financial_result/migration.sql:40`). Uma diária real congelaria como
+   R$ 0,00 e o INSERT nem passaria. `'period'` continua no enum e em `VALUATION_SOURCES` porque
+   resultados **já congelados** o carregam.
+2. **`SALARIED_CREW_MEMBER` deixa de ser produzido**, mas continua no vocabulário e nos locales.
+   Se continuasse sendo emitido, `trip-valuation.policy.ts:288-290` marcaria `hasGaps: true` numa
+   conta agora completa. A informação "há motorista da casa" passa a viver em
+   `basis.crew[].paymentModel`. Apagar do dicionário faria viagem antiga imprimir a string crua.
+3. **A duração crua vai até a política, não os dias prontos.** Existem **três** consumidores, não
+   dois: a sugestão de roteiro (`read-suggestion-valuation.use-case.ts` +
+   `suggestion-valuation.adapter.ts:31`) sobrescreve a distância do solver. Se a query entregar
+   `days` calculado, a proposta herda dias que não conhecem a rota proposta e a margem diverge da
+   viagem criada a partir dela. O contexto leva `estimatedDurationSeconds` **e**
+   `dailyAllowanceDays`; quem converte é `suggestAllowanceDays` (T2).
+4. **A política recebe `driverAmount` cru + um `companyDailyAmount` por contexto.** O `plan.md:23`
+   sugeria a query já resolver `dailyAmount` + `rateOrigin`, o que jogaria regra de negócio para o
+   SQL — o arranjo que a spec 086 rejeitou e que `crew-zone-wiring.contract.ts` existe para impedir.
+   O valor da empresa é **um por contexto**, não por linha: replicá-lo por motorista tornaria
+   representável um estado impossível.
+5. **`detail` da parcela passa a ser sempre `null`.** `trip-valuation.policy.ts:198-205` diz que a
+   API nunca compõe frase de exibição — regra que `buildRateDetail` viola hoje. A frase é do FE (T11).
+6. **Contrato para a T6:** `note` **é** o campo do código de lacuna
+   (`freeze:94` grava `parcel.gap ?? ''`; `TripFinancialPanel.component.tsx:181-183` renderiza
+   `t('gap.' + note)`). A T6 só escreve a frase de origem quando `gap === null`.
+7. **Aritmética:** `diária × dias` com dias inteiro é multiplicação **exata** em `bigint` escalado —
+   sem `divideHalfUp`, sem divisão. Somar os **bigints**, não os textos reformatados. Normalizar
+   `dailyAmount` com `formatScaledDecimal` antes de pôr na base, senão `'250.00'` do cadastro e
+   `'200.0000'` da constante sairiam com escalas diferentes na mesma lista. Invariante testável:
+   `Σ basis.crew[].subtotal === amount`, exata.
+8. **`exactOptionalPropertyTypes`:** `days`, `daysOrigin` e `crew` são obrigatórios na base nova,
+   com `null` explícito em `driverName`. Nunca montar a base por spread condicional.
+
+### Achados de brinde, registrados para não parecerem efeito da 143
+
+- `DRIVER_ZONE_NOT_COVERED` e `DRIVER_ROUTE_AMBIGUOUS` **já são órfãos hoje**: declaração e locales,
+  nenhum produtor em `src/`.
+- `TRIP_COST_KINDS` (`trip-valuation.policy.ts:167-176`) **não tem `'manual'`**, embora o CHECK do
+  banco tenha. Não é da T3 — é pré-requisito da **T7**, e o erro só apareceria em runtime.
+- `company_energy_settings` não está em nenhuma lista de `readBusinessTables` (achado da T1).
+
+### Efeitos visíveis que valem aviso antes do deploy
+
+- **Toda viagem aberta existente passa a exibir "estimado"** na linha do motorista: nenhuma tem
+  `trips.daily_allowance_days` preenchido. É o que a D4 pede, mas muda todas de uma vez.
+- **`hasGaps` encolhe**, e com ele `isComplete` para congelamentos novos — mexe em telas e
+  relatórios que filtram por isso. É o aceite 5.
+- **Entre a T3 e a T11 a linha de derivação do motorista some do painel**: o FE não compila contra a
+  API, revalida por zod (`tripValuationResponse.validation.ts`) e devolverá base vazia. Aceitável num
+  worktree que fecha inteiro; **não** se a T3 for para staging sozinha.
+
+### Decisões do usuário registradas nesta task
+
+- **Suítes sem objeto são reescritas no lugar**, não apagadas — o arquivo muda de assunto.
+- **`trip-driver-zone.policy.ts` e a política de empate ficam no repo**, sem consumidor de produção,
+  com a **ADR-0066** registrando o porquê.
+- A ADR é a **0066**, não a 0063 que o `tasks.md` nomeava: `docs/adr/` já tem dois `0062`, três
+  `0063`, e o maior é `0065`.
