@@ -265,3 +265,126 @@ fica sem objeto. As suítes que morrem são as que testavam esse diagnóstico.
   com a **ADR-0066** registrando o porquê.
 - A ADR é a **0066**, não a 0063 que o `tasks.md` nomeava: `docs/adr/` já tem dois `0062`, três
   `0063`, e o maior é `0065`.
+
+## T3 — A parcela do motorista é a diária
+
+**Data:** 2026-09-16 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+· **Commit:** `bbe80757` — _feat(trip): a diária paga o motorista, e a tabela de região sai da conta_
+
+### Entregas
+
+- `src/trips/domain/trip-driver-cost.policy.ts` **reescrito**: `buildTripDriverCost({ companyDailyAmount,
+crew, days, daysOrigin })` devolve `Σ (diária × dias)` com uma linha por condutor em `basis.crew`.
+  `TripCrewMember` fica com quatro campos — `driverAmount` (cru), `driverId`, `driverName`,
+  `paymentModel`. Sumiram `DriverTieBasis`, `hasDetail`, `buildTieBasis`, `tieDriverNameDetail`,
+  `buildRateDetail`, `DETAIL_SEPARATOR`, o ramo `period`, o ramo `withoutAmount` e o `reduce` sobre
+  `routeAmount`. Sobrevivem `ZERO`, `ERROR_CODE_PREFIX` e `parseScaledDecimal`.
+- `src/trips/domain/trip-valuation.policy.ts`: nova lacuna `noTripDriver: 'NO_TRIP_DRIVER'`, novo tipo
+  exportado `TripDriverCostCrewLine` e a variante `of: 'driver'` da base trocada por
+  `{ crew, days, daysOrigin, of }`.
+- `src/trips/domain/daily-allowance.policy.ts`: const-object `DAILY_ALLOWANCE_DAYS_ORIGIN`
+  (`informed`/`estimated`) + o tipo, no molde do `DAILY_ALLOWANCE_RATE_ORIGIN` da T2.
+- `test/trip-valuation/daily-allowance.contract.ts` estendido **antes** da implementação com os aceites
+  1, 3, 4 e 5, a tripulação vazia, o dia zero e a invariante exata.
+- Locales `NO_TRIP_DRIVER` nos quatro dicionários do frontend + a asserção correspondente em
+  `test/trip-financials/valuation-gap-labels.contract.ts` — sem eles o gate do frontend reprova.
+
+### Ordem: teste primeiro
+
+Os oito casos novos de `daily-allowance.contract.ts` foram escritos e commitados de cabeça contra a
+spec antes de `trip-driver-cost.policy.ts` mudar uma linha. Os aceites entraram como o teste os lê:
+
+- **aceite 1** — agregado sem valor próprio, 50 h, empresa não configurada → `'600.0000'`, `days: 3`,
+  `daysOrigin: 'estimated'`, `rateOrigin: 'default'`, `source: 'estimated'`;
+- **aceite 3** — motorista R$ 250 vence a empresa R$ 180 (`rateOrigin: 'driver'`); sem valor próprio,
+  a mesma empresa paga R$ 180 (`rateOrigin: 'company'`);
+- **aceite 4** — um agregado (R$ 250) e um assalariado sem valor, 2 dias → `'900.0000'`, duas linhas em
+  `basis.crew`, `gap: null`;
+- **aceite 5** — rota sem célula na tabela de região não abre lacuna: `gap: null`, valor = padrão;
+- **invariante** — empresa `'133.3300'`, motoristas `'77.7700'` / sem valor / `'0.0100'`, 7 dias →
+  `Σ crew[].subtotal === amount` comparado em `bigint` via `parseScaledDecimal`, e o total é
+  `'1477.7700'`. Sem tolerância: a soma é de `bigint`, não de texto reformatado.
+
+### Decisões
+
+- **`source` inverteu de sentido, e o arquivo diz por quê.** `measured` quando `daysOrigin` é
+  `informed`, `estimated` quando é `estimated`. O valor da diária **sempre** existe (motorista, empresa
+  ou padrão), então o que resta incerto não é mais o preço: são os dias.
+- **`days < 1` lança `Error('TRIP_DRIVER_COST_INVALID_DAYS')`**, não `ApiError` — estado impossível
+  merece 500, não 4xx. Segue o precedente de `trip-document-review.policy.ts:72`. `MINIMUM_ALLOWANCE_DAYS`
+  é **importado** de `daily-allowance.constant.ts`; a primeira versão redeclarava a constante e violava
+  o §16 do code-standart.
+- **`detail` é sempre `null`.** A frase de exibição é do frontend (T11);
+  `trip-valuation.policy.ts:198-205` já proibia a API de compô-la.
+- **`ADVISORY_GAPS` não foi tocada**, e os seis códigos que deixaram de ser produzidos
+  (`SALARIED_CREW_MEMBER`, `NO_DRIVER_RATE`, `CITY_WITHOUT_REGION`, `DRIVER_ZONE_PRICED_FROM_TABLE`,
+  `DRIVER_RATE_MISSING_FOR_CLASS`, `DRIVER_ROUTE_TIE_HIGHEST_RATE`) continuam no vocabulário e nos
+  locales: resultado congelado antes desta mudança ainda os carrega.
+- **O aviso da nova lacuna ficou num parágrafo ⚠️ acima do `export const VALUATION_GAPS`, com crases e
+  sem maiúscula entre aspas simples.** `valuation-gap-labels.contract.ts` recorta o fonte a partir de
+  `indexOf('VALUATION_GAPS')` e colhe `/'([A-Z_]+)'/g` — um comentário descuidado inventaria códigos
+  fantasma e exigiria rótulo para eles.
+- **`NO_TRIP_DRIVER` nasceu** em vez de reaproveitar `NO_DRIVER_RATE`: a causa mudou, e reaproveitar o
+  código faria a tela dizer "rota do agregado sem valor cadastrado" para uma viagem sem condutor.
+
+### Dívida de uma task, deliberada
+
+`trip-valuation.query.ts` **continua resolvendo a zona** (`readZoneCatalog`, `readDriverCoverage`,
+`resolveTripDriverZone`) e o resultado **não entra mais na tripulação** — `resolveCrew` devolve
+`driverAmount: null` para todo condutor, com comentário ⚠️ no lugar. Foi o mínimo para compilar, como
+o prompt exigiu: manter a resolução é o que deixa `crew-zone-wiring.contract.ts` verde nesta task (a
+reescrita dela é da T4, como este documento já previa). O custo é **duas leituras mortas de banco por
+valoração** entre a T3 e a T4, e nenhuma viagem paga diária de motorista com valor próprio até a T4
+ligar a fonte. `readRatesByRegion` segue como método privado morto de propósito — o mesmo contrato o
+afirma por texto.
+
+### Contrato que a T3 impõe à T4
+
+1. `crew` chega **sem nenhum campo de zona** (`regionCode`, `regionCity`, `vehicleClass`, `routeAmount`,
+   `routeGap`, `tiedZones`, `cityToRegister` acabaram) e com `driverAmount` **cru**, lido de
+   `fleet_drivers.daily_allowance_amount`. Nada de resolver valor no SQL.
+2. `companyDailyAmount` é **um por contexto**, nunca por linha da tripulação — replicá-lo por motorista
+   tornaria representável um estado impossível.
+3. O contexto leva `estimatedDurationSeconds` **cru** e `dailyAllowanceDays`; quem converte e decide
+   entre `informed` e `estimated` é a política (`suggestAllowanceDays`), não a consulta. São **três**
+   consumidores: a viagem, a sugestão de roteiro e o congelamento.
+4. O terceiro consumidor mora em **`src/routing/`**, não em `src/trips/` como o briefing dizia:
+   `src/routing/application/read-suggestion-valuation.use-case.ts` e
+   `src/routing/infrastructure/suggestion-valuation.adapter.ts`. Ambos reusam `TripValuationContext` e
+   hoje compilam porque `crew` é opcional — a T4 é que os liga.
+5. `test/trip-valuation/crew-zone-wiring.contract.ts` afirma **por texto de fonte** (`:39-53`, `:94-96`)
+   que a consulta chama `resolveTripDriverZone` e que os dois leitores delegam a `this.resolveCrew(`.
+   Ele está verde hoje e **quebra na T4** — a reescrita é dela.
+
+### Achado registrado, não corrigido
+
+`src/trips/domain/trip-driver-zone.policy.ts:59` ainda diz em comentário que "a consulta precifica
+`tiedZones` e `chooseTiedZone` fica com o maior valor" — **a consulta não faz mais nada disso**. Não
+foi corrigido aqui porque o arquivo está fora do escopo da T3 e é objeto da ADR-0066 na T14; fica
+anotado para não parecer descuido.
+
+### Suítes reescritas no lugar, nenhuma apagada
+
+| Suíte                                                   | Passou a dizer                                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `trip-valuation/driver-rate-gap.contract.ts`            | A lacuna do agregado acabou junto com a tabela de região; todo condutor é pago                      |
+| `trip-valuation/driver-zone-table-price.contract.ts`    | A zona não precifica mais nada; a cobertura não muda valor nem lacuna (`ADVISORY_GAPS` intacta)     |
+| `trip-valuation/driver-route-tie.contract.ts`           | O empate não chega mais à parcela; o aviso continua sendo aviso para congelados                     |
+| `trip-valuation/driver-route-vote.contract.ts`          | A votação decide o roteiro, não o preço; as faixas empatadas param na política de zona              |
+| `trip-valuation/read-valuation.contract.ts`             | A leitura paga a diária; sem dias informados a parcela nasce `estimated`                            |
+| `trip-financial/driver-and-tax.contract.ts`             | Agregado e assalariado na mesma conta; mantido "viagem sem condutor é desconhecida, nunca gratuita" |
+| `trip-financials/valuation-gap-labels.contract.ts` (FE) | Passa a exigir `NO_TRIP_DRIVER` no vocabulário e rótulo nos quatro dicionários                      |
+
+Os testes da API caem de 6098 (T2) para 6092: as suítes reescritas afirmam menos casos porque o
+subsistema de diagnóstico da tabela de região deixou de existir. `driver-route-tie-detail.contract.ts`
+do frontend **continua verde** — ele exercita o serviço de detalhe do FE, que só muda na T11.
+
+### Gates
+
+| Gate               | Comando                                         | Resultado                                                                     |
+| ------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)              | ✅ limpo                                                                      |
+| Testes da API      | `bun run --cwd apps/api-transportada test`      | ✅ **6092 pass · 23 skip · 0 fail** · 21463 expect() · 177 arquivos · 10,99 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test` | ✅ **4073 pass · 0 fail** · 35825 expect() · 29 arquivos · 4,24 s             |
+| Lint               | `bun run lint`                                  | ✅ limpo                                                                      |
+| Formatação         | `bun run format:check`                          | ✅ limpo (após `prettier --write` em três arquivos)                           |
