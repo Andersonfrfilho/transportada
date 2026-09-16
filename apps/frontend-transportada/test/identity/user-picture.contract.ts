@@ -9,6 +9,12 @@ import { createCompanyUserPictureQueryOptions } from '../../src/modules/identity
 import { isAuthMeResponse } from '../../src/modules/identity/queries/useAuthMe.query'
 import { createCompanyUsersClient } from '../../src/modules/identity/shared/companyUsersClient.service'
 import { toCompanyUser } from '../../src/modules/identity/shared/companyUsersResponse.validation'
+import {
+  compressUserPicture,
+  listPictureEncodeAttempts,
+  type PictureEncodeAttempt,
+  USER_PICTURE_MAX_BYTES,
+} from '../../src/modules/identity/shared/userPictureCompression.service'
 
 const USER_ID = '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93'
 
@@ -222,5 +228,70 @@ describe('a imagem escolhida aparece antes de ser enviada', () => {
   /** URL de objeto sem revogação prende um blob na aba por toda a sessão, a cada arquivo tentado. */
   test('a URL do arquivo escolhido é revogada', () => {
     expect(source).toContain('URL.revokeObjectURL(created)')
+  })
+})
+
+/**
+ * A foto do celular passa de 256 KB sempre. Recusar e pedir "reduza o tamanho" joga no operador um
+ * trabalho que o navegador faz sozinho.
+ */
+describe('compressão da foto antes do envio', () => {
+  test('arquivo que já cabe segue intacto, sem recodificar', async () => {
+    const file = new Blob([new Uint8Array(1024)], { type: 'image/png' })
+    let encoded = 0
+
+    const result = await compressUserPicture({
+      encode: () => {
+        encoded += 1
+        return Promise.resolve(null)
+      },
+      file,
+    })
+
+    expect(result).toBe(file)
+    expect(encoded).toBe(0)
+  })
+
+  test('arquivo grande sai recomprimido abaixo do teto', async () => {
+    const file = new Blob([new Uint8Array(USER_PICTURE_MAX_BYTES + 1)], { type: 'image/jpeg' })
+    const attempts: PictureEncodeAttempt[] = []
+
+    const result = await compressUserPicture({
+      encode: (attempt) => {
+        attempts.push(attempt)
+        const size = attempts.length < 3 ? USER_PICTURE_MAX_BYTES + 1 : 40_000
+        return Promise.resolve(new Blob([new Uint8Array(size)], { type: attempt.type }))
+      },
+      file,
+    })
+
+    expect(result.size).toBeLessThanOrEqual(USER_PICTURE_MAX_BYTES)
+    expect(attempts).toHaveLength(3)
+  })
+
+  /** Safari devolve PNG ao pedido de WebP; aceitar seria enviar um PNG que pode não caber. */
+  test('tipo diferente do pedido não vale e passa ao JPEG', async () => {
+    const file = new Blob([new Uint8Array(USER_PICTURE_MAX_BYTES + 1)], { type: 'image/png' })
+
+    const result = await compressUserPicture({
+      encode: (attempt) =>
+        Promise.resolve(
+          new Blob([new Uint8Array(10)], {
+            type: attempt.type === 'image/webp' ? 'image/png' : attempt.type,
+          }),
+        ),
+      file,
+    })
+
+    expect(result.type).toBe('image/jpeg')
+  })
+
+  test('sem tentativa que caiba, devolve o original para a API explicar', async () => {
+    const file = new Blob([new Uint8Array(USER_PICTURE_MAX_BYTES + 1)], { type: 'image/png' })
+
+    const result = await compressUserPicture({ encode: () => Promise.resolve(null), file })
+
+    expect(result).toBe(file)
+    expect(listPictureEncodeAttempts().length).toBeGreaterThan(1)
   })
 })
