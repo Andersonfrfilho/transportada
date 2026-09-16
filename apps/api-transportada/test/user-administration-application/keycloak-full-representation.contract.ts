@@ -4,8 +4,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createKeycloakAdminClient } from '@adatechnology/keycloak-admin'
 
-import { createFullRepresentationFetch } from '../../src/identity/infrastructure/keycloak-full-representation.fetch.js'
-
 const BASE_URL = 'https://keycloak.test'
 const USER_URL = `${BASE_URL}/admin/realms/transportada/users/conta-1`
 const CURRENT = {
@@ -32,6 +30,7 @@ function createKeycloakFake() {
     if (url.endsWith('/protocol/openid-connect/token')) {
       return Response.json({ access_token: 'token', expires_in: 300 })
     }
+    if (!url.startsWith(USER_URL)) return new Response(null, { status: 404 })
     if (method === 'GET') return Response.json({ ...CURRENT, attributes: { company_id: ['c1'] } })
     return new Response(null, { status: 204 })
   }
@@ -53,7 +52,7 @@ describe('regravação de atributos manda a ficha completa ao Keycloak', () => {
         clientSecret: 'segredo',
         realm: 'transportada',
       },
-      fetch: createFullRepresentationFetch(keycloak.fetch),
+      fetch: keycloak.fetch,
     })
 
     await client.updateAttributes({ attributes: { tax_id: '00000000000' }, userId: 'conta-1' })
@@ -75,7 +74,7 @@ describe('regravação de atributos manda a ficha completa ao Keycloak', () => {
         clientSecret: 'segredo',
         realm: 'transportada',
       },
-      fetch: createFullRepresentationFetch(keycloak.fetch),
+      fetch: keycloak.fetch,
     })
 
     await client.setProfilePicture({ pictureUrl: 'https://api.test/p.png', userId: 'conta-1' })
@@ -93,7 +92,7 @@ describe('regravação de atributos manda a ficha completa ao Keycloak', () => {
         clientSecret: 'segredo',
         realm: 'transportada',
       },
-      fetch: createFullRepresentationFetch(keycloak.fetch),
+      fetch: keycloak.fetch,
     })
 
     await client.updateUser({ user: { firstName: 'Nova' }, userId: 'conta-1' })
@@ -104,19 +103,22 @@ describe('regravação de atributos manda a ficha completa ao Keycloak', () => {
     expect(userCalls[0]?.body).toEqual({ firstName: 'Nova' })
   })
 
-  test('conta que não existe devolve a resposta da leitura, sem regravar nada', async () => {
-    const calls: string[] = []
-    const fetch = createFullRepresentationFetch(async (_input, init) => {
-      calls.push(init?.method ?? 'GET')
-      return new Response(null, { status: 404 })
+  test('conta que não existe falha na leitura, sem regravar nada', async () => {
+    const keycloak = createKeycloakFake()
+    const client = createKeycloakAdminClient({
+      config: {
+        baseUrl: BASE_URL,
+        clientId: 'api',
+        clientSecret: 'segredo',
+        realm: 'transportada',
+      },
+      fetch: keycloak.fetch,
     })
 
-    const response = await fetch(USER_URL, {
-      body: JSON.stringify({ attributes: {} }),
-      method: 'PUT',
-    })
+    const failure = client.updateAttributes({ attributes: {}, userId: 'conta-inexistente' })
 
-    expect(response.status).toBe(404)
-    expect(calls).toEqual(['GET'])
+    await expect(failure).rejects.toMatchObject({ status: 404 })
+    const accountCalls = keycloak.calls.filter((call) => call.url.includes('/users/'))
+    expect(accountCalls.map((call) => call.method)).toEqual(['GET'])
   })
 })
