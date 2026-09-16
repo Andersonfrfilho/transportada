@@ -216,6 +216,17 @@ describe('login gerado no convite', () => {
     expect(gateway.createUserCalls[0]?.username).toBe('deisy.coimbra2')
   })
 
+  test('o nome vai minúsculo para a ficha e formatado para o provedor', async () => {
+    const { created, gateway, view } = await inviteNamed({ name: 'EGBERTO candido DA silva' })
+
+    expect(created[0]?.['name']).toBe('egberto candido da silva')
+    expect(gateway.createUserCalls[0]).toMatchObject({
+      firstName: 'Egberto',
+      lastName: 'Candido da Silva',
+    })
+    expect(view.name).toBe('Egberto Candido da Silva')
+  })
+
   test('nome sem login válido cai no id interno', async () => {
     const { gateway, view } = await inviteNamed({ name: 'Jo' })
 

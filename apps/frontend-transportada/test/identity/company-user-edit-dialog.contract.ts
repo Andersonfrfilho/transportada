@@ -728,3 +728,18 @@ describe('o conjunto que a API devolve chega inteiro', () => {
     expect(identifiers[0]?.isWhatsapp).toBe(false)
   })
 })
+
+/**
+ * O nome digitado sai na grafia de nome — maiúscula em cada palavra, ligação minúscula —, a mesma
+ * regra que a ficha de motorista já usava. O banco guarda minúsculo, e a API formata na leitura.
+ */
+describe('o nome da pessoa se formata enquanto se digita', () => {
+  test('convite e edição passam o nome por toDisplayPersonName', () => {
+    const hook = readFileSync('src/modules/identity/hooks/useCompanyUserForm.hook.ts', 'utf8')
+
+    expect(hook).toContain("from '@/modules/shared/personName.service'")
+    expect(
+      hook.match(/setName: \(value\) => setName\(toDisplayPersonName\(value\)\)/gu),
+    ).toHaveLength(2)
+  })
+})

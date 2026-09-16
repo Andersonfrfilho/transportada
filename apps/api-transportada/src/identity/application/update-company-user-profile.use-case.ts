@@ -9,6 +9,7 @@ import {
   toCompanyUserView,
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
+import { toDisplayPersonName, toStoredPersonName } from '../../shared/person-name.service.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
 import type { UserPictureRepositoryPort } from './user-picture.port.js'
 import { resolveIdentitySubject } from './company-user-identity.service.js'
@@ -65,7 +66,7 @@ export function createUpdateCompanyUserProfileUseCase({
         ...(contact === undefined ? {} : { contactAddress: contact }),
         ...(channel === undefined ? {} : { contactChannel: channel }),
         ...(email === undefined ? {} : { email }),
-        ...(name === undefined ? {} : { name }),
+        ...(name === undefined ? {} : { name: toStoredPersonName(name) }),
         ...(phone === undefined ? {} : { phone }),
         ...(taxId === undefined ? {} : { taxId }),
         ...(username === undefined ? {} : { username }),
@@ -76,7 +77,9 @@ export function createUpdateCompanyUserProfileUseCase({
         await identityGateway.updateUser({
           user: {
             ...(email === undefined ? {} : { email, emailVerified: false }),
-            ...(name === undefined ? {} : toIdentityName(name)),
+            ...(name === undefined
+              ? {}
+              : toIdentityName(toDisplayPersonName(toStoredPersonName(name)))),
             ...(username === undefined ? {} : { username }),
           },
           userId: subject,
@@ -129,7 +132,7 @@ export function createUpdateCompanyUserProfileUseCase({
         ...existing,
         contactAddress: contact ?? existing.contactAddress,
         contactChannel: channel ?? existing.contactChannel,
-        name: name ?? existing.name,
+        name: name === undefined ? existing.name : toStoredPersonName(name),
         phone: phone ?? existing.phone,
         taxId: taxId ?? existing.taxId,
         username: username ?? existing.username,

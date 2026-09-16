@@ -13,6 +13,7 @@ import {
   pickAvailableUsername,
 } from '../domain/generated-username.policy.js'
 import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
+import { toDisplayPersonName, toStoredPersonName } from '../../shared/person-name.service.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
 import {
@@ -88,6 +89,8 @@ export function createInviteCompanyUserUseCase({
   return {
     async execute({ channel, context, contact, correlationId, email, name, phone, roles, taxId }) {
       const userId = crypto.randomUUID()
+      /** O banco guarda o nome minúsculo; quem lê formata. O provedor mostra o nome na tela de login. */
+      const storedName = toStoredPersonName(name)
       const candidates = buildUsernameCandidates(name)
       const username =
         pickAvailableUsername({
@@ -112,7 +115,7 @@ export function createInviteCompanyUserUseCase({
         },
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,
-        ...splitPersonName(name),
+        ...splitPersonName(toDisplayPersonName(storedName)),
         username,
       })
 
@@ -122,7 +125,7 @@ export function createInviteCompanyUserUseCase({
         contactChannel: channel,
         email: profileEmail,
         issuer,
-        name,
+        name: storedName,
         phone: profilePhone,
         roles,
         taxId: profileTaxId,
@@ -168,7 +171,7 @@ export function createInviteCompanyUserUseCase({
           hasPicture: false,
           membershipId,
           membershipStatus: 'active',
-          name,
+          name: storedName,
           pendingInvitation: { expiresAt: plan.expiresAt },
           phone: profilePhone,
           roles,
