@@ -32,6 +32,7 @@ import type {
 } from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
 import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
+import type { TripCostEntryView } from '../application/list-trip-costs.use-case.js'
 import type {
   RequestCargoLayoutParams,
   RequestCargoLayoutUseCase,
@@ -472,6 +473,12 @@ type Dependencies = {
       },
     ): Promise<{ readonly id: string }>
   }
+  readonly listTripCosts: {
+    execute(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<readonly TripCostEntryView[]>
+  }
 }
 
 export function createTripRoutes(
@@ -605,6 +612,27 @@ export function createTripRoutes(
       },
       pathname: TRIP_COSTS_PATH,
       policy: TRIP_MANAGE_POLICY,
+    }),
+    /**
+     * Spec 143 aceite 7: mesma rota, permissão diferente por método — quem monta a viagem
+     * (`trip.manage`) lança o custo, mas ver dinheiro é `trip.financials` (spec 061 D4). Quem só
+     * administra a viagem não enxerga o que a própria operação lançou.
+     */
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const entries = await dependencies.listTripCosts.execute({
+          companyId: context.scope.companyId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: entries }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_COSTS_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
     }),
     defineRoute<TripIdInput>({
       async handle({ context, input }): Promise<Response> {

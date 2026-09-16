@@ -42,6 +42,7 @@ type RouteDependencies = {
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly listDeliveryAddressHistory: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listStops: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly listTripCosts: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listTrips: { execute(input: ExecuteCall): Promise<typeof TRIP_PAGE> }
   readonly loadTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly overrideDeliveryAddress: { execute(input: ExecuteCall): Promise<unknown> }
@@ -87,6 +88,8 @@ type CreateFixtureParams = {
   readonly listDeliveryAddressHistoryError?: Error
   readonly listDeliveryAddressHistoryResult?: unknown
   readonly listStopsResult?: unknown
+  readonly listTripCostsError?: Error
+  readonly listTripCostsResult?: unknown
   readonly listTripsError?: Error
   readonly loadTripDocumentError?: Error
   readonly permissions?: CompanyContext['permissions']
@@ -133,6 +136,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly linkTripDocumentCalls: ExecuteCall[]
   readonly listDeliveryAddressHistoryCalls: ExecuteCall[]
   readonly listStopsCalls: ExecuteCall[]
+  readonly listTripCostsCalls: ExecuteCall[]
   readonly listTripsCalls: ExecuteCall[]
   readonly loadTripDocumentCalls: ExecuteCall[]
   readonly overrideDeliveryAddressCalls: ExecuteCall[]
@@ -161,6 +165,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const linkTripDocumentCalls: ExecuteCall[] = []
   const listDeliveryAddressHistoryCalls: ExecuteCall[] = []
   const listStopsCalls: ExecuteCall[] = []
+  const listTripCostsCalls: ExecuteCall[] = []
   const listTripsCalls: ExecuteCall[] = []
   const loadTripDocumentCalls: ExecuteCall[] = []
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
@@ -268,6 +273,24 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         listStopsCalls.push(structuredClone(input))
         return params.listStopsResult ?? { stops: [] }
+      },
+    },
+    listTripCosts: {
+      async execute(input) {
+        listTripCostsCalls.push(structuredClone(input))
+        if (params.listTripCostsError) throw params.listTripCostsError
+        return (
+          params.listTripCostsResult ?? [
+            {
+              actor: { name: 'Ana Souza', userId: COMPANY_CONTEXT.userId },
+              amount: '44.6000',
+              createdAt: '2026-08-05T09:00:00.000Z',
+              description: 'Pedágio da BR-101',
+              id: '00000000-0000-4000-8000-000000000e01',
+              kind: 'toll',
+            },
+          ]
+        )
       },
     },
     listTrips: {
@@ -452,6 +475,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     readTripRouteGeometryCalls,
     listDeliveryAddressHistoryCalls,
     listStopsCalls,
+    listTripCostsCalls,
     listTripsCalls,
     loadTripDocumentCalls,
     overrideDeliveryAddressCalls,

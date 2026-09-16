@@ -292,6 +292,7 @@ import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizz
 import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { listTripCosts } from './trips/application/list-trip-costs.use-case'
 import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
@@ -2687,6 +2688,9 @@ function createApplicationRoutes({
             kind: input.kind,
             tripId: input.tripId,
           }),
+      },
+      listTripCosts: {
+        execute: (input) => listTripCosts({ ...input, repository: tripCostRepository }),
       },
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
       issueManifestAutomatically: {

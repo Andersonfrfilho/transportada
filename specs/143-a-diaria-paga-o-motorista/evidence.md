@@ -891,3 +891,198 @@ não distinguia `kind`. Essa consulta fica fora do escopo e do acesso desta task
    `TripCostParcel['kind']` que T8 vier a escrever (ex.: rótulo de autor por tipo de lançamento) já
    precisa cobrir esse valor; o typecheck (`exactOptionalPropertyTypes`, `strict`) pega a omissão em
    compilação, não em runtime.
+
+## T8 — `GET /trips/:id/costs` com autor
+
+Aceite 6 (parte de leitura): a rota devolve os lançamentos de custo com `id, kind, amount,
+description, createdAt, actor: { userId, name }`. Aceite 7: quem não tem `trip.financials` recebe
+403; viagem de outra empresa recebe 404, nunca 403 — 403 confirmaria a existência da viagem para
+quem nem deveria saber que ela existe.
+
+### Alvo
+
+- `drizzle-trip-cost.repository.ts` — novo `listByTrip` (join com `identity_user_profiles` pelo
+  `actorUserId`) e correção do defeito pré-existente em `record()`.
+- `list-trip-costs.use-case.ts` (novo) — função simples `listTripCosts`, no molde de
+  `readTripFiscalReadiness`: `null` do repositório vira `TripNotFoundError`.
+- `trip.routes.ts` — nova rota `GET` na mesma `TRIP_COSTS_PATH` que já serve o `POST`.
+- `main.ts` — injeção do novo use case.
+
+### Vermelho real (não vazio) — dois vermelhos, de motivos diferentes
+
+**Vermelho 1 — a rota ainda não existe** (`bun test ./test/trip-financial.contract.test.ts
+./test/trip-http.contract.test.ts`, com os contratos já escritos e nenhuma produção tocada):
+
+```
+test/trip-financial.contract.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '../../src/trips/application/list-trip-costs.use-case.js' from
+'.../test/trip-financial/list-costs.contract.ts'
+-------------------------------
+
+test/trip-http.contract.test.ts:
+error: expect(received).toBe(expected)
+Expected: 200
+Received: 404
+(fail) os lançamentos de custo da viagem, pela rota (spec 143 aceites 6 e 7) > responde os
+lançamentos com o autor para quem tem trip.financials [0.31ms]
+
+error: expect(received).toBe(expected)
+Expected: 403
+Received: 404
+(fail) os lançamentos de custo da viagem, pela rota (spec 143 aceites 6 e 7) > recusa quem só tem
+trip.manage — a leitura é permissão diferente da escrita [0.14ms]
+
+ 62 pass
+ 3 fail
+ 1 error
+ 181 expect() calls
+Ran 65 tests across 2 files. [233.00ms]
+```
+
+Este 404 do nível HTTP **não prova isolamento por tenant** — ele só prova que a rota `GET` não está
+registrada ainda (o `router` responde 404 para qualquer método sem `defineRoute` casando o
+`pathname`). O fixture (`createTripHttpFixture`) nunca chega a exercitar SQL de verdade — ele troca o
+repositório por um stub — então o 404 de tenant tem que nascer em outro nível: o use case unitário,
+com repositório falso. Foi isso que o Passo 2 fechou.
+
+**Vermelho 2 — o isolamento por tenant, isolado do resto** (depois de escrever o
+`drizzle-trip-cost.repository.ts` real com `listByTrip`/`resolveActorName`, mas com
+`list-trip-costs.use-case.ts` ainda na versão ingênua `return entries ?? []`, sem o guard de 404):
+
+```
+$ bun test ./test/trip-financial/list-costs.contract.ts
+
+51 |   it('viagem de outra empresa não é encontrada — 404, nunca 403', async () => {
+52 |     const attempt = list(buildRepository(null))
+53 |
+54 |     await expect(attempt).rejects.toBeInstanceOf(TripNotFoundError)
+                                        ^
+error:
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (.../test/trip-financial/list-costs.contract.ts:54:35)
+(fail) os lançamentos de custo da viagem, com o autor (spec 143 aceites 6 e 7) > viagem de outra
+empresa não é encontrada — 404, nunca 403 [1.10ms]
+
+ 4 pass
+ 1 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [39.00ms]
+```
+
+Este é o vermelho que conta: o `buildRepository(null)` simula exatamente o retorno do repositório
+quando a viagem existe mas pertence a outra empresa (`listByTrip` devolve `null` porque o `SELECT
+trips.id WHERE companyId = ? AND id = ?` não achou linha). Com o guard ausente, o use case engolia o
+`null` como lista vazia e **resolvia com sucesso** — o mesmo formato de resposta que "viagem existe,
+sem lançamento nenhum". Programaticamente isso seria 200 com `[]`, não 404: um vazamento de
+existência mais sutil que um 403 (a rota nem chega a diferenciar as duas situações). A asserção falha
+por conteúdo (`resolveu` vs. `rejeitou`), não por módulo ausente — prova que o teste está de fato
+testando o filtro, e que o filtro (antes do guard) deixava passar. Depois de adicionar
+`if (entries === null) throw new TripNotFoundError()`
+(`list-trip-costs.use-case.ts:37-39`), a mesma suíte fica verde (5 pass, 0 fail).
+
+### Onde o 404 cross-tenant nasce, exatamente
+
+Dois pontos, cada um com um papel diferente — nenhum sozinho basta:
+
+1. **`drizzle-trip-cost.repository.ts` (`listByTrip`, linhas ~59-65)** — o `where` que decide:
+   `and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId))` contra a tabela `trips`
+   (não `trip_cost_entries` diretamente). Se a viagem não pertence à empresa do contexto autenticado,
+   a busca não acha linha (`trip === undefined`) e o método devolve `null` — nunca lança, nunca
+   monta uma exceção HTTP. É aqui que o `companyId` do contexto (nunca do payload) decide existência.
+2. **`list-trip-costs.use-case.ts` (`listTripCosts`, linhas ~35-39)** — quem traduz `null` em erro de
+   domínio: `if (entries === null) throw new TripNotFoundError()`. O use case não faz try/catch
+   (`code-standart §7`); o `TripNotFoundError` (`trip.error.ts:57-65`, status 404) propaga sem ser
+   capturado até o exception filter global do router, que é quem de fato produz a resposta HTTP 404.
+
+Ou seja: o repositório decide _que_ a viagem não existe para esta empresa (é a fronteira de
+segurança — a query nunca vaza dado de outro tenant); o use case decide _o que fazer_ com essa
+ausência (converter em erro de domínio, não engolir). A rota (`trip.routes.ts`) não participa dessa
+decisão — ela só chama `dependencies.listTripCosts.execute(...)` e deixa o erro subir.
+
+### A assimetria de permissão é intencional, não um defeito a unificar
+
+`TRIP_COSTS_PATH` agora serve dois métodos com políticas diferentes:
+
+- `POST` continua com `TRIP_MANAGE_POLICY` (`trip.manage`) — comentário original preservado
+  (`trip.routes.ts`): "Pedágio e avulso são lançamento de operação: quem monta a viagem lança."
+- `GET` (novo) usa `TRIP_FINANCIALS_POLICY` (`trip.financials`), a mesma política que já protege
+  `readFinancialResult`/`recalculate` (spec 061 D4: "margem, custo de motorista e receita não são
+  `trip.manage`").
+
+Isto é o primeiro ponto que qualquer revisor vai questionar: por que quem pode _lançar_ um custo não
+pode necessariamente _ver_ a lista de custos da mesma viagem? Resposta: são papéis diferentes por
+desenho. `trip.manage` é operação (montar a viagem, lançar o que a operação gerou). `trip.financials`
+é dinheiro — quem só monta viagem não tem, por padrão, visão financeira, mesmo sobre o que a própria
+operação lançou. O teste `costs.contract.ts` ("recusa quem só tem trip.manage — a leitura é permissão
+diferente da escrita") existe justamente para impedir que uma futura reescrita "simplifique" as duas
+políticas para uma só. **A rota `POST` não foi tocada nesta task** — nem o `policy`, nem o handler,
+nem o `parse`; só uma nova `defineRoute` foi inserida logo depois dela, no mesmo array.
+
+### O defeito pré-existente corrigido (mesma classe, no escopo)
+
+`record()` tinha `return { id: created?.id ?? '' }` — um fallback de string vazia sobre um
+`INSERT ... RETURNING` que, por contrato do Postgres/Drizzle, sempre devolve a linha inserida.
+`created` só seria `undefined` em uma falha de driver/transação que já deveria ter lançado antes; o
+`?? ''` mascarava esse cenário devolvendo um `id` inválido em vez de estourar. Trocado por:
+
+```ts
+if (created === undefined) throw new Error('trip_cost_entries insert returned no row')
+return { id: created.id }
+```
+
+Mesma classe do vício que T7 corrigiu (leitura silenciosa de um estado que não deveria acontecer),
+desta vez do lado da escrita — e no mesmo arquivo que T8 já precisava tocar para o `listByTrip`.
+
+### O nome do autor (aceite 6) e por que a cadeia de fallback é função pura, não SQL
+
+`resolveActorName` (`drizzle-trip-cost.repository.ts`) resolve `name` → `email` → `'usuário
+removido'` fora do SQL, como função exportada e testável sem Postgres — desvio deliberado do
+precedente mais próximo (`trip-fiscal-readiness.query.ts`, que mantém seus helpers `resolveState`/
+`toReadiness` privados, mas só porque são validados por integração com banco real). `identity_users`
+não carrega nome/e-mail algum; `identity_user_profiles.name` é `NOT NULL` com CHECK de não-branco,
+mas o `LEFT JOIN` pode não achar perfil nenhum (usuário removido) — é esse o gatilho real do
+fallback final; o fallback para `email` é defesa em profundidade. As três branches (`nome`, `e-mail`,
+`'usuário removido'`) são testadas diretamente em `list-costs.contract.ts`, sem Postgres.
+
+### Por que não há teste de integração novo aqui
+
+O container `transportada-test-postgres-1` (porta 65432, `.env.test`) estava parado no início desta
+sessão; mesmo depois de subir, o precedente mais próximo (`trip-fiscal-readiness`) não tem teste de
+integração cross-tenant algum, e a T7 já havia optado por prova de unidade/texto-fonte em vez de
+integração para um problema estruturalmente parecido (separar comportamento por `kind`/tenant sem
+depender de fixture de banco). O isolamento por tenant aqui é provado no nível de use case com
+repositório falso (`buildRepository(null)`), exatamente como o `readiness.contract.ts` já fazia para
+`TripNotFoundError`.
+
+### Gates
+
+| Gate                        | Comando                                                                                       | Resultado                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Typecheck                   | `bun run typecheck` (raiz, 6 apps)                                                            | ✅ limpo                                                        |
+| Testes da API               | `bun run --cwd apps/api-transportada test`                                                    | ✅ 6111 pass · 23 skip · 0 fail · 21492 expect() · 177 arquivos |
+| Testes da API (`.env.test`) | `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) | ✅ idêntico — 6111 pass · 23 skip · 0 fail                      |
+| Testes do frontend          | `bun run --cwd apps/frontend-transportada test`                                               | ✅ 4073 pass · 0 fail · 35825 expect() · 29 arquivos            |
+| Lint                        | `bun run lint`                                                                                | ✅ limpo                                                        |
+| Formatação                  | `bun run format:check`                                                                        | ✅ limpo (após `prettier --write` no repositório novo)          |
+
+Os 23 `skip` são pré-existentes e não relacionados a T8 (`test/database-migration/support.ts` usa
+`.skip` condicional próprio); a contagem é idêntica com e sem `.env.test`.
+
+### Contrato que a T8 impõe à T9
+
+1. `TripCostEntryView` (`list-trip-costs.use-case.ts`) é o formato definitivo de linha de custo com
+   autor — `{ id, kind, amount, description, createdAt, actor: { userId, name } }`. Qualquer tela ou
+   agregação que T9 vier a construir sobre lançamentos de custo com autor deve importar este tipo, não
+   redeclará-lo.
+2. `resolveActorName` já resolve a cadeia `name → email → 'usuário removido'` — T9 não precisa (e não
+   deve) reimplementar essa lógica para qualquer outra listagem que precise do nome de quem lançou
+   algo; importa a função ou replica o mesmo padrão de fallback.
+3. A política de leitura de `trip.financials` (`TRIP_FINANCIALS_POLICY`) já cobre `GET
+/trips/:id/costs` — se T9 expõe mais dado financeiro na mesma viagem, o padrão é a mesma política,
+   não uma nova, a menos que o dado seja de fato menos sensível que custo lançado.
