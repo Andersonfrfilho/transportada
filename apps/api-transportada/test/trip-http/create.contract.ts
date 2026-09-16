@@ -87,4 +87,53 @@ describe('trip create http contract', () => {
     expect(response.status).toBe(422)
     expect((await responseApiError(response)).code).toBe('TRIP_VEHICLE_NOT_AVAILABLE')
   })
+
+  /**
+   * Spec 143 aceite 2: `dailyAllowanceDays` informado desce para o use case tal como chegou —
+   * quem decide dias sugeridos versus informados é a política (T2), nunca a rota.
+   */
+  test('forwards the informed daily allowance days', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ...CREATE_TRIP_BODY, dailyAllowanceDays: 2 },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls[0]).toMatchObject({ dailyAllowanceDays: 2 })
+  })
+
+  /**
+   * Spec 143 aceite 8: zero não é "sem diária" — é entrada inválida, e o zod é a primeira barreira,
+   * antes mesmo do CHECK do banco (T1).
+   */
+  test('refuses a zero or negative daily allowance days', async () => {
+    const zeroFixture = await createTripHttpFixture()
+    const zeroResponse = await zeroFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_TRIP_BODY, dailyAllowanceDays: 0 },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(zeroResponse.status).toBe(400)
+    expect(zeroFixture.createTripCalls).toEqual([])
+
+    const negativeFixture = await createTripHttpFixture()
+    const negativeResponse = await negativeFixture.handle(
+      jsonRequest({
+        body: { ...CREATE_TRIP_BODY, dailyAllowanceDays: -1 },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(negativeResponse.status).toBe(400)
+    expect(negativeFixture.createTripCalls).toEqual([])
+  })
 })

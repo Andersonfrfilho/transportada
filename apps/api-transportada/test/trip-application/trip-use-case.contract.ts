@@ -207,6 +207,26 @@ describe('trip use case contract', () => {
     ])
   })
 
+  /**
+   * Spec 143 T5: ausente não é zero — o repositório não recebe a chave, e é a política (T2) quem
+   * lê essa ausência como "sugere pela duração".
+   */
+  test('forwards the informed daily allowance days to the repository, and omits it when absent', async () => {
+    const fixture = createFixture()
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({
+      context: CONTEXT,
+      dailyAllowanceDays: 2,
+      driverIds: [FIRST_DRIVER_ID],
+      vehicleId: VEHICLE_ID,
+    })
+    await useCase.create({ context: CONTEXT, driverIds: [FIRST_DRIVER_ID], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls[0]).toMatchObject({ dailyAllowanceDays: 2 })
+    expect(fixture.createCalls[1]).not.toHaveProperty('dailyAllowanceDays')
+  })
+
   test('links a document by nfe document id, xor freight calculation id', async () => {
     const fixture = createFixture()
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })

@@ -254,6 +254,7 @@ export type TripDetail = Trip & {
 export type CreateTripRecord = {
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
+  readonly dailyAllowanceDays?: number
   readonly vehicleId: string
 }
 

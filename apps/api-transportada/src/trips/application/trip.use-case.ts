@@ -23,6 +23,12 @@ import type {
 
 export type CreateTripInput = {
   readonly context: TripCompanyContext
+  /**
+   * Spec 143 D4: ausente é "sugere pela duração estimada" — decisão da política, não daqui.
+   * `| undefined` explícito porque o corpo chega direto do zod (`z.number().int().optional()`),
+   * que sempre tipa o campo assim sob `exactOptionalPropertyTypes` — nunca `.default()` aqui.
+   */
+  readonly dailyAllowanceDays?: number | undefined
   readonly driverIds: readonly string[]
   readonly vehicleId: string
 }
@@ -112,11 +118,16 @@ export function createTripUseCase(dependencies: {
       return closed
     },
 
-    async create({ context, driverIds, vehicleId }) {
+    async create({ context, dailyAllowanceDays, driverIds, vehicleId }) {
       const companyId = context.companyId
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
       const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
-      return repository.create({ companyId, crew, vehicleId: vehicle.id })
+      return repository.create({
+        companyId,
+        crew,
+        ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+        vehicleId: vehicle.id,
+      })
     },
 
     async deliverDocument({ context, documentId, tripId }) {

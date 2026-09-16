@@ -227,6 +227,11 @@ export type PreviewTripValuationInput = {
    * barracão entra na distância dela também — duas contas diferentes sobre a mesma viagem é o
    * defeito que a 097 existe para acabar. ⚠️ A **carga** não muda: o barracão não ocupa baú (D3).
    */
+  /**
+   * Spec 143 D4: mesma regra da criação — ausente é "sugere pela duração estimada".
+   * `| undefined` explícito: o corpo chega direto do zod (`z.number().int().optional()`).
+   */
+  readonly dailyAllowanceDays?: number | undefined
   readonly depot?: null | ReadRouteGeometryDepotPort
   readonly driverIds: readonly string[]
   /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
@@ -294,6 +299,9 @@ export async function previewTripValuation(
     companyId: input.companyId,
     context: {
       ...context,
+      ...(input.dailyAllowanceDays === undefined
+        ? {}
+        : { dailyAllowanceDays: input.dailyAllowanceDays }),
       distanceMeters: road.distanceMeters,
       estimatedDurationSeconds: road.durationSeconds,
       toll: road.toll,

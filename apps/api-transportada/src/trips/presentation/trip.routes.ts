@@ -408,6 +408,7 @@ type Dependencies = {
   readonly previewValuation: {
     execute(input: {
       readonly companyId: string
+      readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
       readonly routeChoice?: RouteChoice
@@ -705,6 +706,7 @@ export function createTripRoutes(
       policy: TRIP_FINANCIALS_POLICY,
     }),
     defineRoute<{
+      readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
       readonly routeChoice?: RouteChoice

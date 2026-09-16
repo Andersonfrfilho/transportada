@@ -26,6 +26,11 @@ export const routeChoiceRequestSchema = z
 
 export const createTripSchema = z
   .object({
+    /**
+     * Spec 143 D4: ausente é "sugere pela duração estimada" — quem decide isso é a política
+     * (`suggestAllowanceDays`), nunca este schema. Por isso nada de `.default()` aqui.
+     */
+    dailyAllowanceDays: z.number().int().min(1).optional(),
     driverIds: z.array(z.uuid()).min(1).max(MAX_TRIP_DRIVERS),
     vehicleId: z.uuid(),
   })
@@ -99,6 +104,8 @@ export type LinkTripDocumentsBatchBody = z.infer<typeof linkTripDocumentsBatchSc
  */
 export const previewTripValuationSchema = z
   .object({
+    /** Mesma regra da criação (spec 143 D4) — a prévia vale o mesmo tanto que a viagem criada. */
+    dailyAllowanceDays: z.number().int().min(1).optional(),
     driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
     /** RF4 (spec 153): sem corpo, a prévia precifica a mais barata conhecida, igual ao congelamento. */

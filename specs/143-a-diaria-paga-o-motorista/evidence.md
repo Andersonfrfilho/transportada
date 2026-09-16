@@ -475,3 +475,139 @@ duração de uma viagem já criada.
 | Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4073 pass · 0 fail** · 35825 expect() · 29 arquivos                    |
 | Lint               | `bun run lint`                                         | ✅ limpo                                                                    |
 | Formatação         | `bun run format:check`                                 | ✅ limpo (após `prettier --write` no use-case, que quebrou uma linha)       |
+
+## T5
+
+Escopo: `trip-request.schema.ts` (`createTripSchema`, `previewTripValuationSchema`) e
+`trip.use-case.ts` (`create()`), que a T5 herda como contrato aberto da T4: "nada hoje escreve
+`trips.daily_allowance_days`". Fechado ponta a ponta: schema → use case → porta → repositório
+Drizzle, e o mesmo campo espelhado na prévia (`read-trip-valuation.use-case.ts`, `trip.routes.ts`)
+porque "a prévia vale o mesmo tanto que a viagem criada" é regra do próprio `spec.md`.
+
+### Regra de negócio
+
+`dailyAllowanceDays` é **opcional**. Ausente ≠ zero: ausente é "sugere pela duração estimada"
+(`daysOrigin: 'estimated'`), que é decisão exclusiva de `suggestAllowanceDays` (T2) — nunca do
+schema, nunca do SQL. Informado é `>= 1` (`daysOrigin: 'informed'`). Por isso nenhum `.default()`
+foi usado aqui: o campo tem de chegar como `undefined` de verdade e atravessar assim até a política,
+sob `exactOptionalPropertyTypes`.
+
+### Vermelho antes da implementação
+
+Duas capturas, de propósito — a primeira para provar que o vermelho é genuíno e a segunda para
+isolar a regra `.min(1)` especificamente da rejeição trivial de `.strict()` (o mesmo cuidado que a
+T4 registrou como dívida: "um teste que nunca falhou não provou nada").
+
+**1) Vermelho inicial — schema sem o campo, produção final revertida para `HEAD`, testes já escritos:**
+
+```
+$ bun test test/trip-http.contract.test.ts test/trip-application.contract.test.ts
+
+test/trip-application.contract.test.ts:
+error: expect(received).toMatchObject(expected)
+  {
+-   "dailyAllowanceDays": 2,
++   "companyId": "11111111-1111-4111-8111-111111111111",
++   "crew": [ ... ],
++   "vehicleId": "44444444-4444-4444-8444-444444444441",
+  }
+(fail) trip use case contract > forwards the informed daily allowance days to the repository,
+and omits it when absent
+
+test/trip-http.contract.test.ts:
+error: expect(received).toBe(expected)
+Expected: 201
+Received: 400
+(fail) trip create http contract > forwards the informed daily allowance days
+
+ 133 pass
+ 2 fail
+ 330 expect() calls
+```
+
+Nesta mesma rodada, `'refuses a zero or negative daily allowance days'` **já passava** — mas pelo
+motivo errado: `.strict()` rejeita a chave desconhecida `dailyAllowanceDays` para qualquer valor,
+inclusive `2`. Um vermelho que nunca existiu para essa asserção específica não prova nada; daí a
+segunda captura.
+
+**2) Vermelho isolado — schema com `z.number().int().optional()`, sem `.min(1)`, produção completa aplicada:**
+
+```
+$ bun test test/trip-http.contract.test.ts
+
+test/trip-http.contract.test.ts:
+124 |     expect(zeroResponse.status).toBe(400)
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 400
+Received: 201
+
+(fail) trip create http contract > refuses a zero or negative daily allowance days
+
+ 61 pass
+ 1 fail
+ 176 expect() calls
+```
+
+Com `.min(1)` de volta, as três suítes (`trip-http`, `trip-application`, `trip-valuation`) fecham em
+272 pass / 0 fail — a mesma asserção que falhava por 201 agora fecha em 400 pela regra de negócio,
+não pela forma do corpo.
+
+### O que entrou
+
+- **`createTripSchema`/`previewTripValuationSchema`**: `dailyAllowanceDays: z.number().int().min(1).optional()`
+  nos dois — ambos continuam `.strict()`. Comentário em cada um deixa explícito por que não há
+  `.default()`.
+- **`CreateTripInput.dailyAllowanceDays?: number | undefined`** (`trip.use-case.ts`) e
+  **`PreviewTripValuationInput.dailyAllowanceDays?: number | undefined`** (`read-trip-valuation.use-case.ts`)
+  — `| undefined` explícito porque é exatamente o tipo que o zod infere sob
+  `exactOptionalPropertyTypes` quando o campo atravessa direto por parâmetro genérico (fronteira de
+  leitura). O mesmo padrão em `trip.routes.ts`: o genérico do `defineRoute` da prévia e o tipo de
+  `Dependencies.previewValuation.execute`.
+- **`CreateTripRecord.dailyAllowanceDays?: number`** (`trip.port.ts`, sem `| undefined`) — fronteira de
+  escrita: o objeto é reconstruído por composição (`repository.create({...})`), e ali o padrão
+  existente de spread condicional (`...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays })`)
+  garante que a chave nunca é escrita como `undefined` literal — nem em `trip.use-case.ts`, nem no
+  `.values()` do `drizzle-trip.repository.ts`, nem no override de contexto de
+  `previewTripValuation()`. "Nada de spread condicional" (T5 brief) vale para a definição do schema
+  zod, não para essas camadas de escrita mais profundas — o idioma já usado no resto da base
+  continua correto ali.
+- **`preview-daily-allowance.contract.ts`** (novo): dois testes de `previewTripValuation()` — com
+  `dailyAllowanceDays: 2` a parcela do motorista fecha em `400.0000`/`source: 'measured'`; sem o
+  campo, `source: 'estimated'`. Confirma que `buildDriverParcel()` (T2/T4), que converte `daysOrigin`
+  em `source`, não precisou de nenhuma mudança — só precisava do valor chegando até ela.
+
+### Confirmado sem necessidade de mudança
+
+- `trip.schema.ts` é wrapper fino sobre `trip-request.schema.ts` — reexporta schema e tipo inferido
+  sem reconstrução; nenhuma edição ali.
+- A rota de criação usa `defineRoute<Omit<CreateTripInput, 'context'>>` — herdou o campo automaticamente
+  ao editar só `CreateTripInput`.
+- `TripValuationContext.dailyAllowanceDays` e `buildDriverParcel()` já vinham corretos da T4; T5 só
+  precisava fazer o valor informado alcançá-los.
+
+### Gates
+
+| Gate                     | Comando                                                | Resultado                                                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck                | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo                                                                                                                                                                                                                                        |
+| Testes da API            | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6095 pass · 23 skip · 0 fail** · 21466 expect() · 177 arquivos · ~11 s                                                                                                                                                                     |
+| Testes da API (sem flag) | `bun test --timeout 120000`                            | ✅ idêntico: 6095 pass · 23 skip · 0 fail — sem Docker/Postgres local nesta sessão (`docker compose ps` vazio), os 23 skips são os mesmos com e sem `.env.test`; nenhuma integração nova foi de fato exercitada contra banco real por esta task |
+| Testes do frontend       | `bun run --cwd apps/frontend-transportada test`        | ✅ **4073 pass · 0 fail** · 35825 expect() · 29 arquivos                                                                                                                                                                                        |
+| Lint                     | `bun run lint`                                         | ✅ limpo                                                                                                                                                                                                                                        |
+| Formatação               | `bun run format:check`                                 | ✅ limpo                                                                                                                                                                                                                                        |
+
+### Contrato que a T5 impõe à T6
+
+1. `dailyAllowanceDays` já atravessa ponta a ponta: HTTP → `CreateTripInput`/`PreviewTripValuationInput`
+   → `CreateTripRecord`/override de contexto → `trips.daily_allowance_days`/`TripValuationContext`.
+   Qualquer novo consumidor deste campo deve seguir o mesmo par de fronteiras — `| undefined` explícito
+   onde o valor chega direto do zod, `key?: T` + spread condicional onde é reconstruído por composição.
+2. O CHECK `trips_daily_allowance_days_check` (T1) continua sendo a **segunda** barreira — o zod
+   (`.min(1)`) é a primeira, e nenhuma linha inválida chega perto do banco com os testes atuais.
+3. **Não existe fixture HTTP para a rota de prévia** (`POST .../valuation-preview`) — a cobertura de
+   `dailyAllowanceDays` na prévia ficou no nível de função (`previewTripValuation()`, unitário), não
+   HTTP. Se uma task futura precisar de um teste HTTP `dailyAllowanceDays: 0 → 400` para a prévia
+   especificamente, a fixture de HTTP da prévia ainda precisa ser montada — hoje só a criação
+   (`create.contract.ts`) tem esse nível de teste.

@@ -121,7 +121,13 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database.transaction(async (transaction) => {
       const [created] = await transaction
         .insert(trips)
-        .values({ companyId: input.companyId, vehicleId: input.vehicleId })
+        .values({
+          companyId: input.companyId,
+          ...(input.dailyAllowanceDays === undefined
+            ? {}
+            : { dailyAllowanceDays: input.dailyAllowanceDays }),
+          vehicleId: input.vehicleId,
+        })
         .returning({ id: trips.id })
       if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
 
