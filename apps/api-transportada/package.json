@@ -33,7 +33,7 @@
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/fiscal-provider": "0.3.2",
     "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
-    "@adatechnology/keycloak-admin": "1.0.0-rc.3",
+    "@adatechnology/keycloak-admin": "1.0.1",
     "@adatechnology/keycloak-jwt": "0.1.1",
     "@adatechnology/logger": "0.1.0-rc.0",
     "@adatechnology/meta-whatsapp-contracts": "0.1.0",
