@@ -242,7 +242,9 @@ padrão por volume, na mesma tabela e sob `settings.manage`. Motivos da escolha:
 Configuração perto do efeito: o painel **"Medida pela câmera (experimental)"** mora na aba
 `packageBoxes` do `nfe-workspace`, a mesma do `PackageBoxMeasurementPanel`, registrado em
 `SETTINGS_PANEL_PLACEMENT` como `cameraMeasurement: { module: 'nfe-workspace', source:
-'cargoSettings', tab: 'packageBoxes' }`, com contrato em `test/company-settings/tabs.contract.ts`.
+'cameraMeasurementSettings', tab: 'boxes' }`, com contrato em `test/company-settings/tabs.contract.ts`.
+⚠️ A implementação vence o texto: até a T14 este parágrafo dizia `cargoSettings`/`packageBoxes`, que
+não existem no registro (T14 item M5).
 Aparece só para `settings.manage`.
 
 Quem mede tem `cargo.measure`, não `settings.manage` — e `GET /company-settings/cargo` exige
