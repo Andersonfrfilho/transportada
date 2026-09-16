@@ -312,6 +312,7 @@
   "cameraMeasurementValidationReadingCount": "{{count}} readings with a camera proposal in the period",
   "cameraMeasurementValidationWithinTen": "{{percent}}% with error up to 10 mm (R6 target: at least 80%)",
   "cameraMeasurementValidationWithinMargin": "{{percent}}% within the estimated margin, out of {{known}} readings with a recorded margin (R6 target: at least 90%)",
+  "cameraMeasurementValidationCameraOnly": "{{count}} readings recorded straight from the camera, never checked against the tape measure — they stay out of both rates, because the recorded value is the proposal itself.",
   "cameraMeasurementValidationMarginHint": "The margin belongs to the camera's proposal and stays recorded even when the operator types the tape value over it — the margin rate only falls below the reading total when the camera never proposed that dimension.",
   "cameraMeasurementValidationVerdictGo": "R6 target met: at least 80% with error up to 10 mm and 90% within margin.",
   "cameraMeasurementValidationVerdictNoGo": "R6 target not met yet: the feature remains experimental and off in production.",
