@@ -20,6 +20,10 @@ import {
   type PackageBoxQueue,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import {
+  measurementSourceLabel,
+  type Translate,
+} from '../shared/packageBoxMeasurementLabel.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
@@ -73,25 +77,6 @@ function looksLikeScannedCode(value: string): boolean {
 }
 
 const PERCENT_SCALE = 100
-
-/**
- * R5 (leitura): a linha já medida mostra de onde a medida veio — "pela câmera, ±X cm", "digitada"
- * ou "origem não registrada" para o que foi medido antes desta spec (D8, `measurementSource: null`).
- *
- * ⚠️ T14 item ALTO-2 (4ª revisão): `measurementMarginMm` nulo com origem pela câmera **não é margem
- * zero** — é o protocolo D16 gravando que as três dimensões foram digitadas por cima (nenhuma
- * proposta sobrou para render). Antes disso a fila lia "Pela câmera, ±0 cm" bem na caixa em que a
- * câmera errou nas três, anunciando confiança que não existe.
- */
-function measurementSourceLabel(
-  t: ReturnType<typeof useTranslation<'nfeWorkspace'>>['t'],
-  box: PackageBox,
-): string {
-  if (box.measurementSource === null) return t('packageBoxes.source.unknown')
-  if (box.measurementSource === 'typed') return t('packageBoxes.source.typed')
-  if (box.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')
-  return t('packageBoxes.source.camera', { margin: box.measurementMarginMm / 10 })
-}
 
 function QueueSkeleton() {
   const { t } = useTranslation('nfeWorkspace')
@@ -270,21 +255,6 @@ export function PackageBoxMeasurementPanel({
     />
   )
 
-  if (denied)
-    return (
-      <>
-        {scanner}
-        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
-      </>
-    )
-  if (loading)
-    return (
-      <>
-        {scanner}
-        <QueueSkeleton />
-      </>
-    )
-
   const items = queue?.items ?? []
 
   return (
@@ -299,13 +269,18 @@ export function PackageBoxMeasurementPanel({
       </header>
 
       {/*
-        ⚠️ T14 ALTO-1 (4ª revisão): a falha de consulta NÃO pode mais ser um retorno antecipado —
-        `PackageBoxCameraFlow` (abaixo) precisa continuar montado enquanto o fluxo estiver aberto,
-        senão uma queda de rede desmonta a etapa em andamento e perde a captura (foto, pose,
-        proposta) inteira. O ramo `lookupFailed` do próprio fluxo já sabe voltar para a etiqueta; o
-        que falta aqui, fora do fluxo, é uma saída para quem nem chegou a abrir a câmera.
+        ⚠️ T14 ALTO-1 (5ª revisão): `denied`, `loading` e `failed` NÃO podem mais ser retornos
+        antecipados — `PackageBoxCameraFlow` (abaixo) precisa continuar montado em toda situação da
+        fila, senão o `useReducer` do fluxo volta para a etiqueta e `useCameraStream` derruba o
+        `MediaStream` a cada bipe que troca a `queryKey` (D19). O ramo `lookupFailed` do próprio
+        fluxo já sabe voltar para a etiqueta; o que falta aqui, fora do fluxo, é uma saída para quem
+        nem chegou a abrir a câmera.
       */}
-      {failed ? (
+      {denied ? (
+        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
+      ) : loading ? (
+        <QueueSkeleton />
+      ) : failed ? (
         <>
           <p className={styles.notice} role="alert">
             {t('packageBoxes.failed')}
@@ -576,7 +551,7 @@ function PackageBoxRow({
             width: toCentimetres(box.widthMm),
           })}
           {' · '}
-          {measurementSourceLabel(t, box)}
+          {measurementSourceLabel(t as Translate, box)}
         </p>
       )}
 
