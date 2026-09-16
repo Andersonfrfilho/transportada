@@ -710,6 +710,7 @@ export function NfeWorkspacePage() {
                       matching={packageBoxes.isMatching}
                       onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
                       onResetSaveError={packageBoxes.resetMeasure}
+                      onRetryLookup={packageBoxes.retryLookup}
                       onScan={packageBoxes.setScanned}
                       onSearchChange={packageBoxes.setSearch}
                       onStatusChange={packageBoxes.setStatus}
