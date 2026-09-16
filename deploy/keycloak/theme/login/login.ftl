@@ -17,10 +17,14 @@
                         <div class="field identified-user">
                             <span class="field-label">${msg("transportadaIdentifiedAs")}</span>
                             <strong class="identified-user-name" dir="ltr">${identifiedUsername}</strong>
-                            <#-- Sem a variável no deploy o valor é o literal `${env.…}`; aí o script
-                                 resolve a origem pelo `redirect_uri`, como no link de recuperação. -->
-                            <a class="panel-link" data-identity-restart
-                               <#if applicationOrigin?starts_with("http")>href="${applicationOrigin}/"<#else>hidden href="#"</#if>>${msg("transportadaNotYou")}</a>
+                            <#-- O script resolve a origem pelo `redirect_uri` da requisição de login
+                                 sempre que ele existir — é o app de onde a pessoa veio, e nem sempre é
+                                 o painel. `applicationOrigin` (a variável do deploy) só entra como
+                                 `data-fallback-origin`, para quando não houver `redirect_uri` a ler;
+                                 sem a variável no deploy o valor é o literal `${env.…}`, por isso o
+                                 `<#if>` testa `http`. -->
+                            <a class="panel-link" data-identity-restart hidden href="#"
+                               <#if applicationOrigin?starts_with("http")>data-fallback-origin="${applicationOrigin}"</#if>>${msg("transportadaNotYou")}</a>
                         </div>
                         <input id="username" name="username" type="hidden" value="${identifiedUsername}" />
                     <#else>

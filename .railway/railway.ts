@@ -557,14 +557,7 @@ export default defineRailway((ctx) => {
    * `cliente.<zona>` **não** se declara aqui — o `plan` recusa registrar domínio por código; ele se
    * cria no painel e volta pelo `railway config pull`.
    *
-   * ⚠️ Ainda não existe em ambiente nenhum: é o que faz o `deploy-client` reprovar com
-   * `Service not found` a cada push.
-   *
-   * ⚠️ `env` vazio é literal, não descuido: `preserve()` só sabe manter valor que já está na
-   * Railway, e aqui não há nada a manter. As quatro `VITE_*` (`VITE_API_URL`, `VITE_CLIENT_APP_URL`,
-   * `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`) são **inlinadas no
-   * bundle** e precisam existir antes do primeiro build — configure-as no painel ao criar o
-   * serviço, e traga-as para cá com `railway config pull`.
+   * Existe e está online nos dois ambientes (medido em 16/09/2026).
    */
   const client = service('client', {
     /**
@@ -594,6 +587,12 @@ export default defineRailway((ctx) => {
       VITE_API_URL: preserve(),
       VITE_APP_ENV: preserve(),
       VITE_CLIENT_APP_URL: preserve(),
+      /**
+       * A tela de identificação (e-mail, CPF, CNPJ ou telefone antes da senha) é o caminho de entrada
+       * nos dois ambientes. Literal, e não `preserve()`: inlinada no build, a variável esquecida no
+       * painel devolve em silêncio o formulário de usuário e senha do Keycloak.
+       */
+      VITE_IDENTIFIER_FIRST_LOGIN: 'true',
       VITE_KEYCLOAK_CLIENT_ID: preserve(),
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
