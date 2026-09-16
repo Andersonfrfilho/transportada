@@ -125,6 +125,71 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
     expect(parsed.camera?.lengthMarginMm).toBe(11)
   })
 
+  /**
+   * T14 item M1: a dispensa da confirmação em `camera_adjusted` é **por dimensão editada**, não
+   * pelo bloco inteiro. Uma leitura em que só o comprimento foi corrigido continuava gravando
+   * largura e altura imprecisas da câmera sem ninguém confirmar nada.
+   */
+  test('camera_adjusted: dimensão NÃO editada acima de 10 mm ainda exige confirmação', () => {
+    expect(() =>
+      parsePackageBoxMeasurement(
+        cameraBody(
+          {
+            heightMarginMm: 11,
+            impreciseConfirmed: false,
+            proposedHeightMm: TYPED_BODY.heightMm,
+            proposedLengthMm: 999,
+          },
+          'camera_adjusted',
+        ),
+      ),
+    ).toThrow()
+  })
+
+  test('camera_adjusted: a dimensão editada por cima é a única dispensada', () => {
+    const parsed = parsePackageBoxMeasurement(
+      cameraBody(
+        {
+          impreciseConfirmed: false,
+          lengthMarginMm: 11,
+          proposedHeightMm: TYPED_BODY.heightMm,
+          proposedLengthMm: TYPED_BODY.lengthMm + 40,
+        },
+        'camera_adjusted',
+      ),
+    )
+    expect(parsed.source).toBe('camera_adjusted')
+    expect(parsed.camera?.lengthMarginMm).toBe(11)
+  })
+
+  /**
+   * T14 item M2: bloco `camera` sem margem nenhuma passava como se a margem fosse zero — a leitura
+   * mais imprecisa possível entrava como a mais confiável de todas, sem confirmação de ninguém.
+   */
+  test('source camera sem margem nenhuma é recusado (400), não vale como margem zero', () => {
+    expect(() =>
+      parsePackageBoxMeasurement({
+        ...TYPED_BODY,
+        camera: { engine: 'aruco-homography-v1', impreciseConfirmed: false, warnings: [] },
+        source: 'camera',
+      }),
+    ).toThrow()
+  })
+
+  test('uma margem só já basta — a câmera pode não propor as três', () => {
+    const parsed = parsePackageBoxMeasurement({
+      ...TYPED_BODY,
+      camera: {
+        engine: 'aruco-homography-v1',
+        impreciseConfirmed: false,
+        lengthMarginMm: 4,
+        warnings: [],
+      },
+      source: 'camera',
+    })
+    expect(parsed.camera?.lengthMarginMm).toBe(4)
+  })
+
   test('motivo fora do enum de D9 é recusado (400)', () => {
     expect(() => parsePackageBoxMeasurement(cameraBody({ warnings: ['naoExiste'] }))).toThrow()
   })
