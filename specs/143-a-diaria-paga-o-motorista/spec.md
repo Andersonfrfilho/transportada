@@ -34,15 +34,23 @@ O custo do motorista `route_table` deixa de ler `freight_region_driver_rates`. A
 `NO_DRIVER_RATE` por célula faltando, `CITY_WITHOUT_REGION` e o empate de rota **deixam de afetar o
 custo do motorista**.
 
-A tabela e seus dados **não são apagados**: nenhuma migration destrutiva. A região continua a existir
-para o que mais a usa (preço de frete, zona da parada). Só o custo do motorista para de consultá-la.
-Esta decisão revoga parte da 061 D2b e da ADR-0038, e ganha a **ADR-0063**.
+A tabela e seus dados **não são apagados**: nenhuma migration destrutiva. O módulo de regiões
+(`src/freight-regions/**` — CRUD, importação, cobertura do motorista) continua inteiro.
+
+⚠️ **Dentro do cálculo da viagem, porém, a região só serve ao custo do motorista.** A receita de
+frete não passa por região nenhuma: `read-trip-valuation.use-case.ts` resolve preço por
+`findApplicableRule` sobre `freight_rules`, chaveado por cidade/UF de destino, CNPJ do remetente e
+data. Quem depender da frase antiga vai preservar código que ficou sem consumidor.
+Esta decisão revoga parte da 061 D2b e da ADR-0038, e ganha a **ADR-0066**.
 
 ### D2 — A diária vale para agregado e para o motorista da casa
 
 - **Agregado (`route_table`):** `diária × dias` é o custo inteiro do motorista na viagem.
-- **Motorista da casa (`fixed`):** o salário **continua sendo custo do período** e não é rateado
-  (061 D2b vale). A diária entra **além** dele, como custo da viagem: é o que se paga por dia fora.
+- **Motorista da casa (`fixed`):** o salário **segue fora da viagem**, como custo do período e sem
+  rateio (061 D2b vale). Na viagem, o motorista da casa entra **só com a diária** — é o que se paga
+  por dia fora. Nada é somado ao salário dentro da parcela: ele nunca esteve lá. O ramo `period`
+  devolvia `0.0000` e o congelamento zerava de qualquer forma, então a linha vai de
+  "R$ 0,00 + lacuna" para "R$ diária × dias".
 
 Com mais de um motorista na viagem, cada um tem a própria diária e a parcela `driver` soma todas.
 

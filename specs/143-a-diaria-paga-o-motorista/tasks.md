@@ -116,9 +116,9 @@ zona/empate afetada e o que a asserção passa a dizer.
 
 > 🤖 Modelo: `sonnet`
 
-### T14 — ADR-0063, contexto da IA e gate
+### T14 — ADR-0066, contexto da IA e gate
 
-ADR-0063; nota em `apps/api-transportada/CLAUDE.md` e `apps/frontend-transportada/CLAUDE.md` sobre a
+ADR-0066; nota em `apps/api-transportada/CLAUDE.md` e `apps/frontend-transportada/CLAUDE.md` sobre a
 diária substituir a tabela no custo do motorista; `make check`.
 
 - **Aceite:** `make check` verde; revisão final com `code-reviewer` `opus`.
