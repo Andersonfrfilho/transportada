@@ -2614,16 +2614,29 @@ em `spec.md` foi ajustado ("a maior das três margens" → a maior entre as não
 
 ### Gates
 
-| Gate                                             | Resultado                       |
-| ------------------------------------------------ | ------------------------------- |
-| `bun run typecheck` (6 apps)                     | ok                              |
-| `bun run lint` (6 apps)                          | ok                              |
-| `bun run format:check` (Prettier, repo)          | ok                              |
-| contratos da API (`bun test`, 177 arq.)          | 6.053 pass · 23 skip · 0 (fail) |
-| contratos do frontend (inclui acentos)           | 4.049 pass · 0 (fail)           |
-| contratos do worker                              | 1.374 pass · 0 (fail)           |
-| contratos do cron                                | 94 pass · 0 (fail)              |
-| `bun run --cwd apps/frontend-transportada build` | ok (PWA, 132 entradas)          |
+| Gate                                             | Resultado                           |
+| ------------------------------------------------ | ----------------------------------- |
+| `bun run typecheck` (6 apps)                     | ok                                  |
+| `bun run lint` (6 apps)                          | ok                                  |
+| `bun run format:check` (Prettier, repo)          | ok                                  |
+| contratos da API (`bun test`, 177 arq.)          | 6.053 pass · 23 skip · 0 (fail)     |
+| contratos do frontend (inclui acentos)           | 4.049 pass · 0 (fail)               |
+| contratos do worker                              | 1.374 pass · 0 (fail)               |
+| contratos do cron                                | 94 pass · 0 (fail)                  |
+| `bun run --cwd apps/frontend-transportada build` | ok (PWA, 132 entradas)              |
+| `bun run build` (6 apps)                         | ok                                  |
+| integração da API (fatia só-Postgres)            | 91 pass · **1 (fail)** preexistente |
+
+Contagem de `(fail)` nos gates: **1**, preexistente e conhecida da rodada anterior —
+`database-migration/cte-profile-output-constraints` (`errno 23001` em vez de `23503`, conforme a
+versão do Postgres; aqui 18.4). Nenhuma outra.
+
+⚠️ **A bateria de integração completa não roda nesta sessão**, e isso não é achado novo: metade dela
+(`server`, `auth-me`, `cte-archive-gateway`, `whatsapp-*`, `contractor-portal-*`) precisa de
+Keycloak, MinIO e RabbitMQ do `make up`, e o Docker não responde. Foi exercitada a fatia que só
+precisa de Postgres e cobre o código tocado: as três suítes de caixa (medida, interruptor,
+exportação), as duas de planta de carga, as duas de listagem de nota e a de migration — 91 pass,
+com a `(fail)` acima. As três suítes de caixa isoladas: **11 pass · 0 (fail)**.
 
 Postgres: o do Docker segue indisponível — `docker ps` não respondeu em 120 s nesta sessão. Foi
 subido um **Postgres 18.4 nativo descartável** em `127.0.0.1:57432` (dados no scratchpad da sessão,
