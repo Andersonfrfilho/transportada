@@ -1835,3 +1835,169 @@ depois de identificar o produto (R4/R7, comportamento já existente e não alter
 quisesse que "Ler etiqueta" sempre terminasse medindo pela câmera sem essa escolha extra, seria uma
 mudança de R4/R7, fora do pedido desta task (que foi só sobre a ENTRADA, não sobre o que acontece
 depois de identificar a caixa).
+
+## T12 — Painel do interruptor, export e resumo da validação
+
+Data: 2026-09-16. Modelo: `sonnet` (executor). Base: `be6d37e8` (T1–T11 em `staging`).
+
+### Onde a tela fica
+
+`CameraMeasurementSettingsPanel` já existia desde a T4 (interruptor por empresa, D14), registrado
+em `SETTINGS_PANEL_PLACEMENT.cameraMeasurement` (`module: 'nfe-workspace'`,
+`source: 'cameraMeasurementSettings'`, `tab: 'boxes'`) — a aba "Caixas" do `nfe-workspace`, nunca
+uma tela central de configurações (regra "Configuração perto do efeito" do
+`apps/frontend-transportada/CLAUDE.md`). T12 **estende** esse painel — não cria um novo — com uma
+segunda seção, `CameraMeasurementValidationSection`, no mesmo arquivo
+(`src/modules/nfe-workspace/components/CameraMeasurementSettingsPanel.component.tsx`), visível na
+mesma condição (`canManageSettings`, `settings.manage`) e na mesma aba. A seção tem: período
+(`DateRangePicker`), o resumo da validação e o botão "Exportar CSV do período".
+
+### Como o resumo é calculado
+
+`shared/cameraMeasurementValidation.service.ts` (puro, sem I/O, novo — não existe mais
+`spike/152-medir-caixa/src/session.ts` no worktree para portar linha a linha; a lógica foi
+reconstruída direto do critério R6 e do formato real do histórico exportado pela T5):
+
+- Cada entrada do histórico (`GET /nfe-package-box-measurements`) vira até 3 "leituras" (uma por
+  dimensão), contando só quando `proposedLengthMm`/`proposedWidthMm`/`proposedHeightMm` não é nulo
+  (ou seja, a câmera chegou a propor algo para aquela dimensão — D6: dimensão `unreliable` nasce
+  vazia e nunca gera proposta). Entradas `source: 'typed'` não geram leitura nenhuma — não há
+  proposta da câmera para comparar.
+- `erro_mm = |proposto − gravado|`. `withinTenMillimetreRate` = fração das leituras com
+  `erro_mm ≤ 10`. `withinMarginRate` = fração das leituras com margem conhecida cujo
+  `erro_mm ≤ margem_mm`.
+- **Achado que exigia decisão e está registrado abaixo ("Ponto que exige decisão do usuário")**: a
+  T10 apaga a margem gravada (`lengthMarginMm`/`widthMarginMm`/`heightMarginMm`) de toda dimensão
+  que o operador edita (`edited[dimension] = true`), porque a API só recebe margem para dimensões
+  que **não** mudaram. O protocolo de validação de D16 pede "digitar a fita em todos os campos
+  depois da proposta" — ou seja, a sessão real da T15 edita as três dimensões em toda medição, o
+  que apaga a margem das três no histórico. Por isso `withinMarginRate` só considera as leituras com
+  margem **conhecida** (`withinMarginKnownCount`), e a tela mostra as duas contagens lado a lado
+  (nunca finge que a taxa cobre 100% das leituras) — ver `cameraMeasurementValidationWithinMargin`
+  no locale ("... de N leituras com margem registrada").
+- `verdict`: `'go'` só quando as duas taxas existem (leituras > 0) e batem o piso de R6
+  (`≥ 80%`/`≥ 90%`, `VALIDATION_WITHIN_TEN_MILLIMETRE_TARGET_RATE`/
+  `VALIDATION_WITHIN_MARGIN_TARGET_RATE`); `'no-go'` quando existem mas não batem; `'insufficient-data'`
+  quando não há leitura nenhuma no período. Nenhum dos dois limites de R6 (80%/90%) nem os limites
+  de margem do motor (`MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM`, T6) foram tocados — o serviço só
+  **lê** esses números.
+
+### Como a fita entra (pergunta explícita do prompt)
+
+**Não existe campo de "medida da fita" na API nem no formulário** — o histórico grava só a
+proposta da câmera e o valor gravado. A "fita" só existe na sessão real (T15) através do
+**protocolo**: o operador mede com a fita métrica e **digita esse valor por cima de cada campo** do
+formulário (mesmo quando bate com a proposta), o que grava `source: 'camera_adjusted'` e faz o
+valor gravado (`lengthMm`/`widthMm`/`heightMm`) **ser** a medida da fita. O CSV (abaixo) reflete
+isso: a coluna `fita_mm` é sempre o valor **gravado** da API, e só é a fita de verdade quando o
+protocolo foi seguido — o painel não tem como confirmar isso sozinho, e o texto
+`cameraMeasurementValidationHint`/`cameraMeasurementValidationMarginHint` na tela e o hint desta
+seção deixam isso explícito para quem vai rodar a T15. Nenhum campo novo foi pedido à API para
+isso: seria mudar o contrato da T3/T5, fora do escopo de T12 (mudança de superfície de API não pedida
+pela task).
+
+### Formato do export
+
+`shared/cameraMeasurementExport.service.ts` (`buildCameraMeasurementCsv`, puro, mesmo molde de
+`buildFreightRegionCsv`: `;`, CRLF, BOM, aspas escapadas, sem lib externa). Uma linha por dimensão
+(`comprimento`/`largura`/`altura`) de cada entrada com `source ≠ 'typed'` — `typed` fica fora do CSV
+porque não há proposta da câmera para comparar. Colunas, na ordem do spike (R8):
+`caixa; dimensao; fita_mm; camera_mm; erro_mm; margem_mm; dentro_da_margem; motivos; origem;
+gravado_em`. `caixa` é `productCode` (mais o GTIN, separado por `·`, quando existe) — nunca a
+descrição do produto nem o CNPJ do emitente (R8), confirmado por teste (`not.toContain('descrição')`
+e leitura do texto fonte). `motivos` são os `warnings` (D9) separados por `; `. Baixado com
+`saveArchiveFile` (mesmo helper de `freightRegionExport`), sem lib de CSV externa.
+
+### Fonte de dados: nova rota no cliente, hook próprio
+
+- `shared/cameraMeasurementExportClient.service.ts`: `GET /nfe-package-box-measurements`
+  (`settings.manage`, T5) com `from`/`to`/`cursor`/`limit`, parse com type guards manuais (mesmo
+  molde de `nfeDocumentEventClient.service.ts`). Cliente **separado** do `packageBoxClient.service.ts`
+  (que é `cargo.measure`) — mesma separação de permissão que já existe entre
+  `useCameraMeasurementSettings` (leitura do interruptor por quem mede) e `useCargoSettings` (leitura
+  de quem configura).
+- `hooks/useCameraMeasurementExport.hook.ts`: `useInfiniteQuery` (mesmo padrão de
+  `useNfeDocumentEventHistory.hook.ts`), com o estado do período (`from`/`to`, formato `AAAA-MM-DD`
+  do `DateRangePicker`) convertido para `z.iso.datetime()` na borda (`T00:00:00.000Z`/
+  `T23:59:59.999Z`) antes de ir para a query string — a API exige instante ISO 8601, o seletor de
+  período devolve só o dia. `summary` sai de `summarizeCameraMeasurementValidation(entries)`,
+  recalculado a cada página nova (todas as páginas já carregadas entram no resumo e no CSV, nunca só
+  a primeira).
+- `NfeWorkspace.page.tsx`: `cameraMeasurementExport = useCameraMeasurementExport({ companyId,
+enabled: canManageSettings && settingsScope.cameraMeasurementSettings })` — mesma condição de
+  habilitação do `cargoSettings` já usado pelo interruptor. O `onExport` do painel monta o `Blob` do
+  CSV e chama `saveArchiveFile` — nenhuma chamada de rede nova acontece ao exportar (usa as páginas
+  já carregadas).
+
+### Contrato antes da implementação
+
+Vermelho confirmado por inspeção (o módulo `cameraMeasurementValidation.service.ts`/
+`cameraMeasurementExport.service.ts` não existia antes desta task — `bun test` teria falhado por
+`Cannot find module` se rodado antes da implementação; a suíte foi escrita e verificada logo após
+a primeira versão da implementação, no mesmo turno, sem gap de revisão entre as duas). Dois arquivos
+de teste novos, ambos registrados em `test/nfe-workspace.contract.test.ts` (que já está na lista do
+`package.json`, nenhum arquivo novo precisou entrar lá — mesma situação já registrada pela T9/T11):
+
+- `test/nfe-workspace/camera-measurement-validation.contract.ts` (8 testes): fronteira exata de
+  80%/90% de R6 é `go`; margem otimista (5 mm) com erro real de 20 mm reprova nas duas taxas; caixa
+  `typed` não gera leitura; dimensão editada perde a margem mas conta para a taxa de 10 mm; veredito
+  exige as duas taxas ao mesmo tempo (dentro da margem 100% sozinho não vira `go`); CSV com as 10
+  colunas do spike, na ordem certa; linha `typed` fora do CSV; uma linha por dimensão, com
+  fita/câmera/erro/margem calculados e sem a palavra "descrição".
+- `test/nfe-workspace/camera-measurement-settings.contract.ts` estendido (+8 testes): o painel usa o
+  serviço puro e o tipo `CameraMeasurementExportEntry`; o veredito tem ícone (nunca só cor); a taxa
+  de margem mostra `withinMarginKnownCount`; o CSV não tem "description" no código-fonte; o resumo
+  expõe as duas constantes de fronteira; o hook usa `useInfiniteQuery` contra
+  `/nfe-package-box-measurements`; a página liga o export pela mesma condição do interruptor; os
+  rótulos novos existem, acentuados, nos dois locales.
+
+### Gates
+
+| Gate                                                           | Resultado                                                                                                               |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz, as 6 apps)                          | verde                                                                                                                   |
+| `bun run lint` (raiz, as 6 apps)                               | verde                                                                                                                   |
+| `bun run --cwd apps/frontend-transportada test`                | **3989 pass, 0 fail**, 35546 `expect()` (era 3973 na T11 — +16 testes novos, nenhum quebrado)                           |
+| `test/design-system.contract.test.ts` isolado (locale-accents) | 346 pass, 0 fail — igual à T10, as chaves novas (`cameraMeasurementValidation*`) passam acentuadas                      |
+| `bun run --cwd apps/frontend-transportada build`               | verde — `dist/sw.js` com **132 entradas de precache**, igual à T11 (nenhum chunk novo, nenhum I/O de câmera adicionado) |
+| `bunx prettier --check` (arquivos tocados)                     | verde (5 arquivos formatados com `--write` antes da rodada final)                                                       |
+
+`make check` completo não rodou (mesma razão da T8/T9: sem Postgres/`.env.test` de pé neste
+worktree, e esta task não toca a API — nenhum arquivo de `apps/api-transportada` foi alterado).
+
+### Arquivos
+
+Novos: `src/modules/nfe-workspace/shared/cameraMeasurementValidation.service.ts`,
+`src/modules/nfe-workspace/shared/cameraMeasurementExport.service.ts`,
+`src/modules/nfe-workspace/shared/cameraMeasurementExportClient.service.ts`,
+`src/modules/nfe-workspace/hooks/useCameraMeasurementExport.hook.ts`,
+`test/nfe-workspace/camera-measurement-validation.contract.ts`.
+Modificados: `src/modules/nfe-workspace/components/CameraMeasurementSettingsPanel.component.tsx`
+(seção nova de validação), `src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx` (hook +
+wiring do export/CSV), `src/modules/nfe-workspace/locales/nfeWorkspace.locale.json` e
+`nfeWorkspace.en.locale.json` (+18 chaves cada), `test/nfe-workspace/camera-measurement-settings.contract.ts`
+(describe novo), `test/nfe-workspace.contract.test.ts` (import da suíte nova).
+
+### Ponto que exige decisão do usuário
+
+**A taxa "dentro da margem" da T15 não vai cobrir 100% das leituras da sessão real, por desenho já
+existente da T10** — editar uma dimensão (o que o protocolo de D16 pede em toda dimensão, sempre)
+apaga a margem gravada daquela dimensão no histórico, e sem margem gravada não há como recalcular
+"a leitura ficaria dentro da margem estimada?" depois do fato. O resumo desta task lida com isso
+mostrando as duas contagens (`readingCount` vs `withinMarginKnownCount`) em vez de fingir que a taxa
+cobre tudo, mas isso significa que, na prática, a sessão da T15 pode chegar ao fim com
+`withinMarginKnownCount` baixo ou zero (se o operador editar sempre as três dimensões, como o
+protocolo manda). Três saídas possíveis, nenhuma tomada aqui por ser mudança de escopo/contrato já
+fechado por outra task:
+
+1. Aceitar o resumo como está — a taxa de 10 mm (que não depende de margem) já cobre o critério
+   principal de R6, e a taxa de margem vira "melhor esforço", calculada só quando o operador aceitar
+   a proposta sem editar (rodando parte da sessão sem o protocolo de "digitar por cima de tudo").
+2. Mudar o protocolo de D16 para "digitar só quando divergir visivelmente da proposta" — mas isso é
+   exatamente o risco de contaminação que D16 já registrou (erro parecer zero).
+3. Mudar a T10 para manter a margem no histórico mesmo em dimensão editada — reabre uma task já
+   fechada e publicada em `staging`, fora do pedido desta task ("Não afrouxar limites de precisão" e
+   escopo de T12 é só o painel/export/resumo).
+
+Registro para o usuário decidir antes ou durante a T15 — nenhuma das três opções foi escolhida por
+esta task.
