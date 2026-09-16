@@ -7,6 +7,7 @@ import {
   type PackageBoxCameraFlowEvent,
   type PackageBoxCameraFlowState,
 } from '../../src/modules/nfe-workspace/shared/packageBoxCameraFlow.service'
+import { measurementSourceLabel } from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementLabel.service'
 
 function reduce(
   state: PackageBoxCameraFlowState<string, string>,
@@ -363,18 +364,29 @@ describe('o painel entra no fluxo da câmera pela leitura própria do interrupto
 
 /** R1/R5: a linha já medida da fila mostra de onde a medida veio — texto, não só cor. */
 describe('a linha medida mostra a origem (R1, R5)', () => {
+  /**
+   * ⚠️ MÉDIO-B (T14, 5ª revisão): a versão anterior varria o texto-fonte do painel — hoje
+   * `measurementSourceLabel` mora em módulo próprio (`packageBoxMeasurementLabel.service.ts`,
+   * ver `package-box-measurement.contract.ts`), então este teste só confere que o painel a chama
+   * no ponto certo, sem repetir a cobertura de comportamento por origem.
+   */
   it('camera/camera_adjusted mostram a margem, typed mostra "digitada", nulo mostra "não registrada"', async () => {
     const panel = await read(PANEL)
 
-    expect(panel).toContain('function measurementSourceLabel(')
-    expect(panel).toContain(
-      "box.measurementSource === null) return t('packageBoxes.source.unknown')",
-    )
-    expect(panel).toContain(
-      "box.measurementSource === 'typed') return t('packageBoxes.source.typed')",
-    )
-    expect(panel).toContain("t('packageBoxes.source.camera'")
-    expect(panel).toContain('measurementSourceLabel(t, box)')
+    expect(panel).toContain("from '../shared/packageBoxMeasurementLabel.service'")
+    expect(panel).toContain('measurementSourceLabel')
+    expect(panel).toContain('measurementSourceLabel(t as Translate, box)')
+
+    const fakeT = (key: string): string => key
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: null, measurementSource: null }),
+    ).toBe('packageBoxes.source.unknown')
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: null, measurementSource: 'typed' }),
+    ).toBe('packageBoxes.source.typed')
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: 10, measurementSource: 'camera' }),
+    ).toBe('packageBoxes.source.camera')
   })
 
   it('os textos de origem existem acentuados nos dois idiomas', async () => {

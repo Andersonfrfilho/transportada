@@ -15,6 +15,7 @@ import {
   packageBoxQueueFromApi,
 } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '@/modules/nfe-workspace/shared/packageBoxMeasurement.constant'
+import { measurementSourceLabel } from '@/modules/nfe-workspace/shared/packageBoxMeasurementLabel.service'
 import { isRepeatedScan } from '@/modules/nfe-workspace/hooks/usePackageBoxQueue.hook'
 
 const BOX = {
@@ -252,7 +253,17 @@ describe('os cabeçalhos que cada método manda', () => {
  * relatado era o leitor nascer atrás da lista sem preview algum.
  */
 describe('o leitor de etiqueta e o fluxo da câmera continuam montados em toda situação da fila', () => {
-  it('o scanner é renderizado nos estados negado e carregando — não só no corpo principal', async () => {
+  /**
+   * ⚠️ T14 item ALTO-1 (5ª revisão): a correção da 4ª revisão só tratou `failed` — `if (loading)
+   * return` e `if (denied) return` continuavam ACIMA de `PackageBoxCameraFlow`. Bipar a etiqueta
+   * com o fluxo aberto faz `scanned` entrar na `queryKey`; sem dado prévio para a chave nova,
+   * `isLoading` vira `true` (sem `placeholderData`, `staleTime` 30s não ajuda) e o painel devolvia
+   * `<>{scanner}<QueueSkeleton/></>` — o fluxo DESMONTAVA, `useReducer` voltava para `step: 'label'`,
+   * `useCameraStream` derrubava o `MediaStream` e refazia `getUserMedia` no remount (viola D19), e a
+   * caixa achada nunca era consumida: o conferente precisava bipar a mesma etiqueta duas vezes.
+   * `denied`, `loading` e `failed` são agora ramos do MESMO `return` — nenhum é retorno antecipado.
+   */
+  it('denied, loading e failed são ramos do mesmo return — nenhum retorna antes de PackageBoxCameraFlow', async () => {
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
@@ -260,21 +271,43 @@ describe('o leitor de etiqueta e o fluxo da câmera continuam montados em toda s
       ),
     ).text()
 
-    expect(panel).toContain('if (denied)')
-    expect(panel).toContain('if (loading)')
-    /** As duas saídas antecipadas devolvem o mesmo elemento `scanner`, não uma cópia. */
+    expect(panel).not.toContain('if (denied)')
+    expect(panel).not.toContain('if (loading)')
+    expect(panel).not.toContain('if (failed)')
+
+    expect(panel).toContain('{denied ? (')
+    expect(panel).toContain(') : loading ? (')
+    expect(panel).toContain(') : failed ? (')
+    expect(panel).toContain('<QueueSkeleton />')
+  })
+
+  it('scanner e PackageBoxCameraFlow renderizam uma única vez, depois dos três ramos', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
     const scannerReturns = panel.match(/\{scanner\}/g) ?? []
-    expect(scannerReturns.length).toBeGreaterThanOrEqual(3)
+    expect(scannerReturns.length).toBe(1)
+    const cameraFlowOccurrences = panel.match(/<PackageBoxCameraFlow/g) ?? []
+    expect(cameraFlowOccurrences.length).toBe(1)
+
+    const deniedIndex = panel.indexOf('{denied ? (')
+    const scannerIndex = panel.indexOf('{scanner}')
+    const cameraFlowIndex = panel.indexOf('<PackageBoxCameraFlow')
+    expect(deniedIndex).toBeGreaterThan(-1)
+    expect(scannerIndex).toBeGreaterThan(deniedIndex)
+    expect(cameraFlowIndex).toBeGreaterThan(scannerIndex)
   })
 
   /**
-   * ⚠️ T14 item ALTO-1 (4ª revisão): `if (failed) return` ficava ANTES de `PackageBoxCameraFlow` —
-   * com o fluxo aberto, uma queda de rede desmontava a etapa em andamento e perdia a captura (foto,
-   * pose, proposta) inteira, e o ramo `lookupFailed` do próprio fluxo nunca era alcançado. Agora
-   * `failed` é um ramo dentro do MESMO `return` que renderiza o fluxo, com uma saída própria (botão
-   * "Tentar de novo") para quem nem chegou a abrir a câmera.
+   * ⚠️ T14 item ALTO-1 (4ª revisão, mantido na 5ª): o ramo `failed` continua com saída própria
+   * (botão "Tentar de novo") para quem nem chegou a abrir a câmera — o `lookupFailed` do próprio
+   * fluxo trata a falha para quem já estava dentro.
    */
-  it('a falha de consulta não desmonta PackageBoxCameraFlow — sem retorno antecipado, com saída própria', async () => {
+  it('a falha de consulta tem saída própria dentro do mesmo ramo', async () => {
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
@@ -282,14 +315,23 @@ describe('o leitor de etiqueta e o fluxo da câmera continuam montados em toda s
       ),
     ).text()
 
-    expect(panel).not.toContain('if (failed)')
-    expect(panel).toContain('{failed ? (')
     expect(panel).toContain('onClick={onRetryLookup}')
     expect(panel).toContain("t('packageBoxes.retry')")
+  })
 
-    /** `PackageBoxCameraFlow` só aparece depois do ramo `failed`, no mesmo `return`. */
-    const [beforeCameraFlow] = panel.split('<PackageBoxCameraFlow')
-    expect(beforeCameraFlow).toContain('{failed ? (')
+  /**
+   * Reforço complementar ao ALTO-1 (5ª revisão, não substitui a correção estrutural acima): a
+   * consulta mantém os dados anteriores durante o refetch de um bipe, então `isLoading` deixa de
+   * virar `true` a cada etiqueta lida — só o carregamento inicial (sem dado nenhum em cache) ainda
+   * é `loading`.
+   */
+  it('a consulta mantém o dado anterior durante o refetch do bipe (placeholderData)', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+
+    expect(hook).toContain('keepPreviousData')
+    expect(hook).toContain('placeholderData: keepPreviousData')
   })
 })
 
@@ -396,6 +438,26 @@ describe('bipar leva direto à medição da caixa achada', () => {
       new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
     ).text()
     expect(hook).toContain('void query.refetch()')
+  })
+
+  /**
+   * ⚠️ MÉDIO-A (T14, 5ª revisão): o commit 93217ef7 tirou a asserção que amarrava `retryLookup`/
+   * `isRepeatedScan` ao PONTO DE USO — sem ela dava para apagar a chamada dentro de `setScanned` e
+   * a suíte continuava verde, porque só a função pura era testada. `isRepeatedScan` mora em módulo
+   * próprio (`packageBoxScan.ts`, BAIXO-5) e o hook a reexporta — o teste de uso lê o bloco de
+   * `setScanned` no hook, não no módulo novo.
+   */
+  it('MÉDIO-A: o ponto de uso do bipe repetido chama isRepeatedScan e retryLookup dentro de setScanned', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+
+    const setScannedBlock = hook
+      .split('setScanned: (value: null | string) => {')[1]
+      ?.split('setSearch: (value: string) => {')[0]
+    expect(setScannedBlock).toBeDefined()
+    expect(setScannedBlock).toContain('isRepeatedScan(')
+    expect(setScannedBlock).toContain('retryLookup()')
   })
 
   it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
@@ -1087,18 +1149,44 @@ describe('origem e margem gravadas para auditoria (R5)', () => {
    * o protocolo D16 gravando que as três dimensões foram digitadas por cima (nenhuma proposta sobrou
    * para render). A fila lia "Pela câmera, ±0 cm" bem na caixa em que a câmera errou nas três,
    * anunciando confiança que não existe.
+   *
+   * ⚠️ MÉDIO-B (T14, 5ª revisão): a versão anterior varria o texto-fonte do painel com igualdade
+   * exata de formatação — falso-positivo esperando o próximo `format`, e não provava a renderização.
+   * `measurementSourceLabel` saiu para módulo próprio (`packageBoxMeasurementLabel.ts`) e é testada
+   * aqui como função pura, com um `t` de mentira, cobrindo as quatro origens possíveis.
    */
-  it('margem nula pela câmera tem rótulo próprio, nunca "±0 cm" (ALTO-2)', async () => {
+  it('cada origem tem o rótulo certo, e a margem nula pela câmera nunca vira "±0 cm" (ALTO-2)', async () => {
+    const fakeT = (key: string, options?: Record<string, unknown>): string =>
+      options === undefined ? key : `${key}:${JSON.stringify(options)}`
+
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: null, measurementSource: 'typed' }),
+    ).toBe('packageBoxes.source.typed')
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: 40, measurementSource: 'camera' }),
+    ).toBe('packageBoxes.source.camera:{"margin":4}')
+    expect(
+      measurementSourceLabel(fakeT, {
+        measurementMarginMm: 18,
+        measurementSource: 'camera_adjusted',
+      }),
+    ).toBe('packageBoxes.source.camera:{"margin":1.8}')
+    expect(
+      measurementSourceLabel(fakeT, {
+        measurementMarginMm: null,
+        measurementSource: 'camera_adjusted',
+      }),
+    ).toBe('packageBoxes.source.cameraNoMargin')
+    expect(
+      measurementSourceLabel(fakeT, { measurementMarginMm: null, measurementSource: null }),
+    ).toBe('packageBoxes.source.unknown')
+
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
         import.meta.url,
       ),
     ).text()
-
-    expect(panel).toContain(
-      "if (box.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')",
-    )
     expect(panel).not.toContain('box.measurementMarginMm === null ? 0 :')
 
     const ptLocale = await Bun.file(
@@ -1110,8 +1198,8 @@ describe('origem e margem gravadas para auditoria (R5)', () => {
         import.meta.url,
       ),
     ).text()
-    expect(ptLocale).toContain('"cameraNoMargin": "Pela câmera, medida conferida com a fita"')
-    expect(enLocale).toContain('"cameraNoMargin": "By camera, measurement checked with the tape"')
+    expect(ptLocale).toContain('"cameraNoMargin": "Pela câmera, sem margem registrada"')
+    expect(enLocale).toContain('"cameraNoMargin": "By camera, no margin recorded"')
   })
 
   it('origem fora do domínio fechado é recusada, não silenciada', () => {
