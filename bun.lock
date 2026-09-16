@@ -18,7 +18,7 @@
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/fiscal-provider": "0.3.2",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
-        "@adatechnology/keycloak-admin": "1.0.0-rc.3",
+        "@adatechnology/keycloak-admin": "1.0.1",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/meta-whatsapp-contracts": "0.1.0",
@@ -225,7 +225,7 @@
 
     "@adatechnology/image-cutout": ["@adatechnology/image-cutout@0.1.0-rc.2", "", { "peerDependencies": { "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-uTxCISN+hRlh+yz5ovzQmO/LHuuecDXR1ZkTo4l5BHlQoySiU3ouWY6ywkuwhC3bWb8T70fzhfqJpBagQHUdhg=="],
 
-    "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.3", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-iyo6uti0ktW4u50jxt1iu9ePLLIztLFrb/7AZnyCcoOTm1jZp6ZMWgDo+VGq08/0lh2p4iH/pWGbTGRkA2TI1w=="],
+    "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.1", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-pkm+EOPFJFGbzT8obLBiHmWqesdJ3gbpJCpNfgPCIWI/5KQ1E1JsIKFUR1ugsSJbPxG/ErURdwkEKmTNnij1zA=="],
 
     "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.1", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg=="],
 
@@ -1864,6 +1864,8 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@eslint/eslintrc/globals": ["globals@14.0.0", "", {}, "sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ=="],
+
+    "@transportada/worker/@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.3", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-iyo6uti0ktW4u50jxt1iu9ePLLIztLFrb/7AZnyCcoOTm1jZp6ZMWgDo+VGq08/0lh2p4iH/pWGbTGRkA2TI1w=="],
 
     "@typescript-eslint/eslint-plugin/ignore": ["ignore@7.0.6", "", {}, "sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw=="],
 
