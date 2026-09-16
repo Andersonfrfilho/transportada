@@ -146,7 +146,11 @@ async function precompressedResponse(
     if (!acceptEncoding.includes(encoding)) continue
     const encodedAsset = resolveAsset(encodedPathname)
     if (!(await encodedAsset.exists())) continue
-    const response = new Response(encodedAsset)
+    // O `.br`/`.gz` no nome faz o Bun adivinhar `application/octet-stream` pela extensão errada —
+    // com `X-Content-Type-Options: nosniff` isso quebra o `import()` do módulo no navegador
+    // (sonda T9, `specs/152-medir-caixa-pela-camera/evidence.md` § T9). O tipo certo é o do
+    // arquivo original, não o do arquivo comprimido.
+    const response = new Response(encodedAsset, { headers: { 'Content-Type': original.type } })
     response.headers.set('Content-Encoding', encoding)
     response.headers.set('Vary', 'Accept-Encoding')
     return response

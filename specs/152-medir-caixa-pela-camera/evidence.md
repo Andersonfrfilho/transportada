@@ -1394,3 +1394,153 @@ novo), `apps/frontend-transportada/CLAUDE.md` (linha nova na tabela).
   `PackageBoxCameraFlow` sobre este primitivo.
 - **`make check` completo não rodou** (só os gates da app tocada + lint/typecheck de raiz) — sem
   infraestrutura de banco de pé neste worktree para a integração da API, que esta task não tocou.
+
+## T9 — Máquina de etapas
+
+### Passo 0 — a sonda do worker contra o artefato real, sob a CSP real
+
+A T8 deixou em aberto que `boxDimension.worker.ts` nunca tinha rodado contra `vendor/opencv/opencv.js`
+de verdade (só a leitura do wrapper UMD). Antes de montar a T9 sobre esse worker, rodei uma sonda
+descartável (mesmo método da sonda da T1): `bun run --cwd apps/frontend-transportada vite build` com
+um segundo `input` no `rollupOptions` apontando para um `probe-t9.html`/`src/probeT9Main.ts`
+temporários (nunca comitados — removidos e o `vite.config.ts` revertido antes deste commit), servidos
+por `bun server.ts` de verdade (a mesma CSP de `buildContentSecurityPolicy`, o mesmo
+`precompressedResponse`), abertos por Chromium headless (Playwright 1.58.2, `playwright-core` do
+workspace). A sonda gera um marcador `DICT_4X4_50` id 0 pelo próprio artefato (`generateImageMarker`),
+desenha um quadro sintético (quadro branco + marcador de 200px + margem de 40px) e manda para
+`boxDimension.worker.ts` exatamente como o hook manda (`postMessage({ kind: 'preload' })` depois
+`{ kind: 'frame', ... }`, RGBA transferido).
+
+**Resultado: dois defeitos reais, os dois corrigidos nesta task, sem os quais o worker nunca detecta
+nada em produção:**
+
+1. **`server.ts` servia o chunk do OpenCV com `Content-Type: application/octet-stream`** quando o
+   navegador manda `Accept-Encoding: br` (todo navegador manda). `precompressedResponse` construía a
+   `Response` a partir do arquivo `.br`/`.gz`, e o Bun adivinha o tipo pela extensão do arquivo
+   servido — `.br`, não `.js`. Com `X-Content-Type-Options: nosniff` já ativo (`server.ts`), o
+   navegador recusa o `import()` do worker: "Failed to load module script: Expected a
+   JavaScript-or-Wasm module script but the server responded with a MIME type of
+   application/octet-stream." Reproduzido com `curl -H "Accept-Encoding: br, gzip"` direto no
+   `server.ts` real, sem a sonda. Corrigido: `precompressedResponse` agora passa
+   `{ headers: { 'Content-Type': original.type } }` ao construir a `Response` do arquivo comprimido —
+   o tipo vem do arquivo original (`.js`), nunca da extensão do arquivo comprimido.
+2. **`boxDimension.worker.ts` chamava `new cv.aruco_ArucoDetector(dictionary, parameters)` com 2
+   parâmetros; o build próprio exige 3** (`BindingError: Tried to invoke ctor of aruco_ArucoDetector
+with invalid number of parameters (2) - expected (3) parameters instead!`). O terceiro é
+   `aruco_RefineParameters`, que por sua vez também exige 3 parâmetros no construtor
+   (`minRepDistance`, `errorCorrectionRate`, `checkAllOrders` — os mesmos default do OpenCV nativo:
+   10, 3, `true`). Sem isso, **toda** chamada a `detectMarkerCorners` lançava e o worker respondia
+   `{ kind: 'error', reason: 'engineFailed' }` — o caminho de falha "silenciosa" que a T8 já preveria
+   (D11), só que sempre, não só quando o aparelho não suporta. Corrigido em `boxDimension.worker.ts` e
+   o tipo em `opencv.types.ts` (`OpenCvArucoRefineParameters`, `aruco_RefineParameters` no
+   `OpenCvModule`).
+
+Com os dois corrigidos, a sonda passou em 3 execuções seguidas, sempre com os 4 cantos do marcador
+detectados nas coordenadas esperadas (`40,40`–`239,239`, batendo com o quadro sintético de 200px +
+margem de 40px):
+
+| Execução | Carga do OpenCV no worker (`preload` → `ready`) | Análise do quadro (`frame` → `frame-result`) | Detectado     |
+| -------- | ----------------------------------------------- | -------------------------------------------- | ------------- |
+| 1        | 113,6 ms                                        | 21,8 ms (worker reporta 20,7 ms)             | sim, 4 cantos |
+| 2        | 119,6 ms                                        | 19,1 ms (worker reporta 18,8 ms)             | sim, 4 cantos |
+| 3        | 109,2 ms                                        | 20,2 ms (worker reporta 19,8 ms)             | sim, 4 cantos |
+
+Números de desktop (mesma ordem de grandeza da carga isolada do artefato na ADR-0065, 70–83 ms) — o
+celular médio continua sendo medido só na T15. `markerBuildMs` (~160–225 ms) é o tempo de gerar o
+marcador sintético no thread principal para a sonda, não faz parte do caminho real do produto.
+
+A sonda (`probe-t9.html`, `src/probeT9Main.ts`, o `input` extra no `vite.config.ts`) foi apagada antes
+deste commit — `git status` limpo confirma que não sobrou rastro. Os dois arquivos que ficam são a
+correção real: `apps/frontend-transportada/server.ts` e
+`apps/frontend-transportada/src/components/ui/boxDimension.worker.ts` (+ `opencv.types.ts`).
+
+### Correção de texto — 5 pontos, não 4
+
+`plan.md` (arquitetura do primitivo, T8) dizia "a foto congelada com os 4 pontos arrastáveis". A T8
+já tinha registrado a divergência como ponto para o usuário: `measureBox` (T6) pede `facePoints` (4:
+A, B, C, D) **e** `footPoint` (1, o pé da aresta vertical) — 5 pontos, como o spike. `tasks.md` e
+`spec.md` já não citavam o número, só `plan.md`; corrigido para "5 pontos arrastáveis — 4 da face de
+cima (A, B, C, D) e 1 do pé da aresta vertical (`foot`)". Nenhum comportamento mudou — o código já
+marcava 5 pontos desde a T8 (`MARKED_POINT_KEYS` em `useBoxDimensionScanner.hook.ts`).
+
+### O reducer
+
+`shared/packageBoxCameraFlow.service.ts` (`apps/frontend-transportada/src/modules/nfe-workspace/`),
+genérico em `TCandidate`/`TProposal` para não acoplar a máquina ao formato de `PackageBox`/
+`BoxDimensionMeasuredResult` (isso fica para a T11). Sete etapas (`label` · `identifying` · `choose` ·
+`identified` · `measure` · `review` · `saving`), reducer puro (`packageBoxCameraFlowReducer`) sem
+nenhum I/O — só transições e os campos que a etapa seguinte precisa (`candidates`, `identified`,
+`proposal`, `reviewSource`, `unsupportedReason`, `noMatch`, `cameraEnabled`,
+`enginePreloadStatus`). Eventos do `plan.md` (`labelRead`, `matchesLoaded`, `measureRequested`,
+`measured`, `unsupported`, `typeRequested`, `backToLabel`, `saved`, `closed`) mais os que a máquina
+de 7 etapas exige na prática e que o `plan.md` não detalhava: `candidateSelected` (escolher uma das N
+candidatas), `saveRequested`/`saveFailed` (entrar/sair de `saving`), `cameraSettingsLoaded` (liga o
+`cameraEnabled` em runtime, D14) e `enginePreloadStarted`/`Ready`/`Failed` (acompanha a pré-carga do
+D18 sem se importar com quem a disparou).
+
+Transições cobertas pelo aceite:
+
+- **R1 — 0/1/N candidatas:** `matchesLoaded([])` volta para `label` com `noMatch: true`;
+  `matchesLoaded([um])` pula direto para `identified`; `matchesLoaded([dois ou mais])` abre `choose`,
+  e `candidateSelected` de lá identifica. `backToLabel` funciona em toda etapa que não seja `saving`
+  (testado a partir de `identified` e de `measure`) e limpa `identified`/`proposal`/`candidates`.
+  `saved` (a partir de `saving`) volta para `label` limpo — o ciclo "medir a pilha em sequência" (D4).
+- **R4 — fallback:** `unsupported('noWasm' | 'engineFailed' | 'tooSlow')` a partir de `measure` entra
+  em `review` com `reviewSource: 'typed'`, `proposal: undefined` e `unsupportedReason` preenchido,
+  **mantendo `identified`** — o formulário abre já com a caixa lida, como D11 pede. `typeRequested`
+  faz o mesmo a partir de `identified`/`choose`/`measure`, a qualquer momento. `measured(proposal)`
+  entra em `review` com `reviewSource: 'camera'` e a proposta.
+- **R7 — função desligada:** `measureRequested` só sai de `identified` para `measure` com
+  `cameraEnabled: true`; com a função desligada é um no-op (a etapa Medida nunca existe para quem
+  desligou). `cameraSettingsLoaded` muda `cameraEnabled` em tempo de execução, sem exigir fechar e
+  reabrir o fluxo.
+
+Não testado nesta task (fica para quem monta o hook/tela, T10–T11): debounce da leitura, `aria-live`,
+o formulário em si, chamadas de rede, e a pré-carga real do worker — aqui só o campo
+`enginePreloadStatus` muda de acordo com o evento, sem I/O nenhum.
+
+### Gates
+
+| Gate                                                   | Resultado                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `bun test test/nfe-workspace.contract.test.ts`         | verde, **382 pass, 0 fail**, 1272 `expect()` (suíte do módulo isolada)                                 |
+| `bun run --cwd apps/frontend-transportada typecheck`   | verde                                                                                                  |
+| `bun run --cwd apps/frontend-transportada lint`        | verde                                                                                                  |
+| `bun run --cwd apps/frontend-transportada test`        | verde, **3936 pass, 0 fail**, 35362 `expect()` (era 3920 na T8, +16 do contrato novo, nenhum quebrado) |
+| `bun run --cwd apps/frontend-transportada build`       | verde (`built in 5.12s`, PWA 131 entradas — sem o chunk do OpenCV, nada o consome ainda)               |
+| `bunx prettier --check` (arquivos tocados + `plan.md`) | verde                                                                                                  |
+| `git status` depois de apagar a sonda                  | limpo — só os arquivos reais desta task, nenhum `probe-t9*`/`dist/` sobrando                           |
+
+`make check` completo não rodou (mesma razão da T8: sem Postgres/`.env.test` de pé neste worktree
+para a integração da API, que esta task não toca). `bun run lint`/`typecheck` na raiz não rodaram de
+novo nesta task porque nenhuma outra app foi tocada.
+
+### Arquivos
+
+Novos: `apps/frontend-transportada/src/modules/nfe-workspace/shared/packageBoxCameraFlow.service.ts`,
+`apps/frontend-transportada/test/nfe-workspace/package-box-camera-flow.contract.ts`.
+Modificados: `apps/frontend-transportada/server.ts` (`Content-Type` do chunk pré-comprimido),
+`apps/frontend-transportada/src/components/ui/boxDimension.worker.ts` e `opencv.types.ts`
+(`aruco_RefineParameters`), `apps/frontend-transportada/test/nfe-workspace.contract.test.ts` (import
+da suíte nova), `specs/152-medir-caixa-pela-camera/plan.md` (5 pontos, não 4).
+
+### Pontos para o usuário
+
+- **Dois defeitos reais na T8 corrigidos aqui, achados só pela sonda.** Sem a correção de
+  `server.ts`, o worker de medida nunca teria carregado em nenhum navegador real (todo navegador
+  manda `Accept-Encoding: br`) — a T8 tinha testado o mecanismo de carregamento, mas nunca o
+  `import()` do módulo servido comprimido de ponta a ponta. Sem a correção do
+  `aruco_ArucoDetector`/`aruco_RefineParameters`, a detecção falharia sempre, em qualquer aparelho,
+  com qualquer marcador — o caminho de erro do worker (`engineFailed`) escondia os dois porque captura
+  qualquer exceção. As duas correções são estreitas e mecânicas; nenhuma delas mexeu em CSP,
+  Permissions-Policy ou nos limites de precisão.
+- **A máquina de etapas ainda não tem consumidor** — como a T7 e a T8 antes dela, este reducer fica
+  pronto e testado sozinho até a T11 (ou o hook da T10/T11) instanciar `useReducer` com ele e ligá-lo
+  ao `PackageBoxCameraFlow.component.tsx`.
+- **`saveRequested`/`saveFailed`/`candidateSelected`/`cameraSettingsLoaded` não estão no `plan.md`**
+  (que lista só `labelRead, matchesLoaded(n), measureRequested, measured, unsupported, typeRequested,
+backToLabel, saved, closed`). Eu os adicionei porque a máquina de 7 etapas do próprio `plan.md`
+  (que inclui `choose` e `saving`) não fecha sem eles — não dá para chegar em `saving` sem um evento
+  que peça, nem escolher uma candidata em `choose` sem um evento para isso. Se a intenção era outra
+  forma de chegar nesses estados (por exemplo, `saving`/`review` fundidos, ou a escolha da candidata
+  fora do reducer), isso volta para decisão do usuário antes da T10/T11 consumirem esta máquina.

@@ -100,8 +100,9 @@ câmera e medida mora aqui.
   - `stream`, `isActive`, `onMeasured(result)`, `onUnsupported(reason)`;
   - textos por prop, sem traduzir nada, como o leitor.
 
-  Mostra o vídeo, o guia, o indicador ao vivo (motivo atual), "Capturar", a foto congelada com os 4
-  pontos arrastáveis (com lupa e setas do teclado) e "Usar esta medida".
+  Mostra o vídeo, o guia, o indicador ao vivo (motivo atual), "Capturar", a foto congelada com os 5
+  pontos arrastáveis — 4 da face de cima (A, B, C, D) e 1 do pé da aresta vertical (`foot`), como o
+  motor da T6 exige — (com lupa e setas do teclado) e "Usar esta medida".
 
 - `boxDimension.service.ts` (**puro**, sem I/O, é o que o contrato testa):
   - `measureFromPose({ markerCorners, markerSideMm, points, cameraMatrix })` → dimensões em mm;
