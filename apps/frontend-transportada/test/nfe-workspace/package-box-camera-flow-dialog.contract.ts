@@ -335,7 +335,9 @@ describe('o painel entra no fluxo da câmera pela leitura própria do interrupto
     expect(panel).toContain('cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true)')
     /** Abrir o fluxo zera o desfecho da gravação anterior (M-a), e é só por aqui que ele abre. */
     expect(panel.match(/setIsCameraFlowOpen\(true\)/gu)?.length).toBe(1)
-    expect(panel).toContain('function openCameraFlow(): void {\n    onResetSaveError()')
+    expect(panel).toContain(
+      'function openCameraFlow(box?: PackageBox): void {\n    onResetSaveError()',
+    )
     expect(panel).toContain('<PackageBoxCameraFlow')
   })
 

@@ -41,6 +41,7 @@ export type PackageBoxCameraFlowState<TCandidate, TProposal> = Readonly<{
 
 export type PackageBoxCameraFlowEvent<TCandidate, TProposal> =
   | Readonly<{ kind: 'backToLabel' }>
+  | Readonly<{ kind: 'boxPreselected'; candidate: TCandidate }>
   | Readonly<{ kind: 'cameraSettingsLoaded'; enabled: boolean }>
   | Readonly<{ kind: 'candidateSelected'; candidate: TCandidate }>
   | Readonly<{ kind: 'closed' }>
@@ -134,6 +135,16 @@ export function packageBoxCameraFlowReducer<TCandidate, TProposal>(
     case 'candidateSelected':
       if (state.step !== 'choose') return state
       return { ...state, candidates: [], identified: event.candidate, step: 'identified' }
+
+    /** Caixa sem etiqueta legível: o operador escolhe na fila e a etiqueta nem é pedida. */
+    case 'boxPreselected':
+      if (state.step === 'saving' || !state.cameraEnabled) return state
+      return {
+        ...resetIdentification(state),
+        identified: event.candidate,
+        noMatch: false,
+        step: 'measure',
+      }
 
     case 'measureRequested':
       if (state.step !== 'identified' || !state.cameraEnabled) return state

@@ -159,6 +159,8 @@ export function PackageBoxMeasurementPanel({
    * vira `true` — o botão sempre abre o leitor antigo, comportamento idêntico ao de antes da T11.
    */
   const [isCameraFlowOpen, setIsCameraFlowOpen] = useState(false)
+  /** A caixa escolhida na fila por "Medir pela câmera" — `undefined` quando o fluxo abre pela etiqueta. */
+  const [cameraFlowBox, setCameraFlowBox] = useState<PackageBox | undefined>(undefined)
   const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
 
   useEffect(() => {
@@ -224,9 +226,16 @@ export function PackageBoxMeasurementPanel({
    * ⚠️ O fluxo abre do zero: sem o reset, o código da recusa da gravação anterior continuava no
    * estado e a Conferência da caixa seguinte já nascia com o aviso de erro (2ª revisão, item M-a).
    */
-  function openCameraFlow(): void {
+  function openCameraFlow(box?: PackageBox): void {
     onResetSaveError()
+    setEditingId(null)
+    setCameraFlowBox(box)
     setIsCameraFlowOpen(true)
+  }
+
+  function closeCameraFlow(): void {
+    setIsCameraFlowOpen(false)
+    setCameraFlowBox(undefined)
   }
 
   const scanner = (
@@ -362,6 +371,9 @@ export function PackageBoxMeasurementPanel({
                       searchInputRef.current?.focus()
                     }
                   }}
+                  onMeasureWithCamera={
+                    cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
+                  }
                   onOpen={() => setEditingId(box.id)}
                   saving={saving}
                 />
@@ -390,9 +402,10 @@ export function PackageBoxMeasurementPanel({
         lookupFailed={failed}
         matches={queue?.items}
         matching={matching}
-        onClose={() => setIsCameraFlowOpen(false)}
+        onClose={closeCameraFlow}
         onLookup={(text) => onScan(text)}
         onSave={(id, submission) => onMeasure({ ...submission, id })}
+        preselectedBox={cameraFlowBox}
         saveErrorCode={saveErrorCode}
         saveStatus={saveStatus}
       />
@@ -499,6 +512,8 @@ type PackageBoxRowProps = Readonly<{
   isEditing: boolean
   onCancel: () => void
   onMeasure: (input: PackageBoxMeasurementInput) => void
+  /** `undefined` com a medida pela câmera desligada na empresa — o botão nem aparece. */
+  onMeasureWithCamera: (() => void) | undefined
   onOpen: () => void
   saving: boolean
 }>
@@ -508,6 +523,7 @@ function PackageBoxRow({
   isEditing,
   onCancel,
   onMeasure,
+  onMeasureWithCamera,
   onOpen,
   saving,
 }: PackageBoxRowProps) {
@@ -574,6 +590,12 @@ function PackageBoxRow({
             <Icon name="edit" />
             {box.measuredAt === null ? t('packageBoxes.measure') : t('packageBoxes.remeasure')}
           </Button>
+          {onMeasureWithCamera === undefined ? null : (
+            <Button onClick={onMeasureWithCamera} size="sm" type="button" variant="secondary">
+              <Icon name="camera" />
+              {t('packageBoxes.measureWithCamera')}
+            </Button>
+          )}
         </div>
       )}
     </li>

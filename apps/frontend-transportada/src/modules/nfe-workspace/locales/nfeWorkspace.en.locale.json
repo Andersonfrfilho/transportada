@@ -374,6 +374,7 @@
     "height": "Height (cm)",
     "measure": "Measure",
     "remeasure": "Measure again",
+    "measureWithCamera": "Measure with camera",
     "save": "Save measurement",
     "cancel": "Cancel",
     "scanner": {

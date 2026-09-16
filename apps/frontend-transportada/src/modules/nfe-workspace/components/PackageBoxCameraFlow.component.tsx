@@ -34,6 +34,8 @@ export type PackageBoxCameraFlowProps = Readonly<{
   onClose: () => void
   onLookup: (text: string) => void
   onSave: (boxId: string, submission: PackageBoxMeasurementFormSubmission) => void
+  /** Caixa escolhida na fila: o fluxo abre na Medida dela e fecha depois de gravar. */
+  preselectedBox: PackageBox | undefined
   /** A1: o código da recusa do último `PUT`, para a Conferência dizer o que aconteceu. */
   saveErrorCode: string | undefined
   /**
@@ -72,6 +74,7 @@ export function PackageBoxCameraFlow({
   onClose,
   onLookup,
   onSave,
+  preselectedBox,
   saveErrorCode,
   saveStatus,
 }: PackageBoxCameraFlowProps) {
@@ -104,6 +107,16 @@ export function PackageBoxCameraFlow({
   useEffect(() => {
     dispatch({ enabled: cameraEnabled, kind: 'cameraSettingsLoaded' })
   }, [cameraEnabled])
+
+  /** Cada abertura começa limpa: sem isso, abrir pela etiqueta herdava a caixa da lista anterior. */
+  useEffect(() => {
+    if (!isOpen) return
+    dispatch(
+      preselectedBox === undefined
+        ? { kind: 'closed' }
+        : { candidate: preselectedBox, kind: 'boxPreselected' },
+    )
+  }, [isOpen, preselectedBox])
 
   /**
    * R1: a resposta da mesma pergunta que a busca de texto já faz para a fila (spec 085).
@@ -139,7 +152,9 @@ export function PackageBoxCameraFlow({
     if (!attemptIsPendingRef.current) return
     if (saveStatus === 'success') dispatch({ kind: 'saved' })
     if (saveStatus === 'error') dispatch({ kind: 'saveFailed' })
-  }, [saveStatus, state.step])
+    // Quem veio da fila escolheu uma caixa, não está varrendo etiquetas: volta para a lista.
+    if (saveStatus === 'success' && preselectedBox !== undefined) onClose()
+  }, [onClose, preselectedBox, saveStatus, state.step])
 
   /**
    * B-b: consulta que falhou volta a etapa para a etiqueta. O aviso de falha aparece nas duas
