@@ -1,9 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { MEASUREMENT_ENGINE } from './boxDimension.constant'
 import type { Point } from './boxDimensionGeometry.service'
-import { classifyMeasurement, estimateMargins, measureBox } from './boxDimension.service'
+import { estimateMargins, measureBox } from './boxDimension.service'
+import {
+  buildMeasuredProposal,
+  type BoxDimensionMeasuredResult,
+} from './boxDimensionProposal.service'
 import {
   buildBoxMeasurementInput,
   frameSizeFor,
@@ -45,16 +48,8 @@ export type BoxDimensionScannerStatus =
 
 export type BoxDimensionUnsupportedReason = 'engineFailed' | 'noWasm' | 'tooSlow'
 
-export type BoxDimensionMeasuredResult = Readonly<{
-  engine: typeof MEASUREMENT_ENGINE
-  heightMarginMm: number
-  heightMm: number
-  lengthMarginMm: number
-  lengthMm: number
-  warnings: readonly ReturnType<typeof selectDomainWarnings>[number][]
-  widthMarginMm: number
-  widthMm: number
-}>
+/** A proposta nasce em `boxDimensionProposal.service` — aqui só o reexporte de sempre. */
+export type { BoxDimensionMeasuredResult }
 
 export type UseBoxDimensionScannerParams = Readonly<{
   isActive: boolean
@@ -379,7 +374,6 @@ export function useBoxDimensionScanner({
     })
     const nominal = measureBox(input)
     const margins = estimateMargins(input, nominal)
-    const classification = classifyMeasurement(margins)
     /**
      * A3: as estatísticas são as do quadro **capturado**, não as do último quadro ao vivo, e o
      * ângulo sai da pose que acabou de ser resolvida — sem os dois, `steepAngle` e `unstable` nunca
@@ -400,16 +394,7 @@ export function useBoxDimensionScanner({
       }),
     )
     setStatus('measured')
-    onMeasuredRef.current({
-      engine: MEASUREMENT_ENGINE,
-      heightMarginMm: margins.heightMarginMm,
-      heightMm: classification.filled.height ? nominal.heightMm : 0,
-      lengthMarginMm: margins.lengthMarginMm,
-      lengthMm: classification.filled.length ? nominal.lengthMm : 0,
-      warnings,
-      widthMarginMm: margins.widthMarginMm,
-      widthMm: classification.filled.width ? nominal.widthMm : 0,
-    })
+    onMeasuredRef.current(buildMeasuredProposal({ margins, nominal, warnings }))
   }
 
   return {

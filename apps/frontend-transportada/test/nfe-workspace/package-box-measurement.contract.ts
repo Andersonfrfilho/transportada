@@ -5,6 +5,10 @@ import {
   firstUnreliableDimension,
   initialDimensionCentimetres,
 } from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementProposal.service'
+import {
+  buildPackageBoxMeasurementSubmission,
+  type PackageBoxMeasurementSubmissionInput,
+} from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementSubmission.service'
 
 import {
   createPackageBoxClient,
@@ -822,16 +826,50 @@ describe('margem por dimensão e aviso de imprecisão (R2)', () => {
  * original continua no bloco `camera` (o histórico compara as duas). Digitar continua o caminho
  * padrão, disponível mesmo sem proposta nenhuma.
  */
-describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
-  it('sem proposta a origem é sempre typed, sem bloco camera', async () => {
-    const form = await Bun.file(
-      new URL(
-        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
-        import.meta.url,
-      ),
-    ).text()
+const CAMERA_PROPOSAL = {
+  engine: 'aruco-homography-v1',
+  heightMarginMm: 5,
+  heightMm: 200,
+  lengthMarginMm: 7,
+  lengthMm: 300,
+  warnings: [],
+  widthMarginMm: 4,
+  widthMm: 100,
+} as const
 
-    expect(form).toContain("if (proposal === undefined) return { ...measurement, source: 'typed' }")
+const CAMERA_SUBMISSION_BASE: PackageBoxMeasurementSubmissionInput = {
+  edited: { height: false, length: false, width: false },
+  grossWeightGrams: null,
+  heightMm: CAMERA_PROPOSAL.heightMm,
+  impreciseConfirmed: false,
+  lengthMm: CAMERA_PROPOSAL.lengthMm,
+  proposal: CAMERA_PROPOSAL,
+  unitsPerBox: 1,
+  widthMm: CAMERA_PROPOSAL.widthMm,
+}
+
+describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
+  /**
+   * ⚠️ Estes três deixaram de ser contrato por texto de fonte na 2ª revisão da T14: a montagem do
+   * corpo saiu do componente para `packageBoxMeasurementSubmission.service`, justamente para o
+   * contrato de fronteira poder passar o corpo real pelo schema real da API
+   * (`package-box-submission-boundary.contract.ts`). Com a função pura na mão, o comportamento se
+   * mede direto — a fonte deixou de ser a única testemunha.
+   */
+  it('sem proposta a origem é sempre typed, sem bloco camera', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: { height: false, length: false, width: false },
+      grossWeightGrams: null,
+      heightMm: 200,
+      impreciseConfirmed: false,
+      lengthMm: 300,
+      proposal: undefined,
+      unitsPerBox: 1,
+      widthMm: 100,
+    })
+
+    expect(submission.source).toBe('typed')
+    expect(submission.camera).toBeUndefined()
   })
 
   it('editar um campo marca a dimensão como editada, e isso sai da origem final', async () => {
@@ -843,35 +881,34 @@ describe('editar a proposta da câmera muda a origem (R3, D17)', () => {
     ).text()
 
     expect(form).toContain('setEdited((current) => ({ ...current, [dimension]: true }))')
-    expect(form).toContain("source: hasEditedAnyField ? 'camera_adjusted' : 'camera',")
-    expect(form).toContain(
-      'const hasEditedAnyField = edited.length || edited.width || edited.height',
-    )
+    expect(
+      buildPackageBoxMeasurementSubmission({
+        ...CAMERA_SUBMISSION_BASE,
+        edited: { height: false, length: true, width: false },
+      }).source,
+    ).toBe('camera_adjusted')
+    expect(buildPackageBoxMeasurementSubmission(CAMERA_SUBMISSION_BASE).source).toBe('camera')
   })
 
-  it('a margem da proposta continua no bloco camera mesmo quando a dimensão foi editada (D17)', async () => {
-    const form = await Bun.file(
-      new URL(
-        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementForm.component.tsx',
-        import.meta.url,
-      ),
-    ).text()
-
+  it('a margem da proposta continua no bloco camera mesmo quando a dimensão foi editada (D17)', () => {
     /**
      * A margem pertence à proposta da câmera, não ao valor final (decisão de 2026-09-16, T12): editar
      * um campo não apaga a margem enviada, senão o protocolo de validação (D16, "digite a fita em
      * todos os campos") apagaria a margem de quase toda leitura da sessão real.
      */
-    expect(form).toContain('heightMarginMm: proposal.heightMarginMm,')
-    expect(form).toContain('lengthMarginMm: proposal.lengthMarginMm,')
-    expect(form).toContain('widthMarginMm: proposal.widthMarginMm,')
-    expect(form).not.toContain('edited.length ? {} : { lengthMarginMm')
-    expect(form).not.toContain('edited.width ? {} : { widthMarginMm')
-    expect(form).not.toContain('edited.height ? {} : { heightMarginMm')
+    const submission = buildPackageBoxMeasurementSubmission({
+      ...CAMERA_SUBMISSION_BASE,
+      edited: { height: true, length: true, width: true },
+      heightMm: 210,
+      lengthMm: 310,
+      widthMm: 110,
+    })
+
+    expect(submission.camera?.heightMarginMm).toBe(CAMERA_PROPOSAL.heightMarginMm)
+    expect(submission.camera?.lengthMarginMm).toBe(CAMERA_PROPOSAL.lengthMarginMm)
+    expect(submission.camera?.widthMarginMm).toBe(CAMERA_PROPOSAL.widthMarginMm)
     /** Proposto (D17) continua indo para o histórico mesmo quando o campo foi editado por cima. */
-    expect(form).toContain(
-      '...(proposedLength === undefined ? {} : { proposedLengthMm: proposedLength }),',
-    )
+    expect(submission.camera?.proposedLengthMm).toBe(CAMERA_PROPOSAL.lengthMm)
   })
 
   it('"Digitar medida" continua disponível — o formulário nunca exige a câmera', async () => {
