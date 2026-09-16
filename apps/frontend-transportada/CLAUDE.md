@@ -61,7 +61,11 @@ registro que garante o campo vir preenchido ao abrir a aba. `company-settings` t
 combustível, credencial da Nota RP, tabela de frete) moram nas abas dos módulos a que pertencem.
 Contrato: `test/company-settings/tabs.contract.ts`. Detalhe de cada painel (permissão exigida,
 conversão percentual/fração dos tributos, mapa de zona via IBGE): docs/ai-context § "Configuração
-perto do efeito".
+perto do efeito". Painel **"Medida pela câmera (experimental)"** (spec 152) mora na aba **Caixas**
+do `nfe-workspace`, registrado como `cameraMeasurement` em `SETTINGS_PANEL_PLACEMENT` com
+`{ module: 'nfe-workspace', source: 'cargoSettings', tab: 'packageBoxes' }` — exige `settings.manage`
+e controla o interruptor `cameraMeasurementEnabled` por empresa (padrão desligado). Contrato em
+`test/company-settings/tabs.contract.ts`.
 
 ## Domínio de viagem, roteirização e proposta de carga — ver a referência
 

@@ -183,7 +183,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T13 — Contexto da IA e docs.** Atualizar `docs/ai-context/frontend-transportada.md` e
+- [x] **T13 — Contexto da IA e docs.** Feito (evidence.md § T13). Atualizar `docs/ai-context/frontend-transportada.md` e
       `docs/ai-context/api-transportada.md` (medida pela câmera experimental, interruptor, origem,
       histórico com proposta, export); o núcleo do `apps/api-transportada/CLAUDE.md` (a linha
       "Medir uma caixa é `cargo.measure`…" ganha origem, histórico e o `422` com a função
