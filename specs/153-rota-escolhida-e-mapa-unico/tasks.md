@@ -16,7 +16,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 > 🤖 Modelo: `sonnet` (T102 é 🧠 — `opus`)
 
 - [x] T101 Migration aditiva do RF1 + schema Drizzle + rollback — `make migration-test`.
-- [ ] T102 🧠 Assinatura de rota, `selectRouteOption` e `summarizeRoadDistance` (domínio puro) —
+- [x] T102 🧠 Assinatura de rota, `selectRouteOption` e `summarizeRoadDistance` (domínio puro) —
       contratos de domínio (assinatura estável, critérios, não reproduzida, volta `0` em
       `last_stop`).
 - [ ] T103 Gateway com `exclude=toll` em paralelo, dedupe por assinatura, `isNoToll`, falha isolada —

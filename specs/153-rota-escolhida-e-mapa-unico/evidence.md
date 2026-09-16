@@ -127,3 +127,144 @@ Ran 96 tests across 8 files. [29.72s]
 Migration e rollback aplicados de verdade num Postgres descartável — inclui as asserções reais de
 CHECK em `trip-constraints.assertion.ts` (meia-escrita rejeitada, `planned_return_distance_meters = 0`
 aceito, métricas negativas rejeitadas).
+
+## T102 — Assinatura de rota, `selectRouteOption` e `summarizeRoadDistance` ✅
+
+Três seams puros, sem I/O e sem import de `application/` nem de `infrastructure/`:
+
+- `apps/api-transportada/src/trips/domain/route-choice.policy.ts` (152 linhas) —
+  `ROUTE_CHOICE_CRITERIA`, `RouteChoiceCriterion`, `RouteChoice`, `SelectableRouteOption`,
+  `SelectedRouteOption`, `buildRouteSignature`, `selectRouteOption`.
+- `apps/api-transportada/src/trips/domain/planned-road-distance.policy.ts` (65 linhas) — `RoadLeg`,
+  `RoadDistanceSummary`, `summarizeRoadDistance`.
+
+Contratos em `test/trip-domain/route-choice.contract.ts` e
+`test/trip-domain/planned-road-distance.contract.ts`, importados por
+`test/trip-domain.contract.test.ts` — entrypoint **já** na lista explícita de arquivos de teste do
+`package.json` (linha 26), então as suítes novas rodam sem mexer nela.
+
+### Decisões do seam
+
+**A assinatura sai de `nodeIdsByLeg`, não de `nodeIds`.** A lista achatada do gateway é deduplicada
+**atravessando o limite do trecho** (`toNodeIdsByLeg`, `osrm-route-geometry.gateway.ts`), então duas
+rotas que só diferem em onde a parada cai achatam para a mesma sequência: `[[1,2,3],[4,5]]` e
+`[[1,2],[3,4,5]]` produzem o mesmo `[1,2,3,4,5]`. Assinatura igual para rotas diferentes é a colisão
+que a D2 não pode ter, e o contrato a fixa.
+
+**`reproduced` responde "a rota devolvida é a que o pedido pediu".** `false` nas duas formas de
+falhar — assinatura veio e não foi encontrada, ou o critério não achou candidata e a escolha caiu na
+principal (`cheapest` com todo `totalCost` nulo, `no_toll` sem rota sem pedágio). Pedido **sem**
+assinatura que o critério atende é `true`: nada deixou de ser reproduzido, e um aviso ali acusaria
+falha inexistente em toda viagem criada sem seletor (corpo ausente, recálculo da D6).
+
+**`rankRouteOptions` não é reimplementado.** `SelectableRouteOption` **estende** `RankedRouteOption`
+(`toll-booths/domain/route-option.policy.ts`), então `totalCost`/`fuelTotal` só podem vir de lá — a
+soma de combustível + pedágio continua com um dono só. Esta política compara os valores já pontuados
+(`parseScaledDecimal`/`MONEY_SCALE`, como a vizinha: em texto `'9,00'` viria depois de `'10,00'`) e
+mantém a mesma regra de empate, a primeira vence.
+
+⚠️ Divergência deliberada, para a T104: `rankRouteOptions.cheapestIndex` é `null` quando **qualquer**
+opção tem `totalCost` nulo (é rótulo — não se chama de "mais barata" o que não dá para comparar),
+enquanto `selectRouteOption` com `cheapest` elege a de menor `totalCost` **não nulo**. Com
+`[A sem pedágio conhecido, B R$ 110]` não há rótulo "mais barata" e a selecionada é B. Eleger A seria
+gravar a rota cujo custo ninguém sabe tendo outra medida ao lado. O rótulo segue vindo de
+`cheapestIndex`/`costGap`; `selectedIndex` vem daqui.
+
+### Contrato vermelho, antes de implementar
+
+```bash
+cd apps/api-transportada && bun test ./test/trip-domain/route-choice.contract.ts
+```
+
+```
+error: Cannot find module '../../src/trips/domain/route-choice.policy.js' from '.../test/trip-domain/route-choice.contract.ts'
+
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+```bash
+cd apps/api-transportada && bun test ./test/trip-domain/planned-road-distance.contract.ts
+```
+
+```
+error: Cannot find module '../../src/trips/domain/planned-road-distance.policy.js' from '.../test/trip-domain/planned-road-distance.contract.ts'
+
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+### Verde, depois de implementar
+
+```bash
+cd apps/api-transportada && bun test test/trip-domain.contract.test.ts
+```
+
+```
+209 pass
+0 fail
+900 expect() calls
+Ran 209 tests across 1 file. [71.00ms]
+```
+
+21 contratos novos (188 → 209): assinatura estável entre chamadas e no formato `[0-9a-f]{32}`,
+estradas diferentes com assinaturas diferentes, colisão de achatamento recusada, rota sem anotação e
+rota sem nó nenhum sem assinatura; os quatro critérios; assinatura não encontrada caindo no critério
+com `reproduced: false`; `alternative` → `cheapest`; `totalCost` nulo fora da disputa; sem candidata
+alguma na principal com `reproduced: false`; uma oferta só; lista vazia devolvendo `null`; comparação
+de custo como decimal. Distância: total e volta separados, `last_stop` com volta `0`, estrada ausente
+com tudo `null` (nunca zero), `trailingLegs` maior que os trechos com volta `null`.
+
+### Gates
+
+```bash
+bun run typecheck   # raiz do worktree
+```
+
+6 `tsc --noEmit` limpos, sem erro.
+
+```bash
+bun run lint        # raiz do worktree
+```
+
+6 `eslint --max-warnings=0` / `eslint .` limpos, sem erro nem warning.
+
+```bash
+bun run format:check   # raiz do worktree
+```
+
+`All matched files use Prettier code style!` (reprovou uma vez em
+`test/trip-domain/route-choice.contract.ts`, corrigido com `prettier --write`).
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+```
+
+```
+6107 pass
+23 skip
+0 fail
+21508 expect() calls
+Ran 6130 tests across 177 files. [11.29s]
+```
+
+### O que a T201/T202 recebe daqui
+
+`summarizeRoadDistance({ legs, trailingLegs })` devolve
+`{ distanceMeters, durationSeconds, returnDistanceMeters }` — os três nomes das colunas da RF1. Os
+dois chamadores têm as duas entradas prontas na resposta de `readRouteGeometry`: `legs` da opção
+**selecionada** e `trailingLegs` de `depot.trailingLegs` (`null` no `depot` é "esta chamada não pediu
+barracão" → `trailingLegs: 0`, e a volta é `0`). A política de fim não é lida aqui de propósito:
+`route-depot.policy.ts` continua sendo o único lugar que interpreta `end_policy`, e `last_stop` já
+chega como `trailingLegs: 0`.
+
+- **T201** (`freeze-trip-planned-route`) grava os três em `planned_distance_meters`,
+  `planned_return_distance_meters` e `planned_duration_seconds`; os `null` da estrada ausente são a
+  D5 ("nunca zero") já na forma da coluna, e o CHECK `trips_planned_route_check` da T101 exige que os
+  quatro campos nasçam junto com `planned_route_frozen_at`.
+- **T202** (`resolvePreviewRoad`, `read-trip-valuation.use-case.ts`) troca o
+  `road.legs.reduce(...)` de hoje por esta chamada e passa a ter a volta e a duração que antes não
+  calculava — `distanceMeters` mantém exatamente o número atual, o que é o que faz a paridade do
+  aceite 2 valer entre prévia e viagem gravada.
