@@ -195,7 +195,12 @@ export default defineRailway((ctx) => {
       VITE_APP_ENV: preserve(),
       VITE_APP_URL: preserve(),
       VITE_EMAIL_FROM: preserve(),
-      VITE_IDENTIFIER_FIRST_LOGIN: preserve(),
+      /**
+       * A tela de identificação (e-mail, CPF, CNPJ ou telefone antes da senha) é o caminho de entrada
+       * nos dois ambientes. Literal, e não `preserve()`: inlinada no build, a variável esquecida no
+       * painel devolve em silêncio o formulário de usuário e senha do Keycloak.
+       */
+      VITE_IDENTIFIER_FIRST_LOGIN: 'true',
       VITE_KEYCLOAK_CLIENT_ID: preserve(),
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
