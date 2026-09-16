@@ -611,3 +611,146 @@ não pela forma do corpo.
    HTTP. Se uma task futura precisar de um teste HTTP `dailyAllowanceDays: 0 → 400` para a prévia
    especificamente, a fixture de HTTP da prévia ainda precisa ser montada — hoje só a criação
    (`create.contract.ts`) tem esse nível de teste.
+
+## T6 — Congelamento grava a origem
+
+### Alvo
+
+`freeze-trip-financial-result.use-case.ts:96` (`toParcel`) gravava `note: parcel.gap ?? ''` — sem
+lacuna, `note` saía sempre vazio, mesmo para a parcela do motorista, cujo `basis` (T3) já carrega
+tudo que o painel precisa para mostrar de onde veio o valor (`crew[].rateOrigin`, `dailyAmount`,
+`days`). D5 exige que a viagem **fechada** grave a frase, não o vazio — ela não pode depender do
+cadastro do motorista, que muda depois (D3).
+
+### Vermelho real (não vazio)
+
+Passo 1: as três novas asserções foram escritas primeiro em
+`test/trip-financial/freeze.contract.ts`. Passo 2: para garantir que o vermelho fosse pelo motivo
+certo (e não por erro de fixture), a implementação em `freeze-trip-financial-result.use-case.ts` foi
+isolada via `git stash push -- <arquivo>` antes de rodar — a mesma técnica que a T5 registrou
+("um teste que nunca falhou não prova nada"):
+
+```
+$ bun test ./test/trip-financial.contract.test.ts
+
+error: expect(received).toContainEqual(expected)
+
+Expected to contain: ObjectContaining {
+  kind: "driver",
+  note: "R$ 200,00 × 3 dias · valor geral",
+}
+Received: [
+  { amount: "600.0000", kind: "driver", nature: "cost", note: "", source: "estimated" }
+]
+(fail) o congelamento do resultado (spec 061 T005) > parcela do motorista sem lacuna grava a frase de origem, não o código
+
+error: expect(received).toContainEqual(expected)
+
+Expected to contain: ObjectContaining {
+  kind: "driver",
+  note: "R$ 250,00 × 2 dias · valor do motorista; R$ 200,00 × 2 dias · valor padrão",
+}
+Received: [
+  { amount: "900.0000", kind: "driver", nature: "cost", note: "", source: "measured" }
+]
+(fail) o congelamento do resultado (spec 061 T005) > mais de um condutor: a frase soma uma linha por condutor
+
+ 39 pass
+ 2 fail
+ 86 expect() calls
+Ran 41 tests across 1 file. [178.00ms]
+```
+
+Não é vazio nem ambíguo: as duas falhas apontam exatamente para `note: ""` onde a asserção esperava
+a frase composta — o formato exato que a implementação ainda não produzia, nada de erro de
+compilação ou de fixture mal montada. O terceiro teste novo (lacuna → mantém o código) **já passava**
+com o código antigo (`parcel.gap ?? ''` também devolve o código quando há lacuna) — isso não é uma
+falha do processo, é a confirmação, por teste, de que o comportamento de hoje já protege a lacuna (ver
+"Resposta à pergunta do orientador" abaixo). Depois do vermelho, `git stash pop` devolveu a
+implementação, e a suíte fechou verde (ver Gates).
+
+### O que entrou
+
+- **`composeParcelNote`** (`freeze-trip-financial-result.use-case.ts`): a lacuna vence sempre —
+  `parcel.gap !== null` retorna o código antes de tocar em `basis`. Sem lacuna, só a parcela do
+  motorista (`basis.of === 'driver'`) ganha frase; qualquer outro `kind`/`basis` continua com `note`
+  vazio, exatamente como hoje.
+- **`composeDriverAllowanceNote`** + **`composeAllowanceLine`** (`ComposeAllowanceLineParams`,
+  code-standart §10): uma linha por integrante da tripulação (D2), unidas por
+  `ALLOWANCE_NOTE_SEPARATOR = '; '`; cada linha é `R$ <valor> × <dias> dia(s) · <origem>`.
+- **`DAILY_ALLOWANCE_RATE_ORIGIN_LABEL`**: mapa `driver → "valor do motorista"` /
+  `company → "valor geral"` / `default → "valor padrão"` — três rótulos, não dois. `spec.md` (aceite 4) só exemplifica com "valor geral", mas `daily-allowance.policy.ts` e `plan.md:39` distinguem os
+  três casos; resolvido a favor da distinção de três, e o teste de frase única foi montado com
+  `rateOrigin: 'company'` (não `'default'`) para reproduzir literalmente a frase do briefing
+  ("R$ 200,00 × 3 dias · valor geral").
+- **`formatCurrencyText`**: `formatFiscalMoney` (já usado em `invoice-layout.policy.ts`, via
+  `decimal.service.ts`) faz o arredondamento half-up de 4 para 2 casas; o resto (separador de milhar
+  `.`, decimal `,`) foi escrito aqui porque o único helper existente (`formatDecimalText` em
+  `invoice-layout.policy.ts`) é privado daquele arquivo e assume entrada já em 2 casas.
+- Três testes novos em `freeze.contract.ts`: sem lacuna/uma origem (frase única), com lacuna
+  (`NO_TRIP_DRIVER`, código preservado), múltiplos condutores (frase composta, uma linha por
+  condutor, D2).
+
+### Por que isso não fere a regra da T3 (`detail` é sempre `null`)
+
+A T3 fixou que a API **nunca** compõe texto de exibição em `detail` — quem calcula ao vivo (viagem
+aberta) devolve dado cru, e é o frontend quem escreve a frase, porque o cadastro (tabela de praça,
+motorista, empresa) ainda existe e pode ser consultado de novo a qualquer momento. `note`, no
+congelamento, é o oposto: a viagem **já fechou**, e o cadastro que produziu aquele valor pode mudar
+depois (motorista troca de tabela, empresa reconfigura o valor padrão) sem que o `trip_financial_parcels`
+já gravado deva mudar junto (ADR-0049 §5, "viagem fechada congela"). Se a API não gravar a frase agora,
+ela nunca mais poderá reconstruí-la — não há como "recalcular" o `rateOrigin` de uma diária que já foi
+paga com uma tabela que não existe mais. Persistência histórica exige compor **agora**; exibição ao
+vivo exige **não** compor, porque compor cedo demais é decidir por uma leitura que ainda pode mudar.
+As duas regras protegem o mesmo risco (texto que mente) em direções opostas.
+
+O banco não ajuda a pegar um erro aqui: `trip_financial_parcels.note` é `text` puro, sem CHECK, sem
+enum, sem tamanho mínimo. Uma composição errada (frase trocada, número mal arredondado, origem
+invertida) grava normalmente, sem nenhum teste de schema ou de banco reagir — o único lugar onde o
+erro aparece é a tela do operador, meses depois, quando ninguém mais tem como conferir contra o
+cadastro original. É exatamente por isso que o contrato (frase idêntica à que T11 vai montar no
+frontend) precisa ser testado explicitamente aqui, e não pode depender de review visual.
+
+### Resposta à pergunta do orientador: hoje, lacuna sobrescreve a frase?
+
+**Não.** Nem antes nem depois desta task. Antes, `note: parcel.gap ?? ''` nunca compunha frase
+nenhuma — não havia o que sobrescrever. Depois, `composeParcelNote` checa `parcel.gap !== null`
+**primeiro** e retorna o código imediatamente nesse caso, sem nunca inspecionar `basis` — a frase só
+é composta quando `gap === null`. O teste "parcela do motorista com lacuna mantém o código, nunca a
+frase" (novo, nesta task) prova isso: com `basis: null, gap: 'NO_TRIP_DRIVER'`, `note` grava
+`'NO_TRIP_DRIVER'`, não uma frase vazia nem inventada.
+
+### Aceite 10 (viagem congelada antes desta feature)
+
+Nenhuma migração de dado congelado foi feita ou é necessária. `toParcel` só roda no momento do
+congelamento — uma viagem já congelada antes desta task tem sua linha em `trip_financial_parcels` já
+gravada com `source: 'period'` e `note` com o código antigo; nada neste código a lê de novo ou a
+reescreve. A mudança só afeta congelamentos (ou recongelamentos, via `reason`) que rodarem depois do
+deploy desta task.
+
+### Gates
+
+| Gate                        | Comando                                                                                       | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Typecheck                   | `bun run typecheck` (raiz, 6 apps)                                                            | ✅ limpo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Testes da API               | `bun run --cwd apps/api-transportada test`                                                    | ✅ 6098 pass · 23 skip · 0 fail · 21469 expect() · 177 arquivos                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Testes da API (`.env.test`) | `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) | ✅ idêntico — 6098 pass · 23 skip · 0 fail. Os novos testes desta task usam `buildRepository()` (porta falsa), não banco; tentativa extra de rodar `test/integration/trip-financial-end-to-end.integration.ts` contra Postgres real falhou por infraestrutura (`.env.test` aponta para a porta 65432 do stack de e2e dedicado, que não estava de pé nesta sessão — só o Postgres de dev, porta 55432) — não há mudança de schema/migração nesta task, então essa suíte fica fora do escopo de T6 |
+| Testes do frontend          | `bun run --cwd apps/frontend-transportada test`                                               | ✅ 4073 pass · 0 fail · 35825 expect() · 29 arquivos                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Lint                        | `bun run lint`                                                                                | ✅ limpo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Formatação                  | `bun run format:check`                                                                        | ✅ limpo após `prettier --write` nos dois arquivos alterados                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+### Contrato que a T6 impõe à T7
+
+1. `composeParcelNote` só reage a `parcel.basis?.of === 'driver'` — qualquer variante nova de
+   `TripCostParcelBasis['of']` (ex.: pedágio, custo avulso) é **inerte** para `note` até ser tratada
+   explicitamente. T7, ao separar pedágio de custo avulso/manual, deve decidir por si mesma se essas
+   parcelas também precisam de frase de origem em `note`, ou se seguem com `note` vazio (ou o código
+   da lacuna, se houver uma) como hoje.
+2. A ordem de despacho é fixa e não pode inverter: lacuna (`parcel.gap !== null`) sempre vence antes
+   de qualquer leitura de `basis`. T7 não deve introduzir um caminho onde uma parcela tenha `gap`
+   populado e `note` ainda assim tente compor frase a partir de `basis` — o par
+   `gap: null ⟺ basis populado` (T3) continua sendo a invariante que sustenta esse despacho.
+3. A frase que a API compõe aqui (`R$ <valor> × <dias> dia(s) · <origem>`, `'; '` entre condutores)
+   é o texto exato que T11 precisa reproduzir no frontend a partir do mesmo `basis` cru, para a
+   viagem aberta. Não existe função compartilhada — o contrato é o texto idêntico, testado dos dois
+   lados, nunca importado de um app para o outro.

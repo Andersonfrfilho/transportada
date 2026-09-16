@@ -143,6 +143,142 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
     })
   })
 
+  /**
+   * Spec 143 D5/T6: sem lacuna, `note` grava a frase de origem — a mesma que o painel aberto
+   * compõe a partir do `basis` cru (T11) — para a viagem fechada continuar legível sem o cadastro.
+   */
+  test('parcela do motorista sem lacuna grava a frase de origem, não o código', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '600.0000',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '200.0000',
+                  driverId: '00000000-0000-4000-8000-000000000010',
+                  driverName: 'Motorista Um',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'company',
+                  subtotal: '600.0000',
+                },
+              ],
+              days: 3,
+              daysOrigin: 'estimated',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'estimated',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({ kind: 'driver', note: 'R$ 200,00 × 3 dias · valor geral' }),
+    )
+  })
+
+  /**
+   * A lacuna vence sempre: sem `basis` (viagem sem condutor), `note` não pode inventar frase —
+   * o código é o único texto que sobra sem cadastro nenhum para descrever.
+   */
+  test('parcela do motorista com lacuna mantém o código, nunca a frase', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '0.0000',
+            basis: null,
+            detail: null,
+            gap: 'NO_TRIP_DRIVER',
+            kind: 'driver',
+            source: 'missing',
+          },
+        ],
+        hasGaps: true,
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({ kind: 'driver', note: 'NO_TRIP_DRIVER' }),
+    )
+  })
+
+  /** D2: mais de um condutor soma a viagem — a frase soma junto, uma linha por condutor. */
+  test('mais de um condutor: a frase soma uma linha por condutor', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '900.0000',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '250.0000',
+                  driverId: '00000000-0000-4000-8000-000000000011',
+                  driverName: 'Agregado',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'driver',
+                  subtotal: '500.0000',
+                },
+                {
+                  dailyAmount: '200.0000',
+                  driverId: '00000000-0000-4000-8000-000000000012',
+                  driverName: 'Da casa',
+                  paymentModel: 'fixed',
+                  rateOrigin: 'default',
+                  subtotal: '400.0000',
+                },
+              ],
+              days: 2,
+              daysOrigin: 'informed',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'measured',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({
+        kind: 'driver',
+        note: 'R$ 250,00 × 2 dias · valor do motorista; R$ 200,00 × 2 dias · valor padrão',
+      }),
+    )
+  })
+
   /** O número existe e é mostrado; o que não pode é ele parecer final. */
   test('marca incompleto quando falta CT-e ou quando alguma parcela é desconhecida', async () => {
     const { repository, written } = buildRepository()
