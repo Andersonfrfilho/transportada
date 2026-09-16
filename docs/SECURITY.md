@@ -5,6 +5,24 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-16 — chave de envio do Resend e senha do SMTP expostas em conversa
+
+**Onde:** worker de produção no Railway — `RESEND_API_KEY` (referenciada da chave que o operador
+mantém como `RESEND_TRANSPORTADORA_FERNANDES_API_KEY`) e a senha da caixa
+`nao-responda@fernandes-transportadora.com.br` no `SMTP_URL`.
+
+**O que é:** ao destravar o envio de convite por e-mail, a chave do Resend e a senha do SMTP foram
+escritas em texto numa sessão de assistente de código, e parte de uma senha anterior apareceu em saída
+de terminal. Pela regra deste repositório, segredo que passa por terminal ou log está queimado.
+A decisão do dono foi manter a chave em produção para liberar os convites agora.
+
+**O que falta:** gerar chave nova no Resend (só envio, domínio `fernandes-transportadora.com.br`),
+gravar no worker de produção e revogar a antiga; trocar a senha da caixa `nao-responda@` no Zoho (ou
+remover o `SMTP_URL`, já que com `RESEND_API_KEY` o worker não usa mais SMTP). Tirar a chave do
+`~/.zshrc` local, onde fica em texto puro.
+
+**Origem:** incidente de convites que não chegavam, 2026-09-16.
+
 ### 2026-09-16 — quatro rotas novas da spec 152 sem rate limit dedicado (T14 item 6)
 
 **Onde:** `api-transportada`, `nfe-documents/presentation/package-box.routes.ts` e
