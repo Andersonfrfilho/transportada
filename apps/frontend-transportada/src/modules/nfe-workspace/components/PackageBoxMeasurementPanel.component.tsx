@@ -32,6 +32,8 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
   matching: boolean
   onMeasure: (input: PackageBoxMeasurementInput) => void
+  /** M-a: zera o desfecho da gravação anterior — o fluxo abre sem a recusa da caixa passada. */
+  onResetSaveError: () => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
@@ -112,6 +114,7 @@ export function PackageBoxMeasurementPanel({
   loading,
   matching,
   onMeasure,
+  onResetSaveError,
   onScan,
   onSearchChange,
   onStatusChange,
@@ -225,6 +228,15 @@ export function PackageBoxMeasurementPanel({
     return () => window.clearTimeout(timer)
   }, [scanFeedback])
 
+  /**
+   * ⚠️ O fluxo abre do zero: sem o reset, o código da recusa da gravação anterior continuava no
+   * estado e a Conferência da caixa seguinte já nascia com o aviso de erro (2ª revisão, item M-a).
+   */
+  function openCameraFlow(): void {
+    onResetSaveError()
+    setIsCameraFlowOpen(true)
+  }
+
   const scanner = (
     <BarcodeScanner
       closeLabel={t('packageBoxes.scanner.close')}
@@ -315,9 +327,7 @@ export function PackageBoxMeasurementPanel({
           />
         </label>
         <Button
-          onClick={() =>
-            cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)
-          }
+          onClick={() => (cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true))}
           type="button"
           variant="secondary"
         >

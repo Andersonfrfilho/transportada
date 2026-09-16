@@ -170,6 +170,47 @@ describe('PackageBoxCameraFlow encadeia as etapas na mesma sessão de câmera (s
     expect(alertBlock).toContain("t('packageBoxes.camera.saveFailed', { code: saveErrorCode })")
   })
 
+  /**
+   * ⚠️ **Desfecho de gravação anterior não é desfecho desta.** A etapa saía de "Gravando" com o
+   * `saveStatus` que sobrou da tentativa passada quando o `dispatch` e o `mutate` não caíam no mesmo
+   * lote de render (2ª revisão, item M-c). Só conta como desfecho o que chega **depois** de a
+   * tentativa virar `pending`.
+   */
+  it('M-c: o desfecho só é aceito depois de a tentativa em curso ficar pendente', async () => {
+    const flow = await read(FLOW)
+
+    expect(flow).toContain("if (saveStatus === 'pending')")
+    const outcomeEffect = flow.split("if (state.step !== 'saving')")[1]?.split('}, [')[0] ?? ''
+    expect(outcomeEffect).toContain('attemptIsPendingRef.current')
+    expect(outcomeEffect).toContain("if (saveStatus === 'success') dispatch({ kind: 'saved' })")
+    expect(outcomeEffect).toContain("if (saveStatus === 'error') dispatch({ kind: 'saveFailed' })")
+  })
+
+  /**
+   * ⚠️ **O worker da pré-carga já vive em `engineWorker`.** `preloadWorkerRef` virou código morto na
+   * T14 e ninguém o lê (2ª revisão, item B-a): duas fontes para o mesmo worker é a próxima
+   * divergência calada.
+   */
+  it('B-a: o worker da pré-carga tem uma referência só', async () => {
+    const flow = await read(FLOW)
+
+    expect(flow).not.toContain('preloadWorkerRef')
+    expect(flow).toContain('setEngineWorker(worker)')
+  })
+
+  /**
+   * ⚠️ **"Leia a etiqueta de novo" com o leitor desligado.** A falha de consulta chegava na etapa
+   * `identifying`, onde `useBarcodeScanner` está inativo — o conferente lia e nada acontecia
+   * (2ª revisão, item B-b). A falha devolve a etapa para `label`, que é onde o leitor está ligado.
+   */
+  it('B-b: consulta que falhou devolve a etapa para a etiqueta, com o leitor ligado', async () => {
+    const flow = await read(FLOW)
+
+    expect(flow).toContain("if (!lookupFailed || state.step !== 'identifying') return")
+    expect(flow).toContain("dispatch({ kind: 'backToLabel' })")
+    expect(flow).toContain("isActive: isOpen && state.step === 'label'")
+  })
+
   /** T14 item M7: consulta com erro virava "Nenhuma caixa com este código" — caixa que existe. */
   it('M7: consulta que falhou é erro na tela, nunca ausência de caixa', async () => {
     const flow = await read(FLOW)
@@ -290,9 +331,10 @@ describe('o painel entra no fluxo da câmera pela leitura própria do interrupto
     const panel = await read(PANEL)
 
     expect(panel).toContain('cameraMeasurementEnabled: boolean')
-    expect(panel).toContain(
-      'cameraMeasurementEnabled ? setIsCameraFlowOpen(true) : setIsScannerOpen(true)',
-    )
+    expect(panel).toContain('cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true)')
+    /** Abrir o fluxo zera o desfecho da gravação anterior (M-a), e é só por aqui que ele abre. */
+    expect(panel.match(/setIsCameraFlowOpen\(true\)/gu)?.length).toBe(1)
+    expect(panel).toContain('function openCameraFlow(): void {\n    onResetSaveError()')
     expect(panel).toContain('<PackageBoxCameraFlow')
   })
 

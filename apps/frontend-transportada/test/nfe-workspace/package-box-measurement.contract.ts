@@ -324,6 +324,30 @@ describe('bipar leva direto à medição da caixa achada', () => {
     expect(flowBlock).toContain('saveStatus={saveStatus}')
   })
 
+  /**
+   * ⚠️ **O código da recusa não pode sobreviver à caixa.** Ele só era limpo em `onMutate`, e o
+   * fluxo mostra o aviso sempre que houver código: a caixa seguinte abria a Conferência com a
+   * recusa da anterior estampada (2ª revisão, item M-a). Limpa no sucesso, e o fluxo pede o reset
+   * ao abrir.
+   */
+  it('M-a: a recusa da gravação anterior não vaza para a caixa seguinte', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const onSuccess = hook.split('onSuccess: () => {')[1]?.split('},')[0] ?? ''
+    expect(onSuccess).toContain('setMeasureErrorCode(undefined)')
+    expect(hook).toContain('resetMeasure')
+    expect(hook).toContain('measure.reset()')
+    expect(panel).toContain('onResetSaveError')
+  })
+
   it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
     const hook = await Bun.file(
       new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
