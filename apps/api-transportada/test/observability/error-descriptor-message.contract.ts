@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, it } from 'bun:test'
+import { KEYCLOAK_ADMIN_ERROR_CODE, KeycloakAdminError } from '@adatechnology/keycloak-admin'
 
 import { describeErrorForLog } from '../../src/logging/error-descriptor.service'
 import { DiagnosableError } from '../../src/shared/diagnosable.error'
@@ -78,5 +79,40 @@ describe('error descriptor message (spec 074 RF4/RNF2)', () => {
   it('survives an error that is not an Error at all', () => {
     expect(describeErrorForLog('boom')).toMatchObject({ errorName: 'UnknownError' })
     expect(describeErrorForLog(null).message).toBeUndefined()
+  })
+})
+
+/**
+ * A troca de login em produção respondeu 500 com o log dizendo só `KeycloakAdminError`. O status e a
+ * chave de recusa do provedor são o que separa "realm não deixa trocar" de "atributo recusado".
+ */
+describe('recusa do Keycloak no log', () => {
+  it('leva o status e a chave de erro do provedor', () => {
+    const error = new KeycloakAdminError({
+      code: KEYCLOAK_ADMIN_ERROR_CODE.REQUEST_FAILED,
+      context: { detail: 'error-user-attribute-read-only', method: 'PUT' },
+      message: 'Keycloak admin request failed with status 400',
+      status: 400,
+    })
+
+    expect(describeErrorForLog(error)).toMatchObject({
+      errorName: 'KeycloakAdminError',
+      upstreamDetail: 'error-user-attribute-read-only',
+      upstreamStatus: 400,
+    })
+  })
+
+  it('texto livre do provedor não entra: ele pode ecoar o valor enviado', () => {
+    const error = new KeycloakAdminError({
+      code: KEYCLOAK_ADMIN_ERROR_CODE.REQUEST_FAILED,
+      context: { detail: 'User exists with same username deisy.coimbra' },
+      status: 500,
+      message: 'Keycloak admin request failed with status 500',
+    })
+
+    const descriptor = describeErrorForLog(error)
+    expect(descriptor.upstreamStatus).toBe(500)
+    expect(descriptor).not.toHaveProperty('upstreamDetail')
+    expect(JSON.stringify(descriptor)).not.toContain('deisy')
   })
 })

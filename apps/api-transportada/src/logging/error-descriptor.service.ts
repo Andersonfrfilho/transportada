@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { isKeycloakAdminError } from '@adatechnology/keycloak-admin'
+
 import { findPostgresError } from '../database/postgres-error.support'
 import { isDiagnosableError } from '../shared/diagnosable.error'
 
@@ -11,6 +13,9 @@ export type ErrorDescriptor = {
   readonly errorName: string
   readonly message?: string
   readonly sqlState?: string
+  /** Resposta do provedor externo: o status e, quando é chave de erro, o motivo da recusa. */
+  readonly upstreamDetail?: string
+  readonly upstreamStatus?: number
 }
 
 /**
@@ -29,8 +34,29 @@ export function describeErrorForLog(error: unknown): ErrorDescriptor {
     errorName: readErrorName(error),
     ...(message === undefined ? {} : { message }),
     ...(details?.sqlState === undefined ? {} : { sqlState: details.sqlState }),
+    ...describeUpstreamRefusal(error),
   }
 }
+
+/**
+ * A troca de login respondia 500 com o log dizendo só `KeycloakAdminError`: o status e o motivo que o
+ * provedor devolveu ficavam no objeto e morriam ali. O motivo só entra quando tem forma de chave de
+ * erro (`error-user-attribute-read-only`) — texto livre pode ecoar o valor enviado, que é PII.
+ */
+function describeUpstreamRefusal(
+  error: unknown,
+): Pick<ErrorDescriptor, 'upstreamDetail' | 'upstreamStatus'> {
+  if (!isKeycloakAdminError(error)) return {}
+  const detail = error.context['detail']
+  return {
+    ...(typeof error.status === 'number' ? { upstreamStatus: error.status } : {}),
+    ...(typeof detail === 'string' && UPSTREAM_ERROR_KEY.test(detail)
+      ? { upstreamDetail: detail }
+      : {}),
+  }
+}
+
+const UPSTREAM_ERROR_KEY = /^[a-z][a-z0-9_.-]{2,80}$/i
 
 function readErrorName(error: unknown): string {
   if (error instanceof Error && error.name.length > 0) return error.name
