@@ -237,4 +237,73 @@ describe('packageBoxCameraFlow.service', () => {
       expect(closed.cameraEnabled).toBe(true)
     })
   })
+
+  describe('caixa escolhida na lista, sem etiqueta', () => {
+    test('boxPreselected pula a etiqueta e abre direto a etapa Medida daquela caixa', () => {
+      const initial = createInitialPackageBoxCameraFlowState<Candidate, Proposal>({
+        cameraEnabled: true,
+      })
+      const state = packageBoxCameraFlowReducer(initial, {
+        candidate: { id: 'box-9' },
+        kind: 'boxPreselected',
+      })
+      expect(state.step).toBe('measure')
+      expect(state.identified).toEqual({ id: 'box-9' })
+      expect(state.noMatch).toBe(false)
+    })
+
+    test('troca a caixa de uma medida em andamento e descarta a proposta anterior', () => {
+      const initial = createInitialPackageBoxCameraFlowState<Candidate, Proposal>({
+        cameraEnabled: true,
+      })
+      const reviewed = reduceAll(initial, [
+        { candidate: { id: 'box-1' }, kind: 'boxPreselected' },
+        { kind: 'measured', proposal: { lengthMm: 300 } },
+      ])
+      const state = packageBoxCameraFlowReducer(reviewed, {
+        candidate: { id: 'box-2' },
+        kind: 'boxPreselected',
+      })
+      expect(state.step).toBe('measure')
+      expect(state.identified).toEqual({ id: 'box-2' })
+      expect(state.proposal).toBeUndefined()
+      expect(state.reviewSource).toBeUndefined()
+    })
+
+    test('R7: com a função desligada a etapa Medida não abre', () => {
+      const initial = createInitialPackageBoxCameraFlowState<Candidate, Proposal>({
+        cameraEnabled: false,
+      })
+      const state = packageBoxCameraFlowReducer(initial, {
+        candidate: { id: 'box-9' },
+        kind: 'boxPreselected',
+      })
+      expect(state).toBe(initial)
+    })
+
+    test('não interrompe uma gravação em curso', () => {
+      const initial = createInitialPackageBoxCameraFlowState<Candidate, Proposal>({
+        cameraEnabled: true,
+      })
+      const saving = reduceAll(initial, [
+        { candidate: { id: 'box-1' }, kind: 'boxPreselected' },
+        { kind: 'typeRequested' },
+        { kind: 'saveRequested' },
+      ])
+      expect(
+        packageBoxCameraFlowReducer(saving, { candidate: { id: 'box-2' }, kind: 'boxPreselected' }),
+      ).toBe(saving)
+    })
+
+    test('a linha da fila oferece "Medir pela câmera" só com a função ligada', async () => {
+      const panel = await Bun.file(
+        new URL(
+          '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+          import.meta.url,
+        ),
+      ).text()
+      expect(panel).toContain("t('packageBoxes.measureWithCamera')")
+      expect(panel).toMatch(/cameraMeasurementEnabled\s*\?\s*\(\)\s*=>\s*openCameraFlow\(box\)/u)
+    })
+  })
 })

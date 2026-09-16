@@ -616,6 +616,7 @@
     "height": "Altura (cm)",
     "measure": "Medir",
     "remeasure": "Medir de novo",
+    "measureWithCamera": "Medir pela câmera",
     "save": "Gravar medida",
     "cancel": "Cancelar",
     "scanner": {
