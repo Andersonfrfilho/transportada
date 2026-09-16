@@ -203,6 +203,13 @@ function perturb(
     nominal.focalSource === 'defaultFov'
       ? nominal.focalPx * (1 + gaussian(random) * FALLBACK_FOCAL_RELATIVE_SIGMA)
       : undefined
+  /**
+   * ⚠️ **A ordem dos sorteios é parte do resultado.** O gerador é uma sequência: consumir os cantos
+   * do marcador antes ou depois dos pontos tocados dá dois Monte Carlo diferentes com a mesma
+   * semente. A ordem aqui é a do spike (focal → cantos → face → pé), e é ela que faz os 16 testes
+   * do spike continuarem sendo referência desta implementação (T14 item M4).
+   */
+  const markerCorners = input.markerCorners.map((corner) => jitter(corner, cornerSigma, random))
   const facePoints = input.facePoints.map((point) => jitter(point, touchSigma, random)) as [
     Point,
     Point,
@@ -211,7 +218,7 @@ function perturb(
   ]
   return {
     ...input,
-    markerCorners: input.markerCorners.map((corner) => jitter(corner, cornerSigma, random)),
+    markerCorners,
     facePoints,
     footPoint: jitter(input.footPoint, touchSigma, random),
     ...(focalPx ? { focalPx } : {}),
