@@ -77,9 +77,10 @@ configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), entã
 - ⚠️ **Keycloak 26 não aceita `PUT /users/:id` só com `attributes`** (reproduzido na 26.5.2 com o
   realm de produção, 16/09/2026): sem `username` responde 400 "User name is missing", e com o
   `username` sem e-mail e nome **apaga os dois**. Toda edição de perfil termina regravando
-  atributos, e dava 500. `createFullRepresentationFetch` (`keycloak-full-representation.fetch.ts`),
-  injetado no cliente do pacote, lê a conta e regrava a representação completa — vale para
-  `updateAttributes` e `setProfilePicture`. Troca de nome/e-mail/login/`enabled` passa intacta.
+  atributos, e dava 500. Corrigido na fonte em `@adatechnology/keycloak-admin@1.0.1`:
+  `updateAttributes` e `setProfilePicture` leem a conta e regravam a representação completa. Troca
+  de nome/e-mail/login/`enabled` segue parcial. O contrato do comportamento continua em
+  `test/user-administration-application/keycloak-full-representation.contract.ts`.
 - **Reconciliação com o Keycloak** tem duas divergências que não somam num botão só —
   `missingSomewhere` (existe de um lado, `POST /reconciliation/sync` conserta) vs `withoutProfile`
   (existe dos dois lados sem ficha, `POST /reconciliation/profiles` conserta). As duas rotas sempre

@@ -21,7 +21,6 @@ import type {
   CreateAdministratorInput,
   CreateAdministratorResult,
 } from '../application/bootstrap-first-admin.port.js'
-import { createFullRepresentationFetch } from './keycloak-full-representation.fetch.js'
 
 type KeycloakAdminGatewayConfig = {
   readonly clientId: string
@@ -34,11 +33,7 @@ type KeycloakAdminGatewayDependencies = {
 }
 
 const defaultDependencies: KeycloakAdminGatewayDependencies = {
-  createClient: (config) =>
-    createKeycloakAdminClient({
-      config,
-      fetch: createFullRepresentationFetch((input, init) => globalThis.fetch(input, init)),
-    }),
+  createClient: (config) => createKeycloakAdminClient({ config }),
 }
 
 export function createKeycloakAdminGateway(
