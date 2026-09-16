@@ -757,9 +757,9 @@ a {
   width: 100%;
   min-width: 0;
   align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1);
   border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 60%, transparent);
 }
@@ -786,8 +786,9 @@ a {
   object-fit: cover;
 }
 
+/* No celular a fileira não tem sobra para o nome: encolhido a zero, ele só custava um espaçamento. */
 .application-user-identity {
-  display: inline-flex;
+  display: none;
   flex: 1;
   flex-direction: column;
   gap: var(--space-1);
@@ -795,6 +796,18 @@ a {
   max-width: none;
   text-transform: none;
   letter-spacing: 0;
+}
+
+@media (min-width: 40rem) {
+  .application-user-identity {
+    display: inline-flex;
+  }
+
+  .application-user-area {
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
 }
 
 .application-user-name {
@@ -1363,6 +1376,7 @@ h2 {
   }
 
   .application-user-identity {
+    display: inline-flex;
     flex: 0 1 auto;
     max-width: 12rem;
   }
