@@ -2356,3 +2356,171 @@ do bundler, e o WASM de 11,96 MB entraria em toda rodada de contrato). O risco c
 continua sendo o pior tipo: convenção de bits invertida faz o cartão impresso nunca ser detectado,
 e isso só aparece no galpão. **Follow-up nomeado: `paridade-de-bits-do-marcador-aruco`**, com a
 recomendação de rodá-lo fora do `bun run test` (alvo próprio, como `migration-test`).
+
+## T14 — correções da 2ª revisão
+
+Data: 2026-09-16. Modelo: `sonnet` (executor). Base: `cb022d60` (T1–T14 da 1ª revisão em `staging`,
+com a função **desligada**). Os achados da 1ª rodada foram confirmados como corrigidos; tudo abaixo
+é da 2ª rodada, medido contra o código por sondas reais. **Nenhuma mudança em CSP,
+`Permissions-Policy`, `MARGIN_RELIABLE_MM` ou `MARGIN_UNRELIABLE_MM`** (paradas obrigatórias).
+
+### C-a — nenhuma gravação pela câmera funcionava (crítico)
+
+O motor devolve `float` (`598,7 mm`, margem `6,8 mm`) e `package-box.schema.ts` exige
+`z.number().int()` nas seis grandezas — toda gravação `camera`/`camera_adjusted` voltava `400`, e
+não havia `Math.round` em ponto nenhum da cadeia.
+
+O arredondamento entra no ponto **único** onde a proposta nasce: `confirmMeasurement` passou a
+delegar para `buildMeasuredProposal` (novo `src/components/ui/boxDimensionProposal.service.ts`), que
+arredonda as três margens e as três dimensões. ⚠️ **A classificação roda depois do arredondamento**:
+com margem `30,4` a tela deixaria o campo vazio (`unreliable`) enquanto a API leria `30` e cobraria
+confirmação de um valor que a câmera nunca propôs.
+
+### O contrato de fronteira que faltava
+
+Desenho, em duas metades sobre **uma** fixture versionada na raiz
+(`test/fixtures/package-box-measurement-submission.fixture.json`, três casos: `camera` pura,
+`camera_adjusted` com a altura não lida e digitada por cima, `camera_adjusted` com o comprimento
+corrigido e a altura imprecisa confirmada):
+
+1. `apps/frontend-transportada/test/nfe-workspace/package-box-submission-boundary.contract.ts` — parte
+   do `float` que o motor emite, monta a proposta com `buildMeasuredProposal` e o corpo com
+   `buildPackageBoxMeasurementSubmission`, e exige igualdade exata com a fixture;
+2. `apps/api-transportada/test/nfe-package-box/measurement-submission-boundary.contract.ts` — passa
+   cada corpo da fixture por `parsePackageBoxMeasurement`, o schema **real** da rota.
+
+Nenhuma app importa código-fonte da outra (regra do monorepo), e nenhuma metade sozinha pegaria o
+defeito. Para isso a montagem do corpo saiu de dentro de `PackageBoxMeasurementForm` para
+`shared/packageBoxMeasurementSubmission.service.ts` — três contratos que eram por texto de fonte
+viraram teste de comportamento de tabela.
+
+**Prova de que ele reprova o código anterior** (medida, não inferida): com a extração feita e **sem**
+o `Math.round`, a metade do frontend deu `0 pass / 4 fail`, com o diff
+`heightMarginMm: 13 ≠ 12.6 · lengthMarginMm: 7 ≠ 6.8 · proposedLengthMm: 599 ≠ 598.7 · …`. E a
+metade da API, antes do C-b, deu `(fail) grava: camera_adjusted, altura nao lida pela camera e
+digitada por cima (D6)` com `ApiError: Invalid request`.
+
+### C-b — o caminho D6 recusado (crítico, regressão de `fca6b631` item 3)
+
+O teto de 30 mm rodava sobre `resolveMeasurementMargin(camera)` (o **máximo** das três) para
+qualquer origem. A spec R5 (`spec.md:383-385`) diz que a regra é por dimensão e que a dimensão
+digitada por cima em `camera_adjusted` é isenta. Hoje o teto roda sobre o **mesmo** `uneditedMargins`
+que a regra de 10 mm já usava: com `source: camera` as três contam sempre; com `camera_adjusted`, a
+editada sai.
+
+O teste invertido na rodada anterior foi invertido de volta, com o nome que a spec dá
+(`camera_adjusted: margem acima de 30 mm na dimensão digitada por cima grava — a regra não se aplica
+a ela`), e ganhou ao lado o caso D6 ponta a ponta (`altura não lida (45 mm) e digitada por cima
+grava`).
+
+### M-b — a isenção do M1 era contornável
+
+`proposed<Dim>Mm` é opcional, e `camera[proposed] === value[recorded]` tratava `undefined !== 350`
+como "editada": `camera_adjusted` sem nenhuma proposta dispensava a confirmação nas três. A decisão
+de "editada" virou a função `isEditedDimension`: **sem proposta conhecida a dimensão conta como NÃO
+editada** (lado seguro), com uma exceção só — a dimensão que a própria câmera declarou não ter lido
+(margem acima do teto, D6), onde não existe proposta para comparar e o campo nasce vazio na tela. O
+teste antigo que aceitava margem 11 sem confirmação e sem proposta nenhuma virou o inverso, e o caso
+legítimo (proposta presente e diferente do gravado) ficou explícito.
+
+### A-a — `cameraOnlyCount` nunca chegava à tela
+
+`CameraMeasurementSettingsPanel` saía por `readingCount === 0` antes de qualquer coisa: uma sessão
+inteira fora do protocolo da D16 aparecia idêntica a "ninguém mediu". A contagem passa pelos dois
+ramos (`cameraOnlyHint`, o mesmo nó), dizendo que são leituras não conferidas com a fita e que ficam
+fora das duas taxas. Rótulo novo `cameraMeasurementValidationCameraOnly` em pt-BR (acentuado) e en,
+com contrato no painel e no locale.
+
+### M-a, M-c, B-a, B-b
+
+- **M-a:** `measureErrorCode` só era limpo em `onMutate` e a Conferência mostra o aviso sempre que
+  houver código — a caixa **seguinte** abria com a recusa da anterior estampada. Limpa também em
+  `onSuccess`, e `usePackageBoxQueue` expõe `resetMeasure` (que chama `measure.reset()`), acionado
+  pelo painel em `openCameraFlow()`.
+- **M-c:** o desfecho dependia de `dispatch` e `mutate` caírem no mesmo lote de render. Agora só
+  conta o desfecho que chega **depois** de a tentativa ficar `pending` (`attemptIsPendingRef`) —
+  entrar em `saving` vendo o `success` da caixa anterior deixa de mandar o conferente de volta à
+  etiqueta com esta caixa sem medida.
+- **B-a:** `preloadWorkerRef` removido (código morto ao lado de `engineWorker`).
+- **B-b:** a falha de consulta chegava na etapa `identifying`, onde `useBarcodeScanner` está
+  inativo, pedindo para ler a etiqueta de novo com o leitor desligado. Ela devolve a etapa para
+  `label`. O aviso de falha continua na tela.
+
+### B-c e B-d
+
+- **B-c:** `MAXIMUM_FRAME_WIDTH = 720` era declarado em `boxDimensionFrame.service.ts` e em
+  `useBarcodeScanner.hook.ts` (§16). Agora é `src/components/ui/cameraFrame.constant.ts`, importado
+  pelos dois, com contrato que falha se o literal reaparecer.
+- **B-d:** o `CLAUDE.md` da app dizia `geolocation=()` e `server.ts:54` responde `geolocation=(self)`
+  desde a **spec 057** (a entrega do motorista carimba onde aconteceu, ADR-0045 §3). A implementação
+  vence: doc da app e `docs/ai-context/frontend-transportada.md` corrigidos.
+
+### Urgente do coordenador — a sonda de CSP derrubava o CI
+
+`gate / quality-app (frontend-transportada)` roda só a bateria de testes e nunca executou
+`playwright install` (isso é do gate de integração e do smoke): `box-dimension-scanner-csp.contract.ts`
+chamava `chromium.launch()` e derrubava o gate inteiro por executável ausente, com todos os
+`deploy-*` pulados (run 35057484910, commit `cb022d60`).
+
+Caminho escolhido: **detecção antes do `launch`** (`existsSync(chromium.executablePath())` dentro de
+`try/catch`) + `it.skipIf` nos dois casos que precisam de navegador, com `console.warn` dizendo como
+exercitá-la (`bunx playwright install chromium`). Preferido a tirar a sonda da lista `test` porque
+assim ela **continua rodando de verdade** na máquina do desenvolvedor e em qualquer job que instale
+os navegadores, sem precisar de alvo próprio que ninguém lembra de rodar; a asserção de texto
+(`img-src` sem `data:`) não depende de navegador e continua valendo sempre.
+
+Medido nos dois caminhos, no mesmo commit:
+
+```
+bun test ./test/design-system/box-dimension-scanner-csp.contract.ts        → 3 pass, 0 fail
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sem-navegador-xyz bun test …                 → 1 pass, 2 skip, 0 fail
+                                                                             (+ aviso na saída)
+```
+
+### Gates
+
+| Gate                                    | Resultado                                    |
+| --------------------------------------- | -------------------------------------------- |
+| `bun run format:check`                  | `All matched files use Prettier code style!` |
+| `bun run typecheck` (6 apps)            | limpo                                        |
+| `bun run lint` (6 apps)                 | limpo, `--max-warnings=0`                    |
+| `bun run test` (6 apps)                 | 11.701 pass · 23 skip · **0 (fail)**         |
+| contratos da API (`bun test`, 177 arq.) | 6.048 pass · 23 skip · 0 (fail)              |
+| integração da API (com Postgres)        | 6.070 pass · **1 (fail)** preexistente       |
+| frontend (contratos + acentos)          | 4.043 pass · 0 (fail)                        |
+| `bun run build` (6 apps)                | ok                                           |
+
+Contagem de `(fail)`: **1**, preexistente e conhecida —
+`database-migration/cte-profile-output-constraints` (`errno 23001` em vez de `23503`, conforme a
+versão do Postgres; aqui 18.4). A outra conhecida, `cte-archive-gateway` (sem MinIO), não falhou
+nesta rodada. As duas metades do contrato de fronteira e os contratos novos entraram nas listas
+explícitas de `test/nfe-package-box.contract.test.ts` e `test/nfe-workspace.contract.test.ts`.
+
+Postgres: o do Docker segue indisponível — `docker ps` não respondeu em 120 s nesta sessão. Foi
+subido um **Postgres 18.4 nativo descartável** em `127.0.0.1:56432` (dados no scratchpad da sessão,
+socket em `/tmp/pg152`, `LC_ALL=C` no `pg_ctl` — sem isso o 18.4 recusa o boot com "postmaster became
+multithreaded during startup"), banco `transportada_test`. **O `.env.test` do link simbólico não foi
+editado**: a integração rodou com `DRIZZLE_TEST_DATABASE_URL` na linha de comando, por cima do
+`--env-file=../../.env.test`. Sem essa variável, os 23 testes de integração **pulam em silêncio**.
+
+### Commits
+
+| Tema                                | Hash       |
+| ----------------------------------- | ---------- |
+| sonda de CSP pula sem Chromium (CI) | `3294afc8` |
+| C-a + contrato de fronteira         | `0c70950c` |
+| C-b + M-b                           | `4d6efbe0` |
+| A-a                                 | `72cee63a` |
+| M-a + M-c + B-a + B-b               | `71b02dbb` |
+| B-c + B-d                           | `988b7f6f` |
+
+### Follow-up
+
+- `paridade-de-bits-do-marcador-aruco` continua aberto (herdado da rodada anterior).
+- A fixture da fronteira cobre os três corpos que a app produz hoje; corpo novo (por exemplo com
+  `grossWeightGrams` vindo da balança) precisa entrar nela, ou a fronteira volta a não ver o caso.
+- O teto de 30 mm deixou de ter efeito prático em `camera_adjusted` quando a câmera declara não ter
+  lido a dimensão — é o que a spec pede (D6), e é a definição de "editada" de `isEditedDimension` que
+  o sustenta. Se a validação T15 mostrar bloco `camera` forjado com margem alta e sem proposta, a
+  decisão volta ao usuário: hoje o lado seguro escolhido é aceitar o valor **digitado** e recusar
+  qualquer margem não editada acima do teto.
