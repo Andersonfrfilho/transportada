@@ -34,10 +34,12 @@ export function useCargoSettings(input: Readonly<{ companyId?: string; enabled: 
   const saveMutation = useMutation({
     mutationFn: (defaultVolumeWeight: string | null) =>
       defaultVolumeWeight === null
-        ? client.clearDefaultVolumeWeight().then((): CargoSettings => ({
-            cameraMeasurementEnabled: query.data?.cameraMeasurementEnabled ?? false,
-            defaultVolumeWeight: null,
-          }))
+        ? client.clearDefaultVolumeWeight().then(
+            (): CargoSettings => ({
+              cameraMeasurementEnabled: query.data?.cameraMeasurementEnabled ?? false,
+              defaultVolumeWeight: null,
+            }),
+          )
         : client.setDefaultVolumeWeight(defaultVolumeWeight),
     onSuccess(settings) {
       queryClient.setQueryData(queryKey, settings)

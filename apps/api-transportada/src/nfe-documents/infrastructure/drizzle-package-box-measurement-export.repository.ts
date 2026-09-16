@@ -46,7 +46,9 @@ type MeasurementRow = {
  * `measured_by_user_id` não tem FK (T2), então o ator pode não ter mais vínculo ativo. Só a coluna
  * `id`/`name` sai; nunca id cru sem nome (D16, mesmo cuidado de `nfe-document-event.port.ts`).
  */
-export class DrizzlePackageBoxMeasurementExportRepository implements PackageBoxMeasurementExportRepositoryPort {
+export class DrizzlePackageBoxMeasurementExportRepository
+  implements PackageBoxMeasurementExportRepositoryPort
+{
   public constructor(private readonly database: Database) {}
 
   public async listMeasurements(input: {

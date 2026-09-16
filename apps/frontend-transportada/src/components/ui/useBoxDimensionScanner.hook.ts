@@ -38,7 +38,12 @@ const SLOW_FRAME_STRIKES = 3
 const LIVE_WARNING_ANNOUNCE_INTERVAL_MS = 500
 
 export type BoxDimensionScannerStatus =
-  'capturing' | 'idle' | 'live' | 'loadingEngine' | 'measured' | 'unsupported'
+  | 'capturing'
+  | 'idle'
+  | 'live'
+  | 'loadingEngine'
+  | 'measured'
+  | 'unsupported'
 
 export type BoxDimensionUnsupportedReason = 'engineFailed' | 'noWasm' | 'tooSlow'
 

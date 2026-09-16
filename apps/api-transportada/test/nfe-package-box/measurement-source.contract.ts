@@ -450,7 +450,8 @@ describe('createMeasurePackageBox recusa câmera com a função desligada (spec 
   test('ligada: source camera grava, e o ator vem do contexto — nunca do corpo', async () => {
     const { cameraMeasurementSettings, repository } = buildDependencies({ enabled: true })
     let captured:
-      { readonly measuredByUserId: string; readonly measurementMarginMm: number | null } | undefined
+      | { readonly measuredByUserId: string; readonly measurementMarginMm: number | null }
+      | undefined
     const spyRepository: PackageBoxRepositoryPort = {
       ...repository,
       measure: (input) => {
