@@ -40,6 +40,9 @@
     "resend": "Resend",
     "resendSucceeded": "Invitation resent. The previous code no longer works.",
     "activate": "Reactivate",
+    "activateInvited": "Activate now",
+    "activateInvitedHint": "Grants access without waiting for the invitation code. Set the password in Edit if the person has none yet.",
+    "activateInvitedSucceeded": "Access activated. If the person has no password yet, set one in Edit.",
     "suspend": "Suspend",
     "remove": "Remove",
     "copyMembershipId": "Copy the membership identifier",
@@ -133,7 +136,11 @@
         "save": "Set password",
         "saved": "Password set.",
         "sendReset": "Send reset link",
-        "resetSent": "Request sent. If the login exists and is active, the link arrives through the registered channel."
+        "resetSent": "Request sent. If the login exists and is active, the link arrives through the registered channel.",
+        "activate": "Activate with this password",
+        "activateWithoutPassword": "Activate without setting a password",
+        "activateHint": "The invitation was not accepted yet. Activating grants access now and closes the invitation.",
+        "activated": "Access activated."
       },
       "edit": "Change",
       "cancelEdit": "Keep",

@@ -20,6 +20,18 @@ import { toSynchronizeTargets } from '../../src/modules/identity/shared/reconcil
 
 const API_URL = 'https://transportada.test'
 const USER_ID = '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93'
+const ACTIVATED_USER_PAYLOAD = {
+  contact: { channel: 'email', masked: 'a***@e***.test' },
+  email: '',
+  id: USER_ID,
+  membershipId: 'membership-1',
+  name: 'Ana',
+  phone: '',
+  roles: ['operator'],
+  status: 'active',
+  taxId: '',
+  username: 'ana',
+}
 
 function entryOf(status: ReconciliationEntry['status'], suffix: string): ReconciliationEntry {
   return {
@@ -168,6 +180,78 @@ describe('a senha tem rota própria', () => {
 })
 
 /**
+ * O convite nasce desabilitado no provedor e só o código habilita. Quando o código não chega, a
+ * ativação manual é a saída — e ela precisa estar onde a pessoa é vista: na linha e na edição.
+ */
+describe('ativação manual do convidado', () => {
+  function createRecordingClient() {
+    const calls: Readonly<{ body: string; method: string; url: string }>[] = []
+    const client = createCompanyUsersClient({
+      apiUrl: API_URL,
+      fetch: async (input) => {
+        const request = input as Request
+        calls.push({ body: await request.text(), method: request.method, url: request.url })
+        return new Response(JSON.stringify({ data: ACTIVATED_USER_PAYLOAD }), { status: 200 })
+      },
+      getAccessToken: () => Promise.resolve('token'),
+      newIdempotencyKey: () => 'key',
+    })
+    return { calls, client }
+  }
+
+  test('sem senha, vai por POST com corpo vazio', async () => {
+    const { calls, client } = createRecordingClient()
+
+    await client.activateUser({ userId: USER_ID })
+
+    expect(calls[0]?.method).toBe('POST')
+    expect(calls[0]?.url).toBe(`${API_URL}/company-users/${USER_ID}/activation`)
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({})
+  })
+
+  test('com senha, leva senha e `temporary` juntos', async () => {
+    const { calls, client } = createRecordingClient()
+
+    await client.activateUser({
+      password: 'senha-longa-o-suficiente',
+      temporary: false,
+      userId: USER_ID,
+    })
+
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({
+      password: 'senha-longa-o-suficiente',
+      temporary: false,
+    })
+  })
+
+  test('a linha do convidado oferece ativar agora', () => {
+    const table = readFileSync(
+      'src/modules/identity/components/CompanyUserTable.component.tsx',
+      'utf8',
+    )
+    const block = table.slice(table.indexOf("user.status === 'invited'"))
+
+    expect(block).toContain('onActivate(user)')
+    expect(block).toContain("t('users.activateInvited')")
+  })
+
+  test('a edição do convidado ativa usando os campos de senha', () => {
+    const dialog = readFileSync(
+      'src/modules/identity/components/CompanyUserEditDialog.component.tsx',
+      'utf8',
+    )
+    const panel = readFileSync(
+      'src/modules/identity/components/CompanyUserPasswordPanel.component.tsx',
+      'utf8',
+    )
+
+    expect(dialog).toContain("isInvited={user.status === 'invited'}")
+    expect(panel).toContain('password.activate(userId)')
+    expect(panel).toContain("t('users.editDialog.password.activateWithoutPassword')")
+  })
+})
+
+/**
  * A conferência por texto de fonte existe porque esta app não tem DOM no teste: um bloco que some
  * do diálogo compila e passa em todo teste de serviço puro. Foi assim que a foto ficou só no
  * diálogo de permissões, e o telefone e o CPF ficaram fora da edição apesar de a rota os aceitar.
@@ -255,7 +339,8 @@ describe('sucesso não sai na cor do erro', () => {
     const successBlock = source.slice(source.indexOf("password.status === 'idle'"))
 
     expect(successBlock).toContain('styles.noticeReady')
-    expect(successBlock).toContain("password.status === 'saved'")
+    expect(successBlock).toContain('PASSWORD_STATUS_MESSAGE[password.status]')
+    expect(source).toContain("activated: 'activated'")
   })
 
   test('o resultado do conserto sai no verde', () => {

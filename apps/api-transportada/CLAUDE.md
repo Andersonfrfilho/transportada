@@ -64,6 +64,11 @@ configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), entã
 - **Admin define senha por rota própria** (`PUT /company-users/:id/password`, `users.manage`) e
   responde `204` sem eco. `temporary` é campo obrigatório do corpo, não padrão escondido. Piso de 12
   caracteres (mais alto que o fluxo de recuperação, porque quem digita é um terceiro). Sem rate limit.
+  ⚠️ Definir senha **não habilita** a conta: o convite nasce `enabled: false` no Keycloak.
+- **Ativação manual** (`POST /company-users/:id/activation`, `users.manage`) é a saída quando o
+  código do convite não chega: senha opcional (com ela, `temporary` obrigatório) → vínculo ativo →
+  `setEnabled(true)` → convite `pending` vira `accepted` → trilha `company-user.activated` (sem a
+  senha). Repetir converge. Botão "Ativar agora" na linha do convidado e no painel de senha da edição.
 - **Reconciliação com o Keycloak** tem duas divergências que não somam num botão só —
   `missingSomewhere` (existe de um lado, `POST /reconciliation/sync` conserta) vs `withoutProfile`
   (existe dos dois lados sem ficha, `POST /reconciliation/profiles` conserta). As duas rotas sempre

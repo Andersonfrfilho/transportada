@@ -21,6 +21,7 @@ type ExecuteCall = Record<string, unknown>
 export type RefusalKind = 'cross-tenant' | 'duplicate-username' | 'last-admin' | 'self-removal'
 
 type RouteDependencies = {
+  readonly activate: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly changeStatus: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly invite: { execute(input: ExecuteCall): Promise<typeof INVITED_COMPANY_USER> }
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
@@ -209,6 +210,7 @@ export const WITHOUT_USERS_MANAGE_PERMISSIONS: CompanyContext['permissions'] = n
 export async function createUserAdministrationHttpFixture(
   params: CreateFixtureParams = {},
 ): Promise<{
+  readonly activateCalls: ExecuteCall[]
   readonly changeStatusCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly inviteCalls: ExecuteCall[]
@@ -227,6 +229,7 @@ export async function createUserAdministrationHttpFixture(
   readonly setPasswordCalls: ExecuteCall[]
   readonly updateProfileCalls: ExecuteCall[]
 }> {
+  const activateCalls: ExecuteCall[] = []
   const changeStatusCalls: ExecuteCall[] = []
   const inviteCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
@@ -249,6 +252,13 @@ export async function createUserAdministrationHttpFixture(
   }
 
   const routes = await loadRoutes({
+    activate: {
+      async execute(input) {
+        activateCalls.push(structuredClone(input))
+        if (params.refusal) return refuse()
+        return { ...COMPANY_USER, status: 'active' }
+      },
+    },
     changeStatus: {
       async execute(input) {
         changeStatusCalls.push(structuredClone(input))
@@ -377,6 +387,7 @@ export async function createUserAdministrationHttpFixture(
   })
 
   return {
+    activateCalls,
     changeStatusCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     inviteCalls,

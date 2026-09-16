@@ -7,9 +7,10 @@ import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { getCompanyUsersClient } from './useCompanyUsers.hook'
 
 /** O que o último clique de senha produziu. `idle` é o estado em que o painel não diz nada. */
-export type CompanyUserPasswordStatus = 'idle' | 'reset-sent' | 'saved'
+export type CompanyUserPasswordStatus = 'activated' | 'idle' | 'reset-sent' | 'saved'
 
 export type CompanyUserPasswordState = Readonly<{
+  activate: (userId: string) => Promise<void>
   errorCode: string | undefined
   isLongEnough: boolean
   isPending: boolean
@@ -31,7 +32,7 @@ export type CompanyUserPasswordState = Readonly<{
  * senha em memória depois que a pessoa mudou de tela.
  */
 export function useCompanyUserPassword(
-  input: Readonly<{ client?: CompanyUsersClient }> = {},
+  input: Readonly<{ client?: CompanyUsersClient; onActivated?: () => void }> = {},
 ): CompanyUserPasswordState {
   const client = input.client ?? getCompanyUsersClient()
   const [password, setPassword] = useState('')
@@ -48,6 +49,25 @@ export function useCompanyUserPassword(
   }
 
   return {
+    /**
+     * Com a senha digitada, ela vai junto e com o `temporary` escolhido; sem nada digitado, só
+     * habilita. Senha digitada e curta não ativa: mandaria a pessoa sem a senha que se esperava.
+     */
+    async activate(userId) {
+      if (password !== '' && password.length < COMPANY_USER_PASSWORD_MIN_LENGTH) return
+      setPending(true)
+      setErrorCode(undefined)
+      try {
+        await client.activateUser(password === '' ? { userId } : { password, temporary, userId })
+        setPassword('')
+        setStatus('activated')
+        input.onActivated?.()
+      } catch (error) {
+        setErrorCode(error instanceof Error ? error.message : 'UNKNOWN')
+      } finally {
+        setPending(false)
+      }
+    },
     clear,
     errorCode,
     isLongEnough: password.length >= COMPANY_USER_PASSWORD_MIN_LENGTH,
