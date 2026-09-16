@@ -128,6 +128,28 @@
         "unitsPerBox": 1,
         "widthMm": 401
       }
+    },
+    {
+      "name": "camera_adjusted, as tres dimensoes digitadas por cima da proposta (margem nula, D16)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 20,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 25,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 15
+        },
+        "grossWeightGrams": null,
+        "heightMm": 360,
+        "lengthMm": 610,
+        "source": "camera_adjusted",
+        "unitsPerBox": 1,
+        "widthMm": 410
+      }
     }
   ]
 }

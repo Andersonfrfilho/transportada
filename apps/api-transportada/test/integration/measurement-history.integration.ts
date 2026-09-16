@@ -151,6 +151,74 @@ describe('a caixa e o histórico da medida (spec 152, R5/R7)', () => {
     60_000,
   )
 
+  /**
+   * MÉDIO-1 (T14, 4ª revisão): o corpo de fronteira que zera `measurement_margin_mm` nunca tinha
+   * sido exercitado contra o Postgres — o 7º caso da fixture compartilhada, com as três dimensões
+   * digitadas por cima da proposta (nenhuma coincidindo com o valor gravado). Também prova que a
+   * gravação não colide com o CHECK de pareamento (`measurement_source <> 'typed' or
+   * measurement_margin_mm is null`): margem nula é sempre aceita, mesmo com origem não-`typed`.
+   */
+  testWithPostgres(
+    'D16: as três dimensões digitadas por cima zeram a margem da caixa, mesmo com camera_adjusted',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { boxId, companyId } = await seedCompanyWithBox(database, {
+          cameraMeasurementEnabled: true,
+        })
+        const measurePackageBox = buildMeasurePackageBox(database)
+
+        const measured = await measurePackageBox.execute({
+          boxId,
+          context: { companyId, userId: crypto.randomUUID() },
+          measurement: {
+            camera: {
+              engine: 'aruco-homography-v1',
+              heightMarginMm: 20,
+              impreciseConfirmed: false,
+              lengthMarginMm: 25,
+              proposedHeightMm: 352,
+              proposedLengthMm: 599,
+              proposedWidthMm: 401,
+              warnings: [],
+              widthMarginMm: 15,
+            },
+            grossWeightGrams: null,
+            heightMm: 360,
+            lengthMm: 610,
+            source: 'camera_adjusted',
+            unitsPerBox: 1,
+            widthMm: 410,
+          },
+        })
+
+        expect(measured).toBe(true)
+
+        const [box] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, boxId))
+        expect(box?.measurementSource).toBe('camera_adjusted')
+        expect(box?.measurementMarginMm).toBeNull()
+        expect(box?.heightMm).toBe(360)
+        expect(box?.lengthMm).toBe(610)
+        expect(box?.widthMm).toBe(410)
+
+        const history = await database.db
+          .select()
+          .from(nfePackageBoxMeasurements)
+          .where(eq(nfePackageBoxMeasurements.packageBoxId, boxId))
+        expect(history).toHaveLength(1)
+        expect(history[0]?.heightMarginMm).toBe(20)
+        expect(history[0]?.lengthMarginMm).toBe(25)
+        expect(history[0]?.widthMarginMm).toBe(15)
+        expect(history[0]?.proposedHeightMm).toBe(352)
+        expect(history[0]?.proposedLengthMm).toBe(599)
+        expect(history[0]?.proposedWidthMm).toBe(401)
+      })
+    },
+    60_000,
+  )
+
   testWithPostgres(
     'o corpo antigo (sem source) continua gravando typed, sem margem e sem histórico de câmera',
     async () => {

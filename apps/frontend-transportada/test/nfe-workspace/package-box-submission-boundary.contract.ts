@@ -195,6 +195,35 @@ describe('o corpo que o formulário da câmera envia atravessa o schema da API (
     expect(submission).toEqual(bodyOf('camera pura com os sete avisos do dominio de uma vez (D9)'))
   })
 
+  /**
+   * MÉDIO-1 (T14, 4ª revisão): o corpo de fronteira que zera `measurement_margin_mm` — as três
+   * dimensões digitadas por cima da proposta, nenhuma coincidindo com o valor gravado. É o corpo que
+   * exercita `package-box.schema.ts:99` (`if (worstUneditedMargin === null) return`) e a gravação de
+   * `measurement_margin_mm: null` com origem `camera_adjusted`.
+   */
+  it('camera_adjusted com as três dimensões digitadas por cima da proposta (margem nula, D16)', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: { height: true, length: true, width: true },
+      grossWeightGrams: null,
+      heightMm: 360,
+      impreciseConfirmed: false,
+      lengthMm: 610,
+      proposal: proposalOf(FLOAT_NOMINAL, {
+        heightMarginMm: 19.5,
+        lengthMarginMm: 24.6,
+        widthMarginMm: 14.5,
+      }),
+      unitsPerBox: 1,
+      widthMm: 410,
+    })
+
+    expect(submission).toEqual(
+      bodyOf(
+        'camera_adjusted, as tres dimensoes digitadas por cima da proposta (margem nula, D16)',
+      ),
+    )
+  })
+
   /** D11: sem proposta nenhuma o corpo não leva bloco de câmera — a metade da API cobra a ausência. */
   it('digitado comum não leva bloco de câmera', () => {
     const submission = buildPackageBoxMeasurementSubmission({
