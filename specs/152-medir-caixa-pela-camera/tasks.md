@@ -86,11 +86,12 @@ Contrato/aceite **antes** da implementação em toda task de código.
       `GET /nfe-package-boxes/measurement-settings` (`cargo.measure`, por porta), e o `422`
       `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` no use case de medida. **Aceite:** R7 como teste;
       ausência de linha = `false`; `403` sem permissão; resposta antiga do cargo intacta.
-- [ ] **T5 — Export do histórico para a validação (teste antes).** Primeiro
+- [x] **T5 — Export do histórico para a validação (teste antes).** Feito (evidence.md § T5). Primeiro
       `test/integration/package-box-measurement-export.integration.ts`. Depois
       `GET /nfe-package-box-measurements?from=&to=&cursor=` (`settings.manage`, `perPage` ≤ 100).
       **Aceite:** R8 (lado da API) como teste; só a empresa do token; sem descrição do produto nem
-      CNPJ; rota no documento OpenAPI.
+      CNPJ; rota no documento OpenAPI — sem geração de OpenAPI nesta base (mesmo ponto já registrado
+      fora de escopo na T3).
 
 ## Fase 3 — Design system: motor, stream compartilhado e primitivo de medida
 

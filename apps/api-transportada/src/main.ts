@@ -511,9 +511,12 @@ import { createListNfeDocumentEvents } from './nfe-documents/application/list-nf
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
+import { createListPackageBoxMeasurements } from './nfe-documents/application/list-package-box-measurements.use-case'
 import { DrizzlePackageBoxRepository } from './nfe-documents/infrastructure/drizzle-package-box.repository'
 import { DrizzleCameraMeasurementSettingsRepository } from './nfe-documents/infrastructure/drizzle-camera-measurement-settings.repository'
+import { DrizzlePackageBoxMeasurementExportRepository } from './nfe-documents/infrastructure/drizzle-package-box-measurement-export.repository'
 import { createPackageBoxRoutes } from './nfe-documents/presentation/package-box.routes'
+import { createPackageBoxMeasurementExportRoutes } from './nfe-documents/presentation/package-box-measurement-export.routes'
 import { createOperationsUseCase } from './operations/application/operations.use-case'
 import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
 import { createOperationsRoutes } from './operations/presentation/operations.routes'
@@ -1535,6 +1538,9 @@ function createApplicationRoutes({
   })
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const cameraMeasurementSettingsRepository = new DrizzleCameraMeasurementSettingsRepository(
+    database,
+  )
+  const packageBoxMeasurementExportRepository = new DrizzlePackageBoxMeasurementExportRepository(
     database,
   )
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
@@ -2935,6 +2941,11 @@ function createApplicationRoutes({
       measurePackageBox: createMeasurePackageBox({
         cameraMeasurementSettings: cameraMeasurementSettingsRepository,
         repository: packageBoxRepository,
+      }),
+    }),
+    ...createPackageBoxMeasurementExportRoutes({
+      listPackageBoxMeasurements: createListPackageBoxMeasurements({
+        repository: packageBoxMeasurementExportRepository,
       }),
     }),
     ...createViewPreferencesRoutes({
