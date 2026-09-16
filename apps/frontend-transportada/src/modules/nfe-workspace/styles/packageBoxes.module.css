@@ -69,6 +69,9 @@
 }
 
 .fieldError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   margin: 0;
   color: var(--color-alert);
   font-size: 0.8rem;
@@ -268,6 +271,38 @@
 
 .candidateMeasured {
   color: var(--color-ready);
+}
+
+/*
+ * Selo "Experimental" (D13, spec 152): nunca só cor — ícone + texto sempre juntos, e o motivo de
+ * D9 embaixo quando a câmera relatou algum. `Badge` já cuida do contraste; aqui só o espaçamento.
+ */
+.experimentalBadge {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.warningsList {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.marginText {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+/* Faixa 10–30 mm (D6): imprecisa, grava só com confirmação — cor nunca é o único sinal. */
+.marginWarning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-copper);
+  font-size: 0.8rem;
 }
 
 @media (min-width: 40rem) {

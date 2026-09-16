@@ -623,7 +623,24 @@
       "measured": "Já medidas",
       "all": "Todas"
     },
-    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx"
+    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx",
+    "experimentalBadge": "Experimental",
+    "experimentalHint": "A medida pela câmera é uma estimativa. Confira com a fita antes de gravar; na dúvida, digite.",
+    "margin": "±{{margin}} cm",
+    "imprecise": "Medida imprecisa: ±{{margin}} cm — aproxime, melhore a luz ou digite a medida.",
+    "unreliable": "Sem leitura confiável — digite a medida.",
+    "impreciseConfirmTitle": "Gravar medida imprecisa (±{{margin}} cm)?",
+    "impreciseConfirmSave": "Gravar assim",
+    "impreciseConfirmType": "Digitar a medida",
+    "warnings": {
+      "markerNotFound": "Cartão não encontrado no quadro",
+      "markerTooSmall": "Aproxime mais o cartão da câmera",
+      "steepAngle": "Ângulo muito inclinado — incline menos a câmera",
+      "lowLight": "Pouca luz",
+      "blurry": "Imagem borrada — segure o aparelho firme",
+      "boxOutOfFrame": "Caixa fora do quadro",
+      "unstable": "Imagem instável — segure o aparelho firme"
+    }
   },
   "addressCorrection": {
     "field": {

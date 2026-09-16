@@ -152,7 +152,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
       o construtor de 3 parâmetros de `aruco_ArucoDetector`/`aruco_RefineParameters`. **Aceite:**
       cobre R1 (0/1/N candidatas, voltar, gravado → etiqueta), R4 (`unsupported` e carga > 15 s →
       digitado da caixa lida) e R7 (desligada → sem etapa Medida).
-- [ ] **T10 — Formulário com proposta, selo, aviso e confirmação.** Extrair
+- [x] **T10 — Formulário com proposta, selo, aviso e confirmação.** Feito (evidence.md § T10). Extrair
       `PackageBoxMeasurementForm.component.tsx`: `proposal`, margem ±cm por campo, aviso com texto +
       ícone + `role="alert"`, campo vazio acima de 30 mm, `camera_adjusted` ao editar, diálogo
       "Gravar medida imprecisa (±X cm)?", selo "Experimental" com o texto de D13

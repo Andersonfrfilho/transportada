@@ -443,6 +443,23 @@
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box",
+    "experimentalBadge": "Experimental",
+    "experimentalHint": "The camera measurement is an estimate. Check it with the tape measure before saving; when in doubt, type it in.",
+    "margin": "±{{margin}} cm",
+    "imprecise": "Imprecise measurement: ±{{margin}} cm — get closer, improve the light, or type the measurement.",
+    "unreliable": "No reliable reading — type the measurement.",
+    "impreciseConfirmTitle": "Save an imprecise measurement (±{{margin}} cm)?",
+    "impreciseConfirmSave": "Save anyway",
+    "impreciseConfirmType": "Type the measurement",
+    "warnings": {
+      "markerNotFound": "Card not found in the frame",
+      "markerTooSmall": "Move the camera closer to the card",
+      "steepAngle": "Angle too steep — tilt the camera less",
+      "lowLight": "Low light",
+      "blurry": "Blurry image — hold the device steady",
+      "boxOutOfFrame": "Box out of frame",
+      "unstable": "Unstable image — hold the device steady"
+    },
     "statusLabel": "Status",
     "status": {
       "pending": "To measure",

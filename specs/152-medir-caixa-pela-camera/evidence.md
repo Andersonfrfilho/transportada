@@ -1544,3 +1544,93 @@ backToLabel, saved, closed`). Eu os adicionei porque a máquina de 7 etapas do p
   que peça, nem escolher uma candidata em `choose` sem um evento para isso. Se a intenção era outra
   forma de chegar nesses estados (por exemplo, `saving`/`review` fundidos, ou a escolha da candidata
   fora do reducer), isso volta para decisão do usuário antes da T10/T11 consumirem esta máquina.
+
+## T10 — Formulário com proposta, selo, aviso e confirmação
+
+Data: 2026-09-15. Modelo: `sonnet`. Base: `a9b0183a` (T1–T9 em `staging`).
+
+### O que mudou
+
+Extraído `PackageBoxRow`'s formulário inline de `PackageBoxMeasurementPanel.component.tsx` para
+`PackageBoxMeasurementForm.component.tsx` (spec 152), capaz de abrir tanto no caminho digitado (D11,
+comportamento de hoje) quanto com a proposta da câmera (`BoxDimensionMeasuredResult`, T6/T8):
+
+- `PackageBoxMeasurementForm` recebe `proposal: BoxDimensionMeasuredResult | undefined`. Ausente →
+  formulário digitado igual ao de antes (source `typed`). Presente → os três campos nascem com o
+  valor da câmera (D6), cada um com sua margem em cm ao lado.
+- **Selo "Experimental"** (D13): `Badge` + `Icon name="alert"` + o texto de D13
+  (`packageBoxes.experimentalHint`, acentuado nos dois idiomas), atrás da constante única
+  `CAMERA_MEASUREMENT_IS_EXPERIMENTAL` (`packageBoxMeasurement.constant.ts`) — só a T16 muda para
+  `false`. Texto + ícone sempre juntos (nunca só cor), e os motivos que a câmera relatou (D9,
+  `packageBoxes.warnings.<code>`) aparecem listados junto do selo.
+- **Margem por dimensão (R2):** `classifyMargin` (T6) decide a faixa —
+  - `reliable` (≤ 10 mm): campo com "±X cm", sem aviso.
+  - `imprecise` (10–30 mm): "±X cm" + "Medida imprecisa: ±X cm — aproxime, melhore a luz ou digite a
+    medida", com `<Icon name="alert">` e `role="alert"` (nunca só cor).
+  - `unreliable` (> 30 mm): campo nasce vazio, "Sem leitura confiável — digite a medida" com
+    `role="alert"`, e o foco vai para o primeiro campo nessa faixa (`firstUnreliableRef`).
+- **Confirmação obrigatória (R2/R3):** com alguma dimensão ainda `imprecise` e não editada, Salvar
+  abre `ImpreciseConfirmDialog` ("Gravar medida imprecisa (±X cm)?", "Gravar assim" /
+  "Digitar a medida") — nada é gravado (`onSubmit`) antes dessa escolha explícita.
+- **Editar muda a origem (R3/D17):** cada dimensão tem seu próprio `edited[dimension]`. Editar
+  qualquer uma vira a origem inteira para `camera_adjusted`; a margem daquela dimensão some do bloco
+  `camera` enviado (a regra de imprecisão não se aplica mais a ela), mas o valor **proposto**
+  (`proposedLengthMm`/`proposedWidthMm`/`proposedHeightMm`) continua indo para a API mesmo depois de
+  editado — é o que o histórico (D17) compara com o gravado.
+- **Digitar continua padrão e sempre disponível:** sem `proposal`, o formulário é o de sempre, sem
+  selo, sem margem, `source: 'typed'`, sem bloco `camera`.
+
+`packageBoxClient.service.ts` ganhou `PackageBoxMeasurementSource`, `PackageBoxCameraMeasurementInput`
+e os campos opcionais `source`/`camera` em `PackageBoxMeasurementInput` (R5) — `measureBox` já
+espalhava `...measurement` no corpo, então nenhum campo novo precisou de código extra para viajar (o
+`JSON.stringify` omite as chaves ausentes, retrocompatível com o corpo antigo). `PackageBox` e o
+guard `isPackageBox` passaram a exigir `measurementSource`/`measurementMarginMm` (nuláveis,
+domínio fechado — origem fora de `typed | camera | camera_adjusted` é recusada, não silenciada).
+
+Unidades (`MAX_CENTIMETRES`, `MILLIMETRES_PER_CENTIMETRE`, `toCentimetres`, `toMillimetres`) saíram
+do painel para `packageBoxMeasurementUnits.service.ts`: o formulário digitado e o da câmera agora
+compartilham a mesma conversão cm↔mm, em vez de duas cópias.
+
+### Verificação
+
+```
+$ bun run typecheck        # tsc --noEmit — 0 erros
+$ bun run lint             # eslint (api/worker/cron/frontend/frontend-client/frontend-landing) — 0 erros
+$ bun test test/nfe-workspace.contract.test.ts
+ 398 pass / 0 fail / 1318 expect() calls
+$ bun run test             # suíte inteira do frontend
+ 3952 pass / 0 fail / 35408 expect() calls (29 arquivos)
+$ bunx prettier --check <arquivos alterados>   # verde após --write nos dois arquivos que pegaram
+$ bun run build            # vite build — verde (avisos de chunk > 500 kB preexistentes, não deste diff)
+```
+
+`test/design-system.contract.test.ts` (inclui `locale-accents.contract.ts`) — 346 pass / 0 fail:
+as chaves novas em pt-BR (`experimentalHint`, `imprecise`, `unreliable`, `warnings.*`) passam
+acentuadas.
+
+### O que a tela faz, por faixa de margem
+
+| Margem   | Campo               | Aviso                                                     | Grava sem confirmar?                                             |
+| -------- | ------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
+| ≤ 10 mm  | preenchido, "±X cm" | nenhum                                                    | sim                                                              |
+| 10–30 mm | preenchido, "±X cm" | "Medida imprecisa…" + ícone, `role="alert"`               | não — pede "Gravar assim" ou "Digitar a medida"                  |
+| > 30 mm  | vazio, foco nele    | "Sem leitura confiável — digite a medida", `role="alert"` | não é o caso — não há valor para gravar até o conferente digitar |
+
+O selo "Experimental" aparece **acima dos campos**, dentro do próprio `PackageBoxMeasurementForm`,
+sempre que a proposta vier da câmera (`proposal !== undefined`) e a constante ainda estiver `true`.
+
+### Escopo que ficou fora de propósito (T11/T12)
+
+- Este formulário ainda não é chamado com uma `proposal` real em lugar nenhum da tela — quem abre
+  "Medir esta caixa" continua caindo no caminho digitado (`proposal={undefined}`) até a T11 montar
+  `PackageBoxCameraFlow` sobre `useBoxDimensionScanner`/`packageBoxCameraFlowReducer` e passar a
+  proposta capturada para este formulário. Isso é esperado — T10 entrega o formulário pronto e
+  testado, T11 é quem liga a câmera a ele.
+- Mostrar a origem (`measurementSource`) na linha já medida da fila é tarefa da T11 ("a linha medida
+  mostra a origem"), não desta task — o tipo e o guard já aceitam o campo, só a exibição falta.
+
+### Pontos para o usuário
+
+Nenhum ponto de parada obrigatória tocado: nenhuma mudança de CSP/Permissions-Policy, nenhuma
+migration, e `MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM` (T6) não foram alterados — só consumidos via
+`classifyMargin`, já existente.
