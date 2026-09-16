@@ -1127,3 +1127,97 @@ Contagem de `(fail)` na task: **1** (o vermelho do contrato, antes da implementa
   (`test/design-system/`), é uma renomeação de um arquivo.
 - A T8 é quem vai alimentar `FrameStats` a partir do quadro do OpenCV; o motor já está fechado em
   números puros e não precisa mudar para isso.
+
+## T7 — `useCameraStream` e leitor com stream injetado (D19)
+
+Base: `8b1f42c4` (T0–T6 publicadas em `staging`).
+
+### Posse do stream
+
+```
+useCameraStream({ isActive })                    ← único dono do getUserMedia
+  status: idle · starting · ready · denied · unavailable
+  stream: MediaStreamLike | undefined            ← entregue pronto para os filhos
+
+useBarcodeScanner({ isActive, onRead, stream? }) ← "stream" ausente = comportamento de hoje
+  ownsStream = stream === undefined
+    true  → abre e fecha a própria câmera (openCameraStream/stopCameraStream), como sempre
+    false → só anexa o stream do pai ao <video> (attachStream), nunca chama getUserMedia
+            nem stopCameraStream — quem abriu decide quando fechar
+```
+
+`useCameraStream.hook.ts` (novo, `src/components/ui/`) foi extraído do laço que já existia dentro
+de `useBarcodeScanner`: mesma chamada a `openCameraStream(globalThis.navigator)`, mesmo
+`stopCameraStream` no cleanup e no ramo cancelado durante a abertura, reaproveitando os tipos e
+funções de `barcodeScanner.service.ts` sem duplicar nada. Efeito com deps `[isActive]`: abre uma vez
+por ativação, não a cada renderização.
+
+`useBarcodeScanner.hook.ts` ganhou o parâmetro opcional `stream` e a variável `ownsStream`. A função
+`start()` virou uma bifurcação: dono do stream segue o caminho de sempre (abrir, guardar em
+`openedStream`, anexar ao vídeo); com `stream` de fora, pula direto para `attachStream(stream)` —
+sem tocar em `openCameraStream`. O cleanup só chama `stopCameraStream(openedStream)` quando
+`ownsStream` é verdadeiro; o stream do pai sobrevive ao desmonte/mudança de etapa do hook. A
+detecção (native `BarcodeDetector` ou worker ZXing), o cooldown de 1,5s e o `videoRef` continuam
+idênticos — só a origem do `MediaStream` mudou.
+
+### Sem regressão no leitor atual
+
+Nenhuma asserção de `test/design-system/barcode-scanner.contract.ts` mudou — o arquivo não foi
+tocado. Os pontos que blindam o comportamento em produção continuam cobertos por ele sem alteração:
+tela cheia com moldura e faixa (`corner`/`guideBand`), feedback achou/não achou com vibração
+(`FOUND_VIBRATION_MS`), `Esc`/foco (`useModalDialog`), ordem dos formatos (lineares antes do QR),
+`isCancelled = true` uma única vez (o laço não corta no primeiro acerto), e `stopCameraStream`/
+`terminate()` no desmonte. Como nenhum consumidor hoje passa `stream` (nem `barcode-scanner.tsx`,
+nem a pistola de bip pelo Enter, nem `openMeasurementForScannedBox`), `ownsStream` é sempre
+`true` em produção agora — a mudança fica latente até T9–T11 ligarem `useCameraStream` na tela.
+
+### Vermelho antes da implementação
+
+`useCameraStream.hook.ts` não existia (o `Bun.file` do contrato lançaria `ENOENT`) e
+`useBarcodeScanner.hook.ts` não tinha `ownsStream` nem `stream?:` — conferido contra a base
+`8b1f42c4`:
+
+```
+$ git show 8b1f42c4:apps/frontend-transportada/src/components/ui/useBarcodeScanner.hook.ts \
+    | grep -c "ownsStream\|stream?:"
+0
+```
+
+Ou seja, todas as asserções novas de `test/design-system/camera-stream.contract.ts` reprovariam
+contra o código anterior — o vermelho é estrutural (arquivo ausente) mais as strings ausentes no
+hook, sem precisar reverter e rerodar depois da implementação.
+
+### Gates
+
+| Gate                                             | Resultado                                                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `bun install --frozen-lockfile`                  | verde (`Checked 747 installs`)                                                                              |
+| `bun run typecheck` (raiz, as 6 apps)            | verde                                                                                                       |
+| `bun run lint` (raiz, as 6 apps)                 | 1 erro (`no-unnecessary-type-assertion` em `attachStream`), corrigido; verde na segunda rodada              |
+| `bun run --cwd apps/frontend-transportada test`  | **3908 pass, 0 `(fail)`**, 35257 `expect()` (era 3900 — +8 do `camera-stream.contract.ts`, nenhum quebrado) |
+| `bun test test/design-system.contract.test.ts`   | 334 pass, 0 fail                                                                                            |
+| `bun run --cwd apps/frontend-transportada build` | verde (`built in 4.87s`, PWA 131 entradas de precache)                                                      |
+| `bunx prettier --check` (4 arquivos tocados)     | verde                                                                                                       |
+| `locale-accents.contract.ts`                     | verde dentro da suíte completa — nenhum `*.locale.json` tocado nesta task                                   |
+
+Contagem de `(fail)` na task: **0** (vermelho foi por ausência de arquivo/string, não por teste
+rodando e falhando — ver seção acima).
+
+### Arquivos
+
+Novos: `src/components/ui/useCameraStream.hook.ts`,
+`test/design-system/camera-stream.contract.ts` (importado por `test/design-system.contract.test.ts`,
+já listado no `package.json`).
+Modificados: `src/components/ui/useBarcodeScanner.hook.ts` (parâmetro `stream` opcional),
+`test/design-system.contract.test.ts` (import do contrato novo).
+
+### Pontos para o usuário
+
+- `useCameraStream` fica pronto, mas **nada o consome ainda** — `barcode-scanner.tsx` e o painel de
+  fila continuam chamando `useBarcodeScanner` sem `stream`, então o comportamento em produção não
+  muda nesta task. A ligação de fato (etiqueta → medida na mesma sessão de câmera) é da Fase 4
+  (T9–T11), que monta `PackageBoxCameraFlow` sobre `useCameraStream` conforme o `plan.md`.
+- O `plan.md` também atribui a `useCameraStream` a lanterna (`getCapabilities().torch`), mas nenhuma
+  aceite da T7 no `tasks.md` cobra isso e não há consumidor da lanterna ainda (só entra em T8/T11,
+  no primitivo de medida). Deixei de fora para não introduzir código sem teste que o exercite;
+  entra com o primeiro consumidor real, sem precisar tocar em `useCameraStream` de novo.
