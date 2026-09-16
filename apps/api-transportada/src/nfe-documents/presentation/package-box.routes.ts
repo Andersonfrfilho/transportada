@@ -9,6 +9,7 @@ import {
 } from '../../shared/request-body.service.js'
 import { JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { parseUuidPathIdentifier } from '../../nfe-imports/presentation/nfe-imports.schema.js'
+import type { CameraMeasurementSettingsPort } from '../application/camera-measurement-settings.port.js'
 import type { ListPackageBoxes } from '../application/list-package-boxes.use-case.js'
 import type { MeasurePackageBox } from '../application/measure-package-box.use-case.js'
 import type { PackageBoxMeasurement } from '../application/package-box.port.js'
@@ -16,6 +17,8 @@ import { parsePackageBoxList, parsePackageBoxMeasurement } from './package-box.s
 import type { PackageBoxListInput } from './package-box.schema.js'
 
 export const API_NFE_PACKAGE_BOXES_PATH = '/nfe-package-boxes'
+export const API_NFE_PACKAGE_BOX_MEASUREMENT_SETTINGS_PATH =
+  '/nfe-package-boxes/measurement-settings'
 
 /**
  * ⚠️ `cargo.measure`, e não `settings.manage` (spec 085 G005). Quem confere caixa no galpão
@@ -29,10 +32,28 @@ type MeasureInput = {
 }
 
 export function createPackageBoxRoutes(dependencies: {
+  readonly cameraMeasurementSettings: CameraMeasurementSettingsPort
   readonly listPackageBoxes: ListPackageBoxes
   readonly measurePackageBox: MeasurePackageBox
 }): readonly ReturnType<typeof defineRoute>[] {
   return [
+    /**
+     * Spec 152 D14: leitura própria do conferente (`cargo.measure`, não `settings.manage`) — é o que
+     * decide, na abertura da etapa Medida, se ela existe. Ausência de linha é `false` (mesma porta do
+     * use case de medida).
+     */
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const enabled = await dependencies.cameraMeasurementSettings.readEnabled({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ body: { data: { cameraMeasurementEnabled: enabled } }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_NFE_PACKAGE_BOX_MEASUREMENT_SETTINGS_PATH,
+      policy: CARGO_MEASURE_POLICY,
+    }),
     defineRoute<PackageBoxListInput>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.listPackageBoxes.execute({

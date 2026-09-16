@@ -5,14 +5,22 @@
  * número que vai para a SEFAZ quando o emitente não declara massa — é configuração, não operação.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { API_COMPANY_SETTINGS_CARGO_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH,
+  API_COMPANY_SETTINGS_CARGO_PATH,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
 import type { CargoSettings } from '../application/cargo-settings.port.js'
-import { parseSetDefaultVolumeWeightBody } from './cargo-settings.schema.js'
+import {
+  parseSetCameraMeasurementEnabledBody,
+  parseSetDefaultVolumeWeightBody,
+} from './cargo-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE }
 
 type SetInput = { readonly defaultVolumeWeight: string }
+type SetCameraMeasurementInput = { readonly enabled: boolean }
 
 type Dependencies = {
   readonly clear: { execute(input: { readonly companyId: string }): Promise<void> }
@@ -23,6 +31,12 @@ type Dependencies = {
     execute(input: {
       readonly companyId: string
       readonly defaultVolumeWeight: string
+    }): Promise<CargoSettings>
+  }
+  readonly setCameraMeasurementEnabled: {
+    execute(input: {
+      readonly companyId: string
+      readonly enabled: boolean
     }): Promise<CargoSettings>
   }
 }
@@ -62,6 +76,19 @@ export function createCargoSettingsRoutes(
       method: 'DELETE',
       parse: () => undefined,
       pathname: API_COMPANY_SETTINGS_CARGO_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<SetCameraMeasurementInput>({
+      async handle({ context, input }): Promise<Response> {
+        const settings = await dependencies.setCameraMeasurementEnabled.execute({
+          companyId: context.scope.companyId,
+          enabled: input.enabled,
+        })
+        return jsonResponse(settings)
+      },
+      method: 'PUT',
+      parse: ({ request }) => parseSetCameraMeasurementEnabledBody(request),
+      pathname: API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
   ]

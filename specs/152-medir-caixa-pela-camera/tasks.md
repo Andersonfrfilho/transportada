@@ -78,7 +78,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
       devolve origem e margem), constante de motivos com contrato de paridade, OpenAPI.
       **Aceite:** R5 do `spec.md` como teste; corpo antigo grava `typed`; tenant `404` sem
       histórico; integração com `.env.test` verde e contagem de testes igual ou maior.
-- [ ] **T4 — Interruptor por empresa (teste antes).** Primeiro
+- [x] **T4 — Interruptor por empresa (teste antes).** Feito (evidence.md § T4). Primeiro
       `test/company-settings/camera-measurement-flag.contract.ts` e
       `test/integration/camera-measurement-flag.integration.ts`. Depois:
       `PUT /company-settings/cargo/camera-measurement` (`settings.manage`),
