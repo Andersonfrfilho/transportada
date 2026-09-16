@@ -1,18 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { existsSync } from 'node:fs'
 
-import { afterAll, describe, expect, it } from 'bun:test'
+import { beforeAll, afterAll, describe, expect, it } from 'bun:test'
 import { chromium, type Browser, type Page } from '@playwright/test'
 
 import { buildContentSecurityPolicy } from '../../src/modules/shared/contentSecurityPolicy.service.js'
 
 /**
- * ⚠️ **Navegador é dependência do job, não do teste.** O gate `quality-app` roda só a bateria de
- * testes e nunca executou `playwright install` (isso é do gate de integração e do smoke) — a sonda
- * derrubava o gate inteiro por executável ausente, nunca por defeito de CSP, e com ele todos os
- * `deploy-*`. Onde o Chromium existe (máquina do desenvolvedor, job que instala os navegadores) ela
- * roda de verdade; onde não existe, pula com aviso. A asserção de texto abaixo — `img-src` sem
- * `data:` — não depende de navegador nenhum e continua valendo sempre.
+ * ⚠️ **Navegador é dependência do job, e em CI a falta dele é falha — não "pulado".** A sonda pulava
+ * em 100% das execuções de CI: `playwright install` só existia no job `integration`, que não roda a
+ * bateria unitária, e o `skipIf` engolia as duas metades em silêncio ("pular não é passar", spec
+ * 092). Agora o `quality-app` instala o Chromium para o frontend (passo abaixo, conferido pelo
+ * contrato do pipeline) e a dispensa vale **só fora de CI** — na máquina do desenvolvedor que ainda
+ * não baixou os navegadores. Se o passo do job sumir ou quebrar, a sonda reprova o gate em vez de
+ * sumir dele.
  */
 function hasChromiumExecutable(): boolean {
   try {
@@ -23,8 +24,10 @@ function hasChromiumExecutable(): boolean {
 }
 
 const CHROMIUM_IS_AVAILABLE = hasChromiumExecutable()
+const RUNS_IN_CONTINUOUS_INTEGRATION = process.env.CI !== undefined && process.env.CI !== ''
+const CHROMIUM_IS_DISPENSABLE = !CHROMIUM_IS_AVAILABLE && !RUNS_IN_CONTINUOUS_INTEGRATION
 
-if (!CHROMIUM_IS_AVAILABLE) {
+if (CHROMIUM_IS_DISPENSABLE) {
   console.warn(
     'sonda de CSP pulada: Chromium do Playwright ausente. Rode `bunx playwright install chromium` para exercitá-la.',
   )
@@ -79,8 +82,28 @@ async function pageWithRealPolicy(
 describe('sonda headless: img-src real bloqueia data: e permite blob: (T14 item 1)', () => {
   let browser: Browser
 
+  /** O 2º caso dependia do `launch` do 1º: rodar só ele (`-t`) subia sem navegador nenhum. */
+  beforeAll(async () => {
+    if (CHROMIUM_IS_DISPENSABLE) return
+    browser = await chromium.launch()
+  })
+
   afterAll(async () => {
     await browser?.close()
+  })
+
+  /**
+   * O job que roda esta bateria tem de instalar o navegador — sem isso a sonda pula sempre e o
+   * gate fica verde sem nunca ter medido nada (3ª revisão, item M2).
+   */
+  it('o gate que roda esta bateria instala o Chromium do Playwright', async () => {
+    const workflow = await Bun.file(
+      new URL('../../../../.github/workflows/ci.yml', import.meta.url),
+    ).text()
+    const qualityApp = workflow.split('  quality-app:')[1]?.split('\n  quality:')[0] ?? ''
+
+    expect(qualityApp).toContain("if: matrix.app == 'frontend-transportada'")
+    expect(qualityApp).toContain('playwright install --with-deps chromium')
   })
 
   it('a diretiva real de produção não contém data: em img-src', () => {
@@ -92,10 +115,9 @@ describe('sonda headless: img-src real bloqueia data: e permite blob: (T14 item 
     expect(imgSrcDirective).not.toContain('data:')
   })
 
-  it.skipIf(!CHROMIUM_IS_AVAILABLE)(
+  it.skipIf(CHROMIUM_IS_DISPENSABLE)(
     'prova o defeito antigo: um <img src="data:..."> viola a CSP real (o que quebrava em produção)',
     async () => {
-      browser = await chromium.launch()
       const { page, violations } = await pageWithRealPolicy(browser)
 
       await page.evaluate((base64) => {
@@ -110,7 +132,7 @@ describe('sonda headless: img-src real bloqueia data: e permite blob: (T14 item 
     },
   )
 
-  it.skipIf(!CHROMIUM_IS_AVAILABLE)(
+  it.skipIf(CHROMIUM_IS_DISPENSABLE)(
     'prova a correção: um <img src="blob:..."> carrega sob a mesma CSP real, sem violação',
     async () => {
       const { page, violations } = await pageWithRealPolicy(browser)
