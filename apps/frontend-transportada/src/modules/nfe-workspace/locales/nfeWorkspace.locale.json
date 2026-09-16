@@ -629,7 +629,7 @@
     },
     "source": {
       "camera": "Pela câmera, ±{{margin}} cm",
-      "cameraNoMargin": "Pela câmera, medida conferida com a fita",
+      "cameraNoMargin": "Pela câmera, sem margem registrada",
       "typed": "Digitada",
       "unknown": "Origem não registrada"
     },

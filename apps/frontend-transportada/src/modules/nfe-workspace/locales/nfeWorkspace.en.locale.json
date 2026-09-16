@@ -448,7 +448,7 @@
     },
     "source": {
       "camera": "By camera, ±{{margin}} cm",
-      "cameraNoMargin": "By camera, measurement checked with the tape",
+      "cameraNoMargin": "By camera, no margin recorded",
       "typed": "Typed",
       "unknown": "Origin not recorded"
     },
