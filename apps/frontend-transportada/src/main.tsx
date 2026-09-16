@@ -27,6 +27,11 @@ import {
 } from '@/modules/driver-trip/shared/driverWorkspace.service'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
+import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
+import {
+  useInstallationBrandView,
+  useInstallationDocumentTitle,
+} from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
@@ -396,6 +401,8 @@ const FISCAL_ENVIRONMENT_LABELS: Readonly<Record<FiscalEnvironment, string>> = {
 
 function ApplicationShell(): ReactNode {
   const authMeQuery = useAuthMeQuery()
+  const brand = useInstallationBrandView()
+  useInstallationDocumentTitle(brand.name)
   const [currentWorkspace, setCurrentWorkspace] = useState(resolveCurrentWorkspace)
   /** O workspace sozinho não distingue a lista do detalhe: a rota completa é quem decide a tela. */
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
@@ -544,8 +551,7 @@ function ApplicationShell(): ReactNode {
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
           </Button>
           <span className="sidebar-brand-identity">
-            <img alt="" className="sidebar-brand-logo" src="/icons/icon.svg" />
-            <strong>TransportAdA</strong>
+            <InstallationBrandMark brand={brand} logoClassName="sidebar-brand-logo" />
           </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
@@ -621,13 +627,13 @@ function ApplicationShell(): ReactNode {
               <div>
                 <CardTitle className="application-wordmark">
                   {WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === currentWorkspace)
-                    ?.label ?? 'TransportAdA'}
+                    ?.label ?? brand.name}
                 </CardTitle>
                 <CardDescription>Workspace operacional</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="application-header-context">
-              <span>TransportAdA</span>
+              <span>{brand.name}</span>
               {authMeQuery.isLoading ? <Skeleton height="0.7rem" width="var(--space-16)" /> : null}
               {fiscalEnvironment === null ? null : (
                 <span
