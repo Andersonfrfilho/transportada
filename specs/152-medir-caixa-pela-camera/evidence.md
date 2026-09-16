@@ -2661,3 +2661,114 @@ do `--env-file=../../.env.test`. Sem essa variável os testes de integração **
   incomodar, o caminho é cache do diretório de navegadores do Playwright, não tirar a sonda.
 - A fixture de fronteira agora tem cinco corpos; corpo novo (por exemplo `grossWeightGrams` vindo da
   balança) precisa entrar nela, ou a fronteira volta a não ver o caso.
+
+## T14 — correções da 4ª revisão
+
+A 4ª revisão reprovou por dois ALTOs de superfície (o núcleo — definição única de "dimensão
+editada" — segue confirmado correto, e o protocolo D16 roda inteiro sem `400`). Cada item abaixo
+teve o comportamento provado antes da correção: o teste substituído/novo falha contra o código da
+3ª revisão (a varredura de texto antiga aceitava o retorno antecipado e a chamada crua de
+`retryLookup()`; a asserção nova exige `{failed ? (` e `PackageBoxCameraFlow` no mesmo `return`, que
+só existem depois da correção).
+
+### [ALTO-1] Falha de consulta derrubava o fluxo da câmera
+
+`PackageBoxMeasurementPanel.component.tsx` tinha `if (failed) return (…)` **antes** de
+`<PackageBoxCameraFlow>`. Com o fluxo aberto, uma queda de rede desmontava a etapa em andamento e
+perdia a captura inteira (foto, pose, proposta); o ramo `lookupFailed` interno do fluxo
+(`PackageBoxCameraFlow.component.tsx:150,234-236`) nunca era alcançado; a tela ficava só com um
+`<p>`, sem "Ler etiqueta" nem "Tentar de novo"; e `retryLookup` (`usePackageBoxQueue.hook.ts`)
+seguia exportado sem consumidor. Correção: `failed` virou um ramo **dentro** do mesmo `return` que
+renderiza `PackageBoxCameraFlow` (que já sabe tratar `lookupFailed`), com um botão "Tentar de novo"
+chamando `onRetryLookup` → `packageBoxes.retryLookup` (nova prop, ligada em `NfeWorkspace.page.tsx`).
+Locale pt/en (`packageBoxes.retry`).
+
+### [ALTO-2] "±0 cm" na caixa cuja proposta foi descartada
+
+`measurementSourceLabel` fazia `margin: box.measurementMarginMm === null ? 0 : …`. Com o protocolo
+D16 (margem nula quando as três dimensões foram digitadas por cima), a fila lia "Pela câmera, ±0 cm"
+exatamente na caixa em que a câmera errou nas três. Corrigido com rótulo próprio
+(`packageBoxes.source.cameraNoMargin`, "Pela câmera, medida conferida com a fita" / "By camera,
+measurement checked with the tape") quando a origem é câmera e a margem é nula.
+
+### [MÉDIO-1] Fixture sem o corpo que zera a margem
+
+Fixture de fronteira (`test/fixtures/package-box-measurement-submission.fixture.json`) ganhou o 7º
+caso: `camera_adjusted`, `impreciseConfirmed: false`, três `proposed*Mm` presentes e nenhum
+coincidindo com o valor gravado. Cobre `package-box.schema.ts:99`
+(`if (worstUneditedMargin === null) return`) nos dois lados (frontend monta o corpo via
+`buildPackageBoxMeasurementSubmission`, API aceita via `parsePackageBoxMeasurement`) e ganhou um 6º
+caso em `measurement-history.integration.ts`, contra Postgres de verdade: `measurementMarginMm`
+nulo com `measurementSource: 'camera_adjusted'`, sem colidir com o CHECK de pareamento
+(`measurement_source <> 'typed' or measurement_margin_mm is null`) — margem nula é sempre aceita.
+
+### [MÉDIO-2] Teste do retry sem exercitar comportamento
+
+`package-box-measurement.contract.ts` varria o texto-fonte de `setScanned` procurando
+`retryLookup()` — passava sem nunca montar o hook nem simular uma falha. **Confirmado antes de
+escrever a correção**: esta app não tem `@testing-library/react` nem renderer de hooks (grep no
+`package.json`, nenhum resultado) — parada obrigatória sem introduzir dependência nova. A decisão
+("bipar a MESMA etiqueta refaz a consulta") saiu do hook para `isRepeatedScan`, função pura
+exportada e testada com os quatro casos (repetido, diferente, `current: null`, `next: null`).
+
+### [BAIXO-1] Atalho de releitura sem `setSearch('')`
+
+`usePackageBoxQueue.hook.ts` — o ramo de `isRepeatedScan` agora chama `setSearch('')` antes de
+`retryLookup()`, mesma regra do caminho normal (hoje inalcançável porque a busca já está vazia
+nesse ramo, mas sem depender disso).
+
+### [BAIXO-2] Exports sem consumidor em `package-box-measurement.policy.ts`
+
+`CAMERA_DIMENSIONS`, `CameraDimension` e `isEditedDimension` seguem `export` — `isEditedDimension`
+ganhou teste de unidade próprio (`measurement-source.contract.ts`), justificado por ser a mesma
+pergunta que a tela faz em `isOverriddenDimension` (frontend).
+
+### Gates
+
+| Gate                                                          | Resultado                           |
+| ------------------------------------------------------------- | ----------------------------------- |
+| `bun run typecheck` (6 apps)                                  | ok                                  |
+| `bun run lint` (6 apps)                                       | ok                                  |
+| `bun run format:check` (Prettier, repo)                       | ok (2 arquivos formatados)          |
+| contratos da API (`bun run test`, 177 arq.)                   | 6.058 pass · 23 skip · 0 (fail)     |
+| contratos do frontend (`bun run test`, 29 arq., inc. acentos) | 4.052 pass · 0 (fail)               |
+| `package-box-measurement`/`-submission-boundary` (frontend)   | 62 pass · 0 (fail)                  |
+| `measurement-source`/`measurement-submission-boundary` (API)  | 40 pass · 0 (fail)                  |
+| `bun run --cwd apps/frontend-transportada build`              | ok (PWA, 132 entradas)              |
+| migration (`db:test`, Postgres nativo descartável)            | 94 pass · **1 (fail)** preexistente |
+| integração da caixa (Postgres nativo descartável)             | 18 pass · 0 (fail)                  |
+
+Contagem de `(fail)` nos gates: **1**, preexistente e já conhecida —
+`database-migration/cte-profile-output-constraints` (`errno 23001` em vez de `23503`, conforme a
+versão do Postgres — aqui 18.4). Nenhuma outra.
+
+Postgres do Docker: `docker ps` travou de novo nesta sessão (>120 s sem responder). Subido um
+**Postgres 18.4 nativo descartável** em `127.0.0.1:55433` (`LC_ALL=C` no `initdb`/`pg_ctl`, dados em
+`/tmp/pg152-data`, apagado ao final). **O `.env.test` do link simbólico não foi editado**: toda
+integração rodou com `DRIZZLE_TEST_DATABASE_URL` na linha de comando, por cima de
+`--env-file=../../.env.test`. ⚠️ A primeira tentativa de rodar a bateria `test:integration` inteira
+(70+ arquivos) duplicou o processo em background e as duas cópias competiram pela mesma instância
+descartável — os testes de latência de `database-availability.integration.ts` (spec 137, sensíveis a
+tempo) falharam por contenção de recursos, não por regressão. Depois de matar o processo duplicado, a
+fatia relevante ao código tocado (`measurement-history`, `camera-measurement-flag`,
+`package-box-measurement-export`, mais `trip-repository` e `local-identity-seed` como controle de
+sanidade da infra) rodou limpa: 18 pass, 0 fail. A bateria de integração completa (com Keycloak,
+MinIO, RabbitMQ) não foi repetida por não estar disponível nesta sessão — mesma limitação já
+registrada na 3ª revisão.
+
+### Commits
+
+| Tema                                                           | Hash       |
+| -------------------------------------------------------------- | ---------- |
+| [ALTO-1+ALTO-2] fluxo da câmera sobrevive à falha, margem nula | `3f68bf16` |
+| [MÉDIO-2+BAIXO-1] bipe repetido vira função pura               | `93217ef7` |
+| [BAIXO-2] teste próprio de `isEditedDimension`                 | `89584f6f` |
+| [MÉDIO-1] fixture de fronteira + integração Postgres           | `4de3394b` |
+| [ALTO-1+ALTO-2+MÉDIO-2] contrato do painel por comportamento   | `0d77cd93` |
+
+### Follow-up (4ª revisão)
+
+- A bateria `test:integration` completa (70+ arquivos, precisa de Keycloak/MinIO/RabbitMQ) segue sem
+  rodar nesta sessão — mesma limitação da 3ª revisão, o Docker local não respondeu.
+- A fixture de fronteira agora tem sete corpos; corpo novo precisa entrar nela, ou a fronteira volta
+  a não ver o caso (regra já registrada acima, reforçada pelo MÉDIO-1).
