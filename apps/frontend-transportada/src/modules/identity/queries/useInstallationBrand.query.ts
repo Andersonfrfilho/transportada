@@ -20,6 +20,8 @@ export function useInstallationBrand() {
         fetch: globalThis.fetch.bind(globalThis),
       }),
     queryKey: INSTALLATION_BRAND_QUERY_KEY,
+    /** O padrão global é não repetir: uma falha deixava o produto no lugar da empresa até o reload. */
+    retry: 2,
     staleTime: BRAND_STALE_TIME_MILLISECONDS,
   })
 }

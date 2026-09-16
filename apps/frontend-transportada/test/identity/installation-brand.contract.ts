@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { readInstallationBrand } from '../../src/modules/identity/shared/installationBrand.service'
@@ -132,5 +134,40 @@ describe('a diretiva deixa o logotipo carregar', () => {
   /** O provedor de identidade não serve imagem nossa: origem que ninguém usa é permissão de graça. */
   test('e só ela: o provedor de identidade fica de fora', () => {
     expect(imgSource).not.toContain('identidade.exemplo.com.br')
+  })
+})
+
+/**
+ * O login mostrava a transportadora e, ao entrar, o menu e o cabeçalho voltavam para "TransportAdA"
+ * com o ícone do produto: estavam escritos no código, fora da leitura da marca. A conferência é por
+ * texto de fonte porque a app não tem DOM no teste.
+ */
+describe('a marca da transportadora acompanha a pessoa depois de entrar', () => {
+  const shell = readFileSync('src/main.tsx', 'utf8')
+  const driverHeader = readFileSync(
+    'src/modules/driver-trip/components/DriverShellHeader.component.tsx',
+    'utf8',
+  )
+
+  test('menu lateral, cabeçalho e título da aba leem a marca da instalação', () => {
+    expect(shell).toContain('useInstallationBrandView()')
+    expect(shell).toContain('useInstallationDocumentTitle(brand.name)')
+    expect(shell).toContain('<InstallationBrandMark brand={brand}')
+    expect(shell).not.toContain('<strong>TransportAdA</strong>')
+    expect(shell).not.toContain('<span>TransportAdA</span>')
+    expect(shell).not.toContain("?? 'TransportAdA'")
+  })
+
+  test('o cabeçalho do motorista mostra a transportadora, não o produto', () => {
+    expect(driverHeader).toContain('<InstallationBrandMark')
+    expect(driverHeader).not.toContain('TransportAdA')
+    expect(driverHeader).not.toContain('/icons/icon.svg')
+  })
+
+  /** Sem repetir, uma falha de rede deixava o produto no lugar da empresa até recarregar a página. */
+  test('a leitura da marca tenta de novo antes de cair no produto', () => {
+    const query = readFileSync('src/modules/identity/queries/useInstallationBrand.query.ts', 'utf8')
+
+    expect(query).toMatch(/retry: [1-9]/u)
   })
 })

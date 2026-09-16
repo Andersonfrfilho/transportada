@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { Skeleton } from '@/components/ui/skeleton'
-import { useInstallationBrand } from '@/modules/identity/queries/useInstallationBrand.query'
+import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
+import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import styles from '../styles/driverTrip.module.css'
@@ -11,21 +11,18 @@ import styles from '../styles/driverTrip.module.css'
  * transportadora só (ADR-0021), então o dado já existe sem rota nova.
  */
 export function DriverShellHeader() {
-  const brand = useInstallationBrand()
+  const brand = useInstallationBrandView()
   const profile = getKeycloakAuthProvider().getProfile()
 
   return (
     <header className={styles.moduleHeader}>
+      {/* Quem contratou o motorista é a transportadora: a marca dela, não a do produto. */}
       <span className={styles.moduleBrand}>
-        <img alt="" className={styles.moduleBrandLogo} src="/icons/icon.svg" />
-        <span className={styles.moduleBrandCopy}>
-          <strong>TransportAdA</strong>
-          {brand.isLoading ? (
-            <Skeleton height="0.7rem" width="var(--space-16)" />
-          ) : brand.data?.name != null ? (
-            <span className={styles.moduleCompanyName}>{brand.data.name}</span>
-          ) : null}
-        </span>
+        <InstallationBrandMark
+          brand={brand}
+          logoClassName={styles.moduleBrandLogo}
+          nameClassName={styles.moduleCompanyName}
+        />
       </span>
       {/* A API não expõe foto ao papel de campo hoje (a rota de foto é `users.manage`): iniciais. */}
       <span aria-hidden="true" className={styles.driverAvatar}>
