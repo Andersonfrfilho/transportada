@@ -36,6 +36,10 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
   queue: PackageBoxQueue | null
+  /** A1: o código da recusa do último `PUT` de medida — `undefined` enquanto nada falhou. */
+  saveErrorCode: string | undefined
+  /** A1: o desfecho da gravação, para o fluxo da câmera sair de "Gravando" só com ele. */
+  saveStatus: 'error' | 'idle' | 'pending' | 'success'
   saving: boolean
   search: string
   status: PackageBoxStatusFilter
@@ -112,6 +116,8 @@ export function PackageBoxMeasurementPanel({
   onSearchChange,
   onStatusChange,
   queue,
+  saveErrorCode,
+  saveStatus,
   saving,
   search,
   status,
@@ -189,7 +195,15 @@ export function PackageBoxMeasurementPanel({
    * o operador escolhe, nunca a tela.
    */
   useEffect(() => {
-    if (isCameraFlowOpen) return
+    /**
+     * ⚠️ Com o fluxo da câmera aberto quem decide é ele — mas a espera **tem que ser desarmada**:
+     * uma leitura da pistola durante o fluxo deixava `awaitingScan` ligado para sempre, e a
+     * primeira leitura depois de fechar o fluxo abria a medição da caixa errada (T14, item baixo).
+     */
+    if (isCameraFlowOpen) {
+      if (awaitingScan) setAwaitingScan(false)
+      return
+    }
     if (!awaitingScan || matching) return
     setAwaitingScan(false)
     const items = queue?.items ?? []
@@ -367,11 +381,14 @@ export function PackageBoxMeasurementPanel({
       <PackageBoxCameraFlow
         cameraEnabled={cameraMeasurementEnabled}
         isOpen={isCameraFlowOpen}
+        lookupFailed={failed}
         matches={queue?.items}
         matching={matching}
         onClose={() => setIsCameraFlowOpen(false)}
         onLookup={(text) => onScan(text)}
         onSave={(id, submission) => onMeasure({ ...submission, id })}
+        saveErrorCode={saveErrorCode}
+        saveStatus={saveStatus}
       />
 
       <MeasurementCardPrint isOpen={isPrintCardOpen} onClose={() => setIsPrintCardOpen(false)} />

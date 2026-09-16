@@ -87,6 +87,37 @@ export type PackageBoxClient = Readonly<{
 
 const PACKAGE_BOXES_PATH = '/nfe-package-boxes'
 
+/**
+ * ⚠️ **`new Error('...')` cru apagava o motivo da recusa.** A tela precisa distinguir o `422`
+ * `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` (a função foi desligada na empresa com a aba aberta) do
+ * `400` de corpo recusado — dizer só "não foi possível gravar" manda o conferente tentar de novo
+ * para sempre. O código vem do envelope da API (`{ error: { code } }`) e só cai no genérico quando a
+ * resposta não tem um.
+ */
+export class PackageBoxRequestError extends Error {
+  public readonly code: string
+  public readonly status: number | undefined
+
+  public constructor(input: Readonly<{ code: string; status?: number | undefined }>) {
+    super(input.code)
+    this.code = input.code
+    this.name = 'PackageBoxRequestError'
+    this.status = input.status
+  }
+}
+
+/** `undefined` quando a falha não é da API (rede caiu, resposta ilegível) — não invente código. */
+export function packageBoxErrorCode(error: unknown): string | undefined {
+  return error instanceof PackageBoxRequestError ? error.code : undefined
+}
+
+async function rejectionOf(response: Response, fallbackCode: string): Promise<never> {
+  const body: unknown = await response.json().catch(() => undefined)
+  const envelope = isRecord(body) && isRecord(body.error) ? body.error : undefined
+  const code = typeof envelope?.code === 'string' ? envelope.code : fallbackCode
+  throw new PackageBoxRequestError({ code, status: response.status })
+}
+
 export function createPackageBoxClient(dependencies: ClientDependencies): PackageBoxClient {
   /**
    * ⚠️ `content-type` **só onde há corpo**. Num `GET` ele não descreve nada, e o CORS da API só
@@ -109,7 +140,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       const response = await dependencies.fetch(url, {
         headers: { authorization: await authorization() },
       })
-      if (!response.ok) throw new Error('PACKAGE_BOX_LIST_FAILED')
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
     },
     async getMeasurementSettings(): Promise<Readonly<{ cameraMeasurementEnabled: boolean }>> {
@@ -117,10 +148,10 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
         `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/measurement-settings`,
         { headers: { authorization: await authorization() } },
       )
-      if (!response.ok) throw new Error('PACKAGE_BOX_MEASUREMENT_SETTINGS_FAILED')
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_MEASUREMENT_SETTINGS_FAILED')
       const body: unknown = await response.json()
       if (!isRecord(body) || !isRecord(body.data)) {
-        throw new Error('PACKAGE_BOX_MEASUREMENT_SETTINGS_MALFORMED')
+        throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MEASUREMENT_SETTINGS_MALFORMED' })
       }
       return { cameraMeasurementEnabled: body.data.cameraMeasurementEnabled === true }
     },
@@ -134,7 +165,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
           method: 'PUT',
         },
       )
-      if (!response.ok) throw new Error('PACKAGE_BOX_MEASURE_FAILED')
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_MEASURE_FAILED')
     },
   }
 }
@@ -144,9 +175,11 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
  * e dizer isso para uma resposta que não entendemos manda o conferente embora sem trabalho.
  */
 export function packageBoxQueueFromApi(body: unknown): PackageBoxQueue {
-  if (!isRecord(body) || !isRecord(body.data)) throw new Error('PACKAGE_BOX_MALFORMED')
+  if (!isRecord(body) || !isRecord(body.data))
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
   const { coveredCount, items, totalVolumes } = body.data
-  if (!Array.isArray(items) || !items.every(isPackageBox)) throw new Error('PACKAGE_BOX_MALFORMED')
+  if (!Array.isArray(items) || !items.every(isPackageBox))
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
   return {
     coveredCount: isNumber(coveredCount) ? coveredCount : 0,
     items,

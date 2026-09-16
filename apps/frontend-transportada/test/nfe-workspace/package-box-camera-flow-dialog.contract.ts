@@ -1,6 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import {
+  createInitialPackageBoxCameraFlowState,
+  packageBoxCameraFlowReducer,
+  type PackageBoxCameraFlowEvent,
+  type PackageBoxCameraFlowState,
+} from '../../src/modules/nfe-workspace/shared/packageBoxCameraFlow.service'
+
+function reduce(
+  state: PackageBoxCameraFlowState<string, string>,
+  event: PackageBoxCameraFlowEvent<string, string>,
+): PackageBoxCameraFlowState<string, string> {
+  return packageBoxCameraFlowReducer(state, event)
+}
+
 const ROOT = new URL('../..', import.meta.url)
 
 function read(path: string): Promise<string> {
@@ -96,12 +110,95 @@ describe('PackageBoxCameraFlow encadeia as etapas na mesma sessão de câmera (s
     expect(identifiedBlock).toContain('{cameraEnabled ? (')
   })
 
-  it('D18: pré-carrega o motor ao abrir o fluxo com a função ligada, respeitando saveData', async () => {
+  /**
+   * T14 item A5: as três linhas anteriores varriam a fonte atrás do nome da função e do `dispatch`.
+   * A máquina de etapas é pura — o estado da pré-carga se exercita de verdade.
+   */
+  it('D18: a pré-carga tem os três desfechos na máquina de etapas', () => {
+    const initial = createInitialPackageBoxCameraFlowState<string, string>({ cameraEnabled: true })
+    expect(initial.enginePreloadStatus).toBe('idle')
+
+    const loading = reduce(initial, { kind: 'enginePreloadStarted' })
+    expect(loading.enginePreloadStatus).toBe('loading')
+    expect(reduce(loading, { kind: 'enginePreloadReady' }).enginePreloadStatus).toBe('ready')
+    expect(reduce(loading, { kind: 'enginePreloadFailed' }).enginePreloadStatus).toBe('failed')
+    /** A pré-carga nunca mexe na etapa: digitar continua disponível enquanto o motor carrega. */
+    expect(loading.step).toBe('label')
+  })
+
+  it('D18: respeita saveData e a ausência de WebAssembly antes de baixar o motor', async () => {
     const flow = await read(FLOW)
 
     expect(flow).toContain('function canPreload(): boolean {')
     expect(flow).toContain('connection?.saveData !== true')
-    expect(flow).toContain("dispatch({ kind: 'enginePreloadStarted' })")
+    expect(flow).toContain("typeof WebAssembly === 'undefined'")
+  })
+
+  /**
+   * T14 item A1: `saved` era despachado no mesmo tick do `onSave`, sem esperar desfecho nenhum —
+   * o `422` da função desligada e o `400` de corpo recusado sumiam, e a tela voltava para a
+   * etiqueta dizendo que gravou. `saveFailed` era código morto no reducer.
+   */
+  it('A1: a gravação só sai de "Gravando" com o desfecho do PUT, e a recusa volta para a Conferência', () => {
+    const identified = reduce(
+      reduce(createInitialPackageBoxCameraFlowState<string, string>({ cameraEnabled: true }), {
+        kind: 'labelRead',
+      }),
+      { candidates: ['box-1'], kind: 'matchesLoaded' },
+    )
+    expect(identified.step).toBe('identified')
+    const inReview = reduce(reduce(identified, { kind: 'typeRequested' }), {
+      kind: 'saveRequested',
+    })
+    expect(inReview.step).toBe('saving')
+    expect(reduce(inReview, { kind: 'saveFailed' }).step).toBe('review')
+    expect(reduce(inReview, { kind: 'saved' }).step).toBe('label')
+  })
+
+  it('A1: a etapa não despacha saved sozinha, e mostra o código da recusa em role=alert', async () => {
+    const flow = await read(FLOW)
+
+    const handleSave = flow.split('function handleSave(')[1]?.split('\n  }')[0] ?? ''
+    expect(handleSave).toContain("dispatch({ kind: 'saveRequested' })")
+    expect(handleSave).not.toContain("dispatch({ kind: 'saved' })")
+    expect(flow).toContain("if (saveStatus === 'success') dispatch({ kind: 'saved' })")
+    expect(flow).toContain("if (saveStatus === 'error') dispatch({ kind: 'saveFailed' })")
+
+    const alertBlock =
+      flow.split('{saveErrorCode === undefined ? null : (')[1]?.split('</p>')[0] ?? ''
+    expect(alertBlock).toContain('role="alert"')
+    expect(alertBlock).toContain("t('packageBoxes.camera.saveFailed', { code: saveErrorCode })")
+  })
+
+  /** T14 item M7: consulta com erro virava "Nenhuma caixa com este código" — caixa que existe. */
+  it('M7: consulta que falhou é erro na tela, nunca ausência de caixa', async () => {
+    const flow = await read(FLOW)
+
+    expect(flow).toContain("if (matching || lookupFailed || state.step !== 'identifying') return")
+    const noticeBlock = flow.split('{lookupFailed ? (')[1]?.split('</p>')[0] ?? ''
+    expect(noticeBlock).toContain('role="alert"')
+    expect(noticeBlock).toContain("t('packageBoxes.camera.lookupFailed')")
+  })
+
+  /** T14 item M3: D13 pede o selo "Experimental" nas DUAS etapas — Medida e Conferência. */
+  it('M3: a etapa Medida também carrega o selo experimental', async () => {
+    const flow = await read(FLOW)
+    const scanner = await read('src/components/ui/box-dimension-scanner.tsx')
+
+    expect(flow).toContain("experimentalLabel={t('packageBoxes.experimentalBadge')}")
+    expect(scanner).toContain('{experimentalLabel}')
+    expect(scanner).toContain('<Badge variant="secondary">')
+  })
+
+  /** T14 item M6: o worker da pré-carga é o mesmo da etapa Medida — o OpenCV compila uma vez só. */
+  it('M6: entrega o worker da pré-carga ao primitivo de medida em vez de subir outro', async () => {
+    const flow = await read(FLOW)
+
+    expect(flow).toContain('worker={engineWorker}')
+    const preloadEffect = flow.split("dispatch({ kind: 'enginePreloadStarted' })")[1] ?? ''
+    expect(preloadEffect.split('}, [cameraEnabled, isOpen])')[0]).not.toContain(
+      'worker.terminate()\n      dispatch',
+    )
   })
 })
 

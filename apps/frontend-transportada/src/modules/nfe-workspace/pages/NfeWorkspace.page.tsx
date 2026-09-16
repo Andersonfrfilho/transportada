@@ -722,6 +722,8 @@ export function NfeWorkspacePage() {
                       onSearchChange={packageBoxes.setSearch}
                       onStatusChange={packageBoxes.setStatus}
                       queue={packageBoxes.queue}
+                      saveErrorCode={packageBoxes.measureErrorCode}
+                      saveStatus={packageBoxes.measure.status}
                       saving={packageBoxes.measure.isPending}
                       search={packageBoxes.search}
                       status={packageBoxes.status}

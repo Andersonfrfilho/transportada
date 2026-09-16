@@ -5,12 +5,15 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import {
   createPackageBoxClient,
+  packageBoxErrorCode,
   type PackageBoxMeasurementInput,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
 
 const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
+/** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
+const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
 
 function useDebounced(value: string, delayMs: number): string {
   const [settled, setSettled] = useState(value)
@@ -68,8 +71,19 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     queryKey,
   })
 
+  /**
+   * ⚠️ **Gravação que falha tem que aparecer.** Sem `onError`, o `PUT` recusado (o `422` da função
+   * desligada com a aba aberta, o `400` de corpo inválido) sumia: a tela já tinha voltado para a
+   * etiqueta dizendo que estava tudo certo, e a caixa continuava sem medida (T14 item A1).
+   */
+  const [measureErrorCode, setMeasureErrorCode] = useState<string | undefined>(undefined)
+
   const measure = useMutation({
     mutationFn: (measurement: PackageBoxMeasurementInput) => client.measureBox(measurement),
+    onError: (error: unknown) => {
+      setMeasureErrorCode(packageBoxErrorCode(error) ?? PACKAGE_BOX_MEASURE_FAILED_CODE)
+    },
+    onMutate: () => setMeasureErrorCode(undefined),
     /**
      * Sem `await`: aguardar a releitura aqui segura o botão, e a varredura de fonte de
      * `test/shared/mutation-pending-state.contract.ts` reprova isso.
@@ -88,6 +102,8 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
      */
     isMatching: query.isFetching,
     measure,
+    /** O código da recusa da última gravação — `undefined` enquanto nada falhou (A1). */
+    measureErrorCode,
     queue: query.data ?? null,
     scanned,
     search,
