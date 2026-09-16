@@ -292,7 +292,12 @@ export async function previewTripValuation(
 
   return buildValuationFromContext({
     companyId: input.companyId,
-    context: { ...context, distanceMeters: road.distanceMeters, toll: road.toll },
+    context: {
+      ...context,
+      distanceMeters: road.distanceMeters,
+      estimatedDurationSeconds: road.durationSeconds,
+      toll: road.toll,
+    },
     repository: input.repository,
   })
 }
@@ -301,6 +306,9 @@ export async function previewTripValuation(
  * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) a distância é `null`, e o gap de
  * `noPlannedDistance` continua valendo — nada muda no que já existia antes desta task. O pedágio
  * segue a mesma regra de `readRouteGeometry`: `null` é "não calculei", nunca zero inventado.
+ *
+ * Spec 143 D4: `durationSeconds` some junto — cru, sem virar dias aqui. É a política
+ * (`suggestAllowanceDays`) quem decide quantos dias a duração sugere.
  */
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
@@ -314,7 +322,11 @@ async function resolvePreviewRoad(input: {
   readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
   readonly stopOrder: readonly string[]
   readonly tollBooths: ReadRouteGeometryTollBoothsPort
-}): Promise<{ readonly distanceMeters: null | number; readonly toll: null | RouteGeometryToll }> {
+}): Promise<{
+  readonly distanceMeters: null | number
+  readonly durationSeconds: null | number
+  readonly toll: null | RouteGeometryToll
+}> {
   const points = await input.repository.readPreviewStopCoordinates({
     companyId: input.companyId,
     nfeDocumentIds: input.nfeDocumentIds,
@@ -332,11 +344,15 @@ async function resolvePreviewRoad(input: {
     ...(input.choice === undefined ? {} : { choice: input.choice }),
   })
 
+  /** Spec 153 D5 + 143 D4: a mesma sumarização entrega os metros com a volta e a duração crua. */
+  const distance = summarizeRoadDistance({
+    legs: road.legs,
+    trailingLegs: road.depot?.trailingLegs ?? 0,
+  })
+
   return {
-    distanceMeters: summarizeRoadDistance({
-      legs: road.legs,
-      trailingLegs: road.depot?.trailingLegs ?? 0,
-    }).distanceMeters,
+    distanceMeters: distance.distanceMeters,
+    durationSeconds: distance.durationSeconds,
     toll: road.toll,
   }
 }

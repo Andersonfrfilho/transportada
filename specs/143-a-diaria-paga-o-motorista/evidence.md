@@ -388,3 +388,90 @@ do frontend **continua verde** — ele exercita o serviço de detalhe do FE, que
 | Testes do frontend | `bun run --cwd apps/frontend-transportada test` | ✅ **4073 pass · 0 fail** · 35825 expect() · 29 arquivos · 4,24 s             |
 | Lint               | `bun run lint`                                  | ✅ limpo                                                                      |
 | Formatação         | `bun run format:check`                          | ✅ limpo (após `prettier --write` em três arquivos)                           |
+
+## T4
+
+Escopo: `trip-valuation.query.ts`, `read-trip-valuation.use-case.ts` e, como o contrato da T3 exigia,
+`src/routing/application/read-suggestion-valuation.use-case.ts` (o terceiro consumidor).
+
+### O que saiu da consulta
+
+`readZoneCatalog`, `readDriverCoverage`, `readRatesByRegion`, `readZoneStops`, `readTripStopSequences`,
+`resolveCrew` e `readVehicleFreightClass` — a resolução de zona, cobertura, classe do veículo e
+sequência de parada saíram inteiras. Junto saíram os imports que só existiam para isso:
+`fleetDriverRegions`, `freightRegionCities`, `freightRegionDriverRates`, `freightRegions`,
+`resolveVehicleFreightClass`, `type FreightVehicleClass`, `type DriverPaymentModel`,
+`resolveTripDriverZone`, `type DriverZoneCoverage`, `type RegionCityEntry`, `type TripZoneStop`.
+
+### O que entrou
+
+- **`readCompanyDailyAllowanceAmount(companyId)`** — uma leitura de `company_driver_allowance_settings`,
+  chamada **exatamente uma vez por contexto** (uma em `readContext`, uma em `readPreviewContext`,
+  nunca dentro de `readCrew`/`readPreviewCrew`). Ausência de linha vira `null`; a política decide o
+  padrão do sistema.
+- **`readAllowanceDays(input)`** — nome exigido literalmente pelo `tasks.md`, mas devolve os **segundos
+  crus** somados das paradas (mesmo padrão de `readPlannedDistance`), nunca dias prontos. A conversão e
+  a escolha `informed`/`estimated` continuam só em `suggestAllowanceDays` — comentário no método deixa
+  o descompasso de nome explícito para quem ler depois.
+- **`readCrew`/`readPreviewCrew` viraram um único JOIN** (`trip_drivers ⋈ fleet_drivers` e
+  `fleet_drivers` filtrado por `id in (...)`, respectivamente), devolvendo `driverAmount` **cru** de
+  `fleet_drivers.daily_allowance_amount` — sem campo de zona, sem `Promise.all` de catálogo/cobertura.
+
+### Idas ao banco por valoração — antes/depois
+
+| Caminho                       | Antes                                                                                                                  | Depois                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Prévia (`readPreviewContext`) | ~5: drivers + `readZoneStops`→`listStopAddresses` + `readZoneCatalog` + `readDriverCoverage` (paralelas)               | 2: `readPreviewCrew` + `readCompanyDailyAllowanceAmount`                |
+| Viagem criada (`readContext`) | ~6: drivers + `readTripStopSequences` + `readZoneStops`→`listStopAddresses` + `readZoneCatalog` + `readDriverCoverage` | 3: `readCrew` + `readCompanyDailyAllowanceAmount` + `readAllowanceDays` |
+
+Confere com o briefing: "a prévia hoje faz quatro idas ao banco; sobram duas" — a T4 fecha em duas
+leituras próprias da tripulação/empresa na prévia (mais o resto do contexto, que já existia e não
+mudou: combustível, documentos, ICMS, taxas federais).
+
+### Terceiro consumidor ligado
+
+`src/routing/application/read-suggestion-valuation.use-case.ts` já tinha `road.durationSeconds` em
+mãos (o mesmo campo que alimenta `vehicles.push({ durationSeconds: road.durationSeconds, ... })`
+algumas linhas abaixo). Passou a entrar em `estimatedDurationSeconds` no override de contexto que vai
+para `repository.resolveValuation`, ao lado de `distanceMeters` — a proposta do solver nunca herda a
+duração de uma viagem já criada.
+
+### Testes reescritos, nenhum apagado
+
+- **`crew-zone-wiring.contract.ts` foi reescrito por inteiro** (não apagado) — era o contrato que o
+  briefing apontava como certo de quebrar: afirmava por texto de fonte que a consulta chamava
+  `resolveTripDriverZone` e que os dois leitores delegavam a `this.resolveCrew(`. A versão nova afirma
+  o oposto: ausência de `resolveTripDriverZone`/`resolveCrew`, os dois métodos novos selecionando
+  `fleetDrivers.dailyAllowanceAmount` sem loop por motorista, `readCompanyDailyAllowanceAmount`
+  aparecendo **exatamente duas vezes** no arquivo (uma por contexto) e nunca dentro do corpo da
+  tripulação, e tenant-safety (`companyId`) nos quatro métodos novos/reescritos.
+- **`driver-zone-table-price.contract.ts`** — o teste `'the crew query no longer raises the reminder'`
+  recortava o fonte a partir de `source.indexOf('private async resolveCrew')`; com o método apagado,
+  `indexOf` devolvia `-1` e a asserção passava por acidente (verde pelo motivo errado). Reescrito para
+  afirmar sobre o arquivo inteiro: `resolveCrew` não existe mais, e nem `VALUATION_GAPS.driverZonePricedFromTable`
+  nem `zone.isCoveredByDriver` aparecem em lugar nenhum.
+- Nenhuma outra suíte precisou de caso novo: `trip-valuation/read-valuation.contract.ts` e os
+  integration tests (`trip-financial-end-to-end.integration.ts`, `trip-fiscal-readiness.integration.ts`)
+  já exercitam `readTripValuation`/prévia contra o Postgres real e continuaram verdes.
+
+### Contrato que a T4 impõe à T5
+
+1. `dailyAllowanceDays` já chega cru em `TripValuationContext` (de `trips.daily_allowance_days`), mas
+   **nada hoje escreve essa coluna** — `createTripSchema`/`previewTripValuationSchema` ainda não têm o
+   campo. É o que a T5 abre.
+2. `estimatedDurationSeconds` está disponível cru nos três consumidores (viagem, prévia, sugestão);
+   qualquer novo consumidor de `TripValuationContext` **não pode** receber dias prontos — só duração e
+   dias informados, com a conversão sempre em `suggestAllowanceDays`.
+3. `crew` agora sempre carrega `driverAmount` real do cadastro (nunca mais `null` por resolução de
+   zona morta) — a T5, ao validar `dailyAllowanceDays: 0 → 400`, pode assumir que a diária do motorista
+   já é a fonte de verdade, sem dívida herdada de leitura.
+
+### Gates
+
+| Gate               | Comando                                                | Resultado                                                                   |
+| ------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo                                                                    |
+| Testes da API      | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6090 pass · 23 skip · 0 fail** · 21456 expect() · 177 arquivos · ~11 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4073 pass · 0 fail** · 35825 expect() · 29 arquivos                    |
+| Lint               | `bun run lint`                                         | ✅ limpo                                                                    |
+| Formatação         | `bun run format:check`                                 | ✅ limpo (após `prettier --write` no use-case, que quebrou uma linha)       |

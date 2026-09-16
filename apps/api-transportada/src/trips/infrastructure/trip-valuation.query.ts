@@ -15,27 +15,13 @@ import {
 } from '../../database/cte-emission-profile.schema.js'
 import type { IcmsEmissionProfile } from '../domain/trip-icms-projection.policy.js'
 import { deliveryCharges } from '../../database/delivery-client.schema.js'
+import { companyDriverAllowanceSettings } from '../../database/company-driver-allowance-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
-import {
-  fleetDriverRegions,
-  freightRegionCities,
-  freightRegionDriverRates,
-  freightRegions,
-} from '../../database/freight-region.schema.js'
 import { companyTaxSettings, tripCostEntries } from '../../database/trip-financial.schema.js'
-import { resolveVehicleFreightClass } from '../../shared/vehicle-type.constant.js'
 import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
-import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
-import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
-import {
-  resolveTripDriverZone,
-  type DriverZoneCoverage,
-  type RegionCityEntry,
-  type TripZoneStop,
-} from '../domain/trip-driver-zone.policy.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { resolvePreviewStopKeys } from '../domain/cargo-preview.policy.js'
@@ -44,7 +30,7 @@ import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import { tripDocuments, tripDrivers, trips } from '../../database/trip.schema.js'
 import type {
   TripValuationContext,
   TripValuationDocument,
@@ -92,15 +78,21 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (vehicle === undefined) return null
 
-    const [fuelPrice, documents, crew, federalRates, profiles] = await Promise.all([
-      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(vehicle.fuelType) }),
-      this.readPreviewDocuments(input),
-      this.readPreviewCrew(input),
-      this.readFederalRates({ companyId: input.companyId }),
-      this.readIcmsProfiles(input.companyId),
-    ])
+    const [fuelPrice, documents, crew, federalRates, profiles, companyDailyAllowanceAmount] =
+      await Promise.all([
+        this.readFuelPrice({
+          companyId: input.companyId,
+          product: toFuelProduct(vehicle.fuelType),
+        }),
+        this.readPreviewDocuments(input),
+        this.readPreviewCrew(input),
+        this.readFederalRates({ companyId: input.companyId }),
+        this.readIcmsProfiles(input.companyId),
+        this.readCompanyDailyAllowanceAmount(input.companyId),
+      ])
 
     return {
+      companyDailyAllowanceAmount,
       crew,
       deliveryChargesTotal: null,
       distanceMeters: null,
@@ -192,10 +184,13 @@ export class DrizzleTripValuationQuery {
   }): Promise<TripValuationContext | null> {
     const [trip] = await this.database
       .select({
+        dailyAllowanceDays: trips.dailyAllowanceDays,
         fuelType: fleetVehicles.fuelType,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
         plannedDistanceMeters: trips.plannedDistanceMeters,
+        /** Spec 143 D4 sobre a 153 RF5: os segundos crus vêm congelados com a distância, nunca somados das paradas. */
+        plannedDurationSeconds: trips.plannedDurationSeconds,
         plannedToll: trips.plannedToll,
       })
       .from(trips)
@@ -207,24 +202,36 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (trip === undefined) return null
 
-    const [fuelPrice, documents, crew, tollTotal, deliveryChargesTotal, federalRates, profiles] =
-      await Promise.all([
-        this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
-        this.readDocuments(input),
-        this.readCrew(input),
-        this.readTollTotal(input),
-        this.readDeliveryChargesTotal(input),
-        this.readFederalRates({ companyId: input.companyId }),
-        this.readIcmsProfiles(input.companyId),
-      ])
+    const [
+      fuelPrice,
+      documents,
+      crew,
+      tollTotal,
+      deliveryChargesTotal,
+      federalRates,
+      profiles,
+      companyDailyAllowanceAmount,
+    ] = await Promise.all([
+      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
+      this.readDocuments(input),
+      this.readCrew(input),
+      this.readTollTotal(input),
+      this.readDeliveryChargesTotal(input),
+      this.readFederalRates({ companyId: input.companyId }),
+      this.readIcmsProfiles(input.companyId),
+      this.readCompanyDailyAllowanceAmount(input.companyId),
+    ])
 
     return {
+      companyDailyAllowanceAmount,
       crew,
+      dailyAllowanceDays: trip.dailyAllowanceDays,
       deliveryChargesTotal,
       distanceMeters: trip.plannedDistanceMeters,
       documents,
       /** Spec 125: nota com CT-e usa o documento; as outras, a projeção pelo perfil. */
       emissionProfiles: profiles,
+      estimatedDurationSeconds: trip.plannedDurationSeconds,
       federalRates,
       fuelPricePerLiter: fuelPrice,
       /**
@@ -242,228 +249,45 @@ export class DrizzleTripValuationQuery {
   }
 
   /**
-   * ADR-0049 §3: quem dirige e como é pago. O valor da rota sai da tabela de região cruzando **a
-   * zona da parada** com a classe do veículo — e a classe existe desde a spec 038.
-   *
-   * `routeAmount` fica `null` quando a tabela não cobre aquela zona ou aquela classe: é
-   * desconhecido, e o cálculo trata desconhecido como desconhecido.
+   * Spec 143 D3: o valor geral da empresa, **uma leitura por contexto** — nunca replicada por
+   * linha de tripulação, o que tornaria representável "dois valores gerais para a mesma empresa".
+   * Ausência de linha é "não configurada", e a política aplica a constante do sistema.
    */
+  private async readCompanyDailyAllowanceAmount(companyId: string): Promise<null | string> {
+    const [row] = await this.database
+      .select({ dailyAllowanceAmount: companyDriverAllowanceSettings.dailyAllowanceAmount })
+      .from(companyDriverAllowanceSettings)
+      .where(eq(companyDriverAllowanceSettings.companyId, companyId))
+      .limit(1)
 
-  /**
-   * Spec 086: o catálogo de cidades com a zona a que cada uma pertence. Uma consulta por avaliação,
-   * nunca uma por parada — a tabela do cliente tem 83 cidades, e ela cabe inteira em memória.
-   */
-  private async readZoneCatalog(companyId: string): Promise<readonly RegionCityEntry[]> {
-    return this.database
-      .select({
-        city: freightRegionCities.city,
-        code: freightRegions.code,
-        regionId: freightRegions.id,
-        state: freightRegionCities.state,
-      })
-      .from(freightRegionCities)
-      .innerJoin(
-        freightRegions,
-        and(
-          eq(freightRegions.companyId, freightRegionCities.companyId),
-          eq(freightRegions.id, freightRegionCities.regionId),
-        ),
-      )
-      .where(and(eq(freightRegionCities.companyId, companyId), eq(freightRegions.status, 'active')))
-  }
-
-  /** A cobertura de cada motorista, com o código impresso da zona — uma consulta para todos. */
-  private async readDriverCoverage(input: {
-    readonly companyId: string
-    readonly driverIds: readonly string[]
-  }): Promise<Map<string, DriverZoneCoverage[]>> {
-    const byDriver = new Map<string, DriverZoneCoverage[]>()
-    if (input.driverIds.length === 0) return byDriver
-
-    const rows = await this.database
-      .select({
-        city: fleetDriverRegions.city,
-        code: freightRegions.code,
-        driverId: fleetDriverRegions.driverId,
-        regionId: freightRegions.id,
-        scope: fleetDriverRegions.scope,
-        state: fleetDriverRegions.state,
-      })
-      .from(fleetDriverRegions)
-      .innerJoin(
-        freightRegions,
-        and(
-          eq(freightRegions.companyId, fleetDriverRegions.companyId),
-          eq(freightRegions.id, fleetDriverRegions.regionId),
-        ),
-      )
-      .where(
-        and(
-          eq(fleetDriverRegions.companyId, input.companyId),
-          inArray(fleetDriverRegions.driverId, [...input.driverIds]),
-        ),
-      )
-
-    for (const row of rows) {
-      const entries = byDriver.get(row.driverId) ?? []
-      entries.push({
-        city: row.city,
-        code: row.code,
-        regionId: row.regionId,
-        scope: row.scope,
-        state: row.state,
-      })
-      byDriver.set(row.driverId, entries)
-    }
-
-    return byDriver
-  }
-
-  /** O preço de cada zona para a classe do veículo. Classe vazia (cavalo mecânico) não tem coluna. */
-  private async readRatesByRegion(input: {
-    readonly companyId: string
-    readonly freightClass: '' | FreightVehicleClass
-    readonly regionIds: readonly string[]
-  }): Promise<Map<string, string>> {
-    const byRegion = new Map<string, string>()
-    if (input.freightClass === '' || input.regionIds.length === 0) return byRegion
-
-    const rows = await this.database
-      .select({
-        driverAmount: freightRegionDriverRates.driverAmount,
-        regionId: freightRegionDriverRates.regionId,
-      })
-      .from(freightRegionDriverRates)
-      .where(
-        and(
-          eq(freightRegionDriverRates.companyId, input.companyId),
-          eq(freightRegionDriverRates.freightClass, input.freightClass),
-          inArray(freightRegionDriverRates.regionId, [...input.regionIds]),
-        ),
-      )
-
-    for (const row of rows) byRegion.set(row.regionId, row.driverAmount)
-
-    return byRegion
+    return row?.dailyAllowanceAmount ?? null
   }
 
   /**
-   * As paradas reduzidas ao que decide zona. O endereço é o **físico** (spec 073): a linha
-   * divisória diz que quem decide *lugar* segue o desvio manual, depois `<entrega>`, depois o
-   * destinatário — e a zona de frete é lugar.
+   * Espelha `readCrew`, mas parte dos ids do formulário — a viagem ainda não tem `trip_drivers`.
+   * Spec 143 D1: `driverAmount` cru de `fleet_drivers.daily_allowance_amount`; a política decide
+   * se o motorista, a empresa ou o padrão paga.
    */
-  private async readZoneStops(input: {
-    readonly companyId: string
-    readonly sequenceByDocument: ReadonlyMap<string, null | number>
-  }): Promise<readonly TripZoneStop[]> {
-    const nfeDocumentIds = [...input.sequenceByDocument.keys()]
-    if (nfeDocumentIds.length === 0) return []
-
-    const addresses = await listStopAddresses(this.database, {
-      companyId: input.companyId,
-      nfeDocumentIds,
-    })
-
-    return [...addresses.entries()].map(([documentId, address]) => ({
-      city: address.city === '' ? null : address.city,
-      sequence: input.sequenceByDocument.get(documentId) ?? null,
-      state: address.state === '' ? null : address.state,
-    }))
-  }
-
-  /**
-   * Spec 086: **a zona que paga é a do destino, e a decisão não é da consulta.** Antes daqui, o
-   * `leftJoin` trazia toda linha de cobertura do motorista e o código ficava com a primeira que
-   * tivesse valor — o preço saía da ordem que o Postgres devolveu. Medido no dado real: em
-   * BARRETOS, `truck` vale 1.086,12 na zona `1.000` e 1.508,51 na `1.003`.
-   *
-   * A consulta traz as candidatas; `resolveTripDriverZone` escolhe.
-   */
-  private async resolveCrew(input: {
-    readonly companyId: string
-    readonly drivers: readonly {
-      readonly driverId: string
-      readonly driverName: null | string
-      readonly paymentModel: DriverPaymentModel
-    }[]
-    readonly freightClass: '' | FreightVehicleClass
-    readonly stops: readonly TripZoneStop[]
-  }): Promise<readonly TripCrewMember[]> {
-    if (input.drivers.length === 0) return []
-
-    const [catalog, coverage] = await Promise.all([
-      this.readZoneCatalog(input.companyId),
-      this.readDriverCoverage({
-        companyId: input.companyId,
-        driverIds: input.drivers.map((driver) => driver.driverId),
-      }),
-    ])
-
-    const zones = input.drivers.map((driver) => ({
-      driver,
-      zone: resolveTripDriverZone({
-        catalog,
-        coverage: coverage.get(driver.driverId) ?? [],
-        stops: input.stops,
-      }),
-    }))
-
-    /**
-     * ⚠️ Spec 143 D1: **a zona não precifica mais nada** — a diária paga o motorista, e a tabela de
-     * região saiu da conta. A resolução continua aqui porque a T4 desmonta o caminho inteiro da
-     * consulta de uma vez; até lá o resultado dela não entra na tripulação.
-     */
-    return zones.map(({ driver }) => ({
-      /** A T4 lê `fleet_drivers.daily_allowance_amount` junto da configuração da empresa. */
-      driverAmount: null,
-      driverId: driver.driverId,
-      driverName: driver.driverName,
-      paymentModel: driver.paymentModel,
-    }))
-  }
-
-  /** Espelha `readCrew`, mas parte dos ids do formulário — a viagem ainda não tem `trip_drivers`. */
   private async readPreviewCrew(input: {
     readonly companyId: string
     readonly driverIds: readonly string[]
-    readonly nfeDocumentIds: readonly string[]
-    readonly vehicleId: string
   }): Promise<readonly TripCrewMember[]> {
     if (input.driverIds.length === 0) return []
 
-    const [vehicle, drivers] = await Promise.all([
-      this.readVehicleFreightClass({ companyId: input.companyId, vehicleId: input.vehicleId }),
-      this.database
-        .select({
-          driverId: fleetDrivers.id,
-          driverName: fleetDrivers.name,
-          paymentModel: fleetDrivers.paymentModel,
-        })
-        .from(fleetDrivers)
-        .where(
-          and(
-            eq(fleetDrivers.companyId, input.companyId),
-            inArray(fleetDrivers.id, [...input.driverIds]),
-          ),
+    return this.database
+      .select({
+        driverAmount: fleetDrivers.dailyAllowanceAmount,
+        driverId: fleetDrivers.id,
+        driverName: fleetDrivers.name,
+        paymentModel: fleetDrivers.paymentModel,
+      })
+      .from(fleetDrivers)
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          inArray(fleetDrivers.id, [...input.driverIds]),
         ),
-    ])
-
-    /**
-     * ⚠️ Sem viagem não há `trip_stops`, então não há ordem — `sequence` é `null` e a política cai
-     * na zona mais alta da família. É a leitura mais próxima de "o mais distante" quando o roteiro
-     * ainda não foi calculado; famílias diferentes viram lacuna em vez de palpite.
-     */
-    const stops = await this.readZoneStops({
-      companyId: input.companyId,
-      sequenceByDocument: new Map(input.nfeDocumentIds.map((documentId) => [documentId, null])),
-    })
-
-    return this.resolveCrew({
-      companyId: input.companyId,
-      drivers,
-      freightClass: vehicle,
-      stops,
-    })
+      )
   }
 
   /**
@@ -531,96 +355,31 @@ export class DrizzleTripValuationQuery {
     }))
   }
 
+  /**
+   * Spec 143 D1: um único JOIN `trip_drivers ⋈ fleet_drivers` — `driverAmount` cru, sem resolução
+   * de zona nem de cobertura. A política (`buildTripDriverCost`) decide se paga o motorista, a
+   * empresa ou o padrão; a consulta só entrega o que o banco sabe.
+   */
   private async readCrew(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<readonly TripCrewMember[]> {
-    const [vehicleRow] = await this.database
-      .select({ vehicleType: fleetVehicles.vehicleType })
-      .from(trips)
+    return this.database
+      .select({
+        driverAmount: fleetDrivers.dailyAllowanceAmount,
+        driverId: fleetDrivers.id,
+        driverName: fleetDrivers.name,
+        paymentModel: fleetDrivers.paymentModel,
+      })
+      .from(tripDrivers)
       .innerJoin(
-        fleetVehicles,
-        and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
-      )
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-      .limit(1)
-
-    const [drivers, sequenceByDocument] = await Promise.all([
-      this.database
-        .select({
-          driverId: fleetDrivers.id,
-          driverName: fleetDrivers.name,
-          paymentModel: fleetDrivers.paymentModel,
-        })
-        .from(tripDrivers)
-        .innerJoin(
-          fleetDrivers,
-          and(
-            eq(fleetDrivers.companyId, tripDrivers.companyId),
-            eq(fleetDrivers.id, tripDrivers.driverId),
-          ),
-        )
-        .where(
-          and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)),
-        ),
-      this.readTripStopSequences(input),
-    ])
-
-    const stops = await this.readZoneStops({
-      companyId: input.companyId,
-      sequenceByDocument,
-    })
-
-    return this.resolveCrew({
-      companyId: input.companyId,
-      drivers,
-      freightClass: resolveVehicleFreightClass(vehicleRow?.vehicleType ?? ''),
-      stops,
-    })
-  }
-
-  /** A ordem das paradas por nota: é `sequence` que diz qual destino é o mais distante. */
-  private async readTripStopSequences(input: {
-    readonly companyId: string
-    readonly tripId: string
-  }): Promise<ReadonlyMap<string, null | number>> {
-    const rows = await this.database
-      .select({ nfeDocumentId: tripDocuments.nfeDocumentId, sequence: tripStops.sequence })
-      .from(tripDocuments)
-      .leftJoin(
-        tripStops,
+        fleetDrivers,
         and(
-          eq(tripStops.companyId, tripDocuments.companyId),
-          eq(tripStops.id, tripDocuments.stopId),
+          eq(fleetDrivers.companyId, tripDrivers.companyId),
+          eq(fleetDrivers.id, tripDrivers.driverId),
         ),
       )
-      .where(
-        and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
-      )
-
-    const byDocument = new Map<string, null | number>()
-    for (const row of rows) {
-      if (row.nfeDocumentId === null) continue
-      byDocument.set(row.nfeDocumentId, row.sequence === null ? null : Number(row.sequence))
-    }
-
-    return byDocument
-  }
-
-  /** A classe da tabela de frete sai do tipo do veículo — cavalo mecânico manda `''` (spec 038). */
-  private async readVehicleFreightClass(input: {
-    readonly companyId: string
-    readonly vehicleId: string
-  }): Promise<'' | FreightVehicleClass> {
-    const [vehicle] = await this.database
-      .select({ vehicleType: fleetVehicles.vehicleType })
-      .from(fleetVehicles)
-      .where(
-        and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
-      )
-      .limit(1)
-
-    return resolveVehicleFreightClass(vehicle?.vehicleType ?? '')
+      .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
   }
 
   /** Pedágio e avulsos. `null` quando ninguém lançou nada — ausência de lançamento, não gratuidade. */

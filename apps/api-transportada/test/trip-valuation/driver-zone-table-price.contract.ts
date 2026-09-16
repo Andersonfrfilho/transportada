@@ -127,15 +127,18 @@ describe('the driver zone no longer prices the trip (spec 143 D1)', () => {
     ])
   })
 
-  /** A consulta não acende mais o lembrete: não há preço de tabela para a cobertura qualificar. */
+  /**
+   * A consulta não acende mais o lembrete: a T4 apagou `resolveCrew` inteiro (a zona não mora mais
+   * ali), então a afirmação vale para o arquivo todo, não mais para um método que não existe.
+   */
   test('the crew query no longer raises the reminder', () => {
     const source = readFileSync(
       new URL('../../src/trips/infrastructure/trip-valuation.query.ts', import.meta.url),
       'utf8',
     )
-    const resolveCrew = source.slice(source.indexOf('private async resolveCrew'))
 
-    expect(resolveCrew).not.toContain('VALUATION_GAPS.driverZonePricedFromTable')
-    expect(resolveCrew).not.toContain('zone.isCoveredByDriver')
+    expect(source).not.toContain('private async resolveCrew')
+    expect(source).not.toContain('VALUATION_GAPS.driverZonePricedFromTable')
+    expect(source).not.toContain('zone.isCoveredByDriver')
   })
 })
