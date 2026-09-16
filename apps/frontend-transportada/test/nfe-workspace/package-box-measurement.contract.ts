@@ -15,6 +15,7 @@ import {
   packageBoxQueueFromApi,
 } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '@/modules/nfe-workspace/shared/packageBoxMeasurement.constant'
+import { isRepeatedScan } from '@/modules/nfe-workspace/hooks/usePackageBoxQueue.hook'
 
 const BOX = {
   cartonGtin: null,
@@ -250,8 +251,8 @@ describe('os cabeçalhos que cada método manda', () => {
  * abrir a medição é a ponte para a medição por câmera (spec separada em andamento); o defeito
  * relatado era o leitor nascer atrás da lista sem preview algum.
  */
-describe('o leitor de etiqueta continua montado em toda situação da fila', () => {
-  it('o scanner é renderizado nos estados negado, carregando e falho — não só no corpo principal', async () => {
+describe('o leitor de etiqueta e o fluxo da câmera continuam montados em toda situação da fila', () => {
+  it('o scanner é renderizado nos estados negado e carregando — não só no corpo principal', async () => {
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
@@ -261,10 +262,34 @@ describe('o leitor de etiqueta continua montado em toda situação da fila', () 
 
     expect(panel).toContain('if (denied)')
     expect(panel).toContain('if (loading)')
-    expect(panel).toContain('if (failed)')
-    /** As três saídas antecipadas devolvem o mesmo elemento `scanner`, não uma cópia. */
+    /** As duas saídas antecipadas devolvem o mesmo elemento `scanner`, não uma cópia. */
     const scannerReturns = panel.match(/\{scanner\}/g) ?? []
-    expect(scannerReturns.length).toBeGreaterThanOrEqual(4)
+    expect(scannerReturns.length).toBeGreaterThanOrEqual(3)
+  })
+
+  /**
+   * ⚠️ T14 item ALTO-1 (4ª revisão): `if (failed) return` ficava ANTES de `PackageBoxCameraFlow` —
+   * com o fluxo aberto, uma queda de rede desmontava a etapa em andamento e perdia a captura (foto,
+   * pose, proposta) inteira, e o ramo `lookupFailed` do próprio fluxo nunca era alcançado. Agora
+   * `failed` é um ramo dentro do MESMO `return` que renderiza o fluxo, com uma saída própria (botão
+   * "Tentar de novo") para quem nem chegou a abrir a câmera.
+   */
+  it('a falha de consulta não desmonta PackageBoxCameraFlow — sem retorno antecipado, com saída própria', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).not.toContain('if (failed)')
+    expect(panel).toContain('{failed ? (')
+    expect(panel).toContain('onClick={onRetryLookup}')
+    expect(panel).toContain("t('packageBoxes.retry')")
+
+    /** `PackageBoxCameraFlow` só aparece depois do ramo `failed`, no mesmo `return`. */
+    const [beforeCameraFlow] = panel.split('<PackageBoxCameraFlow')
+    expect(beforeCameraFlow).toContain('{failed ? (')
   })
 })
 
@@ -354,16 +379,23 @@ describe('bipar leva direto à medição da caixa achada', () => {
    * o mesmo texto não muda a chave e o TanStack Query não refaz nada. O fluxo mandava "leia a
    * etiqueta de novo", o conferente lia, e a tela ficava parada na falha (3ª revisão, item M1).
    */
-  it('M1: reler a mesma etiqueta depois da falha refaz a consulta', async () => {
+  /**
+   * ⚠️ MÉDIO-2 (T14, 4ª revisão): a versão anterior era varredura de texto-fonte de `setScanned` —
+   * passava sem exercitar comportamento nenhum. Esta app não tem renderer de hooks
+   * (`@testing-library/react` ausente, confirmado antes de escrever este teste — sem introduzir
+   * dependência nova), então a decisão saiu do hook para `isRepeatedScan`, função pura, testada de
+   * verdade aqui.
+   */
+  it('M1: reler a mesma etiqueta depois da falha decide refazer a consulta, não trocar o estado', async () => {
+    expect(isRepeatedScan({ current: '7896004003405', next: '7896004003405' })).toBe(true)
+    expect(isRepeatedScan({ current: '7896004003405', next: '17896004003405' })).toBe(false)
+    expect(isRepeatedScan({ current: null, next: '7896004003405' })).toBe(false)
+    expect(isRepeatedScan({ current: '7896004003405', next: null })).toBe(false)
+
     const hook = await Bun.file(
       new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
     ).text()
-
-    expect(hook).toContain('retryLookup')
     expect(hook).toContain('void query.refetch()')
-
-    const setScannedBlock = hook.split('setScanned: (value: null | string) => {')[1] ?? ''
-    expect(setScannedBlock).toContain('retryLookup()')
   })
 
   it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
@@ -1048,6 +1080,38 @@ describe('origem e margem gravadas para auditoria (R5)', () => {
 
     expect(queue.items[0]?.measurementSource).toBe('camera_adjusted')
     expect(queue.items[0]?.measurementMarginMm).toBe(18)
+  })
+
+  /**
+   * ⚠️ T14 item ALTO-2 (4ª revisão): `measurementMarginMm: null` pela câmera não é margem zero — é
+   * o protocolo D16 gravando que as três dimensões foram digitadas por cima (nenhuma proposta sobrou
+   * para render). A fila lia "Pela câmera, ±0 cm" bem na caixa em que a câmera errou nas três,
+   * anunciando confiança que não existe.
+   */
+  it('margem nula pela câmera tem rótulo próprio, nunca "±0 cm" (ALTO-2)', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain(
+      "if (box.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')",
+    )
+    expect(panel).not.toContain('box.measurementMarginMm === null ? 0 :')
+
+    const ptLocale = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/locales/nfeWorkspace.locale.json', import.meta.url),
+    ).text()
+    const enLocale = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
+        import.meta.url,
+      ),
+    ).text()
+    expect(ptLocale).toContain('"cameraNoMargin": "Pela câmera, medida conferida com a fita"')
+    expect(enLocale).toContain('"cameraNoMargin": "By camera, measurement checked with the tape"')
   })
 
   it('origem fora do domínio fechado é recusada, não silenciada', () => {
