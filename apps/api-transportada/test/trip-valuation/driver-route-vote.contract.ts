@@ -5,6 +5,10 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 import {
+  DAILY_ALLOWANCE_DAYS_ORIGIN,
+  DAILY_ALLOWANCE_RATE_ORIGIN,
+} from '../../src/trips/domain/daily-allowance.policy.js'
+import {
   buildTripDriverCost,
   type TripCrewMember,
 } from '../../src/trips/domain/trip-driver-cost.policy.js'
@@ -182,78 +186,63 @@ describe('the route that matches more trip cities wins (spec 127)', () => {
 
 function member(overrides: Partial<TripCrewMember>): TripCrewMember {
   return {
-    cityToRegister: null,
+    driverAmount: '570.0000',
     driverId: 'd-1',
     driverName: null,
     paymentModel: 'route_table',
-    regionCity: 'COLINA',
-    regionCode: '1.003',
-    routeAmount: '570.0000',
-    routeGap: null,
-    vehicleClass: 'toco',
     ...overrides,
   }
 }
 
-describe('the driver parcel under the vote (spec 127)', () => {
-  /**
-   * Regra 4: o preço é o da tabela para `(zona, classe)` — **medido**, coberto ou não. O lembrete de
-   * acrescentar a zona na ficha continua, mas não muda a origem nem o número.
-   */
-  test('an uncovered zone keeps the table price as measured, with the reminder', () => {
-    const covered = buildTripDriverCost([member({})])
-    const reminded = buildTripDriverCost([
-      member({ routeGap: VALUATION_GAPS.driverZonePricedFromTable }),
-    ])
+/**
+ * Spec 143 — **a votação decide o roteiro, não o preço.** Antes, a rota vencedora escolhia a célula
+ * da tabela de região e a célula virava a parcela; agora a parcela é a diária de cada condutor, e
+ * nenhuma cidade da viagem vota nela. O que a 127 corrigiu continua valendo para a zona (acima).
+ */
+describe('the driver parcel no longer depends on the vote (spec 143 D1)', () => {
+  test('the zone of the trip changes neither the amount nor the gap', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: null,
+      crew: [member({})],
+      days: 1,
+      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+    })
 
-    expect(reminded.amount).toBe(covered.amount)
-    expect(reminded.source).toBe('measured')
-    expect(covered.source).toBe('measured')
-    expect(reminded.gap).toBe(VALUATION_GAPS.driverZonePricedFromTable)
-    expect(reminded.detail).toBe('1.003 (COLINA) · toco')
-    expect(covered.gap).toBeNull()
+    expect(parcel.amount).toBe('570.0000')
+    expect(parcel.source).toBe('measured')
+    expect(parcel.gap).toBeNull()
+    expect(parcel.detail).toBeNull()
   })
 
   /**
-   * Reescrito pela 128: o empate só deixa a parcela sem valor quando **nenhuma** faixa empatada tem
-   * preço — e aí a lacuna é a da célula vazia (123), nomeando as zonas. Com preço, ela sai com o
-   * maior valor e o aviso (`driver-route-tie.contract.ts`).
-   *
-   * Spec 129: as zonas nomeadas saem **cruas** em `basis.tie` — a frase e a palavra "cidade" são da
-   * tela (`tripCostParcelDetail.service.ts` do frontend), nunca do domínio.
+   * O empate sem nenhuma faixa com preço era a parcela sem valor da 128; hoje o motorista sem valor
+   * próprio cai no valor da empresa, e uma viagem com condutor nunca fica sem número.
    */
-  test('a tie without any priced band leaves the parcel without value, naming the tied zones', () => {
-    const parcel = buildTripDriverCost([
-      member({
-        regionCity: null,
-        regionCode: null,
-        routeAmount: null,
-        routeGap: VALUATION_GAPS.driverRateMissingForClass,
-        tiedCityCount: 1,
-        tiedZones: [
-          { amount: null, city: 'FRANCA', code: '1.003' },
-          { amount: null, city: 'FRANCA', code: '7.001' },
-        ],
-      }),
-    ])
+  test('a crew member with no own amount is paid by the company, never left without value', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: '190.0000',
+      crew: [member({ driverAmount: null })],
+      days: 2,
+      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+    })
 
-    expect(parcel.source).toBe('missing')
-    expect(parcel.amount).toBe('0.0000')
-    expect(parcel.gap).toBe(VALUATION_GAPS.driverRateMissingForClass)
-    expect(parcel.detail).toBeNull()
+    expect(parcel.source).toBe('measured')
+    expect(parcel.amount).toBe('380.0000')
+    expect(parcel.gap).toBeNull()
     expect(parcel.basis).toEqual({
+      crew: [
+        {
+          dailyAmount: '190.0000',
+          driverId: 'd-1',
+          driverName: null,
+          paymentModel: 'route_table',
+          rateOrigin: DAILY_ALLOWANCE_RATE_ORIGIN.company,
+          subtotal: '380.0000',
+        },
+      ],
+      days: 2,
+      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
       of: 'driver',
-      paymentModel: 'route_table',
-      regionCity: null,
-      regionCode: null,
-      tie: {
-        cityCount: 1,
-        zones: [
-          { amount: null, city: 'FRANCA', code: '1.003' },
-          { amount: null, city: 'FRANCA', code: '7.001' },
-        ],
-      },
-      vehicleClass: 'toco',
     })
   })
 })
@@ -279,8 +268,9 @@ describe('the crew query under the vote (spec 127)', () => {
     expect(query).not.toInclude("routeSource: 'estimated'")
   })
 
-  test('the tied zones cross from the policy into the crew', () => {
-    expect(query).toInclude('tiedZones')
+  /** Spec 143: as faixas empatadas param na política de zona — a tripulação não as recebe mais. */
+  test('the tied zones no longer cross into the crew', () => {
+    expect(query).not.toInclude('tiedZones')
   })
 
   /** O `Map` de uma linha por cidade é o defeito; ele não pode voltar. */

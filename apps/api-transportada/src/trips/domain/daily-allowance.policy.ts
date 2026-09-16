@@ -20,6 +20,18 @@ export const DAILY_ALLOWANCE_RATE_ORIGIN = {
 export type DailyAllowanceRateOrigin =
   (typeof DAILY_ALLOWANCE_RATE_ORIGIN)[keyof typeof DAILY_ALLOWANCE_RATE_ORIGIN]
 
+/**
+ * Spec 143 D4: os dias vieram da operação (`informed`) ou da duração estimada do roteiro
+ * (`estimated`) — é o que decide se a parcela do motorista é medida ou prevista.
+ */
+export const DAILY_ALLOWANCE_DAYS_ORIGIN = {
+  estimated: 'estimated',
+  informed: 'informed',
+} as const
+
+export type DailyAllowanceDaysOrigin =
+  (typeof DAILY_ALLOWANCE_DAYS_ORIGIN)[keyof typeof DAILY_ALLOWANCE_DAYS_ORIGIN]
+
 export type ResolveDailyAllowanceParams = {
   readonly companyAmount: null | string
   readonly driverAmount: null | string

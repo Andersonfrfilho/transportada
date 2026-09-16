@@ -30,15 +30,12 @@ import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-sna
 import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
-import { VALUATION_GAPS } from '../domain/trip-valuation.policy.js'
 import {
   resolveTripDriverZone,
   type DriverZoneCoverage,
   type RegionCityEntry,
-  type TiedZone,
   type TripZoneStop,
 } from '../domain/trip-driver-zone.policy.js'
-import { chooseTiedZone } from '../domain/trip-driver-tie.policy.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { resolvePreviewStopKeys } from '../domain/cargo-preview.policy.js'
@@ -412,112 +409,17 @@ export class DrizzleTripValuationQuery {
     }))
 
     /**
-     * Spec 127: o preço é da zona escolhida pelas cidades da viagem, coberta ou não pela ficha do
-     * motorista — a cobertura serve ao roteiro, e aqui só acende o lembrete.
+     * ⚠️ Spec 143 D1: **a zona não precifica mais nada** — a diária paga o motorista, e a tabela de
+     * região saiu da conta. A resolução continua aqui porque a T4 desmonta o caminho inteiro da
+     * consulta de uma vez; até lá o resultado dela não entra na tripulação.
      */
-    const rates = await this.readRatesByRegion({
-      companyId: input.companyId,
-      freightClass: input.freightClass,
-      /** Spec 128: no empate, toda faixa empatada é precificada — o maior valor decide. */
-      regionIds: zones.flatMap((entry) =>
-        'regionId' in entry.zone
-          ? [entry.zone.regionId]
-          : 'tiedZones' in entry.zone
-            ? entry.zone.tiedZones.map((tied) => tied.regionId)
-            : [],
-      ),
-    })
-
-    return zones.map(({ driver, zone }) => {
-      if ('tiedZones' in zone) {
-        return this.priceTiedCrewMember({
-          driver,
-          freightClass: input.freightClass,
-          rates,
-          zone,
-        })
-      }
-      if (!('regionId' in zone)) {
-        return {
-          cityToRegister: 'cityToRegister' in zone ? zone.cityToRegister : null,
-          driverId: driver.driverId,
-          driverName: driver.driverName,
-          paymentModel: driver.paymentModel,
-          regionCity: null,
-          regionCode: null,
-          routeAmount: null,
-          routeGap: zone.gap,
-          vehicleClass: input.freightClass,
-        }
-      }
-
-      const routeAmount = rates.get(zone.regionId) ?? null
-
-      return {
-        cityToRegister: null,
-        driverId: driver.driverId,
-        driverName: driver.driverName,
-        paymentModel: driver.paymentModel,
-        /** Spec 110 D7: a zona que pagou sobe junto do preço — id de banco não explica nada. */
-        regionCity: zone.regionCity,
-        regionCode: zone.regionCode,
-        routeAmount,
-        /**
-         * Spec 123: a zona casou e o preço não veio. Com coluna na planilha isso é **célula
-         * vazia**, e se resolve reimportando a tabela; sem coluna (cavalo mecânico, moto, carro)
-         * não há célula para preencher, e a lacuna honesta continua sendo a genérica.
-         */
-        routeGap:
-          routeAmount !== null
-            ? /** Spec 127: lembrete de ficha, sem mudar o número nem a origem dele. */
-              zone.isCoveredByDriver
-              ? null
-              : VALUATION_GAPS.driverZonePricedFromTable
-            : input.freightClass === ''
-              ? VALUATION_GAPS.noDriverRate
-              : VALUATION_GAPS.driverRateMissingForClass,
-        vehicleClass: input.freightClass,
-      }
-    })
-  }
-
-  /**
-   * Spec 128 D1: rotas empatadas → **o maior preço** entre as faixas empatadas, com aviso que nomeia
-   * cada faixa e o preço dela. Nenhuma com preço é a lacuna da 123 (célula vazia), nomeando as
-   * zonas; veículo sem coluna na planilha continua `NO_DRIVER_RATE`.
-   */
-  private priceTiedCrewMember(input: {
-    readonly driver: {
-      readonly driverId: string
-      readonly driverName: null | string
-      readonly paymentModel: DriverPaymentModel
-    }
-    readonly freightClass: '' | FreightVehicleClass
-    readonly rates: ReadonlyMap<string, string>
-    readonly zone: { readonly cityCount: number; readonly tiedZones: readonly TiedZone[] }
-  }): TripCrewMember {
-    const { chosen, zones } = chooseTiedZone({
-      rates: input.rates,
-      tiedZones: input.zone.tiedZones,
-    })
-    const missingGap =
-      input.freightClass === ''
-        ? VALUATION_GAPS.noDriverRate
-        : VALUATION_GAPS.driverRateMissingForClass
-
-    return {
-      cityToRegister: null,
-      driverId: input.driver.driverId,
-      driverName: input.driver.driverName,
-      paymentModel: input.driver.paymentModel,
-      regionCity: chosen?.city ?? null,
-      regionCode: chosen?.code ?? null,
-      routeAmount: chosen?.amount ?? null,
-      routeGap: chosen === null ? missingGap : VALUATION_GAPS.driverRouteTieHighestRate,
-      tiedCityCount: input.zone.cityCount,
-      tiedZones: zones.map((zone) => ({ amount: zone.amount, city: zone.city, code: zone.code })),
-      vehicleClass: input.freightClass,
-    }
+    return zones.map(({ driver }) => ({
+      /** A T4 lê `fleet_drivers.daily_allowance_amount` junto da configuração da empresa. */
+      driverAmount: null,
+      driverId: driver.driverId,
+      driverName: driver.driverName,
+      paymentModel: driver.paymentModel,
+    }))
   }
 
   /** Espelha `readCrew`, mas parte dos ids do formulário — a viagem ainda não tem `trip_drivers`. */

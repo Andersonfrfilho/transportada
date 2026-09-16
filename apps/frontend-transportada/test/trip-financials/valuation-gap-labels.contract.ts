@@ -44,6 +44,7 @@ describe('valuation gap labels', () => {
   test('the API declares the gaps the screens have to name', () => {
     expect(apiGaps()).toContain('CITY_WITHOUT_REGION')
     expect(apiGaps()).toContain('NO_DRIVER_RATE')
+    expect(apiGaps()).toContain('NO_TRIP_DRIVER')
   })
 
   test('every gap of the API has a label in both languages of both screens', () => {

@@ -3,89 +3,94 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import {
+  DAILY_ALLOWANCE_DAYS_ORIGIN,
+  DAILY_ALLOWANCE_RATE_ORIGIN,
+} from '../../src/trips/domain/daily-allowance.policy.js'
 import { buildTripDriverCost } from '../../src/trips/domain/trip-driver-cost.policy.js'
+import { VALUATION_GAPS } from '../../src/trips/domain/trip-valuation.policy.js'
 import { buildTripTaxParcels } from '../../src/trips/domain/trip-tax.policy.js'
 
-const AGGREGATE = { driverId: 'a', paymentModel: 'route_table' as const, routeAmount: '812.4500' }
-const SALARIED = { driverId: 'b', paymentModel: 'fixed' as const, routeAmount: null }
+const AGGREGATE = {
+  driverAmount: '812.4500',
+  driverId: 'a',
+  driverName: null,
+  paymentModel: 'route_table' as const,
+}
+const SALARIED = {
+  driverAmount: null,
+  driverId: 'b',
+  driverName: null,
+  paymentModel: 'fixed' as const,
+}
+const ONE_INFORMED_DAY = { days: 1, daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed } as const
 
 /**
- * Spec 086 T5: **a lacuna do agregado passou a ter duas causas, e elas pedem ações diferentes.**
- * "este motorista não cobre esta zona" se resolve na ficha dele; "ITOBI/SP não está na tabela de
- * regiões" se resolve na aba Regiões. Uma lacuna só mandava o operador procurar no lugar errado
- * metade das vezes, e o nome da cidade é o que transforma o aviso em ação.
+ * Spec 143 D1: **a causa da lacuna sumiu junto com a tabela de região.** A 086 separou "o motorista
+ * não cobre esta zona" de "ITOBI/SP não está na tabela" porque cada uma se resolvia numa tela
+ * diferente; com a diária não há célula para faltar, e nenhuma das duas volta a aparecer.
  */
-describe('a causa da lacuna do agregado (spec 086)', () => {
-  test('a cidade fora da tabela sobe por nome, não como falta de cadastro do motorista', () => {
+describe('a lacuna do agregado acabou com a tabela de região (spec 143)', () => {
+  test('cidade fora da tabela não deixa mais o custo desconhecido', () => {
     expect(
-      buildTripDriverCost([
-        {
-          cityToRegister: 'ITOBI/SP',
-          driverId: 'a',
-          paymentModel: 'route_table',
-          routeAmount: null,
-          routeGap: 'CITY_WITHOUT_REGION',
-        },
-      ]),
-    ).toEqual({
-      amount: '0.0000',
-      basis: null,
-      detail: 'ITOBI/SP',
-      gap: 'CITY_WITHOUT_REGION',
-      kind: 'driver',
-      source: 'missing',
-    })
+      buildTripDriverCost({
+        companyDailyAmount: '200.0000',
+        crew: [
+          { driverAmount: null, driverId: 'a', driverName: null, paymentModel: 'route_table' },
+        ],
+        ...ONE_INFORMED_DAY,
+      }),
+    ).toMatchObject({ amount: '200.0000', detail: null, gap: null, source: 'measured' })
   })
 
-  /** Sem causa declarada, a lacuna continua sendo a de sempre — nada muda para quem já funcionava. */
-  test('sem causa declarada, segue NO_DRIVER_RATE', () => {
+  /** A única lacuna que sobra é não haver condutor — e ela nada tem a ver com cadastro de rota. */
+  test('a única lacuna que sobra é a viagem sem condutor', () => {
     expect(
-      buildTripDriverCost([{ driverId: 'a', paymentModel: 'route_table', routeAmount: null }]),
-    ).toMatchObject({ detail: null, gap: 'NO_DRIVER_RATE' })
-  })
-
-  /**
-   * Dois agregados sem valor por causas diferentes: a que nomeia a cidade vence, porque é a
-   * acionável. Escolher a genérica esconderia o único dado que resolve o problema.
-   */
-  test('entre duas causas, a que nomeia a cidade é a que aparece', () => {
-    expect(
-      buildTripDriverCost([
-        { driverId: 'a', paymentModel: 'route_table', routeAmount: null },
-        {
-          cityToRegister: 'ORLANDIA/SP',
-          driverId: 'b',
-          paymentModel: 'route_table',
-          routeAmount: null,
-          routeGap: 'CITY_WITHOUT_REGION',
-        },
-      ]),
-    ).toMatchObject({ detail: 'ORLANDIA/SP', gap: 'CITY_WITHOUT_REGION' })
+      buildTripDriverCost({
+        companyDailyAmount: '200.0000',
+        crew: [],
+        ...ONE_INFORMED_DAY,
+      }),
+    ).toMatchObject({ detail: null, gap: VALUATION_GAPS.noTripDriver })
   })
 })
 
-describe('o custo do motorista (spec 061 T003)', () => {
-  /** O caso do agregado: a tabela de região cruzada com a classe do veículo dá o valor da rota. */
-  test('soma o que a tabela paga a cada agregado', () => {
-    const parcel = buildTripDriverCost([
-      AGGREGATE,
-      { driverId: 'c', paymentModel: 'route_table', routeAmount: '273.5500' },
-    ])
+describe('o custo do motorista (spec 061 T003, reescrito pela 143)', () => {
+  /** A diária de cada condutor vezes os dias, somadas — a classe do veículo saiu da conta. */
+  test('soma a diária de cada condutor', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: null,
+      crew: [
+        AGGREGATE,
+        { driverAmount: '273.5500', driverId: 'c', driverName: null, paymentModel: 'route_table' },
+      ],
+      ...ONE_INFORMED_DAY,
+    })
 
     expect(parcel).toEqual({
       amount: '1086.0000',
-      /**
-       * ⚠️ Spec 110 D7: a base sai do **primeiro pago por rota**, e é o suficiente — a zona é da
-       * viagem, não do condutor: todos os agregados foram pagos pela mesma, porque ela é decidida
-       * pelo destino mais distante do roteiro (spec 086 D1).
-       */
       basis: {
+        crew: [
+          {
+            dailyAmount: '812.4500',
+            driverId: 'a',
+            driverName: null,
+            paymentModel: 'route_table',
+            rateOrigin: DAILY_ALLOWANCE_RATE_ORIGIN.driver,
+            subtotal: '812.4500',
+          },
+          {
+            dailyAmount: '273.5500',
+            driverId: 'c',
+            driverName: null,
+            paymentModel: 'route_table',
+            rateOrigin: DAILY_ALLOWANCE_RATE_ORIGIN.driver,
+            subtotal: '273.5500',
+          },
+        ],
+        days: 1,
+        daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
         of: 'driver',
-        paymentModel: 'route_table',
-        regionCity: null,
-        regionCode: null,
-        tie: null,
-        vehicleClass: '',
       },
       detail: null,
       gap: null,
@@ -95,62 +100,55 @@ describe('o custo do motorista (spec 061 T003)', () => {
   })
 
   /**
-   * ADR-0049 §3: o salário **não é rateado por viagem**. Ratear exigiria saber quantas viagens o
-   * período terá, o que só se sabe no fim dele — e o resultado congela antes disso.
+   * ⚠️ ADR-0049 §3 caiu na 143: a diária não é salário rateado, é despesa da viagem — o assalariado
+   * recebe diária pelos mesmos dias que o agregado, e a viagem deixa de imprimir "R$ 0,00" para um
+   * custo que existe.
    */
-  test('tripulação assalariada é custo do período, não da viagem', () => {
-    expect(buildTripDriverCost([SALARIED])).toEqual({
-      detail: null,
-      amount: '0.0000',
-      /**
-       * ⚠️ Spec 110 D7: o zero vem com a base que o explica. Sem ela a tela imprime "R$ 0,00" para
-       * um custo que existe — só que ele é do período, não da viagem (ADR-0049 §3).
-       */
-      basis: {
-        of: 'driver',
-        paymentModel: 'fixed',
-        regionCity: null,
-        regionCode: null,
-        tie: null,
-        vehicleClass: '',
-      },
-      gap: null,
-      kind: 'driver',
-      source: 'period',
+  test('tripulação assalariada também recebe diária, e não é mais custo do período', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: '180.0000',
+      crew: [SALARIED],
+      ...ONE_INFORMED_DAY,
     })
-  })
 
-  /** Esconder o salário faria a viagem parecer mais barata do que é. */
-  test('tripulação mista soma o agregado e diz que há salário fora da conta', () => {
-    const parcel = buildTripDriverCost([AGGREGATE, SALARIED])
-
-    expect(parcel.amount).toBe('812.4500')
+    expect(parcel.amount).toBe('180.0000')
     expect(parcel.source).toBe('measured')
-    expect(parcel.gap).toBe('SALARIED_CREW_MEMBER')
+    expect(parcel.gap).toBeNull()
   })
 
-  /**
-   * Agregado sem linha na tabela é **desconhecido**, e o total não é a soma dos que tiveram: a
-   * viagem entra na lista de "resultado incompleto por cadastro" até alguém cadastrar a rota.
-   */
-  test('agregado sem valor na tabela deixa o custo desconhecido, não parcial', () => {
-    const parcel = buildTripDriverCost([
-      AGGREGATE,
-      { driverId: 'd', paymentModel: 'route_table', routeAmount: null },
-    ])
-
-    expect(parcel).toEqual({
-      amount: '0.0000',
-      basis: null,
-      detail: null,
-      gap: 'NO_DRIVER_RATE',
-      kind: 'driver',
-      source: 'missing',
+  /** Nada fica fora da conta: as duas linhas entram no mesmo total. */
+  test('tripulação mista soma o agregado e o assalariado na mesma conta', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: '180.0000',
+      crew: [AGGREGATE, SALARIED],
+      ...ONE_INFORMED_DAY,
     })
+
+    expect(parcel.amount).toBe('992.4500')
+    expect(parcel.source).toBe('measured')
+    expect(parcel.gap).toBeNull()
+  })
+
+  /** Sem valor próprio e sem valor da empresa, o padrão do sistema paga — nunca fica desconhecido. */
+  test('condutor sem valor próprio cai no valor da empresa, e o custo continua conhecido', () => {
+    const parcel = buildTripDriverCost({
+      companyDailyAmount: '180.0000',
+      crew: [
+        AGGREGATE,
+        { driverAmount: null, driverId: 'd', driverName: null, paymentModel: 'route_table' },
+      ],
+      ...ONE_INFORMED_DAY,
+    })
+
+    expect(parcel.amount).toBe('992.4500')
+    expect(parcel.gap).toBeNull()
+    expect(parcel.source).toBe('measured')
   })
 
   test('viagem sem condutor é desconhecida, nunca gratuita', () => {
-    expect(buildTripDriverCost([])).toMatchObject({ gap: 'NO_DRIVER_RATE', source: 'missing' })
+    expect(
+      buildTripDriverCost({ companyDailyAmount: null, crew: [], ...ONE_INFORMED_DAY }),
+    ).toMatchObject({ gap: VALUATION_GAPS.noTripDriver, source: 'missing' })
   })
 })
 

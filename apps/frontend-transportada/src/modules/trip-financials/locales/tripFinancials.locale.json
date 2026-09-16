@@ -17,6 +17,7 @@
     "NO_FUEL_CONSUMPTION": "veículo sem consumo médio na ficha",
     "NO_FUEL_PRICE": "sem preço para o combustível deste veículo",
     "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
+    "NO_TRIP_DRIVER": "viagem sem condutor — não há a quem pagar a diária",
     "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"

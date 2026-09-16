@@ -7,6 +7,10 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
+import type {
+  DailyAllowanceDaysOrigin,
+  DailyAllowanceRateOrigin,
+} from './daily-allowance.policy.js'
 
 const ERROR_CODE_PREFIX = 'TRIP_VALUATION'
 const PERCENT_FACTOR = 100n
@@ -25,6 +29,12 @@ export type ValuationSource = (typeof VALUATION_SOURCES)[number]
 /**
  * Por que a parcela não pôde ser calculada. Existe para a tela dizer o que fazer — "cadastre o preço
  * do diesel" é acionável; "combustível: 0" manda o operador adivinhar.
+ *
+ * ⚠️ Spec 143: as lacunas do custo de motorista por tabela de região — `noDriverRate`,
+ * `salariedCrewMember`, `cityWithoutRegion`, `driverRateMissingForClass`,
+ * `driverZonePricedFromTable` e `driverRouteTieHighestRate` — **deixaram de ser produzidas**, mas
+ * ficam aqui e nos locales: resultado congelado antes da 143 guarda o código em `note`, e a tela
+ * ainda precisa saber traduzi-lo.
  */
 export const VALUATION_GAPS = {
   /** As taxas de entrega são da spec 060, que ainda não foi construída. */
@@ -34,6 +44,11 @@ export const VALUATION_GAPS = {
    * do veículo (que a spec 038 passou a fornecer). Sem linha na tabela é **desconhecido**, não zero.
    */
   noDriverRate: 'NO_DRIVER_RATE',
+  /**
+   * Spec 143: a viagem não tem condutor, e sem ele não há diária a pagar. O custo é desconhecido —
+   * quem resolve é escalar alguém, não cadastrar preço.
+   */
+  noTripDriver: 'NO_TRIP_DRIVER',
   /**
    * ADR-0049 §3: há motorista assalariado na tripulação. O custo dele existe e **não é da viagem** —
    * quem o subtrai é a visão do período. A viagem carrega a marca para a tela poder dizer isso.
@@ -204,6 +219,21 @@ export type TripRevenueLine = {
  * ⚠️ E só existe para as duas parcelas **derivadas**. Pedágio é soma de tarifas e taxa de entrega é
  * lançamento: nas duas o número já é a explicação de si mesmo.
  */
+/**
+ * Spec 143 D5: **a linha do motorista, crua.** `dailyAmount × days = subtotal` é a conta que a tela
+ * imprime ao lado do nome ("R$ 200,00 × 3 dias · valor geral"), e `rateOrigin` é o que decide aquele
+ * final da frase. `paymentModel` segue aqui porque a tela ainda distingue o da casa do agregado —
+ * mas os dois recebem a diária.
+ */
+export type TripDriverCostCrewLine = Readonly<{
+  dailyAmount: string
+  driverId: string
+  driverName: null | string
+  paymentModel: string
+  rateOrigin: DailyAllowanceRateOrigin
+  subtotal: string
+}>
+
 export type TripCostParcelBasis =
   | Readonly<{
       kilometersPerLiter: string
@@ -213,21 +243,11 @@ export type TripCostParcelBasis =
       pricePerLiter: string
     }>
   | Readonly<{
+      /** Uma linha por condutor, na ordem da tripulação. `Σ crew[].subtotal === amount`, exato. */
+      crew: readonly TripDriverCostCrewLine[]
+      days: number
+      daysOrigin: DailyAllowanceDaysOrigin
       of: 'driver'
-      paymentModel: string
-      /** A cidade que decidiu a zona — o destino mais distante (spec 086 D1). */
-      regionCity: null | string
-      regionCode: null | string
-      /**
-       * Spec 129: **cru** — quantas cidades empataram e cada faixa empatada com o preço dela (ou
-       * ausência). A frase e a moeda são de quem lê a tela, no molde do resto desta `basis`; `null`
-       * fora do empate. `amount` é decimal em string, sem formatação.
-       */
-      tie?: null | Readonly<{
-        cityCount: number
-        zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
-      }>
-      vehicleClass: string
     }>
   /**
    * Spec 125: o ICMS **projetado** pelo perfil de emissão — o CST e as duas frações que o CT-e vai

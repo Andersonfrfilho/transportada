@@ -183,7 +183,7 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
     const valuation = await run({ context: context() }).result
     const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
 
-    expect(byKind.get('driver')?.gap).toBe(VALUATION_GAPS.noDriverRate)
+    expect(byKind.get('driver')?.gap).toBe(VALUATION_GAPS.noTripDriver)
     expect(byKind.get('toll')?.gap).toBe(VALUATION_GAPS.notRecorded)
     expect(byKind.get('delivery_charges')?.gap).toBe(VALUATION_GAPS.featureAbsent)
     expect(valuation.hasGaps).toBe(true)
@@ -194,30 +194,43 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
   })
 
   /**
-   * Spec 061 T003: a tripulação decide o custo do motorista, e o agregado pago pela tabela de região
-   * fecha a lacuna que esta valoração carregava desde a 065.
+   * Spec 143 D1: a tripulação continua decidindo o custo do motorista, só que pela **diária** — e o
+   * assalariado deixou de ser custo do período: ele recebe pelos mesmos dias que o agregado.
    */
-  it('conta o agregado pela tabela, e trata o assalariado como custo do período', async () => {
+  it('paga a diária de cada condutor, agregado e assalariado na mesma conta', async () => {
     const withAggregate = await run({
       context: {
         ...context(),
-        crew: [{ driverId: 'a', paymentModel: 'route_table', routeAmount: '812.4500' }],
+        companyDailyAllowanceAmount: '180.0000',
+        crew: [
+          {
+            driverAmount: '812.4500',
+            driverId: 'a',
+            driverName: null,
+            paymentModel: 'route_table',
+          },
+        ],
+        dailyAllowanceDays: 2,
       },
     }).result
     expect(withAggregate.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
-      amount: '812.4500',
+      amount: '1624.9000',
+      gap: null,
       source: 'measured',
     })
 
+    /** Sem dias informados, a duração estimada sugere — e a parcela nasce prevista, não medida. */
     const withSalaried = await run({
       context: {
         ...context(),
-        crew: [{ driverId: 'b', paymentModel: 'fixed', routeAmount: null }],
+        companyDailyAllowanceAmount: '180.0000',
+        crew: [{ driverAmount: null, driverId: 'b', driverName: null, paymentModel: 'fixed' }],
       },
     }).result
     expect(withSalaried.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
-      amount: '0.0000',
-      source: 'period',
+      amount: '180.0000',
+      gap: null,
+      source: 'estimated',
     })
   })
 

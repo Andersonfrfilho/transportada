@@ -16,6 +16,10 @@ import {
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
+import {
+  DAILY_ALLOWANCE_DAYS_ORIGIN,
+  suggestAllowanceDays,
+} from '../domain/daily-allowance.policy.js'
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
@@ -84,8 +88,15 @@ export type TripValuationVehicle = {
 }
 
 export type TripValuationContext = {
-  /** Quem dirige e como é pago — o agregado por rota, o da casa por quinzena (ADR-0049 §3). */
+  /**
+   * Spec 143 D3: a diária configurada pela empresa, **uma vez por viagem** — ela vale para todo
+   * condutor que não tem valor próprio. `null`/ausente é "não configurada", e aí paga o padrão.
+   */
+  readonly companyDailyAllowanceAmount?: null | string
+  /** Quem dirige e quanto vale a diária de cada um (spec 143 D1). */
   readonly crew?: readonly TripCrewMember[]
+  /** Spec 143 D4: os dias que a operação informou. Ausente, a duração estimada sugere quantos. */
+  readonly dailyAllowanceDays?: null | number
   /** Taxas de entrega já conferidas (060). `null` enquanto a empresa não usa o módulo. */
   readonly deliveryChargesTotal?: null | string
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
@@ -96,6 +107,11 @@ export type TripValuationContext = {
    * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
    */
   readonly emissionProfiles?: readonly IcmsEmissionProfile[]
+  /**
+   * Spec 143 D4: os segundos crus do roteiro aceito. A conversão em dias — e a decisão entre dias
+   * informados e sugeridos — é da política, não do SQL.
+   */
+  readonly estimatedDurationSeconds?: null | number
   /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
@@ -469,7 +485,7 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
   const hasDistance = distance !== null && distance > 0
 
   return [
-    buildTripDriverCost(context.crew ?? []),
+    buildDriverParcel(context),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),
@@ -479,6 +495,25 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
       kind: 'delivery_charges',
     }),
   ]
+}
+
+/**
+ * Spec 143 D4: **dias informados vencem a sugestão** — quem lançou a viagem sabe o que ela vai
+ * durar melhor do que a duração estimada do roteiro, e é essa diferença que separa a parcela medida
+ * da prevista.
+ */
+function buildDriverParcel(context: TripValuationContext): TripCostParcel {
+  const informedDays = context.dailyAllowanceDays ?? null
+
+  return buildTripDriverCost({
+    companyDailyAmount: context.companyDailyAllowanceAmount ?? null,
+    crew: context.crew ?? [],
+    days: informedDays ?? suggestAllowanceDays(context.estimatedDurationSeconds ?? 0),
+    daysOrigin:
+      informedDays === null
+        ? DAILY_ALLOWANCE_DAYS_ORIGIN.estimated
+        : DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+  })
 }
 
 /**
