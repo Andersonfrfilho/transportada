@@ -2524,3 +2524,127 @@ editado**: a integração rodou com `DRIZZLE_TEST_DATABASE_URL` na linha de coma
   o sustenta. Se a validação T15 mostrar bloco `camera` forjado com margem alta e sem proposta, a
   decisão volta ao usuário: hoje o lado seguro escolhido é aceitar o valor **digitado** e recusar
   qualquer margem não editada acima do teto.
+
+## T14 — correções da 3ª revisão
+
+A 2ª revisão foi confirmada corrigida; estes são achados novos, medidos executando o schema real.
+
+### [ALTO] Tela e API discordavam do que é "dimensão editada" — `cc419327`
+
+A tela isentava a dimensão assim que `edited[dimension]` virava `true` (qualquer tecla, inclusive
+redigitar o mesmo número); o schema da API compara valor com valor (`proposed !== recordedMm`). O
+protocolo de validação D16 cai exatamente aí: proposta de 599 mm com margem 11, o conferente confere
+com a fita, concorda e digita 59,9 — a tela não pedia confirmação, mandava `impreciseConfirmed:
+false`, e a API via `599 === 599` (não editada), margem 11 > 10 sem confirmação, **400**. Numa sessão
+de 20 caixas, toda concordância câmera↔fita numa dimensão imprecisa virava erro.
+
+Agora existe **uma regra só**, e a tela prevê o que a API cobra: `dimensionReliability` recebe o
+valor digitado (`parsed[dimension]`) e só isenta quando ele **difere** da proposta.
+`firstUnreliableDimension` acompanha; `source` continua saindo de `edited`.
+
+Prova de que o caso novo reprova o código anterior:
+
+```
+(fail) … > a fita que concorda com a proposta imprecisa ainda pede confirmação (D16)
+  expect(requiresConfirmation({ edited, proposal, recorded })).toBe(true)
+  Expected: true   Received: false
+```
+
+Caso acrescentado à fixture de fronteira (`camera_adjusted`, `lengthMarginMm: 11`,
+`proposedLengthMm === lengthMm`, `impreciseConfirmed: true`) e exercitado pelas duas metades.
+
+### [MÉDIO] Reler a mesma etiqueta depois da falha não fazia nada — `e69f503d`
+
+`onLookup` é `setScanned`, `scanned` está na `queryKey`, e com `retry: false` a consulta fica em erro
+e não refaz: regravar o mesmo texto não mudava a chave. O fluxo mandava "leia a etiqueta de novo", o
+conferente lia, e a tela ficava parada. `usePackageBoxQueue` passa a expor `retryLookup`
+(`query.refetch()`), e `setScanned` com o mesmo valor chama `retryLookup()` em vez de gravar um
+estado idêntico — nenhum chamador precisou mudar.
+
+### [MÉDIO] A sonda de CSP nunca rodava em CI — `be3ff1d5`
+
+**Escolha: instalar o Chromium também no `quality-app`** (passo condicionado a
+`matrix.app == 'frontend-transportada'`), **e** apertar a dispensa para
+`skipIf(!CHROMIUM_IS_AVAILABLE && !CI)`.
+
+Por quê: mover a sonda para o job `integration` a tiraria da bateria que os `deploy-*` esperam, e ela
+é contrato do design system, não de infraestrutura; só o `skipIf(… && !CI)` deixaria o gate vermelho
+por navegador ausente, que é falha de dependência e não defeito de CSP. As duas juntas dão a única
+combinação em que a sonda **roda** em CI e **falha alto** se o passo sumir. Só o frontend paga o
+download. Um contrato novo lê `ci.yml` e cobra o passo — vermelho antes da correção:
+
+```
+(fail) … > o gate que roda esta bateria instala o Chromium do Playwright
+  Expected to contain: "if: matrix.app == 'frontend-transportada'"
+```
+
+O `chromium.launch()` saiu do 1º caso para um `beforeAll` guardado (o 2º caso dependia do 1º).
+
+### [MÉDIO] O caminho D6 contra o Postgres — `c282a9b8`
+
+`measurement-history.integration.ts` ganhou o corpo exato do 2º caso da fixture (`camera_adjusted`,
+`heightMarginMm: 45`, sem `proposedHeightMm`), assertando a margem na caixa e a linha de histórico
+com `proposedHeightMm` nulo. Medido contra Postgres real, e medido também com a regra antiga ligada
+de volta:
+
+```
+Expected: 7   Received: 45
+(fail) … > D6: a altura não lida pela câmera fica sem proposta no histórico, e não vira a margem da caixa
+```
+
+### [BAIXO] `resolveMeasurementMargin` gravava a margem da dimensão digitada — `c282a9b8`
+
+**Decisão implementada:** `measurement_margin_mm` passa a ser o máximo das margens das dimensões
+**não editadas** (mesma definição do schema); com as três editadas, grava `null`. A margem de cada
+dimensão proposta continua no histórico (D17), que é o que a validação lê. `CAMERA_DIMENSIONS` e
+`isEditedDimension` saíram do schema para o domínio — "dimensão editada" deixou de ter duas
+implementações — e o schema passa a derivar o teto da mesma função que grava a coluna. O texto do D8
+em `spec.md` foi ajustado ("a maior das três margens" → a maior entre as não editadas).
+
+### [BAIXOS] Fixture e caminhos de import
+
+- A fixture cobria só `camera`/`camera_adjusted`, e a metade da API asseria `parsed.camera` definido
+  **sempre**: entrou o caso `typed` (sem bloco de câmera) e a asserção virou condicional ao `source`.
+- A fixture tinha um aviso só: entrou um caso com os **sete** códigos de
+  `BOX_DIMENSION_DOMAIN_WARNINGS` de uma vez, montado a partir da lista viva — a divergência entre as
+  duas cópias por valor agora reprova na fronteira.
+- `BoxDimensionMeasuredResult` tinha dois endereços (serviço e reexporte do hook) e
+  `MAXIMUM_FRAME_WIDTH` chegava em três saltos: os dois passam a ser importados de onde nascem, com
+  contrato do design system cobrando que ninguém volte a reexportá-los (`702ae56c`).
+
+### Gates
+
+| Gate                                             | Resultado                       |
+| ------------------------------------------------ | ------------------------------- |
+| `bun run typecheck` (6 apps)                     | ok                              |
+| `bun run lint` (6 apps)                          | ok                              |
+| `bun run format:check` (Prettier, repo)          | ok                              |
+| contratos da API (`bun test`, 177 arq.)          | 6.053 pass · 23 skip · 0 (fail) |
+| contratos do frontend (inclui acentos)           | 4.049 pass · 0 (fail)           |
+| contratos do worker                              | 1.374 pass · 0 (fail)           |
+| contratos do cron                                | 94 pass · 0 (fail)              |
+| `bun run --cwd apps/frontend-transportada build` | ok (PWA, 132 entradas)          |
+
+Postgres: o do Docker segue indisponível — `docker ps` não respondeu em 120 s nesta sessão. Foi
+subido um **Postgres 18.4 nativo descartável** em `127.0.0.1:57432` (dados no scratchpad da sessão,
+socket em `/tmp/pgsock-spec152`, `LC_ALL=C` no `initdb`/`pg_ctl`). **O `.env.test` do link simbólico
+não foi editado**: a integração rodou com `DRIZZLE_TEST_DATABASE_URL` na linha de comando, por cima
+do `--env-file=../../.env.test`. Sem essa variável os testes de integração **pulam em silêncio**.
+
+### Commits
+
+| Tema                                       | Hash       |
+| ------------------------------------------ | ---------- |
+| [ALTO] dimensão editada + fixture completa | `cc419327` |
+| [MÉDIO] reler a mesma etiqueta             | `e69f503d` |
+| [MÉDIO] sonda de CSP roda no gate          | `be3ff1d5` |
+| [MÉDIO+BAIXO] margem da caixa + D6 no PG   | `c282a9b8` |
+| [BAIXO] um símbolo, um caminho de import   | `702ae56c` |
+
+### Follow-up
+
+- `paridade-de-bits-do-marcador-aruco` continua aberto (herdado das rodadas anteriores).
+- O passo `playwright install` no `quality-app` roda a cada gate do frontend; se o tempo de parede
+  incomodar, o caminho é cache do diretório de navegadores do Playwright, não tirar a sonda.
+- A fixture de fronteira agora tem cinco corpos; corpo novo (por exemplo `grossWeightGrams` vindo da
+  balança) precisa entrar nela, ou a fronteira volta a não ver o caso.
