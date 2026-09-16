@@ -40,6 +40,7 @@ export function UserAdministrationPage() {
   const { viewModel } = users
   const listErrorCode = readErrorCode(users.usersQuery.error)
   const rowErrorCode =
+    readErrorCode(users.activateUserMutation.error) ??
     readErrorCode(users.changeStatusMutation.error) ??
     readErrorCode(users.resendInvitationMutation.error)
 
@@ -136,6 +137,11 @@ export function UserAdministrationPage() {
                 {t(`users.errors.${rowErrorCode}`, { defaultValue: t('users.errors.default') })}
               </p>
             )}
+            {screen.activatedUserId === null ? null : (
+              <p className={styles.hint} role="status">
+                {t('users.activateInvitedSucceeded')}
+              </p>
+            )}
             {screen.resentUserId === null ? null : (
               <p className={styles.hint} role="status">
                 {t('users.resendSucceeded')}
@@ -153,6 +159,8 @@ export function UserAdministrationPage() {
             />
             <CompanyUserTable
               currentUserId={screen.currentUserId}
+              isActivating={users.activateUserMutation.isPending}
+              onActivate={(user) => void screen.activateUser(user)}
               onChangeStatus={(input) => users.changeStatusMutation.mutate(input)}
               onEdit={screen.openEdit}
               onRemove={screen.openRemove}

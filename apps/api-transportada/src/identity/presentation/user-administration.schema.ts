@@ -192,6 +192,32 @@ export const setCompanyUserPasswordSchema = z
   .strict()
 export type SetCompanyUserPasswordBody = z.infer<typeof setCompanyUserPasswordSchema>
 
+/**
+ * A ativação manual pode vir sem senha — a pessoa já definiu a dela e só o habilitar falhou, ou vai
+ * recuperá-la pelo código. Com senha, `temporary` é obrigatório pelo mesmo motivo da rota de senha.
+ */
+export const activateCompanyUserSchema = z
+  .object({
+    password: z
+      .string()
+      .min(COMPANY_USER_PASSWORD_MIN_LENGTH)
+      .max(COMPANY_USER_PASSWORD_MAX_LENGTH)
+      .optional(),
+    temporary: z.boolean().optional(),
+  })
+  .strict()
+  .refine((body) => (body.password === undefined) === (body.temporary === undefined), {
+    message: 'password and temporary must be provided together.',
+    path: ['temporary'],
+  })
+export type ActivateCompanyUserBody = z.infer<typeof activateCompanyUserSchema>
+
+export async function parseActivateCompanyUserRequest(
+  request: Request,
+): Promise<ActivateCompanyUserBody> {
+  return parseBody(activateCompanyUserSchema, request)
+}
+
 export async function parseInviteCompanyUserRequest(
   request: Request,
 ): Promise<InviteCompanyUserBody> {
