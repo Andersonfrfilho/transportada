@@ -7,7 +7,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T001 Confirmar que o OSRM (profile `car.lua` padrão, MLD, v6.0.0) aceita `exclude=toll`:
+- [x] T001 Confirmar que o OSRM (profile `car.lua` padrão, MLD, v6.0.0) aceita `exclude=toll`:
       chamada real contra o OSRM de staging ou a fixture `deploy/osrm/fixtures` — resultado em
       `evidence.md`. Se não aceitar, parar e reportar (D1 depende disso).
 
