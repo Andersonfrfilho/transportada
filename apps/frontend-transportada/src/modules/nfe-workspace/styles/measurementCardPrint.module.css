@@ -53,7 +53,13 @@
   font-size: 0.85rem;
 }
 
+/**
+ * O navegador não imprime cor de fundo por padrão, e as células do marcador **são** fundo: sem
+ * `exact`, o ArUco saía branco no papel e a câmera não tinha o que detectar.
+ */
 .sheet {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
   display: flex;
   flex-direction: column;
   align-items: center;

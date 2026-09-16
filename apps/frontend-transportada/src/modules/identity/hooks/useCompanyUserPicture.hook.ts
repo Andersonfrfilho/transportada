@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { AUTH_ME_QUERY_KEY } from '../queries/useAuthMe.query'
+import { prepareUserPictureUpload } from '../shared/userPictureCompression.service'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import {
   COMPANY_USERS_ADMINISTRATION_QUERY_KEY,
@@ -82,7 +83,11 @@ export function useCompanyUserPicture(
   }
 
   const replaceMutation = useMutation({
-    mutationFn: (file: Blob) => client.replacePicture({ file, userId: input.userId ?? '' }),
+    mutationFn: async (file: Blob) =>
+      client.replacePicture({
+        file: await prepareUserPictureUpload(file),
+        userId: input.userId ?? '',
+      }),
     onSuccess: () => settle(true),
   })
 

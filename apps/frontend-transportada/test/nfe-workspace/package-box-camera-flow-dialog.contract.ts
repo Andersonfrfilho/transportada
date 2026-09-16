@@ -292,6 +292,23 @@ describe('MeasurementCardPrint é o cartão imprimível do marcador (spec 152 D3
     expect(css).toContain('@media print {')
   })
 
+  /**
+   * O botão imprimia várias páginas em branco: a regra global esconde tudo que não é região marcada,
+   * e o cartão não era marcado; o app escondido ainda ocupava lugar; e o fundo preto das células não
+   * sai no papel sem `print-color-adjust`.
+   */
+  it('imprime só o cartão, numa folha, com as células pretas', async () => {
+    const printCard = await read(PRINT_CARD)
+    const css = await read('src/modules/nfe-workspace/styles/measurementCardPrint.module.css')
+    const global = await read('src/styles/index.css')
+
+    expect(printCard).toContain('data-print-region')
+    expect(css).toContain('print-color-adjust: exact')
+    expect(global).toContain(
+      'body:has([data-print-region]) > :not([data-print-region]):not(:has([data-print-region]))',
+    )
+  })
+
   it('instrui a imprimir em escala real e a conferir a régua antes do primeiro uso', async () => {
     const ptLocale = await read(PT_LOCALE)
     const enLocale = await read(EN_LOCALE)

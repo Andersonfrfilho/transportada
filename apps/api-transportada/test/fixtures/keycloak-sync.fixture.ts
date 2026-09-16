@@ -134,6 +134,8 @@ export function createInvitationRepositoryFake(
 
 type CompanyUserRepositoryFakeOptions = {
   readonly activeMembershipCompanyIds?: readonly string[]
+  /** Logins já em uso na instalação, para o convite escolher o próximo livre. */
+  readonly takenUsernames?: readonly string[]
   readonly membershipStatus?: MembershipStatus
 }
 
@@ -147,6 +149,7 @@ export type CompanyUserRepositoryFake = {
   findIdentitySubject(input: { readonly userId: string }): Promise<string | undefined>
   listActiveMembershipCompanyIds(input: { readonly userId: string }): Promise<readonly string[]>
   listAdministratorUserIds(): Promise<readonly string[]>
+  listTakenUsernames(input: { readonly usernames: readonly string[] }): Promise<ReadonlySet<string>>
   removeMembership(input: { readonly userId: string }): Promise<void>
   setMembershipStatus(input: { readonly status: MembershipStatus }): Promise<void>
 }
@@ -190,6 +193,10 @@ export function createCompanyUserRepositoryFake(
     },
     async listAdministratorUserIds() {
       return [ACTOR_USER_ID]
+    },
+    async listTakenUsernames({ usernames }) {
+      const taken = new Set(options.takenUsernames ?? [])
+      return new Set(usernames.filter((username) => taken.has(username)))
     },
     async removeMembership({ userId }) {
       removeMembershipCalls.push({ userId })

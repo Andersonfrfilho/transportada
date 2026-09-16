@@ -37,7 +37,8 @@ export function MeasurementCardPrint({ isOpen, onClose }: MeasurementCardPrintPr
   const cellSizeMm = MARKER_SIDE_MM / MEASUREMENT_CARD_MARKER_GRID.length
 
   return createPortal(
-    <div className={styles.overlay} onKeyDown={handleKeyDown} role="presentation">
+    /* Sem a marca, a regra global de impressão escondia o cartão e só saía papel em branco. */
+    <div className={styles.overlay} data-print-region onKeyDown={handleKeyDown} role="presentation">
       <div
         aria-labelledby={TITLE_ID}
         aria-modal="true"
