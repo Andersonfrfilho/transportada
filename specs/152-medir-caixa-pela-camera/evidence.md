@@ -2193,3 +2193,166 @@ ambiente `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` no processo do `bun`.
 Um commit isolado com todas as mudanças dos 6 itens: `fca6b63100f02c2f8dd41babdc0fa98e40127a7e`
 ("fix(security): T14 — CSP sem data:, CSV sem injeção de fórmula, camera_adjusted sob teto de
 margem"), no branch `work/spec-152`.
+
+## T14 — correções da revisão de código
+
+A revisão da T14 reprovou a spec com 2 críticos, 5 altos, 9 médios e 4 baixos. As paradas
+obrigatórias foram respeitadas: **CSP e `Permissions-Policy` não foram tocadas**, e
+`MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM` continuam em 10/30 mm.
+
+### C1 (crítico) — escalas misturadas: toda medida saía 1,8× a 2,7× errada
+
+O quadro vai para o worker reduzido a 720 px de largura, e os cantos do marcador voltam **no
+espaço do quadro**. `capturedRef` guardava esses cantos junto de `video.videoWidth/videoHeight`
+(nativo), `measureBox` recebia `imageWidth/imageHeight` nativos, e a tela convertia o toque para o
+espaço nativo. O ponto principal e a focal de reserva saíam então de uma imagem que ninguém mediu.
+
+Caminho escolhido: **um espaço só, o do quadro**. `boxDimensionFrame.service.ts` (novo) concentra
+as três conversões — `frameSizeFor`, `overlayPointToFrame`, `buildBoxMeasurementInput` (que fixa
+`imageWidth`/`imageHeight` nos do quadro). O hook passa a expor `bounds` (o quadro), os pontos
+marcados nascem nele e a tela converte o toque por `overlayPointToFrame`; `videoWidth`/
+`videoHeight` só aparecem em `frameSizeFor(...)` e no canvas do retrato congelado.
+
+**Prova.** `test/nfe-workspace/box-dimension.contract.ts`, describe "a medida vive num espaço só":
+percorre a cadeia real (cena projetada no sensor → cantos reduzidos pelo fator do quadro → dedo
+tocando um retângulo CSS de 375×211 → medida) para `videoWidth = 720`, `1440` e `1920`.
+
+- `dobrar a resolução do vídeo não muda um milímetro da medida`: as três dimensões batem com 6
+  casas decimais entre `videoWidth = frameWidth` e `videoWidth = 2 × frameWidth`;
+- `e as duas continuam sendo a caixa de verdade`: erro abaixo de 5 mm contra a caixa sintética
+  600×400×350 nas três resoluções — não é "o mesmo erro duas vezes".
+
+Como as funções novas são puras e nascem corretas, o vermelho do C1 fica nas asserções que prendem
+o seam (`o hook mede no quadro capturado, nunca em videoWidth/videoHeight` e `a tela converte o
+toque para o quadro pelo mesmo seam`): com o código anterior as duas reprovam, porque
+`confirmMeasurement` carregava `captured.width/height` nativos e o componente lia
+`video.videoWidth` em `overlayBounds()`.
+
+### C2 (crítico) — o `<video>` da etapa Medida nunca recebia o stream
+
+`box-dimension-scanner.tsx` não renderizava o elemento com `status === 'idle'`, e o hook lia
+`videoRef.current` no mesmo tick do `setStatus` que o revelaria: sempre `null`. Correção por
+**callback ref** (`videoRef` virou `(element) => void`) mais um efeito próprio com deps
+`[stream, videoElement]`; a ligação saiu para `attachStreamToVideo`/`detachStreamFromVideo`
+(`barcodeScanner.service.ts`), fora do React.
+
+**Prova.** `test/design-system/camera-stream.contract.ts`, describe "a trilha chega ao elemento de
+vídeo (C2)": com um `<video>` falso, `attachStreamToVideo` atribui `srcObject` e chama `play()`;
+sem elemento ou sem stream devolve `false`; `play()` que rejeita (autoplay bloqueado) não derruba a
+ligação; `detachStreamFromVideo` limpa. Mais a asserção de que o hook usa esse serviço no efeito
+`[stream, videoElement]` e que `attachAndStart` não toca mais em `srcObject` — vermelha antes.
+
+⚠️ **Parada obrigatória do item A5 respeitada: nenhuma dependência nova.** Um teste "monta o
+componente e confere `srcObject`" exigiria renderer (jsdom/happy-dom/react-test-renderer), que esta
+app não tem e que a revisão pediu para não introduzir sem avisar. O caminho foi extrair a ligação
+para função pura e exercitá-la de verdade, deixando só o ponto de chamada preso por fonte.
+**Follow-up nomeado: `renderer-para-contratos-de-ui`** — decidir se esta app adota um renderer, o
+que permitiria substituir a última camada de contratos por texto de fonte (não só destes dois
+itens: são 84 asserções assim hoje).
+
+### Altos
+
+- **A1** — `PackageBoxCameraFlow` despachava `saved` no mesmo tick do `onSave`; a mutação não tinha
+  `onError`; `saveFailed` era código morto. Hoje a etapa só sai de `saving` com o desfecho do PUT
+  (`saveStatus`), e a Conferência mostra o código em `role="alert"`. O código vem do envelope da
+  API (`PackageBoxRequestError`), o que cobre o `422 PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` da
+  função desligada e o `400` de corpo recusado — antes os dois viravam `new Error` cru.
+- **A2** — campo acima de 30 mm nascia com a medida antiga (`?? lengthMm`). Com proposta na mão o
+  campo mostra a proposta, ou nada (D6).
+- **A3** — `steepAngle`/`unstable` não chegavam ao histórico: `confirmMeasurement` não passava
+  `viewAngleDegrees` nem `previousMarkerCorners`. As estatísticas do quadro **capturado** ficam em
+  `capturedRef`, e o ângulo sai da pose recém-resolvida (`nominal.viewAngleDegrees`).
+- **A4** — **decisão registrada: leitura `source: 'camera'` pura fica fora do cálculo.** Nela o
+  valor gravado é a proposta e o erro é zero por construção; contá-la empurrava as duas taxas para
+  100%. O protocolo do D16 (digitar a fita por cima de toda dimensão, mesmo quando a proposta bate)
+  produz `camera_adjusted`, e é só essa origem que conta. A alternativa ("teto de `camera` puro")
+  foi descartada por embutir um número arbitrário numa amostra que já não mede nada: sem nenhuma
+  leitura `camera_adjusted` o veredito é `insufficient-data`, nunca `go`. A contagem excluída
+  aparece no resumo (`cameraOnlyCount`) para a sessão fora do protocolo não passar despercebida.
+- **A5** — os cinco casos citados viraram comportamento: `initialDimensionCentimetres` e
+  `firstUnreliableDimension` (funções puras novas) no lugar da varredura pela linha do `useState` e
+  pelo `inputRef`; a máquina de etapas exercitada de verdade no lugar da busca por
+  `dispatch({ kind: 'enginePreloadStarted' })`; `openCameraStream`/`stopCameraStream` exercitados
+  com `navigator` falso no lugar do `match(...).toHaveLength(n)`; os dois limites de margem
+  cobrados pelo que decidem (`filled`/`requiresConfirmation`) no lugar da busca pela palavra
+  "provisório" no comentário; e o teste do "ponto de entrada isolado" (que procurava o texto de um
+  comentário anunciando a câmera como spec futura) trocado pela ligação que precisa valer agora.
+
+### Médios
+
+- **M1** — a dispensa da confirmação de imprecisão em `camera_adjusted` é por **dimensão editada**
+  (`proposed<Dim>Mm` diferente do gravado), nunca pelas três de uma vez.
+- **M2** — `source: 'camera'` exige ao menos uma margem; bloco sem margem nenhuma deixou de valer
+  como margem zero.
+- **M3** — selo "Experimental" também na etapa Medida (D13 pede nas duas).
+- **M4** — ordem do gerador de volta à do spike: focal → `markerCorners` → `facePoints` →
+  `footPoint`.
+- **M5** — doc corrigido (`apps/frontend-transportada/CLAUDE.md` e spec D14): o registro é
+  `{ module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' }`. A implementação
+  vence.
+- **M6** — o worker da pré-carga sobrevive e desce para a etapa Medida (`worker={engineWorker}`);
+  antes ele era terminado ao responder `ready` e o scanner subia outro, **compilando o WASM do
+  OpenCV duas vezes por sessão**. O hook só termina worker que criou. Efeito medido pelo build: o
+  chunk do OpenCV (`assets/opencv-*.js`, 11,96 MB de artefato) deixa de ser instanciado e compilado
+  uma segunda vez por abertura do fluxo; não há medição de tempo em aparelho real nesta sessão —
+  **follow-up nomeado: `medir-preload-opencv-em-aparelho`**.
+- **M7** — `query.isError` é erro na tela, não ausência de caixa.
+- **M8** — indicador ao vivo com 500 ms entre anúncios e sem repetir o mesmo motivo, no padrão do
+  `REPEAT_ANNOUNCE_COOLDOWN_MS` do leitor.
+- **M9** — foco na **primeira** dimensão em branco.
+
+### Baixos
+
+- `new Error` cru no client: resolvido junto do A1 (`PackageBoxRequestError` com `code`/`status`).
+- `awaitingScan` preso quando a pistola bipa com o fluxo aberto: a espera é desarmada.
+- `cvPromise` não limpo em falha: promessa rejeitada deixa de ficar memoizada para sempre.
+- `globIgnores` sem `**/`: **não alterado — follow-up nomeado `globignores-do-chunk-do-opencv`**.
+  O padrão atual (`assets/opencv-*.js`) casa com o caminho relativo a `dist` sob a semântica do
+  `glob`, e a constante `OPENCV_CHUNK_PREFIX` é compartilhada com `chunkFileNames` e o
+  `runtimeCaching`; mexer nela sem medir o manifesto gerado troca um risco por outro.
+
+### Gates
+
+| Gate                                                                                           | Resultado                                                                                           |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz, 6 apps)                                                             | verde, 0 erro                                                                                       |
+| `bun run lint` (raiz, 6 apps)                                                                  | verde, 0 erro (1 erro corrigido no caminho: `prefer-promise-reject-errors` no teste novo de câmera) |
+| `bun run --cwd apps/frontend-transportada test`                                                | **4032 pass, 0 fail** (29 arquivos)                                                                 |
+| `bun run --cwd apps/frontend-transportada build`                                               | verde                                                                                               |
+| `bun test` em `apps/api-transportada` (contratos)                                              | **6042 pass, 23 skip, 0 fail** (177 arquivos)                                                       |
+| `bun run test:integration` em `apps/api-transportada` (Postgres nativo descartável em `65490`) | **356 pass, 4 skip, 2 fail**                                                                        |
+| `bunx prettier --check .`                                                                      | verde (9 arquivos passaram por `--write` antes)                                                     |
+| Contrato de acentos (`locale-accents.contract.ts`)                                             | verde — as duas chaves novas (`camera.lookupFailed`, `camera.saveFailed`) saem acentuadas           |
+
+**Contagem de `(fail)`: 2, ambas pré-existentes e sem relação com esta tarefa** —
+`cte archive gateway integration` (as duas asserções do arquivo; exige MinIO, não subido nesta
+sessão). `cte-profile-output-constraints` não falhou nesta rodada.
+
+Postgres: o do Docker (`65432`) segue travando — `Connection timeout after 30s (sent startup
+message, but never received response)`, o mesmo defeito local já registrado. Foi subido um Postgres
+18.4 nativo descartável em `127.0.0.1:65490` (`initdb`/`pg_ctl`, dados no scratchpad da sessão,
+socket em `/tmp/pg152`, `LC_ALL=C` no `pg_ctl` — sem isso o 18.4 recusa o boot com "postmaster
+became multithreaded during startup"). **O `.env.test` (link simbólico) não foi editado**: a
+integração rodou com uma cópia em scratchpad passada por `--env-file`, só com o `DATABASE_URL`
+trocado.
+
+### Commits
+
+| Tema                                                          | Hash       |
+| ------------------------------------------------------------- | ---------- |
+| C1 + C2 + A3 + M3 + M8 + M6 (hook) + `cvPromise`              | `64e34021` |
+| A1 + M7 + M6 (fluxo) + erro tipado do client + `awaitingScan` | `eec7ce54` |
+| A2 + M9                                                       | `95263de6` |
+| A4                                                            | `451f34fc` |
+| M1 + M2 (API)                                                 | `59a7492e` |
+| M4                                                            | `78894f88` |
+
+### Pergunta em aberto que ficou em aberto
+
+O teste que carrega `vendor/opencv/opencv.js` no Bun, gera o marcador com `cv.generateImageMarker`
+e compara com `measurementCardMarker.constant.ts` **não foi escrito** — carregar o artefato do
+Emscripten dentro do `bun test` é uma sonda em si (o wrapper UMD resolve por `globalThis.cv` fora
+do bundler, e o WASM de 11,96 MB entraria em toda rodada de contrato). O risco continua real e
+continua sendo o pior tipo: convenção de bits invertida faz o cartão impresso nunca ser detectado,
+e isso só aparece no galpão. **Follow-up nomeado: `paridade-de-bits-do-marcador-aruco`**, com a
+recomendação de rodá-lo fora do `bun run test` (alvo próprio, como `migration-test`).
