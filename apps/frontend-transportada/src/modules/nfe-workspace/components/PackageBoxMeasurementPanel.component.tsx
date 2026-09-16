@@ -34,6 +34,8 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   onMeasure: (input: PackageBoxMeasurementInput) => void
   /** M-a: zera o desfecho da gravação anterior — o fluxo abre sem a recusa da caixa passada. */
   onResetSaveError: () => void
+  /** T14 item A1 (4ª revisão): refaz a consulta que falhou, sem fechar o fluxo nem perder a captura. */
+  onRetryLookup: () => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
@@ -75,6 +77,11 @@ const PERCENT_SCALE = 100
 /**
  * R5 (leitura): a linha já medida mostra de onde a medida veio — "pela câmera, ±X cm", "digitada"
  * ou "origem não registrada" para o que foi medido antes desta spec (D8, `measurementSource: null`).
+ *
+ * ⚠️ T14 item ALTO-2 (4ª revisão): `measurementMarginMm` nulo com origem pela câmera **não é margem
+ * zero** — é o protocolo D16 gravando que as três dimensões foram digitadas por cima (nenhuma
+ * proposta sobrou para render). Antes disso a fila lia "Pela câmera, ±0 cm" bem na caixa em que a
+ * câmera errou nas três, anunciando confiança que não existe.
  */
 function measurementSourceLabel(
   t: ReturnType<typeof useTranslation<'nfeWorkspace'>>['t'],
@@ -82,9 +89,8 @@ function measurementSourceLabel(
 ): string {
   if (box.measurementSource === null) return t('packageBoxes.source.unknown')
   if (box.measurementSource === 'typed') return t('packageBoxes.source.typed')
-  return t('packageBoxes.source.camera', {
-    margin: box.measurementMarginMm === null ? 0 : box.measurementMarginMm / 10,
-  })
+  if (box.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')
+  return t('packageBoxes.source.camera', { margin: box.measurementMarginMm / 10 })
 }
 
 function QueueSkeleton() {
@@ -115,6 +121,7 @@ export function PackageBoxMeasurementPanel({
   matching,
   onMeasure,
   onResetSaveError,
+  onRetryLookup,
   onScan,
   onSearchChange,
   onStatusChange,
@@ -277,13 +284,6 @@ export function PackageBoxMeasurementPanel({
         <QueueSkeleton />
       </>
     )
-  if (failed)
-    return (
-      <>
-        {scanner}
-        <p className={styles.notice}>{t('packageBoxes.failed')}</p>
-      </>
-    )
 
   const items = queue?.items ?? []
 
@@ -298,81 +298,102 @@ export function PackageBoxMeasurementPanel({
         </Button>
       </header>
 
-      <div className={styles.search}>
-        <label className={styles.field} htmlFor="package-box-search">
-          {t('packageBoxes.searchLabel')}
-          <input
-            id="package-box-search"
-            inputMode="search"
-            onChange={(event) => {
-              setCameFromScan(false)
-              setCameFromKeyboardScan(false)
-              onSearchChange(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              const value = event.currentTarget.value
-              /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
-              if (!looksLikeScannedCode(value)) return
-              event.preventDefault()
-              scanOriginRef.current = 'keyboard'
-              setScanFeedback(undefined)
-              setAwaitingScan(true)
-              onScan(value)
-            }}
-            placeholder={t('packageBoxes.searchPlaceholder')}
-            ref={searchInputRef}
-            type="search"
-            value={search}
-          />
-        </label>
-        <Button
-          onClick={() => (cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true))}
-          type="button"
-          variant="secondary"
-        >
-          <Icon name="camera" />
-          {t('packageBoxes.scan')}
-        </Button>
-      </div>
-
-      <label className={styles.field} htmlFor="package-box-status">
-        {t('packageBoxes.statusLabel')}
-        <Select
-          ariaLabel={t('packageBoxes.statusLabel')}
-          onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
-          options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
-            label: t(`packageBoxes.status.${filter}`),
-            value: filter,
-          }))}
-          value={status}
-        />
-      </label>
-
-      {items.length === 0 ? (
-        <p className={styles.notice}>{t('packageBoxes.empty')}</p>
+      {/*
+        ⚠️ T14 ALTO-1 (4ª revisão): a falha de consulta NÃO pode mais ser um retorno antecipado —
+        `PackageBoxCameraFlow` (abaixo) precisa continuar montado enquanto o fluxo estiver aberto,
+        senão uma queda de rede desmonta a etapa em andamento e perde a captura (foto, pose,
+        proposta) inteira. O ramo `lookupFailed` do próprio fluxo já sabe voltar para a etiqueta; o
+        que falta aqui, fora do fluxo, é uma saída para quem nem chegou a abrir a câmera.
+      */}
+      {failed ? (
+        <>
+          <p className={styles.notice} role="alert">
+            {t('packageBoxes.failed')}
+          </p>
+          <Button onClick={onRetryLookup} type="button" variant="secondary">
+            <Icon name="refresh" />
+            {t('packageBoxes.retry')}
+          </Button>
+        </>
       ) : (
-        <ul className={styles.list}>
-          {items.map((box) => (
-            <PackageBoxRow
-              box={box}
-              isEditing={editingId === box.id}
-              key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
-              onCancel={() => setEditingId(null)}
-              onMeasure={(measurement) => {
-                onMeasure({ ...measurement, id: box.id })
-                setEditingId(null)
-                if (cameFromScan) setIsScannerOpen(true)
-                if (cameFromKeyboardScan) {
+        <>
+          <div className={styles.search}>
+            <label className={styles.field} htmlFor="package-box-search">
+              {t('packageBoxes.searchLabel')}
+              <input
+                id="package-box-search"
+                inputMode="search"
+                onChange={(event) => {
+                  setCameFromScan(false)
                   setCameFromKeyboardScan(false)
-                  searchInputRef.current?.focus()
-                }
-              }}
-              onOpen={() => setEditingId(box.id)}
-              saving={saving}
+                  onSearchChange(event.target.value)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  const value = event.currentTarget.value
+                  /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
+                  if (!looksLikeScannedCode(value)) return
+                  event.preventDefault()
+                  scanOriginRef.current = 'keyboard'
+                  setScanFeedback(undefined)
+                  setAwaitingScan(true)
+                  onScan(value)
+                }}
+                placeholder={t('packageBoxes.searchPlaceholder')}
+                ref={searchInputRef}
+                type="search"
+                value={search}
+              />
+            </label>
+            <Button
+              onClick={() => (cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true))}
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="camera" />
+              {t('packageBoxes.scan')}
+            </Button>
+          </div>
+
+          <label className={styles.field} htmlFor="package-box-status">
+            {t('packageBoxes.statusLabel')}
+            <Select
+              ariaLabel={t('packageBoxes.statusLabel')}
+              onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
+              options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
+                label: t(`packageBoxes.status.${filter}`),
+                value: filter,
+              }))}
+              value={status}
             />
-          ))}
-        </ul>
+          </label>
+
+          {items.length === 0 ? (
+            <p className={styles.notice}>{t('packageBoxes.empty')}</p>
+          ) : (
+            <ul className={styles.list}>
+              {items.map((box) => (
+                <PackageBoxRow
+                  box={box}
+                  isEditing={editingId === box.id}
+                  key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
+                  onCancel={() => setEditingId(null)}
+                  onMeasure={(measurement) => {
+                    onMeasure({ ...measurement, id: box.id })
+                    setEditingId(null)
+                    if (cameFromScan) setIsScannerOpen(true)
+                    if (cameFromKeyboardScan) {
+                      setCameFromKeyboardScan(false)
+                      searchInputRef.current?.focus()
+                    }
+                  }}
+                  onOpen={() => setEditingId(box.id)}
+                  saving={saving}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       {scanner}

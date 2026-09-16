@@ -433,6 +433,7 @@
     "empty": "No boxes for this search.",
     "denied": "You do not have permission to measure boxes.",
     "failed": "Could not load the measurement queue.",
+    "retry": "Try again",
     "transported": "{{count}} volumes shipped",
     "cumulative": "{{percent}}% cumulative",
     "tail": "below what is worth measuring",
@@ -515,6 +516,7 @@
     },
     "source": {
       "camera": "By camera, ±{{margin}} cm",
+      "cameraNoMargin": "By camera, measurement checked with the tape",
       "typed": "Typed",
       "unknown": "Origin not recorded"
     },
