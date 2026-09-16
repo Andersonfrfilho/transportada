@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
@@ -9,26 +9,15 @@ import {
   type PackageBoxMeasurementInput,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import { isRepeatedScan } from '../shared/packageBoxScan.js'
 
 const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
 
-/**
- * ⚠️ Decisão extraída para função pura (T14, 4ª revisão): o contrato anterior varria o texto-fonte
- * do hook e passava sem exercitar o comportamento — esta app não tem renderer de hooks (sem
- * `@testing-library/react`), então a decisão que importa vira função pura testável sem ele. Bipar a
- * MESMA etiqueta depois de uma falha de consulta precisa refazer a consulta (`retryLookup`) em vez
- * de trocar o estado: repetir o valor não muda a `queryKey`, e sem isso o TanStack Query nunca
- * dispara de novo (3ª revisão, item M1).
- */
-export function isRepeatedScan(input: {
-  readonly current: null | string
-  readonly next: null | string
-}): boolean {
-  return input.next !== null && input.next === input.current
-}
+/** BAIXO-5 (T14, 5ª revisão): reexportada para não quebrar quem já importa a partir do hook. */
+export { isRepeatedScan } from '../shared/packageBoxScan.js'
 
 function useDebounced(value: string, delayMs: number): string {
   const [settled, setSettled] = useState(value)
@@ -77,6 +66,14 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
 
   const query = useQuery({
     enabled: input.enabled && input.companyId !== undefined,
+    /**
+     * ⚠️ Reforço complementar ao ALTO-1 (T14, 5ª revisão) — não substitui a correção estrutural do
+     * painel (`denied`/`loading`/`failed` como ramos do mesmo `return`), mas reduz o motivo pelo
+     * qual `loading` fica `true` no meio de um bipe: `scanned` muda a `queryKey`, e sem dado prévio
+     * para a chave nova o React Query marcava `isLoading` mesmo com a fila já carregada. Mantendo o
+     * dado anterior durante o refetch, `isLoading` só vale para o carregamento inicial de verdade.
+     */
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client.listBoxes({
         status,
@@ -146,9 +143,9 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     setStatus,
     /** Bipar substitui o texto digitado: são a mesma pergunta, feita de dois jeitos. */
     setScanned: (value: null | string) => {
+      /** BAIXO-1 (T14, 5ª revisão): `setSearch('')` era inalcançável neste ramo — removido, não
+       *  reescrito, porque `code-standards.md` proíbe tratar estado impossível. */
       if (isRepeatedScan({ current: scanned, next: value })) {
-        /** BAIXO-1: hoje inalcançável (a busca já está vazia neste ramo), mas por segurança. */
-        setSearch('')
         retryLookup()
         return
       }
