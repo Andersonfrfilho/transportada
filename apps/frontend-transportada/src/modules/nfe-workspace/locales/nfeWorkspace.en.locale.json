@@ -460,6 +460,52 @@
       "boxOutOfFrame": "Box out of frame",
       "unstable": "Unstable image — hold the device steady"
     },
+    "camera": {
+      "step": {
+        "label": "Read label",
+        "identifying": "Looking up the box",
+        "identified": "Product identified",
+        "measure": "Measurement",
+        "review": "Review",
+        "saving": "Saving"
+      },
+      "openFlow": "Measure with the camera",
+      "backToLabel": "Back to the label",
+      "identifying": "Looking up the matching box…",
+      "measureThis": "Measure this box",
+      "notThisBox": "Not this one — scan again",
+      "typeMeasurement": "Type the measurement",
+      "measureTitle": "Camera measurement",
+      "measureInstruction": "Place the measurement card on the box and frame the whole box, from above and from the side",
+      "captureLabel": "Capture",
+      "confirmLabel": "Use this measurement",
+      "retryLabel": "Try again",
+      "loadingLabel": "Loading the measurement engine…",
+      "torchOn": "Turn on flashlight",
+      "torchOff": "Turn off flashlight",
+      "unsupportedNotice": "This device can't measure with the camera — type the measurement",
+      "point": {
+        "a": "Corner A of the top face",
+        "b": "Corner B of the top face",
+        "c": "Corner C of the top face",
+        "d": "Corner D of the top face",
+        "foot": "Base of the vertical edge"
+      }
+    },
+    "source": {
+      "camera": "By camera, ±{{margin}} cm",
+      "typed": "Typed",
+      "unknown": "Origin not recorded"
+    },
+    "printCard": {
+      "open": "Print measurement card",
+      "title": "Measurement card",
+      "instruction": "Print at 100%, without fitting to page.",
+      "confirmRuler": "Before the first use, check the ruler below against a tape measure.",
+      "print": "Print",
+      "close": "Close",
+      "rulerLabel": "100 millimetre control ruler"
+    },
     "statusLabel": "Status",
     "status": {
       "pending": "To measure",

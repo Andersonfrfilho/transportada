@@ -160,7 +160,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
       guards aceitam `measurementSource`/`measurementMarginMm`. **Aceite:**
       `package-box-measurement.contract.ts` estendido com R2, R3, R5 (tela) e R8 (selo); nenhum `PUT`
       antes de Salvar; chaves novas nos dois locales, acentuadas.
-- [ ] **T11 — `PackageBoxCameraFlow` na tela.** Diálogo de tela cheia com as etapas, instrução por
+- [x] **T11 — `PackageBoxCameraFlow` na tela.** Feito (evidence.md § T11) — Diálogo de tela cheia com as etapas, instrução por
       etapa, "Voltar para a etiqueta", "Digitar medida", lanterna quando existir, próxima caixa em
       sequência, pré-carga ao abrir com a função ligada (`saveData` respeitado) e
       `useCameraMeasurementSettings`. "Ler etiqueta" do painel abre o fluxo; a linha medida mostra a

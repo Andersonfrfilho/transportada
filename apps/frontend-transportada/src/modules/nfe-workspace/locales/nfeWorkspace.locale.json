@@ -640,6 +640,52 @@
       "blurry": "Imagem borrada — segure o aparelho firme",
       "boxOutOfFrame": "Caixa fora do quadro",
       "unstable": "Imagem instável — segure o aparelho firme"
+    },
+    "camera": {
+      "step": {
+        "label": "Ler etiqueta",
+        "identifying": "Procurando a caixa",
+        "identified": "Produto identificado",
+        "measure": "Medida",
+        "review": "Conferência",
+        "saving": "Gravando"
+      },
+      "openFlow": "Medir pela câmera",
+      "backToLabel": "Voltar para a etiqueta",
+      "identifying": "Procurando a caixa correspondente…",
+      "measureThis": "Medir esta caixa",
+      "notThisBox": "Não é esta — ler de novo",
+      "typeMeasurement": "Digitar medida",
+      "measureTitle": "Medida pela câmera",
+      "measureInstruction": "Coloque o cartão de medição sobre a caixa e enquadre a caixa inteira, de cima e de lado",
+      "captureLabel": "Capturar",
+      "confirmLabel": "Usar esta medida",
+      "retryLabel": "Tentar de novo",
+      "loadingLabel": "Carregando o motor de medida…",
+      "torchOn": "Ligar lanterna",
+      "torchOff": "Apagar lanterna",
+      "unsupportedNotice": "Este aparelho não mede pela câmera — digite a medida",
+      "point": {
+        "a": "Canto A da face de cima",
+        "b": "Canto B da face de cima",
+        "c": "Canto C da face de cima",
+        "d": "Canto D da face de cima",
+        "foot": "Pé da aresta vertical"
+      }
+    },
+    "source": {
+      "camera": "Pela câmera, ±{{margin}} cm",
+      "typed": "Digitada",
+      "unknown": "Origem não registrada"
+    },
+    "printCard": {
+      "open": "Imprimir cartão de medição",
+      "title": "Cartão de medição",
+      "instruction": "Imprima em 100%, sem ajustar à página.",
+      "confirmRuler": "Antes do primeiro uso, confira a régua abaixo com a fita métrica.",
+      "print": "Imprimir",
+      "close": "Fechar",
+      "rulerLabel": "Régua de controle de 100 milímetros"
     }
   },
   "addressCorrection": {

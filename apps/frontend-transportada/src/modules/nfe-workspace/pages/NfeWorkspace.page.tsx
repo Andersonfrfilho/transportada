@@ -21,6 +21,7 @@ import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
+import { useCameraMeasurementSettings } from '../hooks/useCameraMeasurementSettings.hook'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
 import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
@@ -269,6 +270,14 @@ export function NfeWorkspacePage() {
     enabled: canManageSettings && activeTab === 'addresses',
   })
   const packageBoxes = usePackageBoxQueue({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canMeasureCargo && activeTab === 'boxes',
+  })
+  /**
+   * Spec 152 D14: leitura própria de `cargo.measure` — quem mede não tem `settings.manage`, então
+   * não reaproveita `cargoSettings` (aquela é a leitura do painel de configuração).
+   */
+  const cameraMeasurementSettings = useCameraMeasurementSettings({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canMeasureCargo && activeTab === 'boxes',
   })
@@ -670,6 +679,7 @@ export function NfeWorkspacePage() {
                       </div>
                     )}
                     <PackageBoxMeasurementPanel
+                      cameraMeasurementEnabled={cameraMeasurementSettings.cameraMeasurementEnabled}
                       denied={!canMeasureCargo}
                       failed={packageBoxes.failed}
                       loading={packageBoxes.isLoading}

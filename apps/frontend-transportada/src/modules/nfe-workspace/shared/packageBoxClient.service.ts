@@ -79,6 +79,8 @@ export type PackageBoxClient = Readonly<{
   listBoxes: (
     input?: Readonly<{ scanned?: string; search?: string; status?: PackageBoxStatusFilter }>,
   ) => Promise<PackageBoxQueue>
+  /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
+  getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
   /** Grava e não devolve nada: a linha gravada não é a linha da fila, e quem recarrega é a query. */
   measureBox: (input: PackageBoxMeasurementInput) => Promise<void>
 }>
@@ -109,6 +111,18 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       })
       if (!response.ok) throw new Error('PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
+    },
+    async getMeasurementSettings(): Promise<Readonly<{ cameraMeasurementEnabled: boolean }>> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/measurement-settings`,
+        { headers: { authorization: await authorization() } },
+      )
+      if (!response.ok) throw new Error('PACKAGE_BOX_MEASUREMENT_SETTINGS_FAILED')
+      const body: unknown = await response.json()
+      if (!isRecord(body) || !isRecord(body.data)) {
+        throw new Error('PACKAGE_BOX_MEASUREMENT_SETTINGS_MALFORMED')
+      }
+      return { cameraMeasurementEnabled: body.data.cameraMeasurementEnabled === true }
     },
     async measureBox(input): Promise<void> {
       const { id, ...measurement } = input

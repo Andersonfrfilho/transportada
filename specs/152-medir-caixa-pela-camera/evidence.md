@@ -1634,3 +1634,120 @@ sempre que a proposta vier da câmera (`proposal !== undefined`) e a constante a
 Nenhum ponto de parada obrigatória tocado: nenhuma mudança de CSP/Permissions-Policy, nenhuma
 migration, e `MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM` (T6) não foram alterados — só consumidos via
 `classifyMargin`, já existente.
+
+## T11 — `PackageBoxCameraFlow` na tela
+
+### O que entrou
+
+- `src/modules/nfe-workspace/components/PackageBoxCameraFlow.component.tsx`: o diálogo de tela
+  cheia novo, dono único de `useCameraStream` (D19) — abre uma vez ao montar (o painel só monta o
+  componente quando o operador toca "Medir pela câmera") e entrega o **mesmo** `MediaStream` ao
+  leitor (`useBarcodeScanner({ stream })`, etapa Etiqueta) e ao primitivo de medida
+  (`<BoxDimensionScanner stream={stream} />`, etapa Medida). Encadeia o reducer puro da T9
+  (`packageBoxCameraFlowReducer`) pelas etapas `label → identifying → choose/identified → measure →
+review → saving → label`: "Voltar para a etiqueta" (`dispatch({ kind: 'backToLabel' })`) aparece em
+  toda etapa depois da etiqueta, exceto `saving`. A etapa Conferência reaproveita o mesmo
+  `PackageBoxMeasurementForm` da T10, passando `proposal` só quando `reviewSource === 'camera'`
+  (sem suporte, `reviewSource` é `'typed'` e o formulário abre digitado, com o aviso de D11/R4).
+- **Lanterna (caso extremo da spec):** `useCameraStream.hook.ts` ganhou `hasTorch`/`torchOn`/
+  `toggleTorch`, lendo `getCapabilities().torch` da primeira trilha do stream e aplicando
+  `applyConstraints({ advanced: [{ torch }] })`. O botão só aparece na etapa Medida quando
+  `hasTorch` é `true` — sem suporte, some por completo (não desabilitado, ausente), e o teste de
+  `camera-stream.contract.ts` (T7) continua verde sem alteração (mesma contagem de
+  `openCameraStream`/`stopCameraStream`).
+- `useCameraMeasurementSettings.hook.ts` + `PackageBoxClient.getMeasurementSettings()`: leitura
+  própria de `GET /nfe-package-boxes/measurement-settings` (`cargo.measure`, T4) — separada da
+  leitura de `settings.manage` que `useCargoSettings` já fazia para o painel de configuração.
+  Padrão seguro: enquanto não carrega (ou falha), `cameraMeasurementEnabled` fica `false`.
+- `MeasurementCardPrint.component.tsx` (D3): o cartão imprimível. **Nunca `<svg>` cru** — o ArUco é
+  uma grade de `<span>` (CSS grid) preenchida por `MEASUREMENT_CARD_MARKER_GRID`
+  (`measurementCardMarker.constant.ts`), 150 mm de lado (`MARKER_SIDE_MM`, T6), mais uma régua de
+  controle de 100 mm com marcações a cada 10 mm. `@media print` esconde cabeçalho/botões/fundo e
+  deixa só o cartão, medido em `mm` (nunca `rem`/`%`) para sair em escala real na impressora.
+  Instrução "Imprima em 100%, sem ajustar à página" e "confira a régua com a fita antes do primeiro
+  uso" (D3) na tela, antes de imprimir. Aberto por "Imprimir cartão de medição" no cabeçalho da fila.
+- A linha já medida da fila mostra a origem (R1/R5, pendência que a T10 deixou explícita):
+  `measurementSourceLabel()` em `PackageBoxMeasurementPanel` traduz `measurementSource` em
+  "Pela câmera, ±X cm" (`camera`/`camera_adjusted`), "Digitada" (`typed`) ou "Origem não registrada"
+  (`null`, medida anterior a esta spec).
+
+### ⚠️ Matriz do marcador: extraída do binário real, não inventada
+
+D3 exige o ArUco `DICT_4X4_50` id 0 impresso certo — bit errado imprime um cartão que o worker
+**nunca detecta**, e o defeito só aparece no galpão. Em vez de recordar (ou arriscar) o padrão de
+bits de memória, rodei `cv.generateImageMarker(dictionary, 0, 120, marker, 1)` contra o **mesmo**
+artefato de build próprio do OpenCV que `boxDimension.worker.ts` carrega (script descartável em
+`/tmp`, removido depois — não ficou no worktree), e li a matriz 6×6 resultante (borda de 1 módulo +
+4×4 bits de dado) direto dos pixels do `cv.Mat` gerado. `MEASUREMENT_CARD_MARKER_GRID` em
+`measurementCardMarker.constant.ts` é essa matriz, byte a byte — a borda fechada preta
+(`'111111'` na primeira e na última linha) confere com o formato do padrão ArUco. O teste novo
+verifica as 6 linhas de 6 caracteres e as duas bordas fechadas.
+
+### Verificação
+
+```
+$ bun run typecheck                        # tsc --noEmit — 0 erros
+$ bun run lint                              # eslint (todas as apps) — 0 erros
+$ bun run test                              # suíte inteira do frontend
+ 3971 pass / 0 fail / 35478 expect() calls (29 arquivos)
+$ bunx prettier --check src test            # verde, após --write nos arquivos que pegaram
+$ bun run build                             # vite build — verde
+```
+
+Confirmado no `dist/sw.js` gerado: o chunk `opencv-*.js` (2,9 MB) **não** entra no precache — só
+aparece na regra `runtimeCaching` (`registerRoute(/\/assets\/opencv-.*\.js$/u, new CacheFirst({
+cacheName:"transportada-opencv" ...`), preservando o comportamento da T8. `opencv-build.contract.ts`
+(que varre `src/` inteiro por referência ao artefato) continua com **um único** importador
+(`boxDimension.worker.ts`) — o segundo ponto de instanciação do worker (pré-carga, D18) referencia o
+próprio arquivo do worker, não o artefato do OpenCV, então não conta como um segundo importador.
+
+Teste novo: `test/nfe-workspace/package-box-camera-flow-dialog.contract.ts` (20 casos), registrado
+em `test/nfe-workspace.contract.test.ts` (que já está na lista de `package.json`, então nenhum
+arquivo novo precisou entrar lá).
+
+### Decisões e desvios do plano, com o motivo
+
+- **`getUserMedia` não é chamado exatamente uma vez em todo o ciclo etiqueta → medida → gravar →
+  etiqueta (R1, parte final do critério).** O botão "Ler etiqueta" de hoje (leitor digitado comum)
+  continua abrindo o `<BarcodeScanner>` de sempre — que abre a própria câmera — **sem** mudança,
+  porque `test/nfe-workspace/package-box-measurement.contract.ts` fixa por texto de fonte
+  dezenas de comportamentos exatos desse caminho (`cameFromScan`, `awaitingScan`,
+  `openMeasurementForScannedBox`, a pistola física, a lista de candidatas): reescrever esse fluxo
+  para compartilhar o `PackageBoxCameraFlow` quebraria ~30 asserções que travam comportamento hoje
+  funcionando, sem ganho para quem usa só o formulário digitado. Em vez disso, `PackageBoxCameraFlow`
+  é uma **segunda porta de entrada** — "Medir pela câmera", ao lado de "Ler etiqueta" — que abre a
+  própria sessão de câmera e a mantém aberta por todo o ciclo etiqueta→medida→gravar→etiqueta
+  **dentro dela mesma** (contrato: um único `useCameraStream(` no arquivo). O que R1 pede —
+  "não pede permissão de novo entre etiqueta e medida" — vale dentro dessa porta; o que não vale é
+  compartilhar a MESMA sessão entre as duas portas de entrada diferentes.
+  **Isto é uma decisão de escopo, não um esquecimento — peço a leitura do arquiteto/usuário antes da
+  T14** sobre se vale unificar as duas portas numa próxima task (T12 mexe no painel de qualquer
+  forma) ou se conviver com duas entradas é aceitável em produção.
+- **Smoke Playwright com câmera falsa (`.y4m`) não foi construído.** O critério de aceite da T11
+  pede um smoke com `--use-file-for-fake-video-capture`, um vídeo de uma caixa real com o cartão
+  impresso, e a checagem de `getUserMedia` chamado uma vez pelo Chromium. Isso exige gravar (ou
+  conseguir) um vídeo de referência com o cartão real enquadrado, e não é algo que dá para fabricar
+  sem uma câmera e um cartão impressos de verdade — é o tipo de artefato que a T15 (validação com
+  caixas reais) também precisa, e reaproveitável entre as duas. Ficou como pendência explícita:
+  a cobertura de comportamento ficou nos 20 testes de contrato por texto de fonte (mesmo padrão do
+  resto do app, que não tem DOM), que verificam a composição (quem é dono do stream, quais
+  primitivos cada etapa usa) mas não substituem um smoke real de câmera.
+- **`onSave` não usa `await`/Promise.** Segue a mesma regra de `usePackageBoxQueue.hook.ts`
+  ("Sem `await`: aguardar a releitura aqui segura o botão", `test/shared/mutation-pending-state.contract.ts`)
+  — a UI é otimista: `handleSave` chama `onSave(boxId, submission)` (que dispara
+  `packageBoxes.measure.mutate`) e já despacha `saved` na sequência, sem esperar a mutação resolver.
+  É o mesmo padrão que a linha digitada já usa hoje.
+- **A pré-carga do OpenCV (D18) cria um worker próprio, separado do que `BoxDimensionScanner`
+  cria ao entrar na etapa Medida.** Simplificação deliberada: o worker de pré-carga só existe para
+  esquentar o cache HTTP/compilação do chunk do OpenCV (`preload()`), termina assim que responde
+  `ready`/erro, e não é reaproveitado pela etapa Medida (que instancia o seu, como já fazia antes da
+  T11). Duplica uma pequena inicialização, mas evita acoplar o ciclo de vida dos dois workers — e o
+  contrato de "um único importador do OpenCV" continua valendo (o segundo ponto de `new Worker`
+  aponta para o mesmo arquivo do worker, não para o artefato do OpenCV).
+
+### O que não foi tocado
+
+`MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM`, CSP, Permissions-Policy e nenhuma migration. O painel
+do interruptor (T12, `CameraMeasurementSettingsPanel` — já existe no worktree, mas sem o resumo da
+validação nem o export CSV) não foi alterado além de nada — T11 só **lê** o interruptor pela rota
+própria de `cargo.measure`, não mexe no painel de `settings.manage`.
