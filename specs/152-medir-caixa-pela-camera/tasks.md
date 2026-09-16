@@ -97,7 +97,9 @@ Contrato/aceite **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet` (T6 é 🧠 — `opus`)
 
-- [ ] **T6 🧠 — Motor puro de medida, portado do spike.** `boxDimension.service.ts` +
+- [x] **T6 🧠 — Motor puro de medida, portado do spike.** Feito (evidence.md § T6: geometria em
+      `boxDimensionGeometry.service.ts`, motivos em `boxDimensionWarnings.service.ts`, 39 testes em
+      `test/nfe-workspace/box-dimension.contract.ts`). `boxDimension.service.ts` +
       `boxDimension.constant.ts` a partir de `spike/152-medir-caixa/src/{geometry,measurement,warnings}.ts`
       (homografia DLT, focal pela homografia com faixa física e `defaultFov`, pose, altura pela aresta
       vertical, Monte Carlo com semente, `classifyMeasurement`, `detectWarnings`). Os 16 testes do spike
