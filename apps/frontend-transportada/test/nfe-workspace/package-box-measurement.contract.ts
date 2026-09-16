@@ -2,6 +2,11 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  firstUnreliableDimension,
+  initialDimensionCentimetres,
+} from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementProposal.service'
+
+import {
   createPackageBoxClient,
   packageBoxQueueFromApi,
 } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
@@ -294,7 +299,13 @@ describe('bipar leva direto à medição da caixa achada', () => {
     expect(notFoundBlock).not.toContain('setIsScannerOpen')
   })
 
-  it('o ponto de entrada da medição é isolado — a câmera de medida (spec separada) entra por ali', async () => {
+  /**
+   * T14 item A5: antes isto procurava o texto de um comentário que anunciava a câmera como spec
+   * futura — passava com o comentário e sem fluxo nenhum. A câmera chegou (T11); o que precisa
+   * valer agora é que o painel entregue ao fluxo o desfecho da consulta e o da gravação, senão
+   * falha de rede vira "nenhuma caixa" (M7) e recusa de `PUT` some (A1).
+   */
+  it('o painel entrega ao fluxo da câmera o desfecho da consulta e o da gravação', async () => {
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
@@ -302,8 +313,11 @@ describe('bipar leva direto à medição da caixa achada', () => {
       ),
     ).text()
 
-    expect(panel).toContain('Ponto de entrada isolado de propósito')
-    expect(panel).toContain('medição por câmera')
+    const flowBlock = panel.split('<PackageBoxCameraFlow')[1]?.split('/>')[0]
+    expect(flowBlock).toBeDefined()
+    expect(flowBlock).toContain('lookupFailed={failed}')
+    expect(flowBlock).toContain('saveErrorCode={saveErrorCode}')
+    expect(flowBlock).toContain('saveStatus={saveStatus}')
   })
 
   it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
@@ -608,7 +622,16 @@ describe('editar a medida de uma caixa já medida', () => {
       ),
     ).text()
 
-    expect(form).toContain("toCentimetres(proposedMillimetres(proposal, 'length') ?? lengthMm)")
+    /**
+     * T14 item A5: era uma varredura de texto pela linha exata do `useState`. O que importa é a
+     * regra, e ela agora é uma função pura: sem proposta, o campo abre com o que está gravado.
+     */
+    expect(
+      initialDimensionCentimetres({ dimension: 'length', proposal: undefined, storedMm: 385 }),
+    ).toBe('38,5')
+    expect(
+      initialDimensionCentimetres({ dimension: 'length', proposal: undefined, storedMm: null }),
+    ).toBe('')
     expect(form).toContain('useState(() => String(unitsPerBox))')
     /** A linha remonta quando a medida muda: sem isso o estado inicial ficaria preso ao antigo. */
     expect(panel).toContain("key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}")
@@ -724,11 +747,44 @@ describe('margem por dimensão e aviso de imprecisão (R2)', () => {
       ),
     ).text()
 
-    /** `proposedMillimetres` devolve `undefined` para o valor sentinela `0` — campo nasce vazio. */
-    expect(form).toContain('return value > 0 ? value : undefined')
+    /**
+     * T14 itens A2/A5/M9, agora comportamento: a dimensão que a câmera não leu abre VAZIA (nunca
+     * com a medida antiga da caixa, que nasceria preenchida e levaria a `400`), e o foco vai para a
+     * PRIMEIRA delas, não para a última da lista.
+     */
+    const unreliableProposal = {
+      engine: 'aruco-homography-v1',
+      heightMarginMm: 42,
+      heightMm: 0,
+      lengthMarginMm: 42,
+      lengthMm: 0,
+      warnings: [],
+      widthMarginMm: 4,
+      widthMm: 250,
+    } as const
+    const noneEdited = { height: false, length: false, width: false } as const
+
+    expect(
+      initialDimensionCentimetres({
+        dimension: 'height',
+        proposal: unreliableProposal,
+        storedMm: 999,
+      }),
+    ).toBe('')
+    expect(
+      initialDimensionCentimetres({
+        dimension: 'width',
+        proposal: unreliableProposal,
+        storedMm: 999,
+      }),
+    ).toBe('25')
+    expect(firstUnreliableDimension({ edited: noneEdited, proposal: unreliableProposal })).toBe(
+      'length',
+    )
+
     expect(form).toContain('firstUnreliableRef.current?.focus()')
     expect(form).toContain(
-      "{...(reliabilityOf(dimension) === 'unreliable' ? { inputRef: firstUnreliableRef } : {})}",
+      '{...(dimension === focusedDimension ? { inputRef: firstUnreliableRef } : {})}',
     )
     const unreliableBlock = form
       .split('<span className={styles.fieldError} role="alert">')[1]

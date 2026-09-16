@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
-import { classifyMargin, type MeasurementReliability } from '@/components/ui/boxDimension.service'
+import type { MeasurementReliability } from '@/components/ui/boxDimension.service'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { BoxDimensionMeasuredResult } from '@/components/ui/useBoxDimensionScanner.hook'
@@ -13,17 +13,22 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import type { PackageBoxMeasurementInput } from '../shared/packageBoxClient.service'
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '../shared/packageBoxMeasurement.constant'
 import {
-  MAX_CENTIMETRES,
-  toCentimetres,
-  toMillimetres,
-} from '../shared/packageBoxMeasurementUnits.service'
+  dimensionReliability,
+  firstUnreliableDimension,
+  initialDimensionCentimetres,
+  PACKAGE_BOX_DIMENSION_KEYS,
+  proposedMarginMillimetres,
+  proposedMillimetres,
+  type PackageBoxDimensionKey,
+} from '../shared/packageBoxMeasurementProposal.service'
+import { MAX_CENTIMETRES, toMillimetres } from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
 export type PackageBoxMeasurementFormSubmission = Omit<PackageBoxMeasurementInput, 'id'>
 
-type DimensionKey = 'height' | 'length' | 'width'
+type DimensionKey = PackageBoxDimensionKey
 
-const DIMENSION_KEYS: readonly DimensionKey[] = ['length', 'width', 'height']
+const DIMENSION_KEYS = PACKAGE_BOX_DIMENSION_KEYS
 
 const DIMENSION_FIELD: Readonly<Record<DimensionKey, keyof typeof MAX_CENTIMETRES>> = {
   height: 'heightMm',
@@ -44,22 +49,6 @@ type PackageBoxMeasurementFormProps = Readonly<{
   unitsPerBox: number
   widthMm: null | number
 }>
-
-function proposedMillimetres(
-  proposal: BoxDimensionMeasuredResult | undefined,
-  dimension: DimensionKey,
-): number | undefined {
-  if (proposal === undefined) return undefined
-  const value = proposal[`${dimension}Mm`]
-  return value > 0 ? value : undefined
-}
-
-function proposedMarginMillimetres(
-  proposal: BoxDimensionMeasuredResult | undefined,
-  dimension: DimensionKey,
-): number | undefined {
-  return proposal?.[`${dimension}MarginMm`]
-}
 
 /**
  * Extraído de `PackageBoxMeasurementPanel` (spec 152 T10): o formulário de três campos que grava
@@ -86,13 +75,13 @@ export function PackageBoxMeasurementForm({
 }: PackageBoxMeasurementFormProps) {
   const { t } = useTranslation('nfeWorkspace')
   const [length, setLength] = useState(() =>
-    toCentimetres(proposedMillimetres(proposal, 'length') ?? lengthMm),
+    initialDimensionCentimetres({ dimension: 'length', proposal, storedMm: lengthMm }),
   )
   const [width, setWidth] = useState(() =>
-    toCentimetres(proposedMillimetres(proposal, 'width') ?? widthMm),
+    initialDimensionCentimetres({ dimension: 'width', proposal, storedMm: widthMm }),
   )
   const [height, setHeight] = useState(() =>
-    toCentimetres(proposedMillimetres(proposal, 'height') ?? heightMm),
+    initialDimensionCentimetres({ dimension: 'height', proposal, storedMm: heightMm }),
   )
   const [units, setUnits] = useState(() => String(unitsPerBox))
   const [edited, setEdited] = useState<Readonly<Record<DimensionKey, boolean>>>({
@@ -125,10 +114,11 @@ export function PackageBoxMeasurementForm({
   }, [proposal])
 
   function reliabilityOf(dimension: DimensionKey): MeasurementReliability | undefined {
-    if (edited[dimension]) return undefined
-    const marginMm = proposedMarginMillimetres(proposal, dimension)
-    return marginMm === undefined ? undefined : classifyMargin(marginMm)
+    return dimensionReliability({ dimension, edited, proposal })
   }
+
+  /** M9: o foco vai para a PRIMEIRA dimensão em branco, não para a última da lista. */
+  const focusedDimension = firstUnreliableDimension({ edited, proposal })
 
   /** D6/R2: só dimensões ainda não editadas carregam a imprecisão da câmera adiante. */
   const unconfirmedImpreciseDimensions = DIMENSION_KEYS.filter(
@@ -231,7 +221,7 @@ export function PackageBoxMeasurementForm({
       <div className={styles.dimensions}>
         {DIMENSION_KEYS.map((dimension) => (
           <DimensionField
-            {...(reliabilityOf(dimension) === 'unreliable' ? { inputRef: firstUnreliableRef } : {})}
+            {...(dimension === focusedDimension ? { inputRef: firstUnreliableRef } : {})}
             field={DIMENSION_FIELD[dimension]}
             id={`${boxId}-${dimension}`}
             key={dimension}
