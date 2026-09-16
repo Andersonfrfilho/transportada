@@ -170,7 +170,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
       medida → confirmar → gravar → etiqueta com `getUserMedia` chamado uma vez; com a função
       desligada, o mesmo smoke não pede o chunk do OpenCV; `panel-reveal`/`design-system` verdes;
       `make check` verde; verificação no navegador por texto (`read_page`), screenshot só no fim.
-- [ ] **T12 — Painel do interruptor, export e resumo da validação.**
+- [x] **T12 — Painel do interruptor, export e resumo da validação.** Feito (evidence.md § T12).
       `CameraMeasurementSettingsPanel.component.tsx` na aba `packageBoxes` (só `settings.manage`),
       registrado em `SETTINGS_PANELS`/`SETTINGS_PANEL_PLACEMENT` (`cameraMeasurement`), com o
       interruptor, o texto experimental, o export CSV do período e o resumo por

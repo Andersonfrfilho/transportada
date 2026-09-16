@@ -14,6 +14,10 @@ const PANEL = 'src/modules/nfe-workspace/components/CameraMeasurementSettingsPan
 const HOOK = 'src/modules/nfe-workspace/hooks/useCargoSettings.hook.ts'
 const CLIENT = 'src/modules/company-settings/shared/companySettingsClient.service.ts'
 const PAGE = 'src/modules/nfe-workspace/pages/NfeWorkspace.page.tsx'
+const EXPORT_HOOK = 'src/modules/nfe-workspace/hooks/useCameraMeasurementExport.hook.ts'
+const EXPORT_CLIENT = 'src/modules/nfe-workspace/shared/cameraMeasurementExportClient.service.ts'
+const EXPORT_SERVICE = 'src/modules/nfe-workspace/shared/cameraMeasurementExport.service.ts'
+const VALIDATION_SERVICE = 'src/modules/nfe-workspace/shared/cameraMeasurementValidation.service.ts'
 const LOCALE_PATHS = [
   'src/modules/nfe-workspace/locales/nfeWorkspace.locale.json',
   'src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json',
@@ -82,5 +86,80 @@ describe('o painel do interruptor da medida pela câmera (spec 152 D14)', () => 
     const panel = read(PANEL)
 
     expect(panel).toContain("t(enabled ? 'cameraMeasurementOn' : 'cameraMeasurementOff')")
+  })
+})
+
+/**
+ * T12 (R6/R8): o painel ganha o export CSV do período e o resumo da validação — mesma permissão
+ * `settings.manage` do interruptor (D14), mesma aba `boxes`.
+ */
+describe('export e resumo da validação (spec 152 T12, R6/R8)', () => {
+  test('o painel usa o serviço puro de resumo e o construtor de CSV', () => {
+    const panel = read(PANEL)
+
+    expect(panel).toContain('CameraMeasurementValidationSummary')
+    expect(panel).toContain(
+      "import type { CameraMeasurementExportEntry } from '../shared/cameraMeasurementValidation.service'",
+    )
+  })
+
+  test('o resumo diz o veredito em texto e ícone, nunca só por cor', () => {
+    const panel = read(PANEL)
+
+    expect(panel).toContain('VERDICT_ICON')
+    expect(panel).toContain('<Icon name={VERDICT_ICON[summary.verdict]} />')
+  })
+
+  test('a taxa de margem mostra quantas leituras têm margem conhecida (D17/T10)', () => {
+    const panel = read(PANEL)
+
+    expect(panel).toContain('cameraMeasurementValidationWithinMargin')
+    expect(panel).toContain('withinMarginKnownCount')
+  })
+
+  test('o export CSV existe, sem descrição do produto, com as colunas do spike', () => {
+    const service = read(EXPORT_SERVICE)
+
+    expect(service).toContain('export function buildCameraMeasurementCsv')
+    expect(service).toContain('CAMERA_MEASUREMENT_EXPORT_COLUMNS')
+    expect(service).not.toContain('description')
+  })
+
+  test('o resumo (puro, sem I/O) calcula as duas taxas de R6', () => {
+    const service = read(VALIDATION_SERVICE)
+
+    expect(service).toContain('export function summarizeCameraMeasurementValidation')
+    expect(service).toContain('VALIDATION_WITHIN_TEN_MILLIMETRE_TARGET_RATE')
+    expect(service).toContain('VALIDATION_WITHIN_MARGIN_TARGET_RATE')
+  })
+
+  test('o hook consulta a rota do export com settings.manage, paginada por cursor', () => {
+    const client = read(EXPORT_CLIENT)
+    const hook = read(EXPORT_HOOK)
+
+    expect(client).toContain('/nfe-package-box-measurements')
+    expect(hook).toContain('useInfiniteQuery')
+    expect(hook).toContain('summarizeCameraMeasurementValidation')
+  })
+
+  test('a página passa o export e o resumo ao painel, com a mesma permissão do interruptor', () => {
+    const page = read(PAGE)
+
+    expect(page).toContain('useCameraMeasurementExport')
+    expect(page).toContain('canManageSettings && settingsScope.cameraMeasurementSettings')
+    expect(page).toContain('buildCameraMeasurementCsv')
+  })
+
+  test('os rótulos do export e do resumo existem, acentuados, nos dois pacotes de tradução', () => {
+    for (const path of LOCALE_PATHS) {
+      const locale = readLocale(path)
+
+      expect(typeof locale['cameraMeasurementValidationTitle']).toBe('string')
+      expect(typeof locale['cameraMeasurementValidationExport']).toBe('string')
+      expect(typeof locale['cameraMeasurementValidationWithinTen']).toBe('string')
+      expect(typeof locale['cameraMeasurementValidationWithinMargin']).toBe('string')
+      expect(typeof locale['cameraMeasurementValidationVerdictGo']).toBe('string')
+      expect(typeof locale['cameraMeasurementValidationVerdictNoGo']).toBe('string')
+    }
   })
 })

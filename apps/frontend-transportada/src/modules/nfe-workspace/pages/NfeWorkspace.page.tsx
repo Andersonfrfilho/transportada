@@ -22,7 +22,14 @@ import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementS
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
 import { useCameraMeasurementSettings } from '../hooks/useCameraMeasurementSettings.hook'
+import { useCameraMeasurementExport } from '../hooks/useCameraMeasurementExport.hook'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
+import {
+  buildCameraMeasurementCsv,
+  CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
+  CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE,
+} from '../shared/cameraMeasurementExport.service'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
 import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
 import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
@@ -285,6 +292,11 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled:
       canManageSettings && (settingsScope.cargoSettings || settingsScope.cameraMeasurementSettings),
+  })
+  /** Spec 152 T12 (R6/R8): mesma permissão do interruptor — export e resumo da validação. */
+  const cameraMeasurementExport = useCameraMeasurementExport({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.cameraMeasurementSettings,
   })
 
   function fileKey(file: File): string {
@@ -675,6 +687,27 @@ export function NfeWorkspacePage() {
                           toggleErrorCode={toErrorCode(
                             cargoSettings.cameraMeasurementMutation.error,
                           )}
+                          validation={{
+                            entries: cameraMeasurementExport.entries,
+                            errorCode: cameraMeasurementExport.errorCode,
+                            from: cameraMeasurementExport.from,
+                            hasNextPage: cameraMeasurementExport.hasNextPage === true,
+                            isFetchingNextPage: cameraMeasurementExport.isFetchingNextPage,
+                            isLoading: cameraMeasurementExport.isLoading,
+                            onExport: () => {
+                              saveArchiveFile({
+                                blob: new Blob(
+                                  [buildCameraMeasurementCsv(cameraMeasurementExport.entries)],
+                                  { type: CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE },
+                                ),
+                                fileName: CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
+                              })
+                            },
+                            onLoadMore: cameraMeasurementExport.fetchNextPage,
+                            onPeriodChange: cameraMeasurementExport.setPeriod,
+                            summary: cameraMeasurementExport.summary,
+                            to: cameraMeasurementExport.to,
+                          }}
                         />
                       </div>
                     )}
