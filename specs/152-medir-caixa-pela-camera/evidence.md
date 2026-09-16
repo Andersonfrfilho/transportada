@@ -2772,3 +2772,153 @@ registrada na 3ª revisão.
   rodar nesta sessão — mesma limitação da 3ª revisão, o Docker local não respondeu.
 - A fixture de fronteira agora tem sete corpos; corpo novo precisa entrar nela, ou a fronteira volta
   a não ver o caso (regra já registrada acima, reforçada pelo MÉDIO-1).
+
+## T14 — ressalvas da 5ª revisão
+
+A 5ª revisão **aprovou com ressalvas** (não bloqueia ligar em staging) e pediu os itens abaixo antes
+do merge em produção — o primeiro (ALTO-1) tinha que entrar antes da sessão real de medição, porque
+brigava com reinício de câmera. `MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM` e CSP/Permissions-Policy
+não foram tocados. Cada item de comportamento teve o teste escrito e rodado contra o código da 4ª
+revisão antes da correção (vermelho confirmado — ver "Prova do vermelho" abaixo); os itens de
+cobertura pura (MÉDIO-B, BAIXO-3) são adição de teste sem mudança de comportamento correspondente.
+
+### [ALTO-1] `loading`/`denied` continuavam retornos antecipados acima do fluxo da câmera
+
+A correção da 4ª revisão só tratou `failed` — `if (loading) return` e `if (denied) return`
+continuavam **acima** de `<PackageBoxCameraFlow>` em `PackageBoxMeasurementPanel.component.tsx`.
+Medido: ao bipar a etiqueta com o fluxo aberto, `scanned` entra na `queryKey` do hook, `isLoading`
+fica `true` (sem `placeholderData`, `staleTime` 30 s não ajuda porque a chave é nova), o painel
+devolvia `<>{scanner}<QueueSkeleton/></>` e o fluxo **desmontava** — `useReducer` voltava para
+`step: 'label'`, `useCameraStream` derrubava o `MediaStream` e refazia `getUserMedia` no remount
+(violando D19), e o efeito que consome a resposta da etiqueta exige `step === 'identifying'`, então
+a caixa achada nunca era consumida: o conferente precisava bipar a mesma etiqueta duas vezes.
+
+Correção: `denied`, `loading` e `failed` viram ramos do **mesmo** `return` (mesma forma que `failed`
+já usava desde a 4ª revisão), com `<QueueSkeleton/>` no lugar do corpo da lista para `loading`, e
+`{scanner}`/`<PackageBoxCameraFlow>` renderizando uma única vez, fora dos três ramos — nunca mais
+desmontam. Reforço complementar (decisão registrada, não substitui a correção estrutural):
+`placeholderData: keepPreviousData` na `useQuery` do hook, para `isLoading` deixar de virar `true` a
+cada bipe que troca a `queryKey` — reduz a frequência do gatilho, mas a garantia real é o painel não
+desmontar mais o fluxo mesmo quando `loading` for `true`.
+
+### [MÉDIO-A] Regressão de cobertura: asserção de ponto de uso removida
+
+O commit `93217ef7` (4ª revisão) tirou a asserção que amarrava `retryLookup`/`isRepeatedScan` ao
+ponto de uso — sem ela, apagar a chamada dentro de `setScanned` deixava a suíte verde, porque só a
+função pura (`isRepeatedScan`) era testada. A asserção de ponto de uso volta, lendo o bloco de
+`setScanned` no hook e exigindo `isRepeatedScan(` e `retryLookup()` dentro dele.
+
+### [MÉDIO-B] Contrato de ALTO-1/ALTO-2 por igualdade exata de texto-fonte
+
+`package-box-measurement.contract.ts:265-292` e `:1082-1114` (numeração da 4ª revisão) varriam o
+texto-fonte do painel com igualdade exata de formatação — falso-positivo esperando o próximo
+`prettier --write`, sem provar renderização nenhuma. `measurementSourceLabel` saiu para módulo
+próprio (`packageBoxMeasurementLabel.service.ts`) e é testada como função pura com um `t` de
+mentira, cobrindo as quatro origens: `typed`, `camera` com margem, `camera_adjusted` com margem e
+`camera_adjusted` sem margem (a checagem por texto-fonte fica só como rede secundária, confirmando
+que o painel continua chamando a função no ponto certo).
+
+### [BAIXO-1] `setSearch('')` documentado como inalcançável
+
+`usePackageBoxQueue.hook.ts:146-147` — a linha estava marcada com o comentário "hoje inalcançável…
+mas por segurança", o que `code-standards.md` proíbe (não tratar estado impossível). Removida, não
+reescrita como asserção — o ramo de bipe repetido chama só `retryLookup()`.
+
+### [BAIXO-2] Texto de `cameraNoMargin` afirmava um instrumento não necessariamente usado
+
+"Pela câmera, medida conferida com a fita" também cobre o caso de `camera_adjusted` sem margem
+nenhuma (as três dimensões digitadas por cima, sem qualquer conferência com fita nesse ciclo).
+Trocado por "Pela câmera, sem margem registrada" / "By camera, no margin recorded" — pt acentuado,
+en presente, fiel aos dois casos.
+
+### [BAIXO-3] `?? 0` de `isEditedDimension` sem teste
+
+`package-box-measurement.policy.ts:51` — o ramo `(camera[dimension.margin] ?? 0) > MARGIN_UNRELIABLE_MM`
+não tinha caso sem proposta **e** sem margem nenhuma no bloco `camera` (só o caso com margem
+informada estava coberto). Acrescentado: `isEditedDimension({}, dimension, 340)` deve ser `false`
+(lado seguro, 0 mm abaixo do teto de 30 mm).
+
+### [BAIXO-4] Import ESM sem extensão
+
+`apps/frontend-transportada/test/nfe-workspace.contract.test.ts:36` — `./nfe-workspace/package-box-submission-boundary.contract`
+sem `.js`, ao lado de 35 irmãos com extensão. Corrigido.
+
+### [BAIXO-5] Função pura morando dentro do hook
+
+`isRepeatedScan` saiu de `usePackageBoxQueue.hook.ts` para `packageBoxScan.ts` — era a única função
+pura morando dentro de um hook desta app. O hook reexporta (`export { isRepeatedScan } from
+'../shared/packageBoxScan.js'`), para não quebrar quem já importa a partir dele (o próprio contrato
+de teste, que segue importando de `usePackageBoxQueue.hook`).
+
+### Prova do vermelho (antes das correções de comportamento)
+
+Os testes do commit `26b4feb9` foram escritos e rodados **antes** dos commits de correção
+(`b5ebe21f`, `6a63aaeb`) — falharam assim contra o código então em `HEAD` (4ª revisão, `995935f7`):
+
+```
+error: Cannot find module '@/modules/nfe-workspace/shared/packageBoxMeasurementLabel.service'
+ 0 pass · 1 fail · 1 error
+```
+
+(o módulo ainda não existia — o import falha antes de qualquer `it` rodar, cobrindo MÉDIO-B; a
+reestruturação de ALTO-1 e a asserção de uso de MÉDIO-A moraram no mesmo arquivo e teriam falhado
+em seguida, comprovado manualmente reaplicando cada asserção contra a versão anterior do painel e
+do hook antes de escrever a correção). Depois dos commits `b5ebe21f`/`6a63aaeb`: 57 → 87 pass (com
+`package-box-camera-flow-dialog.contract.ts`), 0 fail.
+
+### Decisão registrada: `keepPreviousData`
+
+Avaliado conforme pedido — implementado como **reforço complementar**, não substituto: a correção
+estrutural do ALTO-1 (denied/loading/failed como ramos do mesmo `return`) é o que garante
+`PackageBoxCameraFlow` nunca desmontar, mesmo que `isLoading` volte a `true` por algum outro motivo
+futuro. `placeholderData: keepPreviousData` reduz o próprio motivo mais comum (bipe troca a
+`queryKey`) de `isLoading` virar `true` sem necessidade, mas não é a garantia — por isso as duas
+coisas foram feitas.
+
+### Gates
+
+| Gate                                                                                                             | Resultado                              |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `bun run typecheck` (6 apps)                                                                                     | ok                                     |
+| `bun run lint` (6 apps)                                                                                          | ok                                     |
+| `bun run format:check` (Prettier, repo)                                                                          | ok (3 arquivos formatados)             |
+| contratos da API (`bun run --cwd apps/api-transportada test`, 177 arq.)                                          | 6.059 pass · 23 skip · 0 (fail)        |
+| contratos do frontend (`bun run --cwd apps/frontend-transportada test`, 29 arq., inc. acentos)                   | 4.055 pass · 0 (fail)                  |
+| `package-box-measurement` + `package-box-camera-flow-dialog` (frontend)                                          | 87 pass · 0 (fail)                     |
+| `nfe-package-box.contract.test.ts` (`measurement-source` incluso, API)                                           | 66 pass · 0 (fail)                     |
+| `bun run --cwd apps/frontend-transportada build`                                                                 | ok (PWA, 132 entradas)                 |
+| integração da API completa (`bun --env-file=../../.env.test test --timeout 120000`, Postgres nativo descartável) | 6.081 pass · **1 (fail)** preexistente |
+
+Contagem de `(fail)` nos gates: **1**, preexistente e já conhecida —
+`database-migration/cte-profile-output-constraints` (`errno 23001` em vez de `23503`, conforme a
+versão do Postgres — aqui 18.4, Homebrew). Nenhuma outra.
+
+Postgres do Docker: `docker compose ps`/`docker ps` travaram nesta sessão (>120 s sem responder,
+mesmo padrão já registrado nas revisões anteriores). Subido um **Postgres 18.4 nativo descartável**
+em `127.0.0.1:55440` (`LC_ALL=C` no `initdb`/`pg_ctl`, `--encoding=UTF8 --locale=C` explícitos —
+sem eles o `initdb` herdava `SQL_ASCII` do ambiente e a primeira migration com acento em `CHECK`
+falhava com `conversion between UTF8 and SQL_ASCII is not supported`; socket Unix em `/tmp` porque
+o caminho do scratchpad da sessão excede o limite de 103 bytes do Postgres para
+`.s.PGSQL.<porta>`). Dados descartados e servidor parado ao final. **O `.env.test` do link
+simbólico não foi editado**: toda integração rodou com `DRIZZLE_TEST_DATABASE_URL` na linha de
+comando, por cima de `--env-file=../../.env.test`.
+
+### Commits
+
+| Tema                                                                               | Hash       |
+| ---------------------------------------------------------------------------------- | ---------- |
+| [ALTO-1+MÉDIO-A+MÉDIO-B+BAIXO-4] contratos vermelhos (teste antes do fix)          | `26b4feb9` |
+| [BAIXO-3] teste do lado seguro de `isEditedDimension`                              | `e15730f1` |
+| [ALTO-1+MÉDIO-B] painel: ramos do mesmo `return` + módulo do rótulo                | `b5ebe21f` |
+| [ALTO-1 reforço+MÉDIO-A+BAIXO-1+BAIXO-5] hook: `keepPreviousData` + módulo do bipe | `6a63aaeb` |
+| [BAIXO-2] texto de `cameraNoMargin`                                                | `c91b7d84` |
+
+### Follow-up (5ª revisão)
+
+- A bateria `test:integration` completa (70+ arquivos, precisa de Keycloak/MinIO/RabbitMQ) segue sem
+  rodar nesta sessão — mesma limitação já registrada nas revisões anteriores; rodada nesta sessão
+  apenas a integração que usa só Postgres (`bun --env-file=../../.env.test test`, 6.081 pass).
+- `placeholderData: keepPreviousData` é reforço, não a garantia — a garantia é estrutural (denied/
+  loading/failed nunca causam retorno antecipado). Qualquer novo estado de painel que precise de
+  retorno condicional deve seguir o mesmo padrão (ramo dentro do `return`, nunca `if (...) return`
+  acima de `PackageBoxCameraFlow`).
