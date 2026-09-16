@@ -78,6 +78,16 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
    */
   const [measureErrorCode, setMeasureErrorCode] = useState<string | undefined>(undefined)
 
+  /**
+   * ⚠️ **Reler a MESMA etiqueta depois de uma falha precisa refazer a consulta.** `scanned` está na
+   * `queryKey` e o cliente roda com `retry: false`: regravar o mesmo texto não muda a chave, e a
+   * consulta ficava parada no erro. O fluxo pedia "leia a etiqueta de novo", o conferente lia, e
+   * nada acontecia (3ª revisão, item M1).
+   */
+  const retryLookup = (): void => {
+    void query.refetch()
+  }
+
   const measure = useMutation({
     mutationFn: (measurement: PackageBoxMeasurementInput) => client.measureBox(measurement),
     onError: (error: unknown) => {
@@ -114,11 +124,17 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
       measure.reset()
       setMeasureErrorCode(undefined)
     },
+    /** Refaz a consulta da etiqueta atual — a saída para a falha que não muda a chave. */
+    retryLookup,
     scanned,
     search,
     setStatus,
     /** Bipar substitui o texto digitado: são a mesma pergunta, feita de dois jeitos. */
     setScanned: (value: null | string) => {
+      if (value !== null && value === scanned) {
+        retryLookup()
+        return
+      }
       setScanned(value)
       setSearch('')
     },

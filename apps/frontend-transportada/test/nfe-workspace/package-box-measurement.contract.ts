@@ -348,6 +348,24 @@ describe('bipar leva direto à medição da caixa achada', () => {
     expect(panel).toContain('onResetSaveError')
   })
 
+  /**
+   * ⚠️ **Reler a MESMA etiqueta depois de uma falha de consulta não fazia nada.** `onLookup` é
+   * `setScanned`, `scanned` está na `queryKey`, e com `retry: false` a consulta fica em erro: regravar
+   * o mesmo texto não muda a chave e o TanStack Query não refaz nada. O fluxo mandava "leia a
+   * etiqueta de novo", o conferente lia, e a tela ficava parada na falha (3ª revisão, item M1).
+   */
+  it('M1: reler a mesma etiqueta depois da falha refaz a consulta', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+
+    expect(hook).toContain('retryLookup')
+    expect(hook).toContain('void query.refetch()')
+
+    const setScannedBlock = hook.split('setScanned: (value: null | string) => {')[1] ?? ''
+    expect(setScannedBlock).toContain('retryLookup()')
+  })
+
   it('usa o sinal de refetch da fila (isFetching), não o carregamento inicial, para saber quando avaliar', async () => {
     const hook = await Bun.file(
       new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
