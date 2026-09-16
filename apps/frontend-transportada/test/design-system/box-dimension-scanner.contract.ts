@@ -21,8 +21,8 @@ const VITE_CONFIG_PATH = 'vite.config.ts'
 describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', () => {
   it('cria o worker por new URL, nunca por blob:', async () => {
     const hook = await readApplicationFile(HOOK_PATH)
-    expect(hook).toContain(
-      "new Worker(new URL('./boxDimension.worker.ts', import.meta.url), {\n      type: 'module',\n    })",
+    expect(hook).toMatch(
+      /new Worker\(new URL\('\.\/boxDimension\.worker\.ts', import\.meta\.url\), \{ type: 'module' \}\)/u,
     )
     expect(hook).not.toContain('blob:')
     expect(await readApplicationFile(SCANNER_PATH)).not.toContain('blob:')
@@ -69,10 +69,31 @@ describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', 
     expect(server).not.toContain("'unsafe-eval'")
   })
 
+  /**
+   * T14 item M8: o quadro chega a cada 250 ms e o motivo trocava a cada quadro. R2 pede 500 ms, e
+   * repetir a mesma frase no `aria-live` empilha fala sobre fala — mesmo remédio do
+   * `REPEAT_ANNOUNCE_COOLDOWN_MS` do leitor de etiqueta.
+   */
+  it('M8: o indicador ao vivo respeita 500 ms e não repete o mesmo motivo', async () => {
+    const hook = await readApplicationFile(HOOK_PATH)
+    const scanner = await readApplicationFile(SCANNER_PATH)
+
+    expect(hook).toContain('const LIVE_WARNING_ANNOUNCE_INTERVAL_MS = 500')
+    expect(hook).toContain('if (liveWarning === announcedWarning) return')
+    expect(hook).toContain(
+      'LIVE_WARNING_ANNOUNCE_INTERVAL_MS - (Date.now() - lastAnnouncedAtRef.current)',
+    )
+    /** O `aria-live` fala o anunciado, nunca o motivo cru do último quadro. */
+    const liveBlock = scanner.split('aria-live="polite"')[1]?.split('</p>')[0] ?? ''
+    expect(liveBlock).toContain('announcedWarning')
+    expect(liveBlock).not.toContain('liveWarnings[0]')
+  })
+
   it('apaga o vídeo e encerra o worker ao desativar ou desmontar', async () => {
     const hook = await readApplicationFile(HOOK_PATH)
-    expect(hook).toContain('video.srcObject = null')
-    expect(hook).toContain('worker.terminate()')
+    expect(hook).toContain('detachStreamFromVideo(videoElement)')
+    /** M6: worker emprestado pela pré-carga não é terminado aqui — quem empresta é quem termina. */
+    expect(hook).toContain('if (ownsWorker) worker.terminate()')
   })
 
   /**

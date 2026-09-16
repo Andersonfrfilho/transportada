@@ -73,14 +73,36 @@ aviso — nada é gravado pelo primitivo em nenhum caminho de falha.
 ## A imagem nunca sai do aparelho
 
 Nem o worker, nem o hook, nem o componente chamam `fetch`. A "foto congelada" que os pontos
-arrastáveis marcam é um `canvas.toDataURL` local (`snapshotDataUrl`), guardado só em memória —
+arrastáveis marcam é um `canvas.toBlob` + `URL.createObjectURL` local (`snapshotUrl`), guardado só
+em memória e revogado junto com a captura (`img-src` real não tem `data:`) —
 alimenta a tela e a lupa, nunca uma requisição. `test/design-system/box-dimension-scanner.contract.ts`
 varre as três fontes por `fetch(` para garantir isso.
 
+## Um espaço só: o quadro reduzido
+
+⚠️ **Toda medida acontece no quadro que o worker recebeu, nunca na resolução do `<video>`.** O
+quadro vai para o OpenCV reduzido a `MAXIMUM_FRAME_WIDTH` (720 px de largura), e os cantos do
+marcador voltam nesse espaço. `boxDimensionFrame.service.ts` é o único lugar que converte: o tamanho
+do quadro (`frameSizeFor`), o toque na tela virando ponto do quadro (`overlayPointToFrame`) e a
+entrada do motor (`buildBoxMeasurementInput`, que fixa `imageWidth`/`imageHeight` nos do quadro).
+
+Misturar os dois espaços não falha: devolve medida plausível, 1,8× a 2,7× maior que a real, com
+margem pequena ao lado — foi o defeito que a revisão da T14 encontrou. A prova é a invariância de
+escala em `box-dimension.contract.ts`: a mesma cena filmada no dobro da resolução tem que dar a
+mesma medida em milímetros.
+
+## A trilha chega por callback ref
+
+O `<video>` só existe depois da renderização que o revela. Ler `ref.current` no mesmo tick do
+`setStatus` devolve `null` e a etapa fica preta para sempre — por isso `videoRef` é um **callback
+ref** e a ligação mora em `attachStreamToVideo`/`detachStreamFromVideo`
+(`barcodeScanner.service.ts`), num efeito com o elemento e o stream nas dependências.
+
 ## A câmera apaga ao fechar
 
-Como o leitor de etiqueta: desativar ou desmontar encerra o worker (`worker.terminate()`) e limpa
-`video.srcObject`. O `stream` é sempre injetado por quem hospeda (`useCameraStream`, D19) — o
+Como o leitor de etiqueta: desativar ou desmontar solta o vídeo e encerra o worker — **o worker
+emprestado pela pré-carga do fluxo (`worker`) não é terminado aqui: quem empresta é quem termina**,
+para o OpenCV compilar uma vez só por sessão. O `stream` é sempre injetado por quem hospeda (`useCameraStream`, D19) — o
 primitivo nunca chama `getUserMedia` sozinho.
 
 ## Pontos arrastáveis: lupa e setas
@@ -93,19 +115,21 @@ por prop — o primitivo não traduz nada.
 
 ## Props
 
-| Prop               | Tipo                                              | Papel                                         |
-| ------------------ | ------------------------------------------------- | --------------------------------------------- |
-| `isActive`         | `boolean`                                         | Ativa o worker e o vídeo.                     |
-| `stream`           | `MediaStreamLike \| undefined`                    | Sessão de câmera de `useCameraStream` (D19).  |
-| `onMeasured`       | `(result) => void`                                | Proposta pronta: dimensões, margens, motivos. |
-| `onUnsupported`    | `(reason) => void`                                | `noWasm` · `engineFailed` · `tooSlow`.        |
-| `title`            | `string`                                          | Rótulo da seção e do vídeo.                   |
-| `instructionLabel` | `string`                                          | Instrução ao vivo, sem motivo de imprecisão.  |
-| `warningLabels`    | `Partial<Record<BoxDimensionDomainWarning, ...>>` | Texto por motivo (D9), mostrado ao vivo.      |
-| `captureLabel`     | `string`                                          | Botão "Capturar".                             |
-| `confirmLabel`     | `string`                                          | Botão "Usar esta medida".                     |
-| `retryLabel`       | `string`                                          | Botão de voltar ao vídeo ao vivo.             |
-| `pointLabels`      | `Record<MarkedPointKey, string>`                  | `aria-label` de cada ponto arrastável.        |
+| Prop                | Tipo                                              | Papel                                         |
+| ------------------- | ------------------------------------------------- | --------------------------------------------- |
+| `isActive`          | `boolean`                                         | Ativa o worker e o vídeo.                     |
+| `stream`            | `MediaStreamLike \| undefined`                    | Sessão de câmera de `useCameraStream` (D19).  |
+| `onMeasured`        | `(result) => void`                                | Proposta pronta: dimensões, margens, motivos. |
+| `onUnsupported`     | `(reason) => void`                                | `noWasm` · `engineFailed` · `tooSlow`.        |
+| `title`             | `string`                                          | Rótulo da seção e do vídeo.                   |
+| `instructionLabel`  | `string`                                          | Instrução ao vivo, sem motivo de imprecisão.  |
+| `warningLabels`     | `Partial<Record<BoxDimensionDomainWarning, ...>>` | Texto por motivo (D9), mostrado ao vivo.      |
+| `captureLabel`      | `string`                                          | Botão "Capturar".                             |
+| `confirmLabel`      | `string`                                          | Botão "Usar esta medida".                     |
+| `retryLabel`        | `string`                                          | Botão de voltar ao vídeo ao vivo.             |
+| `pointLabels`       | `Record<MarkedPointKey, string>`                  | `aria-label` de cada ponto arrastável.        |
+| `experimentalLabel` | `string`                                          | Selo "Experimental" (D13, nas duas etapas).   |
+| `worker`            | `Worker \| undefined`                             | Worker da pré-carga, reaproveitado (D18).     |
 
 Contrato: `test/design-system/box-dimension-scanner.contract.ts`. Decisão de dependência, CSP e
 build do OpenCV: `docs/adr/0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md`.

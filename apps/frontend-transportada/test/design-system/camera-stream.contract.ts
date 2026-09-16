@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'bun:test'
 
+import {
+  attachStreamToVideo,
+  detachStreamFromVideo,
+  openCameraStream,
+  stopCameraStream,
+  type MediaStreamLike,
+  type VideoElementLike,
+} from '@/components/ui/barcodeScanner.service'
+
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
 function readApplicationFile(filePath: string): Promise<string> {
@@ -21,8 +30,91 @@ describe('useCameraStream é o dono único da sessão de câmera (D19)', () => {
   it('abre e fecha pelo mesmo serviço do leitor, sem duplicar o getUserMedia', async () => {
     const hook = await readApplicationFile(CAMERA_STREAM_HOOK_PATH)
     expect(hook).toContain("from './barcodeScanner.service'")
-    expect(hook.match(/openCameraStream\(/g)).toHaveLength(1)
-    expect(hook.match(/stopCameraStream\(/g)).toHaveLength(2)
+  })
+
+  /** Comportamento, não texto: uma permissão pedida, uma trilha parada, e nada além disso. */
+  it('abre uma vez e para exatamente as trilhas que abriu', async () => {
+    let calls = 0
+    let stopped = 0
+    const stream: MediaStreamLike = { getTracks: () => [{ stop: () => (stopped += 1) }] }
+    const navigatorLike = {
+      mediaDevices: {
+        getUserMedia: () => {
+          calls += 1
+          return Promise.resolve(stream)
+        },
+      },
+    }
+
+    const result = await openCameraStream(navigatorLike)
+    expect(result).toEqual({ status: 'ready', stream })
+    expect(calls).toBe(1)
+
+    stopCameraStream(result.status === 'ready' ? result.stream : undefined)
+    expect(stopped).toBe(1)
+  })
+
+  it('permissão negada e navegador sem câmera são resposta, nunca exceção', async () => {
+    const notAllowed = Object.assign(new Error('denied'), { name: 'NotAllowedError' })
+    const denied = { mediaDevices: { getUserMedia: () => Promise.reject(notAllowed) } }
+    expect(await openCameraStream(denied)).toEqual({ status: 'denied' })
+    expect(await openCameraStream({})).toEqual({ status: 'unavailable' })
+  })
+})
+
+/**
+ * T14 item C2: o `<video>` da etapa Medida nascia sem trilha nenhuma — o hook lia `ref.current` no
+ * mesmo tick do `setStatus` que revelava o elemento, e achava `null`. A ligação é um serviço puro
+ * justamente para ser exercitada aqui, sem renderer.
+ */
+describe('a trilha chega ao elemento de vídeo (C2)', () => {
+  function fakeVideo(): VideoElementLike & { readonly plays: readonly number[] } {
+    const plays: number[] = []
+    return {
+      plays,
+      play: () => {
+        plays.push(1)
+        return Promise.resolve()
+      },
+      srcObject: null,
+    }
+  }
+
+  it('anexa o stream e começa a tocar', () => {
+    const video = fakeVideo()
+    const stream: MediaStreamLike = { getTracks: () => [] }
+    expect(attachStreamToVideo(video, stream)).toBe(true)
+    expect(video.srcObject).toBe(stream)
+    expect(video.plays).toHaveLength(1)
+  })
+
+  it('sem elemento ou sem stream não inventa ligação', () => {
+    expect(attachStreamToVideo(null, { getTracks: () => [] })).toBe(false)
+    expect(attachStreamToVideo(fakeVideo(), undefined)).toBe(false)
+  })
+
+  it('play que rejeita (autoplay bloqueado) não derruba a ligação', () => {
+    const video: VideoElementLike = {
+      play: () => Promise.reject(new Error('blocked')),
+      srcObject: null,
+    }
+    expect(attachStreamToVideo(video, { getTracks: () => [] })).toBe(true)
+    expect(video.srcObject).not.toBeNull()
+  })
+
+  it('soltar o elemento limpa a trilha dele', () => {
+    const video = fakeVideo()
+    attachStreamToVideo(video, { getTracks: () => [] })
+    detachStreamFromVideo(video)
+    expect(video.srcObject).toBeNull()
+  })
+
+  it('o hook da medida liga por callback ref, nunca lendo ref.current no tick do setStatus', async () => {
+    const hook = await readApplicationFile('src/components/ui/useBoxDimensionScanner.hook.ts')
+    expect(hook).toContain('attachStreamToVideo')
+    expect(hook).toMatch(/\}, \[stream, videoElement\]\)/)
+    const attachAndStart = hook.split('async function attachAndStart()')[1]
+    expect(attachAndStart ?? '').not.toContain('srcObject')
   })
 
   it('reabre só quando isActive muda — não a cada renderização', async () => {

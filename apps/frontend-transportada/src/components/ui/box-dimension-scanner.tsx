@@ -2,12 +2,9 @@
 import { useRef, useState } from 'react'
 
 import type { MediaStreamLike } from './barcodeScanner.service'
-import {
-  clampPointToBounds,
-  isArrowKey,
-  magnifierViewportFor,
-  nudgePoint,
-} from './boxDimensionMarking.service'
+import { isArrowKey, magnifierViewportFor, nudgePoint } from './boxDimensionMarking.service'
+import { overlayPointToFrame } from './boxDimensionFrame.service'
+import { Badge } from './badge'
 import type { Point } from './boxDimensionGeometry.service'
 import type { BoxDimensionDomainWarning } from './boxDimension.constant'
 import {
@@ -26,6 +23,8 @@ import styles from './box-dimension-scanner.module.css'
 export type BoxDimensionScannerProps = Readonly<{
   captureLabel: string
   confirmLabel: string
+  /** D13: o selo "Experimental" acompanha a medida nas DUAS etapas — aqui e na Conferência. */
+  experimentalLabel: string
   instructionLabel: string
   isActive: boolean
   loadingLabel: string
@@ -36,6 +35,8 @@ export type BoxDimensionScannerProps = Readonly<{
   stream: MediaStreamLike | undefined
   title: string
   warningLabels: Readonly<Partial<Record<BoxDimensionDomainWarning, string>>>
+  /** M6: o worker que já compilou o OpenCV na pré-carga — compilar de novo é custo sem ganho. */
+  worker?: Worker | undefined
 }>
 
 /**
@@ -47,6 +48,7 @@ export type BoxDimensionScannerProps = Readonly<{
 export function BoxDimensionScanner({
   captureLabel,
   confirmLabel,
+  experimentalLabel,
   instructionLabel,
   isActive,
   loadingLabel,
@@ -57,40 +59,35 @@ export function BoxDimensionScanner({
   stream,
   title,
   warningLabels,
+  worker,
 }: BoxDimensionScannerProps) {
   const {
+    announcedWarning,
+    bounds,
     captureFrame,
     confirmMeasurement,
-    liveWarnings,
     markedPoints,
     returnToLive,
     setMarkedPoint,
     snapshotUrl,
     status,
     videoRef,
-  } = useBoxDimensionScanner({ isActive, onMeasured, onUnsupported, stream })
+  } = useBoxDimensionScanner({ isActive, onMeasured, onUnsupported, stream, worker })
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const [magnifierFor, setMagnifierFor] = useState<MarkedPointKey | undefined>(undefined)
 
   if (!isActive || status === 'idle' || status === 'unsupported') return null
 
-  function overlayBounds(): Readonly<{ width: number; height: number }> {
-    const video = videoRef.current
-    return { height: video?.videoHeight ?? 0, width: video?.videoWidth ?? 0 }
-  }
-
+  /** C1: o ponto marcado vive no quadro reduzido — o `<video>` nativo não entra na conta. */
   function toRelativePoint(clientX: number, clientY: number): Point | undefined {
     const overlay = overlayRef.current
-    const bounds = overlayBounds()
-    if (overlay === null || bounds.width === 0 || bounds.height === 0) return undefined
-    const rect = overlay.getBoundingClientRect()
-    return clampPointToBounds(
-      {
-        x: ((clientX - rect.left) / rect.width) * bounds.width,
-        y: ((clientY - rect.top) / rect.height) * bounds.height,
-      },
-      bounds,
-    )
+    if (overlay === null) return undefined
+    return overlayPointToFrame({
+      clientX,
+      clientY,
+      frame: bounds,
+      rect: overlay.getBoundingClientRect(),
+    })
   }
 
   function handlePointerMove(
@@ -105,18 +102,23 @@ export function BoxDimensionScanner({
     if (!isArrowKey(event.key)) return
     event.preventDefault()
     const current = markedPoints[key]
-    setMarkedPoint(key, nudgePoint(current, event.key, overlayBounds(), event.shiftKey))
+    setMarkedPoint(key, nudgePoint(current, event.key, bounds, event.shiftKey))
   }
 
   const magnifierPoint = magnifierFor === undefined ? undefined : markedPoints[magnifierFor]
   const magnifierViewport =
-    magnifierPoint === undefined ? undefined : magnifierViewportFor(magnifierPoint, overlayBounds())
+    magnifierPoint === undefined ? undefined : magnifierViewportFor(magnifierPoint, bounds)
 
   return (
     <div className={styles.scanner}>
       <p className={styles.title}>
         <Icon name="camera" />
         {title}
+        {/* D13: o selo acompanha a medida nas duas etapas — a Conferência tem o dela no formulário. */}
+        <Badge variant="secondary">
+          <Icon name="alert" size="sm" />
+          {experimentalLabel}
+        </Badge>
       </p>
       <div className={styles.viewport} ref={overlayRef}>
         <video
@@ -138,15 +140,14 @@ export function BoxDimensionScanner({
         ) : null}
         {status === 'live' ? (
           <p aria-live="polite" className={styles.liveIndicator} role="status">
-            {liveWarnings[0] === undefined
+            {announcedWarning === undefined
               ? instructionLabel
-              : (warningLabels[liveWarnings[0]] ?? instructionLabel)}
+              : (warningLabels[announcedWarning] ?? instructionLabel)}
           </p>
         ) : null}
         {status === 'capturing'
           ? MARKED_POINT_KEYS.map((key) => {
               const point = markedPoints[key]
-              const bounds = overlayBounds()
               const leftPercent = bounds.width === 0 ? 0 : (point.x / bounds.width) * 100
               const topPercent = bounds.height === 0 ? 0 : (point.y / bounds.height) * 100
               return (
@@ -199,8 +200,8 @@ export function BoxDimensionScanner({
             backgroundPosition: `-${magnifierPoint.x * magnifierViewport.zoom - 48}px -${
               magnifierPoint.y * magnifierViewport.zoom - 48
             }px`,
-            backgroundSize: `${overlayBounds().width * magnifierViewport.zoom}px ${
-              overlayBounds().height * magnifierViewport.zoom
+            backgroundSize: `${bounds.width * magnifierViewport.zoom}px ${
+              bounds.height * magnifierViewport.zoom
             }px`,
           }}
         />

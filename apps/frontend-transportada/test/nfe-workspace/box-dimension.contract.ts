@@ -29,6 +29,12 @@ import {
   type BoxMeasurementInput,
 } from '@/components/ui/boxDimension.service'
 import {
+  buildBoxMeasurementInput,
+  frameSizeFor,
+  overlayPointToFrame,
+  MAXIMUM_FRAME_WIDTH,
+} from '@/components/ui/boxDimensionFrame.service'
+import {
   computeHomography,
   projectPoint,
   recoverPose,
@@ -105,12 +111,135 @@ describe('boxDimension.constant', () => {
     expect(MEASUREMENT_ENGINE).toBe('aruco-homography-v1')
   })
 
-  test('o comentário "provisório até a validação (T15)" acompanha os dois limites', async () => {
-    const source = await Bun.file(
-      new URL('../../src/components/ui/boxDimension.constant.ts', import.meta.url),
+  /**
+   * T14 item A5: antes isto varria o texto-fonte atrás da palavra "provisório" — passava com o
+   * comentário e sem comportamento nenhum. O que importa dos dois limites é o que eles decidem.
+   */
+  test('os dois limites são quem decide preencher o campo e pedir confirmação', () => {
+    const at = (heightMarginMm: number) =>
+      classifyMeasurement({ heightMarginMm, lengthMarginMm: 1, widthMarginMm: 1 })
+    expect(at(MARGIN_RELIABLE_MM).requiresConfirmation).toBe(false)
+    expect(at(MARGIN_RELIABLE_MM + 0.01).requiresConfirmation).toBe(true)
+    expect(at(MARGIN_UNRELIABLE_MM).filled.height).toBe(true)
+    expect(at(MARGIN_UNRELIABLE_MM + 0.01).filled.height).toBe(false)
+  })
+})
+
+/**
+ * T14 item C1 (CRÍTICO): o quadro vai reduzido para o worker, e os cantos do marcador voltam no
+ * espaço do quadro. Medir com a largura nativa do `<video>` não falha — devolve medida plausível,
+ * quase o dobro da real, com margem pequena ao lado. A prova é a invariância: a mesma cena, filmada
+ * no dobro da resolução, tem que dar a mesma medida em milímetros.
+ */
+describe('a medida vive num espaço só: o do quadro reduzido (C1)', () => {
+  /** O elemento na tela do celular: nem a resolução do sensor, nem a do quadro reduzido. */
+  const OVERLAY_RECT = { height: 211, left: 24, top: 48, width: 375 } as const
+
+  function poseForResolution(videoWidth: number, videoHeight: number): CameraPose {
+    const tilt = (SYNTHETIC_TILT_DEGREES * Math.PI) / 180
+    return {
+      focalPx: (FOCAL / WIDTH) * videoWidth,
+      principal: { x: videoWidth / 2, y: videoHeight / 2 },
+      rotation: [1, 0, 0, 0, Math.cos(tilt), -Math.sin(tilt), 0, Math.sin(tilt), Math.cos(tilt)],
+      translation: [-200, -150, 1200],
+    }
+  }
+
+  /** Percorre a cadeia real: cena no sensor → cantos no quadro reduzido → dedo na tela → medida. */
+  function measureAtVideoWidth(videoWidth: number) {
+    const videoHeight = Math.round((videoWidth * HEIGHT) / WIDTH)
+    const scene = synthesize(poseForResolution(videoWidth, videoHeight))
+    const frame = frameSizeFor(videoWidth, videoHeight)
+    const reduction = frame.width / videoWidth
+
+    const toFrame = (point: Point): Point => {
+      const converted = overlayPointToFrame({
+        clientX: OVERLAY_RECT.left + (point.x / videoWidth) * OVERLAY_RECT.width,
+        clientY: OVERLAY_RECT.top + (point.y / videoHeight) * OVERLAY_RECT.height,
+        frame,
+        rect: OVERLAY_RECT,
+      })
+      expect(converted).toBeDefined()
+      return converted as Point
+    }
+
+    return measureBox(
+      buildBoxMeasurementInput({
+        facePoints: scene.facePoints.map(toFrame) as [Point, Point, Point, Point],
+        footPoint: toFrame(scene.footPoint),
+        frame,
+        // O worker recebe o quadro reduzido e devolve os cantos nele.
+        markerCorners: scene.markerCorners.map((corner) => ({
+          x: corner.x * reduction,
+          y: corner.y * reduction,
+        })),
+      }),
+    )
+  }
+
+  test('o quadro reduzido tem teto de largura e guarda a proporção', () => {
+    expect(frameSizeFor(1920, 1080)).toEqual({ height: 405, width: MAXIMUM_FRAME_WIDTH })
+    expect(frameSizeFor(640, 480)).toEqual({ height: 480, width: 640 })
+    expect(frameSizeFor(0, 0)).toEqual({ height: 0, width: 0 })
+  })
+
+  test('dobrar a resolução do vídeo não muda um milímetro da medida', () => {
+    const atFrameWidth = measureAtVideoWidth(MAXIMUM_FRAME_WIDTH)
+    const atDoubleFrameWidth = measureAtVideoWidth(MAXIMUM_FRAME_WIDTH * 2)
+
+    expect(atDoubleFrameWidth.lengthMm).toBeCloseTo(atFrameWidth.lengthMm, 6)
+    expect(atDoubleFrameWidth.widthMm).toBeCloseTo(atFrameWidth.widthMm, 6)
+    expect(atDoubleFrameWidth.heightMm).toBeCloseTo(atFrameWidth.heightMm, 6)
+  })
+
+  test('e as duas continuam sendo a caixa de verdade, não o mesmo erro duas vezes', () => {
+    for (const videoWidth of [MAXIMUM_FRAME_WIDTH, MAXIMUM_FRAME_WIDTH * 2, WIDTH]) {
+      const result = measureAtVideoWidth(videoWidth)
+      expect(Math.abs(result.lengthMm - BOX.lengthMm)).toBeLessThan(5)
+      expect(Math.abs(result.widthMm - BOX.widthMm)).toBeLessThan(5)
+      expect(Math.abs(result.heightMm - BOX.heightMm)).toBeLessThan(5)
+    }
+  })
+
+  /**
+   * A invariância acima só vale se a tela e o hook passarem por este seam. Sem renderer nesta base
+   * (T14 item A5: nenhuma dependência nova foi introduzida), a ligação é cobrada na fonte.
+   */
+  test('o hook mede no quadro capturado, nunca em videoWidth/videoHeight', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/components/ui/useBoxDimensionScanner.hook.ts', import.meta.url),
     ).text()
-    expect(source).toContain('T15')
-    expect(source.toLowerCase()).toContain('provis')
+    expect(hook).toContain('buildBoxMeasurementInput')
+    expect(hook).toContain('frameSizeFor')
+    const confirm = hook.split('function confirmMeasurement(): void {')[1] ?? ''
+    expect(confirm).not.toContain('videoWidth')
+    expect(confirm).not.toContain('videoHeight')
+    const capture = hook.split('function captureFrame(): void {')[1]?.split('\n  }')[0] ?? ''
+    expect(capture).toContain('frameSizeFor(video.videoWidth, video.videoHeight)')
+  })
+
+  test('a tela converte o toque para o quadro pelo mesmo seam', async () => {
+    const scanner = await Bun.file(
+      new URL('../../src/components/ui/box-dimension-scanner.tsx', import.meta.url),
+    ).text()
+    expect(scanner).toContain('overlayPointToFrame')
+    expect(scanner).not.toContain('videoWidth')
+    expect(scanner).not.toContain('videoHeight')
+  })
+
+  test('o ponto tocado nunca sai do quadro, e sem quadro não há ponto', () => {
+    const frame = frameSizeFor(1920, 1080)
+    expect(
+      overlayPointToFrame({ clientX: 10_000, clientY: 10_000, frame, rect: OVERLAY_RECT }),
+    ).toEqual({ x: frame.width, y: frame.height })
+    expect(
+      overlayPointToFrame({
+        clientX: 0,
+        clientY: 0,
+        frame: { height: 0, width: 0 },
+        rect: OVERLAY_RECT,
+      }),
+    ).toBeUndefined()
   })
 })
 

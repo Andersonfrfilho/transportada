@@ -52,7 +52,7 @@ let cvPromise: Promise<OpenCvModule> | undefined
  */
 function loadOpenCv(): Promise<OpenCvModule> {
   if (cvPromise === undefined) {
-    cvPromise = (async () => {
+    const loading = (async () => {
       const namespace = (await import(
         '../../../vendor/opencv/opencv.js'
       )) as OpenCvArtifactNamespace
@@ -60,6 +60,11 @@ function loadOpenCv(): Promise<OpenCvModule> {
       if (candidate === undefined) throw new Error('OPENCV_ARTIFACT_EXPORT_NOT_FOUND')
       return candidate
     })()
+    /** Promessa rejeitada memoizada nunca mais tenta: a falha de rede de um instante vira definitiva. */
+    cvPromise = loading
+    void loading.catch(() => {
+      if (cvPromise === loading) cvPromise = undefined
+    })
   }
   return cvPromise
 }
