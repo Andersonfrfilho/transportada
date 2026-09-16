@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -18,6 +19,15 @@ import {
 } from './src/modules/shared/maplibreWorkerAssets.service'
 
 const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy'
+/**
+ * O chunk do OpenCV (ADR-0065, T8): nome fixo para o `globIgnores`/`runtimeCaching` do Workbox e
+ * para o `chunkFileNames` abaixo saberem qual chunk é o build próprio, sem abrir o bundle para
+ * achar. O padrão nunca casa com `vendor/opencv/opencv.js` em si — só com o chunk que o Vite emite
+ * a partir dele.
+ */
+const OPENCV_CHUNK_PREFIX = 'assets/opencv-'
+const OPENCV_CHUNK_GLOB = `${OPENCV_CHUNK_PREFIX}*.js`
+const OPENCV_CACHE_NAME = 'transportada-opencv'
 const PWA_ICON_PATH = '/icons/icon-192.png'
 const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
@@ -106,12 +116,48 @@ function maplibreWorkerAssetsPlugin(): Plugin {
   }
 }
 
+/**
+ * Pré-comprime só o chunk do OpenCV (3,05 MB brutos) no build: `server.ts` não comprime nada hoje
+ * (ADR-0065 §4), e afrouxar isso para todo o bundle é escopo maior do que esta task pede. `.gz` e
+ * `.br` ficam ao lado do chunk; o servidor escolhe pelo `Accept-Encoding` do pedido.
+ */
+function openCvCompressionPlugin(): Plugin {
+  function isOpenCvChunk(fileName: string): boolean {
+    return fileName.startsWith(OPENCV_CHUNK_PREFIX) && fileName.endsWith('.js')
+  }
+
+  return {
+    name: 'transportada-opencv-compression',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      for (const [fileName, file] of Object.entries(bundle)) {
+        if (!isOpenCvChunk(fileName)) continue
+        const source =
+          file.type === 'chunk' ? Buffer.from(file.code, 'utf8') : Buffer.from(file.source)
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.gz`,
+          source: gzipSync(source, { level: 9 }),
+        })
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.br`,
+          source: brotliCompressSync(source, {
+            params: { [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY },
+          }),
+        })
+      }
+    },
+  }
+}
+
 export default defineConfig({
   envDir: resolve(import.meta.dirname, '../..'),
   plugins: [
     react(),
     contentSecurityPolicyPlugin(),
     maplibreWorkerAssetsPlugin(),
+    openCvCompressionPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
@@ -136,7 +182,13 @@ export default defineConfig({
          * recortar foto nenhuma, e inclusive no celular do motorista, no 3G do pátio. Eles são
          * buscados no clique, e o cabeçalho de cache do servidor é quem os guarda depois disso.
          */
-        globIgnores: ['**/background-removal/**'],
+        /**
+         * O OpenCV do worker de medida (ADR-0065 §4, T8) sai pelo mesmo motivo do recorte de
+         * fundo: 3 MB que a maioria de quem abre o app nunca vai baixar (a função nasce desligada,
+         * D14). Diferente do recorte, ele é servido do próprio domínio (`vendor/opencv/`), então
+         * ganha `CacheFirst` próprio — o worker o busca uma vez e o Service Worker guarda.
+         */
+        globIgnores: ['**/background-removal/**', OPENCV_CHUNK_GLOB],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
@@ -148,12 +200,37 @@ export default defineConfig({
               expiration: { maxEntries: 10, maxAgeSeconds: 300 },
             },
           },
+          {
+            urlPattern: new RegExp(`/${OPENCV_CHUNK_PREFIX}.*\\.js$`, 'u'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: OPENCV_CACHE_NAME,
+              expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
         ],
       },
     }),
   ],
   resolve: {
     alias: { '@': resolve(import.meta.dirname, './src') },
+  },
+  // O worker de medida é `type: 'module'` e faz `import()` do OpenCV — sem isto o Vite empacota o
+  // worker em IIFE, que não tem `import()` dinâmico (T8, ADR-0065 §4).
+  worker: {
+    format: 'es',
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Nome fixo só para o chunk do OpenCV: os demais seguem o padrão do Vite sem mudança.
+        chunkFileNames: (chunkInfo) =>
+          chunkInfo.moduleIds.some((id) => id.includes('vendor/opencv/opencv.js'))
+            ? `${OPENCV_CHUNK_PREFIX}[hash].js`
+            : 'assets/[name]-[hash].js',
+      },
+    },
   },
   server: {
     proxy: API_PROXY,

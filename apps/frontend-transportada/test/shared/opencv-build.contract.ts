@@ -34,6 +34,9 @@ async function collectOpenCvImporters(): Promise<readonly string[]> {
   const sourceDirectory = fileURLToPath(new URL('src', APPLICATION_ROOT))
 
   for await (const relativePath of glob.scan({ cwd: sourceDirectory })) {
+    // `vite-env.d.ts` só declara o módulo ambiente (T8, sem `.d.ts` o artefato não tem tipo) — não
+    // importa nada, então não conta como importador.
+    if (relativePath.endsWith('.d.ts')) continue
     const content = await Bun.file(`${sourceDirectory}/${relativePath}`).text()
     if (/vendor\/opencv|@techstark\/opencv-js/u.test(content)) importers.push(relativePath)
   }
@@ -98,17 +101,23 @@ describe('o OpenCV da medida pela câmera (ADR-0065)', () => {
     expect(manifest.devDependencies['@techstark/opencv-js']).toBeUndefined()
   })
 
-  test('só o worker de medida importa o OpenCV', async () => {
+  /** T8: o worker de medida existe e é quem de fato importa — lista exata, não subconjunto. */
+  test('o worker de medida importa o OpenCV, e é o único', async () => {
     const importers = await collectOpenCvImporters()
-    expect(importers.every((path) => (ALLOWED_IMPORTERS as readonly string[]).includes(path))).toBe(
-      true,
-    )
+    expect(importers).toEqual([...ALLOWED_IMPORTERS])
   })
 
-  /** `public/` é copiado para o `dist` e varrido pelo precache do Workbox: 2,6 MB na primeira visita. */
-  test('fica fora de public/, portanto fora do precache', () => {
+  /**
+   * `public/` é copiado para o `dist` e varrido pelo precache do Workbox: 2,6 MB na primeira
+   * visita. T8: o chunk que o Vite emite a partir do artefato entra em `globIgnores` e ganha
+   * `CacheFirst` próprio (`transportada-opencv`) — fora do precache, mas cacheado no primeiro uso.
+   */
+  test('fica fora de public/ e fora do precache; o chunk ganha CacheFirst próprio (T8)', () => {
     expect(fileURLToPath(ARTIFACT_URL)).not.toContain('/public/')
-    expect(viteConfig).not.toContain('vendor/opencv')
+    expect(viteConfig).toMatch(/globIgnores:\s*\[[^\]]*OPENCV_CHUNK_GLOB/)
+    expect(viteConfig).toContain("const OPENCV_CACHE_NAME = 'transportada-opencv'")
+    expect(viteConfig).toContain("handler: 'CacheFirst'")
+    expect(viteConfig).toContain('cacheName: OPENCV_CACHE_NAME')
   })
 
   test('a CSP não ganha diretiva: nem eval, nem blob no worker', () => {

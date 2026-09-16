@@ -115,7 +115,8 @@ Contrato/aceite **antes** da implementação em toda task de código.
       `barcode-scanner.contract.ts` verde sem mudar asserção; contrato novo
       (`camera-stream.contract.ts`) mostra que o stream injetado não é fechado pelo leitor e que
       `getUserMedia` é chamado uma vez num ciclo com o stream do pai.
-- [ ] **T8 — Primitivo `box-dimension-scanner`, worker e carga (D18).** Componente, hook, CSS e
+- [x] **T8 — Primitivo `box-dimension-scanner`, worker e carga (D18).** Feito (evidence.md § T8).
+      Componente, hook, CSS e
       `boxDimension.worker.ts` (OpenCV por `import()` dentro do worker, `preload()`, criado por
       `new URL`); indicador ao vivo, "Capturar", pontos arrastáveis com lupa e setas (portar
       `marking.ts` do spike); `onUnsupported` para `noWasm`/`engineFailed` (15 s)/`tooSlow`;

@@ -1,0 +1,326 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useEffect, useRef, useState } from 'react'
+
+import { MEASUREMENT_ENGINE } from './boxDimension.constant'
+import type { Point } from './boxDimensionGeometry.service'
+import {
+  classifyMeasurement,
+  estimateMargins,
+  measureBox,
+  type BoxMeasurementInput,
+} from './boxDimension.service'
+import {
+  detectWarnings,
+  selectDomainWarnings,
+  type FrameStats,
+} from './boxDimensionWarnings.service'
+import type { MediaStreamLike } from './barcodeScanner.service'
+import type { BoxDimensionWorkerRequest, BoxDimensionWorkerResponse } from './boxDimension.worker'
+
+const FRAME_INTERVAL_MS = 250
+const MAXIMUM_FRAME_WIDTH = 720
+/** D18: 15s sem `ready` é o teto do carregamento do OpenCV; acima disso, `engineFailed`. */
+const ENGINE_LOAD_TIMEOUT_MS = 15_000
+/** D-fallback: acima de 800ms por quadro, 3 vezes seguidas, o aparelho não acompanha (`tooSlow`). */
+const SLOW_FRAME_THRESHOLD_MS = 800
+const SLOW_FRAME_STRIKES = 3
+
+export type BoxDimensionScannerStatus =
+  | 'capturing'
+  | 'idle'
+  | 'live'
+  | 'loadingEngine'
+  | 'measured'
+  | 'unsupported'
+
+export type BoxDimensionUnsupportedReason = 'engineFailed' | 'noWasm' | 'tooSlow'
+
+export type BoxDimensionMeasuredResult = Readonly<{
+  engine: typeof MEASUREMENT_ENGINE
+  heightMarginMm: number
+  heightMm: number
+  lengthMarginMm: number
+  lengthMm: number
+  warnings: readonly ReturnType<typeof selectDomainWarnings>[number][]
+  widthMarginMm: number
+  widthMm: number
+}>
+
+export type UseBoxDimensionScannerParams = Readonly<{
+  isActive: boolean
+  onMeasured: (result: BoxDimensionMeasuredResult) => void
+  onUnsupported: (reason: BoxDimensionUnsupportedReason) => void
+  stream: MediaStreamLike | undefined
+}>
+
+/** A, B, C, D ao redor da face de cima; E é o pé da aresta vertical visível (`boxDimension.service`). */
+export const MARKED_POINT_KEYS = ['a', 'b', 'c', 'd', 'foot'] as const
+export type MarkedPointKey = (typeof MARKED_POINT_KEYS)[number]
+export type MarkedPoints = Readonly<Record<MarkedPointKey, Point>>
+
+function defaultMarkedPoints(width: number, height: number): MarkedPoints {
+  const left = width * 0.3
+  const right = width * 0.7
+  const top = height * 0.3
+  const bottom = height * 0.55
+  return {
+    a: { x: left, y: top },
+    b: { x: right, y: top },
+    c: { x: right, y: bottom },
+    d: { x: left, y: bottom },
+    foot: { x: left, y: height * 0.85 },
+  }
+}
+
+export type BoxDimensionScannerController = Readonly<{
+  captureFrame: () => void
+  confirmMeasurement: () => void
+  liveWarnings: ReturnType<typeof selectDomainWarnings>
+  markedPoints: MarkedPoints
+  returnToLive: () => void
+  setMarkedPoint: (key: MarkedPointKey, point: Point) => void
+  snapshotDataUrl: string | undefined
+  status: BoxDimensionScannerStatus
+  videoRef: React.RefObject<HTMLVideoElement | null>
+}>
+
+function captureFrameStats(
+  video: HTMLVideoElement | null,
+  canvas: HTMLCanvasElement,
+): Readonly<{ width: number; height: number; rgba: Uint8ClampedArray }> | undefined {
+  if (video === null || video.videoWidth === 0 || video.videoHeight === 0) return undefined
+  const factor = Math.min(1, MAXIMUM_FRAME_WIDTH / video.videoWidth)
+  const width = Math.round(video.videoWidth * factor)
+  const height = Math.round(video.videoHeight * factor)
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (context === null) return undefined
+  context.drawImage(video, 0, 0, width, height)
+  return { height, rgba: context.getImageData(0, 0, width, height).data, width }
+}
+
+/**
+ * Orquestra o worker de medida (`boxDimension.worker.ts`, OpenCV sob demanda) e o motor puro
+ * (`boxDimension.service.ts`, T6). O worker só acha o marcador e as estatísticas do quadro — pose e
+ * margem continuam em TS puro, fora do worker (ADR-0065 §1).
+ */
+export function useBoxDimensionScanner({
+  isActive,
+  onMeasured,
+  onUnsupported,
+  stream,
+}: UseBoxDimensionScannerParams): BoxDimensionScannerController {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [status, setStatus] = useState<BoxDimensionScannerStatus>('idle')
+  const [liveFrameStats, setLiveFrameStats] = useState<FrameStats | undefined>(undefined)
+  const [markedPoints, setMarkedPoints] = useState<MarkedPoints>(() => defaultMarkedPoints(0, 0))
+  const [snapshotDataUrl, setSnapshotDataUrl] = useState<string | undefined>(undefined)
+  const capturedRef = useRef<
+    Readonly<{ markerCorners: readonly Point[]; width: number; height: number }> | undefined
+  >(undefined)
+  const workerRef = useRef<Worker | undefined>(undefined)
+  const onMeasuredRef = useRef(onMeasured)
+  const onUnsupportedRef = useRef(onUnsupported)
+  const lastMarkerCornersRef = useRef<readonly Point[] | undefined>(undefined)
+  const slowFrameStrikesRef = useRef(0)
+
+  useEffect(() => {
+    onMeasuredRef.current = onMeasured
+  }, [onMeasured])
+  useEffect(() => {
+    onUnsupportedRef.current = onUnsupported
+  }, [onUnsupported])
+
+  useEffect(() => {
+    if (!isActive || stream === undefined) {
+      setStatus('idle')
+      return
+    }
+
+    if (typeof WebAssembly === 'undefined') {
+      setStatus('unsupported')
+      onUnsupportedRef.current('noWasm')
+      return
+    }
+
+    let isCancelled = false
+    let timer: ReturnType<typeof setInterval> | undefined
+    let engineTimeout: ReturnType<typeof setTimeout> | undefined
+    let isBusy = false
+    const canvas = document.createElement('canvas')
+    const worker = new Worker(new URL('./boxDimension.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+    workerRef.current = worker
+
+    function fail(reason: BoxDimensionUnsupportedReason): void {
+      if (isCancelled) return
+      isCancelled = true
+      if (timer !== undefined) clearInterval(timer)
+      if (engineTimeout !== undefined) clearTimeout(engineTimeout)
+      worker.terminate()
+      setStatus('unsupported')
+      onUnsupportedRef.current(reason)
+    }
+
+    function scanFrame(): void {
+      const frame = captureFrameStats(videoRef.current, canvas)
+      if (frame === undefined) {
+        isBusy = false
+        return
+      }
+      const previousMarkerCorners = lastMarkerCornersRef.current
+      const request: BoxDimensionWorkerRequest = {
+        height: frame.height,
+        kind: 'frame',
+        rgba: frame.rgba,
+        width: frame.width,
+        ...(previousMarkerCorners === undefined ? {} : { previousMarkerCorners }),
+      }
+      worker.postMessage(request, [frame.rgba.buffer])
+    }
+
+    worker.onmessage = (event: MessageEvent<BoxDimensionWorkerResponse>) => {
+      const message = event.data
+      if (message.kind === 'ready') {
+        if (engineTimeout !== undefined) clearTimeout(engineTimeout)
+        setStatus('live')
+        timer = setInterval(() => {
+          if (isBusy || isCancelled) return
+          isBusy = true
+          scanFrame()
+        }, FRAME_INTERVAL_MS)
+        return
+      }
+      if (message.kind === 'error') {
+        fail(message.reason)
+        return
+      }
+      isBusy = false
+      lastMarkerCornersRef.current = message.markerCorners
+      setLiveFrameStats(message.frameStats)
+      slowFrameStrikesRef.current =
+        message.elapsedMs > SLOW_FRAME_THRESHOLD_MS ? slowFrameStrikesRef.current + 1 : 0
+      if (slowFrameStrikesRef.current >= SLOW_FRAME_STRIKES) fail('tooSlow')
+    }
+
+    async function attachAndStart(): Promise<void> {
+      setStatus('loadingEngine')
+      const video = videoRef.current
+      if (video !== null) {
+        video.srcObject = stream as unknown as MediaStream
+        await video.play().catch(() => undefined)
+      }
+      if (isCancelled) return
+      engineTimeout = setTimeout(() => fail('engineFailed'), ENGINE_LOAD_TIMEOUT_MS)
+      worker.postMessage({ kind: 'preload' } satisfies BoxDimensionWorkerRequest)
+    }
+
+    void attachAndStart()
+
+    return () => {
+      isCancelled = true
+      if (timer !== undefined) clearInterval(timer)
+      if (engineTimeout !== undefined) clearTimeout(engineTimeout)
+      worker.terminate()
+      workerRef.current = undefined
+      const video = videoRef.current
+      if (video !== null) video.srcObject = null
+    }
+  }, [isActive, stream])
+
+  /**
+   * A foto congelada é um retrato próprio (`canvas.toDataURL`), não o `<video>` pausado: o
+   * navegador nem sempre mostra o quadro parado de forma estável, e o retrato também alimenta a
+   * lupa sem precisar de um segundo `<video>` ligado à mesma trilha. Nunca sai do aparelho — fica
+   * só em memória, como `data:`.
+   */
+  function captureFrame(): void {
+    const video = videoRef.current
+    if (video === null || lastMarkerCornersRef.current === undefined) return
+    video.pause()
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    context?.drawImage(video, 0, 0, canvas.width, canvas.height)
+    capturedRef.current = {
+      height: video.videoHeight,
+      markerCorners: lastMarkerCornersRef.current,
+      width: video.videoWidth,
+    }
+    setSnapshotDataUrl(context === null ? undefined : canvas.toDataURL('image/png'))
+    setMarkedPoints(defaultMarkedPoints(video.videoWidth, video.videoHeight))
+    setStatus('capturing')
+  }
+
+  function returnToLive(): void {
+    const video = videoRef.current
+    capturedRef.current = undefined
+    setSnapshotDataUrl(undefined)
+    if (video !== null) void video.play().catch(() => undefined)
+    setStatus('live')
+  }
+
+  function setMarkedPoint(key: MarkedPointKey, point: Point): void {
+    setMarkedPoints((current) => ({ ...current, [key]: point }))
+  }
+
+  function confirmMeasurement(): void {
+    const captured = capturedRef.current
+    if (captured === undefined) return
+    const input: BoxMeasurementInput = {
+      facePoints: [markedPoints.a, markedPoints.b, markedPoints.c, markedPoints.d],
+      footPoint: markedPoints.foot,
+      imageHeight: captured.height,
+      imageWidth: captured.width,
+      markerCorners: captured.markerCorners,
+    }
+    const nominal = measureBox(input)
+    const margins = estimateMargins(input, nominal)
+    const classification = classifyMeasurement(margins)
+    const warnings = selectDomainWarnings(
+      detectWarnings({
+        height: captured.height,
+        laplacianVariance: liveFrameStats?.laplacianVariance ?? 0,
+        luminanceContrast: liveFrameStats?.luminanceContrast ?? 0,
+        markedPoints: [
+          markedPoints.a,
+          markedPoints.b,
+          markedPoints.c,
+          markedPoints.d,
+          markedPoints.foot,
+        ],
+        markerCorners: captured.markerCorners,
+        meanLuminance: liveFrameStats?.meanLuminance ?? 0,
+        width: captured.width,
+      }),
+    )
+    setStatus('measured')
+    onMeasuredRef.current({
+      engine: MEASUREMENT_ENGINE,
+      heightMarginMm: margins.heightMarginMm,
+      heightMm: classification.filled.height ? nominal.heightMm : 0,
+      lengthMarginMm: margins.lengthMarginMm,
+      lengthMm: classification.filled.length ? nominal.lengthMm : 0,
+      warnings,
+      widthMarginMm: margins.widthMarginMm,
+      widthMm: classification.filled.width ? nominal.widthMm : 0,
+    })
+  }
+
+  return {
+    captureFrame,
+    confirmMeasurement,
+    snapshotDataUrl,
+    liveWarnings: selectDomainWarnings(
+      liveFrameStats === undefined ? [] : detectWarnings(liveFrameStats),
+    ),
+    markedPoints,
+    returnToLive,
+    setMarkedPoint,
+    status,
+    videoRef,
+  }
+}
