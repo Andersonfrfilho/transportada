@@ -245,19 +245,78 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
   })
 })
 
+/**
+ * ⚠️ **A coluna da caixa guarda a incerteza do que a CÂMERA mediu, não do que o operador digitou.**
+ * O máximo das três punha na caixa a margem de uma dimensão que a câmera nem chegou a propor: no
+ * caminho D6 (altura não lida, margem 45 mm, digitada com a fita) a caixa ficava marcada com 45 mm
+ * de incerteza sobre uma medida de fita, enquanto o schema já excluía essa dimensão das duas regras
+ * de margem (3ª revisão). Agora é a mesma definição dos dois lados: o máximo das dimensões **não
+ * editadas**, `null` quando todas foram. A margem de cada dimensão proposta segue no histórico
+ * (D17), que é o que a validação lê.
+ */
 describe('resolveMeasurementMargin (D17)', () => {
+  const RECORDED = { heightMm: 200, lengthMm: 300, widthMm: 100 } as const
+
   test('sem bloco camera, a margem é nula', () => {
-    expect(resolveMeasurementMargin(undefined)).toBeNull()
+    expect(
+      resolveMeasurementMargin({ camera: undefined, recorded: RECORDED, source: 'typed' }),
+    ).toBeNull()
   })
 
-  test('a margem gravada é a maior das três', () => {
+  test('nada editado: a margem gravada é a maior das três', () => {
     expect(
-      resolveMeasurementMargin({ heightMarginMm: 14, lengthMarginMm: 7, widthMarginMm: 8 }),
+      resolveMeasurementMargin({
+        camera: {
+          heightMarginMm: 14,
+          lengthMarginMm: 7,
+          proposedHeightMm: RECORDED.heightMm,
+          proposedLengthMm: RECORDED.lengthMm,
+          proposedWidthMm: RECORDED.widthMm,
+          widthMarginMm: 8,
+        },
+        recorded: RECORDED,
+        source: 'camera',
+      }),
     ).toBe(14)
   })
 
+  test('D6: a dimensão não lida e digitada por cima não leva a incerteza dela para a caixa', () => {
+    expect(
+      resolveMeasurementMargin({
+        camera: {
+          heightMarginMm: 45,
+          lengthMarginMm: 7,
+          proposedLengthMm: RECORDED.lengthMm,
+          proposedWidthMm: RECORDED.widthMm,
+          widthMarginMm: 4,
+        },
+        recorded: RECORDED,
+        source: 'camera_adjusted',
+      }),
+    ).toBe(7)
+  })
+
+  test('todas as três digitadas por cima: a caixa não guarda margem nenhuma', () => {
+    expect(
+      resolveMeasurementMargin({
+        camera: {
+          heightMarginMm: 14,
+          lengthMarginMm: 7,
+          proposedHeightMm: 1,
+          proposedLengthMm: 2,
+          proposedWidthMm: 3,
+          widthMarginMm: 8,
+        },
+        recorded: RECORDED,
+        source: 'camera_adjusted',
+      }),
+    ).toBeNull()
+  })
+
   test('sem nenhuma margem informada, mesmo com o bloco presente, a margem é nula', () => {
-    expect(resolveMeasurementMargin({})).toBeNull()
+    expect(
+      resolveMeasurementMargin({ camera: {}, recorded: RECORDED, source: 'camera' }),
+    ).toBeNull()
   })
 })
 

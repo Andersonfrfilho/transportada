@@ -155,7 +155,11 @@ não por `cv.solvePnP`; os parâmetros de incerteza (0,3 px, 1,5 px, 10% de foca
 
 **D8 — Origem e margem viajam com a medida** (revista em 2026-09-15: `manual` passa a `typed`).
 `nfe_package_boxes` ganha `measurement_source` (`typed` · `camera` · `camera_adjusted`, VARCHAR,
-sem ENUM) e `measurement_margin_mm` (a maior das três margens, `null` quando digitada). Linhas
+sem ENUM) e `measurement_margin_mm` — a maior margem entre as dimensões que a câmera de fato
+propôs, ou seja, as **não editadas** pelo conferente (mesma definição que o schema usa nas regras de
+margem); `null` quando a medida foi digitada, quando a câmera não declarou margem nenhuma, ou quando
+as três dimensões foram digitadas por cima. A margem de cada dimensão proposta continua no histórico
+(D17), que é o que a validação lê. Linhas
 medidas antes desta spec ficam com a origem nula, que a tela lê como "origem não registrada", nunca
 como `typed`. Hoje a tabela não tem nenhuma coluna de origem, autor, margem ou motivo (conferido em
 `nfe.schema.ts` de `origin/staging`), então tudo entra por migration aditiva.

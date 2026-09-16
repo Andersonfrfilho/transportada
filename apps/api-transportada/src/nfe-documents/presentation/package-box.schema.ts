@@ -38,36 +38,6 @@ const cameraMeasurementSchema = z
   })
   .strict()
 
-/** A trinca de chaves de cada dimensão, para as duas regras olharem uma dimensão por vez. */
-const CAMERA_DIMENSIONS = [
-  { margin: 'heightMarginMm', proposed: 'proposedHeightMm', recorded: 'heightMm' },
-  { margin: 'lengthMarginMm', proposed: 'proposedLengthMm', recorded: 'lengthMm' },
-  { margin: 'widthMarginMm', proposed: 'proposedWidthMm', recorded: 'widthMm' },
-] as const
-
-type CameraDimension = (typeof CAMERA_DIMENSIONS)[number]
-type CameraBlock = z.infer<typeof cameraMeasurementSchema>
-
-/**
- * "O conferente digitou este valor por cima" — a condição que isenta a dimensão das duas regras.
- *
- * ⚠️ **Sem proposta conhecida a dimensão conta como NÃO editada** (lado seguro): comparar
- * `undefined` com o valor gravado dava "editada" às três de uma vez, e um `camera_adjusted` sem
- * nenhum `proposed<Dim>Mm` dispensava a confirmação de imprecisão inteira (T14 item M2 da 2ª
- * revisão). A única exceção é a dimensão que a própria câmera declarou não ter lido — margem acima
- * do teto, D6: ali não existe proposta nenhuma para comparar, o campo nasce vazio na tela e o valor
- * gravado é necessariamente digitado.
- */
-function isEditedDimension(
-  camera: CameraBlock,
-  dimension: CameraDimension,
-  recordedMm: number,
-): boolean {
-  const proposed = camera[dimension.proposed]
-  if (proposed === undefined) return (camera[dimension.margin] ?? 0) > MARGIN_UNRELIABLE_MM
-  return proposed !== recordedMm
-}
-
 /** Os mesmos tetos do CHECK da coluna: recusar aqui devolve 400, e não o 500 da constraint. */
 const measurementSchema = z
   .object({
@@ -108,19 +78,25 @@ const measurementSchema = z
     }
 
     /**
+     * A **mesma** conta que grava `measurement_margin_mm` (D17): a maior margem entre as dimensões
+     * não editadas. Duas definições de "dimensão editada" era o defeito da 3ª revisão; agora existe
+     * uma só, no domínio.
+     */
+    const worstUneditedMargin = resolveMeasurementMargin({
+      camera,
+      recorded: value,
+      source: value.source,
+    })
+
+    /**
      * T14 item M2: bloco sem margem nenhuma não é margem zero. `camera` puro é leitura direta da
      * câmera — sem a incerteza declarada, a medida mais duvidosa entraria como a mais confiável.
      */
-    if (value.source === 'camera' && resolveMeasurementMargin(camera) === null) {
+    if (value.source === 'camera' && worstUneditedMargin === null) {
       ctx.addIssue({ code: 'custom', message: 'a camera measurement requires at least one margin' })
     }
 
-    const uneditedMargins = CAMERA_DIMENSIONS.filter(
-      (dimension) =>
-        value.source === 'camera' ||
-        !isEditedDimension(camera, dimension, value[dimension.recorded]),
-    ).map((dimension) => camera[dimension.margin] ?? 0)
-    const worstUneditedMargin = Math.max(0, ...uneditedMargins)
+    if (worstUneditedMargin === null) return
 
     if (worstUneditedMargin > MARGIN_UNRELIABLE_MM) {
       ctx.addIssue({
