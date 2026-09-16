@@ -21,7 +21,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
       `last_stop`).
 - [x] T103 Gateway com `exclude=toll` em paralelo, dedupe por assinatura, `isNoToll`, falha isolada —
       contrato com gateway falso.
-- [ ] T104 `read-route-geometry`: `signature`, `isNoToll`, `selectedIndex` na mais barata, topo = a
+- [x] T104 `read-route-geometry`: `signature`, `isNoToll`, `selectedIndex` na mais barata, topo = a
       selecionada — contratos de route-geometry atualizados.
 
 ## Fase 2 — A viagem grava a rota

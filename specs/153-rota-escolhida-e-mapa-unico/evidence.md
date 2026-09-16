@@ -502,3 +502,191 @@ existentes.
 T104 monta `options[]`/`selectedIndex` a partir desta lista, e decide o que fazer quando ela vem
 vazia (principal falhou) dentro do fluxo existente de `read-route-geometry.use-case.ts`, sem repetir
 a lógica de paralelismo ou de assinatura.
+
+## T104 — `signature`/`isNoToll` em `options[]`, `selectedIndex`, campos de topo pela selecionada ✅
+
+`read-route-geometry.use-case.ts` (agora ~490 linhas — ver "Decisões" sobre não dividir o arquivo)
+troca a chamada crua `input.geometry.readRouteGeometry(plan.stops)` por
+`readRouteGeometryTollFreeCandidates` (T103): cada `RouteGeometryOption` ganha `signature` e
+`isNoToll` direto da candidata correspondente, sem recalcular nem rehashear nada — um dono só,
+como o `plan.md` exige. `selectRouteOption` (T102) decide qual índice vira `selectedIndex`, com
+`{ criterion: 'cheapest', signature: null }` como escolha padrão quando `input.choice` está
+ausente. Os campos de topo (`legs`, `points`, `toll`) passam a ser os de `options[selectedIndex]`,
+não mais sempre `options[0]` — o defeito que esta spec existe para corrigir.
+
+- `RouteGeometryOption` ganha `isNoToll: boolean` e `signature: null | string`.
+- `RouteGeometryView` ganha `selectedIndex: null | number` e `choiceReproduced: boolean` (nome
+  espelhando o futuro `planned_route.choiceReproduced` da Fase 2, D3). Os comentários de `legs` e
+  `toll` foram reescritos: de "sempre a rota principal" para "sempre a rota selecionada".
+- `ReadRouteGeometryInput` ganha `choice?: RouteChoice` — **desenhado, não ligado ao HTTP**: nenhuma
+  rota/controller passa este campo ainda. É isso que a Fase 2 (T201/T204) vai preencher a partir do
+  corpo do pedido.
+- `UNAVAILABLE_VIEW` ganha `selectedIndex: null, choiceReproduced: true` — sem candidata nenhuma não
+  há escolha a reproduzir ou não reproduzir, e marcar como "reproduzida" evita a tela acusar uma
+  falha de seleção que não existiu (só a ausência de rota, já coberta por `source: 'unavailable'`).
+
+### Decisões
+
+**Arquivo não foi dividido, apesar de passar de 200 linhas.** `read-route-geometry.use-case.ts`
+tinha 455 linhas antes desta task (já acima do limite por causa da soma de pedágio/depósito
+acumulada desde specs anteriores) e fecha em ~490. A função `readRouteGeometry` continua a única
+dona da montagem da view: dividir agora — por exemplo, separar "monta `options[]`" de "escolhe e
+publica os campos de topo" — criaria uma dependência de dados (a segunda parte precisa do
+`ranking` e dos `candidates` da primeira) entre dois arquivos sem ganhar coesão nenhuma, só
+indireção. Julgamento explícito: manter, sinalizado aqui em vez de refatorar às pressas dentro do
+escopo desta task.
+
+**`cheapestIndex`/`costGap` (rótulo) não foi unificado com `selectedIndex` (seleção).** São donos
+diferentes por desenho (`route-option.policy.ts` vs `route-choice.policy.ts`, ver o comentário de
+topo de `route-choice.policy.ts`), e a spec pede a divergência **pinada** num contrato, não
+escondida: pedágio desconhecido numa opção zera `cheapestIndex` (nenhuma concorre ao rótulo por
+ausência de dado, nunca por empate — spec 096 D1), mas não impede `selectRouteOption` de achar,
+entre as que **sabem** o próprio custo, a mais barata. Contrato
+`'cheapestIndex e selectedIndex podem discordar...'` em `route-geometry-options.contract.ts` fixa o
+caso exato: opção A com pedágio desconhecido (nós nulos, nunca deduplica — ver T103), opção B com
+pedágio exato de R$110 (`praca(99, '110.0000', ...)`, multiplicador 1/1) — `cheapestIndex: null`,
+`costGap: 'TOLL_UNKNOWN'`, mas `selectedIndex: 1` e `choiceReproduced: true`.
+
+**`selectableOptions` é montado no use case, não em `route-choice.policy.ts`.** Nenhuma função nova
+entrou no domínio: `SelectableRouteOption` já é `RankedRouteOption & { isNoToll, signature }`, e o
+use case só faz `ranking.options.map((option, index) => ({ ...option, isNoToll: candidates[index]
+?.isNoToll, signature: candidates[index]?.signature }))` — junção de dois arrays que já nascem na
+mesma ordem (`resolved`/`ranking.options` vêm de mapear `candidates`), sem lógica nova a testar
+isoladamente.
+
+**Efeito colateral aceito: `read-trip-valuation.use-case.ts` passa a disparar duas chamadas ao
+roteirizador, não mais uma.** `previewTripValuation` chama o `readRouteGeometry` compartilhado
+(única chamada ao **use case**, D4 da spec 090 continua valendo nesse nível), mas esse use case
+agora sempre busca a variante `exclude=toll` também, mesmo quando quem chamou só quer `legs`/`toll`
+de topo e nunca olha `options`. Não há como evitar isso sem um parâmetro para "não busque
+alternativas", que não está no escopo desta task nem foi pedido pelo `plan.md` — o contrato
+`'pega carona na mesma chamada que já buscava a distância, nunca numa segunda dedicada a
+pedágio'` foi atualizado de `toHaveLength(1)` para `toHaveLength(2)`, com o comentário deixando
+claro que a segunda chamada é a `exclude=toll` da spec 153, não uma reintrodução do defeito que a
+D4 original evitava (pedágio saindo de uma rota diferente da desenhada).
+
+**Nenhum lugar a jusante ainda assume "topo == `options[0]`".** `read-trip-valuation.use-case.ts`
+(`resolvePreviewRoad`) e `freeze-trip-route-toll` (que consome `read-route-geometry` pelo mesmo
+caminho) já leem `road.legs`/`road.toll` do retorno do use case compartilhado — ganham o
+comportamento novo (congelar a mais barata, não mais sempre a primeira) sem precisar de nenhuma
+mudança de código, porque nunca acessavam `options[0]` diretamente.
+
+### Contrato vermelho, antes de implementar
+
+```bash
+git stash push -- apps/api-transportada/src/trips/application/read-route-geometry.use-case.ts
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/trip-application.contract.test.ts --timeout 120000
+```
+
+```
+84 pass
+12 fail
+202 expect() calls
+Ran 96 tests across 1 file. [221.00ms]
+```
+
+As 12 falhas, todas esperadas (`selectedIndex`/`choiceReproduced` ainda não existem no retorno,
+`options[]` ainda não carrega `signature`/`isNoToll`, e a lista ainda não reflete o merge de
+sem-pedágio): 2 em `route-geometry.contract.ts` (`selectedIndex`/`choiceReproduced` ausentes) e 10
+em `route-geometry-options.contract.ts` (`selectedIndex` `undefined`, `options` com 1 elemento em
+vez de 2, `isNoToll`/`signature` ausentes, e uma que lança a guarda própria do teste porque
+`options[1]` ainda não existe). `git stash pop` restaurou a implementação depois.
+
+### Verde, depois de implementar
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/trip-application.contract.test.ts --timeout 120000
+```
+
+```
+96 pass
+0 fail
+225 expect() calls
+Ran 96 tests across 1 file. [126.00ms]
+```
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/trip-domain.contract.test.ts --timeout 120000
+```
+
+```
+209 pass
+0 fail
+900 expect() calls
+Ran 209 tests across 1 file. [55.00ms]
+```
+
+Nenhuma quebra em `trip-domain` (regressão-only — `simplifyRouteGeometry`, sem relação com seleção
+de rota).
+
+### Gates
+
+```bash
+bun run typecheck   # raiz do worktree
+```
+
+6 `tsc --noEmit` limpos, sem erro (achou um erro de teste na primeira passada —
+`view.options[1]?.points` podendo ser `undefined` num `toEqual`, corrigido com a mesma guarda por
+`if (alternativeOption === undefined) throw ...` já usada nos outros contratos novos, nunca `!`).
+
+```bash
+bun run lint        # raiz do worktree
+```
+
+6 `eslint --max-warnings=0` / `eslint .` limpos, sem erro nem warning.
+
+```bash
+bun run format:check   # raiz do worktree
+```
+
+Reprovou uma vez no contrato editado (`route-geometry-options.contract.ts`), corrigido com
+`bunx prettier --write`; depois, `All matched files use Prettier code style!`.
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+```
+
+Antes de descobrir o efeito colateral do `read-trip-valuation`:
+
+```
+6134 pass
+23 skip
+1 fail
+21589 expect() calls
+Ran 6158 tests across 177 files. [10.73s]
+```
+
+(a falha: `test/trip-valuation/toll-parcel.contract.ts` — `geometryCalls` esperava 1, recebeu 2; ver
+"Decisões" acima). Depois de atualizar o contrato para refletir a segunda chamada:
+
+```
+6135 pass
+23 skip
+0 fail
+21589 expect() calls
+Ran 6158 tests across 177 files. [11.84s]
+```
+
+6 testes a mais que a base do T103 (6129 → 6135), sem nenhuma quebra líquida nas 6129 já
+existentes — a única mudança de comportamento observável fora dos testes novos foi a contagem de
+chamadas ao roteirizador no cenário de `toll-parcel.contract.ts`, corrigida no próprio teste.
+
+### O que a Fase 2 recebe daqui
+
+- **Forma de resposta nova**: `RouteGeometryOption` ganhou `isNoToll: boolean` e
+  `signature: null | string`; `RouteGeometryView` ganhou `selectedIndex: null | number` e
+  `choiceReproduced: boolean`. `legs`/`points`/`toll` de topo agora refletem
+  `options[selectedIndex]`, não mais `options[0]`.
+- **Forma de entrada para passar uma escolha**: `ReadRouteGeometryInput.choice?: RouteChoice`
+  (`{ criterion: 'cheapest' | 'fastest' | 'no_toll' | 'alternative', signature: null | string }`,
+  de `route-choice.policy.ts`, T102). Ausente é `{ criterion: 'cheapest', signature: null }`. Este
+  campo **não está ligado a nenhuma rota HTTP** — é a T201/T204 quem lê o corpo do pedido
+  (provavelmente `{ criterion, signature }` vindos do seletor da tela) e monta este objeto antes de
+  chamar `readRouteGeometry`.
+- **O que já funciona sem mudança nenhuma**: `read-trip-valuation.use-case.ts` e qualquer outro
+  consumidor de `readRouteGeometry` que só lê `legs`/`points`/`toll`/`source` de topo já recebem a
+  rota mais barata por padrão — a Fase 2 só precisa passar `choice` quando o operador realmente
+  escolheu algo diferente do padrão.
+- **A divergência pinada**: `cheapestIndex` (rótulo, pode ser `null`) e `selectedIndex` (seleção,
+  quase sempre não-`null` quando há candidata) continuam sendo números diferentes de propósito — a
+  tela da Fase 2 não pode assumir que "sem `cheapestIndex`" significa "sem rota selecionada".

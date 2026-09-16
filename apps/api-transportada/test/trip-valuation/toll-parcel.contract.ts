@@ -189,10 +189,12 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
   })
 
   /**
-   * ⚠️ D4: uma única chamada ao roteirizador alimenta distância **e** pedágio — uma segunda
-   * chamada poderia discordar da primeira sobre qual foi o caminho.
+   * ⚠️ D4: distância e pedágio saem da mesma resposta `normal`, nunca de uma segunda chamada
+   * dedicada a pedágio que pudesse discordar da primeira sobre qual foi o caminho. A segunda
+   * chamada aqui (2 no total) é a `exclude=toll` que a spec 153 sempre dispara em paralelo, para
+   * as opções sem pedágio — não uma reintrodução do defeito que a D4 evitava.
    */
-  it('pega carona na mesma chamada que já buscava a distância, nunca numa segunda', async () => {
+  it('pega carona na mesma chamada que já buscava a distância, nunca numa segunda dedicada a pedágio', async () => {
     const world = run({
       booths: [praca(10, '10.50')],
       road: {
@@ -204,7 +206,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
     })
     await world.result
 
-    expect(world.geometryCalls).toHaveLength(1)
+    expect(world.geometryCalls).toHaveLength(2)
   })
 })
 

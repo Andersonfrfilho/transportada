@@ -32,11 +32,13 @@ import {
 import type { DepotDescription } from '../domain/depot-description.policy.js'
 import type { DepotOriginSource } from '../domain/depot-origin.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import { selectRouteOption, type RouteChoice } from '../domain/route-choice.policy.js'
 import {
   resolveTollCatalogStatus,
   type TollCatalogStatusResult,
 } from '../../toll-booths/domain/toll-catalog-status.policy.js'
 import type { TollCatalogSummary } from '../../toll-booths/application/toll-booth.port.js'
+import { readRouteGeometryTollFreeCandidates } from './route-geometry-toll-free-candidates.service.js'
 import type {
   RouteGeometryLeg,
   RouteGeometryPort,
@@ -116,8 +118,12 @@ export type RouteGeometryOption = Readonly<{
   readonly durationSeconds: number
   /** `null` quando o veículo não declara consumo/preço, ou quando o pedágio é desconhecido. */
   readonly fuelTotal: null | string
+  /** Se esta opção veio da chamada `exclude=toll` (spec 153 RF2), para o critério `no_toll` escolhê-la. */
+  readonly isNoToll: boolean
   readonly legs: readonly RouteGeometryLeg[]
   readonly points: readonly { readonly latitude: string; readonly longitude: string }[]
+  /** A identidade da rota (T102), para reproduzir a mesma escolha numa leitura futura (spec 153 D2). */
+  readonly signature: null | string
   readonly toll: null | RouteGeometryToll
   readonly totalCost: null | string
 }>
@@ -163,14 +169,15 @@ export type RouteGeometryView = {
    * veio — e aí a tela não mostra tempo nenhum. A ADR-0044 §5 é explícita: sem o roteirizador não se
    * estima, porque número plausível e errado é pior que número nenhum.
    *
-   * ⚠️ **Sempre os da rota principal** — a primeira que o OSRM devolveu (spec 096 D2/spec.md: a
-   * alternativa é oferta, nunca troca automática). Quem já lia este campo antes da 096 continua
-   * lendo a mesma coisa.
+   * ⚠️ **Sempre os da rota selecionada** (spec 153 D1) — `options[selectedIndex]`, não mais sempre a
+   * principal. Antes da 153 este campo travava em `options[0]` mesmo quando a viagem congelava uma
+   * alternativa; agora ele segue a escolha, com `cheapest` como critério padrão quando ninguém pede
+   * uma rota específica.
    */
   readonly legs: readonly RouteGeometryLeg[]
   readonly points: readonly { readonly latitude: string; readonly longitude: string }[]
   readonly source: RouteGeometrySource
-  /** Igual a `toll`, `legs` e `points`: sempre a rota principal, por compatibilidade. */
+  /** Igual a `legs` e `points`: sempre a rota selecionada, não mais sempre a principal (spec 153 D1). */
   readonly toll: null | RouteGeometryToll
   /**
    * Todas as rotas que o roteirizador ofereceu — a principal em `options[0]`, seguida das
@@ -179,12 +186,24 @@ export type RouteGeometryView = {
   readonly options: readonly RouteGeometryOption[]
   /** Índice em `options` da rota mais barata — `null` quando `costGap` diz por que não há uma. */
   readonly cheapestIndex: null | number
+  /**
+   * Se a rota pedida (por assinatura) foi mesmo a reproduzida, ou se a escolha caiu no critério ou
+   * na principal por não achar a assinatura (spec 153 D3). Nome espelha o futuro
+   * `planned_route.choiceReproduced` da Fase 2, para a tela não reaprender o conceito duas vezes.
+   */
+  readonly choiceReproduced: boolean
   /** Por que não há mais barata: ausência de dado, nunca empate (spec 096 D1). */
   readonly costGap: null | RouteCostGap
   /** Índice em `options` da rota mais rápida. `null` só quando não há rota nenhuma. */
   readonly fastestIndex: null | number
   /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor (D2). */
   readonly hasChoice: boolean
+  /**
+   * Índice em `options` da rota escolhida (spec 153): `cheapest` por padrão, ou o critério/assinatura
+   * do pedido. ⚠️ Distinto de `cheapestIndex` — este pode achar rota mesmo quando `cheapestIndex` é
+   * `null` (custo desconhecido barra o rótulo, mas não a seleção por custo conhecido).
+   */
+  readonly selectedIndex: null | number
 }
 
 /** As praças que a rota pode ter passado, pelos ids de nó que a mesma chamada devolveu. */
@@ -207,6 +226,12 @@ export type ReadRouteGeometryDepotPort = {
 export type ReadRouteGeometryInput = {
   /** Quantos eixos o veículo escolhido tem, e de onde o número veio (spec 090 D2). */
   readonly axles?: AxleCount | null
+  /**
+   * Qual rota reproduzir (spec 153 D2/D3). Ausente é `{ criterion: 'cheapest', signature: null }`:
+   * sem escolha declarada, o campo de topo continua sendo o mais barato conhecido. A Fase 2
+   * (T201/T204) é quem preenche este campo a partir do pedido HTTP — esta task só o desenha.
+   */
+  readonly choice?: RouteChoice
   /**
    * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
    * Ausente é "sem veículo escolhido", e aí não há pedágio a calcular.
@@ -241,8 +266,12 @@ export type ReadRouteGeometryInput = {
 
 const NO_FUEL_BASELINE: RouteOptionVehicle = { kilometersPerLiter: null, pricePerLiter: null }
 
+/** Sem escolha declarada, a rota de topo continua sendo a mais barata conhecida (spec 153 D1). */
+const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }
+
 const UNAVAILABLE_VIEW: RouteGeometryView = {
   cheapestIndex: null,
+  choiceReproduced: true,
   costGap: null,
   depot: null,
   fastestIndex: null,
@@ -250,6 +279,7 @@ const UNAVAILABLE_VIEW: RouteGeometryView = {
   legs: [],
   options: [],
   points: [],
+  selectedIndex: null,
   source: 'unavailable',
   toll: null,
 }
@@ -292,22 +322,25 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
 
   if (plan.stops.length < 2) return { ...UNAVAILABLE_VIEW, depot }
 
-  const road = await input.geometry.readRouteGeometry(plan.stops)
-  if (road === null) return { ...UNAVAILABLE_VIEW, depot }
-
   /**
-   * A principal é sempre `options[0]` (spec 096 D2/spec.md): o roteirizador manda no traço padrão,
-   * a alternativa é oferta ao lado dele.
+   * ⚠️ A lista de candidatas já vem da T103 (`readRouteGeometryTollFreeCandidates`): principal,
+   * alternativas do OSRM e a rota `exclude=toll` mesclada por assinatura. Vazia é "sem estrada
+   * nenhuma" — a principal falhou, e sem ela não há o que oferecer (spec 096 D2).
    */
-  const rawRoads = [road, ...(road.alternatives ?? [])]
+  const candidates = await readRouteGeometryTollFreeCandidates({
+    geometry: input.geometry,
+    points: plan.stops,
+  })
+  if (candidates.length === 0) return { ...UNAVAILABLE_VIEW, depot }
+
   const resolved = await Promise.all(
-    rawRoads.map((raw) =>
+    candidates.map((candidate) =>
       resolveOption({
         axles: input.axles ?? null,
         hasAutomaticTollPayment: input.hasAutomaticTollPayment ?? false,
         multiplier: input.multiplier ?? null,
         now: input.now ?? (() => new Date()),
-        road: raw,
+        road: candidate.road,
         tollBooths: input.tollBooths ?? null,
       }),
     ),
@@ -325,25 +358,47 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
   const options: readonly RouteGeometryOption[] = resolved.map((option, index) => ({
     ...option,
     fuelTotal: ranking.options[index]?.fuelTotal ?? null,
+    isNoToll: candidates[index]?.isNoToll ?? false,
+    signature: candidates[index]?.signature ?? null,
     totalCost: ranking.options[index]?.totalCost ?? null,
   }))
 
-  const primary = options[0]
+  /**
+   * ⚠️ **Não é `RankedRouteOption` sozinho.** `selectRouteOption` (spec 153) escolhe entre opções já
+   * marcadas com `isNoToll`/`signature` — cada uma junta a pontuação de custo (T ranking) com a
+   * identidade (T102), sem recalcular nem rehashear nada aqui.
+   */
+  const selectableOptions = ranking.options.map((option, index) => ({
+    ...option,
+    isNoToll: candidates[index]?.isNoToll ?? false,
+    signature: candidates[index]?.signature ?? null,
+  }))
 
-  /** `rawRoads` sempre tem ao menos um elemento — `road` — então `primary` nunca falta aqui. */
-  if (primary === undefined) return { ...UNAVAILABLE_VIEW, depot }
+  const selected = selectRouteOption({
+    choice: input.choice ?? DEFAULT_ROUTE_CHOICE,
+    options: selectableOptions,
+  })
+  if (selected === null) return { ...UNAVAILABLE_VIEW, depot }
+
+  const selectedIndex = selectableOptions.indexOf(selected.option)
+  const selectedOption = options[selectedIndex]
+
+  /** `selectableOptions` e `options` nascem do mesmo `resolved`, na mesma ordem — nunca divergem aqui. */
+  if (selectedOption === undefined) return { ...UNAVAILABLE_VIEW, depot }
 
   return {
     cheapestIndex: ranking.cheapestIndex,
+    choiceReproduced: selected.reproduced,
     costGap: ranking.costGap,
     depot,
     fastestIndex: ranking.fastestIndex,
     hasChoice: ranking.hasChoice,
-    legs: primary.legs,
+    legs: selectedOption.legs,
     options,
-    points: primary.points,
+    points: selectedOption.points,
+    selectedIndex,
     source: 'road',
-    toll: primary.toll,
+    toll: selectedOption.toll,
   }
 }
 
