@@ -15,6 +15,21 @@ const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
 
+/**
+ * ⚠️ Decisão extraída para função pura (T14, 4ª revisão): o contrato anterior varria o texto-fonte
+ * do hook e passava sem exercitar o comportamento — esta app não tem renderer de hooks (sem
+ * `@testing-library/react`), então a decisão que importa vira função pura testável sem ele. Bipar a
+ * MESMA etiqueta depois de uma falha de consulta precisa refazer a consulta (`retryLookup`) em vez
+ * de trocar o estado: repetir o valor não muda a `queryKey`, e sem isso o TanStack Query nunca
+ * dispara de novo (3ª revisão, item M1).
+ */
+export function isRepeatedScan(input: {
+  readonly current: null | string
+  readonly next: null | string
+}): boolean {
+  return input.next !== null && input.next === input.current
+}
+
 function useDebounced(value: string, delayMs: number): string {
   const [settled, setSettled] = useState(value)
   useEffect(() => {
@@ -131,7 +146,9 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     setStatus,
     /** Bipar substitui o texto digitado: são a mesma pergunta, feita de dois jeitos. */
     setScanned: (value: null | string) => {
-      if (value !== null && value === scanned) {
+      if (isRepeatedScan({ current: scanned, next: value })) {
+        /** BAIXO-1: hoje inalcançável (a busca já está vazia neste ramo), mas por segurança. */
+        setSearch('')
         retryLookup()
         return
       }
