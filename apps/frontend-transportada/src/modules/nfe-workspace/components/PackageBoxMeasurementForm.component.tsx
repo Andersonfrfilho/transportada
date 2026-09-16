@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import type { MeasurementReliability } from '@/components/ui/boxDimension.service'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import type { BoxDimensionMeasuredResult } from '@/components/ui/useBoxDimensionScanner.hook'
+import type { BoxDimensionMeasuredResult } from '@/components/ui/boxDimensionProposal.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '../shared/packageBoxMeasurement.constant'

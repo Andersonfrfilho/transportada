@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { useBarcodeScanner } from '@/components/ui/useBarcodeScanner.hook'
 import { useCameraStream } from '@/components/ui/useCameraStream.hook'
-import type { BoxDimensionMeasuredResult } from '@/components/ui/useBoxDimensionScanner.hook'
+import type { BoxDimensionMeasuredResult } from '@/components/ui/boxDimensionProposal.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import {

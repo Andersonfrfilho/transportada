@@ -28,11 +28,11 @@ import {
   printFloorMm,
   type BoxMeasurementInput,
 } from '@/components/ui/boxDimension.service'
+import { MAXIMUM_FRAME_WIDTH } from '@/components/ui/cameraFrame.constant'
 import {
   buildBoxMeasurementInput,
   frameSizeFor,
   overlayPointToFrame,
-  MAXIMUM_FRAME_WIDTH,
 } from '@/components/ui/boxDimensionFrame.service'
 import {
   computeHomography,

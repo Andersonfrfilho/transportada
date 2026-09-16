@@ -10,7 +10,6 @@ import {
 import {
   buildBoxMeasurementInput,
   frameSizeFor,
-  MAXIMUM_FRAME_WIDTH,
   type ScannerFrame,
 } from './boxDimensionFrame.service'
 import {
@@ -42,9 +41,6 @@ export type BoxDimensionScannerStatus =
   'capturing' | 'idle' | 'live' | 'loadingEngine' | 'measured' | 'unsupported'
 
 export type BoxDimensionUnsupportedReason = 'engineFailed' | 'noWasm' | 'tooSlow'
-
-/** A proposta nasce em `boxDimensionProposal.service` — aqui só o reexporte de sempre. */
-export type { BoxDimensionMeasuredResult }
 
 export type UseBoxDimensionScannerParams = Readonly<{
   isActive: boolean
@@ -407,4 +403,4 @@ export function useBoxDimensionScanner({
   }
 }
 
-export { LIVE_WARNING_ANNOUNCE_INTERVAL_MS, MAXIMUM_FRAME_WIDTH }
+export { LIVE_WARNING_ANNOUNCE_INTERVAL_MS }
