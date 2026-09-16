@@ -108,11 +108,13 @@ Contrato/aceite **antes** da implementação em toda task de código.
       validação (T15)". `markerAtEdge` entra como código interno do motor, fora do enum da API, até a
       validação decidir. **Aceite:** contrato verde (pose sintética < 1 mm, focal < 1 px, fronteiras
       10/30, cada código de D9, determinismo), constantes iguais às do spike, sem I/O no módulo.
-- [ ] **T7 — `useCameraStream` e leitor com stream injetado (D19).** Extrair abrir/apagar/status/
-      lanterna de `useBarcodeScanner` para `useCameraStream.hook.ts`; o leitor aceita `stream`
-      opcional e, sem ele, mantém o comportamento atual. **Aceite:** `barcode-scanner.contract.ts`
-      verde sem mudar asserção; contrato novo mostra que o stream injetado não é fechado pelo leitor
-      e que `getUserMedia` é chamado uma vez num ciclo com o stream do pai.
+- [x] **T7 — `useCameraStream` e leitor com stream injetado (D19).** Feito (evidence.md § T7).
+      Extraído abrir/apagar/status de `useBarcodeScanner` para `useCameraStream.hook.ts`; o leitor
+      aceita `stream` opcional e, sem ele, mantém o comportamento atual (lanterna fica para o
+      primeiro consumidor real, T8/T11 — sem aceite nem teste que a exercite hoje). **Aceite:**
+      `barcode-scanner.contract.ts` verde sem mudar asserção; contrato novo
+      (`camera-stream.contract.ts`) mostra que o stream injetado não é fechado pelo leitor e que
+      `getUserMedia` é chamado uma vez num ciclo com o stream do pai.
 - [ ] **T8 — Primitivo `box-dimension-scanner`, worker e carga (D18).** Componente, hook, CSS e
       `boxDimension.worker.ts` (OpenCV por `import()` dentro do worker, `preload()`, criado por
       `new URL`); indicador ao vivo, "Capturar", pontos arrastáveis com lupa e setas (portar
