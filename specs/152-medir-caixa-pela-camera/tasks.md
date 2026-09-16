@@ -61,7 +61,7 @@ Contrato/aceite **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet` (T2 revisada por `architect` antes do commit: migration)
 
-- [ ] **T2 — Migration aditiva e schema.** Timestamp posterior a
+- [x] **T2 — Migration aditiva e schema.** Timestamp posterior a
       `20260915025926_nfe_document_protocol_presence`, com `snapshot.json` e `rollback.sql`
       (`plan.md` § API): `measurement_source` + `measurement_margin_mm` em `nfe_package_boxes`;
       tabela `nfe_package_box_measurements` (com `proposed_*_mm`, D17) e índice;
