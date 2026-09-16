@@ -142,6 +142,12 @@ export const trips = pgTable(
      * idempotente, porque despachar de novo passa a ter diferença zero.
      */
     etaDepartureAt: timestamp('eta_departure_at', { withTimezone: true }),
+    /**
+     * Spec 143 D4: quantas diárias esta viagem paga. Nasce da duração estimada e quem cria a viagem
+     * corrige o número. Nula é viagem anterior à feature: a leitura usa a sugestão e marca a parcela
+     * como estimada, em vez de fingir que alguém informou.
+     */
+    dailyAllowanceDays: integer('daily_allowance_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -195,6 +201,11 @@ export const trips = pgTable(
       sql`(${table.plannedDistanceMeters} is null or ${table.plannedDistanceMeters} >= 0)
         and (${table.plannedReturnDistanceMeters} is null or ${table.plannedReturnDistanceMeters} >= 0)
         and (${table.plannedDurationSeconds} is null or ${table.plannedDurationSeconds} >= 0)`,
+    ),
+    /** Meia diária está fora do escopo (D4), e viagem de zero dia não existe: o piso é uma. */
+    check(
+      'trips_daily_allowance_days_check',
+      sql`${table.dailyAllowanceDays} is null or ${table.dailyAllowanceDays} >= 1`,
     ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],

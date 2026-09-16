@@ -10,7 +10,9 @@
   É independente do CHECK de `payment_model` (`fleet.schema.ts:544`).
 - `trips.daily_allowance_days integer NULL CHECK (daily_allowance_days IS NULL OR daily_allowance_days >= 1)`.
 - `company_driver_allowance_settings`: `company_id uuid PK FK`, `daily_allowance_amount numeric(19,4) NOT NULL CHECK > 0`,
-  `updated_by_user_id`, `updated_at`. Modelo: `company_tax_settings` (`trip-financial.schema.ts:223`).
+  `updated_by_user_id`, `updated_at`. Modelo: `company_energy_settings` (`company-energy-settings.schema.ts:18`)
+  — e não `company_tax_settings`, que usa `id` surrogate + UNIQUE, uma linha por empresa garantida por
+  constraint acessória em vez de pela chave.
 
 ## API
 

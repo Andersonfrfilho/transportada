@@ -31,6 +31,7 @@ const RECORD: DriverRecord = {
   securesCargo: false,
   locationSharingConsentAt: null,
   createdAt: TIMESTAMP,
+  dailyAllowanceAmount: null,
   homeGeocodedAt: null,
   homeLatitude: null,
   homeLongitude: null,

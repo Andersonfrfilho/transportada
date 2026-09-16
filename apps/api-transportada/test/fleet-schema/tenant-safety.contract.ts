@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   aggregateApplications,
+  companyDriverAllowanceSettings,
   companyEnergySettings,
   companyFuelPrices,
   companyTollBoothCharges,
@@ -69,6 +70,15 @@ describe('fleet tenant safety', () => {
       foreignColumns: ['id'],
       foreignTable: 'companies',
       name: 'company_energy_settings_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    /** Spec 143 D3: o valor geral da diária é da empresa, e a empresa é a chave da linha. */
+    expect(foreignKeys(companyDriverAllowanceSettings)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'company_driver_allowance_settings_company_id_companies_id_fk',
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })

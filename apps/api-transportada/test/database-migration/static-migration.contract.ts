@@ -259,6 +259,7 @@ describe('Drizzle migrations', () => {
       '20260915233000_rate_limit_windows',
       '20260916000000_nfe_package_box_measurement_source',
       '20260916174951_trip_planned_route',
+      '20260916120000_driver_daily_allowance',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -416,6 +417,31 @@ describe('Drizzle migrations', () => {
     expect(migrationSql).toContain('fleet_drivers_linked_tax_id_check')
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  test('versions the driver daily allowance as an additive migration with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_driver_daily_allowance'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).not.toMatch(/\bdrop\s+(table|column|index|sequence|type|view)\b/i)
+    expect(migrationSql).not.toMatch(/^\s*(delete|truncate)\b/im)
+    expect(migrationSql).toContain('CREATE TABLE "company_driver_allowance_settings"')
+    expect(migrationSql).toContain('ADD COLUMN "daily_allowance_amount"')
+    expect(migrationSql).toContain('ADD COLUMN "daily_allowance_days"')
+    expect(migrationSql).toContain('fleet_drivers_daily_allowance_check')
+    expect(migrationSql).toContain('trips_daily_allowance_days_check')
+    expect(migrationSql).toContain('company_driver_allowance_settings_amount_check')
+    /** Coluna nova não tem linha antiga para validar: `NOT VALID` só adiaria um trabalho de zero. */
+    expect(migrationSql).not.toContain('NOT VALID')
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')

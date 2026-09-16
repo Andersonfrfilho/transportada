@@ -159,6 +159,40 @@ export async function assertTripConstraints(
     `,
     '23514',
     'trips_planned_route_metrics_check',
+  // Spec 143 D4: meia diária está fora do escopo, e viagem de zero dia não existe — o piso é 1.
+  await database`
+    insert into trips (company_id, vehicle_id, daily_allowance_days)
+    values (${companyId}, ${vehicleId}, 3)
+  `
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, daily_allowance_days)
+      values (${companyId}, ${vehicleId}, 0)
+    `,
+    '23514',
+    'trips_daily_allowance_days_check',
+  )
+
+  // Spec 143 D3: uma linha de valor geral por empresa, e ela não aceita diária zerada.
+  await database`
+    insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+    values (${companyId}, 180.0000, ${userId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+      values (${companyId}, 200.0000, ${userId})
+    `,
+    '23505',
+    'company_driver_allowance_settings_pkey',
+  )
+  await expectQueryToFail(
+    database`
+      insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+      values (${otherCompanyId}, 0, ${userId})
+    `,
+    '23514',
+    'company_driver_allowance_settings_amount_check',
   )
 
   // Spec 065 D4c: motivo so existe para a dispensa, e sobrescrita sem autor nao conta quem assinou.

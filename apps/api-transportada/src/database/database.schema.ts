@@ -80,6 +80,7 @@ import { tollBooths } from './toll-booth.schema.js'
 import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
+import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -179,6 +180,7 @@ import {
   trips,
 } from './trip.schema.js'
 
+export * from './company-driver-allowance-settings.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -247,6 +249,7 @@ export const databaseSchema = {
   companyContacts,
   companyDeliveryProofSettings,
   companyDistributionSettings,
+  companyDriverAllowanceSettings,
   deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,

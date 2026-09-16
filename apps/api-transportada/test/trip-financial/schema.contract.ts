@@ -2,18 +2,24 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import {
+  companyDriverAllowanceSettings,
   companyTaxSettings,
   fleetDrivers,
   tripCostEntries,
   tripFinancialParcels,
   tripFinancialResults,
+  trips,
 } from '../../src/database/database.schema.js'
 import {
+  columnNames,
   columnSqlTypes,
+  expectRequiredUtcTimestamps,
   foreignKeys,
   indexColumnsByName,
+  requiredColumnNames,
   unqualifiedCheckSqlByName,
   uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
@@ -115,5 +121,67 @@ describe('o regime federal da empresa (ADR-0049 §4)', () => {
     expect(uniqueColumnsByName(companyTaxSettings).company_tax_settings_company_unique).toEqual([
       'company_id',
     ])
+  })
+})
+
+describe('a diária do motorista (spec 143 D3, D4 — aceite 8)', () => {
+  /**
+   * A diária é dinheiro, e dinheiro nesta base é `numeric(19, 4)`: guardar a do motorista noutra
+   * escala faria a soma da tripulação perder centavo contra as outras parcelas.
+   */
+  test('toda diária é numeric(19, 4)', () => {
+    expect(columnSqlTypes(fleetDrivers).daily_allowance_amount).toBe('numeric(19, 4)')
+    expect(columnSqlTypes(companyDriverAllowanceSettings).daily_allowance_amount).toBe(
+      'numeric(19, 4)',
+    )
+  })
+
+  /** Diária zero ou negativa é motorista que paga para trabalhar: o banco recusa as duas. */
+  test('a diária do cadastro é nula ou positiva', () => {
+    expect(unqualifiedCheckSqlByName(fleetDrivers).fleet_drivers_daily_allowance_check).toBe(
+      '"daily_allowance_amount" is null or "daily_allowance_amount" > 0',
+    )
+  })
+
+  /** O valor geral existe para ser usado: sem linha vale a constante, e com linha vale um número real. */
+  test('o valor geral da empresa é sempre positivo', () => {
+    expect(
+      unqualifiedCheckSqlByName(companyDriverAllowanceSettings)
+        .company_driver_allowance_settings_amount_check,
+    ).toBe('"daily_allowance_amount" > 0')
+  })
+
+  /**
+   * Meia diária está fora do escopo (D4) e viagem de zero dia não existe — a sugestão tem mínimo 1,
+   * e o número corrigido na criação obedece ao mesmo piso.
+   */
+  test('a viagem tem no mínimo uma diária, quando informa alguma', () => {
+    expect(unqualifiedCheckSqlByName(trips).trips_daily_allowance_days_check).toBe(
+      '"daily_allowance_days" is null or "daily_allowance_days" >= 1',
+    )
+  })
+
+  /** Uma linha por empresa, e a empresa é a chave: duas seriam dois valores gerais para a mesma frota. */
+  test('uma configuração por empresa, com a empresa de chave', () => {
+    const companyColumn = getTableConfig(companyDriverAllowanceSettings).columns.find(
+      (column) => column.name === 'company_id',
+    )
+
+    expect(getTableConfig(companyDriverAllowanceSettings).name).toBe(
+      'company_driver_allowance_settings',
+    )
+    expect(companyColumn?.primary).toBeTrue()
+    expect(columnNames(companyDriverAllowanceSettings)).toEqual([
+      'company_id',
+      'daily_allowance_amount',
+      /** Quem mexeu no valor geral — configuração de dinheiro sem autor é mudança sem dono. */
+      'updated_by_user_id',
+      'created_at',
+      'updated_at',
+    ])
+    expect(requiredColumnNames(companyDriverAllowanceSettings)).toEqual(
+      columnNames(companyDriverAllowanceSettings),
+    )
+    expectRequiredUtcTimestamps(companyDriverAllowanceSettings)
   })
 })

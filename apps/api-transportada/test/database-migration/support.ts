@@ -176,12 +176,17 @@ export const DELIVERY_CLIENT_TABLES = [
   'extra_charge_batches',
 ] as const
 
-/** Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa. */
+/**
+ * Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa.
+ * Spec 143 D3: o valor geral da diária do motorista mora aqui pelo mesmo motivo do regime federal —
+ * é configuração de dinheiro da empresa que a conta da viagem lê.
+ */
 export const TRIP_FINANCIAL_TABLES = [
   'trip_financial_results',
   'trip_financial_parcels',
   'trip_cost_entries',
   'company_tax_settings',
+  'company_driver_allowance_settings',
 ] as const
 
 /** Spec 058 P2: a frota, o pool de notas e a ligação parada↔nota da sugestão multi-veículo. */
