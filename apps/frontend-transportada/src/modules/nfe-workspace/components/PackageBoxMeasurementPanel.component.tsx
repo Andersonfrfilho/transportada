@@ -10,33 +10,44 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { MeasurementCardPrint } from './MeasurementCardPrint.component'
+import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
+import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
 import {
   PACKAGE_BOX_STATUS_FILTERS,
   type PackageBox,
+  type PackageBoxMeasurementInput,
   type PackageBoxQueue,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import {
+  measurementSourceLabel,
+  type Translate,
+} from '../shared/packageBoxMeasurementLabel.service'
+import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
-type PackageBoxMeasurement = Readonly<{
-  grossWeightGrams: null | number
-  heightMm: number
-  lengthMm: number
-  unitsPerBox: number
-  widthMm: number
-}>
-
 type PackageBoxMeasurementPanelProps = Readonly<{
+  /** Spec 152 D14: sem ela ligada, a etapa Medida não existe — só "Digitar medida". */
+  cameraMeasurementEnabled: boolean
   denied: boolean
   failed: boolean
   loading: boolean
   /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
   matching: boolean
-  onMeasure: (input: PackageBoxMeasurement & { id: string }) => void
+  onMeasure: (input: PackageBoxMeasurementInput) => void
+  /** M-a: zera o desfecho da gravação anterior — o fluxo abre sem a recusa da caixa passada. */
+  onResetSaveError: () => void
+  /** T14 item A1 (4ª revisão): refaz a consulta que falhou, sem fechar o fluxo nem perder a captura. */
+  onRetryLookup: () => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
   queue: PackageBoxQueue | null
+  /** A1: o código da recusa do último `PUT` de medida — `undefined` enquanto nada falhou. */
+  saveErrorCode: string | undefined
+  /** A1: o desfecho da gravação, para o fluxo da câmera sair de "Gravando" só com ele. */
+  saveStatus: 'error' | 'idle' | 'pending' | 'success'
   saving: boolean
   search: string
   status: PackageBoxStatusFilter
@@ -65,43 +76,7 @@ function looksLikeScannedCode(value: string): boolean {
   return ACCESS_KEY_PATTERN.test(trimmed)
 }
 
-/**
- * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
- * cm, e obrigar o conferente a multiplicar por dez de cabeça, de pé, a cada caixa, é onde nasce o
- * erro de uma ordem de grandeza — 38 virando 38 mm. A coluna continua `length_mm` porque milímetro
- * é inteiro e não perde meia unidade; a conversão mora **aqui**, num lugar só, na borda.
- *
- * ⚠️ Os tetos são **cópia por valor** dos CHECKs da coluna (6000/3000/3000 mm), guardados por
- * contrato. Sem eles, digitar 900 de comprimento devolvia um `400` genérico que virava "não foi
- * possível gravar" sem dizer qual campo — e `web.md` §11 exige o erro ancorado no campo.
- */
-const MAX_CENTIMETRES = { heightMm: 300, lengthMm: 600, widthMm: 300 } as const
-
-const MILLIMETRES_PER_CENTIMETRE = 10
 const PERCENT_SCALE = 100
-
-/**
- * O caminho de volta: milímetro guardado vira centímetro digitável. Sem ele o formulário abria em
- * branco sobre uma medida que existe — a mesma falha que `CargoVolumeFactorPanel` já evita —, e
- * gravar por cima devolvia `unidades por caixa` a 1 **em silêncio**.
- */
-function toCentimetres(millimetres: null | number): string {
-  if (millimetres === null) return ''
-  const centimetres = millimetres / MILLIMETRES_PER_CENTIMETRE
-  return String(Number.isInteger(centimetres) ? centimetres : centimetres.toFixed(1)).replace(
-    '.',
-    ',',
-  )
-}
-
-/** Aceita vírgula: o teclado do celular manda `38,5`, e meio centímetro é medida legítima. */
-function toMillimetres(value: string, field: keyof typeof MAX_CENTIMETRES): number | null {
-  const centimetres = Number(value.trim().replace(',', '.'))
-  if (!Number.isFinite(centimetres) || centimetres <= 0) return null
-  if (centimetres > MAX_CENTIMETRES[field]) return null
-  const millimetres = Math.round(centimetres * MILLIMETRES_PER_CENTIMETRE)
-  return millimetres > 0 ? millimetres : null
-}
 
 function QueueSkeleton() {
   const { t } = useTranslation('nfeWorkspace')
@@ -124,15 +99,20 @@ function QueueSkeleton() {
  * de descer — doze caixas cobrem um quarto do que sai daqui, e as de baixo custam o mesmo tempo.
  */
 export function PackageBoxMeasurementPanel({
+  cameraMeasurementEnabled,
   denied,
   failed,
   loading,
   matching,
   onMeasure,
+  onResetSaveError,
+  onRetryLookup,
   onScan,
   onSearchChange,
   onStatusChange,
   queue,
+  saveErrorCode,
+  saveStatus,
   saving,
   search,
   status,
@@ -169,6 +149,19 @@ export function PackageBoxMeasurementPanel({
    */
   const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
   const closeScanTimer = useRef<number | undefined>(undefined)
+  /**
+   * Spec 152 T11 (entrada unificada): com a função ligada, "Ler etiqueta" abre o
+   * `PackageBoxCameraFlow` em vez do leitor de sempre — dono da própria sessão de câmera
+   * (`useCameraStream`, D19), que encadeia etiqueta → produto → medida → conferência sem reabrir
+   * permissão. Aberto, ele casa a etiqueta com a fila pela mesma pergunta
+   * (`onScan`/`matching`/`queue`), então o efeito abaixo (que abre a edição digitada / a lista de
+   * candidatas) precisa ficar de fora enquanto ele decide. Com a função desligada este estado nunca
+   * vira `true` — o botão sempre abre o leitor antigo, comportamento idêntico ao de antes da T11.
+   */
+  const [isCameraFlowOpen, setIsCameraFlowOpen] = useState(false)
+  /** A caixa escolhida na fila por "Medir pela câmera" — `undefined` quando o fluxo abre pela etiqueta. */
+  const [cameraFlowBox, setCameraFlowBox] = useState<PackageBox | undefined>(undefined)
+  const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
 
   useEffect(() => {
     return () => window.clearTimeout(closeScanTimer.current)
@@ -199,6 +192,15 @@ export function PackageBoxMeasurementPanel({
    * o operador escolhe, nunca a tela.
    */
   useEffect(() => {
+    /**
+     * ⚠️ Com o fluxo da câmera aberto quem decide é ele — mas a espera **tem que ser desarmada**:
+     * uma leitura da pistola durante o fluxo deixava `awaitingScan` ligado para sempre, e a
+     * primeira leitura depois de fechar o fluxo abria a medição da caixa errada (T14, item baixo).
+     */
+    if (isCameraFlowOpen) {
+      if (awaitingScan) setAwaitingScan(false)
+      return
+    }
     if (!awaitingScan || matching) return
     setAwaitingScan(false)
     const items = queue?.items ?? []
@@ -212,13 +214,29 @@ export function PackageBoxMeasurementPanel({
     }
     const [match] = items
     if (match !== undefined) openMeasurementForScannedBox(match.id)
-  }, [awaitingScan, matching, queue, t, openMeasurementForScannedBox])
+  }, [awaitingScan, isCameraFlowOpen, matching, queue, t, openMeasurementForScannedBox])
 
   useEffect(() => {
     if (scanFeedback?.kind !== 'notFound') return
     const timer = window.setTimeout(() => setScanFeedback(undefined), NOT_FOUND_FEEDBACK_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [scanFeedback])
+
+  /**
+   * ⚠️ O fluxo abre do zero: sem o reset, o código da recusa da gravação anterior continuava no
+   * estado e a Conferência da caixa seguinte já nascia com o aviso de erro (2ª revisão, item M-a).
+   */
+  function openCameraFlow(box?: PackageBox): void {
+    onResetSaveError()
+    setEditingId(null)
+    setCameraFlowBox(box)
+    setIsCameraFlowOpen(true)
+  }
+
+  function closeCameraFlow(): void {
+    setIsCameraFlowOpen(false)
+    setCameraFlowBox(undefined)
+  }
 
   const scanner = (
     <BarcodeScanner
@@ -246,28 +264,6 @@ export function PackageBoxMeasurementPanel({
     />
   )
 
-  if (denied)
-    return (
-      <>
-        {scanner}
-        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
-      </>
-    )
-  if (loading)
-    return (
-      <>
-        {scanner}
-        <QueueSkeleton />
-      </>
-    )
-  if (failed)
-    return (
-      <>
-        {scanner}
-        <p className={styles.notice}>{t('packageBoxes.failed')}</p>
-      </>
-    )
-
   const items = queue?.items ?? []
 
   return (
@@ -275,79 +271,116 @@ export function PackageBoxMeasurementPanel({
       <header className={styles.header}>
         <h3 id="package-boxes-title">{t('packageBoxes.title')}</h3>
         <p className={styles.hint}>{t('packageBoxes.description')}</p>
+        <Button onClick={() => setIsPrintCardOpen(true)} size="sm" type="button" variant="ghost">
+          <Icon name="download" />
+          {t('packageBoxes.printCard.open')}
+        </Button>
       </header>
 
-      <div className={styles.search}>
-        <label className={styles.field} htmlFor="package-box-search">
-          {t('packageBoxes.searchLabel')}
-          <input
-            id="package-box-search"
-            inputMode="search"
-            onChange={(event) => {
-              setCameFromScan(false)
-              setCameFromKeyboardScan(false)
-              onSearchChange(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              const value = event.currentTarget.value
-              /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
-              if (!looksLikeScannedCode(value)) return
-              event.preventDefault()
-              scanOriginRef.current = 'keyboard'
-              setScanFeedback(undefined)
-              setAwaitingScan(true)
-              onScan(value)
-            }}
-            placeholder={t('packageBoxes.searchPlaceholder')}
-            ref={searchInputRef}
-            type="search"
-            value={search}
-          />
-        </label>
-        <Button onClick={() => setIsScannerOpen(true)} type="button" variant="secondary">
-          <Icon name="camera" />
-          {t('packageBoxes.scan')}
-        </Button>
-      </div>
-
-      <label className={styles.field} htmlFor="package-box-status">
-        {t('packageBoxes.statusLabel')}
-        <Select
-          ariaLabel={t('packageBoxes.statusLabel')}
-          onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
-          options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
-            label: t(`packageBoxes.status.${filter}`),
-            value: filter,
-          }))}
-          value={status}
-        />
-      </label>
-
-      {items.length === 0 ? (
-        <p className={styles.notice}>{t('packageBoxes.empty')}</p>
+      {/*
+        ⚠️ T14 ALTO-1 (5ª revisão): `denied`, `loading` e `failed` NÃO podem mais ser retornos
+        antecipados — `PackageBoxCameraFlow` (abaixo) precisa continuar montado em toda situação da
+        fila, senão o `useReducer` do fluxo volta para a etiqueta e `useCameraStream` derruba o
+        `MediaStream` a cada bipe que troca a `queryKey` (D19). O ramo `lookupFailed` do próprio
+        fluxo já sabe voltar para a etiqueta; o que falta aqui, fora do fluxo, é uma saída para quem
+        nem chegou a abrir a câmera.
+      */}
+      {denied ? (
+        <p className={styles.notice}>{t('packageBoxes.denied')}</p>
+      ) : loading ? (
+        <QueueSkeleton />
+      ) : failed ? (
+        <>
+          <p className={styles.notice} role="alert">
+            {t('packageBoxes.failed')}
+          </p>
+          <Button onClick={onRetryLookup} type="button" variant="secondary">
+            <Icon name="refresh" />
+            {t('packageBoxes.retry')}
+          </Button>
+        </>
       ) : (
-        <ul className={styles.list}>
-          {items.map((box) => (
-            <PackageBoxRow
-              box={box}
-              isEditing={editingId === box.id}
-              key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
-              onCancel={() => setEditingId(null)}
-              onMeasure={(measurement) => {
-                onMeasure({ ...measurement, id: box.id })
-                setEditingId(null)
-                if (cameFromScan) setIsScannerOpen(true)
-                if (cameFromKeyboardScan) {
+        <>
+          <div className={styles.search}>
+            <label className={styles.field} htmlFor="package-box-search">
+              {t('packageBoxes.searchLabel')}
+              <input
+                id="package-box-search"
+                inputMode="search"
+                onChange={(event) => {
+                  setCameFromScan(false)
                   setCameFromKeyboardScan(false)
-                  searchInputRef.current?.focus()
-                }
-              }}
-              onOpen={() => setEditingId(box.id)}
-              saving={saving}
+                  onSearchChange(event.target.value)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  const value = event.currentTarget.value
+                  /** Digitação normal segue filtrando texto — só o formato de código vira bipe. */
+                  if (!looksLikeScannedCode(value)) return
+                  event.preventDefault()
+                  scanOriginRef.current = 'keyboard'
+                  setScanFeedback(undefined)
+                  setAwaitingScan(true)
+                  onScan(value)
+                }}
+                placeholder={t('packageBoxes.searchPlaceholder')}
+                ref={searchInputRef}
+                type="search"
+                value={search}
+              />
+            </label>
+            <Button
+              onClick={() => (cameraMeasurementEnabled ? openCameraFlow() : setIsScannerOpen(true))}
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="camera" />
+              {t('packageBoxes.scan')}
+            </Button>
+          </div>
+
+          <label className={styles.field} htmlFor="package-box-status">
+            {t('packageBoxes.statusLabel')}
+            <Select
+              ariaLabel={t('packageBoxes.statusLabel')}
+              onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
+              options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
+                label: t(`packageBoxes.status.${filter}`),
+                value: filter,
+              }))}
+              value={status}
             />
-          ))}
-        </ul>
+          </label>
+
+          {items.length === 0 ? (
+            <p className={styles.notice}>{t('packageBoxes.empty')}</p>
+          ) : (
+            <ul className={styles.list}>
+              {items.map((box) => (
+                <PackageBoxRow
+                  box={box}
+                  isEditing={editingId === box.id}
+                  key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
+                  onCancel={() => setEditingId(null)}
+                  onMeasure={(measurement) => {
+                    onMeasure({ ...measurement, id: box.id })
+                    setEditingId(null)
+                    if (cameFromScan) setIsScannerOpen(true)
+                    if (cameFromKeyboardScan) {
+                      setCameFromKeyboardScan(false)
+                      searchInputRef.current?.focus()
+                    }
+                  }}
+                  onMeasureWithCamera={
+                    cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
+                  }
+                  onOpen={() => setEditingId(box.id)}
+                  saving={saving}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       {scanner}
@@ -362,6 +395,22 @@ export function PackageBoxMeasurementPanel({
           }}
         />
       )}
+
+      <PackageBoxCameraFlow
+        cameraEnabled={cameraMeasurementEnabled}
+        isOpen={isCameraFlowOpen}
+        lookupFailed={failed}
+        matches={queue?.items}
+        matching={matching}
+        onClose={closeCameraFlow}
+        onLookup={(text) => onScan(text)}
+        onSave={(id, submission) => onMeasure({ ...submission, id })}
+        preselectedBox={cameraFlowBox}
+        saveErrorCode={saveErrorCode}
+        saveStatus={saveStatus}
+      />
+
+      <MeasurementCardPrint isOpen={isPrintCardOpen} onClose={() => setIsPrintCardOpen(false)} />
     </section>
   )
 }
@@ -462,7 +511,9 @@ type PackageBoxRowProps = Readonly<{
   box: PackageBox
   isEditing: boolean
   onCancel: () => void
-  onMeasure: (input: PackageBoxMeasurement) => void
+  onMeasure: (input: PackageBoxMeasurementInput) => void
+  /** `undefined` com a medida pela câmera desligada na empresa — o botão nem aparece. */
+  onMeasureWithCamera: (() => void) | undefined
   onOpen: () => void
   saving: boolean
 }>
@@ -472,25 +523,11 @@ function PackageBoxRow({
   isEditing,
   onCancel,
   onMeasure,
+  onMeasureWithCamera,
   onOpen,
   saving,
 }: PackageBoxRowProps) {
   const { t } = useTranslation('nfeWorkspace')
-  const [lengthMm, setLengthMm] = useState(() => toCentimetres(box.lengthMm))
-  const [widthMm, setWidthMm] = useState(() => toCentimetres(box.widthMm))
-  const [heightMm, setHeightMm] = useState(() => toCentimetres(box.heightMm))
-  /**
-   * ⚠️ Quantas unidades vão dentro. Só importa quando `uCom` **não** é a embalagem: em `CX24` a nota
-   * já conta caixas e o valor é 1, em `UN` ela conta unidades e sem isto a ocupação sairia
-   * multiplicada por quantas couberem.
-   */
-  const [unitsPerBox, setUnitsPerBox] = useState(() => String(box.unitsPerBox))
-
-  const length = toMillimetres(lengthMm, 'lengthMm')
-  const width = toMillimetres(widthMm, 'widthMm')
-  const height = toMillimetres(heightMm, 'heightMm')
-  const units = Math.max(1, Math.round(Number(unitsPerBox.trim()) || 1))
-  const canSave = length !== null && width !== null && height !== null
 
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
@@ -529,110 +566,38 @@ function PackageBoxRow({
             units: box.unitsPerBox,
             width: toCentimetres(box.widthMm),
           })}
+          {' · '}
+          {measurementSourceLabel(t as Translate, box)}
         </p>
       )}
 
       {isEditing ? (
-        <form
-          className={styles.form}
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (length === null || width === null || height === null) return
-            onMeasure({
-              grossWeightGrams: box.grossWeightGrams,
-              heightMm: height,
-              lengthMm: length,
-              unitsPerBox: units,
-              widthMm: width,
-            })
-          }}
-        >
-          <div className={styles.dimensions}>
-            <DimensionField
-              field="lengthMm"
-              id={`${box.id}-length`}
-              label={t('packageBoxes.length')}
-              onChange={setLengthMm}
-              parsed={length}
-              value={lengthMm}
-            />
-            <DimensionField
-              field="widthMm"
-              id={`${box.id}-width`}
-              label={t('packageBoxes.width')}
-              onChange={setWidthMm}
-              parsed={width}
-              value={widthMm}
-            />
-            <DimensionField
-              field="heightMm"
-              id={`${box.id}-height`}
-              label={t('packageBoxes.height')}
-              onChange={setHeightMm}
-              parsed={height}
-              value={heightMm}
-            />
-            <label className={styles.field} htmlFor={`${box.id}-units`}>
-              {t('packageBoxes.unitsPerBox')}
-              <input
-                id={`${box.id}-units`}
-                inputMode="numeric"
-                onChange={(event) => setUnitsPerBox(event.target.value)}
-                value={unitsPerBox}
-              />
-            </label>
-          </div>
-          <div className={styles.actions}>
-            <Button disabled={!canSave || saving} size="sm" type="submit">
-              <Icon name="check" />
-              {t('packageBoxes.save')}
-            </Button>
-            <Button onClick={onCancel} size="sm" type="button" variant="ghost">
-              {t('packageBoxes.cancel')}
-            </Button>
-          </div>
-        </form>
+        <PackageBoxMeasurementForm
+          boxId={box.id}
+          grossWeightGrams={box.grossWeightGrams}
+          heightMm={box.heightMm}
+          lengthMm={box.lengthMm}
+          onCancel={onCancel}
+          onSubmit={(submission) => onMeasure({ ...submission, id: box.id })}
+          proposal={undefined}
+          saving={saving}
+          unitsPerBox={box.unitsPerBox}
+          widthMm={box.widthMm}
+        />
       ) : (
         <div className={styles.actions}>
           <Button onClick={onOpen} size="sm" type="button" variant="secondary">
             <Icon name="edit" />
             {box.measuredAt === null ? t('packageBoxes.measure') : t('packageBoxes.remeasure')}
           </Button>
+          {onMeasureWithCamera === undefined ? null : (
+            <Button onClick={onMeasureWithCamera} size="sm" type="button" variant="secondary">
+              <Icon name="camera" />
+              {t('packageBoxes.measureWithCamera')}
+            </Button>
+          )}
         </div>
       )}
     </li>
-  )
-}
-
-type DimensionFieldProps = Readonly<{
-  field: keyof typeof MAX_CENTIMETRES
-  id: string
-  label: string
-  onChange: (value: string) => void
-  parsed: number | null
-  value: string
-}>
-
-function DimensionField({ field, id, label, onChange, parsed, value }: DimensionFieldProps) {
-  const { t } = useTranslation('nfeWorkspace')
-  const invalid = value.trim() !== '' && parsed === null
-
-  return (
-    <label className={styles.field} htmlFor={id}>
-      {label}
-      <input
-        aria-describedby={invalid ? `${id}-error` : undefined}
-        aria-invalid={invalid}
-        id={id}
-        inputMode="numeric"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
-      {invalid ? (
-        <span className={styles.fieldError} id={`${id}-error`} role="alert">
-          {t('packageBoxes.outOfRange', { max: MAX_CENTIMETRES[field] })}
-        </span>
-      ) : null}
-    </label>
   )
 }

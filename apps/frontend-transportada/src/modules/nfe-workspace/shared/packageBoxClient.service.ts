@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+/** D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida. */
+export const PACKAGE_BOX_MEASUREMENT_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
+
 export type PackageBox = Readonly<{
   cartonGtin: null | string
   commercialUnit: string
@@ -11,6 +15,9 @@ export type PackageBox = Readonly<{
   id: string
   lengthMm: null | number
   measuredAt: null | string
+  /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
+  measurementMarginMm: null | number
+  measurementSource: null | PackageBoxMeasurementSource
   productCode: string
   share: number
   transportedVolumes: number
@@ -31,11 +38,32 @@ export type PackageBoxQueue = Readonly<{
   totalVolumes: number
 }>
 
+/**
+ * D17: a proposta da câmera guardada por auditoria. `.strict()` do lado da API — campo a mais é
+ * recusa, não silêncio (mesma razão do `cameraMeasurementSchema`). Margens ausentes numa dimensão
+ * dizem "essa dimensão foi editada por cima" (D6): a regra de imprecisão não se aplica a ela.
+ */
+export type PackageBoxCameraMeasurementInput = Readonly<{
+  engine: string
+  heightMarginMm?: number
+  impreciseConfirmed: boolean
+  lengthMarginMm?: number
+  proposedHeightMm?: number
+  proposedLengthMm?: number
+  proposedWidthMm?: number
+  warnings: readonly string[]
+  widthMarginMm?: number
+}>
+
 export type PackageBoxMeasurementInput = Readonly<{
+  /** Só presente quando `source` é `camera`/`camera_adjusted` (R5). */
+  camera?: PackageBoxCameraMeasurementInput
   grossWeightGrams: null | number
   heightMm: number
   id: string
   lengthMm: number
+  /** D8: ausente grava `typed` (retrocompatível) — o corpo antigo continua válido. */
+  source?: PackageBoxMeasurementSource
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   unitsPerBox: number
   widthMm: number
@@ -51,11 +79,44 @@ export type PackageBoxClient = Readonly<{
   listBoxes: (
     input?: Readonly<{ scanned?: string; search?: string; status?: PackageBoxStatusFilter }>,
   ) => Promise<PackageBoxQueue>
+  /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
+  getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
   /** Grava e não devolve nada: a linha gravada não é a linha da fila, e quem recarrega é a query. */
   measureBox: (input: PackageBoxMeasurementInput) => Promise<void>
 }>
 
 const PACKAGE_BOXES_PATH = '/nfe-package-boxes'
+
+/**
+ * ⚠️ **`new Error('...')` cru apagava o motivo da recusa.** A tela precisa distinguir o `422`
+ * `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` (a função foi desligada na empresa com a aba aberta) do
+ * `400` de corpo recusado — dizer só "não foi possível gravar" manda o conferente tentar de novo
+ * para sempre. O código vem do envelope da API (`{ error: { code } }`) e só cai no genérico quando a
+ * resposta não tem um.
+ */
+export class PackageBoxRequestError extends Error {
+  public readonly code: string
+  public readonly status: number | undefined
+
+  public constructor(input: Readonly<{ code: string; status?: number | undefined }>) {
+    super(input.code)
+    this.code = input.code
+    this.name = 'PackageBoxRequestError'
+    this.status = input.status
+  }
+}
+
+/** `undefined` quando a falha não é da API (rede caiu, resposta ilegível) — não invente código. */
+export function packageBoxErrorCode(error: unknown): string | undefined {
+  return error instanceof PackageBoxRequestError ? error.code : undefined
+}
+
+async function rejectionOf(response: Response, fallbackCode: string): Promise<never> {
+  const body: unknown = await response.json().catch(() => undefined)
+  const envelope = isRecord(body) && isRecord(body.error) ? body.error : undefined
+  const code = typeof envelope?.code === 'string' ? envelope.code : fallbackCode
+  throw new PackageBoxRequestError({ code, status: response.status })
+}
 
 export function createPackageBoxClient(dependencies: ClientDependencies): PackageBoxClient {
   /**
@@ -79,8 +140,20 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       const response = await dependencies.fetch(url, {
         headers: { authorization: await authorization() },
       })
-      if (!response.ok) throw new Error('PACKAGE_BOX_LIST_FAILED')
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
+    },
+    async getMeasurementSettings(): Promise<Readonly<{ cameraMeasurementEnabled: boolean }>> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/measurement-settings`,
+        { headers: { authorization: await authorization() } },
+      )
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_MEASUREMENT_SETTINGS_FAILED')
+      const body: unknown = await response.json()
+      if (!isRecord(body) || !isRecord(body.data)) {
+        throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MEASUREMENT_SETTINGS_MALFORMED' })
+      }
+      return { cameraMeasurementEnabled: body.data.cameraMeasurementEnabled === true }
     },
     async measureBox(input): Promise<void> {
       const { id, ...measurement } = input
@@ -92,7 +165,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
           method: 'PUT',
         },
       )
-      if (!response.ok) throw new Error('PACKAGE_BOX_MEASURE_FAILED')
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_MEASURE_FAILED')
     },
   }
 }
@@ -102,9 +175,11 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
  * e dizer isso para uma resposta que não entendemos manda o conferente embora sem trabalho.
  */
 export function packageBoxQueueFromApi(body: unknown): PackageBoxQueue {
-  if (!isRecord(body) || !isRecord(body.data)) throw new Error('PACKAGE_BOX_MALFORMED')
+  if (!isRecord(body) || !isRecord(body.data))
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
   const { coveredCount, items, totalVolumes } = body.data
-  if (!Array.isArray(items) || !items.every(isPackageBox)) throw new Error('PACKAGE_BOX_MALFORMED')
+  if (!Array.isArray(items) || !items.every(isPackageBox))
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_MALFORMED' })
   return {
     coveredCount: isNumber(coveredCount) ? coveredCount : 0,
     items,
@@ -130,7 +205,17 @@ function isPackageBox(value: unknown): value is PackageBox {
     isNumber(value.unitsPerBox) &&
     isNumber(value.share) &&
     isNumber(value.cumulativeShare) &&
-    typeof value.withinCoverage === 'boolean'
+    typeof value.withinCoverage === 'boolean' &&
+    isNullableMeasurementSource(value.measurementSource) &&
+    isNullableNumber(value.measurementMarginMm)
+  )
+}
+
+function isNullableMeasurementSource(value: unknown): value is null | PackageBoxMeasurementSource {
+  return (
+    value === null ||
+    (typeof value === 'string' &&
+      PACKAGE_BOX_MEASUREMENT_SOURCES.some((source) => source === value))
   )
 }
 

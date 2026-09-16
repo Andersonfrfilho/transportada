@@ -60,6 +60,33 @@ export function stopCameraStream(stream: unknown): void {
   for (const track of stream.getTracks()) track.stop()
 }
 
+/** Só o que ligar a trilha ao elemento exige — o `<video>` real segue opaco aqui. */
+export type VideoElementLike = {
+  srcObject: unknown
+  play: () => Promise<void>
+}
+
+/**
+ * ⚠️ **O elemento só existe depois da renderização que o revela.** Ler `ref.current` no mesmo tick
+ * do `setStatus` que faz o `<video>` aparecer devolve `null`, e a etapa fica com o quadro preto
+ * para sempre (T14 item C2). Quem liga é, por isso, um callback ref ou um efeito com o elemento nas
+ * dependências; a ligação em si mora aqui, fora do React, para poder ser exercitada por teste.
+ */
+export function attachStreamToVideo(
+  video: VideoElementLike | null | undefined,
+  stream: MediaStreamLike | undefined,
+): boolean {
+  if (video === null || video === undefined || stream === undefined) return false
+  video.srcObject = stream
+  void Promise.resolve(video.play()).catch(() => undefined)
+  return true
+}
+
+export function detachStreamFromVideo(video: VideoElementLike | null | undefined): void {
+  if (video === null || video === undefined) return
+  video.srcObject = null
+}
+
 /** `RGBLuminanceSource` lê um byte por pixel: RGBA cru entraria três vezes mais largo. */
 export function toLuminance(rgba: Uint8ClampedArray): Uint8ClampedArray {
   const luminance = new Uint8ClampedArray(rgba.length / 4)

@@ -2,17 +2,18 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { BarcodeFrame } from './barcodeDecoder.service'
+import { MAXIMUM_FRAME_WIDTH } from './cameraFrame.constant'
 import type { BarcodeWorkerAnswer } from './barcodeDecoder.worker'
 import {
   createNativeBarcodeDetector,
   openCameraStream,
   stopCameraStream,
   toLuminance,
+  type MediaStreamLike,
   type NativeBarcodeDetector,
 } from './barcodeScanner.service'
 
 const FRAME_INTERVAL_MS = 250
-const MAXIMUM_FRAME_WIDTH = 720
 /**
  * A etiqueta continua parada na frente da câmera por vários quadros depois de lida uma vez — sem
  * este intervalo o mesmo texto reanunciaria a cada 250ms. Curto o bastante para o operador poder
@@ -25,6 +26,12 @@ export type BarcodeScannerStatus = 'denied' | 'idle' | 'reading' | 'starting' | 
 export type UseBarcodeScannerParams = Readonly<{
   isActive: boolean
   onRead: (text: string) => void
+  /**
+   * Sessão de câmera já aberta por `useCameraStream` (D19) — o leitor não pede `getUserMedia` de
+   * novo nem fecha essa trilha ao sair; quem abriu decide quando fechar. Sem `stream`, mantém o
+   * comportamento anterior: abre e fecha a própria câmera (spec 055 e outros usos do leitor).
+   */
+  stream?: MediaStreamLike | undefined
 }>
 
 export type BarcodeScannerController = Readonly<{
@@ -51,6 +58,7 @@ function captureFrame(
 export function useBarcodeScanner({
   isActive,
   onRead,
+  stream,
 }: UseBarcodeScannerParams): BarcodeScannerController {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const onReadRef = useRef(onRead)
@@ -66,6 +74,8 @@ export function useBarcodeScanner({
       return
     }
 
+    /** Sem `stream` injetado, o leitor continua dono do próprio ciclo de abrir/fechar a câmera. */
+    const ownsStream = stream === undefined
     let isCancelled = false
     let openedStream: unknown
     let worker: Worker | undefined
@@ -114,20 +124,28 @@ export function useBarcodeScanner({
       }
     }
 
+    async function attachStream(mediaStream: unknown): Promise<boolean> {
+      const video = videoRef.current
+      if (video === null) return false
+      video.srcObject = mediaStream as MediaStream
+      await video.play().catch(() => undefined)
+      return !isCancelled
+    }
+
     async function start(): Promise<void> {
       setStatus('starting')
-      const result = await openCameraStream(globalThis.navigator)
-      if (isCancelled || result.status !== 'ready') {
-        if (result.status === 'ready') stopCameraStream(result.stream)
-        else setStatus(result.status)
+      if (ownsStream) {
+        const result = await openCameraStream(globalThis.navigator)
+        if (isCancelled || result.status !== 'ready') {
+          if (result.status === 'ready') stopCameraStream(result.stream)
+          else setStatus(result.status)
+          return
+        }
+        openedStream = result.stream
+        if (!(await attachStream(result.stream))) return
+      } else if (!(await attachStream(stream))) {
         return
       }
-      openedStream = result.stream
-      const video = videoRef.current
-      if (video === null) return
-      video.srcObject = result.stream as unknown as MediaStream
-      await video.play().catch(() => undefined)
-      if (isCancelled) return
       setStatus('reading')
 
       const detector = await createNativeBarcodeDetector(globalThis)
@@ -152,11 +170,12 @@ export function useBarcodeScanner({
       isCancelled = true
       if (timer !== undefined) clearInterval(timer)
       worker?.terminate()
-      stopCameraStream(openedStream)
+      /** O stream injetado tem dono fora deste hook — só a trilha aberta aqui mesmo é encerrada. */
+      if (ownsStream) stopCameraStream(openedStream)
       const video = videoRef.current
       if (video !== null) video.srcObject = null
     }
-  }, [isActive])
+  }, [isActive, stream])
 
   return { status, videoRef }
 }

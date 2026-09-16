@@ -28,6 +28,9 @@ export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 export const API_COMPANY_SETTINGS_CARGO_PATH = '/company-settings/cargo'
+/** Spec 152 D14: o interruptor por empresa da medida de caixa pela câmera, `settings.manage`. */
+export const API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH =
+  '/company-settings/cargo/camera-measurement'
 /** ADR-0057: a configuração do comprovante de entrega, geral e por CNPJ do destinatário. */
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH = '/company-settings/delivery-proof'
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =

@@ -1,16 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import {
   createPackageBoxClient,
+  packageBoxErrorCode,
   type PackageBoxMeasurementInput,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import { isRepeatedScan } from '../shared/packageBoxScan.js'
 
 const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
+/** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
+const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
+
+/** BAIXO-5 (T14, 5ª revisão): reexportada para não quebrar quem já importa a partir do hook. */
+export { isRepeatedScan } from '../shared/packageBoxScan.js'
 
 function useDebounced(value: string, delayMs: number): string {
   const [settled, setSettled] = useState(value)
@@ -59,6 +66,14 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
 
   const query = useQuery({
     enabled: input.enabled && input.companyId !== undefined,
+    /**
+     * ⚠️ Reforço complementar ao ALTO-1 (T14, 5ª revisão) — não substitui a correção estrutural do
+     * painel (`denied`/`loading`/`failed` como ramos do mesmo `return`), mas reduz o motivo pelo
+     * qual `loading` fica `true` no meio de um bipe: `scanned` muda a `queryKey`, e sem dado prévio
+     * para a chave nova o React Query marcava `isLoading` mesmo com a fila já carregada. Mantendo o
+     * dado anterior durante o refetch, `isLoading` só vale para o carregamento inicial de verdade.
+     */
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client.listBoxes({
         status,
@@ -68,13 +83,38 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     queryKey,
   })
 
+  /**
+   * ⚠️ **Gravação que falha tem que aparecer.** Sem `onError`, o `PUT` recusado (o `422` da função
+   * desligada com a aba aberta, o `400` de corpo inválido) sumia: a tela já tinha voltado para a
+   * etiqueta dizendo que estava tudo certo, e a caixa continuava sem medida (T14 item A1).
+   */
+  const [measureErrorCode, setMeasureErrorCode] = useState<string | undefined>(undefined)
+
+  /**
+   * ⚠️ **Reler a MESMA etiqueta depois de uma falha precisa refazer a consulta.** `scanned` está na
+   * `queryKey` e o cliente roda com `retry: false`: regravar o mesmo texto não muda a chave, e a
+   * consulta ficava parada no erro. O fluxo pedia "leia a etiqueta de novo", o conferente lia, e
+   * nada acontecia (3ª revisão, item M1).
+   */
+  const retryLookup = (): void => {
+    void query.refetch()
+  }
+
   const measure = useMutation({
     mutationFn: (measurement: PackageBoxMeasurementInput) => client.measureBox(measurement),
+    onError: (error: unknown) => {
+      setMeasureErrorCode(packageBoxErrorCode(error) ?? PACKAGE_BOX_MEASURE_FAILED_CODE)
+    },
+    onMutate: () => setMeasureErrorCode(undefined),
     /**
      * Sem `await`: aguardar a releitura aqui segura o botão, e a varredura de fonte de
      * `test/shared/mutation-pending-state.contract.ts` reprova isso.
+     *
+     * ⚠️ Limpar aqui também: só em `onMutate` o código sobrevivia até a próxima tentativa, e a
+     * Conferência da caixa **seguinte** abria com a recusa da anterior estampada.
      */
     onSuccess: () => {
+      setMeasureErrorCode(undefined)
       void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
     },
   })
@@ -88,12 +128,27 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
      */
     isMatching: query.isFetching,
     measure,
+    /** O código da recusa da última gravação — `undefined` enquanto nada falhou (A1). */
+    measureErrorCode,
     queue: query.data ?? null,
+    /** Zera o desfecho da gravação anterior — quem abre o fluxo chama antes de começar do zero. */
+    resetMeasure: () => {
+      measure.reset()
+      setMeasureErrorCode(undefined)
+    },
+    /** Refaz a consulta da etiqueta atual — a saída para a falha que não muda a chave. */
+    retryLookup,
     scanned,
     search,
     setStatus,
     /** Bipar substitui o texto digitado: são a mesma pergunta, feita de dois jeitos. */
     setScanned: (value: null | string) => {
+      /** BAIXO-1 (T14, 5ª revisão): `setSearch('')` era inalcançável neste ramo — removido, não
+       *  reescrito, porque `code-standards.md` proíbe tratar estado impossível. */
+      if (isRepeatedScan({ current: scanned, next: value })) {
+        retryLookup()
+        return
+      }
       setScanned(value)
       setSearch('')
     },

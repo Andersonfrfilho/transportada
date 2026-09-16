@@ -1,0 +1,255 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { describe, expect, it } from 'bun:test'
+
+import { BOX_DIMENSION_DOMAIN_WARNINGS } from '../../src/components/ui/boxDimension.constant'
+import type { BoxMargins, BoxMeasurementResult } from '../../src/components/ui/boxDimension.service'
+import {
+  buildMeasuredProposal,
+  type BoxDimensionMeasuredResult,
+} from '../../src/components/ui/boxDimensionProposal.service'
+import {
+  dimensionReliability,
+  PACKAGE_BOX_DIMENSION_KEYS,
+} from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementProposal.service'
+import {
+  buildPackageBoxMeasurementSubmission,
+  type PackageBoxMeasurementFormSubmission,
+} from '../../src/modules/nfe-workspace/shared/packageBoxMeasurementSubmission.service'
+
+/**
+ * ⚠️ **Contrato de fronteira (T14, 2ª revisão de código).** As 10.074 asserções verdes escondiam
+ * que nenhuma gravação pela câmera funcionava: o motor devolve `float`, o schema da API exige
+ * `int`, e nenhum teste jamais pegou o corpo que a app monta e o passou pelo schema de verdade.
+ *
+ * Como nenhuma app importa código-fonte de outra, a prova é em duas metades sobre a **mesma**
+ * fixture, versionada na raiz:
+ *
+ * 1. aqui — a app realmente produz exatamente estes corpos, partindo do `float` que o motor emite;
+ * 2. em `apps/api-transportada/test/nfe-package-box/measurement-submission-boundary.contract.ts` —
+ *    `parsePackageBoxMeasurement` (o schema real da rota) aceita cada um deles.
+ *
+ * Mexer numa metade sem a outra reprova. Tirar o `Math.round` da proposta reprova esta metade.
+ */
+const FIXTURE_URL = new URL(
+  '../../../../test/fixtures/package-box-measurement-submission.fixture.json',
+  import.meta.url,
+)
+
+type FixtureCase = Readonly<{ body: PackageBoxMeasurementFormSubmission; name: string }>
+
+const fixture = (await Bun.file(FIXTURE_URL).json()) as Readonly<{ cases: readonly FixtureCase[] }>
+
+function bodyOf(name: string): PackageBoxMeasurementFormSubmission {
+  const match = fixture.cases.find((candidate) => candidate.name === name)
+  if (match === undefined) throw new Error(`caso ausente na fixture: ${name}`)
+  return match.body
+}
+
+/** O resto da pose não muda nada nesta prova — o que importa são as seis grandezas da proposta. */
+const POSE = {
+  focalPx: 900,
+  focalSource: 'homography',
+  markerSidePx: 120,
+  reprojectionErrorPx: 0.4,
+  viewAngleDegrees: 18,
+} as const
+
+/** O que o motor devolve de verdade: milímetro fracionário, nunca inteiro (`boxDimension.service`). */
+function proposalOf(
+  nominal: Readonly<{ heightMm: number; lengthMm: number; widthMm: number }>,
+  margins: BoxMargins,
+  warnings: readonly (typeof BOX_DIMENSION_DOMAIN_WARNINGS)[number][] = [],
+) {
+  return buildMeasuredProposal({
+    margins,
+    nominal: { ...POSE, ...nominal } satisfies BoxMeasurementResult,
+    warnings,
+  })
+}
+
+const FLOAT_NOMINAL = { heightMm: 352.49, lengthMm: 598.7, widthMm: 401.2 }
+const FLOAT_MARGINS = { heightMarginMm: 9.5, lengthMarginMm: 6.8, widthMarginMm: 4.2 }
+const NOTHING_EDITED = { height: false, length: false, width: false } as const
+
+describe('o corpo que o formulário da câmera envia atravessa o schema da API (spec 152 T14)', () => {
+  it('a proposta nasce arredondada: as seis grandezas saem do motor em float e chegam inteiras', () => {
+    const proposal = proposalOf(FLOAT_NOMINAL, FLOAT_MARGINS)
+
+    for (const value of [
+      proposal.heightMarginMm,
+      proposal.heightMm,
+      proposal.lengthMarginMm,
+      proposal.lengthMm,
+      proposal.widthMarginMm,
+      proposal.widthMm,
+    ]) {
+      expect(Number.isInteger(value)).toBe(true)
+    }
+  })
+
+  it('câmera pura, nenhuma dimensão editada', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: NOTHING_EDITED,
+      grossWeightGrams: null,
+      heightMm: 352,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: proposalOf(FLOAT_NOMINAL, FLOAT_MARGINS),
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(bodyOf('camera pura, nenhuma dimensao editada'))
+  })
+
+  /**
+   * D6: a câmera não leu a altura (margem acima de 30 mm), o campo nasceu vazio e o conferente
+   * digitou 45 cm por cima. `proposedHeightMm` não existe — a câmera nunca propôs valor nenhum.
+   */
+  it('camera_adjusted com a altura não lida e digitada por cima', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: { height: true, length: false, width: false },
+      grossWeightGrams: null,
+      heightMm: 450,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: proposalOf(FLOAT_NOMINAL, { ...FLOAT_MARGINS, heightMarginMm: 45.3 }),
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(
+      bodyOf('camera_adjusted, altura nao lida pela camera e digitada por cima (D6)'),
+    )
+  })
+
+  it('camera_adjusted com o comprimento corrigido por cima e a altura imprecisa confirmada', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: { height: false, length: true, width: false },
+      grossWeightGrams: 12_000,
+      heightMm: 352,
+      impreciseConfirmed: true,
+      lengthMm: 600,
+      proposal: proposalOf(FLOAT_NOMINAL, { ...FLOAT_MARGINS, heightMarginMm: 12.6 }, [
+        'steepAngle',
+      ]),
+      unitsPerBox: 2,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(
+      bodyOf('camera_adjusted, comprimento corrigido por cima e altura imprecisa confirmada'),
+    )
+  })
+
+  /**
+   * ⚠️ **O protocolo de validação (D16) cai exatamente aqui.** O conferente confere a proposta com a
+   * fita, concorda, e digita o mesmo número: a tela via `edited[dimension]` e isentava a dimensão —
+   * enviava `impreciseConfirmed: false` — enquanto o schema da API compara valor com valor, via
+   * `599 === 599` (não editada) e recusava a margem de 11 mm sem confirmação com `400`. Numa sessão
+   * de 20 caixas, toda concordância câmera↔fita numa dimensão imprecisa virava erro. Tela e API
+   * respondem a mesma pergunta: **editada é a dimensão cujo valor difere da proposta.**
+   */
+  it('a fita que concorda com a proposta imprecisa ainda pede confirmação (D16)', () => {
+    const proposal = proposalOf(FLOAT_NOMINAL, { ...FLOAT_MARGINS, lengthMarginMm: 11.2 })
+    const edited = { height: false, length: true, width: false } as const
+    const recorded = { height: 352, length: 599, width: 401 } as const
+
+    expect(requiresConfirmation({ edited, proposal, recorded })).toBe(true)
+
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited,
+      grossWeightGrams: null,
+      heightMm: recorded.height,
+      impreciseConfirmed: requiresConfirmation({ edited, proposal, recorded }),
+      lengthMm: recorded.length,
+      proposal,
+      unitsPerBox: 1,
+      widthMm: recorded.width,
+    })
+
+    expect(submission).toEqual(
+      bodyOf(
+        'camera_adjusted, a fita concorda com a proposta imprecisa e o conferente confirma (D16)',
+      ),
+    )
+  })
+
+  /**
+   * D9: os sete códigos de uma vez. As duas listas de avisos são cópia por valor uma da outra
+   * (`BOX_DIMENSION_DOMAIN_WARNINGS` aqui, `PACKAGE_BOX_MEASUREMENT_WARNINGS` na API) — com um caso
+   * de um aviso só, tirar seis códigos de uma delas passava verde nas duas metades.
+   */
+  it('os sete avisos do domínio atravessam juntos', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: NOTHING_EDITED,
+      grossWeightGrams: null,
+      heightMm: 352,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: proposalOf(FLOAT_NOMINAL, FLOAT_MARGINS, [...BOX_DIMENSION_DOMAIN_WARNINGS]),
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(bodyOf('camera pura com os sete avisos do dominio de uma vez (D9)'))
+  })
+
+  /**
+   * MÉDIO-1 (T14, 4ª revisão): o corpo de fronteira que zera `measurement_margin_mm` — as três
+   * dimensões digitadas por cima da proposta, nenhuma coincidindo com o valor gravado. É o corpo que
+   * exercita `package-box.schema.ts:99` (`if (worstUneditedMargin === null) return`) e a gravação de
+   * `measurement_margin_mm: null` com origem `camera_adjusted`.
+   */
+  it('camera_adjusted com as três dimensões digitadas por cima da proposta (margem nula, D16)', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: { height: true, length: true, width: true },
+      grossWeightGrams: null,
+      heightMm: 360,
+      impreciseConfirmed: false,
+      lengthMm: 610,
+      proposal: proposalOf(FLOAT_NOMINAL, {
+        heightMarginMm: 19.5,
+        lengthMarginMm: 24.6,
+        widthMarginMm: 14.5,
+      }),
+      unitsPerBox: 1,
+      widthMm: 410,
+    })
+
+    expect(submission).toEqual(
+      bodyOf(
+        'camera_adjusted, as tres dimensoes digitadas por cima da proposta (margem nula, D16)',
+      ),
+    )
+  })
+
+  /** D11: sem proposta nenhuma o corpo não leva bloco de câmera — a metade da API cobra a ausência. */
+  it('digitado comum não leva bloco de câmera', () => {
+    const submission = buildPackageBoxMeasurementSubmission({
+      edited: NOTHING_EDITED,
+      grossWeightGrams: null,
+      heightMm: 352,
+      impreciseConfirmed: false,
+      lengthMm: 599,
+      proposal: undefined,
+      unitsPerBox: 1,
+      widthMm: 401,
+    })
+
+    expect(submission).toEqual(bodyOf('digitado comum, sem bloco de camera nenhum (D11)'))
+  })
+})
+
+/** A mesma conta do formulário (`unconfirmedImpreciseDimensions`), sem montar o React inteiro. */
+function requiresConfirmation(
+  input: Readonly<{
+    edited: Readonly<Record<'height' | 'length' | 'width', boolean>>
+    proposal: BoxDimensionMeasuredResult
+    recorded: Readonly<Record<'height' | 'length' | 'width', null | number>>
+  }>,
+): boolean {
+  return PACKAGE_BOX_DIMENSION_KEYS.some(
+    (dimension) => dimensionReliability({ ...input, dimension }) === 'imprecise',
+  )
+}

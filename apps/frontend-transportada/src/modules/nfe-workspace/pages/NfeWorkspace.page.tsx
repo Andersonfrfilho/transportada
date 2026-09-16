@@ -17,9 +17,18 @@ import { ScheduledDistributionPanel } from '../components/ScheduledDistributionP
 import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
+import { useCameraMeasurementSettings } from '../hooks/useCameraMeasurementSettings.hook'
+import { useCameraMeasurementExport } from '../hooks/useCameraMeasurementExport.hook'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
+import {
+  buildCameraMeasurementCsv,
+  CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
+  CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE,
+} from '../shared/cameraMeasurementExport.service'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
 import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
 import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
@@ -265,9 +274,23 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canMeasureCargo && activeTab === 'boxes',
   })
+  /**
+   * Spec 152 D14: leitura própria de `cargo.measure` — quem mede não tem `settings.manage`, então
+   * não reaproveita `cargoSettings` (aquela é a leitura do painel de configuração).
+   */
+  const cameraMeasurementSettings = useCameraMeasurementSettings({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canMeasureCargo && activeTab === 'boxes',
+  })
   const cargoSettings = useCargoSettings({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && settingsScope.cargoSettings,
+    enabled:
+      canManageSettings && (settingsScope.cargoSettings || settingsScope.cameraMeasurementSettings),
+  })
+  /** Spec 152 T12 (R6/R8): mesma permissão do interruptor — export e resumo da validação. */
+  const cameraMeasurementExport = useCameraMeasurementExport({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.cameraMeasurementSettings,
   })
 
   function fileKey(file: File): string {
@@ -644,20 +667,61 @@ export function NfeWorkspacePage() {
                 id: 'boxes',
                 label: t('tabs.packageBoxes'),
                 panel: (
-                  <PackageBoxMeasurementPanel
-                    denied={!canMeasureCargo}
-                    failed={packageBoxes.failed}
-                    loading={packageBoxes.isLoading}
-                    matching={packageBoxes.isMatching}
-                    onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
-                    onScan={packageBoxes.setScanned}
-                    onSearchChange={packageBoxes.setSearch}
-                    onStatusChange={packageBoxes.setStatus}
-                    queue={packageBoxes.queue}
-                    saving={packageBoxes.measure.isPending}
-                    search={packageBoxes.search}
-                    status={packageBoxes.status}
-                  />
+                  <>
+                    {canManageSettings && (
+                      <div className={settingsStyles.settingsDeck}>
+                        <CameraMeasurementSettingsPanel
+                          disabled={cargoSettings.cameraMeasurementMutation.isPending}
+                          enabled={cargoSettings.query.data?.cameraMeasurementEnabled}
+                          loading={cargoSettings.query.isLoading}
+                          onToggle={(next) => cargoSettings.cameraMeasurementMutation.mutate(next)}
+                          toggleErrorCode={toErrorCode(
+                            cargoSettings.cameraMeasurementMutation.error,
+                          )}
+                          validation={{
+                            entries: cameraMeasurementExport.entries,
+                            errorCode: cameraMeasurementExport.errorCode,
+                            from: cameraMeasurementExport.from,
+                            hasNextPage: cameraMeasurementExport.hasNextPage === true,
+                            isFetchingNextPage: cameraMeasurementExport.isFetchingNextPage,
+                            isLoading: cameraMeasurementExport.isLoading,
+                            onExport: () => {
+                              saveArchiveFile({
+                                blob: new Blob(
+                                  [buildCameraMeasurementCsv(cameraMeasurementExport.entries)],
+                                  { type: CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE },
+                                ),
+                                fileName: CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
+                              })
+                            },
+                            onLoadMore: cameraMeasurementExport.fetchNextPage,
+                            onPeriodChange: cameraMeasurementExport.setPeriod,
+                            summary: cameraMeasurementExport.summary,
+                            to: cameraMeasurementExport.to,
+                          }}
+                        />
+                      </div>
+                    )}
+                    <PackageBoxMeasurementPanel
+                      cameraMeasurementEnabled={cameraMeasurementSettings.cameraMeasurementEnabled}
+                      denied={!canMeasureCargo}
+                      failed={packageBoxes.failed}
+                      loading={packageBoxes.isLoading}
+                      matching={packageBoxes.isMatching}
+                      onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
+                      onResetSaveError={packageBoxes.resetMeasure}
+                      onRetryLookup={packageBoxes.retryLookup}
+                      onScan={packageBoxes.setScanned}
+                      onSearchChange={packageBoxes.setSearch}
+                      onStatusChange={packageBoxes.setStatus}
+                      queue={packageBoxes.queue}
+                      saveErrorCode={packageBoxes.measureErrorCode}
+                      saveStatus={packageBoxes.measure.status}
+                      saving={packageBoxes.measure.isPending}
+                      search={packageBoxes.search}
+                      status={packageBoxes.status}
+                    />
+                  </>
                 ),
               },
             ]}

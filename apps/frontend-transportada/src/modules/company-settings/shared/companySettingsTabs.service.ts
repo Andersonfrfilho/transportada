@@ -19,6 +19,7 @@ export const SETTINGS_PANELS = [
   'deliveryProof',
   'federalTaxes',
   'contractorMail',
+  'cameraMeasurement',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -35,6 +36,7 @@ export const SETTINGS_PANEL_MODULES = [
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
+  | 'cameraMeasurementSettings'
   | 'cargoSettings'
   | 'cargoVolumeFactors'
   | 'companyContacts'
@@ -70,6 +72,11 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  /**
+   * Spec 152 D14 — o interruptor mora na aba onde o conferente já está: é lá que "Medir esta
+   * caixa" aparece ou some, e é lá que quem administra configurações vê o efeito do que ligou.
+   */
+  cameraMeasurement: { module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' },
   /**
    * Spec 077 — o fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a
    * partir do mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas
@@ -162,6 +169,7 @@ export function resolveSettingsDataScope(
     settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
   )
   return {
+    cameraMeasurementSettings: sources.has('cameraMeasurementSettings'),
     cargoSettings: sources.has('cargoSettings'),
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),

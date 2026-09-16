@@ -10,6 +10,8 @@ import { AuthorizationService } from '../src/identity/application/authorization.
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
+import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
+import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
@@ -61,6 +63,8 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createBillingRoutes(dependencies),
     ...createCteIssuanceRoutes(dependencies),
     ...createNfeDocumentRoutes(dependencies),
+    ...createPackageBoxRoutes(dependencies),
+    ...createPackageBoxMeasurementExportRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
   ]
 
@@ -104,6 +108,15 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/events',
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
+      /**
+       * T14 item 4 (revisão de segurança): as três rotas de `cargo.measure` (spec 085 G005,
+       * spec 152) entram nesta lista pela primeira vez. Decisão registrada aqui: o separador já
+       * tinha a permissão `cargo.measure` (contrato "cargo.measure — a permissão de quem mede a
+       * caixa" acima), e medir caixa **é** o trabalho de quem separa — as três rotas só tornam essa
+       * permissão exercível por HTTP, sem abrir nada novo em fleet, billing ou fiscal.
+       */
+      'GET /nfe-package-boxes',
+      'GET /nfe-package-boxes/measurement-settings',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
@@ -256,6 +269,7 @@ describe('separator role contract', () => {
        * valores ao lado. Ele continua sem enxergar receita, custo e margem.
        */
       'POST /trips/cargo-preview',
+      'PUT /nfe-package-boxes/:id',
     ])
   })
 

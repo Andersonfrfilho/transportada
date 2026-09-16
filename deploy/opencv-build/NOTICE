@@ -1,0 +1,22 @@
+OpenCV.js — build modificado para a medida pela câmera do TransportAdA (ADR-0065)
+
+Este diretório redistribui um build do OpenCV (https://opencv.org), Copyright (C) 2000-2026 os
+contribuidores do OpenCV, sob a Apache License 2.0 (arquivo LICENSE). O aviso de copyright original
+está em COPYRIGHT, e as licenças dos componentes de terceiros compilados junto estão em
+third-party-licenses/ (inclui o runtime do Emscripten, MIT/NCSA).
+
+Modificações feitas pela Ada Technology em relação ao OpenCV 5.0.0 (commit
+40738fb16ceddb5fb3fea747585f7ce6abb0605b), todas em deploy/opencv-build/build.sh:
+
+1. Compilado com Emscripten 4.0.20 e -s DYNAMIC_EXECUTION=0 (sem new Function / eval no embind),
+   -s SINGLE_FILE=1 (o WASM vai embutido no JS) e -DCMAKE_CXX_STANDARD=17.
+2. Módulos: só core, imgproc, objdetect (aruco) e as dependências geometry, features, flann e photo;
+   3d, calib, dnn, stereo, video e ml desligados.
+3. Bindings JS reduzidos à whitelist de deploy/opencv-build/opencv_js.config.py.
+4. Wrapper UMD ajustado para worker ESM: `this` trocado por `globalThis` e `Module = {}` declarado
+   com `var`.
+5. SOURCE_DATE_EPOCH fixado na data do commit do OpenCV e a linha "Host:" do getBuildInformation()
+   neutralizada, para o build ser reproduzível.
+
+O código-fonte correspondente é o OpenCV 5.0.0 publicado em https://github.com/opencv/opencv, e o
+procedimento completo de build é deploy/opencv-build/build.sh.

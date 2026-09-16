@@ -12,3 +12,5 @@ PROJECT.MD
 # Gerado pelo drizzle-kit a cada migration — formatar produz churn e um diff de milhares de linhas
 apps/*/drizzle/*/snapshot.json
 apps/*/drizzle*/meta
+# Artefato do build próprio do OpenCV (ADR-0065): conferido por sha256, formatar o quebraria
+apps/frontend-transportada/vendor/opencv

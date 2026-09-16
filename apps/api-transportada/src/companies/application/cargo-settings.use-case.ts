@@ -34,3 +34,18 @@ export function createClearDefaultVolumeWeightUseCase(dependencies: Dependencies
 } {
   return { execute: (input) => dependencies.cargoSettings.clearDefaultVolumeWeight(input) }
 }
+
+/** Spec 152 D14: liga/desliga a medida pela câmera, `settings.manage`. */
+export function createSetCameraMeasurementEnabledUseCase(dependencies: Dependencies): {
+  readonly execute: (input: {
+    readonly companyId: string
+    readonly enabled: boolean
+  }) => Promise<CargoSettings>
+} {
+  return {
+    execute: async (input) => {
+      await dependencies.cargoSettings.setCameraMeasurementEnabled(input)
+      return dependencies.cargoSettings.load({ companyId: input.companyId })
+    },
+  }
+}

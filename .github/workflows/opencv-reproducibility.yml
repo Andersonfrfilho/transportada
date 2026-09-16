@@ -1,0 +1,62 @@
+name: OpenCV reproducibility
+
+# O OpenCV.js da medida pela câmera é artefato versionado (ADR-0065 §3). Este workflow recompila no
+# contêiner fixado por digest e falha se o sha256 não for o que o contrato declara: é o que prova
+# que o arquivo em vendor/ saiu do script em deploy/opencv-build/ e de nada mais.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 1 * *'
+  pull_request:
+    paths:
+      - 'deploy/opencv-build/**'
+      - 'apps/frontend-transportada/vendor/opencv/**'
+  push:
+    branches: [staging, main]
+    paths:
+      - 'deploy/opencv-build/**'
+      - 'apps/frontend-transportada/vendor/opencv/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencv-reproducibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build OpenCV.js no contêiner
+        run: deploy/opencv-build/build-in-docker.sh opencv-rebuild
+
+      # Sobe sempre, inclusive quando o sha256 diverge: na primeira troca do artefato gerado no macOS
+      # pelo do contêiner, é daqui que sai o arquivo a versionar.
+      - name: Guardar o artefato gerado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencv-js-rebuild
+          path: opencv-rebuild/
+          if-no-files-found: error
+
+      - name: Conferir o sha256 contra o contrato
+        run: |
+          expected="$(grep -oE "ARTIFACT_SHA256 = '[0-9a-f]{64}'" apps/frontend-transportada/test/shared/opencv-build.contract.ts | grep -oE '[0-9a-f]{64}')"
+          actual="$(sha256sum opencv-rebuild/opencv.js | cut -d' ' -f1)"
+          versioned="$(sha256sum apps/frontend-transportada/vendor/opencv/opencv.js | cut -d' ' -f1)"
+          echo "contrato:   $expected"
+          echo "versionado: $versioned"
+          echo "recompilado: $actual"
+          if [ "$expected" != "$versioned" ]; then
+            echo "::error::o artefato versionado não é o que o contrato declara"
+            exit 1
+          fi
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::o build no contêiner não reproduz o artefato versionado (baixe opencv-js-rebuild)"
+            exit 1
+          fi

@@ -27,6 +27,7 @@ import { createGetScheduledDistributionStatusUseCase } from './companies/applica
 import {
   createClearDefaultVolumeWeightUseCase,
   createGetCargoSettingsUseCase,
+  createSetCameraMeasurementEnabledUseCase,
   createSetDefaultVolumeWeightUseCase,
 } from './companies/application/cargo-settings.use-case.js'
 import { createCompanyContactsUseCase } from './companies/application/company-contacts.use-case.js'
@@ -496,8 +497,12 @@ import { createListNfeDocumentEvents } from './nfe-documents/application/list-nf
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
+import { createListPackageBoxMeasurements } from './nfe-documents/application/list-package-box-measurements.use-case'
 import { DrizzlePackageBoxRepository } from './nfe-documents/infrastructure/drizzle-package-box.repository'
+import { DrizzleCameraMeasurementSettingsRepository } from './nfe-documents/infrastructure/drizzle-camera-measurement-settings.repository'
+import { DrizzlePackageBoxMeasurementExportRepository } from './nfe-documents/infrastructure/drizzle-package-box-measurement-export.repository'
 import { createPackageBoxRoutes } from './nfe-documents/presentation/package-box.routes'
+import { createPackageBoxMeasurementExportRoutes } from './nfe-documents/presentation/package-box-measurement-export.routes'
 import { createOperationsUseCase } from './operations/application/operations.use-case'
 import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
 import { createOperationsRoutes } from './operations/presentation/operations.routes'
@@ -1513,6 +1518,12 @@ function createApplicationRoutes({
     repository: new DrizzleNfeDocumentEventRepository(database),
   })
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
+  const cameraMeasurementSettingsRepository = new DrizzleCameraMeasurementSettingsRepository(
+    database,
+  )
+  const packageBoxMeasurementExportRepository = new DrizzlePackageBoxMeasurementExportRepository(
+    database,
+  )
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
   const requestImport = createRequestNfeImportUseCase({
@@ -1866,6 +1877,9 @@ function createApplicationRoutes({
       clear: createClearDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
+      setCameraMeasurementEnabled: createSetCameraMeasurementEnabledUseCase({
+        cargoSettings: cargoSettingsRepository,
+      }),
     }),
     ...createCargoVolumeFactorRoutes({
       list: createListCargoVolumeFactorsUseCase({ factors: cargoVolumeFactorRepository }),
@@ -2854,8 +2868,17 @@ function createApplicationRoutes({
       locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
     }),
     ...createPackageBoxRoutes({
+      cameraMeasurementSettings: cameraMeasurementSettingsRepository,
       listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
-      measurePackageBox: createMeasurePackageBox({ repository: packageBoxRepository }),
+      measurePackageBox: createMeasurePackageBox({
+        cameraMeasurementSettings: cameraMeasurementSettingsRepository,
+        repository: packageBoxRepository,
+      }),
+    }),
+    ...createPackageBoxMeasurementExportRoutes({
+      listPackageBoxMeasurements: createListPackageBoxMeasurements({
+        repository: packageBoxMeasurementExportRepository,
+      }),
     }),
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),

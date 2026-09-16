@@ -25,6 +25,12 @@ const CONTENT_SECURITY_POLICY_PATH = 'content-security-policy.txt'
 const MAP_TILES_PREFIX = '/map-tiles/'
 /** Mapa envelhece por lei e por obra, não por semana; e o nome muda quando ele é refeito. */
 const MAP_TILES_CACHE_CONTROL = 'public, max-age=2592000'
+/**
+ * O chunk do OpenCV (spec 152 T8, ADR-0065 §4): 3,05 MB brutos, ~0,89 MB comprimido. O Vite não
+ * comprime nada — `openCvCompressionPlugin` do `vite.config.ts` grava `.gz`/`.br` ao lado do chunk
+ * no build, e aqui a gente escolhe pelo `Accept-Encoding` do pedido, igual a um proxy faria.
+ */
+const OPENCV_CHUNK_PATTERN = /^\/assets\/opencv-[^/]+\.js$/u
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -65,6 +71,12 @@ Bun.serve({
     if (await asset.exists()) {
       if (url.pathname.startsWith(MAP_TILES_PREFIX)) {
         return respond(rangeResponse(asset, request), MAP_TILES_CACHE_CONTROL)
+      }
+      if (OPENCV_CHUNK_PATTERN.test(url.pathname)) {
+        return respond(
+          await precompressedResponse(asset, url.pathname, request),
+          cacheControlFor(url.pathname),
+        )
       }
       return respond(new Response(asset), cacheControlFor(url.pathname))
     }
@@ -114,6 +126,60 @@ function rangeResponse(file: Bun.BunFile, request: Request): Response {
     },
     status: 206,
   })
+}
+
+/**
+ * `Accept-Encoding` é lista separada por vírgula, cada token com `;q=` opcional (RFC 9110 §12.5.3).
+ * `.includes('br')` cru casava `br;q=0` — que É o cliente dizendo que **não** aceita — e `gzip`
+ * como substring de `x-gzip`, um token diferente. T14 item 5: parseia de verdade, ignora `q=0`, e
+ * devolve só o que o cliente realmente aceita, na ordem em que apareceu.
+ */
+function acceptedEncodings(acceptEncodingHeader: string): readonly string[] {
+  return acceptEncodingHeader
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token !== '')
+    .flatMap((token) => {
+      const [rawEncoding = '', ...parameters] = token.split(';').map((part) => part.trim())
+      const qualityParameter = parameters.find((parameter) => parameter.startsWith('q='))
+      const quality = qualityParameter === undefined ? 1 : Number(qualityParameter.slice(2))
+      const encoding = rawEncoding.toLowerCase()
+      return encoding === '' || quality === 0 ? [] : [encoding]
+    })
+}
+
+/**
+ * Prefere Brotli, cai para gzip, e serve o arquivo original se nenhum dos dois existir ou se o
+ * cliente não anunciar a codificação — nunca lança e nunca falha 404 por falta de compressão.
+ * `Vary: Accept-Encoding` vai em TODO ramo, inclusive o não comprimido: sem ele um cache
+ * intermediário pode devolver a resposta sem compressão para um cliente que aceitava Brotli.
+ */
+async function precompressedResponse(
+  original: Bun.BunFile,
+  pathname: string,
+  request: Request,
+): Promise<Response> {
+  const accepted = acceptedEncodings(request.headers.get('accept-encoding') ?? '')
+  const candidates: readonly [string, string][] = [
+    ['br', `${pathname}.br`],
+    ['gzip', `${pathname}.gz`],
+  ]
+  for (const [encoding, encodedPathname] of candidates) {
+    if (!accepted.includes(encoding)) continue
+    const encodedAsset = resolveAsset(encodedPathname)
+    if (!(await encodedAsset.exists())) continue
+    // O `.br`/`.gz` no nome faz o Bun adivinhar `application/octet-stream` pela extensão errada —
+    // com `X-Content-Type-Options: nosniff` isso quebra o `import()` do módulo no navegador
+    // (sonda T9, `specs/152-medir-caixa-pela-camera/evidence.md` § T9). O tipo certo é o do
+    // arquivo original, não o do arquivo comprimido.
+    const response = new Response(encodedAsset, { headers: { 'Content-Type': original.type } })
+    response.headers.set('Content-Encoding', encoding)
+    response.headers.set('Vary', 'Accept-Encoding')
+    return response
+  }
+  const fallback = new Response(original)
+  fallback.headers.set('Vary', 'Accept-Encoding')
+  return fallback
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {

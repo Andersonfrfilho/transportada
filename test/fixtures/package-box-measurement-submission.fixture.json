@@ -1,0 +1,155 @@
+{
+  "comment": "Spec 152 T14 (2a revisao): os corpos que o formulario da camera do frontend realmente produz. O contrato do frontend prova que a app gera exatamente estes corpos; o contrato da API prova que parsePackageBoxMeasurement aceita cada um. Fixture compartilhada porque nenhuma app importa codigo-fonte de outra.",
+  "cases": [
+    {
+      "name": "camera pura, nenhuma dimensao editada",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 10,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 7,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "camera",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera_adjusted, altura nao lida pela camera e digitada por cima (D6)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 45,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 7,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 450,
+        "lengthMm": 599,
+        "source": "camera_adjusted",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera_adjusted, comprimento corrigido por cima e altura imprecisa confirmada",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 13,
+          "impreciseConfirmed": true,
+          "lengthMarginMm": 7,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": ["steepAngle"],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": 12000,
+        "heightMm": 352,
+        "lengthMm": 600,
+        "source": "camera_adjusted",
+        "unitsPerBox": 2,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera_adjusted, a fita concorda com a proposta imprecisa e o conferente confirma (D16)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 10,
+          "impreciseConfirmed": true,
+          "lengthMarginMm": 11,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "camera_adjusted",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera pura com os sete avisos do dominio de uma vez (D9)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 10,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 7,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [
+            "markerNotFound",
+            "markerTooSmall",
+            "steepAngle",
+            "lowLight",
+            "blurry",
+            "boxOutOfFrame",
+            "unstable"
+          ],
+          "widthMarginMm": 4
+        },
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "camera",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "digitado comum, sem bloco de camera nenhum (D11)",
+      "body": {
+        "grossWeightGrams": null,
+        "heightMm": 352,
+        "lengthMm": 599,
+        "source": "typed",
+        "unitsPerBox": 1,
+        "widthMm": 401
+      }
+    },
+    {
+      "name": "camera_adjusted, as tres dimensoes digitadas por cima da proposta (margem nula, D16)",
+      "body": {
+        "camera": {
+          "engine": "aruco-homography-v1",
+          "heightMarginMm": 20,
+          "impreciseConfirmed": false,
+          "lengthMarginMm": 25,
+          "proposedHeightMm": 352,
+          "proposedLengthMm": 599,
+          "proposedWidthMm": 401,
+          "warnings": [],
+          "widthMarginMm": 15
+        },
+        "grossWeightGrams": null,
+        "heightMm": 360,
+        "lengthMm": 610,
+        "source": "camera_adjusted",
+        "unitsPerBox": 1,
+        "widthMm": 410
+      }
+    }
+  ]
+}

@@ -194,7 +194,12 @@ Invariantes mais cotadas para não reimplementar por engano:
 - Implemento (carreta) é o que carrega, cavalo mecânico não entra na tabela de frete nem na conta de
   cubagem — `vehicle_type` do implemento é vazio de propósito.
 - Medir uma caixa é `cargo.measure`, permissão própria (não `settings.manage`), e **substitui** a
-  medição anterior — nunca duas verdades para a mesma caixa.
+  medição anterior — nunca duas verdades para a mesma caixa. A medida grava `measurement_source`
+  (`typed` | `camera` | `camera_adjusted`) e `measurement_margin_mm`, com histórico append-only
+  em `nfe_package_box_measurements` incluindo a proposta da câmera, os motivos de aviso, o motor e o
+  ator. Interruptor por empresa (`company_cargo_settings.camera_measurement_enabled`, padrão `false`)
+  desliga a câmera sem deploy; com a função desligada, `PUT` com `source: camera|camera_adjusted`
+  retorna **422** `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` (spec 152, ADR-0065).
 - O desenho da carga é a vista em perspectiva por camada (`TripCargoLayers` sobre
   `cargo-isometric.tsx`, `<svg>` do design system, nunca cru), alimentada por `cargoLayout.placement`.
   A planta em escala (`scale-plan.tsx`) e a fileira da 085 saíram da tela em `453e0b1e`; sem as três
