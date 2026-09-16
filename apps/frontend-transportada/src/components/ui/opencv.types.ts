@@ -21,6 +21,7 @@ export type OpenCvMatVector = Readonly<{
 
 export type OpenCvArucoDictionary = Readonly<{ readonly brand?: 'aruco-dictionary' }>
 export type OpenCvArucoDetectorParameters = Readonly<{ readonly brand?: 'aruco-parameters' }>
+export type OpenCvArucoRefineParameters = Readonly<{ readonly brand?: 'aruco-refine-parameters' }>
 
 export type OpenCvArucoDetector = Readonly<{
   detectMarkers: (image: OpenCvMat, corners: OpenCvMatVector, ids: OpenCvMat) => void
@@ -40,8 +41,14 @@ export type OpenCvModule = Readonly<{
   aruco_ArucoDetector: new (
     dictionary: OpenCvArucoDictionary,
     parameters: OpenCvArucoDetectorParameters,
+    refineParameters: OpenCvArucoRefineParameters,
   ) => OpenCvArucoDetector
   aruco_DetectorParameters: new () => OpenCvArucoDetectorParameters
+  aruco_RefineParameters: new (
+    minRepDistance: number,
+    errorCorrectionRate: number,
+    checkAllOrders: boolean,
+  ) => OpenCvArucoRefineParameters
   COLOR_RGBA2GRAY: number
   CV_64F: number
   DICT_4X4_50: number

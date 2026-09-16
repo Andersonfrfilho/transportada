@@ -144,11 +144,14 @@ Contrato/aceite **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T9 — Máquina de etapas.** `shared/packageBoxCameraFlow.service.ts` (reducer puro), com teste
-      antes em `test/nfe-workspace/package-box-camera-flow.contract.ts`. Inclui o estado da função
-      (ligada/desligada) e a pré-carga. **Aceite:** cobre R1 (0/1/N candidatas, voltar, gravado →
-      etiqueta), R4 (`unsupported` e carga > 15 s → digitado da caixa lida) e R7 (desligada → sem
-      etapa Medida).
+- [x] **T9 — Máquina de etapas.** Feito (evidence.md § T9). `shared/packageBoxCameraFlow.service.ts`
+      (reducer puro), com teste antes em `test/nfe-workspace/package-box-camera-flow.contract.ts`.
+      Inclui o estado da função (ligada/desligada) e a pré-carga. Passo 0: sonda descartável
+      confirmou o worker (`boxDimension.worker.ts`) detectando o ArUco sob a CSP real, e achou dois
+      defeitos reais da T8 corrigidos aqui — `Content-Type` do chunk pré-comprimido em `server.ts` e
+      o construtor de 3 parâmetros de `aruco_ArucoDetector`/`aruco_RefineParameters`. **Aceite:**
+      cobre R1 (0/1/N candidatas, voltar, gravado → etiqueta), R4 (`unsupported` e carga > 15 s →
+      digitado da caixa lida) e R7 (desligada → sem etapa Medida).
 - [ ] **T10 — Formulário com proposta, selo, aviso e confirmação.** Extrair
       `PackageBoxMeasurementForm.component.tsx`: `proposal`, margem ±cm por campo, aviso com texto +
       ícone + `role="alert"`, campo vazio acima de 30 mm, `camera_adjusted` ao editar, diálogo
