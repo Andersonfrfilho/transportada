@@ -1577,10 +1577,18 @@ footer {
  *
  * ⚠️ É `visibility`, e não `display`: `display: none` num ancestral zera a caixa do `<svg>` de dentro,
  * e o desenho sairia em branco. Escondido por visibilidade, ele mantém o tamanho que tinha.
+ *
+ * ⚠️ Mas o que fica escondido por visibilidade **ocupa lugar**: com a região num portal fora do app
+ * (o cartão de medição), a tela inteira seguia no fluxo e virava páginas em branco. O filho do
+ * `body` que não contém região nenhuma sai do layout — um ancestral da região nunca, pelo `:has`.
  */
 @media print {
   body * {
     visibility: hidden;
+  }
+
+  body:has([data-print-region]) > :not([data-print-region]):not(:has([data-print-region])) {
+    display: none;
   }
 
   [data-print-region],
