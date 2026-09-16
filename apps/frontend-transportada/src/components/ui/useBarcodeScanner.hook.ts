@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { BarcodeFrame } from './barcodeDecoder.service'
+import { MAXIMUM_FRAME_WIDTH } from './cameraFrame.constant'
 import type { BarcodeWorkerAnswer } from './barcodeDecoder.worker'
 import {
   createNativeBarcodeDetector,
@@ -13,7 +14,6 @@ import {
 } from './barcodeScanner.service'
 
 const FRAME_INTERVAL_MS = 250
-const MAXIMUM_FRAME_WIDTH = 720
 /**
  * A etiqueta continua parada na frente da câmera por vários quadros depois de lida uma vez — sem
  * este intervalo o mesmo texto reanunciaria a cada 250ms. Curto o bastante para o operador poder
