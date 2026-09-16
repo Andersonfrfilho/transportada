@@ -4,6 +4,11 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
 
 import { readInstallationBrand } from '../../src/modules/identity/shared/installationBrand.service'
+import {
+  mergeInstallationBrand,
+  readCachedInstallationBrand,
+  writeCachedInstallationBrand,
+} from '../../src/modules/identity/shared/installationBrandCache.service'
 import { buildContentSecurityPolicy } from '../../src/modules/shared/contentSecurityPolicy.service'
 
 const API_URL = 'https://api.exemplo.com.br'
@@ -169,5 +174,65 @@ describe('a marca da transportadora acompanha a pessoa depois de entrar', () => 
     const query = readFileSync('src/modules/identity/queries/useInstallationBrand.query.ts', 'utf8')
 
     expect(query).toMatch(/retry: [1-9]/u)
+  })
+})
+
+function memoryStorage(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial))
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+  }
+}
+
+/**
+ * A tela piscava: abria com o esqueleto (ou com o produto, no login) e trocava pela transportadora
+ * quando a API respondia. A última marca lida é guardada e vira o primeiro quadro da próxima visita.
+ */
+describe('a marca nasce pronta, sem piscar', () => {
+  const company = { logoUrl: `${API_URL}/public/landing-logo`, name: 'Transportes Exemplo' }
+
+  test('o que se grava volta igual na leitura seguinte', () => {
+    const storage = memoryStorage()
+
+    writeCachedInstallationBrand(company, storage)
+
+    expect(readCachedInstallationBrand(storage)).toEqual(company)
+  })
+
+  test('conteúdo corrompido ou navegador sem armazenamento não derrubam a tela', () => {
+    expect(
+      readCachedInstallationBrand(memoryStorage({ 'transportada.installation-brand.v1': '{' })),
+    ).toBeUndefined()
+    expect(readCachedInstallationBrand(null)).toBeUndefined()
+    expect(() =>
+      writeCachedInstallationBrand(company, {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceededError')
+        },
+      }),
+    ).not.toThrow()
+  })
+
+  /** API fora do ar responde igual instalação sem nome: trocar a empresa pelo produto é a piscada. */
+  test('leitura sem nome não apaga a transportadora já conhecida', () => {
+    const fetched = { logoUrl: company.logoUrl, name: null }
+
+    expect(mergeInstallationBrand({ cached: company, fetched })).toEqual(company)
+    expect(mergeInstallationBrand({ cached: undefined, fetched })).toEqual(fetched)
+    expect(
+      mergeInstallationBrand({ cached: company, fetched: { ...company, name: 'Nome Novo' } }).name,
+    ).toBe('Nome Novo')
+  })
+
+  test('app e tela de entrar começam pela marca guardada', () => {
+    const query = readFileSync('src/modules/identity/queries/useInstallationBrand.query.ts', 'utf8')
+    const login = readFileSync('src/modules/identity/pages/LoginIdentifier.page.tsx', 'utf8')
+
+    expect(query).toContain('initialData: readCachedInstallationBrand')
+    expect(query).toContain('initialDataUpdatedAt: 0')
+    expect(login).toContain('useState<InstallationBrand | undefined>(readCachedInstallationBrand)')
+    expect(login).not.toContain("brand?.name ?? 'TransportAdA'")
   })
 })

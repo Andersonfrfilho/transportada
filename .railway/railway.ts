@@ -268,6 +268,8 @@ export default defineRailway((ctx) => {
       KC_LOG_LEVEL: preserve(),
       KC_PROXY_HEADERS: preserve(),
       KEYCLOAK_ADMIN_CLIENT_SECRET: preserve(),
+      /** Origem da API de onde o tema lê nome e logo da transportadora (`/public/landing-*`). */
+      KEYCLOAK_BRAND_API_ORIGIN: preserve(),
       KEYCLOAK_FRONTEND_ORIGIN: preserve(),
       KEYCLOAK_REALM_DISPLAY_NAME: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),

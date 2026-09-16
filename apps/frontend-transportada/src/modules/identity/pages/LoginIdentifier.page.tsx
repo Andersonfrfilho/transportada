@@ -4,11 +4,17 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
 import { readInstallationBrand, type InstallationBrand } from '../shared/installationBrand.service'
+import {
+  mergeInstallationBrand,
+  readCachedInstallationBrand,
+  writeCachedInstallationBrand,
+} from '../shared/installationBrandCache.service'
 import { resolveLoginHint } from '../shared/loginHintClient.service'
 import styles from '../styles/loginIdentifier.module.css'
 
@@ -24,7 +30,8 @@ export function LoginIdentifierPage() {
   const { t } = useTranslation('identity')
   const [identifier, setIdentifier] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
-  const [brand, setBrand] = useState<InstallationBrand | null>(null)
+  /** A marca da última visita é o primeiro quadro: sem ela, a tela nascia com o produto e trocava. */
+  const [brand, setBrand] = useState<InstallationBrand | undefined>(readCachedInstallationBrand)
   /** Instalação sem logotipo configurado, ou API fora do ar: a marca do produto assume. */
   const [hasLogo, setHasLogo] = useState(true)
 
@@ -33,7 +40,9 @@ export function LoginIdentifierPage() {
     void readInstallationBrand({
       apiUrl: getIdentityEnvironment().apiBaseUrl,
       fetch: globalThis.fetch.bind(globalThis),
-    }).then((resolved) => {
+    }).then((fetched) => {
+      const resolved = mergeInstallationBrand({ cached: readCachedInstallationBrand(), fetched })
+      writeCachedInstallationBrand(resolved)
       if (active) setBrand(resolved)
     })
     return () => {
@@ -69,15 +78,22 @@ export function LoginIdentifierPage() {
           antes de digitar o próprio documento. O ícone é o mesmo do app instalado.
         */}
         <div className={styles.brand}>
-          <img
-            alt=""
-            aria-hidden="true"
-            className={styles.brandMark}
-            /** O `onError` cobre o 404 da instalação sem logotipo e a imagem que não carrega. */
-            onError={() => setHasLogo(false)}
-            src={brand !== null && hasLogo ? brand.logoUrl : '/icons/icon.svg'}
-          />
-          <strong className={styles.brandName}>{brand?.name ?? 'TransportAdA'}</strong>
+          {/* Primeira visita, marca ainda a caminho: a forma dela, nunca o produto que depois troca. */}
+          {brand === undefined ? (
+            <Skeleton height="4.5rem" width="var(--space-16)" />
+          ) : (
+            <>
+              <img
+                alt=""
+                aria-hidden="true"
+                className={styles.brandMark}
+                /** O `onError` cobre o 404 da instalação sem logotipo e a imagem que não carrega. */
+                onError={() => setHasLogo(false)}
+                src={hasLogo ? brand.logoUrl : '/icons/icon.svg'}
+              />
+              <strong className={styles.brandName}>{brand.name ?? 'TransportAdA'}</strong>
+            </>
+          )}
         </div>
 
         <h1 className={styles.title}>{t('login.title')}</h1>
