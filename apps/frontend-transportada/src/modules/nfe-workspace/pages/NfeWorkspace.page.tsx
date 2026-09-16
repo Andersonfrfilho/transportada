@@ -17,6 +17,7 @@ import { ScheduledDistributionPanel } from '../components/ScheduledDistributionP
 import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
@@ -267,7 +268,8 @@ export function NfeWorkspacePage() {
   })
   const cargoSettings = useCargoSettings({
     ...(companyId === undefined ? {} : { companyId }),
-    enabled: canManageSettings && settingsScope.cargoSettings,
+    enabled:
+      canManageSettings && (settingsScope.cargoSettings || settingsScope.cameraMeasurementSettings),
   })
 
   function fileKey(file: File): string {
@@ -644,20 +646,35 @@ export function NfeWorkspacePage() {
                 id: 'boxes',
                 label: t('tabs.packageBoxes'),
                 panel: (
-                  <PackageBoxMeasurementPanel
-                    denied={!canMeasureCargo}
-                    failed={packageBoxes.failed}
-                    loading={packageBoxes.isLoading}
-                    matching={packageBoxes.isMatching}
-                    onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
-                    onScan={packageBoxes.setScanned}
-                    onSearchChange={packageBoxes.setSearch}
-                    onStatusChange={packageBoxes.setStatus}
-                    queue={packageBoxes.queue}
-                    saving={packageBoxes.measure.isPending}
-                    search={packageBoxes.search}
-                    status={packageBoxes.status}
-                  />
+                  <>
+                    {canManageSettings && (
+                      <div className={settingsStyles.settingsDeck}>
+                        <CameraMeasurementSettingsPanel
+                          disabled={cargoSettings.cameraMeasurementMutation.isPending}
+                          enabled={cargoSettings.query.data?.cameraMeasurementEnabled}
+                          loading={cargoSettings.query.isLoading}
+                          onToggle={(next) => cargoSettings.cameraMeasurementMutation.mutate(next)}
+                          toggleErrorCode={toErrorCode(
+                            cargoSettings.cameraMeasurementMutation.error,
+                          )}
+                        />
+                      </div>
+                    )}
+                    <PackageBoxMeasurementPanel
+                      denied={!canMeasureCargo}
+                      failed={packageBoxes.failed}
+                      loading={packageBoxes.isLoading}
+                      matching={packageBoxes.isMatching}
+                      onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
+                      onScan={packageBoxes.setScanned}
+                      onSearchChange={packageBoxes.setSearch}
+                      onStatusChange={packageBoxes.setStatus}
+                      queue={packageBoxes.queue}
+                      saving={packageBoxes.measure.isPending}
+                      search={packageBoxes.search}
+                      status={packageBoxes.status}
+                    />
+                  </>
                 ),
               },
             ]}

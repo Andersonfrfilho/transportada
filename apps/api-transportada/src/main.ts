@@ -27,6 +27,7 @@ import { createGetScheduledDistributionStatusUseCase } from './companies/applica
 import {
   createClearDefaultVolumeWeightUseCase,
   createGetCargoSettingsUseCase,
+  createSetCameraMeasurementEnabledUseCase,
   createSetDefaultVolumeWeightUseCase,
 } from './companies/application/cargo-settings.use-case.js'
 import { createCompanyContactsUseCase } from './companies/application/company-contacts.use-case.js'
@@ -1869,6 +1870,9 @@ function createApplicationRoutes({
       clear: createClearDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
+      setCameraMeasurementEnabled: createSetCameraMeasurementEnabledUseCase({
+        cargoSettings: cargoSettingsRepository,
+      }),
     }),
     ...createCargoVolumeFactorRoutes({
       list: createListCargoVolumeFactorsUseCase({ factors: cargoVolumeFactorRepository }),
@@ -2857,6 +2861,7 @@ function createApplicationRoutes({
       locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
     }),
     ...createPackageBoxRoutes({
+      cameraMeasurementSettings: cameraMeasurementSettingsRepository,
       listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
       measurePackageBox: createMeasurePackageBox({
         cameraMeasurementSettings: cameraMeasurementSettingsRepository,

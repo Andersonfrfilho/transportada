@@ -34,9 +34,10 @@ export function useCargoSettings(input: Readonly<{ companyId?: string; enabled: 
   const saveMutation = useMutation({
     mutationFn: (defaultVolumeWeight: string | null) =>
       defaultVolumeWeight === null
-        ? client
-            .clearDefaultVolumeWeight()
-            .then((): CargoSettings => ({ defaultVolumeWeight: null }))
+        ? client.clearDefaultVolumeWeight().then((): CargoSettings => ({
+            cameraMeasurementEnabled: query.data?.cameraMeasurementEnabled ?? false,
+            defaultVolumeWeight: null,
+          }))
         : client.setDefaultVolumeWeight(defaultVolumeWeight),
     onSuccess(settings) {
       queryClient.setQueryData(queryKey, settings)
@@ -44,5 +45,13 @@ export function useCargoSettings(input: Readonly<{ companyId?: string; enabled: 
     },
   })
 
-  return { query, saveMutation }
+  /** Spec 152 D14: liga/desliga a medida pela câmera — mesma consulta, painel próprio. */
+  const cameraMeasurementMutation = useMutation({
+    mutationFn: (enabled: boolean) => client.setCameraMeasurementEnabled(enabled),
+    onSuccess(settings) {
+      queryClient.setQueryData(queryKey, settings)
+    },
+  })
+
+  return { cameraMeasurementMutation, query, saveMutation }
 }

@@ -67,6 +67,8 @@ const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 const COMPANY_ENERGY_PATH = '/company-settings/energy'
 const COMPANY_CARGO_PATH = '/company-settings/cargo'
+/** Spec 152 D14: o interruptor por empresa da medida de caixa pela câmera, `settings.manage`. */
+const COMPANY_CARGO_CAMERA_MEASUREMENT_PATH = '/company-settings/cargo/camera-measurement'
 const COMPANY_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 const COMPANY_TOLL_BOOTH_CHARGES_PATH = '/company-settings/toll-booth-charges'
 const DATA_URL_CHUNK = 8_192
@@ -147,6 +149,7 @@ export type CompanySettingsClient = Readonly<{
   retireCertificate: (purpose: CertificatePurpose) => Promise<void>
   replaceCertificate: (input: FormData) => Promise<SafeCertificate>
   replaceLogo: (file: File) => Promise<CompanyLogoMetadata>
+  setCameraMeasurementEnabled: (enabled: boolean) => Promise<CargoSettings>
   setDefaultVolumeWeight: (defaultVolumeWeight: string) => Promise<CargoSettings>
   updateSettings: (input: CompanySettingsUpdate) => Promise<CompanySettingsResponse>
 }>
@@ -630,6 +633,29 @@ async function saveCargoWeight(
   return response.data
 }
 
+async function saveCameraMeasurementEnabled(
+  input: Readonly<{ dependencies: ClientDependencies; enabled: boolean }>,
+): Promise<CargoSettings> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(
+      `${input.dependencies.apiBaseUrl}${COMPANY_CARGO_CAMERA_MEASUREMENT_PATH}`,
+      {
+        body: JSON.stringify({ enabled: input.enabled }),
+        cache: 'no-store',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        method: 'PUT',
+      },
+    ),
+  })
+  if (!isCargoSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
 /** 204 sem corpo, como a limpeza de preço: pedir JSON viraria sucesso em erro de formato. */
 async function getCargoVolumeFactors(
   dependencies: ClientDependencies,
@@ -792,6 +818,7 @@ export const createCompanySettingsClient: CompanySettingsClientFactory = (depend
   retireCertificate: (purpose) => retireCertificate({ dependencies, purpose }),
   replaceCertificate: (body) => replaceCertificate({ body, dependencies }),
   replaceLogo: (file) => replaceLogo({ dependencies, file }),
+  setCameraMeasurementEnabled: (enabled) => saveCameraMeasurementEnabled({ dependencies, enabled }),
   setDefaultVolumeWeight: (defaultVolumeWeight) =>
     saveCargoWeight({ defaultVolumeWeight, dependencies }),
   updateSettings: (settings) => updateSettings({ dependencies, settings }),

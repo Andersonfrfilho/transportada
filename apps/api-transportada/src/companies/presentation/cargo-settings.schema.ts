@@ -22,3 +22,11 @@ export function parseSetDefaultVolumeWeightBody(request: Request): Promise<{
 }> {
   return parseBody(setDefaultVolumeWeightBodySchema, request)
 }
+
+const setCameraMeasurementEnabledBodySchema = z.object({ enabled: z.boolean() }).strict()
+
+export function parseSetCameraMeasurementEnabledBody(request: Request): Promise<{
+  readonly enabled: boolean
+}> {
+  return parseBody(setCameraMeasurementEnabledBodySchema, request)
+}

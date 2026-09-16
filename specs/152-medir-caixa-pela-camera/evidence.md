@@ -797,3 +797,122 @@ editado**.
 `test/nfe-package-box/measurement-source.contract.ts`,
 `test/integration/measurement-history.integration.ts` (adicionado ao `package.json` da API, `test` e
 `test:integration`).
+
+## T4 — Interruptor por empresa
+
+Data: 2026-09-15. Modelo: `sonnet` (executor).
+
+### Contrato antes da implementação
+
+`test/company-settings/camera-measurement-flag.contract.ts` (API, `settings.manage` na rota do
+painel, `GET /company-settings/cargo` retrocompatível ganhando `cameraMeasurementEnabled`, corpo
+`.strict()` recusando campo desconhecido e valor fora de `boolean`, `cache-control: no-store`) e
+`test/integration/camera-measurement-flag.integration.ts` (Postgres real: ausência de linha lida
+como `false` pelas duas portas, ligar/desligar reflete de imediato na porta do conferente sem tocar
+no peso padrão, e contrato de tenant — ligar numa empresa não vaza para outra) escritos antes do
+código de produção; falhavam por import ausente (`setCameraMeasurementEnabled`,
+`API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH`) até a implementação existir.
+`test/nfe-workspace/camera-measurement-settings.contract.ts` (frontend, placement + presença do
+painel/hook/cliente + rótulos acentuados + estado nunca só por cor) também escrito antes do
+componente e do wiring na página.
+
+### Desenho — API
+
+- `companies/application/cargo-settings.port.ts`: `CargoSettings` ganha `cameraMeasurementEnabled:
+boolean`; `CargoSettingsPort` ganha `setCameraMeasurementEnabled`.
+- `companies/infrastructure/drizzle-cargo-settings.repository.ts`: `load` agora seleciona a coluna
+  partilhada (`?? false`, mesmo padrão de "sem linha = desligado" da T2/T3);
+  `setCameraMeasurementEnabled` faz upsert como `saveDefaultVolumeWeight` já faz, sem tocar em
+  `defaultVolumeWeight` — confirmado no teste de integração ("ligar reflete... sem tocar no peso
+  padrão").
+- `companies/application/cargo-settings.use-case.ts`: `createSetCameraMeasurementEnabledUseCase`
+  grava e devolve a leitura atualizada (mesmo formato de `createSetDefaultVolumeWeightUseCase`).
+- `companies/presentation/cargo-settings.schema.ts`: `parseSetCameraMeasurementEnabledBody` —
+  `{ enabled: boolean }`, `.strict()`.
+- `companies/presentation/cargo-settings.routes.ts`: nova rota `PUT
+/company-settings/cargo/camera-measurement` (`settings.manage`, como o resto do módulo).
+- `shared/api.constant.ts`: `API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH`.
+- `nfe-documents/presentation/package-box.routes.ts`: nova rota `GET
+/nfe-package-boxes/measurement-settings` (`cargo.measure`, **não** `settings.manage` — é o
+  conferente quem decide se a etapa Medida existe), lendo pela `CameraMeasurementSettingsPort` que a
+  T3 já deixou pronta. Resposta `{ data: { cameraMeasurementEnabled } }`.
+- `main.ts`: composição — `createSetCameraMeasurementEnabledUseCase` na rota de cargo,
+  `cameraMeasurementSettingsRepository` (já existente, criado na T3) passado também para
+  `createPackageBoxRoutes`.
+- `test/nfe-package-box/routes.contract.ts` (existente, T3): atualizado para a lista de três rotas
+  e a asserção genérica de política — a nova rota também exige `cargo.measure`.
+
+### Desenho — Frontend
+
+- `company-settings/shared/cargoSettings.validation.ts`: `CargoSettings` e o guard ganham
+  `cameraMeasurementEnabled: boolean`.
+- `company-settings/shared/companySettingsClient.service.ts`: `setCameraMeasurementEnabled` (PUT
+  `/company-settings/cargo/camera-measurement`, mesmo formato de `setDefaultVolumeWeight`).
+- `company-settings/shared/companySettingsTabs.service.ts`: `SETTINGS_PANELS` ganha
+  `cameraMeasurement`; `SettingsDataSource` ganha `cameraMeasurementSettings`;
+  `SETTINGS_PANEL_PLACEMENT.cameraMeasurement = { module: 'nfe-workspace', source:
+'cameraMeasurementSettings', tab: 'boxes' }` — a aba `boxes` é a mesma que já hospeda
+  `PackageBoxMeasurementPanel` (rotulada "Caixas" no `t('tabs.packageBoxes')` existente);
+  `resolveSettingsDataScope` ganha a chave nova.
+- `nfe-workspace/hooks/useCargoSettings.hook.ts`: ganhou `cameraMeasurementMutation` — reaproveita a
+  mesma consulta `GET /company-settings/cargo` que já alimenta o peso padrão (ambos os painéis moram
+  na mesma leitura; só a aba muda). `enabled` da consulta na página passou a ser `canManageSettings
+&& (settingsScope.cargoSettings || settingsScope.cameraMeasurementSettings)` para cobrir as duas
+  abas que a alimentam.
+- `nfe-workspace/components/CameraMeasurementSettingsPanel.component.tsx`: painel novo, no molde do
+  `ScheduledDistributionPanel` (mesmo `styles/distributionSettings.module.css`, `Icon` do design
+  system, botão com classe de token — nada de `<Button>` cru nem valor literal). Estado
+  ligado/desligado é dito em texto (`cameraMeasurementOn`/`cameraMeasurementOff`), nunca só pela cor
+  do parágrafo.
+- `nfe-workspace/pages/NfeWorkspace.page.tsx`: painel renderizado na aba `boxes`, só quando
+  `canManageSettings`, ao lado (acima) do `PackageBoxMeasurementPanel`.
+- Chaves novas em `nfeWorkspace.locale.json` / `nfeWorkspace.en.locale.json` (pt-BR acentuado):
+  `cameraMeasurementTitle/Hint/Experimental/On/Off/Enable/Disable/ToggleError`.
+- `test/nfe-workspace/distribution-settings.contract.ts` (existente): `settingsTabsOf('nfe-workspace')`
+  passou de `['imports']` para `['imports', 'boxes']` — a única mudança necessária ali, o resto do
+  contrato genérico (`tabs.contract.ts`) validou o painel novo sem edição.
+
+### O que ficou fora de propósito (não é T4)
+
+- O selo "Experimental" completo (D13), o formulário com proposta/margem/aviso e o fluxo de câmera
+  do conferente (`useCameraMeasurementSettings.hook.ts` do lado da leitura, D14) são T9–T11: T4
+  entrega só a rota de leitura (`GET .../measurement-settings`) que eles vão consumir.
+- Export CSV e resumo da validação no painel (D16) são T5/T12.
+- Nenhuma migration nova: a T2 já criou `company_cargo_settings.camera_measurement_enabled`.
+
+### Gates
+
+Postgres nativo Homebrew 18 descartável no scratchpad da sessão (`initdb -U postgres -A trust` +
+`pg_ctl`), porta **65450** (65432–65434/65440–65442 evitadas — a 65442 já usada pela T3).
+`LC_ALL=C` necessário de novo para o `postmaster` não recusar o start com "became multithreaded
+during startup" (mesma falha conhecida do Postgres 18 do Homebrew nesta máquina, já registrada na
+T3). Subido e derrubado neste turno.
+
+| Gate                                                                                                                                | Resultado                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz, as 6 apps)                                                                                               | verde                                                                                                                                                                                                                                                                                                                  |
+| `bun run lint` (raiz, as 6 apps)                                                                                                    | verde                                                                                                                                                                                                                                                                                                                  |
+| `bunx prettier --check` (arquivos tocados)                                                                                          | verde (2 arquivos formatados com `--write` antes da rodada final)                                                                                                                                                                                                                                                      |
+| Contratos da API (`bun run --cwd apps/api-transportada test`, sem `.env.test`)                                                      | 6030 pass, 0 fail (`test/deploy.contract.test.ts` deu 1 `(fail)` de timeout numa rodada isolada — passou sozinho e nas rodadas seguintes; flake pré-existente, não relacionado)                                                                                                                                        |
+| Integração da API (`bun --env-file=<env no scratchpad, Postgres 65450> run test:integration`, de dentro de `apps/api-transportada`) | 354 pass, 4 skip, **2 `(fail)`** pré-existentes em `test/integration/cte-archive-gateway.integration.ts` (timeout de 5 s por falta de MinIO/S3 nesta sessão — só subi Postgres, não a stack Docker inteira; não é o mesmo `cte-profile-output-constraints`/SQLSTATE que a T3 registrou, e não relacionado a esta task) |
+| `test/integration/camera-measurement-flag.integration.ts` isolado                                                                   | 4 pass, 0 fail                                                                                                                                                                                                                                                                                                         |
+| `test/integration/measurement-history.integration.ts` isolado (regressão da T3)                                                     | 4 pass, 0 fail                                                                                                                                                                                                                                                                                                         |
+| `test/company-settings.contract.test.ts` + `test/nfe-package-box.contract.test.ts` (API) isolados                                   | 42 pass, 0 fail                                                                                                                                                                                                                                                                                                        |
+| Testes do frontend (`bun run --cwd apps/frontend-transportada test`)                                                                | 3861 pass, 0 fail                                                                                                                                                                                                                                                                                                      |
+| `bun run --cwd apps/frontend-transportada build`                                                                                    | verde (chunks grandes são aviso pré-existente do Vite, não relacionado)                                                                                                                                                                                                                                                |
+
+⚠️ **Nota sobre o `.env.test`**: como na T3, o Postgres do Docker não estava disponível nesta sessão
+(worktree isolado, sem `make up` rodado). Segui a mesma instrução — Postgres nativo descartável no
+scratchpad, arquivo de env próprio (cópia do `.env.test` com `DATABASE_URL` apontando para
+`127.0.0.1:65450`), rodado com `bun --env-file=... run test:integration` de dentro de
+`apps/api-transportada`. O `.env.test` do link simbólico **não foi editado**.
+
+### Arquivos novos
+
+`test/company-settings/camera-measurement-flag.contract.ts`,
+`test/company-settings.contract.test.ts` (entrypoint, primeiro da API para este diretório),
+`test/integration/camera-measurement-flag.integration.ts` (adicionados ao `package.json` da API,
+`test` e `test:integration`),
+`nfe-workspace/components/CameraMeasurementSettingsPanel.component.tsx`,
+`test/nfe-workspace/camera-measurement-settings.contract.ts` (adicionado ao entrypoint
+`test/nfe-workspace.contract.test.ts` do frontend).

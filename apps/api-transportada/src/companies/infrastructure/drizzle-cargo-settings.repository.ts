@@ -25,12 +25,18 @@ export class DrizzleCargoSettingsRepository implements CargoSettingsPort {
 
   public async load({ companyId }: { readonly companyId: string }): Promise<CargoSettings> {
     const [row] = await this.database
-      .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+      .select({
+        cameraMeasurementEnabled: companyCargoSettings.cameraMeasurementEnabled,
+        defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight,
+      })
       .from(companyCargoSettings)
       .where(eq(companyCargoSettings.companyId, companyId))
       .limit(1)
 
-    return { defaultVolumeWeight: row?.defaultVolumeWeight ?? null }
+    return {
+      cameraMeasurementEnabled: row?.cameraMeasurementEnabled ?? false,
+      defaultVolumeWeight: row?.defaultVolumeWeight ?? null,
+    }
   }
 
   public async saveDefaultVolumeWeight({
@@ -45,6 +51,23 @@ export class DrizzleCargoSettingsRepository implements CargoSettingsPort {
       .values({ companyId, defaultVolumeWeight })
       .onConflictDoUpdate({
         set: { defaultVolumeWeight, updatedAt: sql`now()` },
+        target: companyCargoSettings.companyId,
+      })
+  }
+
+  /** Spec 152 D14: upsert como o peso padrão já faz, sem tocar em `defaultVolumeWeight`. */
+  public async setCameraMeasurementEnabled({
+    companyId,
+    enabled,
+  }: {
+    readonly companyId: string
+    readonly enabled: boolean
+  }): Promise<void> {
+    await this.database
+      .insert(companyCargoSettings)
+      .values({ cameraMeasurementEnabled: enabled, companyId })
+      .onConflictDoUpdate({
+        set: { cameraMeasurementEnabled: enabled, updatedAt: sql`now()` },
         target: companyCargoSettings.companyId,
       })
   }
