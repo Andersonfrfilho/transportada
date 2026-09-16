@@ -13,6 +13,17 @@ import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
  */
 const MAX_TRIP_DRIVERS = 10
 
+/**
+ * spec 153 D2/D3: qual rota o operador escolheu, na prévia e no congelamento. Um critério fora de
+ * `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
+ */
+const routeChoiceRequestSchema = z
+  .object({
+    criterion: z.enum(ROUTE_CHOICE_CRITERIA),
+    signature: z.string().nullable(),
+  })
+  .strict()
+
 export const createTripSchema = z
   .object({
     driverIds: z.array(z.uuid()).min(1).max(MAX_TRIP_DRIVERS),
@@ -90,6 +101,8 @@ export const previewTripValuationSchema = z
   .object({
     driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    /** RF4 (spec 153): sem corpo, a prévia precifica a mais barata conhecida, igual ao congelamento. */
+    routeChoice: routeChoiceRequestSchema.optional(),
     stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     vehicleId: z.uuid(),
   })
@@ -166,13 +179,7 @@ export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
  */
 export const planTripRouteSchema = z
   .object({
-    routeChoice: z
-      .object({
-        criterion: z.enum(ROUTE_CHOICE_CRITERIA),
-        signature: z.string().nullable(),
-      })
-      .strict()
-      .optional(),
+    routeChoice: routeChoiceRequestSchema.optional(),
   })
   .strict()
 

@@ -23,6 +23,8 @@ import {
   type IcmsEmissionProfile,
 } from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
+import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 import {
   readRouteGeometry,
   type ReadRouteGeometryDepotPort,
@@ -215,6 +217,11 @@ export type PreviewTripValuationInput = {
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripValuationPreviewPort
+  /**
+   * Qual rota precificar (spec 153 RF4/aceite 2). Ausente é a mais barata conhecida — o mesmo
+   * default de `readRouteGeometry` — para a prévia continuar respondendo sem seletor nenhum.
+   */
+  readonly routeChoice?: RouteChoice
   /** A ordem que o operador montou no mapa. Vazia é ordem de chegada — a prévia não inventa roteiro. */
   readonly stopOrder: readonly string[]
   /** O catálogo de praças — spec 090 T9, a mesma porta que `/route-geometry` já usa (T7). */
@@ -264,6 +271,7 @@ export async function previewTripValuation(
     repository: input.repository,
     stopOrder: input.stopOrder,
     tollBooths: input.tollBooths,
+    ...(input.routeChoice === undefined ? {} : { choice: input.routeChoice }),
   })
 
   return buildValuationFromContext({
@@ -281,6 +289,7 @@ export async function previewTripValuation(
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
   readonly multiplier: TollMultiplier | null
+  readonly choice?: RouteChoice
   readonly companyId: string
   readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
@@ -304,11 +313,14 @@ async function resolvePreviewRoad(input: {
     geometry: input.geometry,
     stops: points,
     tollBooths: input.tollBooths,
+    ...(input.choice === undefined ? {} : { choice: input.choice }),
   })
-  if (road.legs.length === 0) return { distanceMeters: null, toll: road.toll }
 
   return {
-    distanceMeters: road.legs.reduce((total, leg) => total + leg.distanceMetres, 0),
+    distanceMeters: summarizeRoadDistance({
+      legs: road.legs,
+      trailingLegs: road.depot?.trailingLegs ?? 0,
+    }).distanceMeters,
     toll: road.toll,
   }
 }
@@ -318,8 +330,9 @@ async function resolvePreviewRoad(input: {
  * imposto sobre a receita apurada.
  *
  * ⚠️ **Exportada de propósito, e é a única conta de margem do produto.** Quem monta o contexto varia
- * — a viagem existente soma `trip_stops`, a prévia vai ao roteirizador, e a sugestão multi-veículo
- * (spec 101 D1) soma as paradas que o solver já escolheu —, mas a conta é uma só. Uma segunda
+ * — a viagem existente lê a distância e o pedágio congelados no planejamento (spec 153 RF5), a
+ * prévia vai ao roteirizador, e a sugestão multi-veículo (spec 101 D1) soma as paradas que o
+ * solver já escolheu —, mas a conta é uma só. Uma segunda
  * implementação da margem divergiria **calada**: foi exatamente assim que o preço do combustível
  * passou meses lendo só o ajuste manual enquanto a ficha do veículo lia o efetivo (spec 100).
  *

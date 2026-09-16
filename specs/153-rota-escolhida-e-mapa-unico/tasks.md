@@ -30,7 +30,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 - [x] T201 Congelamento da rota inteira (`freeze-trip-planned-route`), `plan-route` com
       `routeChoice`, D3 e D5 — contratos + integração.
-- [ ] T202 Valuation da viagem lê distância e pedágio gravados; prévia aceita `routeChoice`;
+- [x] T202 Valuation da viagem lê distância e pedágio gravados; prévia aceita `routeChoice`;
       paridade prévia × viagem (aceite 2).
 - [ ] T203 `GET /trips/:id/route-geometry` devolve a gravada (`frozen`) — contrato HTTP.
 - [ ] T204 Aceite multi-veículo com `routeChoice` por veículo; aceite por viagem grava rota.

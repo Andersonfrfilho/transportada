@@ -198,6 +198,7 @@ export class DrizzleTripValuationQuery {
         fuelType: fleetVehicles.fuelType,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+        plannedDistanceMeters: trips.plannedDistanceMeters,
         plannedToll: trips.plannedToll,
       })
       .from(trips)
@@ -209,30 +210,21 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (trip === undefined) return null
 
-    const [
-      distance,
-      fuelPrice,
-      documents,
-      crew,
-      tollTotal,
-      deliveryChargesTotal,
-      federalRates,
-      profiles,
-    ] = await Promise.all([
-      this.readPlannedDistance(input),
-      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
-      this.readDocuments(input),
-      this.readCrew(input),
-      this.readTollTotal(input),
-      this.readDeliveryChargesTotal(input),
-      this.readFederalRates({ companyId: input.companyId }),
-      this.readIcmsProfiles(input.companyId),
-    ])
+    const [fuelPrice, documents, crew, tollTotal, deliveryChargesTotal, federalRates, profiles] =
+      await Promise.all([
+        this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
+        this.readDocuments(input),
+        this.readCrew(input),
+        this.readTollTotal(input),
+        this.readDeliveryChargesTotal(input),
+        this.readFederalRates({ companyId: input.companyId }),
+        this.readIcmsProfiles(input.companyId),
+      ])
 
     return {
       crew,
       deliveryChargesTotal,
-      distanceMeters: distance,
+      distanceMeters: trip.plannedDistanceMeters,
       documents,
       /** Spec 125: nota com CT-e usa o documento; as outras, a projeção pelo perfil. */
       emissionProfiles: profiles,
@@ -250,23 +242,6 @@ export class DrizzleTripValuationQuery {
         otherCostsPerKilometer: trip.otherCostsPerKilometer,
       },
     }
-  }
-
-  /**
-   * A distância é a do roteiro aceito, somada pelas paradas. `null` — e não zero — quando nenhuma
-   * parada tem trecho calculado: zero faria o combustível parecer grátis.
-   */
-  private async readPlannedDistance(input: {
-    readonly companyId: string
-    readonly tripId: string
-  }): Promise<null | number> {
-    const [row] = await this.database
-      .select({ meters: sum(tripStops.distanceFromPreviousMeters) })
-      .from(tripStops)
-      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
-
-    const meters = row?.meters ?? null
-    return meters === null ? null : Number(meters)
   }
 
   /**

@@ -409,6 +409,7 @@ type Dependencies = {
       readonly companyId: string
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }): Promise<TripValuation>
@@ -705,6 +706,7 @@ export function createTripRoutes(
     defineRoute<{
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }>({
@@ -717,7 +719,16 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: valuation }, status: 200 })
       },
       method: 'POST',
-      parse: ({ request }) => parsePreviewTripValuationRequest(request),
+      async parse({ request }) {
+        const body = await parsePreviewTripValuationRequest(request)
+        return {
+          driverIds: body.driverIds,
+          nfeDocumentIds: body.nfeDocumentIds,
+          stopOrder: body.stopOrder,
+          vehicleId: body.vehicleId,
+          ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
+        }
+      },
       pathname: TRIP_VALUATION_PREVIEW_PATH,
       policy: TRIP_FINANCIALS_POLICY,
     }),

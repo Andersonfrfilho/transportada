@@ -162,6 +162,44 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
     },
     60_000,
   )
+
+  /**
+   * Spec 153 D5/T202: rota nunca planejada é `noPlannedDistance` — nunca zero. A coluna que a
+   * consulta agora lê direto (`trips.planned_distance_meters`) fica `null` por falta de
+   * planejamento, não por ninguém ter zerado uma soma.
+   */
+  testWithPostgres(
+    'sem roteiro planejado, combustível e outros-por-quilômetro são lacuna, nunca zero',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedTripWithoutPlannedRoute(database)
+        const valuation = await readTripValuation({
+          companyId: world.companyId,
+          repository: {
+            findApplicableRule: (
+              query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
+            ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
+            readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
+              new DrizzleTripValuationQuery(database.db).readContext(query),
+          },
+          tripId: world.tripId,
+        })
+
+        const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
+        expect(byKind.get('fuel')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_PLANNED_DISTANCE',
+          source: 'missing',
+        })
+        expect(byKind.get('other_per_kilometer')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_PLANNED_DISTANCE',
+          source: 'missing',
+        })
+      })
+    },
+    60_000,
+  )
 })
 
 type World = {
@@ -446,7 +484,21 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     providerConfig: {},
   })
 
-  await database.db.insert(trips).values({ companyId, id: tripId, status: 'completed', vehicleId })
+  /**
+   * Spec 153 T202: a valoração da viagem lê a distância e o pedágio **gravados no planejamento**,
+   * não mais a soma de `trip_stops` — as quatro colunas nascem juntas (`trips_planned_route_check`).
+   */
+  await database.db.insert(trips).values({
+    companyId,
+    id: tripId,
+    plannedDistanceMeters: 200_000,
+    plannedDurationSeconds: 10_000,
+    plannedReturnDistanceMeters: 0,
+    plannedRoute: {},
+    plannedRouteFrozenAt: new Date('2026-08-26T05:00:00.000Z'),
+    status: 'completed',
+    vehicleId,
+  })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,
@@ -459,13 +511,12 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     .insert(tripDocuments)
     .values({ companyId, id: crypto.randomUUID(), nfeDocumentId, tripId })
   /**
-   * A parada carrega a distância do roteiro aceito: sem ela o combustível seria ausência, e a
-   * mudança de preço não teria como mexer no recálculo — que é justamente o que este teste mede.
+   * A parada em si — a distância que alimenta o combustível vem de `trips.planned_distance_meters`
+   * acima (spec 153 T202), não mais desta linha; `distance_from_previous_meters` ficou morta.
    */
   await database.db.insert(tripStops).values({
     addressKey: '14780000|100|3505708',
     companyId,
-    distanceFromPreviousMeters: 200_000,
     label: 'Barretos',
     sequence: 1n,
     tripId,
@@ -479,6 +530,37 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     kind: 'toll',
     tripId,
   })
+
+  return { companyId, tripId, userId }
+}
+
+/**
+ * O mínimo para a valoração ler o veículo (spec 153 D5): sem nenhum planejamento de rota, as quatro
+ * colunas nascem `null` juntas — não precisa de nota, motorista nem pedágio lançado para o contrato.
+ */
+async function seedTripWithoutPlannedRoute(database: TestDatabase): Promise<World> {
+  const companyId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const vehicleId = crypto.randomUUID()
+  const tripId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
+  await database.db.insert(fleetVehicles).values({
+    averageConsumption: '2.5000',
+    companyId,
+    fuelType: 'diesel-s10',
+    id: vehicleId,
+    otherCostsPerKilometer: '0.3000',
+    plate: 'NPD1A23',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'toco',
+  })
+  await database.db.insert(trips).values({ companyId, id: tripId, status: 'draft', vehicleId })
 
   return { companyId, tripId, userId }
 }

@@ -842,3 +842,186 @@ depot }`. Misturar os dois num único JSONB obrigaria reler/reescrever pedágio 
 - **`freeze-trip-route-toll.use-case.ts` e `drizzle-trip-route-toll.repository.ts` não existem
   mais** — todo importador foi migrado para os nomes novos (`freeze-trip-planned-route.*`); nenhum
   código deve mais referenciar os nomes antigos.
+
+## T202
+
+Valuation da viagem lê `trips.planned_distance_meters`/`trips.planned_toll` gravados por T201, em
+vez de somar `trip_stops.distance_from_previous_meters`; a prévia (`previewTripValuation` + rota
+`TRIP_VALUATION_PREVIEW_PATH`) passa a aceitar `routeChoice`; e o aceite 2 da spec (prévia × viagem
+gravada × detalhe mostram a mesma rota/distância/valor) ganha um contrato de verdade.
+
+### Evidência RED
+
+Diferente do T201 (cuja sessão perdeu a saída RED para uma queda de terminal), aqui a saída RED foi
+capturada de propósito, com `tee` para arquivo, **antes** de fechar a task — via `git stash` isolando
+só os quatro arquivos-fonte já implementados (a implementação já existia de uma sessão anterior; os
+testes novos, não). Dois ciclos, cada um `stash push -- <arquivos-fonte>` → roda o teste novo contra
+o código antigo → `tee` do RED → `stash pop` → confirma GREEN de novo:
+
+**1) `preview-route-choice.contract.ts` contra o código antigo** (sem `routeChoice` na prévia) —
+`/private/tmp/.../scratchpad/t202-red.txt`:
+
+```
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "amount": "288.0000",
++   "amount": "255.8400",
+...
+(fail) a prévia aceita a rota escolhida (spec 153 RF4) > com `no_toll`, troca de rota — a distância
+e o pedágio passam a ser os da estrada sem praça [1.31ms]
+
+ 138 pass
+ 1 fail
+ 691 expect() calls
+Ran 139 tests across 1 file. [171.00ms]
+```
+
+Sem repassar `routeChoice` à prévia, `no_toll` é ignorado e a rota principal (106,6 km, com praça)
+continua sendo precificada — `255.8400` (o combustível da rota com pedágio) em vez de `288.0000` (o
+combustível da rota sem pedágio, 120 km). Prova que o parâmetro realmente muda o resultado quando
+aceito, e que o teste falha de verdade sem a implementação.
+
+**2) O caso T010 pré-existente, como regressão colateral do `trip_stops` esvaziado** —
+`/private/tmp/.../scratchpad/t202-red-d5.txt`:
+
+```
+error: expect(received).not.toBe(expected)
+
+Expected: not "932.4500"
+...
+(fail) a viagem fecha a conta (spec 061 T010) > receita do CT-e, agregado pela tabela, imposto
+descendo — e o congelado não muda depois [1118.67ms]
+
+ 1 pass
+ 1 fail
+ 16 expect() calls
+Ran 2 tests across 1 file. [2.49s]
+```
+
+⚠️ Nuance a registrar com honestidade: o fixture de `seedTrip` passou a não gravar mais
+`distanceFromPreviousMeters` em `trip_stops` (T202 move a fonte para `trips.planned_distance_meters`).
+Sob o código **antigo** (`readPlannedDistance` somando `trip_stops`), isso zera a soma — mas SQL
+`SUM()` sobre zero linhas devolve `null`, não `0`, então o teste T010 pré-existente falhava não por
+expor um defeito de `noPlannedDistance`, e sim porque `recalculated.costTotal` ficava igual a
+`frozen.costTotal` (ambos `932.4500`) por falta de distância nova — um sintoma correto de "fixture e
+código de leitura desalinhados", não uma prova de bug de zero-vs-lacuna. O teste **novo** de D5 (a
+seguir) é quem prova `noPlannedDistance` de verdade, e esse passou mesmo antes da troca de fonte,
+porque a ausência total de planejamento já produzia `null` nos dois códigos — ele é um **pino
+prospectivo** contra a fonte de dado certa (`trips.planned_distance_meters`), não um teste que expôs
+regressão pré-existente.
+
+### Comandos e saída real
+
+```bash
+$ bun run typecheck   # raiz — 6 apps
+# limpo em todas
+
+$ bun run lint        # raiz — 6 apps
+# eslint --max-warnings=0 limpo em todas
+
+$ bun run format:check   # raiz
+# 1ª rodada: reprovou `preview-route-choice.contract.ts` (quebra de linha do import) — corrigido com
+# `bunx prettier --write`, sem tocar em lógica. 2ª rodada: "All matched files use Prettier code
+# style!"
+
+$ bun --env-file=../../.env.test test --timeout 120000   # apps/api-transportada
+bun test v1.3.14 (0d9b296a)
+
+ 6150 pass
+ 23 skip
+ 0 fail
+ 21627 expect() calls
+Ran 6173 tests across 177 files. [14.62s]
+```
+
+**Delta contra a baseline** (6146 pass / 23 skip / 0 fail / 177 arquivos): **+4 pass**, skip e fail
+inalterados, contagem de arquivos inalterada (os dois arquivos novos/editados já eram alcançados por
+imports existentes — `preview-route-choice.contract.ts` via `test/trip-valuation.contract.test.ts`,
+já listado no `package.json`; `trip-financial-end-to-end.integration.ts` já existia).
+
+O delta foi reconciliado por isolamento real, não por contagem de `it()`/`test()` no código-fonte
+(que se mostrou enganosa — os arquivos do diretório misturam `it` e `test` do `bun:test`, e contar só
+um dos dois subestima o total): usei `git stash push -- <os dois arquivos de teste modificados>` mais
+mover `preview-route-choice.contract.ts` para fora do diretório temporariamente, rodei a suíte
+completa nesse estado ("antes" real, sem as duas mudanças de teste desta task), depois `git stash pop`
+e devolvi o arquivo, e rodei de novo ("depois"):
+
+```bash
+# antes (T202 test additions revertidas via stash, arquivo novo movido para fora)
+ 6146 pass
+ 23 skip
+ 0 fail
+Ran 6169 tests across 177 files.
+
+# depois (git stash pop + arquivo devolvido — estado final)
+ 6150 pass
+ 23 skip
+ 0 fail
+Ran 6173 tests across 177 files.
+```
+
+**+4 pass e +4 no total de testes rodados (6169 → 6173), skip e fail inalterados** — um delta líquido
+limpo e reproduzível, obtido comparando o mesmo ambiente com e sem exatamente as duas mudanças de
+teste desta task, sem depender de contar blocos `it`/`test` no código-fonte (que por si só não
+bateria, dada a mistura de convenções entre arquivos). Nenhum teste foi marcado `.skip`/`.only`.
+
+### O que ficou provado
+
+- **`readPlannedDistance` foi removido de fato**: `trip-valuation.query.ts:201` seleciona
+  `trips.plannedDistanceMeters` direto no mesmo `select` que já buscava o veículo; `:227` usa
+  `trip.plannedDistanceMeters` como `distanceMeters` do `TripValuationContext`. Não há mais `SUM`
+  sobre `trip_stops` em nenhum leitor de valuation.
+- **`trip_stops.distance_from_previous_meters` está morta, mas viva no schema**: grep em `src/`
+  mostra a coluna e sua constraint declaradas em `trip.schema.ts:308`/`:367`, e nenhum outro leitor —
+  os únicos hits de `distanceFromPreviousMeters` fora desse arquivo pertencem a
+  `route_suggestion_stops` (feature de sugestão multi-veículo, tabela e domínio diferentes, fora de
+  escopo). Migration destrutiva para apagar a coluna não foi feita — está fora de escopo por
+  instrução explícita, e a task não decidiu isso sozinha.
+- **`summarizeRoadDistance({legs, trailingLegs})` substitui o `reduce` inline em
+  `resolvePreviewRoad`** (`read-trip-valuation.use-case.ts`) e a alegação de "byte-idêntico" foi
+  confirmada, não assumida, por dois caminhos: (1) o contrato do aceite 2 chama a mesma
+  `readRouteGeometry` usada pelo congelamento (T201) e a mesma `previewTripValuation` sobre a
+  **mesma** estrada fake, e as parcelas de combustível/outros-por-km batem byte a byte
+  (`toMatchObject` em `amount`/`gap`); (2) estruturalmente, `road.legs`/`road.toll` em
+  `RouteGeometryView` sempre refletem a opção **já selecionada** (`selectedOption.legs`/
+  `selectedOption.toll`, spec 153 D1) tanto no código velho quanto no novo, e a fórmula de
+  `summarizeRoadDistance` não depende de `trailingLegs` para o total de `distanceMeters` — não há
+  como o `reduce` inline e a função pura divergirem para a mesma entrada.
+- **`routeChoice` na prévia passa pela mesma fronteira Zod que `plan-route` (T201)**:
+  `previewTripValuationSchema` usa o `routeChoiceRequestSchema` compartilhado
+  (`z.enum(ROUTE_CHOICE_CRITERIA)`, `.strict()`) — um critério fora do enum é `400`, nunca um
+  `cheapest` implícito. A rejeição em si é testada em `trip-request.schema.test.ts` (mesmo padrão já
+  coberto por T201); `preview-route-choice.contract.ts` prova o lado de aplicação: quando o
+  `routeChoice` é aceito, ele muda a rota escolhida de verdade (rota principal com pedágio → rota sem
+  pedágio, combustível `255.8400` → `288.0000`).
+- **Aceite 2 (paridade prévia × viagem)**: `preview-route-choice.contract.ts`, describe "aceite 2",
+  constrói a mesma estrada fake (`ROAD_WITH_TOLL`) e a mesma tarifa de praça (nó 10, `10.50`) para
+  os dois lados — chama `readRouteGeometry` uma vez para simular o que o congelamento gravaria
+  (`distanceMeters`/`toll` via `summarizeRoadDistance`), monta um `TripValuationContext` congelado à
+  mão com esse resultado, roda `readTripValuation` nele, e roda `previewTripValuation` contra a
+  mesma estrada — depois compara as três parcelas (`fuel`, `other_per_kilometer`, `toll`) em
+  `amount` e `gap`. **O que o contrato mantém constante de propósito**: a estrada e a tarifa
+  observada da praça (`observedOn: '2026-07-01'` nos dois lados) — porque uma tarifa observada em
+  data posterior é a única divergência legítima entre o momento do planejamento e uma prévia
+  seguinte, e o contrato existe para isolar exatamente o que a T202 garante (rota e distância iguais
+  → valor igual) sem confundir com a variação legítima de preço.
+- **D5 permanece honesto em nível de integração**: o novo caso em
+  `trip-financial-end-to-end.integration.ts` (`seedTripWithoutPlannedRoute`, sem nenhuma coluna de
+  rota planejada) confirma via `readTripValuation` real contra Postgres descartável que `fuel` e
+  `other_per_kilometer` chegam com `gap: 'NO_PLANNED_DISTANCE'`/`source: 'missing'`/`amount:
+'0.0000'` — nunca um `0.0000` sem `gap`. Como registrado acima, este é um pino prospectivo contra
+  a fonte de dado nova, não uma prova de regressão pré-existente (o comportamento de "null vira gap,
+  nunca zero" já valia sob o código antigo, porque `SUM()` sobre zero linhas retorna `null`).
+
+### O que a T203/T204 recebem daqui
+
+- `TripValuationContext.distanceMeters`/`.toll` já vêm prontos de `trips.planned_distance_meters`/
+  `trips.planned_toll` — T203 (`GET /trips/:id/route-geometry`) não precisa (e não deve) reabrir
+  `trip_stops` para nada relacionado a distância.
+- `previewTripValuation`'s `routeChoice` é opcional e propagado por spread condicional no limite
+  HTTP (`exactOptionalPropertyTypes`) — T204 (multi-veículo) que precisar de um `routeChoice` por
+  veículo deve replicar esse mesmo padrão de spread por veículo, não introduzir um novo formato de
+  payload.
+- `summarizeRoadDistance` é o único ponto de soma de `legs` para distância — qualquer novo
+  consumidor (inclusive T204) deve chamar essa função, nunca reimplementar o `reduce`.
