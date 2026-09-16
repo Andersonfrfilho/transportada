@@ -1244,3 +1244,118 @@ mexer em `eslint.config.js`: a regra do app não muda, só a forma de descartar 
 3. `AMOUNT_MAX_SCALE`/`AMOUNT_DISPLAY_SCALE`/`parseTypedAmount`/`toTypedAmount`
    (`decimalAmount.service.ts`) são o par certo para qualquer novo campo de dinheiro do frontend —
    T10 os importa, não redeclara.
+
+## T10 — Valor geral da empresa (API + FE)
+
+**Data:** 2026-09-16 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+
+Escopo: `GET/PUT/DELETE /company-settings/driver-allowance` + aba `DriverAllowancePanel` em
+Configurações da empresa, no mesmo molde de `federal-tax-settings` (get/set/clear numa linha por
+empresa). Sem linha gravada é resposta `200` com o padrão do sistema (`R$ 200,00`, `rateOrigin:
+'default'`), nunca `404`; `PUT` faz upsert por `companyId` (`onConflictDoUpdate` no PK, nunca
+insert-then-update) e audita em `auditLogs`; `DELETE` é idempotente. Reaproveita
+`DAILY_ALLOWANCE_RATE_ORIGIN` e `DEFAULT_DAILY_ALLOWANCE_AMOUNT` (T2, `daily-allowance.policy.ts` /
+`daily-allowance.constant.ts`) sem redeclarar — só os valores `.default`/`.company` se aplicam aqui,
+nunca `.driver`. Mesma permissão `settings.manage` (escopo `company`), nenhuma nova.
+
+### Vermelho — módulo de produção ainda não existia
+
+```
+$ bun test test/companies.contract.test.ts
+
+test/companies.contract.test.ts:
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '../../src/companies/application/driver-allowance-settings.use-case.js' from '/Users/anderson.filho/Documents/personal/transportada-wt/spec-143-diaria/apps/api-transportada/test/companies/driver-allowance-settings.contract.ts'
+-------------------------------
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [47.00ms]
+```
+
+Vermelho pelo motivo certo: o teste de contrato (schema, use cases, wiring de rota, source-grep de
+`companyId: context.scope.companyId`) foi escrito primeiro e falha porque nenhum arquivo de produção
+existia ainda — não fixture ausente, não erro de asserção.
+
+### O que entrou
+
+- **Backend** (`src/companies/`): `application/driver-allowance-settings.port.ts` (tipos),
+  `application/driver-allowance-settings.use-case.ts` (`createGetDriverAllowanceSettingsUseCase`,
+  `createSetDriverAllowanceSettingsUseCase`, `createClearDriverAllowanceSettingsUseCase`),
+  `infrastructure/drizzle-driver-allowance-settings.repository.ts` (`find`/`upsert`/`remove`/
+  `appendAudit`, mesma tabela `auditLogs` do molde), `presentation/driver-allowance-settings.schema.ts`
+  (`MONEY_DECIMAL` + `.refine(> 0)`, mesmo padrão de `driverFieldsSchema`),
+  `presentation/driver-allowance-settings.routes.ts` (GET/PUT/DELETE, `SETTINGS_MANAGE_POLICY`,
+  resposta default `{ amount: DEFAULT_DAILY_ALLOWANCE_AMOUNT, rateOrigin:
+DAILY_ALLOWANCE_RATE_ORIGIN.default, updatedAt: null }` quando não há linha). `main.ts` ganha o
+  import, a instância do repositório e o spread das rotas — sem migration nova (a tabela
+  `company_driver_allowance_settings` já existe da T1). `shared/api.constant.ts` ganha
+  `API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH`. `test/companies/driver-allowance-settings.contract.ts`
+  é importado por `test/companies.contract.test.ts` (suíte aninhada, não entra no `package.json`).
+  `CLAUDE.md` do app ganha uma linha documentando a rota (§14).
+
+- **Frontend** (`src/modules/company-settings/`): `shared/driverAllowance.validation.ts`
+  (`DRIVER_ALLOWANCE_RATE_ORIGINS`, guards `isDriverAllowanceSettings`/`isDriverAllowanceResponse` —
+  diferente do federal tax, a resposta nunca aceita `data: null`, porque o GET sempre devolve um
+  valor populado, padrão ou da empresa), `shared/driverAllowanceClient.service.ts` (mesmo padrão de
+  `federalTaxClient.service.ts`: `DriverAllowanceRequestError`, `send`/`readSettings`/`readErrorCode`,
+  `createDriverAllowanceClient`), `hooks/useDriverAllowancePanel.hook.ts` (query + duas mutations,
+  invalidação por `DRIVER_ALLOWANCE_QUERY_KEY`), `components/DriverAllowancePanel.component.tsx`
+  (campo único, `toTypedAmount`/`parseTypedAmount` de `decimalAmount.service.ts`, reaproveita as
+  classes CSS genéricas `federalTaxFields`/`federalTaxOrigin`/`federalTaxActions`/`federalTaxNote`).
+  `companySettingsTabs.service.ts` ganha a aba `driverAllowance` em `SETTINGS_PANELS`,
+  `SettingsDataSource`, `SETTINGS_PANEL_PLACEMENT` e `COMPANY_SETTINGS_TAB_IDS`.
+  `CompanySettings.page.tsx` monta o hook, passa as props e renderiza `<DriverAllowancePanel>` na aba
+  nova. Locales pt-BR/en com `tabs.driverAllowance` e o bloco `driverAllowance.*`.
+  `test/company-settings/driver-allowance-panel.contract.ts` é importado por
+  `test/company-settings.contract.test.ts` (mesmo padrão de suíte aninhada). `CLAUDE.md` do app
+  atualiza a lista de abas de Configurações (§14).
+
+### Revisão do coordenador: o aceite literal não tinha teste que falhasse
+
+O `tasks.md` da T10 exige, ao pé da letra: "sem linha → GET devolve `200.0000` com `origin:
+'default'`; PUT → `company`; DELETE volta ao padrão". O teste original
+(`'reading without a row returns the system default, not an error'`) só exercitava o **use case**
+(`createGetDriverAllowanceSettingsUseCase(...).execute(...)` devolvendo `null`) — quem de fato monta
+o corpo com `DEFAULT_DAILY_ALLOWANCE_AMOUNT`/`DAILY_ALLOWANCE_RATE_ORIGIN.default` é a `jsonResponse`
+de `driver-allowance-settings.routes.ts:97-113`, e nada chamava essa função. Confirmado por injeção
+de defeito: trocar os dois `DAILY_ALLOWANCE_RATE_ORIGIN.default`/`.company` de lugar em
+`driver-allowance-settings.routes.ts` deixava a suíte inteira verde antes desta correção.
+
+Correção, só em `test/companies/driver-allowance-settings.contract.ts`:
+
+1. O teste do use case foi renomeado para `'the get use case returns null when there is no stored
+row'` — o nome agora diz exatamente o que a asserção prova, nada a mais.
+2. Três testes novos passam a **chamar o handler de verdade** (`route.execute({ context: { identity:
+undefined, scope: MANAGER_CONTEXT }, correlationId, pathParameters: {}, request })`, o mesmo padrão
+   de `test/companies/distribution-cursor.contract.ts`, já que `federal-tax-settings.contract.ts` tem
+   a mesma lacuna e não serviu de referência aqui):
+   - `'GET without a stored row answers 200 with the system default, over HTTP'` — status `200`,
+     corpo `{ amount: DEFAULT_DAILY_ALLOWANCE_AMOUNT, rateOrigin: DAILY_ALLOWANCE_RATE_ORIGIN.default,
+updatedAt: null }`.
+   - `'PUT then GET over HTTP answer with origin company and the saved amount'` — grava `180.0000`
+     pelo PUT de verdade, confere a resposta do próprio PUT e depois um GET separado, ambos com
+     `rateOrigin: DAILY_ALLOWANCE_RATE_ORIGIN.company` e o valor gravado.
+   - `'DELETE then GET over HTTP reverts to the system default'` — DELETE devolve `204`, e o GET
+     seguinte volta ao mesmo corpo padrão do primeiro teste.
+3. Nenhuma asserção compara contra o literal `'200.0000'` escrito à mão: importam
+   `DEFAULT_DAILY_ALLOWANCE_AMOUNT` (`daily-allowance.constant.ts`) e `DAILY_ALLOWANCE_RATE_ORIGIN`
+   (`daily-allowance.policy.ts`), os mesmos símbolos que a rota usa — o teste segue o dia em que o
+   padrão mudar, em vez de virar dois números divergentes.
+
+Reconfirmado depois da correção: a mesma injeção de defeito (trocar `.default`/`.company` na rota)
+agora falha exatamente no teste `'PUT then GET over HTTP answer with origin company and the saved
+amount'`, com o `toMatchObject` apontando `"rateOrigin": "company"` esperado contra `"default"`
+recebido — desfeita em seguida, sem outra mudança na rota.
+
+### Gates
+
+| Gate               | Comando                                                | Resultado                                                                   |
+| ------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo — inclui frontend-transportada, frontend-client, frontend-landing  |
+| Testes da API      | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6134 pass · 23 skip · 0 fail** · 21543 expect() · 177 arquivos · ~11 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4086 pass · 0 fail** · 35877 expect() · 29 arquivos                    |
+| Lint               | `bun run lint`                                         | ✅ limpo — 6 apps                                                           |
+| Formatação         | `bun run format:check`                                 | ✅ limpo                                                                    |

@@ -5,7 +5,22 @@
     "company": "Empresa",
     "site": "Site",
     "certificates": "Certificados",
-    "taxes": "Tributos"
+    "taxes": "Tributos",
+    "driverAllowance": "Diária do motorista"
+  },
+  "driverAllowance": {
+    "kicker": "Custo de viagem",
+    "title": "Diária do motorista",
+    "hint": "Valor pago por dia de viagem quando o motorista não tem diária própria cadastrada. Voltar ao padrão restaura R$ 200,00.",
+    "amountLabel": "Diária (R$/dia)",
+    "origin": {
+      "company": "gravado pela empresa",
+      "default": "padrão do sistema"
+    },
+    "save": "Salvar diária",
+    "clear": "Voltar ao padrão",
+    "saved": "Diária da empresa salva.",
+    "error": "Não foi possível salvar a diária ({{code}})."
   },
   "federalTaxes": {
     "kicker": "PIS e COFINS",

@@ -44,6 +44,8 @@ export const API_COMPANY_SETTINGS_TOLL_BOOTH_CHARGES_PATH = '/company-settings/t
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 /** Spec 126: regime federal e alíquotas de PIS/COFINS da empresa (`company_tax_settings`). */
 export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
+/** Spec 143 D3: o valor geral de diária que a empresa paga sem valor combinado com o motorista. */
+export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'

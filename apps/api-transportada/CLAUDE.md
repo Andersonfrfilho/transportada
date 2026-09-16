@@ -282,6 +282,10 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   substituiu o antigo par `wheel_type`+`freight_class`.
 - **Tabela de frete entra por `POST /freight-regions/import`, nunca por seed** (produto genérico,
   ADR-0021). Reimportar o mesmo arquivo é no-op; rota ausente vira `inactive`, nunca é apagada.
+- **`GET/PUT/DELETE /company-settings/driver-allowance`** (spec 143) segue o molde de
+  `federal-tax-settings`: sem linha é `200` com `rateOrigin: 'default'` e `R$200,00`, nunca `404`;
+  `PUT` faz upsert por `companyId` (nunca insert-then-update) e audita em `auditLogs`; `DELETE` é
+  idempotente. Mesma permissão `settings.manage`, nunca uma nova.
 - **Pedágio é calculado a partir da rota, não lançado à mão** (spec 090) — praça casa por identidade
   de nó do OSM (`annotations=nodes`), nunca por proximidade; pedágio viaja **na mesma resposta** de
   rota que a distância (nunca chamada própria); manual sempre vence calculado. Viagem congela o

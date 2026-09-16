@@ -70,6 +70,13 @@ import {
 } from './companies/application/federal-tax-settings.use-case.js'
 import { DrizzleFederalTaxSettingsRepository } from './companies/infrastructure/drizzle-federal-tax-settings.repository.js'
 import { createFederalTaxSettingsRoutes } from './companies/presentation/federal-tax-settings.routes.js'
+import {
+  createClearDriverAllowanceSettingsUseCase,
+  createGetDriverAllowanceSettingsUseCase,
+  createSetDriverAllowanceSettingsUseCase,
+} from './companies/application/driver-allowance-settings.use-case.js'
+import { DrizzleDriverAllowanceSettingsRepository } from './companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
+import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -1387,6 +1394,7 @@ function createApplicationRoutes({
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
+  const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -1997,6 +2005,13 @@ function createApplicationRoutes({
       clear: createClearFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+    }),
+    ...createDriverAllowanceSettingsRoutes({
+      clear: createClearDriverAllowanceSettingsUseCase({
+        settings: driverAllowanceSettingsRepository,
+      }),
+      get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
+      set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),

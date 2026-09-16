@@ -14,6 +14,11 @@ import type { CompanyContactSettings } from '../shared/companyContactsClient.ser
 import { CompanyContactsPanel } from '../components/CompanyContactsPanel.component'
 import { FederalTaxPanel, type FederalTaxPanelProps } from '../components/FederalTaxPanel.component'
 import { useFederalTaxPanel } from '../hooks/useFederalTaxPanel.hook'
+import {
+  DriverAllowancePanel,
+  type DriverAllowancePanelProps,
+} from '../components/DriverAllowancePanel.component'
+import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
 import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
 import { useCompanyContactsPanel } from '../hooks/useCompanyContactsPanel.hook'
 import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
@@ -103,6 +108,7 @@ type SettingsBodyProps = Readonly<{
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   contacts: ContactsSection
+  driverAllowance: DriverAllowancePanelProps
   federalTaxes: FederalTaxPanelProps
   initialValue: CompanySettingsUpdate | undefined
   landing: LandingSection
@@ -223,6 +229,7 @@ function CompanyTabPanel(props: SettingsBodyProps) {
 function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
+  if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
   if (tab === 'site') {
     return (
       <>
@@ -328,6 +335,13 @@ export function CompanySettingsPage() {
     enabled: canManageSettings && activeTab === 'taxes',
   })
   const federalTaxError = federalTaxPanel.saveMutation.error ?? federalTaxPanel.clearMutation.error
+  const driverAllowancePanel = useDriverAllowancePanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    /* Spec 143 D7: mesmo endereço do painel de tributos, aba própria. */
+    enabled: canManageSettings && activeTab === 'driverAllowance',
+  })
+  const driverAllowanceError =
+    driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -381,6 +395,23 @@ export function CompanySettingsPage() {
           saved: federalTaxPanel.saveMutation.isSuccess,
           stored: federalTaxPanel.query.data ?? null,
           taxRegime: query.data?.data.profile?.taxRegime ?? null,
+        }}
+        driverAllowance={{
+          disabled:
+            !canManageSettings ||
+            driverAllowancePanel.saveMutation.isPending ||
+            driverAllowancePanel.clearMutation.isPending,
+          errorCode:
+            driverAllowancePanel.query.isError && driverAllowancePanel.query.error instanceof Error
+              ? driverAllowancePanel.query.error.message
+              : driverAllowanceError instanceof Error
+                ? driverAllowanceError.message
+                : undefined,
+          loading: driverAllowancePanel.query.isLoading,
+          onClear: () => driverAllowancePanel.clearMutation.mutate(),
+          onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
+          saved: driverAllowancePanel.saveMutation.isSuccess,
+          stored: driverAllowancePanel.query.data,
         }}
         landing={{
           data: landingPanel.query.data,

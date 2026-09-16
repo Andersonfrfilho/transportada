@@ -57,8 +57,10 @@ Painel de configuração mora na tela onde o efeito aparece, nunca numa tela cen
 configurações. O endereço de cada painel é declarado uma vez em
 `company-settings/shared/companySettingsTabs.service.ts` (`SETTINGS_PANEL_PLACEMENT`), e é esse
 registro que garante o campo vir preenchido ao abrir a aba. `company-settings` tem hoje **Empresa**,
-**Site**, **Certificados** e **Tributos**; outros painéis (busca automática de notas, preço de
-combustível, credencial da Nota RP, tabela de frete) moram nas abas dos módulos a que pertencem.
+**Site**, **Certificados**, **Tributos** e **Diária do motorista** (spec 143 D7, mesmo molde de
+`FederalTaxPanel`: `GET/PUT/DELETE /company-settings/driver-allowance`, sem linha gravada é o padrão
+do sistema, `settings.manage`); outros painéis (busca automática de notas, preço de combustível,
+credencial da Nota RP, tabela de frete) moram nas abas dos módulos a que pertencem.
 Contrato: `test/company-settings/tabs.contract.ts`. Detalhe de cada painel (permissão exigida,
 conversão percentual/fração dos tributos, mapa de zona via IBGE): docs/ai-context § "Configuração
 perto do efeito". Painel **"Medida pela câmera (experimental)"** (spec 152) mora na aba **Caixas**
