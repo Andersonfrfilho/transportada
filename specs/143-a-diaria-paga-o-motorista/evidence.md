@@ -35,30 +35,76 @@ Registro por task: comando, saída relevante, commit.
 
 ### Gates
 
-| Gate          | Comando                                    | Resultado                                                                     |
-| ------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
-| Typecheck     | `bun run typecheck` (raiz, 6 apps)         | ✅ limpo                                                                      |
-| Testes da API | `bun run --cwd apps/api-transportada test` | ✅ **6091 pass · 23 skip · 0 fail** · 21462 expect() · 177 arquivos · 11,53 s |
-| Lint          | `bun run lint`                             | ✅ limpo                                                                      |
-| Formatação    | `bun run format:check`                     | ✅ limpo (após `prettier --write` no arquivo novo)                            |
-| Migration     | `make migration-test`                      | ⛔ **PENDENTE — Docker indisponível (2026-09-16)**                            |
+| Gate          | Comando                                                            | Resultado                                                                     |
+| ------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Typecheck     | `bun run typecheck` (raiz, 6 apps)                                 | ✅ limpo                                                                      |
+| Testes da API | `bun run --cwd apps/api-transportada test`                         | ✅ **6091 pass · 23 skip · 0 fail** · 21462 expect() · 177 arquivos · 11,53 s |
+| Lint          | `bun run lint`                                                     | ✅ limpo                                                                      |
+| Formatação    | `bun run format:check`                                             | ✅ limpo (após `prettier --write` no arquivo novo)                            |
+| Rollback      | `bun test ./test/database-migration.contract.test.ts` (PG18 local) | ✅ **60 pass · 0 fail** com o replay do rollback (ver "Replay do rollback")   |
+| Migration     | `make migration-test`                                              | ⛔ **PENDENTE — Docker indisponível (2026-09-16)**                            |
+
+### Replay do rollback — defeito encontrado e corrigido
+
+**O `rollback.sql` da T1 quebrava o replay do teste de migration, e o defeito estava provado:**
+
+```
+PostgresError: fleet_drivers has rows with daily_allowance_amount set, refusing rollback
+```
+
+`database-migration.integration.ts` roda as asserções de constraint — que inserem, de propósito,
+linhas com `daily_allowance_amount`, `daily_allowance_days` e uma linha em
+`company_driver_allowance_settings` para exercitar os CHECKs — e **só depois** aplica todos os
+`rollback.sql` em ordem reversa. As três guardas de dado, que são justamente o que a T1 quis, viam
+esse dado de teste e recusavam. `make migration-test` teria reprovado.
+
+A correção segue o precedente do repo, `rntrc-rollback.assertion.ts`: uma asserção dedicada que
+**prova a recusa** e depois **esvazia o dado ofensor** para a fase de replay conseguir rodar.
+
+- Arquivo novo: `apps/api-transportada/test/database-migration/driver-allowance-rollback.assertion.ts`
+  (`assertDriverAllowanceRollbackRefusesRecordedMoney`).
+- Cobre as **três** guardas em sequência — as guardas param na primeira, então cada mensagem só
+  aparece depois que a anterior é esvaziada: diária do motorista → dias da viagem → linha de
+  configuração da empresa. Cada recusa tem a mensagem verificada.
+- Ao fim, limpa para o replay: `daily_allowance_amount = null`, `daily_allowance_days = null`,
+  `delete from company_driver_allowance_settings`.
+- Chamada ligada em `database-migration.integration.ts`, junto das outras asserções, antes do bloco
+  de rollbacks reversos.
+- O `rollback.sql` **não mudou** — a guarda é o comportamento desejado, o que faltava era o teste
+  respeitá-la.
+
+**Prova contra Postgres real** (PG 18.4 Homebrew, `postgres://postgres@127.0.0.1:55433/transportada`),
+com a chamada de `assertCteProfileOutputConstraints` neutralizada **apenas localmente** (falha
+pré-existente e alheia, descrita abaixo) para alcançar a fase de replay:
+
+```bash
+DRIZZLE_TEST_DATABASE_URL="postgres://postgres@127.0.0.1:55433/transportada" \
+  bun test ./test/database-migration.contract.test.ts --timeout 180000
+# 60 pass · 0 fail · 1170 expect()
+```
+
+O replay completo — aplicar → rollback de todas as migrations → reaplicar → rollback de novo —
+passou. A neutralização do cte foi desfeita antes do commit (conferido com `git diff`) e **não
+entrou na branch**.
+
+Sanidade da asserção: trocando de propósito a mensagem esperada da terceira guarda, o teste falha
+com `Received: "company_driver_allowance_settings has rows, refusing rollback"` — ou seja, as três
+recusas são realmente alcançadas e comparadas, nenhuma passa por omissão.
 
 ### ⛔ Gate pendente
 
-`make migration-test` **não foi rodado**: o Docker Desktop desta máquina sobe e morre em segundos, sem
-runtime de container alternativo. Falta rodar exatamente:
+`make migration-test` **continua sem rodar**: o Docker Desktop desta máquina sobe e morre em
+segundos, sem runtime de container alternativo. Falta rodar exatamente:
 
 ```bash
 make migration-test
 ```
 
-Enquanto isso não rodar, **o `rollback.sql` não está provado contra Postgres real** — nem o replay
-aplicar → rollback → reaplicar que o alvo executa.
+O que mudou: **o `rollback.sql` já está provado contra Postgres real**, com o replay
+aplicar → rollback → reaplicar passando (seção acima). O gate formal segue pendente só pelo Docker,
+e o que ele ainda adicionaria é rodar na mesma imagem do compose, sem a neutralização local.
 
-**Prova parcial, que não substitui o gate:** contra um Postgres 18.4 local (Homebrew, porta 55432),
-`DRIZZLE_TEST_DATABASE_URL=... bun test ./test/database-migration.contract.test.ts` deu **59 pass /
-1 fail**. A única falha é `cte-profile-output-constraints.assertion.ts:134`, que espera SQLSTATE
-`23503` e recebe `23001` — **pré-existente e alheia a esta task**, reproduzida em árvore limpa com
-`git stash`; é diferença entre o Postgres 18 local e a imagem do compose. As três CHECKs novas e a
-tabela nova passaram contra banco de verdade; a fase de replay do rollback fica para o gate real,
-porque roda depois da falha pré-existente.
+**O que impede rodar o arquivo inteiro sem ajuste local:** `cte-profile-output-constraints.assertion.ts:134`
+espera SQLSTATE `23503` e recebe `23001` — **pré-existente e alheia a esta task**, reproduzida em
+árvore limpa com `git stash`; é diferença entre o Postgres 18 local e a imagem do compose. Ela aborta
+o teste antes do replay, e por isso foi neutralizada só durante a medição, nunca no commit.

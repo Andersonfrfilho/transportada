@@ -5,6 +5,7 @@ import { describe, expect } from 'bun:test'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
+import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
@@ -131,6 +132,10 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           fixture: identityFixture,
+        })
+        await assertDriverAllowanceRollbackRefusesRecordedMoney({
+          database,
+          directories: migrationDirectories,
         })
 
         const postIdentityRollbacks = await Promise.all(
