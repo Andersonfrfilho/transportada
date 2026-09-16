@@ -136,6 +136,16 @@ describe('content security policy', () => {
    * recorte de fundo faz no navegador, e o `.wasm` continua tendo de vir de `'self'`. Sem ela o
    * runtime é bloqueado na compilação, e o erro aparece como "falha ao iniciar o modelo".
    */
+  /**
+   * T14 item 1: `data:` em `img-src` abriria a porta que a foto congelada quase precisou —
+   * `canvas.toDataURL` foi trocado por `canvas.toBlob` justamente para não depender disto.
+   * `blob:` já cobre o caso legítimo, e `data:` teria custo (XSS via imagem maliciosa embutida em
+   * HTML) sem necessidade real.
+   */
+  test('never adds data: to img-src', () => {
+    expect(directiveOf(SERVED_POLICY, 'img-src')).not.toContain('data:')
+  })
+
   test('never relaxes script execution in what is served', () => {
     expect(directiveOf(SERVED_POLICY, 'script-src')).toBe("script-src 'self' 'wasm-unsafe-eval'")
     /** O `wasm-` é o que separa compilar WebAssembly de executar string arbitrária como código. */

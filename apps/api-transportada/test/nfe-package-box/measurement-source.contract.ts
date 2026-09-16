@@ -96,11 +96,18 @@ describe('o schema do corpo da medida (spec 152, R5)', () => {
     ).toThrow()
   })
 
-  test('a mesma margem acima de 30 mm com camera_adjusted não é recusada — o operador editou por cima', () => {
-    const parsed = parsePackageBoxMeasurement(
-      cameraBody({ impreciseConfirmed: true, lengthMarginMm: 31 }, 'camera_adjusted'),
-    )
-    expect(parsed.source).toBe('camera_adjusted')
+  /**
+   * T14 item 3 (revisão de segurança): `camera_adjusted` não escapa mais do teto de imprecisão.
+   * A margem acima de 30 mm é sobre a PROPOSTA da câmera, não sobre o valor que o operador digitou
+   * por cima — e a câmera nunca poderia ter proposto algo tão impreciso, então o bloco `camera`
+   * continua sendo recusado mesmo depois da edição.
+   */
+  test('margem acima de 30 mm proposta pela câmera é recusada mesmo com camera_adjusted', () => {
+    expect(() =>
+      parsePackageBoxMeasurement(
+        cameraBody({ impreciseConfirmed: true, lengthMarginMm: 31 }, 'camera_adjusted'),
+      ),
+    ).toThrow()
   })
 
   /**

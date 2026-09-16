@@ -2056,3 +2056,140 @@ Nenhum arquivo de teste foi adicionado — T13 é pura documentação para naveg
 - **Interruptor**: `company_cargo_settings.camera_measurement_enabled` (por empresa, padrão `false`, rota `GET /nfe-package-boxes/measurement-settings` por `cargo.measure`, `PUT` por `settings.manage`)
 - **CSP**: sem mudança — build próprio com `-s DYNAMIC_EXECUTION=0` cobre `'wasm-unsafe-eval'` (ADR-0065)
 - **Selo experimental**: constante `CAMERA_MEASUREMENT_IS_EXPERIMENTAL = true` até T16 (validação com caixas reais, spec 152 T15)
+
+---
+
+## T14 — correções de segurança
+
+Data: 2026-09-16. Modelo: `sonnet` (executor, sem delegação a sub-agente — trabalho direto nesta
+sessão). Revisão de segurança da T14 apontou 6 itens; todos aplicados com contrato vermelho antes de
+cada correção de comportamento. CSP/Permissions-Policy e `MARGIN_RELIABLE_MM`/`MARGIN_UNRELIABLE_MM`
+não foram tocados, como pedido.
+
+### Item 1 [ALTO] — foto congelada sob CSP real
+
+**Onde:** `apps/frontend-transportada/src/components/ui/useBoxDimensionScanner.hook.ts`,
+`box-dimension-scanner.tsx`.
+
+`canvas.toDataURL('image/png')` virou `canvas.toBlob` + `URL.createObjectURL` — `blob:` já está em
+`img-src`, `data:` nunca esteve. A URL de objeto é revogada em `returnToLive()` e na limpeza do
+efeito (`useEffect` que cria o worker), ao lado do `worker.terminate()`, para não vazar memória a
+cada foto nova. `snapshotDataUrl`/`setSnapshotDataUrl` foram renomeados para `snapshotUrl`/
+`setSnapshotUrl` (não é mais `data:`).
+
+**Prova real (sonda headless, T1/T9 style):**
+`test/design-system/box-dimension-scanner-csp.contract.ts` sobe um Chromium real via
+`@playwright/test` (o mesmo Chromium já baixado para os smoke tests), aplica a MESMA diretiva que
+`buildContentSecurityPolicy` emite para o build de produção como header HTTP de verdade (via
+`page.route` + `route.fulfill`), e mede o navegador de fato:
+
+- um `<img src="data:image/png;base64,...">` dispara `securitypolicyviolation` em `img-src` sob essa
+  política — reproduzindo o defeito exatamente como acontecia em produção;
+- um `<img src="blob:...">` (a correção) carrega sem nenhuma violação.
+
+Contrato estático completa a prova: `content-security-policy.contract.ts` ganhou o teste
+`'never adds data: to img-src'`, e `box-dimension-scanner.contract.ts` ganhou dois testes (`toBlob`
+em vez de `toDataURL`, e `revokeSnapshotObjectUrl()` chamado em `returnToLive` e na limpeza).
+Vermelho confirmado antes da correção (a sonda de texto falhava com `toContain('toDataURL')`
+encontrado; o teste de revogação não encontrava a chamada).
+
+### Item 2 [MÉDIO] — injeção de fórmula em CSV
+
+**Onde:** novo `apps/frontend-transportada/src/modules/shared/csv.service.ts`
+(`escapeCsvField`, `CSV_FIELD_SEPARATOR`, `CSV_LINE_SEPARATOR`, `CSV_BYTE_ORDER_MARK`), consumido por
+`cameraMeasurementExport.service.ts`, `fleet/shared/freightRegionExport.service.ts` e
+`fleet/shared/vehicleSelectionExport.service.ts` (os três `escapeField`/constantes locais foram
+removidos).
+
+`escapeCsvField` prefixa `'` quando o campo casa `/^[=+\-@\t\r]/u`, antes de duplicar aspas (RFC
+4180). Vermelho confirmado: um teste em `camera-measurement-validation.contract.ts` com
+`productCode: "=cmd|'/C calc'!A1"` mostrava o `=cmd` cru no CSV antes da migração para o helper;
+depois, sai como `"'=cmd..."`. `test/shared/csv.contract.ts` cobre `=`/`+`/`-`/`@`/tab/CR e o caso
+normal (aspas, acento, hífen no meio da string). Formato das colunas dos três exports não mudou.
+
+### Item 3 [MÉDIO] — `camera_adjusted` e o teto de imprecisão
+
+**Onde:** `apps/api-transportada/src/nfe-documents/presentation/package-box.schema.ts`
+(`superRefine` de `measurementSchema`).
+
+A recusa por margem `> MARGIN_UNRELIABLE_MM` (30 mm) agora roda para QUALQUER `source` que carregue
+bloco `camera` (antes só rodava com `source === 'camera'`) — a proposta da câmera não fica mais
+imune só porque o operador editou o valor depois. A exigência de `impreciseConfirmed` para margem
+`> MARGIN_RELIABLE_MM` (10 mm) continua restrita a `source === 'camera'` puro, como já valia (D17,
+decisão de 2026-09-16 registrada em T12 acima) — um valor `camera_adjusted` já foi corrigido à mão,
+não é "número plausível sem aviso".
+
+Vermelho confirmado: o teste que antes se chamava "a mesma margem acima de 30 mm com camera_adjusted
+não é recusada" (`test/nfe-package-box/measurement-source.contract.ts`) foi invertido para
+"...é recusada mesmo com camera_adjusted" e falhava (`did not throw`) antes da correção do schema.
+
+**Decisão registrada por escrito (pedida no item 3):** `measurement_margin_mm` continua sendo a
+margem da PROPOSTA da câmera, nunca recalculada para o valor editado — confirmado lendo
+`measure-package-box.use-case.ts:46` (`measurementMarginMm: resolveMeasurementMargin(input.measurement.camera)`,
+sem `if` por `source`) e `drizzle-package-box.repository.ts`. Nenhum código de persistência precisou
+mudar: a coluna já descreve a proposta, não o dígito por cima, exatamente como a T12 já havia
+decidido (opção 3 do registro acima). Documentado também em `docs/SECURITY.md`.
+
+### Item 4 [BAIXO] — rotas novas no contrato do separador
+
+**Onde:** `apps/api-transportada/test/separator-role.contract.test.ts`.
+
+`createPackageBoxRoutes` e `createPackageBoxMeasurementExportRoutes` entraram na lista de fábricas de
+rota testadas. Vermelho confirmado: com as fábricas adicionadas e o `toEqual` ainda sem as rotas
+novas, o diff mostrava as três rotas de `cargo.measure` aparecendo sem estar na lista esperada
+(`GET /nfe-package-boxes`, `GET /nfe-package-boxes/measurement-settings`,
+`PUT /nfe-package-boxes/:id`) — o separador já tinha `cargo.measure` (contrato "cargo.measure — a
+permissão de quem mede a caixa"), então as três rotas eram alcançáveis de fato. Decisão registrada
+por escrito no próprio teste: elas entram na lista, porque medir caixa é o trabalho de quem separa.
+`GET /nfe-package-box-measurements` (export, `settings.manage`) continua fora — o separador não tem
+essa permissão, e o `toEqual` passou a confirmar isso sem precisar de asserção extra.
+
+### Item 5 [BAIXO] — negociação de Accept-Encoding
+
+**Onde:** `apps/frontend-transportada/server.ts` (`acceptedEncodings`, `precompressedResponse`).
+
+Nova função `acceptedEncodings` faz o parse correto de `Accept-Encoding` por vírgula, com `;q=`
+opcional, ignorando `q=0`. `precompressedResponse` passou a checar `accepted.includes(encoding)`
+(pertence à lista parseada) em vez de `acceptEncodingHeader.includes(encoding)` (substring do header
+cru) — corrige tanto `br;q=0` (dizia não aceitar e era tratado como aceitando) quanto `x-gzip`
+(token diferente que colidia com `gzip` por substring). `Vary: Accept-Encoding` passou a ser setado
+também no ramo de fallback não comprimido (antes só nos ramos comprimidos).
+
+**Prova real de comportamento:** `test/design-system/opencv-content-encoding.contract.ts` extrai o
+texto de `acceptedEncodings` de `server.ts` (que não pode ser importado diretamente — sobe um
+`Bun.serve` real e exige `dist/`, mesmo motivo do `security-headers.contract.ts`), transpila com
+`Bun.Transpiler` e executa a função de verdade via `import()` de um `data:` URL — não reimplementação
+paralela, comportamento real sob teste. Vermelho confirmado antes da correção do `server.ts`: a
+função `acceptedEncodings` ainda não existia, e o contrato falhava com
+`FRONTEND_ACCEPTED_ENCODINGS_FUNCTION_NOT_FOUND`.
+
+### Item 6 [BAIXO] — registro em docs/SECURITY.md
+
+Três entradas novas em `docs/SECURITY.md`, datadas de 2026-09-16: os itens 1 e 2 como achados
+fechados (o que era, o que foi corrigido, a prova), e um achado aberto novo sobre a ausência de
+rate limit dedicado nas quatro rotas HTTP novas da spec 152 (as três de `cargo.measure` e a de
+`settings.manage` do export) — registrado como débito conhecido, fora do escopo desta correção.
+
+### Gates
+
+| Gate                                                                                                                                                              | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun run typecheck` (raiz, 6 apps)                                                                                                                                | verde                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `bun run lint` (raiz, 6 apps)                                                                                                                                     | verde (2 erros de ESLint corrigidos na sonda de CSP: `consistent-type-imports`, `no-unsafe-call`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bun run --cwd apps/frontend-transportada test`                                                                                                                   | **4010 pass, 0 fail** (inclui a sonda headless real do item 1 e o contrato de `Accept-Encoding` do item 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `bun run --cwd apps/frontend-transportada build`                                                                                                                  | verde (avisos pré-existentes de chunk grande, sem relação com esta mudança)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run --cwd apps/api-transportada test` (contratos)                                                                                                            | **6038 pass, 23 skip, 0 fail**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `bun --env-file=../../.env.test run test:integration` (de dentro de `apps/api-transportada`, contra Postgres nativo descartável em `55433`, locale `pt_BR.UTF-8`) | **358 pass, 4 fail** — 2 conhecidas antes desta rodada (`cte-profile-output-constraints` 23001 vs 23503; `cte-archive-gateway` sem MinIO) + 2 novas só de ambiente: `server.integration.ts` (timeout, exige Keycloak em `localhost:58080`, não subido nesta sessão) e as mesmas 2 do `cte-archive-gateway` contam junto — nenhuma das 4 tem relação com o código desta tarefa. Confirmado à parte: a suspeita inicial de uma 5ª falha (unicidade case-insensitive de `contractor_mail_templates`, `'Cobrança'` vs `'COBRANÇA'`) era artefato do primeiro Postgres descartável, criado com `--locale=C` (que não dobra maiúscula/minúscula de caractere acentuado); recriado com `--locale=pt_BR.UTF-8` e o teste passou. |
+| Prettier (`bunx prettier --check`) nos arquivos tocados                                                                                                           | 3 arquivos precisaram de `--write` (quebra de linha de `freightRegionExport.service.ts`/`vehicleSelectionExport.service.ts`/o teste do item 2); verde depois                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Contrato de acentos (`locale-accents.contract.ts`, via `test/shared.contract.test.ts`)                                                                            | verde (277 pass no arquivo)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+Postgres nativo descartável: `initdb`/`pg_ctl` em
+`/private/tmp/.../scratchpad/pgdata-spec152`, porta `55433`, `--locale=pt_BR.UTF-8`. `.env.test`
+(link simbólico) não foi editado — a URL do banco de teste foi sobrescrita só via variável de
+ambiente `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` no processo do `bun`.
+
+### Commit
+
+Um commit isolado com todas as mudanças dos 6 itens. Hash: ver mensagem de commit
+"fix(security): T14 — CSP sem data:, CSV sem injeção de fórmula, camera_adjusted sob teto de
+margem, rotas do separador e Accept-Encoding correto" no histórico do branch `work/spec-152`.

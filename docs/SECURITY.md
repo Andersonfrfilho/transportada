@@ -5,6 +5,70 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-16 — quatro rotas novas da spec 152 sem rate limit dedicado (T14 item 6)
+
+**Onde:** `api-transportada`, `nfe-documents/presentation/package-box.routes.ts` e
+`package-box-measurement-export.routes.ts` (spec 152, medida de caixa pela câmera).
+
+**O que é:** as quatro rotas novas —
+`GET /nfe-package-boxes/measurement-settings`, `GET /nfe-package-boxes`,
+`PUT /nfe-package-boxes/:id` (as três sob `cargo.measure`) e
+`GET /nfe-package-box-measurements` (sob `settings.manage`, export do histórico) — não declaram
+`rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`, o padrão que
+`contractor-mail` já usa (spec 150 T406) e que `test/rate-limited-routes.contract.test.ts` cobra.
+Todas exigem autenticação e permissão de empresa (nunca são anônimas), então o risco é abuso por um
+usuário autenticado — não enumeração nem custo externo direto —, mas `PUT /nfe-package-boxes/:id`
+grava linha de histórico a cada chamada (`nfe_package_box_measurements`, append-only) e um cliente
+comprometido ou automação com bug poderia inflar a tabela sem limite.
+
+**O que falta:** decidir o `scope`/`maxRequests`/`windowSeconds` de cada rota e implementar, seguindo
+o padrão de `contractor-mail`. Fica pendente, fora do escopo da revisão de segurança T14 (que corrigiu
+CSP × `data:`, injeção de fórmula em CSV, a validação de margem de `camera_adjusted`, a lista de
+rotas do separador e a negociação de `Accept-Encoding`).
+
+**Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
+
+### 2026-09-16 — foto congelada da medida pela câmera quebrava sob a CSP real (T14 item 1, fechado)
+
+**Onde:** `frontend-transportada`, `components/ui/useBoxDimensionScanner.hook.ts` e
+`box-dimension-scanner.tsx` (spec 152, medida de caixa pela câmera).
+
+**O que era:** a foto congelada (o retrato usado para marcar os quatro cantos da caixa) era gerada
+com `canvas.toDataURL('image/png')` e consumida como `<img src="data:...">`. A CSP real de produção
+(`contentSecurityPolicy.service.ts`) tem `img-src 'self' blob: <api>` — sem `data:` — então a imagem
+nunca carregava fora de desenvolvimento (onde o servidor de dev não serve CSP nenhuma, e por isso o
+defeito não aparecia em nenhum teste até agora).
+
+**Fechado:** trocado para `canvas.toBlob` + `URL.createObjectURL` (já coberto por `blob:` na
+diretiva), com a URL de objeto revogada em `returnToLive()` e na limpeza do efeito, ao lado do
+`worker.terminate()`. Prova: sonda headless com Chromium real
+(`test/design-system/box-dimension-scanner-csp.contract.ts`) aplica a MESMA diretiva que o build
+emite e confirma, num navegador de verdade, que um `<img src="data:...">` dispara
+`securitypolicyviolation` em `img-src` sob essa política e que um `<img src="blob:...">` carrega sem
+nenhuma violação. `content-security-policy.contract.ts` ganhou asserção travando `data:` fora de
+`img-src` para sempre.
+
+**Origem:** spec 152, revisão de segurança T14, achado item 1. Fechado em 2026-09-16.
+
+### 2026-09-16 — injeção de fórmula em CSV nos exports que usam dado de XML de terceiro (T14 item 2, fechado)
+
+**Onde:** `frontend-transportada`, `nfe-workspace/shared/cameraMeasurementExport.service.ts`,
+`fleet/shared/freightRegionExport.service.ts` e `fleet/shared/vehicleSelectionExport.service.ts`.
+
+**O que era:** `escapeField` só duplicava aspas (RFC 4180), sem neutralizar o gatilho de fórmula do
+Excel (`=`, `+`, `-`, `@`, tab, CR no início do campo). `productCode`/`cartonGtin` do export de
+medida pela câmera vêm direto do XML da NF-e — dado de terceiro, sem validação de conteúdo — e um
+código de produto começando com `=` abriria execução de fórmula (incluindo comando de sistema via
+DDE) para quem abrisse o CSV no Excel.
+
+**Fechado:** o escape ganhou prefixo `'` quando o campo casa `/^[=+\-@\t\r]/u`, extraído para
+`modules/shared/csv.service.ts` (`escapeCsvField`) e reusado pelos três exports — segunda
+implementação do mesmo escape não diverge mais em silêncio. Prova:
+`test/shared/csv.contract.ts` (o helper) e um caso vermelho-para-verde em
+`test/nfe-workspace/camera-measurement-validation.contract.ts` com `productCode` malicioso.
+
+**Origem:** spec 152, revisão de segurança T14, achado item 2. Fechado em 2026-09-16.
+
 ### 2026-09-13 — `audit_logs` não guarda IP
 
 **Onde:** `audit_logs` (todo o produto, não só `contractor-mail`) — sem coluna de endereço de

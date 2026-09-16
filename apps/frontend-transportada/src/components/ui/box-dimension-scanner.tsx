@@ -65,7 +65,7 @@ export function BoxDimensionScanner({
     markedPoints,
     returnToLive,
     setMarkedPoint,
-    snapshotDataUrl,
+    snapshotUrl,
     status,
     videoRef,
   } = useBoxDimensionScanner({ isActive, onMeasured, onUnsupported, stream })
@@ -127,8 +127,8 @@ export function BoxDimensionScanner({
           playsInline
           ref={videoRef}
         />
-        {status === 'capturing' && snapshotDataUrl !== undefined ? (
-          <img alt="" className={styles.video} src={snapshotDataUrl} />
+        {status === 'capturing' && snapshotUrl !== undefined ? (
+          <img alt="" className={styles.video} src={snapshotUrl} />
         ) : null}
         {status === 'loadingEngine' ? (
           <div className={styles.loadingOverlay} data-testid="box-dimension-loading">
@@ -190,12 +190,12 @@ export function BoxDimensionScanner({
       ) : null}
       {magnifierViewport !== undefined &&
       magnifierPoint !== undefined &&
-      snapshotDataUrl !== undefined ? (
+      snapshotUrl !== undefined ? (
         <div
           aria-hidden="true"
           className={styles.magnifier}
           style={{
-            backgroundImage: `url(${snapshotDataUrl})`,
+            backgroundImage: `url(${snapshotUrl})`,
             backgroundPosition: `-${magnifierPoint.x * magnifierViewport.zoom - 48}px -${
               magnifierPoint.y * magnifierViewport.zoom - 48
             }px`,

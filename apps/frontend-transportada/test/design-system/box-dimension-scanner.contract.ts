@@ -75,6 +75,31 @@ describe('o primitivo de medida de caixa pela câmera (spec 152 T8, ADR-0065)', 
     expect(hook).toContain('worker.terminate()')
   })
 
+  /**
+   * T14 item 1: `img-src` real não tem `data:` (só `'self' blob: <api>`) — `canvas.toDataURL`
+   * quebra a foto congelada em produção, e só não pegava porque a CSP não é servida em dev. A
+   * troca é para `canvas.toBlob` + `URL.createObjectURL`, com a URL revogada nos dois lugares em
+   * que o stream é encerrado: `returnToLive()` e a limpeza do efeito.
+   */
+  it('a foto congelada usa blob:, nunca data: — img-src real não tem data:', async () => {
+    const hook = await readApplicationFile(HOOK_PATH)
+    expect(hook).not.toContain('toDataURL')
+    expect(hook).toContain('canvas.toBlob(')
+    expect(hook).toContain('URL.createObjectURL(')
+    const scanner = await readApplicationFile(SCANNER_PATH)
+    expect(scanner).not.toContain('DataUrl')
+  })
+
+  it('revoga a URL do blob da foto congelada ao voltar para o vivo e ao desmontar', async () => {
+    const hook = await readApplicationFile(HOOK_PATH)
+    expect(hook).toContain('function revokeSnapshotObjectUrl(): void {')
+    expect(hook).toContain('URL.revokeObjectURL(')
+    const returnToLiveBody = hook.split('function returnToLive')[1]?.split('\n\n')[0]
+    expect(returnToLiveBody).toContain('revokeSnapshotObjectUrl()')
+    const cleanupBody = hook.split('return () => {')[1]?.split('\n  }, [isActive, stream])')[0]
+    expect(cleanupBody).toContain('revokeSnapshotObjectUrl()')
+  })
+
   it('nunca manda a imagem para a rede — nem o hook, nem o componente, nem o worker chamam fetch', async () => {
     for (const path of [SCANNER_PATH, HOOK_PATH, WORKER_PATH]) {
       const source = await readApplicationFile(path)

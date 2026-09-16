@@ -1,4 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  CSV_BYTE_ORDER_MARK,
+  CSV_FIELD_SEPARATOR,
+  CSV_LINE_SEPARATOR,
+  escapeCsvField,
+} from '@/modules/shared/csv.service'
+
 import type { FleetVehicleDetail } from './fleet.types'
 import { resolveFuelArrangementLabelKey } from './fuelArrangement.service'
 
@@ -26,15 +33,7 @@ export type VehicleExportColumn = (typeof VEHICLE_EXPORT_COLUMNS)[number]
 export const VEHICLE_EXPORT_FILE_NAME = 'veiculos.csv'
 export const VEHICLE_EXPORT_MEDIA_TYPE = 'text/csv;charset=utf-8'
 
-/**
- * Ponto e vírgula, CRLF e BOM: é o que o Excel em pt-BR abre sem assistente de importação e sem
- * comer o acento. Vírgula como separador brigaria com a vírgula decimal do próprio número.
- */
-const FIELD_SEPARATOR = ';'
-const LINE_SEPARATOR = '\r\n'
-const BYTE_ORDER_MARK = '﻿'
 const PLATE_SEPARATOR = '\n'
-const QUOTE_PATTERN = /"/g
 
 type ExportLabels = Readonly<{
   header: Readonly<Record<VehicleExportColumn, string>>
@@ -71,21 +70,17 @@ function readColumn(
   return labels.translateValue({ column, value: vehicle[column] })
 }
 
-function escapeField(value: string): string {
-  return `"${value.replace(QUOTE_PATTERN, '""')}"`
-}
-
 export function buildVehicleSelectionCsv(
   input: Readonly<{ labels: ExportLabels; vehicles: readonly FleetVehicleDetail[] }>,
 ): string {
-  const header = VEHICLE_EXPORT_COLUMNS.map((column) => escapeField(input.labels.header[column]))
+  const header = VEHICLE_EXPORT_COLUMNS.map((column) => escapeCsvField(input.labels.header[column]))
   const rows = input.vehicles.map((vehicle) =>
     VEHICLE_EXPORT_COLUMNS.map((column) =>
-      escapeField(readColumn({ column, labels: input.labels, vehicle })),
-    ).join(FIELD_SEPARATOR),
+      escapeCsvField(readColumn({ column, labels: input.labels, vehicle })),
+    ).join(CSV_FIELD_SEPARATOR),
   )
 
-  return `${BYTE_ORDER_MARK}${[header.join(FIELD_SEPARATOR), ...rows].join(LINE_SEPARATOR)}`
+  return `${CSV_BYTE_ORDER_MARK}${[header.join(CSV_FIELD_SEPARATOR), ...rows].join(CSV_LINE_SEPARATOR)}`
 }
 
 /** Uma placa por linha: é o formato que cola direto no campo de busca do rastreador e do WhatsApp. */
