@@ -101,6 +101,10 @@ export type CompanyUserRepositoryPort = {
     readonly userId: string
   }) => Promise<boolean>
   readonly createInvitedUser: (input: CreateInvitedUserInput) => Promise<CreateInvitedUserResult>
+  /** Quais destes logins já pertencem a alguém — a unicidade é da instalação, não da empresa. */
+  readonly listTakenUsernames: (input: {
+    readonly usernames: readonly string[]
+  }) => Promise<ReadonlySet<string>>
   readonly findByUserId: (input: {
     readonly companyId: string
     readonly userId: string

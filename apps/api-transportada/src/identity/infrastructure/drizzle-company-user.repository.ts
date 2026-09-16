@@ -167,6 +167,19 @@ async function rebuildLoginIdentifiers(
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   public constructor(private readonly database: Database) {}
 
+  public async listTakenUsernames(input: {
+    readonly usernames: readonly string[]
+  }): Promise<ReadonlySet<string>> {
+    if (input.usernames.length === 0) return new Set()
+
+    const rows = await this.database
+      .select({ username: identityUserProfiles.username })
+      .from(identityUserProfiles)
+      .where(inArray(identityUserProfiles.username, [...input.usernames]))
+
+    return new Set(rows.map((row) => row.username))
+  }
+
   public async createInvitedUser(input: CreateInvitedUserInput): Promise<CreateInvitedUserResult> {
     const membershipId = crypto.randomUUID()
     let linkedFleetDriverId: string | null = null

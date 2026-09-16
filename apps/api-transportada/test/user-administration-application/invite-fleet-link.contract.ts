@@ -27,6 +27,7 @@ function createRepositorySpy({ linkedFleetDriverId }: { linkedFleetDriverId: str
   return {
     calls,
     repository: {
+      listTakenUsernames: () => Promise.resolve(new Set<string>()),
       createInvitedUser(input: CreateInvitedUserInput) {
         calls.push(input)
         return Promise.resolve({ linkedFleetDriverId, membershipId: 'vinculo-de-teste' })

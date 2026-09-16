@@ -69,6 +69,11 @@ configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), entã
   código do convite não chega: senha opcional (com ela, `temporary` obrigatório) → vínculo ativo →
   `setEnabled(true)` → convite `pending` vira `accepted` → trilha `company-user.activated` (sem a
   senha). Repetir converge. Botão "Ativar agora" na linha do convidado e no painel de senha da edição.
+- **O login do convite nasce do nome** (16/09/2026): `buildUsernameCandidates`
+  (`identity/domain/generated-username.policy.ts`) — primeiro nome + último sobrenome, minúsculo,
+  sem acento, com ponto (`deisy.coimbra`); partícula (`da`, `dos`…) não é sobrenome. Em uso
+  (`listTakenUsernames`, unicidade da instalação), tenta os sobrenomes anteriores e depois
+  `deisy.coimbra2…99`; sem candidato válido, o id interno. O mesmo valor vai ao Keycloak e à ficha.
 - **Reconciliação com o Keycloak** tem duas divergências que não somam num botão só —
   `missingSomewhere` (existe de um lado, `POST /reconciliation/sync` conserta) vs `withoutProfile`
   (existe dos dois lados sem ficha, `POST /reconciliation/profiles` conserta). As duas rotas sempre
