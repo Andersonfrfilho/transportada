@@ -1,0 +1,126 @@
+.overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-asphalt);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 1rem;
+}
+
+.instruction {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.85rem;
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-ink, #000);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.identified {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.identifiedName {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.candidatesList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidateButton {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: left;
+}
+
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(34rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid var(--color-slate);
+    border-radius: var(--radius-md, 0);
+    box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  }
+
+  .viewport {
+    flex: none;
+    aspect-ratio: 4 / 3;
+  }
+}

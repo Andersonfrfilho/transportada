@@ -10,6 +10,8 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { MeasurementCardPrint } from './MeasurementCardPrint.component'
+import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
 import {
   PACKAGE_BOX_STATUS_FILTERS,
@@ -22,6 +24,8 @@ import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurementPanelProps = Readonly<{
+  /** Spec 152 D14: sem ela ligada, a etapa Medida não existe — só "Digitar medida". */
+  cameraMeasurementEnabled: boolean
   denied: boolean
   failed: boolean
   loading: boolean
@@ -62,6 +66,21 @@ function looksLikeScannedCode(value: string): boolean {
 
 const PERCENT_SCALE = 100
 
+/**
+ * R5 (leitura): a linha já medida mostra de onde a medida veio — "pela câmera, ±X cm", "digitada"
+ * ou "origem não registrada" para o que foi medido antes desta spec (D8, `measurementSource: null`).
+ */
+function measurementSourceLabel(
+  t: ReturnType<typeof useTranslation<'nfeWorkspace'>>['t'],
+  box: PackageBox,
+): string {
+  if (box.measurementSource === null) return t('packageBoxes.source.unknown')
+  if (box.measurementSource === 'typed') return t('packageBoxes.source.typed')
+  return t('packageBoxes.source.camera', {
+    margin: box.measurementMarginMm === null ? 0 : box.measurementMarginMm / 10,
+  })
+}
+
 function QueueSkeleton() {
   const { t } = useTranslation('nfeWorkspace')
   return (
@@ -83,6 +102,7 @@ function QueueSkeleton() {
  * de descer — doze caixas cobrem um quarto do que sai daqui, e as de baixo custam o mesmo tempo.
  */
 export function PackageBoxMeasurementPanel({
+  cameraMeasurementEnabled,
   denied,
   failed,
   loading,
@@ -128,6 +148,14 @@ export function PackageBoxMeasurementPanel({
    */
   const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
   const closeScanTimer = useRef<number | undefined>(undefined)
+  /**
+   * Spec 152 T11: `PackageBoxCameraFlow` é a porta de entrada da medida pela câmera — dona da
+   * própria sessão (`useCameraStream`, D19), separada do leitor digitado de hoje. Aberta, ela casa
+   * a etiqueta com a fila pela mesma pergunta (`onScan`/`matching`/`queue`), então o efeito abaixo
+   * (que abre a edição digitada / a lista de candidatas) precisa ficar de fora enquanto ela decide.
+   */
+  const [isCameraFlowOpen, setIsCameraFlowOpen] = useState(false)
+  const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
 
   useEffect(() => {
     return () => window.clearTimeout(closeScanTimer.current)
@@ -158,6 +186,7 @@ export function PackageBoxMeasurementPanel({
    * o operador escolhe, nunca a tela.
    */
   useEffect(() => {
+    if (isCameraFlowOpen) return
     if (!awaitingScan || matching) return
     setAwaitingScan(false)
     const items = queue?.items ?? []
@@ -171,7 +200,7 @@ export function PackageBoxMeasurementPanel({
     }
     const [match] = items
     if (match !== undefined) openMeasurementForScannedBox(match.id)
-  }, [awaitingScan, matching, queue, t, openMeasurementForScannedBox])
+  }, [awaitingScan, isCameraFlowOpen, matching, queue, t, openMeasurementForScannedBox])
 
   useEffect(() => {
     if (scanFeedback?.kind !== 'notFound') return
@@ -234,6 +263,10 @@ export function PackageBoxMeasurementPanel({
       <header className={styles.header}>
         <h3 id="package-boxes-title">{t('packageBoxes.title')}</h3>
         <p className={styles.hint}>{t('packageBoxes.description')}</p>
+        <Button onClick={() => setIsPrintCardOpen(true)} size="sm" type="button" variant="ghost">
+          <Icon name="download" />
+          {t('packageBoxes.printCard.open')}
+        </Button>
       </header>
 
       <div className={styles.search}>
@@ -268,6 +301,12 @@ export function PackageBoxMeasurementPanel({
           <Icon name="camera" />
           {t('packageBoxes.scan')}
         </Button>
+        {cameraMeasurementEnabled ? (
+          <Button onClick={() => setIsCameraFlowOpen(true)} type="button" variant="secondary">
+            <Icon name="camera" />
+            {t('packageBoxes.camera.openFlow')}
+          </Button>
+        ) : null}
       </div>
 
       <label className={styles.field} htmlFor="package-box-status">
@@ -321,6 +360,18 @@ export function PackageBoxMeasurementPanel({
           }}
         />
       )}
+
+      <PackageBoxCameraFlow
+        cameraEnabled={cameraMeasurementEnabled}
+        isOpen={isCameraFlowOpen}
+        matches={queue?.items}
+        matching={matching}
+        onClose={() => setIsCameraFlowOpen(false)}
+        onLookup={(text) => onScan(text)}
+        onSave={(id, submission) => onMeasure({ ...submission, id })}
+      />
+
+      <MeasurementCardPrint isOpen={isPrintCardOpen} onClose={() => setIsPrintCardOpen(false)} />
     </section>
   )
 }
@@ -473,6 +524,8 @@ function PackageBoxRow({
             units: box.unitsPerBox,
             width: toCentimetres(box.widthMm),
           })}
+          {' · '}
+          {measurementSourceLabel(t, box)}
         </p>
       )}
 
