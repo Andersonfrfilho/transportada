@@ -741,3 +741,167 @@ bun run typecheck                           exit 0
 bun run --cwd apps/api-transportada test   6319 pass · 23 skip · 0 fail
 bun run --cwd apps/frontend-transportada test  4182 pass · 0 fail
 ```
+
+## Revisão final — correções
+
+Data: 2026-09-17. Worktree `box-variants`, branch `work/box-variants`. Um item (ou grupo indicado)
+por commit, vermelho → verde.
+
+### ALTO-1 — exportação da câmera vazava caixa replicada
+
+**Vermelho.** `bun --env-file=../../.env.test test --timeout 120000
+./test/integration/package-box-measurement-export.integration.ts` com um terceiro registro
+`source: 'replicated'` (mais recente que os outros dois) no cenário:
+
+```
+expect(page.items.map((item) => item.id)).toEqual([...])
++ "4980ea9f-04aa-44b0-9dde-84bf8ad2132c"   ← a linha replicada aparecia primeiro
+2 fail
+```
+
+No frontend, `bun test ./test/nfe-workspace/camera-measurement-validation.contract.ts` com um caso
+simulando `source: 'replicated'` escapando da validação de fronteira:
+
+```
+expect(lines).toHaveLength(1)   Expected length: 1, Received length: 4
+1 fail
+```
+
+**Verde.**
+`drizzle-package-box-measurement-export.repository.ts` ganhou `inArray(source,
+[...PACKAGE_BOX_MEASURED_SOURCES])` na `WHERE` — a mesma constante de domínio que já protege a
+gravação, sem literal novo. `cameraMeasurementExport.service.ts` trocou o filtro negativo
+(`source !== 'typed'`) por um positivo (`camera`/`camera_adjusted`), para não depender de nenhuma
+origem futura ser implicitamente aceita.
+
+```
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/package-box-measurement-export.integration.ts   2 pass · 0 fail
+bun test ./test/nfe-workspace/camera-measurement-validation.contract.ts ./test/nfe-workspace/camera-measurement-settings.contract.ts   29 pass · 0 fail
+bun run typecheck   exit 0
+```
+
+Commit: `32e52d50` — fix(nfe-package-box): a exportação da medida pela câmera para de vazar caixa
+replicada.
+
+### ALTO-2 + MÉDIO-4 + MÉDIO-2 — oferta de replicar e fechamento por efeitos globais
+
+**Vermelho.** Não havia teste vermelho por execução (o defeito é de desenho, não de asserção
+existente) — a correção nasceu com o teste já cobrindo o comportamento novo:
+`bun test ./test/nfe-workspace/package-box-replicate-offer.contract.ts` falhava por módulo
+inexistente:
+
+```
+error: Cannot find module '.../packageBoxReplicateOffer.service'
+0 pass · 1 fail · 1 error
+```
+
+E o teste de contrato existente (`package-box-replicate-dialog.contract.ts`) tinha as asserções
+antigas (`familyPendingCount <= 1`, `saveStatus !== 'success'`) apontando exatamente para os dois
+efeitos que seriam removidos — reescritas para provar a ausência deles.
+
+**Verde.** Os dois efeitos (`pendingReplicateOfferRef` reagindo a `saveStatus`, e
+`wasReplicatingRef` reagindo a `replicateSaving`) saíram do painel. `resolveReplicateOffer`
+(`packageBoxReplicateOffer.service.ts`, pura) decide a oferta dentro do `onSuccess` da própria
+chamada de `measure.mutate`/`onMeasure` (amarrada à caixa e às dimensões daquela chamada); replicar
+fecha o diálogo no `onSuccess` da própria `replicate.mutate`. `onResetReplicate` (novo, espelha
+`resetMeasure`) zera a recusa e o estado da mutação ao abrir e ao fechar o diálogo. O diálogo
+desabilita Cancelar e a tecla Esc enquanto `saving`, para não abrir espaço para um sucesso tardio
+atingir outro diálogo já aberto.
+
+De quebra (MÉDIO-2): `resolveReplicateOffer` só desconta a própria caixa de `familyPendingCount`
+quando ela **ainda estava pendente** antes desta gravação (`measuredAt === null`) — o contador da
+D9 já conta quem remede como medida, nunca como pendente. A conta antiga subtraía sempre, e por
+isso remedir a penúltima caixa pendente da família nunca oferecia replicar.
+
+```
+bun test ./test/nfe-workspace/package-box-replicate-offer.contract.ts   4 pass · 0 fail
+bun test ./test/nfe-workspace/package-box-replicate-dialog.contract.ts   9 pass · 0 fail
+bun run --cwd apps/frontend-transportada test   4190 pass · 0 fail
+bun run --cwd apps/frontend-transportada typecheck   exit 0
+bun run --cwd apps/frontend-transportada lint   sem erros
+```
+
+Commit: `fbc94fb3` — fix(nfe-workspace): a oferta de replicar vira onSuccess por chamada, não
+efeito global.
+
+### MÉDIO-1 — diálogo enviava id que saiu dos alvos após refetch
+
+**Vermelho.** `bun test ./test/nfe-workspace/package-box-replicate-dialog.contract.ts` com
+`resolveSelectedTargetIds` ainda não exportada:
+
+```
+SyntaxError: Export named 'resolveSelectedTargetIds' not found in module '.../packageBoxReplicateSelection.service.ts'
+0 pass · 1 fail · 1 error
+```
+
+**Verde.** `resolveSelectedTargetIds` (nova, pura, em `packageBoxReplicateSelection.service.ts`)
+cruza `selected` contra os `targets` da leitura atual antes de contar e de confirmar —
+`PackageBoxReplicateDialog.component.tsx` usa o resultado dela no lugar de `Array.from(selected)`
+tanto na contagem do botão quanto no `onConfirm`.
+
+```
+bun test ./test/nfe-workspace/package-box-replicate-dialog.contract.ts   9 pass · 0 fail
+bun run --cwd apps/frontend-transportada test   4190 pass · 0 fail
+bun run --cwd apps/frontend-transportada typecheck   exit 0
+bun run --cwd apps/frontend-transportada lint   sem erros
+```
+
+Commit: `e30ae240` — fix(nfe-workspace): diálogo de replicar nunca envia id que saiu dos alvos
+após refetch.
+
+### BAIXOS da API — trava da origem, deduplicação e tipos/constantes
+
+**Vermelho.** `bun --env-file=../../.env.test test --timeout 120000
+./test/integration/package-box-replication.integration.ts` com os dois casos novos:
+
+```
+"trava a origem: remedida concorrente não deixa a réplica copiar o valor antigo"
+expect(target?.lengthMm).toBe(999)   Expected: 999, Received: 300
+
+"targetIds repetido replica uma vez só, sem gravar história em duplicidade"
+ApiError: The target package box already has a measurement (409, PACKAGE_BOX_REPLICATION_TARGET_ALREADY_MEASURED)
+
+6 pass · 2 fail
+```
+
+**Verde.** `DrizzlePackageBoxRepository.replicate`: a origem é lida com `.for('update')` — uma
+remedida concorrente dela trava a linha, e a réplica espera para copiar o valor que ficou depois da
+remedida; `targetIds` deduplica (`[...new Set(...)]`) antes de ler/gravar, comparando a contagem
+final contra o conjunto já deduplicado. `PackageBoxMeasurement.source` (API,
+`package-box.port.ts`) e `PackageBoxMeasurementInput.source` (frontend,
+`packageBoxClient.service.ts`, com `PACKAGE_BOX_MEASURED_SOURCES`/`PackageBoxMeasuredSource` cópia
+por valor) passam a usar o tipo sem `replicated` — só `replicate()` grava essa origem.
+`buildPackagingKey` (`package-box-family.policy.ts`) substitui a chave `emitente|cProd` que se
+repetia em `countPackagingSiblings` e em `getSiblings`. `PACKAGE_BOX_REPLICATE_FAILED_CODE` e
+`PACKAGE_BOX_SIBLINGS_MALFORMED_CODE` (`nfeWorkspace.constant.ts`) substituem os literais repetidos
+em `packageBoxClient.service.ts`/`usePackageBoxQueue.hook.ts` (§16 code-standards).
+
+Não foi criada migration nova — o índice da FK (`replicated_from_box_id`) fica só anotado, como o
+prompt pediu.
+
+```
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/package-box-replication.integration.ts   8 pass · 0 fail
+bun run --cwd apps/api-transportada test   6320 pass · 23 skip · 0 fail
+bun run typecheck (as seis apps)   exit 0
+bun run lint (as seis apps)   sem erros
+```
+
+Commit: `d92c6f56` — fix(nfe-package-box): trava a origem da réplica e deduplica alvos repetidos.
+
+### Item não corrigido
+
+MÉDIO-3 ("réplica conta como medida / réplica pode ser origem de nova réplica") não foi tocado —
+aguarda decisão do usuário, conforme instrução explícita da revisão.
+
+### Gates finais
+
+```
+bun run typecheck                                    exit 0
+bun run --cwd apps/api-transportada test             6320 pass · 23 skip · 0 fail
+bun run --cwd apps/frontend-transportada test        4190 pass · 0 fail
+bun run --cwd apps/frontend-transportada lint        sem erros
+bun --env-file=../../.env.test test --timeout 120000
+  ./test/integration/package-box-measurement-export.integration.ts
+  ./test/integration/package-box-replication.integration.ts         10 pass · 0 fail
+make check                                            exit 0 (format:check + lint + typecheck + test + build, todas as apps, 0 fail)
+```
