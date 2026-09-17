@@ -44,6 +44,7 @@ import {
   type RouteGeometryToll,
 } from './read-route-geometry.use-case.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
+import { resolveVehicleFuelBaseline } from '../../toll-booths/domain/route-option.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort } from './route-geometry.port.js'
 
@@ -318,14 +319,20 @@ export async function previewTripValuation(
      * spec 153 H1: o mesmo consumo/preço que `resolveFuelParcel` (abaixo) usa para precificar o
      * combustível — sem isto `applyCriterion('cheapest')` não acha candidata nenhuma entre as
      * opções, e a prévia cai sempre na principal, discordando da viagem que o congelador grava.
+     *
+     * N13 (segunda revisão da 153): `resolveVehicleFuelBaseline` é o mesmo colapso que
+     * `route-geometry-vehicle-axles.query.ts` e `drizzle-trip-planned-route.repository.ts` usam —
+     * um par parcial (consumo sem preço, ou vice-versa) vira ausência nos três lugares, pelo mesmo
+     * código, não por três contas que só coincidem hoje.
+     *
      * Spec 217 Fase 4: `context.vehicle` é anulável (viagem `awaiting_crew` sem caminhão ainda
      * escolhido) — a prévia continua exigindo o veículo no formulário, mas o tipo compartilhado
      * com a leitura financeira obriga o mesmo `?.` aqui.
      */
-    fuelBaseline: {
+    fuelBaseline: resolveVehicleFuelBaseline({
       kilometersPerLiter: context.vehicle?.kilometersPerLiter ?? null,
       pricePerLiter: context.fuelPricePerLiter,
-    },
+    }),
     hasAutomaticTollPayment: context.vehicle?.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,

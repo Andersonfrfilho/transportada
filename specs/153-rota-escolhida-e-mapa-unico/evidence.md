@@ -5070,3 +5070,86 @@ comportamento de congelamento em si — só a fiação do logger e a remoção d
 ### Commit
 
 `<hash desta mudança — ver git log>`
+
+## T806 — N7 + N13 + N12 + N14: ajustes finos
+
+### N7 — distinção preservada por log, sem mudar o contrato de resposta
+
+`main.ts` (prévia de `readTripRouteGeometry`, ~2600): `stops: (await listTripStopCoordinates(...)) ??
+[]` apagava a diferença entre `null` ("tem parada, mas uma sem coordenada") e `[]` ("não tem parada
+nenhuma") — `listTripStopCoordinates` (`trip-stop-coordinates.support.ts`) documenta essa diferença,
+mas o `??` a descartava antes de chegar em `readRouteGeometry`.
+
+Decisão: **não** mudei o contrato de resposta — `RouteGeometryView` continua `unavailable` nos dois
+casos, e diferenciá-la na tela exigiria um `costGap`/motivo novo na resposta HTTP, que é mudança de
+contrato fora do escopo do achado (a instrução do achado pedia para parar e reportar nesse caso).
+O que preservei: o novo helper `readTripRouteGeometryStopsOrWarn` (`main.ts`) grava um aviso
+(`trip_route_geometry_stops_gap`, nível `info`) com `reason: 'missing_coordinate' | 'no_stops'` antes
+de colapsar para `[]` — quem investiga uma viagem presa em `unavailable` não precisa mais abrir o
+banco para saber qual dos dois motivos foi.
+
+**Reportando, não fazendo:** se a tela precisar um dia mostrar a mensagem certa para cada caso
+("complete o endereço" vs. "nenhuma parada vinculada"), isso é uma mudança de contrato de resposta
+(`RouteGeometryView`/`ROUTE_COST_GAPS` ganhariam um motivo novo) — não implementada aqui.
+
+### N13 — `fuelBaseline` num lugar só
+
+`route-geometry-vehicle-axles.query.ts`, `drizzle-trip-planned-route.repository.ts` e
+`read-trip-valuation.use-case.ts` calculavam o mesmo colapso (consumo ou preço ausente → os dois
+`null`) cada um à sua forma — os dois primeiros com cópias próprias de `NO_FUEL_BASELINE`, o
+terceiro sem colapsar (funcionalmente equivalente, porque `resolveFuelBaseline`, em
+`toll-booths/domain/route-option.policy.ts`, já tratava um par parcial como "sem baseline" mais
+adiante — mas por um caminho implícito, não pela mesma função).
+
+**Decisão: extração**, não teste de paridade — o acoplamento entre módulos permite: `RouteOptionVehicle`
+já morava em `toll-booths/domain/route-option.policy.ts`, e os três consumidores já importavam desse
+módulo (ou passaram a importar). `resolveVehicleFuelBaseline` (nova função exportada, mais
+`NO_FUEL_BASELINE` também exportada) é o colapso único; `resolveFuelBaseline` (privada, usada por
+`rankRouteOptions`) passou a chamá-la por baixo, em vez de reimplementar a mesma checagem de
+`null`. Os três call sites (as duas infraestruturas e a prévia de valoração) chamam a mesma função.
+
+### N12 — teste vazio virou asserção de verdade
+
+`test/trip-valuation/preview-route-choice.contract.ts` (~150): `expect(true).toBe(true)` dizia que a
+rejeição de critério inválido "mora em `trip-request.schema.test.ts`" — esse arquivo não existe (
+confirmado com `find`/`grep` no diretório de teste; nenhum teste no repositório cobre a rejeição de
+`previewTripValuationSchema`). Reescrito para `previewTripValuationSchema.safeParse(...)` com
+`criterion: 'invalid'`, afirmando `result.success === false` de verdade.
+
+### N14 — `toMatchObject` → `toEqual`
+
+`test/integration/freeze-trip-planned-route.integration.ts` (~77): a primeira prova de
+`readVehicleContext` usava `toMatchObject`, que não reprova campo a mais em `vehicle`. Troquei para
+desestruturar `revision` (o único campo não-determinístico) e comparar o resto com `toEqual`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21965 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts ./test/integration/route-depot-query.integration.ts --timeout 120000
+24 pass / 0 fail, 94 expect() calls.
+```
+
+Não tocou frontend.
+
+### O que não fez
+
+Não mudou o contrato de resposta de `RouteGeometryView`/`ROUTE_COST_GAPS` para distinguir "sem
+coordenada" de "sem parada" na tela (N7 — reportado acima, não implementado por ser mudança de
+contrato). Não escreveu teste de paridade para `fuelBaseline`: optou pela extração, que torna o
+teste desnecessário (os três lugares chamam a mesma função).
+
+### Commit
+
+`<hash desta mudança — ver git log>`

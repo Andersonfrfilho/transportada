@@ -152,6 +152,6 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
       amounts); `isNoToll` ausente tolerado no parser, como o parser irmão; `docs/SECURITY.md`
       atualizado (a parte do frontend já foi feita na T710); aceite de sugestão usa o
       `freezeTripRouteGracefully` com log, sem helper duplicado.
-- [ ] T806 **N7 + N13 + N12 + N14** Ajustes finos: `?? []` que apaga a diferença entre "uma parada" e
+- [x] T806 **N7 + N13 + N12 + N14** Ajustes finos: `?? []` que apaga a diferença entre "uma parada" e
       "parada sem coordenada"; `fuelBaseline` calculado em três lugares sem guarda de paridade;
       `expect(true).toBe(true)`; `toMatchObject` que não reprova campo a mais.

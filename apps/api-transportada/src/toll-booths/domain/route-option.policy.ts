@@ -44,12 +44,28 @@ export type RouteOptionVehicle = Readonly<{
   pricePerLiter: null | string
 }>
 
-/** Veículo sem consumo ou sem preço conhecido — nenhuma opção ganha custo, e `costGap` diz por quê. */
+/** Consumo/preço sem par: um dos dois faltando torna o outro ruído — o veículo aparentaria ter
+ * baseline quando não tem. */
 export const NO_FUEL_BASELINE: RouteOptionVehicle = {
   kilometersPerLiter: null,
   pricePerLiter: null,
 }
 
+/**
+ * N13 (segunda revisão da 153): o único lugar que colapsa "consumo ou preço ausente" para
+ * `NO_FUEL_BASELINE` — antes desta correção, `route-geometry-vehicle-axles.query.ts` e
+ * `drizzle-trip-planned-route.repository.ts` faziam a mesma conta cada um com sua própria cópia da
+ * constante, sem teste de paridade entre elas, e `read-trip-valuation.use-case.ts` nem colapsava
+ * (deixava passar um par parcial, que só virava "sem baseline" adiante, dentro de
+ * `resolveFuelBaseline` abaixo — funcionalmente igual, mas não pelo mesmo caminho explícito). Os
+ * três lugares agora chamam esta função — os dois primeiros por dentro do atalho assíncrono de
+ * `effective-fuel-price.query.ts`, que busca o preço e delega o colapso para cá.
+ */
+export function resolveVehicleFuelBaseline(vehicle: RouteOptionVehicle): RouteOptionVehicle {
+  return vehicle.kilometersPerLiter === null || vehicle.pricePerLiter === null
+    ? NO_FUEL_BASELINE
+    : vehicle
+}
 export type RankedRouteOption = RouteOptionInput &
   Readonly<{
     /** `null` quando não há como calcular — nunca zero, que diria "não gasta combustível". */
@@ -101,10 +117,10 @@ export function rankRouteOptions(input: RankRouteOptionsParams): RankedRouteOpti
 function resolveFuelBaseline(
   vehicle: RouteOptionVehicle,
 ): null | Readonly<{ kilometersPerLiter: string; pricePerLiter: string }> {
-  const { kilometersPerLiter, pricePerLiter } = vehicle
-  if (kilometersPerLiter === null || pricePerLiter === null) return null
+  const baseline = resolveVehicleFuelBaseline(vehicle)
+  if (baseline.kilometersPerLiter === null || baseline.pricePerLiter === null) return null
 
-  return { kilometersPerLiter, pricePerLiter }
+  return { kilometersPerLiter: baseline.kilometersPerLiter, pricePerLiter: baseline.pricePerLiter }
 }
 
 /**

@@ -227,6 +227,7 @@ import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/rou
 import { DrizzleTripPlannedRouteRepository } from './trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
+import type { RouteGeometryPoint } from './trips/domain/route-geometry.policy.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { createRequestCargoLayoutUseCase } from './trips/application/request-cargo-layout.use-case.js'
@@ -1834,6 +1835,43 @@ type CreateApplicationRoutesParams = {
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
+}
+
+const TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE = 'trip_route_geometry_stops_gap'
+
+/**
+ * N7 (segunda revisão da 153): `listTripStopCoordinates` devolve `null` para "tem parada sem
+ * coordenada" e `[]` para "não tem parada nenhuma" — o `?? []` na prévia da geometria colapsava os
+ * dois no mesmo `unavailable`, sem deixar rastro de qual dos dois aconteceu. Sem mudar a resposta
+ * (RouteGeometryView continua `unavailable` para as duas), o aviso preserva a distinção para quem
+ * investiga depois.
+ */
+async function readTripRouteGeometryStopsOrWarn(input: {
+  readonly companyId: string
+  readonly database: CompanySettingsDatabase
+  readonly logger: ApiLogger
+  readonly tripId: string
+}): Promise<readonly RouteGeometryPoint[]> {
+  const coordinates = await listTripStopCoordinates(input.database, {
+    companyId: input.companyId,
+    tripId: input.tripId,
+  })
+  if (coordinates === null) {
+    input.logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+      companyId: input.companyId,
+      reason: 'missing_coordinate',
+      tripId: input.tripId,
+    })
+    return []
+  }
+  if (coordinates.length === 0) {
+    input.logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+      companyId: input.companyId,
+      reason: 'no_stops',
+      tripId: input.tripId,
+    })
+  }
+  return coordinates
 }
 
 function createApplicationRoutes({
@@ -4026,12 +4064,20 @@ function createApplicationRoutes({
                  * T704 M4: parada sem coordenada devolve `null`, e a prévia do mapa segue a mesma
                  * regra do congelamento — sem rota, nunca a rota das paradas que sobraram. Lista
                  * vazia é o que `readRouteGeometry` já trata como estrada indisponível (D5).
+                 *
+                 * N7 (segunda revisão da 153): o `?? []` apagava a diferença entre "esta viagem tem
+                 * paradas, mas uma sem coordenada" e "esta viagem não tem parada nenhuma" —
+                 * `readRouteGeometry` recebe as duas como `unavailable` hoje, e distingui-las na
+                 * resposta é mudança de contrato (fora do escopo aqui: reportado, não feito). O que
+                 * dá para preservar sem tocar a resposta é o aviso, para quem investiga uma viagem
+                 * presa em `unavailable` sem abrir o banco.
                  */
-                stops:
-                  (await listTripStopCoordinates(database, {
-                    companyId: input.context.companyId,
-                    tripId: input.tripId,
-                  })) ?? [],
+                stops: await readTripRouteGeometryStopsOrWarn({
+                  companyId: input.context.companyId,
+                  database,
+                  logger,
+                  tripId: input.tripId,
+                }),
                 tollBooths: createCompanyScopedTollBoothGateway({
                   catalog: tollBoothRepository,
                   charges: tollBoothChargeRepository,

@@ -12,6 +12,7 @@ import {
   readTripValuation,
   type TripValuationContext,
 } from '../../src/trips/application/read-trip-valuation.use-case.js'
+import { previewTripValuationSchema } from '../../src/trips/presentation/trip-request.schema.js'
 import { readRouteGeometry } from '../../src/trips/application/read-route-geometry.use-case.js'
 import { summarizeRoadDistance } from '../../src/trips/domain/planned-road-distance.policy.js'
 import type { RouteGeometryPoint } from '../../src/trips/domain/route-geometry.policy.js'
@@ -147,13 +148,20 @@ describe('a prévia aceita a rota escolhida (spec 153 RF4)', () => {
     expect(toll).toMatchObject({ amount: '21.0000', gap: null })
   })
 
-  it('um critério fora de `ROUTE_CHOICE_CRITERIA` não chega aqui — a fronteira HTTP barra antes (400)', () => {
+  it('um critério fora de `ROUTE_CHOICE_CRITERIA` é 400 na fronteira HTTP — sem fallback silencioso', () => {
     /**
-     * Este contrato prova a aplicação; a rejeição em si é HTTP e mora em
-     * `trip-request.schema.test.ts` — `previewTripValuationSchema` usa `z.enum(ROUTE_CHOICE_CRITERIA)`,
-     * a mesma validação que `planTripRouteSchema` já usa (T201), sem fallback silencioso.
+     * N12 (segunda revisão da 153): não havia `trip-request.schema.test.ts` nenhum provando isto —
+     * o `expect(true).toBe(true)` só documentava uma afirmação nunca verificada.
+     * `previewTripValuationSchema` usa `z.enum(ROUTE_CHOICE_CRITERIA)`, a mesma validação que
+     * `planTripRouteSchema` já usa (T201); a asserção de verdade é aqui.
      */
-    expect(true).toBe(true)
+    const result = previewTripValuationSchema.safeParse({
+      nfeDocumentIds: [COMPANY_ID],
+      routeChoice: { criterion: 'invalid', signature: null },
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(result.success).toBe(false)
   })
 
   it('com `no_toll`, troca de rota — a distância e o pedágio passam a ser os da estrada sem praça', async () => {

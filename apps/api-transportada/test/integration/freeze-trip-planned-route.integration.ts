@@ -75,7 +75,13 @@ describe('freeze trip planned route repository integration', () => {
 
         const vehicle = await repository.readVehicleContext({ companyId, tripId })
 
-        expect(vehicle).toMatchObject({
+        /**
+         * N14 (segunda revisão da 153): `toMatchObject` deixava passar um campo a mais em
+         * `vehicle` sem reprovar — `revision` é o único não-determinístico, tratado à parte, e o
+         * resto vai por `toEqual`, que reprova qualquer chave inesperada.
+         */
+        const { revision, ...rest } = vehicle ?? {}
+        expect(rest).toEqual({
           axles: { count: 3, source: 'declared' },
           hasAutomaticTollPayment: true,
           multiplier: { denominator: 1, numerator: 3 },
@@ -83,7 +89,7 @@ describe('freeze trip planned route repository integration', () => {
           fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null },
         })
         /** T704 M3: a revisão da viagem viaja junto — é o compare-and-set da escrita final. */
-        expect(typeof vehicle?.revision).toBe('string')
+        expect(typeof revision).toBe('string')
       })
     },
   )
