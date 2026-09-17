@@ -1991,3 +1991,85 @@ Não fiz rebase, não fiz push, não toquei a pasta de migration
 raiz e não abri `specs/1XX/` para o ajuste negativo. A revisão final com `code-reviewer` `opus` (T14,
 "revisão final com `code-reviewer` `opus`") não faz parte deste passe do executor — é um passe
 separado, pedido pelo próprio `tasks.md` como item distinto do `make check`.
+
+## Fechamento da integração — a falha que a T14 apontou e não cobriu
+
+A T14 registrou, com transparência, que `test:integration` nunca rodou durante a spec 143 (ver seção
+acima) e deixou o comando como encaminhamento para quem fizesse o rebase e o push. Este passe roda
+esse comando pela primeira vez com Docker de pé e conserta a única falha que pertence à 143.
+
+### A falha, e por que ela existia
+
+`test/integration/trip-financial-end-to-end.integration.ts` é o único teste de ponta a ponta da
+viagem contra Postgres de verdade (spec 061 T010) — e por rodar só via `test:integration`, nunca foi
+exercitado durante as T1–T14 da 143. A asserção da linha 87 e o comentário acima dela
+("O agregado sai da tabela de região cruzada com a classe do veículo — spec 038") descreviam a regra
+que a 143 substituiu: motorista pago pela diária (D1), não mais pela tabela de região cruzada com a
+classe do veículo. `buildTripDriverCost` (`trip-driver-cost.policy.ts`) não lê mais
+`freightRegionDriverRates`, então o valor esperado (`812.4500`) e a fonte da conta estavam mortos.
+
+### A reescrita — decisão do usuário aplicada: nenhuma suíte é apagada
+
+A asserção foi reescrita no lugar, não removida, e passou a provar a cascata da 143 em vez de só
+passar:
+
+- **`fleetDrivers.dailyAllowanceAmount: '350.0000'`** semeado no condutor — exercita `rateOrigin:
+'driver'` (D3: valor do próprio motorista vence o da empresa e o padrão do sistema).
+- **`trips.dailyAllowanceDays: 2`** semeado na viagem — exercita `daysOrigin: 'informed'` (D4: dias
+  informados pela operação vencem a duração estimada do roteiro).
+- Resultado: `350.0000 × 2 = 700.0000`, `source: 'measured'` (os dois, `rateOrigin: 'driver'` e
+  `daysOrigin: 'informed'`, são os casos mais informados da cascata — o caminho mais pobre seria
+  `default`/`estimated`, que o seed evitava por omissão).
+- Nova asserção da invariante da T3: `Σ basis.crew[].subtotal === amount`, exata — soma os
+  `subtotal` já formatados dos condutores da tripulação (aqui, um só) com a mesma aritmética escalada
+  (`add`) que o arquivo já usa para o `netAmount`, nunca concatenação de texto.
+
+### `freightRegionDriverRates` — removido, sem função
+
+O seed inseria `freightRegionDriverRates` com `driverAmount: '812.4500'`. Conferido em
+`trip-driver-cost.policy.ts`, `daily-allowance.policy.ts` e por busca no diretório `trips/`: nenhum
+código de produção lê mais essa tabela para o custo do motorista, e nenhuma outra asserção do arquivo
+dependia da linha. Removida a inserção e o import de `freightRegionDriverRates` — sem função,
+retirada, como a decisão do usuário pede para o que fica "sem objeto". O restante do cenário de
+região (`freightRegions`, `freightRegionCities`, `fleetDriverRegions`) **não foi tocado**: nomear
+esse escopo mais largo de "sem função" também exigiria auditar o resto do arquivo pelo mesmo padrão,
+e o briefing desta task apontou só a linha do `freightRegionDriverRates` — mexer no resto seria
+espalhar o escopo além do pedido.
+
+### Falhas ambientais — confirmado que não pertencem à 143
+
+Rodado `test:integration` completo contra `.env.test` com Docker (`transportada-test-postgres-1`,
+`transportada-local-postgres-1` de pé): **359 pass · 4 skip · 2 fail · 2447 expect() · 71 arquivos**.
+As duas falhas são as já apuradas pelo usuário antes do briefing, contra `origin/staging` puro, sem
+nenhuma linha da 143:
+
+- `cte-archive-gateway.integration.ts` — as duas falhas são `ObjectStorageError: Object storage is
+unavailable` (bucket MinIO não provisionado nesta máquina). Confirmado nesta sessão: mesmas duas
+  falhas, mesma mensagem, e nada na 143 toca armazenamento de objeto ou o gateway do CT-e.
+- `trip-document-review.integration.ts` e `aggregate-application-attachment-link.integration.ts` —
+  **passaram** nesta sessão, dentro da suíte completa e isolados (não reproduzida a flutuação hoje;
+  classificação de pré-existência do usuário mantida como registrada no briefing).
+
+`trip-financial-end-to-end.integration.ts` rodado isolado depois da reescrita: **1 pass · 0 fail · 23
+expect() calls**.
+
+### Gates deste passe
+
+| Gate               | Comando                                                                            | Resultado                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                                                 | ✅ limpo                                                                                                                |
+| Testes da API      | `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` | ✅ **6143 pass · 23 skip · 0 fail** · 21552 expect()                                                                    |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`                                    | ✅ **4119 pass · 0 fail** · 35958 expect()                                                                              |
+| Lint               | `bun run lint`                                                                     | ✅ limpo — 6 apps                                                                                                       |
+| Formatação         | `bun run format:check`                                                             | ✅ limpo                                                                                                                |
+| Integração         | `cd apps/api-transportada && bun --env-file=../../.env.test run test:integration`  | ⚠️ **359 pass · 4 skip · 2 fail** — os 2 são ambientais (MinIO), classificados acima; `trip-financial-end-to-end` verde |
+
+Baseline batido exatamente nos gates de contrato: API 6143 pass / 0 fail, FE 4119 pass / 0 fail —
+idêntico ao registrado na T14. Nenhum teste a mais, nenhum a menos.
+
+### Fora do escopo deste passe, por instrução explícita
+
+Não fiz rebase, não fiz push. Não toquei as asserções vizinhas (`icms`, `pis_cofins`, `toll`,
+receita, congelamento, ADR-0049). Não corrigi `cte-archive-gateway.integration.ts`,
+`trip-document-review.integration.ts` nem `aggregate-application-attachment-link.integration.ts` —
+classificados como pré-existentes/ambientais, conforme o briefing pediu para não perseguir.

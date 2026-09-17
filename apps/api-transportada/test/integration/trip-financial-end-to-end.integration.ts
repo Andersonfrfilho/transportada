@@ -28,7 +28,6 @@ import {
   fleetVehicles,
   freightCalculations,
   freightRegionCities,
-  freightRegionDriverRates,
   freightRegions,
   freightRuleVersions,
   freightRules,
@@ -83,8 +82,27 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
         expect(valuation.revenueSource).toBe('measured')
 
         const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
-        /** O agregado sai da tabela de região cruzada com a classe do veículo (spec 038). */
-        expect(byKind.get('driver')).toMatchObject({ amount: '812.4500', source: 'measured' })
+        /**
+         * Spec 143: a diária paga o motorista — não mais a tabela de região. Dias informados na
+         * viagem (D4) vencem a duração estimada, e o valor próprio do condutor (D3) vence o da
+         * empresa e o padrão do sistema.
+         */
+        const driverParcel = byKind.get('driver')
+        if (driverParcel === undefined || driverParcel.basis?.of !== 'driver') {
+          throw new Error('expected the driver parcel to carry crew basis')
+        }
+        expect(driverParcel).toMatchObject({ amount: '700.0000', source: 'measured' })
+        const driverBasis = driverParcel.basis
+        expect(driverBasis.daysOrigin).toBe('informed')
+        expect(driverBasis.days).toBe(2)
+        expect(driverBasis.crew).toHaveLength(1)
+        expect(driverBasis.crew[0]).toMatchObject({ rateOrigin: 'driver', subtotal: '700.0000' })
+        /** T3: `Σ basis.crew[].subtotal === amount`, exato — nunca a soma dos textos formatados. */
+        const crewSubtotalTotal = driverBasis.crew.reduce(
+          (accumulated, line) => add(accumulated, line.subtotal),
+          '0.0000',
+        )
+        expect(crewSubtotalTotal).toBe(driverParcel.amount)
         /** ICMS medido do documento; PIS/COFINS pela alíquota do regime: 2.000 × 3,65% = 73,00. */
         expect(byKind.get('icms')).toMatchObject({ amount: '240.0000', source: 'measured' })
         expect(byKind.get('pis_cofins')).toMatchObject({ amount: '73.0000', source: 'measured' })
@@ -251,8 +269,10 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     state: 'SP',
     vehicleType: 'toco',
   })
+  /** Spec 143 D3: diária própria do condutor — vence a da empresa e o padrão do sistema. */
   await database.db.insert(fleetDrivers).values({
     companyId,
+    dailyAllowanceAmount: '350.0000',
     id: driverId,
     name: 'Agregado',
     paymentModel: 'route_table',
@@ -261,12 +281,6 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   await database.db
     .insert(freightRegions)
     .values({ code: '1.000', companyId, id: regionId, name: 'Barretos', zone: 1 })
-  await database.db.insert(freightRegionDriverRates).values({
-    companyId,
-    driverAmount: '812.4500',
-    freightClass: 'toco',
-    regionId,
-  })
   /*
     ⚠️ **A cidade da zona é o que decide o pagamento desde a spec 086.** Antes a consulta juntava a
     cobertura do motorista sem filtro de destino e ficava com a primeira linha que trouxesse valor —
@@ -487,9 +501,11 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   /**
    * Spec 153 T202: a valoração da viagem lê a distância e o pedágio **gravados no planejamento**,
    * não mais a soma de `trip_stops` — as quatro colunas nascem juntas (`trips_planned_route_check`).
+   * Spec 143 D4: os dias informados pela operação vencem a duração estimada do roteiro.
    */
   await database.db.insert(trips).values({
     companyId,
+    dailyAllowanceDays: 2,
     id: tripId,
     plannedDistanceMeters: 200_000,
     plannedDurationSeconds: 10_000,
