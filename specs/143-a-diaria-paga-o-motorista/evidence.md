@@ -2073,3 +2073,75 @@ Não fiz rebase, não fiz push. Não toquei as asserções vizinhas (`icms`, `pi
 receita, congelamento, ADR-0049). Não corrigi `cte-archive-gateway.integration.ts`,
 `trip-document-review.integration.ts` nem `aggregate-application-attachment-link.integration.ts` —
 classificados como pré-existentes/ambientais, conforme o briefing pediu para não perseguir.
+
+---
+
+## Rebase sobre `origin/staging` e regeração da migration
+
+Branch estava `ahead 20, behind 20`. `git rebase origin/staging` replicou os 20 commits com
+conflito em **três** deles.
+
+### Conflito 1 — commit da T1 (`trip.schema.ts`, `static-migration.contract.ts`, `trip-constraints.assertion.ts`)
+
+Puramente aditivo: a spec 153 (rota congelada) e a 143 (diária) acrescentaram coisas diferentes no
+mesmo ponto. Os dois lados ficaram. ⚠️ Nos dois arquivos em que os lados dividiam a linha de fecho
+(`),` do `check(...)` no schema e `)` do `expectQueryToFail` na asserção), o fecho teve de ser
+reposto à mão — o do schema na hora, o da asserção só apareceu no `typecheck` (`TS1005`), e está no
+commit da regeração.
+
+### Conflito 2 — commit da T4 (`read-trip-valuation.use-case.ts`, `trip-valuation.query.ts`)
+
+Conflito **semântico**, não textual, e a resolução muda código:
+
+1. `resolvePreviewRoad` — a 153 passou a somar a estrada por `summarizeRoadDistance` (que conhece a
+   volta ao barracão), a 143 acrescentou `durationSeconds`. A função já devolve os dois campos e já
+   trata `legs` vazia como desconhecida, então a resolução usa **uma** sumarização para ambos.
+2. `readPlannedDistance` e `readAllowanceDays` **morrem**. A 153 trocou a soma de `trip_stops` pela
+   coluna congelada `trips.planned_distance_meters`, e **nada em `src/` escreve mais
+   `trip_stops.distance_from_previous_meters` / `duration_from_previous_seconds`** (verificado por
+   varredura): a soma da duração devolveria `null` sempre. `estimatedDurationSeconds` passa a vir de
+   `trips.planned_duration_seconds`, que nasce e morre junto da distância
+   (`trips_planned_route_check`). Manter as duas fontes deixaria a distância congelada e a duração
+   morta na mesma conta.
+3. O comentário de zona/ADR-0049 que sobrou do lado da staging foi descartado — o método que ele
+   descrevia é o que a T4 removeu.
+
+### Conflito 3 — commit da reescrita da suíte de ponta a ponta
+
+`trips` recebe as cinco colunas da rota congelada (153) **e** `dailyAllowanceDays: 2` (143). Como os
+dias informados vencem a duração estimada, a conta do motorista segue 350 × 2 = 700.
+
+### A migration tinha de renascer
+
+`20260916120000_driver_daily_allowance` ordenava **antes** de `20260916174951_trip_planned_route`, e
+o runner aplica as pastas por ordem de **nome** — a diária rodaria antes do próprio pai
+(`prevIds: ["43673b3f-…"]`, que é o id do snapshot da rota). Regerada como
+**`20260917034547_driver_daily_allowance`**:
+
+- `migration.sql` idêntico ao anterior — as três estruturas e os três CHECKs;
+- `snapshot.json` novo, com `prevIds` apontando para o snapshot da 153;
+- `rollback.sql` preservado, com o nome novo no `DELETE` da tabela de controle;
+- `static-migration.contract.ts` e este `evidence.md` atualizados.
+
+### Defeito de ambiente encontrado no caminho
+
+Três contratos de Keycloak falhavam (`GET` esperado, `PUT` recebido). Causa: o `node_modules` do
+worktree é anterior ao bump que a staging trouxe — `@adatechnology/keycloak-admin` instalado em
+`1.0.0-rc.3` contra `1.0.1` declarado. `bun install --frozen-lockfile` resolveu. Nada a ver com a
+143 (a branch não toca nenhum arquivo de identidade).
+
+### Gates depois do rebase
+
+| Gate               | Comando                                                                           | Resultado                                                              |
+| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                                                | ✅ limpo                                                                 |
+| Testes da API      | `cd apps/api-transportada && bun test`                                            | ✅ **6235 pass · 23 skip · 0 fail** · 21797 expect() · 177 arquivos      |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`                                   | ✅ **4131 pass · 0 fail** · 35999 expect() · 29 arquivos                 |
+| Lint               | `bun run lint`                                                                    | ✅ limpo — 6 apps                                                        |
+| Formatação         | `bun run format:check`                                                            | ✅ limpo                                                                 |
+| Migration          | `make migration-test`                                                             | ✅ **97 pass · 0 fail** contra Postgres real, na ordem nova              |
+| Integração         | `cd apps/api-transportada && bun --env-file=../../.env.test run test:integration` | ⚠️ **370 pass · 4 skip · 2 fail** — os 2 de MinIO, pré-existentes       |
+
+As duas falhas de integração seguem sendo `cte-archive-gateway`: `ObjectStorageError: Object storage
+is unavailable`, mesmo depois de `make up`. Provadas pré-existentes em worktree descartável sobre
+`origin/staging`, sem código da 143.
