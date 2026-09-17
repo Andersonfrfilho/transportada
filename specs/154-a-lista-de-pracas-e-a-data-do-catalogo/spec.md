@@ -78,7 +78,7 @@ false`) continua aparecendo — é trabalho de gente e não some por decisão de
   dela que a RF3 lê. A mesma linha é a trilha de auditoria da recarga (D6).
   ⚠️ A tabela é **da instalação**, sem `company_id`, como o catálogo que ela descreve: o extrato não
   pertence a uma empresa. Isso faz a lista de `test/fleet-schema/tenant-safety.contract.ts` passar de
-  três para quatro tabelas — a suíte é **atualizada com a justificativa**, nunca afrouxada nem
+  quatro para cinco tabelas — a suíte é **atualizada com a justificativa**, nunca afrouxada nem
   apagada, e `toll_booths` continua sem `company_id`.
 - **D4 — Extrato novo continua sendo passo de runbook.** Gerar um `.pbf` novo e extrair dele é
   `make map-refresh` + `osmium`, porque o id do nó tem de casar com o do roteirizador. O que esta
@@ -206,7 +206,7 @@ ações independentemente da tela.
 5. A recarga aparece na trilha de auditoria com ator, dataset e data do extrato.
 6. Praça marcada "sem tarifa conhecida" no extrato da rota leva ao ajuste dela, e depois do ajuste o
    total da rota deixa de contá-la como sem tarifa.
-7. `test/fleet-schema/tenant-safety.contract.ts` continua verde com a lista atualizada para quatro
+7. `test/fleet-schema/tenant-safety.contract.ts` continua verde com a lista atualizada para cinco
    tabelas e a justificativa escrita; `toll_booths` segue sem `company_id`.
 8. Subir o mesmo extrato duas vezes responde 409 na segunda, e o objeto do bucket não é
    sobrescrito.

@@ -28,7 +28,7 @@ aparece em três lugares (upload, recarga, runbook) e vira constante, nunca lite
    `UNIQUE (dataset, observed_on)`, `varchar` nos textos (ENUM nativo é proibido), `sha256` fixo de
    64, contagens `integer`, `uploaded_by_user_id uuid NOT NULL`, `reloaded_*` nulos. **Sem
    `company_id`** (D10). `rollback.sql` junto, `make migration-test`.
-2. `test/fleet-schema/tenant-safety.contract.ts` passa de três para quatro tabelas sem
+2. `test/fleet-schema/tenant-safety.contract.ts` passa de quatro para cinco tabelas sem
    `company_id`, com a justificativa no próprio contrato.
 
 ## API (`apps/api-transportada`)

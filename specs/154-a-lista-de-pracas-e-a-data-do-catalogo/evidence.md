@@ -231,3 +231,71 @@ Ran 6286 tests across 177 files. [10.80s]
 `toll_booth_extracts` **não** entra nos grupos de `readBusinessTables` do
 `test/database-migration/support.ts`: `toll_booths` também não está em nenhum deles, e a tabela nova
 segue o catálogo, não o negócio. É decisão, não esquecimento.
+
+### T102 — a quinta tabela sem tenant
+
+A contagem estava errada em dois documentos, de duas formas diferentes. `tenant-safety.contract.ts`
+dizia "são quatro tabelas sem `company_id`" — verdade antes da T101, e a lista lá dentro já era a
+das quatro certas (`fuel_price_references`, `energy_tariff_references`, `vehicle_volume_references`,
+`toll_booths`); faltava só somar a que a própria T101 criou. Já `toll-booth.schema.ts` dizia que
+`toll_booths` era "a terceira tabela", ao lado de só duas outras (`fuel_price_references` e
+`vehicle_volume_references`) — esse erro é mais velho, de antes do merge que trouxe
+`energy_tariff_references`, e sobreviveu ao squash sem ninguém notar porque nenhum teste lê comentário.
+Os dois foram corrigidos para "cinco", com a lista completa nos dois lugares:
+`fuel_price_references`, `energy_tariff_references`, `vehicle_volume_references`, `toll_booths` e
+`toll_booth_extracts`. `spec.md` (linha ~81 e o critério de aceite 7) e `plan.md` (linha 31) tinham o
+mesmo "três para quatro" e viraram "quatro para cinco" — `toll-booth-extract.schema.ts`, escrito na
+T101, já estava certo desde o início e não precisou de ajuste.
+
+A quinta tem justificativa **diferente** das outras quatro: não é dado público de mercado (tarifa da
+ANP, tarifa da ANEEL, cubagem de referência, tarifa de praça do OSM), é que o extrato descreve o
+catálogo, e o catálogo é da instalação — um deploy por transportadora (ADR-0021). Recarregar muda a
+tarifa que todas as empresas do deploy enxergam, e é por isso que a rota é `settings.manage`, não uma
+permissão por empresa.
+
+O teste novo, `keeps the toll booth extract tenant-less on purpose, with a mandatory actor unable to
+reach a company`, assevera cinco fatos, não dois: sem `company_id`, zero FK (os dois negativos de
+sempre), e mais três positivos — `uploaded_by_user_id` é coluna obrigatória (`requiredColumnNames`) e
+as duas colunas de ator (`uploaded_by_user_id`, `reloaded_by_user_id`) são `uuid`
+(`columnSqlTypes`). Os positivos existem para que "sem FK" nunca seja lido como "esqueceram a FK":
+uma tabela sem tenant e sem ator garantido seria auditoria de mentira — uma coluna de "quem fez" que
+ninguém assegura estar preenchida. A ausência de FK é deliberada pela mesma razão de
+`nfe_package_box_measurements.measured_by_user_id`: `removeMembership` (spec 149) apaga o usuário de
+verdade, `RESTRICT` travaria a remoção e `SET NULL`/`CASCADE` apagaria o ator — e ator que some com o
+usuário deixa de ser auditoria (security.md §10). Esta linha é a única trilha desta ação em toda a
+API.
+
+Como a T101 já tinha criado a tabela com a forma certa, a suíte alvo passou de primeira — não houve
+vermelho desta task para mostrar; o vermelho que valeu foi o da T101 (a asserção documenta um fato já
+produzido por ela, não um comportamento novo):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/fleet-schema.contract.test.ts --timeout 60000
+ 82 pass
+ 0 fail
+ 302 expect() calls
+Ran 82 tests across 1 file. [233.00ms]
+```
+
+Suíte completa da API, antes e depois — um teste a mais, cinco `expect()` a mais, zero falha:
+
+```
+antes: 6263 pass · 23 skip · 0 fail · 21931 expect() calls · Ran 6286 tests across 177 files
+depois:
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6264 pass
+ 23 skip
+ 0 fail
+ 21936 expect() calls
+Ran 6287 tests across 177 files. [18.62s]
+```
+
+Demais gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`) exit 0
+· `bun run format:check` exit 0.
+
+Nenhum arquivo entrou na lista explícita de `package.json`: `tenant-safety.contract.ts` já é
+importado por `test/fleet-schema/tenant-safety.contract.js` dentro de
+`test/fleet-schema.contract.test.ts`, e este último já está na lista de `"test"` do
+`package.json` da API (`grep fleet-schema apps/api-transportada/package.json` devolve a linha do
+script, com `./test/fleet-schema.contract.test.ts` nela) — o teste novo entra pelo mesmo arquivo, sem
+registro adicional.

@@ -20,7 +20,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 - [x] T101 🧠 Migration aditiva `toll_booth_extracts` + schema Drizzle + `rollback.sql` —
       `make migration-test`. Decidir com o `architect` a chave e os índices antes de escrever.
-- [ ] T102 `tenant-safety.contract.ts` atualizado para quatro tabelas sem `company_id`, com a
+- [x] T102 `tenant-safety.contract.ts` atualizado para cinco tabelas sem `company_id`, com a
       justificativa escrita no contrato. **Não afrouxar a asserção, não apagar a suíte.**
 
 ## Fase 2 — O catálogo em leitura
