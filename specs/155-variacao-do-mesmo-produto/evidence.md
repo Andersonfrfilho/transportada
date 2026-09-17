@@ -905,3 +905,7 @@ bun --env-file=../../.env.test test --timeout 120000
   ./test/integration/package-box-replication.integration.ts         10 pass · 0 fail
 make check                                            exit 0 (format:check + lint + typecheck + test + build, todas as apps, 0 fail)
 ```
+
+## T3.5 — Aplicar a medida de um sabor a todos (D12/G012)
+
+Pendente.

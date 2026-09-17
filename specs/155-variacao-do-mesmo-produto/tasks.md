@@ -165,6 +165,29 @@ família têm três caracteres ou menos, e `UVA` é prefixo de `UVA INTENSA`. O 
 dimensões que serão gravadas — quem confirma precisa ver o que vai escrever. Família marcada pela D11
 abre com tudo **desmarcado** e o motivo à vista (G011).
 
+### T3.5 — Aplicar a medida de um sabor a todos (D12/G012)
+
+API: `PackageBoxSiblingView` (`package-box.port.ts:97`) ganha `measurementSource`, preenchido em
+`SIBLING_COLUMNS`/`toSiblingView` de `DrizzlePackageBoxRepository`. Sem migration — a coluna já
+existe.
+
+Frontend: `PackageBoxSibling` (cliente) ganha o mesmo campo. Função pura nova
+`resolveFamilyReplicationSource(siblings, currentBox)` (`shared/packageBoxFamilySource.service.ts`):
+escolhe entre a própria caixa (se medida) e as irmãs medidas, preferindo `measurementSource`
+diferente de `replicated` (D12); `undefined` sem medido ou sem pendente na família.
+
+Na linha da fila, quando `familyKey` existe e há medido e pendente (contadores da D9), mostra
+"Aplicar medida de {rótulo} a todos os sabores" — extrair para subcomponente
+(`PackageBoxFamilyApplyButton.component.tsx`), o painel já passa de 700 linhas. Clique busca as
+irmãs sob demanda (nunca junto da fila de 50), resolve a origem e abre o `PackageBoxReplicateDialog`
+existente com `boxId`/`dimensions` da origem — reaproveita o fluxo de confirmação e o reset de erro
+já existentes (D5, sem novo efeito de abrir/fechar). Sem origem resolvida, mensagem no locale, nada
+abre.
+
+Contrato: função pura (preferência por conferida, só replicada disponível, nenhuma medida, nenhuma
+pendente, a própria caixa medida como origem); contrato de fonte do botão novo, no mesmo padrão dos
+outros contratos desta fase (sem DOM).
+
 ---
 
 ## Fase 4 — Locales e documentação

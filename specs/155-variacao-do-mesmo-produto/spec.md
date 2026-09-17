@@ -198,6 +198,25 @@ na hora de confirmar. Dos rótulos das famílias com dois ou mais membros, 16 t�
 menos, e há pares onde um é prefixo do outro (`UVA` ⊂ `UVA INTENSA`, `LAKA` ⊂ `LAKA OREO`). Toda tela
 que peça confirmação para escrever mostra **descrição completa + `cProd`**, nunca só o rótulo.
 
+### D12 — Aplicar a medida de um sabor a todos, sem remedir
+
+O botão rápido (D7) preenche **uma** caixa por vez — quem tem oito sabores da mesma caixa física
+digita "usar a medida de {rótulo}" oito vezes. Em qualquer linha da fila cuja família tenha **pelo
+menos um** membro medido e **pelo menos um** pendente, a tela mostra "Aplicar medida de {rótulo} a
+todos os sabores". O clique abre o **mesmo** diálogo de replicar da D5/D6 (`PackageBoxReplicateDialog`)
+com origem = o sabor medido e alvos = os sabores pendentes da família — nada grava sem confirmar (D5),
+e a família assimétrica (D11) abre desmarcada como sempre.
+
+Origem preferida: entre a própria caixa (se medida) e as irmãs medidas, a que tem
+`measurementSource` diferente de `replicated` — uma medida **conferida**, não copiada de outra vez.
+Só quando não existe nenhuma conferida na família é que uma replicada vira origem.
+
+⚠️ **Réplica conta como medida, e pode ser origem de nova réplica** — decisão do usuário em
+2026-09-17 sobre o achado MÉDIO-3 da revisão final (evidence.md): a família com uma origem
+conferida e sete réplicas continua "8 medidas" para todo efeito (D9, D12), e a oitava caixa que
+chegar depois (nova linha de importação, ex.) pode copiar de qualquer uma das sete — preferindo
+sempre a conferida quando ela existir, pela regra acima.
+
 ## Requisitos
 
 - **G001** — `resolveBoxFamily(description, commercialUnit)` devolve `{ prefix, variantLabel }` pela
@@ -222,6 +241,10 @@ que peça confirmação para escrever mostra **descrição completa + `cProd`**,
   com a lista pré-marcada (D5).
 - **G011** — Família de formato assimétrico (D11) chega ao diálogo de replicar **sem** pré-marcação,
   com o motivo visível; a lista de alvos mostra descrição completa e `cProd` de cada caixa.
+- **G012** — Linha cuja família tem membro medido e membro pendente mostra "Aplicar medida de
+  {rótulo} a todos os sabores"; o clique abre o diálogo de replicar (D5/D6) com origem = irmã medida
+  preferindo `measurementSource` diferente de `replicated` (D12), alvos = pendentes da família; sem
+  origem resolvida, nada abre.
 
 ## Critério de aceite
 
