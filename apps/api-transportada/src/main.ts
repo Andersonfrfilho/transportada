@@ -1497,7 +1497,9 @@ function createApplicationRoutes({
   const tollBoothExtractRepository = createDrizzleTollBoothExtractRepository(database)
   // Spec 154 T503, defeito 2: uma cópia por processo, compartilhada pelas rotas que leem e pelas
   // que invalidam (ajuste, remoção de ajuste, recarga do catálogo).
-  const tollBoothAxleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+  const tollBoothAxleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+    clock: { now: () => new Date() },
+  })
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)

@@ -82,7 +82,9 @@ async function createReloadWorld(url: string) {
   })
   const upload = createCreateTollBoothExtractUseCase({ extracts, storage })
   const reload = createReloadTollBoothCatalogUseCase({
-    axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+    axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date() },
+    }),
     catalogReload: createDrizzleTollBoothCatalogReloadRepository(database.db),
     extracts,
     logger: { warn() {} },

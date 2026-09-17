@@ -2,28 +2,44 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 154 T503, defeito 2: implementação em memória do processo — nunca distribuída (não há Redis
- * nem estado compartilhado entre réplicas envolvido aqui; cada instância da API recalcula a própria
- * cópia na primeira leitura depois de subir ou de uma invalidação, o que é aceitável porque o dado
- * é barato de recalcular e a janela de divergência entre réplicas é, no pior caso, a mesma latência
- * de uma leitura de banco).
+ * nem estado compartilhado entre réplicas envolvido aqui). A consequência é que `invalidate` só
+ * alcança a réplica que atendeu a mutação: a cópia das outras continuaria servindo o número velho
+ * indefinidamente, e não pela latência de uma leitura de banco. `TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS`
+ * é o teto dessa divergência — passado o prazo, a leitura recalcula sozinha.
  */
+import { TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS } from '../application/toll-booth-catalog.constant.js'
 import type { TollBoothAxleChargeGapCachePort } from '../application/toll-booth-axle-charge-gap-cache.port.js'
 
-export function createInMemoryTollBoothAxleChargeGapCache(): TollBoothAxleChargeGapCachePort {
-  const countByCompanyId = new Map<string, number>()
+type CacheEntry = Readonly<{ count: number; writtenAtMs: number }>
+
+type InMemoryTollBoothAxleChargeGapCacheDependencies = Readonly<{
+  clock: Readonly<{ now(): Date }>
+}>
+
+export function createInMemoryTollBoothAxleChargeGapCache(
+  dependencies: InMemoryTollBoothAxleChargeGapCacheDependencies,
+): TollBoothAxleChargeGapCachePort {
+  const entryByCompanyId = new Map<string, CacheEntry>()
 
   return {
     invalidate(companyId: string): void {
-      countByCompanyId.delete(companyId)
+      entryByCompanyId.delete(companyId)
     },
     invalidateAll(): void {
-      countByCompanyId.clear()
+      entryByCompanyId.clear()
     },
     read(companyId: string): number | undefined {
-      return countByCompanyId.get(companyId)
+      const entry = entryByCompanyId.get(companyId)
+      if (entry === undefined) return undefined
+      const ageMs = dependencies.clock.now().getTime() - entry.writtenAtMs
+      if (ageMs >= TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS) {
+        entryByCompanyId.delete(companyId)
+        return undefined
+      }
+      return entry.count
     },
     write(companyId: string, count: number): void {
-      countByCompanyId.set(companyId, count)
+      entryByCompanyId.set(companyId, { count, writtenAtMs: dependencies.clock.now().getTime() })
     },
   }
 }

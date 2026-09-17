@@ -137,7 +137,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ chargePerAxle: '7.0000', osmNodeId: 4 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -162,7 +164,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
   test('caps perPage at 100 even when the caller asks for 500', async () => {
     const booths = Array.from({ length: 3 }, (_, index) => booth({ osmNodeId: index + 1 }))
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -184,7 +188,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ name: 'Pedágio Bandeirantes', operator: 'CCR', osmNodeId: 2 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -223,7 +229,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       ],
     ])
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ adjustmentsByCompany, booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -249,7 +257,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ chargePerAxle: '10.0000', osmNodeId: 2 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -297,7 +307,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       ],
     ])
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -317,7 +329,9 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
 
   test('an empty catalog answers the empty status, never a lie about missing toll', async () => {
     const useCase = createListTollBoothCatalogUseCase({
-      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache({
+        clock: { now: () => new Date() },
+      }),
       catalog: createFakeCatalog({ booths: [] }),
       catalogSummary: fakeCatalogSummary({ boothCount: 0, latestObservedOn: null }),
       charges: fakeCharges(),

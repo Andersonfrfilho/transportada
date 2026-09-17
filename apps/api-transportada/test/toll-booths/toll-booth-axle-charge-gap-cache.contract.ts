@@ -22,6 +22,7 @@ import type {
   TollBoothCatalogPort,
 } from '../../src/toll-booths/application/toll-booth-catalog.port.js'
 import type { TollBoothSightingPort } from '../../src/toll-booths/application/toll-booth-sighting.port.js'
+import { TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS } from '../../src/toll-booths/application/toll-booth-catalog.constant.js'
 import { createInMemoryTollBoothAxleChargeGapCache } from '../../src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 import {
   buildExtractRow,
@@ -82,7 +83,9 @@ describe('cache da contagem "sem tarifa por eixo conhecida" (spec 154 T503, defe
   test('trocar de página ou de busca não recalcula a contagem para a mesma empresa', async () => {
     const catalog = countingCatalog([{ chargePerAxle: null, osmNodeId: 1 }])
     const charges = countingCharges()
-    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date() },
+    })
     const useCase = createListTollBoothCatalogUseCase({
       axleChargeGapCache,
       catalog,
@@ -103,10 +106,28 @@ describe('cache da contagem "sem tarifa por eixo conhecida" (spec 154 T503, defe
     expect(charges.loadAdjustmentsCallCount).toBe(1)
   })
 
+  test('a cópia expira: invalidação em outra réplica não deixa o número velho para sempre', () => {
+    let nowMs = Date.parse('2026-09-17T12:00:00.000Z')
+    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date(nowMs) },
+    })
+
+    axleChargeGapCache.write(COMPANY_A, 7)
+    expect(axleChargeGapCache.read(COMPANY_A)).toBe(7)
+
+    nowMs += TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS - 1
+    expect(axleChargeGapCache.read(COMPANY_A)).toBe(7)
+
+    nowMs += 1
+    expect(axleChargeGapCache.read(COMPANY_A)).toBeUndefined()
+  })
+
   test('empresas diferentes não compartilham a mesma cópia em cache', async () => {
     const catalog = countingCatalog([{ chargePerAxle: null, osmNodeId: 1 }])
     const charges = countingCharges()
-    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date() },
+    })
     const useCase = createListTollBoothCatalogUseCase({
       axleChargeGapCache,
       catalog,
@@ -123,7 +144,9 @@ describe('cache da contagem "sem tarifa por eixo conhecida" (spec 154 T503, defe
   })
 
   test('ajustar uma praça invalida só a cópia da empresa que ajustou', () => {
-    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date() },
+    })
     axleChargeGapCache.write(COMPANY_A, 3)
     axleChargeGapCache.write(COMPANY_B, 5)
 
@@ -171,7 +194,9 @@ describe('cache da contagem "sem tarifa por eixo conhecida" (spec 154 T503, defe
   })
 
   test('remover um ajuste também invalida a cópia da empresa', async () => {
-    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+    const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+      clock: { now: () => new Date() },
+    })
     axleChargeGapCache.write(COMPANY_A, 3)
 
     const useCase = createClearTollBoothChargeUseCase({

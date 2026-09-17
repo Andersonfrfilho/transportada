@@ -31,7 +31,9 @@ export function createReloadPorts(params: ReloadPortParams) {
   const audits: TollBoothCatalogReloadAuditInput[] = []
   const markedMissing: unknown[] = []
   const markedReloaded: unknown[] = []
-  const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
+  const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache({
+    clock: { now: () => new Date() },
+  })
   const useCase = createReloadTollBoothCatalogUseCase({
     axleChargeGapCache,
     catalogReload: {

@@ -2060,3 +2060,37 @@ $ STORAGE_SECRET_KEY=minio-local-password bun --env-file=../../.env.test test \
 usuário); `--timeout` no script `test:integration`; imports sem `.js` nos entrypoints de teste do
 frontend; arquivos grandes pré-existentes (`main.ts` etc.) — nenhum tocado por esta task além do
 wiring pontual do item 2.
+
+### T504 — o cache da contagem do RF2 ganha teto de validade
+
+A T503 (defeito 2) resolveu o recálculo por tecla com `TollBoothAxleChargeGapCachePort` em memória do
+processo, e o comentário afirmava que a janela de divergência entre réplicas era, no pior caso, "a
+mesma latência de uma leitura de banco". Não era: `invalidate` só alcança o processo que atendeu a
+mutação, então com duas réplicas a cópia da outra serviria o número velho **indefinidamente** — até
+o próximo deploy. Hoje todos os serviços rodam com `replicas: { sfo: 1 }` (`.railway/railway.ts`),
+então nada divergia na prática; o defeito era a afirmação, que autoriza subir uma segunda réplica
+sem rever a contagem.
+
+`TOLL_BOOTH_AXLE_CHARGE_GAP_CACHE_TTL_MS = 60_000` passa a limitar a divergência a um minuto, e o
+cache recebe `clock` por injeção (nada de `Date.now()` solto, e o teste controla o tempo).
+
+Vermelho, com a versão sem teto e a assinatura nova:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts --timeout 120000
+
+(fail) cache da contagem "sem tarifa por eixo conhecida" (spec 154 T503, defeito 2) > a cópia expira: invalidação em outra réplica não deixa o número velho para sempre [0.18ms]
+ 128 pass
+ 1 fail
+```
+
+Verde, com o teto:
+
+```
+ 129 pass
+ 0 fail
+ 268 expect() calls
+```
+
+Suíte completa da API: **6381 pass · 23 skip · 0 fail** (22179 expect(), 177 arquivos).
+`bun run typecheck`, `bun run lint` e `bun run format:check`: exit 0 nas seis apps.
