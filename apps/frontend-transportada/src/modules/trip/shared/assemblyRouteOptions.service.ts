@@ -55,7 +55,7 @@ export function resolveRouteOptionSummaries(input: {
       isBestOfBoth: isFastest && isCheapest,
       isCheapest,
       isFastest,
-      isNoToll: option.isNoToll,
+      isNoToll: option.isNoToll === true,
       minutes: Math.round(option.durationSeconds / SECONDS_PER_MINUTE),
       /** Sem `trip.financials` a chave some (spec 153 D10) — a lista trata isso como "não calculado". */
       totalCost: option.totalCost ?? null,
@@ -80,7 +80,10 @@ export function resolveAssemblyRouteChoice(input: {
   const option = input.options[input.selectedIndex]
   if (!input.hasChoice || option === undefined) return undefined
 
-  return { criterion: resolveChoiceCriterion({ ...input, option }), signature: option.signature }
+  return {
+    criterion: resolveChoiceCriterion({ ...input, option }),
+    signature: option.signature ?? null,
+  }
 }
 
 /** Nenhum rótulo é `alternative`: o operador trocou de rota sem regra declarada. */
@@ -92,7 +95,7 @@ function resolveChoiceCriterion(input: {
 }): RouteChoice['criterion'] {
   if (input.selectedIndex === input.cheapestIndex) return 'cheapest'
   if (input.selectedIndex === input.fastestIndex) return 'fastest'
-  if (input.option.isNoToll) return 'no_toll'
+  if (input.option.isNoToll === true) return 'no_toll'
   return 'alternative'
 }
 
@@ -102,7 +105,7 @@ function resolveChoiceCriterion(input: {
  * `undefined` deixa o mapa na principal, como em qualquer rota nova.
  */
 export function resolvePreferredRouteOptionIndex(input: {
-  readonly options: readonly Readonly<{ signature: null | string }>[]
+  readonly options: readonly Readonly<{ signature?: null | string }>[]
   readonly preferred: RouteChoice | undefined
 }): number | undefined {
   const signature = input.preferred?.signature ?? null
@@ -122,4 +125,27 @@ export function isRouteChoiceSettled(input: {
   readonly isFetching: boolean
 }): boolean {
   return input.hasResponse && !input.isDraft && !input.isFetching
+}
+
+/**
+ * O que a troca de opção diz ao sair do componente (spec 153 D2) — nunca o índice, que descreve
+ * posição numa lista que pode ser reordenada entre a proposta e a viagem congelada, e sim a
+ * assinatura da estrada e o critério que a levou a ser escolhida.
+ *
+ * ⚠️ Custo e duração vêm antes de "sem pedágio" na prioridade: uma rota pode ser, ao mesmo tempo,
+ * a mais barata **e** a que evita pedágio — e a razão da escolha é o custo, não a coincidência.
+ */
+export function resolveRouteChoiceFromIndex(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly index: number
+  readonly options: readonly RouteGeometryOption[]
+}): RouteChoice {
+  const option = input.options[input.index]
+  const signature = option?.signature ?? null
+
+  if (input.cheapestIndex === input.index) return { criterion: 'cheapest', signature }
+  if (input.fastestIndex === input.index) return { criterion: 'fastest', signature }
+  if (option?.isNoToll === true) return { criterion: 'no_toll', signature }
+  return { criterion: 'alternative', signature }
 }

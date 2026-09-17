@@ -2108,3 +2108,195 @@ não voltou ao bundle principal.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T402 — `TripAssemblyMap`: switch mais rápida ↔ mais barata sem novo OSRM (RF13) ✅ 2026-09-17
+
+Extração de `RouteChoiceOptions.component.tsx` a partir do seletor inline que já existia em
+`TripAssemblyMap.component.tsx` (spec 096 T3), acrescentando: rótulo "Sem pedágio" (`isNoToll`), o
+switch explícito mais rápida ↔ mais barata da RF13 (via `Tabs` do design system) sobre as opções
+já em mãos — nenhuma chamada nova ao roteirizador —, abertura sempre na mais barata (D1),
+`onRouteChoiceChange` por assinatura+critério (D2, nunca índice) para quem for regravar via
+`plan-route`, aviso em tela quando não há duas opções distintas para trocar (em vez de switch
+inerte), e `canReadFinancials` em `TripAssemblyMap` e `RouteTollSummary` (D10: dinheiro ausente do
+DOM, nunca zero; D9: km/duração sempre presentes).
+
+### Vermelho capturado primeiro
+
+Arquivo: `.../scratchpad/t402-red.txt` — primeiro `bun test test/trip.contract.test.ts` contra o
+`resolveRouteChoiceFromIndex` ainda não exportado:
+
+```
+SyntaxError: Export named 'resolveRouteChoiceFromIndex' not found in module
+'.../src/modules/trip/shared/assemblyRouteOptions.service.ts'.
+
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+### Camada pura (`assemblyRouteOptions.service.ts`, `routeGeometry.service.ts`)
+
+`RouteChoice = Readonly<{ criterion: RouteChoiceCriterion; signature: null | string }>` (novo tipo)
+e `resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index, options })`, com prioridade
+cheapest > fastest > no_toll > alternative — provado por 6 testes em
+`route-choice-switch.contract.ts`, inclusive o caso de empate (rota mais barata que também não tem
+pedágio sai como `cheapest`, não `no_toll`) e o de assinatura ausente (`signature: null`, nunca
+inventada).
+
+### Sem ida nova ao OSRM (RF13) — a prova é de contagem, não de confiança
+
+`TripAssemblyMap.component.tsx` chama `readPointsRouteGeometry` **uma única vez**; trocar de
+critério só troca `selectedOptionIndex` sobre `geometryQuery.data?.options`, já em mãos desde o
+fan-out único da RF2. Duas asserções fecham isso:
+
+```ts
+const chamadas = source.split('readPointsRouteGeometry').length - 1
+expect(chamadas).toBe(1)
+// a queryKey não inclui o índice/critério escolhido — senão o TanStack Query refaria a busca
+expect(queryKeyBlock).not.toInclude('selectedOptionIndex')
+expect(queryKeyBlock).not.toInclude('routeChoiceCriterion')
+```
+
+### Abre na mais barata (D1)
+
+Trocado `useState(0)` fixo por `setSelectedOptionIndex(geometryQuery.data?.selectedIndex ?? 0)` no
+efeito de reset — `0` é só a reserva antes da resposta chegar, nunca a intenção. Provado pela
+ausência do literal antigo:
+
+```ts
+expect(source).toInclude('selectedIndex')
+expect(source).not.toInclude('setSelectedOptionIndex(0)')
+```
+
+### Opção única avisa em tela, nunca switch inerte (RF13 + refinamento do usuário)
+
+`RouteChoiceOptions` calcula `canSwitch` (cheapest e fastest existem e são **diferentes**, sem
+`costGap`); sem isso, imprime `assemblyMap.routeOptions.singleOption` — "Não há uma rota mais
+rápida e uma mais barata para trocar — só esta opção foi calculada." — no lugar do `<Tabs>`, nunca
+ao lado de um switch desabilitado:
+
+```tsx
+{canSwitch ? (
+  <Tabs ariaLabel={...} items={tabsItems} onChange={handleTabsChange} value={tabsValue} />
+) : (
+  <p className={styles.hint}>
+    {costGap === null ? t('assemblyMap.routeOptions.singleOption') : t(`assemblyMap.routeOptions.gap.${costGap}`)}
+  </p>
+)}
+```
+
+Quando o `costGap` explica a ausência de uma rota mais barata calculada (D-existente da spec 096),
+a razão do `costGap` continua tendo prioridade sobre o aviso genérico — o texto mais específico
+nunca perde para o mais genérico.
+
+### `onRouteChoiceChange` por assinatura+critério, nunca índice (D2)
+
+```ts
+function handleSelectRouteOptionIndex(index: number): void {
+  setSelectedOptionIndex(index)
+  onRouteChoiceChange?.(
+    resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index, options: routeOptions }),
+  )
+}
+```
+
+`TripAssemblyMap` só dispara o callback — não chama `plan-route` nem grava `frozen_at` (RF13),
+porque este componente é usado **antes** de a viagem existir (`TripQuickCreateDialog`,
+`TripProposalDetail` — sem `tripId`). A regravação em si é escopo de T403/T404/T405, fora desta
+task; o campo de comentário no tipo (`onRouteChoiceChange?`) documenta essa fronteira.
+
+### `canReadFinancials` — ausência do DOM, nunca zero (D10), km/duração sempre presentes (D9)
+
+`RouteTollSummary.component.tsx` guarda o resumo com valor e o extrato por praça atrás de
+`!canReadFinancials`, mas deixa **fora** da trava a lista de praças, a forma de pagamento e o
+catálogo (não são dinheiro):
+
+```ts
+{!canReadFinancials || toll.chargePerAxle === undefined || toll.total === undefined ? null : (...)}
+...
+{!canReadFinancials || booth.effectiveChargePerAxle === null || ... ? t('...statementWithoutCharge') : t('...statementLine', {...})}
+```
+
+`RouteChoiceOptions.component.tsx` só imprime o total por opção com `canReadFinancials &&
+summary.totalCost !== null` — km e duração (`summary.distanceKilometres`, `summary.minutes`)
+seguem fora da condição, sempre impressos. Prova de ausência-vs-zero: a asserção de fonte confirma
+o `&&` (curto-circuito que remove o `<span>` inteiro do DOM), não um `formatAmount(0)` condicional.
+
+`RouteTollSummary` é compartilhado por dois chamadores (`TripAssemblyMap`, escopo desta task, e
+`TripRouteMap` no detalhe da viagem). Como o novo prop é **obrigatório** (a asserção de fonte
+exige o literal exato `canReadFinancials: boolean`), a fiação mínima de compilação alcançou a
+segunda cadeia também: `TripRouteMap` → `TripDetail.component.tsx` → `TripDetail.page.tsx`, que já
+calculava `financials.canReadFinancials` via `useTripFinancials` — sem inventar valor novo.
+
+Os dois pontos de chamada de `TripAssemblyMap` fora do detalhe (`TripQuickCreateDialog`,
+`TripProposalDetail`, nenhuma `tripId` ainda) recebem
+`canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}`, importando a constante de
+`@/modules/trip-financials/shared/tripFinancialsQueryKey.constant` — mesmo padrão cross-módulo já
+usado por `useTripValuationPreview` nos dois arquivos.
+
+### D3 (`choiceReproduced`) fora de escopo, confirmado
+
+`choiceReproduced` só existe na rota **congelada** da viagem (T203) — não no `/route-geometry`
+avulso que `TripAssemblyMap` consulta antes da viagem existir. Pertence a T405; nada implementado
+aqui.
+
+### Locale (pt-BR) — sem paridade en, seguindo o precedente já existente
+
+Três chaves novas em `trip.locale.json` sob `assemblyMap.routeOptions`: `noToll`, `singleOption`,
+`switchLabel`. Conferido por leitura direta (`python3 -c "import json; ..."`) que
+`trip.en.locale.json` **já não tem** a seção `assemblyMap.routeOptions` inteira (lacuna da spec
+096, nunca traduzida) e não existe teste de paridade pt-BR/en — decidido não inventar tradução
+nova para chaves cuja seção-mãe já está sem par em inglês.
+
+### `test/trip/assembly-route-selector.contract.ts` (spec 096) — atualizado, não substituído
+
+Duas asserções datadas da versão inline do seletor quebraram com a extração: a busca por
+`hasChoice` (virou o guard `if (options.length === 0) return null` +
+`options.length <= 1 ? null` dentro de `RouteChoiceOptions.component.tsx`) e a busca por
+`t('assemblyMap.routeOptions.title')` dentro de `TripAssemblyMap` (o título também migrou). A
+asserção de `setSelectedOptionIndex(0)` foi invertida para provar o D1 novo (abre na mais barata,
+não no índice fixo). As outras três (posição abaixo do pedágio, razão do `costGap`,
+`selectedOptionIndex`/`activeOption` alimentando mapa e pedágio) continuam válidas, só apontando
+para o arquivo certo quando a regra migrou de componente.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+3 arquivos fora do padrão na primeira rodada (`RouteChoiceOptions.component.tsx`,
+`RouteTollSummary.component.tsx`, `assembly-toll.contract.ts` — só formatação, `prettier --write`,
+sem mudança de lógica). Segunda rodada: limpo.
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada)
+924 pass / 0 fail / 17736 expect() calls
+
+$ bun run test   (apps/frontend-transportada)
+4149 pass / 0 fail (baseline T401) → 4167 pass / 0 fail
+Delta de +18 é a suíte nova `route-choice-switch.contract.ts` (17 `it`) mais o ajuste líquido em
+`assembly-route-selector.contract.ts` (mesma contagem de `it`, 5, sem alteração) — nenhum teste
+pré-existente mudou de contagem, só de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.15s — PWA precache 129 entries (4468.21 KiB), mesma contagem de entradas do baseline
+T401 (129), variação de +1.76 KiB só pelo texto/código novos — nenhum asset novo precacheado.
+`AssemblyVectorMap.component` (11.20 kB) e `vectorBasemap.service` (997.94 kB) continuam chunks
+separados do `index` principal — MapLibre não voltou ao bundle principal.
+```
+
+### Linhas por arquivo (limite de 200 do padrão de código)
+
+`TripAssemblyMap.component.tsx` caiu de 1079 para 1031 linhas com a extração — ainda acima do
+limite de 200, mas essa violação é anterior a esta task (arquivo já excedia antes do T402) e
+dividi-lo por completo está fora do escopo pedido; a extração feita aqui (`RouteChoiceOptions`,
+158 linhas; `RouteTollSummary`, 149 linhas, ambos dentro do limite) é a redução possível sem
+alterar comportamento fora do pedido em T402.
+
+### Commit
+
+`<preenchido após o commit>`

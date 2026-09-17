@@ -143,6 +143,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
         <div className={styles.deck}>
           <TripDetail
             canAdjustTollBooth={canAdjustTollBooth}
+            canReadFinancials={financials.canReadFinancials}
             drivers={fleet.viewModel.drivers ?? []}
             linkForm={linkForm}
             vehicles={fleet.viewModel.vehicles ?? []}

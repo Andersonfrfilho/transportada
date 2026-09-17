@@ -104,6 +104,8 @@
       "option_one": "{{distance}} km · {{duration}} · {{count}} praça",
       "option_zero": "{{distance}} km · {{duration}} · {{count}} praças",
       "optionWithoutToll": "{{distance}} km · {{duration}} · pedágio não calculado",
+      "singleOption": "Não há uma rota mais rápida e uma mais barata para trocar — só esta opção foi calculada.",
+      "switchLabel": "Trocar entre mais rápida e mais barata",
       "title": "Rotas alternativas",
       "total": "Total estimado: {{amount}}"
     },

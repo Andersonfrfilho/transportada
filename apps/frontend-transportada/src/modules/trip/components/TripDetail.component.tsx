@@ -90,6 +90,8 @@ import styles from '../styles/trip.module.css'
 type TripDetailProps = Readonly<{
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Sem `trip.financials` o pedágio da rota some da tela — nunca zero (spec 153 D10). */
+  canReadFinancials: boolean
   /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
   drivers: readonly FleetDriverListItem[]
   linkForm: TripDocumentLinkFormController
@@ -248,6 +250,7 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
 
 export function TripDetail({
   canAdjustTollBooth,
+  canReadFinancials,
   drivers,
   linkForm,
   vehicles,
@@ -952,6 +955,7 @@ export function TripDetail({
             canAdjustTollBooth={canAdjustTollBooth}
             canCorrect={canManage}
             canManage={canManage}
+            canReadFinancials={canReadFinancials}
             geometry={workspace.routeGeometryQuery.data ?? null}
             stops={trip.stops}
             isCorrecting={workspace.correctAddressMutation.isPending}
@@ -967,7 +971,7 @@ export function TripDetail({
             }
             onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
             tripStatus={trip.status}
-            vehicleId={trip.vehicleId}
+            vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
           />
         </>
       ) : null}

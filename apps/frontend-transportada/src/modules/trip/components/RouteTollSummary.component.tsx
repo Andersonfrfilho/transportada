@@ -17,6 +17,8 @@ import styles from '../styles/trip.module.css'
 type RouteTollSummaryProps = Readonly<{
   /** RF7 (spec 154): só quem tem `settings.manage` vê o caminho até o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Sem `trip.financials` as linhas de valor somem — nunca zero, nunca traço (spec 153 D10). */
+  canReadFinancials: boolean
   /**
    * Spec 165 RF4: a rota exibida veio da chamada `exclude=toll` (spec 153). Só muda a frase do
    * trajeto **sem praça** — zero por desvio e zero por acaso são coisas diferentes, e a segunda
@@ -46,6 +48,7 @@ function handleAdjustBooth(booth: RouteGeometryTollBooth): void {
  */
 export function RouteTollSummary({
   canAdjustTollBooth,
+  canReadFinancials,
   isNoTollRoute,
   toll,
 }: RouteTollSummaryProps) {
@@ -60,7 +63,9 @@ export function RouteTollSummary({
             some inteiro, nunca um `formatAmount(undefined)`. O restante do bloco (praças, forma de
             pagamento, catálogo) não é dinheiro e continua de fora desta trava.
           */}
-          {toll.chargePerAxle === undefined || toll.total === undefined ? null : (
+          {!canReadFinancials ||
+          toll.chargePerAxle === undefined ||
+          toll.total === undefined ? null : (
             <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
               <Icon name="invoice" />
               <span>
@@ -153,7 +158,8 @@ export function RouteTollSummary({
                     </span>
                     <span className={styles.tollStatementCharge}>
                       {/** Sem `trip.financials` a chave some (spec 153 D10) — mesmo aviso de sempre. */}
-                      {booth.effectiveChargePerAxle === null ||
+                      {!canReadFinancials ||
+                      booth.effectiveChargePerAxle === null ||
                       booth.effectiveChargePerAxle === undefined ||
                       booth.total === null ||
                       booth.total === undefined

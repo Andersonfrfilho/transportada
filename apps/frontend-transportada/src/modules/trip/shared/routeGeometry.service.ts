@@ -150,6 +150,12 @@ export type RouteChoice = Readonly<{
 }>
 
 /**
+ * O que `onRouteChoiceChange` manda ao sair do componente (spec 153 T402) — a mesma forma que a
+ * viagem grava ao regravar a rota escolhida por `plan-route`.
+ */
+export type RouteChoice = Readonly<{ criterion: RouteChoiceCriterion; signature: null | string }>
+
+/**
  * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
  * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.
  */

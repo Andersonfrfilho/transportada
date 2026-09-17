@@ -18,6 +18,7 @@ import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/sh
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
+import { FINANCIALS_PERMISSION } from '@/modules/trip-financials/shared/tripFinancialsQueryKey.constant'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
@@ -391,6 +392,7 @@ export function TripQuickCreateDialog({
 
         <TripAssemblyMap
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
+          canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
           onRouteChoiceChange={quickCreate.setRouteChoice}

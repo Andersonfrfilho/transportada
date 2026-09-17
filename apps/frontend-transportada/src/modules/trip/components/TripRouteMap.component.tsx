@@ -52,6 +52,8 @@ type TripRouteMapProps = Readonly<{
   canAdjustTollBooth: boolean
   /** Corrigir é escrita: sem `trip.manage` a tela mostra o mapa e não oferece o pino. */
   canCorrect: boolean
+  /** Sem `trip.financials` o resumo de pedágio some da tela — nunca zero (spec 153 D10). */
+  canReadFinancials: boolean
   isCorrecting: boolean
   /** GET /trips/:id pode levar segundos — os pinos desenham enquanto a estrada não chega. */
   isGeometryError: boolean
@@ -113,6 +115,7 @@ export function TripRouteMap({
   canAdjustTollBooth,
   canCorrect,
   canManage,
+  canReadFinancials,
   geometry,
   isCorrecting,
   isGeometryError,
@@ -242,6 +245,7 @@ export function TripRouteMap({
       )}
       <RouteTollSummary
         canAdjustTollBooth={canAdjustTollBooth}
+        canReadFinancials={canReadFinancials}
         isNoTollRoute={isNoTollRoute}
         toll={geometry?.toll ?? null}
       />

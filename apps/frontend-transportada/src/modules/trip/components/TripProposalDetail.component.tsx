@@ -14,6 +14,7 @@ import {
 import type { SuggestionVehicleValuation } from '@/modules/routing/shared/suggestionValuation.service'
 import { formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
+import { FINANCIALS_PERMISSION } from '@/modules/trip-financials/shared/tripFinancialsQueryKey.constant'
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
@@ -306,6 +307,7 @@ export function TripProposalDetail({
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
+          canReadFinancials={permissions.includes(FINANCIALS_PERMISSION)}
           isMeasurementPaused={isMeasurementPaused}
           measuredOrder={stopOrder}
           nearby={[]}

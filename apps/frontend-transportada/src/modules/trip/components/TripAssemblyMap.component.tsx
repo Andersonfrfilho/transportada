@@ -34,8 +34,10 @@ import {
   type AssemblyRevenueLine,
 } from '../shared/assemblyNoteFigures.service'
 
-import { stopColorOf } from '../shared/stopColor.service'
+import { resolveRouteChoiceFromIndex } from '../shared/assemblyRouteOptions.service'
 import type { RouteChoice } from '../shared/routeGeometry.service'
+import { stopColorOf } from '../shared/stopColor.service'
+import { RouteChoiceOptions } from './RouteChoiceOptions.component'
 import { RouteTollSummary } from './RouteTollSummary.component'
 import {
   buildAssemblyDepotLegs,
@@ -75,6 +77,8 @@ const MAP_HEIGHT = '18rem'
 type TripAssemblyMapProps = Readonly<{
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Sem `trip.financials` o total de cada opção de rota some da tela — nunca zero (spec 153 D10). */
+  canReadFinancials: boolean
   /** As notas que o filtro alcança e a seleção deixou de fora — o que faltou, em cinza claro. */
   nearby: readonly AssemblyMapNote[]
   /**
@@ -85,7 +89,11 @@ type TripAssemblyMapProps = Readonly<{
   onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
   /**
    * Spec 153: a rota que o operador está vendo, para o planejamento congelar **esta** e não outra.
-   * `undefined` é "não há escolha" — rota única, rascunho ou estrada que ainda não veio.
+   * `undefined` é "não há escolha" — rota única, rascunho ou estrada que ainda não veio. Sai a cada
+   * troca entre as opções já em mãos (RF13) — a identidade é assinatura e critério, nunca o índice,
+   * que descreve posição numa lista que a proposta pode reordenar antes da viagem existir. Quem
+   * recebe é quem sabe regravar a escolha por `plan-route` (T403/T404/T405); sem `tripId` aqui, este
+   * componente não chama a regravação sozinho.
    */
   onRouteChoiceChange?: ((choice: RouteChoice | undefined) => void) | undefined
   /**
@@ -176,6 +184,7 @@ function formatFinishTime(iso: string): string {
  */
 export function TripAssemblyMap({
   canAdjustTollBooth,
+  canReadFinancials,
   isMeasurementPaused,
   measuredOrder,
   nearby,
@@ -211,9 +220,9 @@ export function TripAssemblyMap({
    */
   const [hasBasemap, setHasBasemap] = useState(true)
   /**
-   * Qual opção de rota está escolhida — sempre a principal (`0`) até o operador escolher outra
-   * (spec 096 T3). A rota principal continua sendo o traço padrão (spec.md D2): a alternativa é
-   * oferta, nunca troca automática.
+   * Qual opção de rota está escolhida. Abre em `selectedIndex` — a mais barata que a API já
+   * resolveu (spec 153 D1) — e só muda quando o operador troca de opção; `0` aqui é reserva para
+   * antes da resposta chegar, nunca a preferência.
    */
   const [selectedOptionIndex, setSelectedOptionIndex] = useState(0)
 
@@ -319,11 +328,12 @@ export function TripAssemblyMap({
    * ⚠️ Trocar de rota/veículo esquece a escolha anterior — o índice de uma resposta não tem
    * relação nenhuma com o índice da próxima. Sem isto, escolher a alternativa e depois trocar o
    * veículo poderia manter selecionada uma posição que agora aponta para outro caminho, ou para
-   * nenhum (spec 096 T3).
+   * nenhum (spec 096 T3). A nova resposta abre na mais barata que a própria API resolveu
+   * (`selectedIndex`, spec 153 D1) — nunca fixo, e nunca recalculado aqui.
    */
   useEffect(() => {
-    setSelectedOptionIndex(0)
-  }, [routeKey, tollVehicleId])
+    setSelectedOptionIndex(geometryQuery.data?.selectedIndex ?? 0)
+  }, [routeKey, tollVehicleId, geometryQuery.data?.selectedIndex])
 
   /**
    * ⚠️ Depois do efeito acima, e só quando a resposta muda: a escolha publicada volta como
@@ -467,6 +477,16 @@ export function TripAssemblyMap({
    * tela não imprime tempo nenhum — ADR-0044 §5: não se estima o que o OSRM não respondeu.
    */
   const activeOption = routeOptions[boundedOptionIndex] ?? null
+  /**
+   * Spec 153 RF13: a troca não é só o traço no mapa — ela também sai do componente pela assinatura
+   * e o critério (D2), nunca pelo índice cru, para quem for regravar a escolha via `plan-route`.
+   */
+  function handleSelectRouteOptionIndex(index: number): void {
+    setSelectedOptionIndex(index)
+    onRouteChoiceChange?.(
+      resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index, options: routeOptions }),
+    )
+  }
   /**
    * ⚠️ A opção escolhida redesenha o traço **e** alimenta o tempo/pedágio impressos acima do
    * seletor — nunca só a principal (spec 096 T3). Sem opção nenhuma (rota indisponível), a
@@ -659,112 +679,25 @@ export function TripAssemblyMap({
       {/* Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4). */}
       <RouteTollSummary
         canAdjustTollBooth={canAdjustTollBooth}
+        canReadFinancials={canReadFinancials}
         isNoTollRoute={isNoTollRoute}
         toll={toll}
       />
       {/*
-        Spec 096 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
-        logo abaixo do bloco de pedágio da T7. `hasChoice` vem pronto da API: rota única (três de
-        quatro medidas) não desenha seletor nenhum, porque ensinaria que existe escolha onde não
-        há (D2).
+        Spec 096 T1/T2/T3 + spec 153 T402/RF13: a rota mais rápida e a mais barata, com o switch
+        explícito entre elas — logo abaixo do bloco de pedágio. Rota única (ou empate entre as
+        duas pontas) não é motivo para sumir com a tela: `RouteChoiceOptions` avisa em vez de
+        montar um switch inerte.
       */}
-      {hasRouteChoice ? (
-        <div className={styles.routeOptions}>
-          <p className={styles.hint}>{t('assemblyMap.routeOptions.title')}</p>
-          <ul className={styles.routeOptionList}>
-            {routeOptionSummaries.map((summary, index) => (
-              <li key={index}>
-                <Button
-                  aria-pressed={index === boundedOptionIndex}
-                  className={styles.routeOption}
-                  onClick={() => setSelectedOptionIndex(index)}
-                  type="button"
-                  /*
-                   * ⚠️ Sempre `secondary`: o cobre sólido do `default` apagava o texto e o selo. A
-                   * escolha é marcada pelo `aria-pressed` no CSS, como os chips da planta de carga.
-                   */
-                  variant="secondary"
-                >
-                  <span className={styles.routeOptionHeader}>
-                    {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
-                    {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
-                    {/*
-                      ⚠️ Quando a mesma rota vence as duas contas isso é informação, não bug (caso
-                      medido de Campinas) — uma marca só, nunca as duas empilhadas dizendo a mesma
-                      coisa duas vezes.
-                    */}
-                    {summary.isBestOfBoth ? (
-                      <span className={styles.routeOptionBadge}>
-                        <Icon name="speed" size="sm" />
-                        <Icon name="cost-down" size="sm" />
-                        {t('assemblyMap.routeOptions.fastestAndCheapest')}
-                      </span>
-                    ) : (
-                      <>
-                        {summary.isFastest ? (
-                          <span className={styles.routeOptionBadge}>
-                            <Icon name="speed" size="sm" />
-                            {t('assemblyMap.routeOptions.fastest')}
-                          </span>
-                        ) : null}
-                        {summary.isCheapest ? (
-                          <span className={styles.routeOptionBadge}>
-                            <Icon name="cost-down" size="sm" />
-                            {t('assemblyMap.routeOptions.cheapest')}
-                          </span>
-                        ) : null}
-                      </>
-                    )}
-                    {/*
-                      ⚠️ Spec 165: **acumula** com as marcas acima, nunca as substitui. Evitar
-                      pedágio é de onde a rota veio (`exclude=toll`), não uma conta vencida — e a
-                      rota que evita pedágio sendo também a mais barata é justamente quando o
-                      operador mais precisa ver as duas coisas.
-                    */}
-                    {summary.isNoToll ? (
-                      <span className={styles.routeOptionBadge}>
-                        <Icon name="invoice" size="sm" />
-                        {t('assemblyMap.routeOptions.noToll')}
-                      </span>
-                    ) : null}
-                  </span>
-                  {summary.totalCost === null ? null : (
-                    <span className={styles.routeOptionTotal}>
-                      {t('assemblyMap.routeOptions.total', {
-                        amount: formatAmount(summary.totalCost),
-                      })}
-                    </span>
-                  )}
-                  <span className={styles.routeOptionFacts}>
-                    {/*
-                      ⚠️ Sem pedágio calculado a linha diz que **não sabe**, nunca "0 praças" —
-                      zero ali seria uma afirmação, na linha em que a rota é escolhida.
-                    */}
-                    {t(
-                      summary.boothCount === null
-                        ? 'assemblyMap.routeOptions.optionWithoutToll'
-                        : 'assemblyMap.routeOptions.option',
-                      {
-                        count: summary.boothCount ?? 0,
-                        distance: summary.distanceKilometres.toFixed(1),
-                        duration: formatDuration(summary.minutes),
-                      },
-                    )}
-                  </span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-          {/*
-            ⚠️ Sem `totalCost` não existe rótulo de mais barata — a razão vem de `costGap`, nunca
-            inventada. `NO_FUEL_BASELINE` é o veículo sem consumo/preço; `TOLL_UNKNOWN` é pedágio
-            que alguma opção não soube calcular (spec 096 D1).
-          */}
-          {costGap === null ? null : (
-            <p className={styles.hint}>{t(`assemblyMap.routeOptions.gap.${costGap}`)}</p>
-          )}
-        </div>
-      ) : null}
+      <RouteChoiceOptions
+        canReadFinancials={canReadFinancials}
+        cheapestIndex={cheapestIndex}
+        costGap={costGap}
+        fastestIndex={fastestIndex}
+        onSelect={handleSelectRouteOptionIndex}
+        options={routeOptions}
+        selectedIndex={boundedOptionIndex}
+      />
       {/*
         ⚠️ `ul` e não `ol`: a numeração é impressa por nós, com a cor da parada, e o marcador do
         navegador se somava a ela ao copiar o texto — "1. 1. RIBEIRAO PRETO" na área de transferência.
