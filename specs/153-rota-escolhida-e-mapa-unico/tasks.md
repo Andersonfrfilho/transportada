@@ -183,3 +183,28 @@ Terceira revisão: APROVADA COM RESSALVAS, sem achado crítico ou alto e sem reg
 **Dívida declarada, fora de escopo:** P7 (o que é servido por espalhamento segue sem classificação
 monetária — entra na `FieldPolicy` quando o tipo ganhar dinheiro) e N7 (a resposta ainda colapsa
 "sem parada" e "parada sem coordenada"; só o log distingue).
+
+## Dívida conhecida ao fechar a spec (4ª revisão: APROVADO)
+
+Nada aqui bloqueia o merge. Cada item é task própria.
+
+1. **RF13 sem prova de componente.** O harness da T904 transcreve à mão o array de dependências do
+   efeito: editar o efeito real não quebra teste nenhum (a única rede é um `not.toInclude` de grafia
+   literal). Ou entra renderer de React nos testes (`happy-dom` + `@testing-library/react`, com a
+   justificativa de dependência do §13), ou a asserção sobre o array vira estrutural. Esta base não
+   tem como testar comportamento de componente React — foi a raiz de vários testes fracos da spec.
+2. **`--max-warnings=0` em `apps/frontend-transportada`**, depois de zerar os 16 avisos de
+   `react-hooks`. Enquanto não entrar, o `exhaustive-deps` que a T905 ligou não reprova nada: o lint
+   da app sai 0 com aviso, ao contrário das outras três apps.
+3. **Hooks condicionais em `TripCargoLayers.component.tsx`** (5 avisos de `rules-of-hooks`: cinco
+   `useMemo` depois de três early returns). Trocar de proposta com `layout` indo a `null` derruba a
+   árvore com "Rendered fewer hooks than expected" — e é no caminho de carga. Anterior à spec 153.
+4. **Re-disparo do congelamento depois da geocodificação.** Nenhum dos 7 chamadores do congelamento
+   é a conclusão da geocodificação (worker) nem a correção manual de coordenada. Com a T901, o
+   descarte virou a resposta normal desse caminho, então a viagem fica sem rota até a próxima
+   mutação.
+5. **Banco local de quem aplicou `20260917202034`** fica com coluna, gatilho e função órfãos (a
+   migration foi removida por `git rm`, nunca esteve em staging). Nada quebra, mas um diff de schema
+   acusa drift. O rollback está em
+   `git show c9dd7e18:apps/api-transportada/drizzle/20260917202034_trip_planned_route_stops_revision/rollback.sql`.
+6. **P7 e N7**, já declarados acima na Fase 9.
