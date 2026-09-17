@@ -121,3 +121,19 @@ export function redactTripAmounts<TTrip extends Readonly<{ amounts: unknown }>>(
   if (input.canReadFinancials) return input.trip
   return omitFields(input.trip, ['amounts'] as const)
 }
+
+/**
+ * T707 (H3, achado anterior à 153): `GET /trips` mandava `documentsTotal`/`revenueTotal` sob a
+ * política de leitura de viagem — a RF9 cobriu route-geometry, valuation-preview, NF-e e o
+ * detalhe, mas esqueceu a listagem. `revenueSource` fica: é a origem do número, não o número.
+ */
+export function redactTripAmountsMoney<
+  TAmounts extends Readonly<{ documentsTotal: unknown; revenueTotal: unknown }>,
+>(input: {
+  readonly amounts: TAmounts | null
+  readonly canReadFinancials: boolean
+}): null | Omit<TAmounts, 'documentsTotal' | 'revenueTotal'> | TAmounts {
+  if (input.amounts === null) return null
+  if (input.canReadFinancials) return input.amounts
+  return omitFields(input.amounts, ['documentsTotal', 'revenueTotal'] as const)
+}

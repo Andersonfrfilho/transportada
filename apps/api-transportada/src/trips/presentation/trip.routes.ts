@@ -61,7 +61,7 @@ import type {
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   redactRouteGeometryMoney,
-  redactTripAmounts,
+  redactTripAmountsMoney,
   redactTripDocumentMoney,
 } from '../../shared/monetary-redaction.service.js'
 
@@ -696,11 +696,11 @@ export function createTripRoutes(
         const page = await dependencies.listTrips.execute({ context: context.scope, ...input })
         /** Spec 156 L6: receita e soma das notas são `trip.financials`, como no detalhe. */
         const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
-        const data = page.items.map((trip) =>
-          redactTripAmounts({ canReadFinancials, trip: serializeTrip(trip) }),
-        )
         return jsonResponse({
-          body: { data, page: { nextCursor: page.nextCursor } },
+          body: {
+            data: page.items.map((trip) => serializeTrip({ canReadFinancials, trip })),
+            page: { nextCursor: page.nextCursor },
+          },
           status: 200,
         })
       },
@@ -1933,15 +1933,23 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
   })
 }
 
-function serializeTrip(
-  trip: Trip,
-): Readonly<Record<string, unknown> & { amounts: Trip['amounts'] }> {
+function serializeTrip(input: {
+  readonly canReadFinancials: boolean
+  readonly trip: Trip
+}): object {
+  const trip = input.trip
   return {
     /**
      * `null` fora da listagem: o detalhe da viagem tem painel de valoração próprio, com custo e
      * margem, e repetir só a receita ali daria dois números para a mesma pergunta.
+     *
+     * T707 (H3): sem `trip.financials`, `documentsTotal`/`revenueTotal` somem — a listagem é a
+     * primeira leitura de viagem que qualquer papel com `fleet.read` enxerga.
      */
-    amounts: trip.amounts === null ? null : { ...trip.amounts },
+    amounts: redactTripAmountsMoney({
+      amounts: trip.amounts,
+      canReadFinancials: input.canReadFinancials,
+    }),
     companyId: trip.companyId,
     createdAt: trip.createdAt,
     id: trip.id,
@@ -1990,7 +1998,7 @@ function serializeTripDetail(input: {
 }): object {
   const trip = input.trip
   return {
-    ...serializeTrip(trip),
+    ...serializeTrip({ canReadFinancials: input.canReadFinancials, trip }),
     /**
      * Spec 156 T8d: os três só do encerramento manual (`close`) — a derivação automática que também
      * leva a viagem a `completed` nunca os preenche.

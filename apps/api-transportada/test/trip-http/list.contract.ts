@@ -7,12 +7,14 @@ import {
   DRIVER_ID,
   TRIPS_PATH,
   TRIP_PAGE,
+  TRIP_PAGE_WITH_AMOUNTS,
   VEHICLE_ID,
   jsonRequest,
 } from '../fixtures/trip-http-payload.fixture'
 import {
   COMPANY_CONTEXT,
   FINANCIALS_PERMISSIONS,
+  READ_ONLY_PERMISSIONS,
   createTripHttpFixture,
 } from '../fixtures/trip-http.fixture'
 
@@ -94,5 +96,43 @@ describe('GET /trips', () => {
 
     expect(response.status).toBe(403)
     expect(fixture.listTripsCalls).toEqual([])
+  })
+
+  /**
+   * T707 (H3, achado anterior à 153): a listagem mandava `documentsTotal`/`revenueTotal` para
+   * qualquer papel com `fleet.read` — a redação da RF9 cobriu route-geometry, valuation-preview,
+   * NF-e e o detalhe, mas esqueceu esta rota, a primeira leitura de viagem de todas.
+   */
+  test('cuts documentsTotal and revenueTotal without trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      listTripsResult: TRIP_PAGE_WITH_AMOUNTS,
+      permissions: READ_ONLY_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+    const body = (await response.json()) as { data: readonly Record<string, unknown>[] }
+
+    expect(response.status).toBe(200)
+    const [trip] = body.data
+    const amounts = trip?.amounts as Record<string, unknown>
+    expect(Object.hasOwn(amounts, 'documentsTotal')).toBe(false)
+    expect(Object.hasOwn(amounts, 'revenueTotal')).toBe(false)
+    // Nem tudo é dinheiro: a origem do número continua — é o que explica o número, não o número.
+    expect(amounts.revenueSource).toBe('measured')
+  })
+
+  test('answers with documentsTotal and revenueTotal when the caller has trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      listTripsResult: TRIP_PAGE_WITH_AMOUNTS,
+      permissions: FINANCIALS_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: [...TRIP_PAGE_WITH_AMOUNTS.items],
+      page: { nextCursor: TRIP_PAGE_WITH_AMOUNTS.nextCursor },
+    })
   })
 })

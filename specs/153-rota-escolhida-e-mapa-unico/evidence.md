@@ -3989,3 +3989,109 @@ L3–L5 (API: `signature` com formato no schema, redação por lista de permiss�
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T707 — H3: `GET /trips` redige `amounts` sem `trip.financials` (D10) ✅ 2026-09-17
+
+### O achado
+
+A spec 153 (D10/RF9) tornou todo dinheiro de viagem condicionado a `trip.financials`, redigido num
+serviço único da API (`shared/monetary-redaction.service.ts`) e aplicado em route-geometry (os
+dois), valuation-preview (já exigia a permissão), NF-e e detalhe da viagem (T301). A RF9 esqueceu a
+listagem: `GET /trips` (`serializeTrip`, `trip.routes.ts` ~493-499, chamado também de
+`serializeTripDetail` ~1508) sempre devolvia `amounts.documentsTotal` (soma das notas vinculadas) e
+`amounts.revenueTotal` (receita) para qualquer papel com `fleet.read`, sob `TRIP_READ_POLICY` — a
+mesma política que qualquer leitura de viagem usa, sem checar `trip.financials`. Achado HIGH (H3) da
+revisão final, anterior à spec 153.
+
+Varredura por outros campos monetários nas respostas de viagem que a T301 não cobriu:
+`serializeTripStopDetail`/`serializeTripDocumentDetail` (já redigidos via `redactTripDocumentMoney`
+no detalhe), `serializeReturnedWithActiveCteEntry` (`ListReturnedWithActiveCteResult`, sem campo de
+dinheiro), `serializeTripStop`/`TripStopSummary` (sem campo de dinheiro), `recordTripCost`/
+`listTripCosts`/`readFinancialResult`/`recalculateFinancialResult` (rotas inteiras já sob
+`TRIP_FINANCIALS_POLICY`, sem vazamento parcial). Nenhum outro campo monetário sem redação
+encontrado além da listagem.
+
+### Correção
+
+`redactTripAmountsMoney` nova em `shared/monetary-redaction.service.ts`, no mesmo molde de
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`: recebe `{ amounts, canReadFinancials }`, devolve
+`null` quando `amounts` é `null`, o objeto inteiro com a permissão, e o objeto sem
+`documentsTotal`/`revenueTotal` sem ela — chave ausente do `JSON.stringify`, nunca `null` nem zero.
+`revenueSource` fica: é a origem do número (`measured`/`estimated`/`missing`), não dinheiro.
+
+`serializeTrip` passou a receber `{ canReadFinancials, trip }` em vez de `trip` solto, e aplica
+`redactTripAmountsMoney` no campo `amounts`. Os dois call sites atualizados: a listagem (`GET
+/trips`, calcula `canReadFinancials` uma vez antes do `.map`) e `serializeTripDetail` (que já
+recebia `canReadFinancials` para documentos/paradas — `amounts` no detalhe é sempre `null` hoje, mas
+o caminho fica correto por construção em vez de por acidente de o valor nunca existir ali).
+
+### Teste (contrato vermelho → verde)
+
+`test/trip-http/list.contract.ts`: dois testes novos, com `listTripsResult` novo no
+`createTripHttpFixture` (parâmetro que faltava — a fixture só devolvia `TRIP_PAGE` fixo) e
+`TRIP_WITH_AMOUNTS`/`TRIP_PAGE_WITH_AMOUNTS` novos em `trip-http-payload.fixture.ts` (viagem com
+`documentsTotal`/`revenueTotal`/`revenueSource` preenchidos, para o teste ter algo para redigir).
+
+- Sem `trip.financials` (`READ_ONLY_PERMISSIONS`): `Object.hasOwn(amounts, 'documentsTotal')` e
+  `Object.hasOwn(amounts, 'revenueTotal')` são `false`; `amounts.revenueSource` continua
+  `'measured'`.
+- Com `trip.financials` (`FINANCIALS_PERMISSIONS`): resposta idêntica a hoje —
+  `data: [...TRIP_PAGE_WITH_AMOUNTS.items]`.
+
+Contrato vermelho confirmado por leitura do código antes da correção (a asserção
+`Object.hasOwn(amounts, 'documentsTotal')` teria de ser `true` sem a mudança) — o comportamento é
+determinístico e o mesmo padrão de `redactRouteGeometryMoney`/`redactNfeDocumentMoney` já provado
+nos contratos irmãos, então não reverti a produção para reexecutar o vermelho.
+
+### Frontend — o que quebra, sem tocar
+
+`TripTable.component.tsx`/`tripTable.service.ts` leem `amounts?.documentsTotal`/
+`amounts?.revenueTotal` com encadeamento opcional — não estouram em runtime. O validador de
+contrato não tolera: `isAbsentOrTripAmounts`
+(`modules/trip/shared/tripResponse.validation.ts:225-234`) usa `hasExactKeys(value,
+TRIP_AMOUNTS_KEYS)` com `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal']`
+(`modules/trip/shared/trip.constant.ts:156`) e exige as três chaves presentes sempre que `amounts`
+não é `null`/ausente. Contra um objeto redigido (presente, mas sem duas das três chaves), a
+validação reprova a resposta inteira — mesmo padrão do achado C1/T701, que já quebrou a NF-e por
+este motivo. Não corrigido aqui: `apps/frontend-transportada` é de outra sessão nesta rodada.
+Arquivos que precisam de `documentsTotal`/`revenueTotal` opcionais para não quebrar:
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts` —
+  `isAbsentOrTripAmounts` precisa tratar as duas chaves como opcionais em vez de `hasExactKeys`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.types.ts` — `TripAmounts` precisa
+  `documentsTotal`/`revenueTotal` opcionais (`?:`).
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts` — `TRIP_AMOUNTS_KEYS`
+  precisa separar obrigatórias (`revenueSource`) de opcionais, no molde de `TRIP_OPTIONAL_KEYS`.
+
+Reportado para o usuário abrir a task; nenhuma dessas mudanças entrou nesta task.
+
+### Registro
+
+`docs/SECURITY.md`, seção "Fechados": achado datado 2026-09-17, com o que era, a correção e a
+pendência de frontend documentada.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+`trip.routes.ts` precisou de `prettier --write` (quebra de linha da assinatura de `serializeTrip`);
+limpo depois. `assemblyRouteOptions.service.ts` pendente é de outra sessão, fora desta task.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6265 pass / 0 fail / 23 skip — 21933 expect() calls em 177 arquivos (skip pré-existente, não desta
+task).
+
+$ bun --env-file=../../.env.test test test/trip-http.contract.test.ts --timeout 120000
+(apps/api-transportada)
+68 pass / 0 fail — 198 expect() calls (baseline antes desta task: 66; +2 testes novos).
+```
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

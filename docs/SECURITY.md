@@ -1730,6 +1730,39 @@ ocorrência **for** registrada depois, o objeto já legitimamente referenciado s
 dos mesmos cinco anos, que é exatamente a retenção pretendida (RF21) para toda foto de ocorrência,
 não um vazamento paralelo. Não há um segundo vazamento aqui, só o mesmo prazo de sempre.
 
+### 2026-09-17 — `GET /trips` devolvia dinheiro sem `trip.financials` (H3)
+
+**Onde:** `api-transportada`, `trips/presentation/trip.routes.ts` (rota `GET /trips`, achado
+anterior à spec 153, fechado pela T707).
+
+**O que era:** a spec 153 (D10/RF9) tornou todo dinheiro de viagem — pedágio, combustível, custo da
+rota, frete, receita, valor da NF-e — condicionado à permissão `trip.financials`, com redação
+aplicada em route-geometry, valuation-preview, NF-e e no detalhe da viagem (`T301`). A listagem
+ficou de fora: `serializeTrip` sempre devolvia `amounts.documentsTotal` (soma das notas vinculadas)
+e `amounts.revenueTotal` (receita) para qualquer papel com `fleet.read`, sob a mesma política de
+leitura de viagem — a primeira resposta de viagem que qualquer operador enxerga.
+
+**Corrigido:** `redactTripAmountsMoney` (`shared/monetary-redaction.service.ts`), no mesmo formato
+das demais funções de redação — omite `documentsTotal`/`revenueTotal` do objeto quando o chamador
+não tem `trip.financials` (chave ausente, nunca `null` nem zero), mantendo `revenueSource` (é a
+origem do número, não o número). `serializeTrip` passou a receber `canReadFinancials` e aplica a
+redação; o mesmo caminho é usado pela listagem (`GET /trips`) e pelo detalhe (`GET /trips/:id`, que
+já mandava `amounts: null` de qualquer forma). Prova em
+`test/trip-http/list.contract.ts` — sem a permissão, as duas chaves somem e `revenueSource`
+continua; com `trip.financials`, a resposta permanece igual à de hoje.
+
+**Frontend:** `TripTable.component.tsx` e `tripTable.service.ts` já leem `amounts?.documentsTotal`/
+`amounts?.revenueTotal` com encadeamento opcional e toleram a ausência. O validador de contrato não
+tolera: `isAbsentOrTripAmounts` (`modules/trip/shared/tripResponse.validation.ts`) usa
+`hasExactKeys(value, TRIP_AMOUNTS_KEYS)` com `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource',
+'revenueTotal']` (`modules/trip/shared/trip.constant.ts`) e exige `documentsTotal`/`revenueTotal`
+presentes sempre que `amounts` não é `null`/ausente (`modules/trip/shared/tripResponse.validation.ts`).
+Contra um objeto redigido (`amounts` presente, mas sem as duas chaves), a validação reprova a
+resposta inteira e quebra a listagem para quem não tem `trip.financials` — o mesmo padrão do achado
+C1/T701. Não corrigido aqui (sessão em paralelo em `apps/frontend-transportada`); os três arquivos
+acima precisam tratar `documentsTotal`/`revenueTotal` como opcionais dentro de `amounts`, e
+`trip.types.ts` (`TripAmounts`) precisa dos mesmos dois campos como opcionais no tipo.
+
 ### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
 
 **Onde:** `api-transportada`, `whatsapp-command-settlement` (spec 144, T014b, `795cb137`).

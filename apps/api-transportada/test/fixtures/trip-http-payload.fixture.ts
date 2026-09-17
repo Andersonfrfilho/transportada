@@ -223,6 +223,17 @@ export const TRIP_PAGE: TripPage = {
   nextCursor: null,
 }
 
+/** T707 (H3): viagem com dinheiro na listagem, para provar a redação sem `trip.financials`. */
+export const TRIP_WITH_AMOUNTS: Trip = {
+  ...TRIP,
+  amounts: { documentsTotal: '1000.0000', revenueSource: 'measured', revenueTotal: '900.0000' },
+}
+
+export const TRIP_PAGE_WITH_AMOUNTS: TripPage = {
+  items: [TRIP_WITH_AMOUNTS],
+  nextCursor: null,
+}
+
 export const MDFE_MANIFEST_DETAIL: MdfeManifestDetail = {
   additionalInformation: '',
   cargoProduct: '',
