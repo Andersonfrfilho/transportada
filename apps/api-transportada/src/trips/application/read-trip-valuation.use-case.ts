@@ -314,6 +314,18 @@ export async function previewTripValuation(
   const road = await resolvePreviewRoad({
     axles: context.vehicle?.axles ?? null,
     multiplier: context.vehicle?.multiplier ?? null,
+    /**
+     * spec 153 H1: o mesmo consumo/preço que `resolveFuelParcel` (abaixo) usa para precificar o
+     * combustível — sem isto `applyCriterion('cheapest')` não acha candidata nenhuma entre as
+     * opções, e a prévia cai sempre na principal, discordando da viagem que o congelador grava.
+     * Spec 217 Fase 4: `context.vehicle` é anulável (viagem `awaiting_crew` sem caminhão ainda
+     * escolhido) — a prévia continua exigindo o veículo no formulário, mas o tipo compartilhado
+     * com a leitura financeira obriga o mesmo `?.` aqui.
+     */
+    fuelBaseline: {
+      kilometersPerLiter: context.vehicle?.kilometersPerLiter ?? null,
+      pricePerLiter: context.fuelPricePerLiter,
+    },
     hasAutomaticTollPayment: context.vehicle?.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,
@@ -353,6 +365,11 @@ async function resolvePreviewRoad(input: {
   readonly multiplier: TollMultiplier | null
   readonly choice?: RouteChoice
   readonly companyId: string
+  /** spec 153 H1: sem isto nenhuma opção recebe `totalCost`, e `cheapest` não acha candidata. */
+  readonly fuelBaseline: Readonly<{
+    kilometersPerLiter: null | string
+    pricePerLiter: null | string
+  }>
   readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
   readonly geometry: RouteGeometryPort
@@ -375,6 +392,7 @@ async function resolvePreviewRoad(input: {
     axles: input.axles,
     multiplier: input.multiplier,
     depot: input.depot,
+    fuelBaseline: input.fuelBaseline,
     hasAutomaticTollPayment: input.hasAutomaticTollPayment,
     geometry: input.geometry,
     stops: points,

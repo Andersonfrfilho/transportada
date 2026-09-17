@@ -98,7 +98,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       `freightAmount` opcionais em `nfeWorkspaceClient.service.ts` e `tripResponse.validation.ts`,
       célula oculta quando ausentes (nunca traço nem zero), bipe e busca por faixa funcionando para
       `fiscal`, `viewer` e `separator`. Contrato com payload redigido.
-- [ ] T702 **H1** "Mais barata" nunca é eleita: `fuelBaseline` no congelador e na prévia; frontend
+- [x] T702 **H1** "Mais barata" nunca é eleita: `fuelBaseline` no congelador e na prévia; frontend
       emite a escolha quando a resposta chega (montagem, criação e proposta — M7 junto); critério
       resolvido sem assinatura grava `choiceReproduced: true` (só a assinatura que não reproduz é
       `false`).

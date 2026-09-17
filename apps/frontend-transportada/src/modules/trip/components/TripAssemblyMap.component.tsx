@@ -329,10 +329,28 @@ export function TripAssemblyMap({
    * veículo poderia manter selecionada uma posição que agora aponta para outro caminho, ou para
    * nenhum (spec 096 T3). A nova resposta abre na mais barata que a própria API resolveu
    * (`selectedIndex`, spec 153 D1) — nunca fixo, e nunca recalculado aqui.
+   *
+   * ⚠️ **spec 153 H1/M7: emite a escolha aqui também.** Sem isto o pai (criação manual e
+   * proposta) nunca ouve falar da rota que a API abriu — `onRouteChoiceChange` só disparava no
+   * clique do seletor, e quem nunca tocou o seletor congelava sempre `{ criterion: 'cheapest',
+   * signature: null }`, o default do congelador, mesmo quando a resposta trazia uma assinatura
+   * concreta para reproduzir. Dispara de novo a cada troca de veículo/ordem (as duas mudam
+   * `routeKey`/`tollVehicleId`, e portanto `geometryQuery.data`), nunca deixando uma assinatura
+   * velha pendurada no estado do pai.
    */
   useEffect(() => {
-    setSelectedOptionIndex(geometryQuery.data?.selectedIndex ?? 0)
-  }, [routeKey, tollVehicleId, geometryQuery.data?.selectedIndex])
+    const nextIndex = geometryQuery.data?.selectedIndex ?? 0
+    setSelectedOptionIndex(nextIndex)
+    if (geometryQuery.data === undefined) return
+    onRouteChoiceChange?.(
+      resolveRouteChoiceFromIndex({
+        cheapestIndex: geometryQuery.data.cheapestIndex ?? null,
+        fastestIndex: geometryQuery.data.fastestIndex ?? null,
+        index: nextIndex,
+        options: geometryQuery.data.options ?? [],
+      }),
+    )
+  }, [routeKey, tollVehicleId, geometryQuery.data])
 
   /**
    * ⚠️ Depois do efeito acima, e só quando a resposta muda: a escolha publicada volta como

@@ -3359,3 +3359,135 @@ Depois da correção, as quatro suítes ficam verdes (ver Gates).
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T702 — H1: "mais barata" nunca era eleita — `fuelBaseline` ausente + frontend nunca emitia a escolha ✅ 2026-09-17
+
+### Defeito (achado HIGH da revisão final)
+
+Dois caminhos chamavam `readRouteGeometry` sem `fuelBaseline`, e um terceiro (frontend) nunca
+emitia a escolha inicial ao componente pai:
+
+1. **Congelamento** (`freeze-trip-planned-route.use-case.ts`, chamado de `main.ts` ~1503 via
+   `tripRouteTollFreezer`): `FreezeTripPlannedRouteVehicleContext` só carregava `axles`/
+   `multiplier`/`hasAutomaticTollPayment` — nunca o consumo/preço do combustível.
+   `DrizzleTripPlannedRouteRepository.readVehicleContext` (o `readVehicleContext` real de
+   produção) juntava só `fleet_vehicles.axle_count`, sem `average_consumption` nem `fuel_type`.
+2. **Prévia** (`resolvePreviewRoad` em `read-trip-valuation.use-case.ts`): tinha
+   `context.vehicle.kilometersPerLiter` e `context.fuelPricePerLiter` em mãos (usados logo depois
+   por `resolveFuelParcel` para a parcela de combustível) mas não os repassava para
+   `readRouteGeometry`.
+3. Sem `fuelBaseline`, `rankRouteOptions` (`route-option.policy.ts`) devolve `fuelTotal: null` em
+   toda opção, e `totalOf` torna `totalCost` `null` também — nunca zero, `null` mesmo (a política
+   já estava certa). `applyCriterion('cheapest')` em `route-choice.policy.ts` (`bestOf` com peso
+   `null` "não concorre") não achava candidata **nenhuma**, e `selectRouteOption` caía sempre na
+   principal com `reproduced: false` — mesmo com `choice.signature === null` (ninguém pediu
+   assinatura nenhuma). Esse é o efeito relatado: a viagem gravava sempre a rota com pedágio, e o
+   aviso de "escolha não reproduzida" aparecia quase sempre, falso.
+4. **Frontend** (`TripAssemblyMap.component.tsx`): o único `useEffect` que reage à resposta da
+   consulta de geometria (`geometryQuery.data`) só fazia `setSelectedOptionIndex(...)` — nunca
+   chamava `onRouteChoiceChange`. Quem nunca tocasse no seletor de rota (a maioria: criação manual
+   sem trocar de opção, e cada veículo da proposta) sempre enviava o `RouteChoice` default do
+   estado do pai (`{ criterion: 'cheapest', signature: null }`), mesmo quando a API já tinha
+   resolvido uma opção concreta com assinatura própria (M7).
+
+### Semântica de `choiceReproduced` (D3) — já estava certa, não mudou
+
+Lida com cuidado antes de mexer: `selectRouteOption` (`route-choice.policy.ts`) já implementa D3
+corretamente —
+
+```ts
+if (choice.signature !== null) {
+  const signed = options.find((option) => option.signature === choice.signature)
+  if (signed !== undefined) return { option: signed, reproduced: true }
+  return { option: applyCriterion(choice.criterion, options) ?? principal, reproduced: false }
+}
+const candidate = applyCriterion(choice.criterion, options)
+if (candidate === undefined) return { option: principal, reproduced: false }
+return { option: candidate, reproduced: true }
+```
+
+Critério resolvido **sem** assinatura já gravava `true`; só a assinatura pedida que não reproduz
+(ou o critério que não acha candidata, órfão do `fuelBaseline` ausente) gravava `false`. O
+"quase sempre falso" era **consequência** do bug 1–3 (sem `totalCost`, `applyCriterion('cheapest')`
+nunca achava candidata, mesmo sem assinatura pedida) — não um defeito na política em si. Nenhuma
+mudança foi feita em `route-choice.policy.ts`.
+
+### Correção
+
+1. `freeze-trip-planned-route.use-case.ts`: `FreezeTripPlannedRouteVehicleContext` ganhou
+   `fuelBaseline: RouteOptionVehicle` (obrigatório — força todo implementador do port a decidir,
+   nunca esquecer de novo); `freezeTripPlannedRoute` repassa `fuelBaseline: vehicle.fuelBaseline`
+   para `readRouteGeometry`.
+2. `drizzle-trip-planned-route.repository.ts`: `readVehicleContext` passou a selecionar também
+   `average_consumption`/`fuel_type` e chama `readEffectiveFuelPrice`/`toFuelProduct`
+   (`effective-fuel-price.query.ts` — a mesma conta que `RouteGeometryVehicleAxlesQuery` já usa no
+   caminho HTTP de `main.ts` ~2537-2563, usada aqui como referência) para montar `fuelBaseline`;
+   sem consumo ou sem preço efetivo, cai em `NO_FUEL_BASELINE` (`{ kilometersPerLiter: null,
+pricePerLiter: null }`) — nunca um número inventado.
+3. `read-trip-valuation.use-case.ts`: `resolvePreviewRoad` ganhou o parâmetro `fuelBaseline`;
+   `previewTripValuation` passa `{ kilometersPerLiter: context.vehicle.kilometersPerLiter,
+pricePerLiter: context.fuelPricePerLiter }` — os mesmos dois campos que `resolveFuelParcel` já
+   lia da mesma `context`, nenhuma leitura nova.
+4. `TripAssemblyMap.component.tsx`: o `useEffect` que reage a `geometryQuery.data` agora também
+   chama `onRouteChoiceChange?.(resolveRouteChoiceFromIndex({ cheapestIndex, fastestIndex, index:
+nextIndex, options }))` — a mesma função pura que o clique manual do seletor já usava
+   (`handleSelectRouteOptionIndex`). O efeito depende de `[routeKey, tollVehicleId,
+geometryQuery.data]`: `routeKey` muda com a ordem das paradas, `tollVehicleId` com o veículo, e
+   os dois disparam nova busca → novo `geometryQuery.data` → o efeito roda de novo e emite a
+   escolha fresca, nunca deixando uma assinatura velha no estado do pai. Como `onRouteChoiceChange`
+   já estava corretamente fiado em `TripQuickCreateDialog.component.tsx` (`onRouteChoiceChange=
+{quickCreate.setRouteChoice}`) e em `TripRouteAssemblyDialog.component.tsx`
+   (`assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)`), essa única correção resolve
+   criação manual e proposta ao mesmo tempo (M7) — nenhum dos dois diálogos precisou mudar.
+
+### Contratos vermelhos, antes da correção
+
+- `freeze-trip-planned-route.contract.ts`, novo `describe('H1: a mais barata é de fato eleita —
+nunca sempre a principal')`: com uma principal cara (240 km, praça R$ 10,50/eixo × 2 = R$ 21,00,
+  total R$ 597,00 com `fuelBaseline` 2,5 km/l a R$ 6,00) e uma alternativa mais barata em
+  `road.alternatives` (100 km sem praça, total R$ 240,00), o teste
+  `'com fuelBaseline conhecido, congela a alternativa mais barata — não a principal'` falhava
+  contra o código antigo: `written.route.distanceMeters` vinha `240_000` (a principal) em vez de
+  `100_000`, e `choiceReproduced` vinha `false`. Um segundo teste
+  (`'sem fuelBaseline, cai na principal com choiceReproduced: false'`) documenta o comportamento
+  antigo como regressão a não reintroduzir.
+- `preview-route-choice.contract.ts`, novo teste `'H1: sem escolha explícita, a prévia elege a mais
+barata de verdade — não sempre a principal'`: principal cara (200 km, praça R$ 50,00/eixo × 2 =
+  R$ 100,00, total R$ 580,00) contra sem-pedágio mais barata (100 km, total R$ 240,00) — contra o
+  código antigo, a parcela de combustível vinha `480.0000` (distância da principal) em vez de
+  `240.0000`.
+- `route-choice-switch.contract.ts`, dois novos testes de fonte: `'emite a escolha assim que a
+resposta chega, não só no clique do seletor'` (contava `onRouteChoiceChange?.(` — 1 ocorrência
+  no código antigo, 2 depois) e `'reemite a escolha ao trocar veículo/ordem'` (checava o array de
+  dependências do `useEffect`).
+
+Depois da correção, as três suítes ficam verdes (ver Gates).
+
+### Integração com Postgres real
+
+`freeze-trip-planned-route.integration.ts`: novo teste `'spec 153 H1: lê o consumo e o preço
+efetivo do combustível pela mesma conta da consulta de eixos'` — semeia um veículo com
+`average_consumption = '2.50'` (a coluna é `numeric(6,2)`, trunca as quatro casas do fixture de
+domínio) e `fuel_type = 'diesel-s10'`, mais uma linha em `company_fuel_prices` (`R$ 6,00`), e prova
+que `DrizzleTripPlannedRouteRepository.readVehicleContext` devolve `fuelBaseline: {
+kilometersPerLiter: '2.50', pricePerLiter: '6.0000' }` contra Postgres de verdade — não só o fake
+do contrato de domínio. O teste de leitura do veículo real (já existente) ganhou a expectativa de
+`fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null }` para o veículo sem consumo
+declarado nem preço configurado.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) — limpo.
+- `bun run lint` (raiz, 6 apps) — limpo.
+- `bun run format:check` (raiz) — limpo (2 arquivos precisaram de `prettier --write` antes).
+- `bun run test` em `apps/frontend-transportada` — `4206 pass, 0 fail`, `36246 expect()` em 29
+  arquivos.
+- `bun run build` em `apps/frontend-transportada` — build de produção concluído sem erro (exit 0).
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`,
+  Postgres real em `localhost:65432`) — **rodou** (banco de teste disponível):
+  `6248 pass, 23 skip, 0 fail` em 177 arquivos, `21897 expect()`. O arquivo de integração isolado
+  (`freeze-trip-planned-route.integration.ts`): `5 pass, 0 fail`.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

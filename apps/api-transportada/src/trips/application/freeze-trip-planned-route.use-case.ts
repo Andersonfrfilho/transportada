@@ -24,6 +24,7 @@ import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
+import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 
 /** Sem escolha declarada, RF3 default é o mesmo da leitura: mais barata conhecida, sem assinatura. */
 const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'cheapest'
@@ -38,6 +39,14 @@ export type FreezeTripPlannedRouteVehicleContext = {
   /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
+  /**
+   * spec 153 H1: o consumo e o preço do combustível do veículo — sem isto `readRouteGeometry`
+   * não sabe comparar `totalCost` entre as opções, `applyCriterion('cheapest')` não acha
+   * candidata nenhuma, e a rota congelada cai sempre na principal com `choiceReproduced: false`,
+   * mesmo quando ninguém pediu assinatura nenhuma. Ausência de dado é `{ kilometersPerLiter: null,
+   * pricePerLiter: null }` — nunca um consumo inventado.
+   */
+  readonly fuelBaseline: RouteOptionVehicle
 }
 
 /**

@@ -167,6 +167,35 @@ describe('TripAssemblyMap: switch mais rápida ↔ mais barata sem novo OSRM (sp
     expect(source).toInclude('onRouteChoiceChange?.(')
     expect(source).toInclude('resolveRouteChoiceFromIndex')
   })
+
+  /**
+   * spec 153 H1/M7: sem emitir a escolha inicial, o pai (criação manual, proposta) nunca ouve
+   * falar da rota que a API abriu, e sempre manda o default `cheapest`/`signature: null` — mesmo
+   * quando ninguém tocou o seletor. `onRouteChoiceChange?.(` precisa aparecer **duas** vezes: uma
+   * no clique manual (`handleSelectRouteOptionIndex`), outra no efeito que reage à resposta da
+   * consulta — a mesma chamada que já mexe em `selectedOptionIndex`.
+   */
+  it('emite a escolha assim que a resposta chega, não só no clique do seletor', () => {
+    const callCount = source.split('onRouteChoiceChange?.(').length - 1
+    expect(callCount).toBe(2)
+
+    const effectBlock = source.slice(
+      source.indexOf('useEffect(() => {'),
+      source.indexOf('}, [routeKey, tollVehicleId, geometryQuery.data])') + 1,
+    )
+    expect(effectBlock).toInclude('setSelectedOptionIndex(nextIndex)')
+    expect(effectBlock).toInclude('onRouteChoiceChange?.(')
+    expect(effectBlock).toInclude('resolveRouteChoiceFromIndex')
+  })
+
+  /**
+   * A escolha precisa ser refeita a cada troca de veículo/ordem — nunca deixar uma assinatura
+   * velha no estado do pai. As duas mudam `routeKey`/`tollVehicleId`, e são elas que disparam o
+   * efeito de novo (junto com a resposta nova da consulta).
+   */
+  it('reemite a escolha ao trocar veículo/ordem — o efeito depende de routeKey e tollVehicleId', () => {
+    expect(source).toInclude('}, [routeKey, tollVehicleId, geometryQuery.data])')
+  })
 })
 
 describe('RouteChoiceOptions: seletor com "Sem pedágio" e switch (spec 153 T402)', () => {

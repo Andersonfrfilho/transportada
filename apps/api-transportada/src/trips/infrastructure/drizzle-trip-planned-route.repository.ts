@@ -39,6 +39,7 @@ export class DrizzleTripPlannedRouteRepository
   }): Promise<FreezeTripPlannedRouteVehicleContext | null> {
     const [row] = await this.database
       .select({
+        averageConsumption: fleetVehicles.averageConsumption,
         axleCount: fleetVehicles.axleCount,
         fuelType: fleetVehicles.fuelType,
         hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,

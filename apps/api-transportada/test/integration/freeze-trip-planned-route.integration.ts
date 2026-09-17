@@ -18,9 +18,8 @@ import {
   fleetVehicles,
   trips,
 } from '../../src/database/database.schema.js'
-import type { FuelProduct } from '../../src/shared/fuel.constant.js'
-import { NO_FUEL_BASELINE } from '../../src/toll-booths/domain/route-option.policy.js'
 import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
+import type { FuelProduct } from '../../src/shared/fuel.constant.js'
 import type { WritePlannedRouteInput } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
 
@@ -75,9 +74,37 @@ describe('freeze trip planned route repository integration', () => {
 
         expect(vehicle).toEqual({
           axles: { count: 3, source: 'declared' },
-          fuelBaseline: NO_FUEL_BASELINE,
           hasAutomaticTollPayment: true,
           multiplier: { denominator: 1, numerator: 3 },
+          /** spec 153 H1: sem `averageConsumption`/`fuelType` cadastrados, não há o que comparar. */
+          fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null },
+        })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 153 H1: lê o consumo e o preço efetivo do combustível pela mesma conta da consulta de eixos',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          /** `average_consumption` é `numeric(6,2)` — a coluna guarda duas casas, não quatro. */
+          averageConsumption: '2.50',
+          fuelType: 'diesel-s10',
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        await database.db
+          .insert(companyFuelPrices)
+          .values({ companyId, product: 'diesel-s10', pricePerUnit: '6.0000' })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+
+        const vehicle = await repository.readVehicleContext({ companyId, tripId })
+
+        expect(vehicle?.fuelBaseline).toEqual({
+          kilometersPerLiter: '2.50',
+          pricePerLiter: '6.0000',
         })
       })
     },
@@ -235,9 +262,9 @@ async function seedTripWithVehicle(
     ...(vehicle.averageConsumption === undefined
       ? {}
       : { averageConsumption: vehicle.averageConsumption }),
-    ...(vehicle.fuelType === undefined ? {} : { fuelType: vehicle.fuelType }),
     axleCount: vehicle.axleCount,
     companyId,
+    ...(vehicle.fuelType === undefined ? {} : { fuelType: vehicle.fuelType }),
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     id: vehicleId,
     plate: 'ABC1D23',
