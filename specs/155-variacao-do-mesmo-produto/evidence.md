@@ -83,7 +83,44 @@ CX 477, FR 86, FD 40, DP 35, EV 7, PC 5, UN 5.
 
 ## T1.1 — Contrato de `resolveBoxFamily`
 
-_(pendente)_
+`apps/api-transportada/test/nfe-package-box/family.contract.ts`, importado em
+`test/nfe-package-box.contract.test.ts`. Vermelho pelo motivo certo:
+
+```
+error: Cannot find module '../../src/nfe-documents/domain/package-box-family.policy.js'
+ 0 pass · 1 fail · 1 error
+```
+
+### A heurística foi medida antes de virar contrato
+
+Duas varreduras independentes sobre as descrições reais do emitente `05868574001090` — a minha
+(655 linhas) e a do `architect` (663 linhas, consulta própria) — chegaram à mesma ordem de
+grandeza: ~374/391 famílias, 122/124 com duas ou mais variações, ~61% das caixas dentro de alguma
+família. Nenhuma das duas achou rótulo vazio em família de 2+, nem rótulo repetido dentro da mesma
+família.
+
+O que a varredura derrubou:
+
+- **Truncamento do XML não é risco.** A descrição mais longa em produção tem 47 caracteres; não há
+  corte em 31 colapsando duas variações no mesmo rótulo.
+- **Normalização é defesa, não remendo.** Zero acento, zero minúscula, zero espaço duplo, zero
+  NBSP, e nenhuma das 68 unidades comerciais colide ao normalizar.
+- **`05868574001090` é o CNPJ do emitente, não código de produto.** Foi por isso que a busca da T0
+  não achou o valor como `product_code` nem como `carton_gtin` — ele é a coluna `emitter_tax_id`,
+  e responde pelas 663 caixas.
+
+O que a varredura achou, e virou caso de teste:
+
+| achado                                                                                                                  | decisão                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `AZEITE 500ML` junta garrafa PET com garrafa de vidro, marcas diferentes — única família de 122 com prefixo de 2 tokens | prefixo precisa de **≥3 tokens** (`MINIMUM_FAMILY_PREFIX_TOKENS`) para abrir família; custa essa família e só ela |
+| `CR TRAT SKALA 1KG 12 EM 1` perde a família dos outros cinco cremes: o dígito está no nome da variação                  | miss aceito e documentado — o corte guloso erra para menos                                                        |
+| `REFR TANG 18G PACK 15 LAR/UVA` vira família própria, separada do sachê avulso                                          | correto, é outra caixa; é o caso que justifica o corte guloso                                                     |
+| `ALCOOL FLOPS 1L 46.2`, `ESPONJA WISH MULTI USO`                                                                        | rótulo vazio, família de um                                                                                       |
+
+A assimetria que fecha a escolha: falso positivo grava medida errada numa caixa; falso negativo só
+mantém a medição manual de hoje. Por isso o corte guloso (último token com dígito) em vez do
+primeiro, e o piso de três tokens no prefixo.
 
 ## T1.2 — `package-box-family.policy.ts`
 
