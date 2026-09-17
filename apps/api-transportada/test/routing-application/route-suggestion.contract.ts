@@ -234,18 +234,26 @@ describe('accepting a route suggestion (ADR-0044 §5)', () => {
     ])
   })
 
-  /** A sugestão só vira `accepted` se a rota que ela promete de fato foi gravada. */
-  test('leaves the suggestion ready when freezing the route fails', async () => {
+  /**
+   * Spec 153 T703 (H2): a ordem já está gravada quando o congelamento roda — nota sem parada com
+   * endereço (`hasRoute` falso) ou OSRM fora do ar (D5) não podem derrubar o aceite, nem deixar a
+   * sugestão presa em `ready`. Regressão do commit 2ea98a51, que trocou o congelador tolerante por
+   * `planTripRoute` — que lança `TripStateTransitionNotAllowedError` para viagem sem rota possível.
+   */
+  test('accepts and decides even when freezing the route fails (viagem sem parada com endereço)', async () => {
     const dependencies = buildDependencies({
-      planRouteError: new Error('osrm unavailable'),
+      freezeRouteError: new Error('trip has no address stop'),
       suggestion: READY_RECORD,
     })
 
-    await createRouteSuggestionUseCase(dependencies)
-      .accept({ context: COMPANY_SCOPE, suggestionId: SUGGESTION_ID, tripId: TRIP_ID })
-      .catch(() => undefined)
+    const result = await createRouteSuggestionUseCase(dependencies).accept({
+      context: COMPANY_SCOPE,
+      suggestionId: SUGGESTION_ID,
+      tripId: TRIP_ID,
+    })
 
-    expect(dependencies.decided).toHaveLength(0)
+    expect(result.status).toBe('accepted')
+    expect(dependencies.decided).toHaveLength(1)
   })
 })
 

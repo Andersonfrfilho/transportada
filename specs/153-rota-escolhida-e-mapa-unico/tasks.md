@@ -102,7 +102,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       emite a escolha quando a resposta chega (montagem, criação e proposta — M7 junto); critério
       resolvido sem assinatura grava `choiceReproduced: true` (só a assinatura que não reproduz é
       `false`).
-- [ ] T703 **H2** Aceite por viagem não pode lançar por nota sem parada nem promover status: usar o
+- [x] T703 **H2** Aceite por viagem não pode lançar por nota sem parada nem promover status: usar o
       congelador tolerante no lugar de `planTripRoute`. Contrato com nota sem endereço.
 - [ ] T704 **M1–M4 + L7** Limpeza de `planned_*` dentro da transação de reorder/link/release/
       move/swap; `releaseUnplaced` e `overrideDeliveryAddress` recalculam (M2); guarda de status e

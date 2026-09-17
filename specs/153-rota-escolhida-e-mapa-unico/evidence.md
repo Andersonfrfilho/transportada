@@ -3188,3 +3188,66 @@ foi corrigido:
 
 Nada nesta correção mexeu em código de produção — só nos quatro arquivos de documentação e neste
 `evidence.md`. `bun run format:check` roda limpo depois da correção.
+
+## T703 — H2: aceite por viagem usa o congelador tolerante, não `planTripRoute`
+
+### Defeito (regressão do commit `2ea98a51`)
+
+O aceite por viagem da sugestão de rota (`route-suggestion.use-case.ts` `accept`) chamava
+`routePlanner.planRoute` — injetado em `main.ts` como `planTripRoute` (o mesmo caso de uso do
+endpoint `POST /trips/:id/plan-route`). Dois problemas:
+
+1. `planTripRoute` **lança** `TripStateTransitionNotAllowedError` quando a viagem não tem rota
+   possível (`hasRoute` falso — nota viva sem parada com endereço, `checkTripTransition` em
+   `trip-state.policy.ts`). O aceite, que antes só reordenava e concluía, passou a falhar inteiro.
+2. `planTripRoute` promove a viagem de `draft` para `route_planned` como efeito colateral
+   (`markRoutePlanned`), o que a D7 não pediu — D7 só fala em congelar a rota escolhida.
+
+### Correção
+
+Trocado `routePlanner.planRoute` pelo **congelador tolerante** já usado por reordenar/vincular/
+desvincular (`freezeRouteGracefully` em `trip.use-case.ts`, injetado como `tripRouteTollFreezer` em
+`main.ts`, mesma porta `PlanTripRouteTollFreezer`/`freezeTripPlannedRoute` da T201):
+
+- `route-suggestion.use-case.ts`: renomeada a porta `TripRoutePlanner.planRoute` para
+  `TripRouteFreezer.freeze` (mesma assinatura de `PlanTripRouteTollFreezer`). O `accept` chama o
+  novo `freezeRouteGracefully` local — mesmo padrão de `trip.use-case.ts`: `try/catch` que nunca
+  propaga a falha do congelamento, rodando **depois** da ordem já gravada.
+- `main.ts`: a rota `routeSuggestions` passa a injetar `routeFreezer: tripRouteTollFreezer`
+  diretamente — o mesmo congelador da T201, nunca um segundo caminho de escrita. O import de
+  `planTripRoute` (não mais usado neste arquivo) foi removido.
+
+Por que isso resolve os dois problemas: `freezeTripPlannedRoute` (a implementação real de
+`tripRouteTollFreezer.freeze`) nunca lança para viagem sem parada — lê as coordenadas disponíveis
+(mesmo que vazias), pede a geometria ao roteirizador e, sem estrada, grava `route: null` (D5); e
+`freezeTripPlannedRoute` **não** transiciona status — ele só escreve `planned_route`/`planned_toll`.
+E mesmo se o congelador falhasse por outro motivo, o `try/catch` do `accept` absorve, igual ao
+`freezeRouteGracefully` do link/release.
+
+### Contrato vermelho, antes da correção
+
+`test/routing-application/route-suggestion.contract.ts`, suíte "accepting a route suggestion":
+substituído o teste antigo `leaves the suggestion ready when freezing the route fails` (que
+esperava o aceite ficar bloqueado — o comportamento errado que este defeito introduziu) por:
+
+```
+test('accepts and decides even when freezing the route fails (viagem sem parada com endereço)', ...)
+```
+
+Contra o código do `2ea98a51` (com `routePlanner.planRoute` lançando), este teste falhava: o erro
+do congelamento derrubava o `accept` e `dependencies.decided` ficava vazio. Depois da correção, o
+`accept` conclui com sucesso, `result.status === 'accepted'` e `dependencies.decided` tem 1 entrada.
+O caminho feliz (`freezes the route through the T201 seam...` e `without a routeChoice...`)
+continua verde, provando que a rota escolhida ainda é gravada.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) — limpo.
+- `bun run lint` (raiz) — 1 erro inicial (`planTripRoute` importado e não usado em `main.ts` depois
+  da troca), corrigido removendo o import; limpo depois.
+- `bun run format:check` (raiz) — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`,
+  integração com Postgres real) — **rodou** (banco de teste disponível):
+  `6245 pass, 23 skip, 0 fail` em 177 arquivos, 21889 `expect()`. A suíte alvo isolada
+  (`test/routing-application.contract.test.ts`, que importa `route-suggestion.contract.ts`):
+  `73 pass, 0 fail`.

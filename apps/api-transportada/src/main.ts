@@ -221,7 +221,6 @@ import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
-import { planTripRoute } from './trips/application/plan-trip-route.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
@@ -2811,21 +2810,12 @@ function createApplicationRoutes({
             queue: routeOptimizationQueue,
             repository: createDrizzleRouteSuggestionRepository(database),
             /**
-             * Spec 153 D7/RF3: o aceite por viagem também congela a rota, pela mesma porta da T201
-             * — nunca um segundo caminho de escrita.
+             * Spec 153 D7/T703: o aceite por viagem congela a rota pelo mesmo congelador tolerante
+             * da T201 (`tripRouteTollFreezer`, ver `freezeRouteGracefully` acima) — nunca
+             * `planTripRoute`, que lança para viagem sem rota possível e promove o status como
+             * efeito colateral que a D7 não pediu.
              */
-            routePlanner: {
-              planRoute: (input) =>
-                planTripRoute({
-                  actorUserId: input.actorUserId,
-                  channel: TRIP_FIELD_CHANNELS.backoffice,
-                  companyId: input.companyId,
-                  repository: tripRouteRepository,
-                  ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
-                  tollFreezer: tripRouteTollFreezer,
-                  tripId: input.tripId,
-                }).then(() => undefined),
-            },
+            routeFreezer: tripRouteTollFreezer,
             stopOrder: createTripStopOrderWriter(tripRouteRepository),
             trips: createDrizzleTripRouteGate(database),
           }),

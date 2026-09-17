@@ -83,8 +83,8 @@ type FixtureParams = Readonly<{
   decideReturnsNull?: boolean
   onCreate?: () => void
   onPublish?: () => void
-  /** Spec 153 D5: o congelamento falha (ex.: OSRM fora do ar) sem derrubar o aceite. */
-  planRouteError?: Error
+  /** Spec 153 D5/T703: o congelamento falha (ex.: OSRM fora do ar, nota sem parada) sem derrubar o aceite. */
+  freezeRouteError?: Error
   reorderError?: Error
   seed?: number
   suggestion?: RouteSuggestionRecord
@@ -160,9 +160,9 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
         }
       },
     },
-    routePlanner: {
-      async planRoute(input) {
-        if (params.planRouteError !== undefined) throw params.planRouteError
+    routeFreezer: {
+      async freeze(input) {
+        if (params.freezeRouteError !== undefined) throw params.freezeRouteError
         plannedRoutes.push(input)
       },
     },

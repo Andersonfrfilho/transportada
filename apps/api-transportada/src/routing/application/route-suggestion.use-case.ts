@@ -51,14 +51,15 @@ export type StopOrderWriter = Readonly<{
 }>
 
 /**
- * Spec 153 D7: o aceite por viagem também passa a congelar a rota, pela mesma porta da T201
- * (`freeze-trip-planned-route`). O caso de uso não conhece OSRM nem pedágio — só "congele esta
- * rota" —, e é isso que mantém D5 (OSRM fora do ar não derruba o aceite) fora daqui, dentro do
- * congelador.
+ * Spec 153 D7: o aceite por viagem também passa a congelar a rota, pela mesma porta tolerante da
+ * T201 (`freeze-trip-planned-route`) usada por reordenar/vincular (`freezeRouteGracefully` em
+ * `trip.use-case.ts`) — nunca `planTripRoute`, que lança para viagem sem rota possível e promove o
+ * status como efeito colateral que a D7 não pediu. O caso de uso não conhece OSRM nem pedágio — só
+ * "congele esta rota" —, e é isso que mantém D5 (OSRM fora do ar não derruba o aceite) fora daqui,
+ * dentro do congelador.
  */
-export type TripRoutePlanner = Readonly<{
-  planRoute: (input: {
-    readonly actorUserId: string
+export type TripRouteFreezer = Readonly<{
+  freeze: (input: {
     readonly companyId: string
     readonly routeChoice?: RouteChoice
     readonly tripId: string
@@ -68,7 +69,7 @@ export type TripRoutePlanner = Readonly<{
 export type RouteSuggestionDependencies = Readonly<{
   queue: RouteOptimizationQueue
   repository: RouteSuggestionRepository
-  routePlanner: TripRoutePlanner
+  routeFreezer: TripRouteFreezer
   stopOrder: StopOrderWriter
   trips: TripRouteGate
   /** Injetado para o determinismo ser testável: semente sorteada não se verifica. */
@@ -173,10 +174,15 @@ export function createRouteSuggestionUseCase(
        * Spec 153 D7: o aceite por viagem também congela a rota — depois da ordem, pela mesma razão
        * da reordenação: se a viagem não virar `accepted`, o conferente tenta de novo, e replanejar
        * de novo é idempotente (T201).
+       *
+       * Congelamento gracioso (mesmo caminho de `freezeRouteGracefully` em `trip.use-case.ts`): a
+       * ordem já está gravada, então uma nota sem parada (`hasRoute` falso) ou o OSRM fora do ar
+       * (D5) não podem derrubar o aceite — o pedágio/traçado congelam no próximo replanejamento.
+       * Diferente de `planTripRoute`, esta porta nunca promove o status da viagem.
        */
-      await dependencies.routePlanner.planRoute({
-        actorUserId: input.context.userId,
+      await freezeRouteGracefully({
         companyId: input.context.companyId,
+        routeFreezer: dependencies.routeFreezer,
         ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
         tripId: input.tripId,
       })
@@ -205,6 +211,29 @@ export function createRouteSuggestionUseCase(
 
       return toSuggestion(decided)
     },
+  }
+}
+
+/**
+ * Mesmo `catch` de fallback gracioso do `code-standart.md` §7: a ordem já está gravada, então um
+ * congelamento que falha — nota sem parada, OSRM fora do ar (D5), ou qualquer outra falha do
+ * congelador — não pode derrubar o aceite, só deixar o pedágio/traçado sem congelar até o próximo
+ * replanejamento.
+ */
+async function freezeRouteGracefully(input: {
+  readonly companyId: string
+  readonly routeChoice?: RouteChoice
+  readonly routeFreezer: TripRouteFreezer
+  readonly tripId: string
+}): Promise<void> {
+  try {
+    await input.routeFreezer.freeze({
+      companyId: input.companyId,
+      ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
+      tripId: input.tripId,
+    })
+  } catch {
+    /* a ordem já está gravada; o pedágio congela no próximo replanejamento */
   }
 }
 
