@@ -1437,10 +1437,6 @@ function createApplicationRoutes({
     }),
   }
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
-  const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
-    database,
-    cargoLayoutLeaseOptions,
-  )
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
   const cargoLayoutRequestRepository = new DrizzleCargoLayoutRequestRepository(
     database,
@@ -1516,6 +1512,12 @@ function createApplicationRoutes({
         tripId: input.tripId,
       }),
   }
+  /** RF12/D6: a fila de revisão (`move`/`swap`, spec 148) recalcula com o mesmo congelador (T206). */
+  const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
+    database,
+    cargoLayoutLeaseOptions,
+    tripRouteTollFreezer,
+  )
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,

@@ -36,7 +36,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 - [x] T204 Aceite multi-veículo com `routeChoice` por veículo; aceite por viagem grava rota.
 - [x] T205 Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho —
       contratos nos caminhos, OSRM falhando sem derrubar.
-- [ ] T206 Fila de revisão (`move`/`swap`, spec 148) recalcula origem e destino com `cheapest`
+- [x] T206 Fila de revisão (`move`/`swap`, spec 148) recalcula origem e destino com `cheapest`
       (RF12) — contratos nos dois lados, OSRM falhando sem derrubar a movimentação.
 
 ## Fase 3 — Dinheiro só para o financeiro (API)

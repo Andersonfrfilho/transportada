@@ -38,6 +38,7 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../../src/trips/domain/trip.error.js'
+import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { DrizzleTripDocumentReviewRepository } from '../../src/trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { readCargoLayoutInputParams } from '../../src/trips/infrastructure/trip-cargo-layout-input.support.js'
@@ -526,7 +527,213 @@ describeWithPostgres('fila de revisão das notas que não couberam (spec 148 T7)
     const [entry] = await reviews.list({ companyId: seeded.companyId, tripId: target.tripId })
     expect(entry).toMatchObject({ reason: 'bedFull', status: 'pending' })
   })
+
+  describe('mover/trocar recalcula a rota com cheapest (T206, RF12, D5, D6)', () => {
+    test('mover recalcula a origem e o destino com cheapest', async () => {
+      const seeded = await seedTrip(database)
+      const { result } = await releaseFirst(seeded)
+      const [review] = result.reviews
+      const target = await seedTrip(database, {
+        companyId: seeded.companyId,
+        userId: seeded.userId,
+      })
+      const preview = await reviews.previewChange({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+      })
+      await markLayoutReady(database, preview.layoutId, [])
+      const freezer = createFreezer()
+      const reviewsWithFreezer = new DrizzleTripDocumentReviewRepository(
+        database.db,
+        undefined,
+        freezer,
+      )
+
+      await reviewsWithFreezer.move({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+        userId: seeded.userId,
+        validatedLayoutId: preview.layoutId ?? '',
+      })
+
+      /** Sem `routeChoice`: cada congelamento cai no default `cheapest` (D6), nunca reafirma o antigo. */
+      expect(freezer.freezeCalls.toSorted(byTripId)).toEqual(
+        [seeded.tripId, target.tripId]
+          .toSorted((left, right) => left.localeCompare(right))
+          .map((tripId) => ({ companyId: seeded.companyId, tripId })),
+      )
+    })
+
+    test('mover ainda troca a nota quando o congelador de rota falha (D5, OSRM fora do ar)', async () => {
+      const seeded = await seedTrip(database)
+      const { first, result } = await releaseFirst(seeded)
+      const [review] = result.reviews
+      const target = await seedTrip(database, {
+        companyId: seeded.companyId,
+        userId: seeded.userId,
+      })
+      const preview = await reviews.previewChange({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+      })
+      await markLayoutReady(database, preview.layoutId, [])
+      const freezer = createFreezer({ shouldFail: true })
+      const reviewsWithFreezer = new DrizzleTripDocumentReviewRepository(
+        database.db,
+        undefined,
+        freezer,
+      )
+
+      const moved = await reviewsWithFreezer.move({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+        userId: seeded.userId,
+        validatedLayoutId: preview.layoutId ?? '',
+      })
+
+      expect(moved).toMatchObject({ resolutionTripId: target.tripId, status: 'moved' })
+      expect(await liveLinks(database, first.nfeDocumentId)).toEqual([target.tripId])
+      expect(freezer.freezeCalls.toSorted(byTripId)).toEqual(
+        [seeded.tripId, target.tripId]
+          .toSorted((left, right) => left.localeCompare(right))
+          .map((tripId) => ({ companyId: seeded.companyId, tripId })),
+      )
+    })
+
+    test('mover repetido (idempotente) não recalcula de novo', async () => {
+      const seeded = await seedTrip(database)
+      const { result } = await releaseFirst(seeded)
+      const [review] = result.reviews
+      const target = await seedTrip(database, {
+        companyId: seeded.companyId,
+        userId: seeded.userId,
+      })
+      const preview = await reviews.previewChange({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+      })
+      await markLayoutReady(database, preview.layoutId, [])
+      const body = {
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        reviewId: review?.id ?? '',
+        targetTripId: target.tripId,
+        userId: seeded.userId,
+        validatedLayoutId: preview.layoutId ?? '',
+      }
+      const freezer = createFreezer()
+      const reviewsWithFreezer = new DrizzleTripDocumentReviewRepository(
+        database.db,
+        undefined,
+        freezer,
+      )
+      await reviewsWithFreezer.move(body)
+      freezer.freezeCalls.length = 0
+
+      await reviewsWithFreezer.move(body)
+
+      expect(freezer.freezeCalls).toEqual([])
+    })
+
+    test('trocar recalcula a única viagem que carrega as duas mutações', async () => {
+      const seeded = await seedTrip(database)
+      const { result } = await releaseFirst(seeded)
+      const [review] = result.reviews
+      const [, second] = seeded.documents
+      if (second === undefined) throw new Error('seed without a second document')
+      const preview = await reviews.previewChange({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        outTripDocumentId: second.tripDocumentId,
+        reviewId: review?.id ?? '',
+      })
+      await markLayoutReady(database, preview.layoutId, [])
+      const freezer = createFreezer()
+      const reviewsWithFreezer = new DrizzleTripDocumentReviewRepository(
+        database.db,
+        undefined,
+        freezer,
+      )
+
+      await reviewsWithFreezer.swap({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        outTripDocumentId: second.tripDocumentId,
+        reviewId: review?.id ?? '',
+        userId: seeded.userId,
+        validatedLayoutId: preview.layoutId ?? '',
+      })
+
+      expect(freezer.freezeCalls).toEqual([{ companyId: seeded.companyId, tripId: seeded.tripId }])
+    })
+
+    test('trocar ainda troca a nota quando o congelador de rota falha (D5, OSRM fora do ar)', async () => {
+      const seeded = await seedTrip(database)
+      const { first, result } = await releaseFirst(seeded)
+      const [review] = result.reviews
+      const [, second] = seeded.documents
+      if (second === undefined) throw new Error('seed without a second document')
+      const preview = await reviews.previewChange({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        outTripDocumentId: second.tripDocumentId,
+        reviewId: review?.id ?? '',
+      })
+      await markLayoutReady(database, preview.layoutId, [])
+      const freezer = createFreezer({ shouldFail: true })
+      const reviewsWithFreezer = new DrizzleTripDocumentReviewRepository(
+        database.db,
+        undefined,
+        freezer,
+      )
+
+      const swapped = await reviewsWithFreezer.swap({
+        companyId: seeded.companyId,
+        correlationId: CORRELATION_ID,
+        outTripDocumentId: second.tripDocumentId,
+        reviewId: review?.id ?? '',
+        userId: seeded.userId,
+        validatedLayoutId: preview.layoutId ?? '',
+      })
+
+      expect(swapped.review).toMatchObject({
+        resolutionTripId: seeded.tripId,
+        status: 'swapped_in',
+      })
+      expect(await liveLinks(database, first.nfeDocumentId)).toEqual([seeded.tripId])
+      expect(freezer.freezeCalls).toEqual([{ companyId: seeded.companyId, tripId: seeded.tripId }])
+    })
+  })
 })
+
+function createFreezer(
+  options: { readonly shouldFail?: boolean } = {},
+): PlanTripRouteTollFreezer & {
+  readonly freezeCalls: { readonly companyId: string; readonly tripId: string }[]
+} {
+  const freezeCalls: { readonly companyId: string; readonly tripId: string }[] = []
+  return {
+    freezeCalls,
+    async freeze(input) {
+      freezeCalls.push({ companyId: input.companyId, tripId: input.tripId })
+      if (options.shouldFail === true) throw new Error('OSRM indisponível')
+    },
+  }
+}
+
+function byTripId(left: { readonly tripId: string }, right: { readonly tripId: string }): number {
+  return left.tripId.localeCompare(right.tripId)
+}
 
 async function liveLinks(database: TestDatabase, nfeDocumentId: string): Promise<string[]> {
   const rows = await database.db

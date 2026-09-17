@@ -1584,3 +1584,171 @@ confirmado pela contagem de arquivos estável em 177 antes e depois.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T206 — Fila de revisão (`move`/`swap`, spec 148) recalcula com `cheapest` (RF12)
+
+### D6 — a lacuna que a própria T205 sinalizou
+
+A T205 varreu todo caminho que muda o conjunto de paradas antes do despacho e listou
+explicitamente, na seção "Fora do escopo", `trip-document-review.port.ts` →
+`releaseUnplaced`/`move`/`swap` como satisfazendo a condição literal de D6 mas pertencendo a um
+subsistema distinto (fila de revisão de layout de carga, ADR-0043/spec 148), pedindo decisão nova
+antes de implementar. RF12 fecha essa pendência para `move`/`swap`: quando a fila move uma nota da
+viagem de origem para a de destino, ou troca a alocação de duas viagens, o T202 volta a ler
+distância/pedágio congelados de uma sequência de paradas que já não existe em uma ou nas duas
+viagens — exatamente o mesmo defeito que D6 corrigiu para reorder/link/release, agora nos dois
+lados de uma movimentação entre viagens.
+
+### Decisão delegada: que viagem(ns) recalculam, e em que ordem
+
+- **`move`**: recalcula a viagem de origem (`review.sourceTripId`) e a viagem de destino
+  (`applied.tripId`) — as duas perdem/ganham parada.
+- **`swap`**: recalcula a única viagem que carrega as duas mutações da troca (liberar + inserir),
+  `applied.tripId` — `swap` só nunca toca duas viagens diferentes, ao contrário de `move`.
+- **Critério sempre `cheapest`**: nunca repassar `routeChoice` ao `freeze()` — o congelador cai no
+  default (`cheapest`), a mesma técnica de T205, nunca reafirmando uma escolha antiga.
+- **Limpa primeiro, recalcula depois**: a mutação de parada (`applyReviewChange`, dentro da
+  `database.transaction(...)` já existente) é incondicional — não espera o recálculo. O
+  `freezeRoutesGracefully` roda **depois** que a transação principal já deu commit, espelhando o
+  precedente de `freezeRouteGracefully` em `trip.use-case.ts` (T205): a escrita da fila de revisão
+  nunca fica refém do OSRM.
+- **Fronteira da transação**: cogitou-se congelar a rota dentro da própria transação do `move`/
+  `swap` (um único commit atômico cobrindo mutação + rota). Descartado porque (a) o
+  `PlanTripRouteTollFreezer` já é ele mesmo atômico (T201) — grava rota completa ou `null`, nunca
+  parcial — logo não precisa da transação externa para ser seguro; (b) rodar OSRM dentro de uma
+  transação com locks de viagem (`orderTripLocks`) held prolongaria o lock por uma chamada de rede
+  lenta e sujeita a falha, aumentando risco de deadlock/timeout entre `move`/`swap` concorrentes;
+  (c) é exatamente a forma já validada por T205 em `trip.use-case.ts`. Decisão final: recalcular
+  fora da transação, depois do commit.
+
+### RED (antes da implementação)
+
+```
+cd apps/api-transportada && bun --env-file=../../.env.test test \
+  ./test/integration/trip-document-review.integration.ts --timeout 120000 \
+  | tee <scratchpad>/t206-red.txt
+```
+
+Resultado real, capturado antes de qualquer alteração de código de produção:
+
+```
+bun test v1.3.14 (0d9b296a)
+ 16 pass
+ 4 fail
+Ran 20 tests across 1 file.
+```
+
+As 4 falhas eram as asserções positivas de recálculo (`freezeCalls` vazio em vez de conter
+`{ companyId, tripId }` para origem/destino de `move` e para a viagem de `swap`, nos dois casos
+"sucesso" e "OSRM fora do ar") — o teste de repetição idempotente (`'mover repetido (idempotente)
+não recalcula de novo'`) passava trivialmente, porque nenhuma mutação nova ocorre nesse caminho.
+Saída completa salva em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t206-red.txt`.
+
+### D5 já vem "de graça" — sem camada de fallback nova
+
+Mesma conclusão de T205: o `try { await freezer.freeze(...) } catch { /* ... */ }` dentro do novo
+`freezeRoutesGracefully` (`drizzle-trip-document-review.repository.ts`) é o **mesmo** padrão de
+`plan-trip-route.use-case.ts` (linhas ~94-104) e de `freezeRouteGracefully` em `trip.use-case.ts`
+(T205) — não uma forma nova. Confirmado por contrato: os testes `'mover ainda troca a nota quando
+o congelador de rota falha (D5, OSRM fora do ar)'` e `'trocar ainda troca a nota quando o
+congelador de rota falha (D5, OSRM fora do ar)'` passam mesmo com o freezer falso lançando erro —
+a mutação da fila (`move`/`swap`) sempre é concluída e devolvida.
+
+### Implementação
+
+- `drizzle-trip-document-review.repository.ts`: construtor ganhou um 3º parâmetro opcional
+  `routeFreezer?: PlanTripRouteTollFreezer`; novo método privado `freezeRoutesGracefully(companyId,
+tripIds)` (dedup via `Set`, `Promise.all`, `catch` mudo comentado). `move()` e `swap()` passaram a
+  coletar `changedTripIds` só no caminho de mutação real (nunca no branch `'unchanged'`/
+  `repeatedSwap`) e chamam `freezeRoutesGracefully` **depois** que `database.transaction(...)`
+  já retornou.
+- `main.ts`: `tripDocumentReviewRepository` reposicionado para depois da definição de
+  `tripRouteTollFreezer` (mesmo singleton já usado por `tripLifecycle`/T205), passado como 3º
+  argumento. Nenhum uso entre a posição antiga e a nova referenciava a variável antes desse ponto
+  (conferido por grep) — reordenação segura.
+- `test/integration/trip-document-review.integration.ts`: 5 testes novos + helpers `createFreezer`
+  (mesma forma do fixture de T205 em `reorder.contract.ts`) e `byTripId`.
+
+Nenhuma migration, nenhum campo novo em D1–D13, nenhum `[NEEDS CLARIFICATION]`, nenhum backfill de
+rota já gravada em viagem existente (D8).
+
+### GREEN (depois da implementação)
+
+```
+cd apps/api-transportada && bun --env-file=../../.env.test test \
+  ./test/integration/trip-document-review.integration.ts --timeout 120000
+```
+
+```
+bun test v1.3.14 (0d9b296a)
+ 20 pass
+ 0 fail
+ 46 expect() calls
+Ran 20 tests across 1 file. [3.16s]
+```
+
+### Gates
+
+```
+bun run typecheck   # 6 tsc --noEmit, todos limpos
+bun run lint        # 6 eslint --max-warnings=0, todos limpos
+bun run format:check
+# All matched files use Prettier code style!
+```
+
+Comando mandatado (raiz do gate de contrato, `apps/api-transportada`):
+
+```
+bun --env-file=../../.env.test test --timeout 120000
+ 6177 pass
+ 23 skip
+ 0 fail
+ 21675 expect() calls
+Ran 6200 tests across 177 files. [10.82s]
+```
+
+**Baseline (pós-rebase em staging, antes de T206): 6177 pass, 23 skip, 0 fail, 177 arquivos. Depois
+de T206: números idênticos.** Isso é esperado e não esconde os 5 testes novos: o comando mandatado,
+invocado sem argumento de caminho, faz a descoberta padrão do Bun por convenção de nome
+(`*.test.*`) — que bate, arquivo por arquivo, com os 177 `test/*.contract.test.ts` de topo (`find
+test -maxdepth 1 -iname "*.contract.test.ts" | wc -l` → 177) e **nunca** inclui
+`test/integration/*.integration.ts` (84 arquivos, nenhum termina em `.test.ts`). Verificado por
+sabotagem deliberada: quebrar duas asserções dentro de
+`trip-document-review.integration.ts` e rodar de novo o comando mandatado, sem qualquer argumento
+de caminho, manteve `6177 pass / 0 fail` inalterado — prova de que este comando não executa esse
+arquivo. `package.json` da app confirma a mesma separação por outra via: o script `test` (o que
+`make check`/`bun run check` de fato chamam) é uma lista explícita de só `*.contract.test.ts`;
+`test:integration` é uma lista explícita separada, que inclui `trip-document-review.integration.ts`.
+Nenhum arquivo `.contract.test.ts` usa `describeWithPostgres` (`grep` vazio) — a suíte de contrato
+nunca toca banco, então o gate mandatado ficar 100% igual ao baseline é o resultado correto e
+esperado para uma mudança que só tocou um arquivo de integração.
+
+Para não reportar um "sem mudança" que esconderia os 5 testes novos, rodei também o gate
+complementar que de fato os exercita:
+
+```
+cd apps/api-transportada && bun --env-file=../../.env.test run test:integration --timeout 120000
+ 369 pass
+ 4 skip
+ 2 fail
+ 2485 expect() calls
+Ran 375 tests across 72 files. [236.21s]
+```
+
+As 2 falhas são as duas de `cte-archive-gateway.integration.ts`
+(`ObjectStorageError: Object storage is unavailable`) — dependem do MinIO local, que não está de pé
+neste ambiente; pré-existentes, sem relação com T206 (nenhum arquivo de object storage foi tocado).
+Nenhuma falha em `trip-document-review.integration.ts`: os 20 testes do arquivo (15 pré-existentes +
+5 novos de T206) estão dentro dos 369 que passaram — confirmado tanto pela ausência de qualquer
+linha `(fail)` referenciando "mover"/"trocar" no log quanto pela execução isolada do arquivo
+(seção GREEN acima, 20/0).
+
+### Nenhum arquivo novo de teste
+
+`test/integration/trip-document-review.integration.ts` já existia e já estava na lista explícita
+de `test:integration` no `package.json`. Nenhuma mudança em `package.json` foi necessária.
+
+### Commit
+
+`<preenchido após o commit>`
