@@ -271,3 +271,36 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
     expect(lengthRow).toContain('""') // margem em branco
   })
 })
+
+/**
+ * Re-revisão (B5, §16 code-standards): o filtro de participação da câmera não pode redeclarar
+ * `'camera'`/`'camera_adjusted'` como literais soltos — a mesma dupla já existe em
+ * `PACKAGE_BOX_MEASURED_SOURCES` (`packageBoxClient.service.ts`).
+ */
+describe('CAMERA_PARTICIPATION_SOURCES deriva da constante existente (B5)', () => {
+  test('vem de packageBoxMeasurement.constant.ts, sem Set literal solto no serviço', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/shared/cameraMeasurementExport.service.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).toContain(
+      "import { CAMERA_PARTICIPATION_SOURCES } from './packageBoxMeasurement.constant'",
+    )
+    expect(source).not.toContain("new Set(['camera', 'camera_adjusted'])")
+  })
+
+  test('a constante deriva de PACKAGE_BOX_MEASURED_SOURCES, sem repetir os literais', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/shared/packageBoxMeasurement.constant.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).toContain('ReadonlySet<PackageBoxMeasurementSource>')
+    expect(source).toContain('PACKAGE_BOX_MEASURED_SOURCES')
+  })
+})

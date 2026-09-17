@@ -7,6 +7,7 @@ import {
 } from '@/modules/shared/csv.service'
 
 import type { CameraMeasurementExportEntry } from './cameraMeasurementValidation.service'
+import { CAMERA_PARTICIPATION_SOURCES } from './packageBoxMeasurement.constant'
 
 type ExportDimension = 'height' | 'length' | 'width'
 
@@ -85,8 +86,6 @@ function toRow(entry: CameraMeasurementExportEntry, dimension: ExportDimension):
     entry.createdAt,
   ]
 }
-
-const CAMERA_PARTICIPATION_SOURCES = new Set(['camera', 'camera_adjusted'])
 
 /**
  * Spec 152 R8: uma linha por dimensão de cada medida com participação da câmera (`camera`/
