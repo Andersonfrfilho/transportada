@@ -117,3 +117,31 @@ function parseBooth(value: unknown): TollBoothRecord | null {
 function isNullableString(value: unknown): value is null | string {
   return value === null || typeof value === 'string'
 }
+
+/**
+ * L5 (revisão final da 153): `parseBooth` acima é estrito de propósito — só reconhece os campos de
+ * `TollBoothRecord`, a observação. `legIndex` (em que trecho a praça cai) viaja junto no jsonb
+ * porque `freeze-trip-planned-route.use-case.ts` congela a linha inteira do extrato, não só o
+ * registro (ver o comentário de `toFrozenToll`); este parser é a fronteira **só** desse campo.
+ *
+ * ⚠️ Nunca falha o pedágio inteiro por causa dele — uma praça sem `legIndex` gravado (linha
+ * anterior a esta correção, ou forma inesperada) simplesmente some do mapa, e a leitura volta a
+ * mostrar `null` para ela, honesto sobre o que não se sabe.
+ */
+export function parseFrozenBoothLegIndexes(value: unknown): ReadonlyMap<number, null | number> {
+  const legIndexByNode = new Map<number, null | number>()
+  if (typeof value !== 'object' || value === null) return legIndexByNode
+
+  const booths = (value as Record<string, unknown>).booths
+  if (!Array.isArray(booths)) return legIndexByNode
+
+  for (const entry of booths) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const record = entry as Record<string, unknown>
+    if (typeof record.osmNodeId !== 'number') continue
+    if (record.legIndex !== null && typeof record.legIndex !== 'number') continue
+    legIndexByNode.set(record.osmNodeId, record.legIndex)
+  }
+
+  return legIndexByNode
+}

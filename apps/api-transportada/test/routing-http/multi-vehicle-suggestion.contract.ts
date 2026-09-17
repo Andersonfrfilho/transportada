@@ -133,7 +133,10 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
   test('o aceite leva a escolha de rota por veículo', async () => {
     const fixture = await createMultiVehicleHttpFixture()
     const routeChoiceByVehicle = [
-      { routeChoice: { criterion: 'fastest', signature: 'abc123' }, vehicleId: VEHICLE_ID },
+      {
+        routeChoice: { criterion: 'fastest', signature: 'a1b2c3d4e5f60718293a4b5c6d7e8f90' },
+        vehicleId: VEHICLE_ID,
+      },
     ]
 
     const response = await fixture.handle(

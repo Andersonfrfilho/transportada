@@ -9,7 +9,10 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { trips } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
-import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
+import {
+  parseFrozenBoothLegIndexes,
+  parseTollRouteCost,
+} from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
 import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import type {
@@ -155,11 +158,14 @@ export class DrizzleTripPlannedRouteRepository
     if (parsedRoute === null) return null
 
     return {
+      boothLegIndexByNode:
+        row.plannedTollFrozenAt === null ? new Map() : parseFrozenBoothLegIndexes(row.plannedToll),
       choiceReproduced: parsedRoute.choiceReproduced,
       criterion: parsedRoute.criterion,
       depot: readPlannedRouteDepot(row.plannedRoute),
       distanceMeters: row.plannedDistanceMeters,
       durationSeconds: row.plannedDurationSeconds,
+      isNoToll: parsedRoute.isNoToll,
       legs: parsedRoute.legs,
       points: parsedRoute.points,
       returnDistanceMeters: row.plannedReturnDistanceMeters,
@@ -199,6 +205,7 @@ function plannedRouteColumns(input: {
             choiceReproduced: route.choiceReproduced,
             criterion: route.criterion,
             depot: route.depot,
+            isNoToll: route.isNoToll,
             legs: route.legs,
             points: route.points,
             signature: route.signature,

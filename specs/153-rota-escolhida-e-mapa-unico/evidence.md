@@ -4314,4 +4314,176 @@ retomada): `documentCount`, `stopCount`, `estimatedFinishAt` idênticos a antes.
 
 ### Commit
 
+## T709b — L3–L5: `signature` com formato, redação por classificação exaustiva, `isNoToll`/`legIndex` reais ✅ 2026-09-17
+
+### O achado
+
+Três achados LOW da revisão final (D2, D10, RF2/RF3), a parte API da T709 (a parte frontend — L1/L2
+— fechou na T709a).
+
+- **L3** — `trip-request.schema.ts` (~23): `routeChoiceRequestSchema.signature` era `z.string()`
+  sem formato nem teto. A assinatura é sempre o hash truncado que `buildRouteSignature`
+  (`route-choice.policy.ts`) gera — 32 hex minúsculos —, e qualquer outro texto passava a
+  fronteira sem nunca reproduzir opção nenhuma.
+- **L4** — `monetary-redaction.service.ts` (~52-75): a redação por lista de exclusão deixa campo
+  monetário novo vazar por padrão — o mesmo defeito de fundo de C1 e H3 (T701/T707).
+- **L5** — `read-trip-route-geometry.use-case.ts` (~106, 167): a rota congelada fixava
+  `isNoToll: false` e `legIndex: null` nas praças, sempre — uma viagem gravada "sem pedágio" perdia
+  a marca no detalhe, e cada praça perdia a perna a que pertence.
+
+### Contratos vermelhos (antes de cada correção)
+
+**L3** — `test/trips/routes.contract.ts`, `'rejects a routeChoice signature that is not 32
+lowercase hex characters'`:
+
+```
+$ bun test ./test/trips.contract.test.ts -t "routeChoice signature"
+Expected: 400
+Received: 200
+(fail) rejects a routeChoice signature that is not 32 lowercase hex characters
+```
+
+**L5** — mesmo arquivo, `'carries the real isNoToll and per-booth legIndex the freeze wrote — never
+a hardcoded stand-in'`:
+
+```
+$ bun test ./test/trips.contract.test.ts -t "isNoToll and per-booth legIndex"
+Expected: true
+Received: false
+(fail) carries the real isNoToll and per-booth legIndex the freeze wrote
+```
+
+**L4** não tem contrato vermelho em runtime — a correção é uma garantia de **compile-time**
+(detalhe na seção abaixo), então o "vermelho" foi provado direto no `tsc`: ver a demonstração de
+sabotagem mais adiante.
+
+### L3 — assinatura com formato
+
+`route-choice.policy.ts` passou a exportar `SIGNATURE_HEX_LENGTH` (antes privado), única fonte do
+tamanho. `trip-request.schema.ts` ganhou `ROUTE_SIGNATURE_PATTERN = /^[0-9a-f]{32}$/` (montado a
+partir da constante, nunca `32` hardcoded duas vezes) e `signature: z.string().regex(...).nullable()`
+em `routeChoiceRequestSchema` — reusado por `route-suggestion-request.schema.ts`, então a correção
+cobre `plan-route`, `valuation-preview` e o aceite da sugestão multi-veículo na mesma fronteira.
+
+Três fixtures de teste HTTP pré-existentes usavam `signature: 'abc123'` (6 caracteres, não
+hexadecimal maiúsculo — na verdade minúsculo mas curto demais) como corpo válido esperando `200`:
+`test/routing-http/multi-vehicle-suggestion.contract.ts` e `test/routing-http/route-suggestions.
+contract.ts`. Corrigidas para uma assinatura de 32 hex de verdade (`a1b2c3d4e5f60718293a4b5c6d7e8f90`)
+— o valor em si é opaco nesses testes (só atravessa o encanamento), então a correção troca o texto
+sem mudar o que o teste prova.
+
+### L4 — redação por classificação exaustiva (decisão e por quê)
+
+A instrução oferecia duas saídas: inverter para lista de permissão, ou um contrato que enumere as
+chaves de cada payload e falhe quando surgir uma nova sem classificar. Escolhi a segunda, mas como
+garantia de **tipo**, não de teste em runtime — mais forte que as duas opções descritas:
+
+- Lista de permissão pura (manter só os campos "seguros") teria o mesmo problema ao contrário: um
+  campo novo simplesmente **some** da resposta redigida sem ninguém notar — o oposto de C1 (campo
+  ausente quebrando o frontend), mas ainda um silêncio.
+- Um contrato de teste que enumera chaves em runtime (o `hasExactKeys`/`TRIP_AMOUNTS_KEYS` que
+  `tasks.md` menciona para o T710) só pega o problema quando alguém lembra de rodar a suíte depois
+  de mudar o tipo — e nada obriga a lembrar.
+
+A solução implementada: `FieldPolicy<T> = Record<keyof T, 'money' | 'safe'>`, um objeto que
+classifica **toda** chave de `TollBoothRouteLine`, `RouteGeometryToll` e `RouteGeometryOption` — os
+três tipos concretos que `monetary-redaction.service.ts` já importa (os genéricos
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`/`redactTripAmountsMoney` continuam por exclusão,
+documentado no código: são genéricos sobre um `TDocument` cujo formato completo este módulo
+compartilhado não conhece, sem acoplar a outros domínios). `moneyFieldsOf` deriva a lista de exclusão
+do próprio objeto de política via `as const satisfies FieldPolicy<T>` + um tipo `MoneyKeysOf<TPolicy>`
+que extrai as chaves `'money'` sem perder a literalidade — TypeScript excess-property-checks a
+política contra `Record<keyof T, ...>`: falta uma chave, ou uma chave a mais, e a compilação já
+reprova, no mesmo `bun run typecheck` que é gate desta task.
+
+Prova da sabotagem (campo novo sem classificar reprova o typecheck, revertida em seguida — não faz
+parte do diff final):
+
+```
+$ (adicionado `readonly newMoneyField: null | string` a RouteGeometryOption)
+$ bunx tsc --noEmit
+src/shared/monetary-redaction.service.ts(133,12): error TS1360: Type '{ ... }' does not satisfy
+the expected type 'Readonly<Record<... | "newMoneyField", "money" | "safe">>'.
+$ (revertido — bunx tsc --noEmit volta a 0 erros)
+```
+
+### L5 — `isNoToll` e `legIndex` reais
+
+**`isNoToll`**: já existia em `SelectableRouteOption`/`RouteGeometryOption` (RF2), mas
+`FrozenPlannedRoute` (o que `freeze-trip-planned-route.use-case.ts` grava) não o carregava.
+Adicionado `isNoToll: boolean` em `FrozenPlannedRoute`, `toFrozenRoute` grava `selected.isNoToll`,
+`parse-planned-route.policy.ts` valida e devolve o campo (estrito — `typeof !== 'boolean'` invalida
+a rota inteira, mesmo rigor dos demais campos), o repositório grava e lê, `StoredTripRoute` ganha o
+campo e `toFrozenView` usa `input.stored.isNoToll` em vez do `false` fixo.
+
+**`legIndex`**: aqui o dado **já estava gravado**, sem ninguém ter pedido — achado ao ler o código,
+não suposição. `RouteGeometryToll.booths` (o que `road.toll` carrega no congelamento) já é
+`TollBoothRouteLine[]`, com `legIndex` computado ao vivo por `resolveRouteToll`. `toFrozenToll`
+copia `booths: toll.booths` sem reconstruir os objetos — os campos extras (`legIndex`,
+`effectiveChargePerAxle`, `total`, `fellBackToManual`) sobrevivem à atribuição estrutural do
+TypeScript (o tipo declarado é mais estreito, `TollBoothRecord[]`, mas o objeto em tempo de
+execução é o `TollBoothRouteLine[]` de sempre) e são serializados no jsonb `planned_toll` como
+estão. Só a **leitura** jogava `legIndex` fora: `parseBooth` (a fronteira de `parseTollRouteCost`)
+só reconhece os campos de `TollBoothRecord`, de propósito — e `enrichFrozenToll` hardcoded
+`legIndex: null` por não ter de onde ler de volta.
+
+Correção: um parser novo e dedicado, `parseFrozenBoothLegIndexes` (em `toll-route-cost-snapshot.
+policy.ts`), que lê **só** `legIndex` por `osmNodeId` do jsonb bruto — nunca falha o pedágio inteiro
+por causa dele (praça sem o campo simplesmente sai do mapa, e a leitura volta a `null`, honesto). O
+repositório monta o mapa em `readFrozenRoute` (`boothLegIndexByNode`), `StoredTripRoute` carrega o
+mapa, e `enrichFrozenToll` usa `input.boothLegIndexByNode.get(booth.osmNodeId) ?? null` no lugar do
+`null` fixo. **Nenhuma migration** — os dois campos (`isNoToll` em `planned_route`, o `legIndex` já
+presente em `planned_toll`) são jsonb, sem coluna nova.
+
+Documentado no código (`toFrozenToll`) que `booths` viaja mais rico do que o tipo declara, de
+propósito, para o próximo leitor não "corrigir" isso como um bug de tipagem.
+
+### Testes novos
+
+- `test/trips/routes.contract.ts`: `'rejects a routeChoice signature...'`,
+  `'accepts a routeChoice signature shaped like the hash route-choice.policy.ts generates'`,
+  `'carries the real isNoToll and per-booth legIndex the freeze wrote...'`.
+- `test/toll-booths/toll-route-cost-snapshot.contract.ts`: quatro casos de
+  `parseFrozenBoothLegIndexes` (mapeia por nó, preserva `null`, descarta entrada malformada sem
+  falhar o mapa inteiro, devolve mapa vazio para forma antiga/inesperada).
+- `test/trip-application/freeze-trip-planned-route.contract.ts`: `'L5: congela isNoToll quando a
+opção escolhida veio da chamada sem pedágio'`.
+- `test/integration/freeze-trip-planned-route.integration.ts`: fixture e asserção do round-trip
+  Postgres atualizadas com `isNoToll: false` (prova que o CHECK/jsonb aceita o campo novo).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (3 arquivos precisaram de --write antes: o repositório e
+os dois contratos HTTP com a assinatura de 32 hex — linha passou do limite de largura).
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6275 pass / 23 skip / 0 fail — 21961 expect() calls em 177 arquivos.
+
+⚠️ Este comando, do jeito que está documentado no CLAUDE.md, não varre `test/integration/*.
+integration.ts` — o glob padrão do `bun test` exige `.test.`/`.spec.` no nome, e os arquivos de
+integração são `*.integration.ts`. Rodei também, explicitamente:
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+8 pass / 0 fail — prova o round-trip real contra Postgres do `isNoToll` novo em `planned_route`.
+```
+
+### O que não fez
+
+Não tocou os redatores genéricos (`redactNfeDocumentMoney`, `redactTripDocumentMoney`,
+`redactTripAmountsMoney`) — continuam por lista de exclusão, decisão justificada acima (genéricos
+sobre um `TDocument` cujo formato este módulo compartilhado não conhece). Não mexeu em
+`apps/frontend-transportada`. Não criou migration — os dois campos do L5 são jsonb existente. Não
+alterou o comportamento de `no_toll`/`alternative` além do já existente; só passou a **gravar e
+devolver** o que já era calculado.
+
+### Commit
+
 `<hash desta mesma alteração — ver `git log`>`

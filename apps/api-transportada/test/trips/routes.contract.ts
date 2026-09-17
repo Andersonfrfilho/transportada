@@ -203,6 +203,45 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.planTripRouteCalls).toHaveLength(0)
   })
 
+  /**
+   * L3 (revisão final da 153): `signature` era `z.string()` sem formato nem teto — qualquer texto
+   * passava a fronteira. A assinatura é sempre o hash truncado que `buildRouteSignature`
+   * (`route-choice.policy.ts`) gera: 32 caracteres hexadecimais minúsculos, nunca outra coisa.
+   */
+  test('rejects a routeChoice signature that is not 32 lowercase hex characters', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'alternative', signature: 'not-a-real-signature' } },
+        method: 'POST',
+        path: tripPlanRoutePath(),
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.planTripRouteCalls).toHaveLength(0)
+  })
+
+  test('accepts a routeChoice signature shaped like the hash route-choice.policy.ts generates', async () => {
+    const fixture = await createTripHttpFixture()
+    const signature = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'alternative', signature } },
+        method: 'POST',
+        path: tripPlanRoutePath(),
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.planTripRouteCalls).toHaveLength(1)
+    expect(fixture.planTripRouteCalls[0]).toMatchObject({
+      routeChoice: { criterion: 'alternative', signature },
+    })
+  })
+
   test('rejects a companyId in the plan-route body — it only ever comes from the authenticated context', async () => {
     const fixture = await createTripHttpFixture()
 
@@ -449,11 +488,13 @@ describe('trip state routes (spec 056 T012)', () => {
  */
 describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)', () => {
   const FROZEN_ROUTE = {
+    boothLegIndexByNode: new Map<number, null | number>(),
     choiceReproduced: false,
     criterion: 'fastest' as const,
     depot: null,
     distanceMeters: 128_450,
     durationSeconds: 9_360,
+    isNoToll: false,
     legs: [{ distanceMetres: 128_450, durationSeconds: 9_360 }],
     points: [
       { latitude: '-23.550520', longitude: '-46.633308' },
@@ -632,6 +673,72 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
       fuelTotal: null,
       totalCost: null,
     })
+  })
+
+  /**
+   * L5 (revisão final da 153): a rota congelada fixava `isNoToll: false` e `legIndex: null` nas
+   * praças, então uma viagem gravada "sem pedágio" perdia a marca no detalhe, e cada praça perdia
+   * a perna a que pertence. Os dois valores já são gravados — `isNoToll` na própria rota
+   * (`freeze-trip-planned-route.use-case.ts`), `legIndex` em cada praça do pedágio congelado
+   * (`RouteGeometryToll.booths`) — e este contrato prova que a leitura os usa, em vez de calar.
+   */
+  test('carries the real isNoToll and per-booth legIndex the freeze wrote — never a hardcoded stand-in', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: READ_ONLY_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => {
+            throw new Error('não deveria calcular ao vivo com rota congelada')
+          },
+          route: {
+            readFrozenRoute: () =>
+              Promise.resolve({
+                ...FROZEN_ROUTE,
+                boothLegIndexByNode: new Map([[777, 2]]),
+                isNoToll: true,
+                toll: {
+                  axles: { count: 2, source: 'declared' as const },
+                  booths: [
+                    {
+                      chargeCar: null,
+                      chargePerAxle: null,
+                      chargePerAxleAutomatic: null,
+                      latitude: '-23.550520',
+                      longitude: '-46.633308',
+                      name: 'Praça Sem Cancela',
+                      operator: 'Operadora',
+                      osmNodeId: 777,
+                    },
+                  ],
+                  boothsFallenBackToManual: 0,
+                  boothsWithoutCharge: 1,
+                  chargePerAxle: '0.0000',
+                  multiplier: { denominator: 1, numerator: 2 },
+                  paymentMode: 'manual' as const,
+                  total: '0.0000',
+                },
+              }),
+            readVehicleContext: () => Promise.resolve(null),
+          },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = (await responseData(response)) as unknown as {
+      options: readonly Record<string, unknown>[]
+    }
+    expect(data.options[0]?.isNoToll).toBe(true)
+    const toll = data.options[0]?.toll as { booths: readonly Record<string, unknown>[] }
+    expect(toll.booths[0]?.legIndex).toBe(2)
   })
 
   test('falls back to the live route when nothing froze yet, keeping frozen: false', async () => {

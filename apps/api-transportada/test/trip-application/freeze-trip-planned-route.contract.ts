@@ -219,6 +219,47 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
   })
 
   /**
+   * L5 (revisão final da 153): antes o congelado fixava `isNoToll: false` sempre — mesmo quando a
+   * opção congelada era mesmo a alternativa sem cancela (RF2). Este contrato prova que a marca
+   * viaja da opção selecionada até o que se grava.
+   */
+  test('L5: congela isNoToll quando a opção escolhida veio da chamada sem pedágio', async () => {
+    const repository = createFakeRepository({ vehicle: VEHICLE_WITH_FUEL_BASELINE })
+    /** Alternativa sem pedágio, mais barata: 100 km sem praça nenhuma contra 240 km com uma. */
+    const principal: RouteGeometryRoad = {
+      legs: [{ distanceMetres: 240_000, durationSeconds: 12_000 }],
+      nodeIds: [10],
+      nodeIdsByLeg: [[10]],
+      points: ESTRADA,
+    }
+    const semPedagio: RouteGeometryRoad = {
+      legs: [{ distanceMetres: 100_000, durationSeconds: 6_000 }],
+      nodeIds: [99],
+      nodeIdsByLeg: [[99]],
+      points: ESTRADA,
+    }
+
+    await freezeTripPlannedRoute({
+      choice: { criterion: 'no_toll', signature: null },
+      companyId: COMPANY_ID,
+      geometry: {
+        readRouteGeometry: async (_points, options) =>
+          options?.excludeToll === true ? semPedagio : principal,
+      },
+      repository,
+      tollBooths: {
+        readByNodeIds: async (nodeIds) => (nodeIds.includes(10) ? [praca(10, '10.5000')] : []),
+        readCatalogSummary: async () => ({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+      },
+      tripId: TRIP_ID,
+    })
+
+    const [written] = repository.writeCalls
+    expect(written?.route?.distanceMeters).toBe(100_000)
+    expect(written?.route?.isNoToll).toBe(true)
+  })
+
+  /**
    * ⚠️ O defeito medido na bancada (viagem `route_planned` com `planned_route`/`planned_toll`
    * nulos): o roteirizador indisponível não lança, grava `null` de propósito — e quem chama
    * `freezeTripPlannedRoute` precisa de `routeFrozen: false` para saber que não há roteiro

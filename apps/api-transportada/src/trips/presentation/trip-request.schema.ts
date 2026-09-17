@@ -3,7 +3,7 @@
  */
 import { z } from 'zod'
 
-import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
+import { ROUTE_CHOICE_CRITERIA, SIGNATURE_HEX_LENGTH } from '../domain/route-choice.policy.js'
 
 /**
  * Espelha o mesmo teto de `MAX_DRIVERS_PER_MANIFEST` em `mdfe-manifest-request.schema.ts` e
@@ -16,13 +16,21 @@ import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
 const MAX_TRIP_DRIVERS = 10
 
 /**
+ * L3 (revisão final da 153): a assinatura sempre é o hash truncado que `buildRouteSignature`
+ * (`route-choice.policy.ts`) gera — hex minúsculo, do tamanho exato de `SIGNATURE_HEX_LENGTH`.
+ * Qualquer outro texto nunca reproduziria opção nenhuma; barrar aqui, na fronteira, poupa o
+ * congelamento de gastar um round-trip inteiro no OSRM só para D3 cair no critério por engano.
+ */
+const ROUTE_SIGNATURE_PATTERN = new RegExp(`^[0-9a-f]{${SIGNATURE_HEX_LENGTH}}$`)
+
+/**
  * spec 153 D2/D3: qual rota o operador escolheu, na prévia e no congelamento. Um critério fora de
  * `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
  */
 export const routeChoiceRequestSchema = z
   .object({
     criterion: z.enum(ROUTE_CHOICE_CRITERIA),
-    signature: z.string().nullable(),
+    signature: z.string().regex(ROUTE_SIGNATURE_PATTERN).nullable(),
   })
   .strict()
 

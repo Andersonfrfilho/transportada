@@ -70,6 +70,12 @@ export type FrozenPlannedRoute = Readonly<{
   depot: RouteGeometryView['depot']
   distanceMeters: number
   durationSeconds: number
+  /**
+   * L5 (revisão final da 153): se a opção congelada veio da chamada `exclude=toll` (RF2) — antes
+   * ficava de fora do que se gravava, e a leitura congelada sempre fixava `false`, mesmo quando a
+   * viagem era mesmo a rota sem pedágio.
+   */
+  isNoToll: boolean
   legs: RouteGeometryView['legs']
   points: RouteGeometryView['points']
   returnDistanceMeters: number
@@ -202,6 +208,7 @@ function toFrozenRoute(input: {
     depot: road.depot,
     distanceMeters: distance.distanceMeters,
     durationSeconds: distance.durationSeconds,
+    isNoToll: selected.isNoToll,
     legs: road.legs,
     points: road.points,
     returnDistanceMeters: distance.returnDistanceMeters,
@@ -210,8 +217,14 @@ function toFrozenRoute(input: {
 }
 
 /**
- * `RouteGeometryToll` carrega `tariffObservedOn`/`booths`/`catalog` — leitura fresca do catálogo,
- * não parte da decisão congelada — e por isso não entram no que se grava.
+ * `RouteGeometryToll` carrega `tariffObservedOn`/`catalog` — leitura fresca do catálogo, não parte
+ * da decisão congelada — e por isso não entram no que se grava.
+ *
+ * ⚠️ `toll.booths` já é `TollBoothRouteLine[]` (a linha do extrato, com `legIndex` — ver
+ * `read-route-geometry.use-case.ts`), mais rica do que `TollBoothRecord[]` que o tipo de
+ * `TollRouteCost` declara para `booths`. `legIndex` viaja junto de propósito, mesmo fora do tipo: é
+ * o que a leitura congelada (L5 da revisão final da 153) volta a extrair de cada praça —
+ * `parseFrozenBoothLegIndexes`, em `toll-route-cost-snapshot.policy.ts`.
  */
 function toFrozenToll(toll: null | RouteGeometryToll): null | TollRouteCost {
   if (toll === null) return null

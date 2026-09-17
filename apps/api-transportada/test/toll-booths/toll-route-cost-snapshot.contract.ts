@@ -8,7 +8,10 @@ import {
   type TollBoothRecord,
   type TollRouteCost,
 } from '../../src/toll-booths/domain/toll-route-cost.policy.js'
-import { parseTollRouteCost } from '../../src/toll-booths/domain/toll-route-cost-snapshot.policy.js'
+import {
+  parseFrozenBoothLegIndexes,
+  parseTollRouteCost,
+} from '../../src/toll-booths/domain/toll-route-cost-snapshot.policy.js'
 
 function praca(osmNodeId: number, chargePerAxle: string): TollBoothRecord {
   return {
@@ -90,5 +93,50 @@ describe('toll route cost snapshot (spec 090 T11)', () => {
     const cost = validCost()
 
     expect(parseTollRouteCost(cost)).toEqual(cost)
+  })
+})
+
+/**
+ * L5 (revisão final da 153): `legIndex` viaja no jsonb junto de cada praça (o congelamento grava a
+ * linha do extrato inteira, não só a observação — ver `toFrozenToll`), e este parser é a única
+ * fronteira que o extrai de volta. Nunca derruba o pedágio inteiro por causa dele.
+ */
+describe('parseFrozenBoothLegIndexes (spec 153 L5)', () => {
+  it('maps each booth by osmNodeId to the legIndex the freeze wrote', () => {
+    const value = {
+      booths: [
+        { legIndex: 0, osmNodeId: 10 },
+        { legIndex: 1, osmNodeId: 20 },
+      ],
+    }
+
+    const map = parseFrozenBoothLegIndexes(value)
+
+    expect(map.get(10)).toBe(0)
+    expect(map.get(20)).toBe(1)
+  })
+
+  it('keeps a null legIndex as null — a booth outside every leg annotation', () => {
+    const map = parseFrozenBoothLegIndexes({ booths: [{ legIndex: null, osmNodeId: 30 }] })
+
+    expect(map.get(30)).toBeNull()
+  })
+
+  it('drops a booth with a malformed legIndex instead of failing the whole map', () => {
+    const map = parseFrozenBoothLegIndexes({
+      booths: [
+        { legIndex: 'zero', osmNodeId: 40 },
+        { legIndex: 2, osmNodeId: 50 },
+      ],
+    })
+
+    expect(map.has(40)).toBe(false)
+    expect(map.get(50)).toBe(2)
+  })
+
+  it('returns an empty map for a value with no booths — old shape, never a thrown error', () => {
+    expect(parseFrozenBoothLegIndexes(null).size).toBe(0)
+    expect(parseFrozenBoothLegIndexes({}).size).toBe(0)
+    expect(parseFrozenBoothLegIndexes({ booths: 'not-an-array' }).size).toBe(0)
   })
 })

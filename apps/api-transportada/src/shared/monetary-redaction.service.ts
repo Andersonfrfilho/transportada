@@ -49,25 +49,92 @@ function omitFields<TRecord extends object, TField extends keyof TRecord>(
   >
 }
 
-const TOLL_BOOTH_MONEY_FIELDS = [
-  'chargeCar',
-  'chargePerAxle',
-  'chargePerAxleAutomatic',
-  'effectiveChargePerAxle',
-  'total',
-] as const
+/**
+ * L4 (revisão final da 153): a lista de exclusão deixava campo monetário novo vazar por padrão —
+ * foi o que produziu C1 e H3, os dois em tipos que não passam por aqui. Para `TollBoothRouteLine`,
+ * `RouteGeometryToll` e `RouteGeometryOption` — os três tipos concretos que este arquivo já importa,
+ * e onde uma lista de exclusão desatualizada vazaria dinheiro em silêncio — a lista vira uma
+ * classificação **exaustiva**: `Record<keyof T, 'money' | 'safe'>` obriga toda chave existente a
+ * estar aqui, e o TypeScript já reprova a compilação se `T` ganhar um campo novo sem entrada — antes
+ * de qualquer teste rodar, no mesmo `bun run typecheck` que já é gate.
+ *
+ * ⚠️ `redactNfeDocumentMoney`/`redactTripDocumentMoney`/`redactTripAmountsMoney` abaixo continuam
+ * como lista de exclusão: são genéricas sobre um `TDocument` cujo formato completo este arquivo não
+ * conhece (o chamador só garante um bound mínimo), então não há `keyof` exaustivo possível sem
+ * acoplar este módulo compartilhado ao tipo concreto de cada consumidor.
+ */
+type FieldPolicy<TRecord> = Readonly<Record<keyof TRecord, 'money' | 'safe'>>
+
+/** As chaves de `TPolicy` classificadas `'money'` — computado do tipo **literal** da política. */
+type MoneyKeysOf<TPolicy> = {
+  readonly [TKey in keyof TPolicy]: TPolicy[TKey] extends 'money' ? TKey : never
+}[keyof TPolicy]
+
+function moneyFieldsOf<TPolicy extends Record<string, 'money' | 'safe'>>(
+  policy: TPolicy,
+): readonly MoneyKeysOf<TPolicy>[] {
+  return (Object.keys(policy) as (keyof TPolicy)[]).filter(
+    (key) => policy[key] === 'money',
+  ) as MoneyKeysOf<TPolicy>[]
+}
+
+const TOLL_BOOTH_LINE_FIELD_POLICY = {
+  chargeCar: 'money',
+  chargePerAxle: 'money',
+  chargePerAxleAutomatic: 'money',
+  effectiveChargePerAxle: 'money',
+  fellBackToManual: 'safe',
+  latitude: 'safe',
+  legIndex: 'safe',
+  longitude: 'safe',
+  name: 'safe',
+  operator: 'safe',
+  osmNodeId: 'safe',
+  total: 'money',
+} as const satisfies FieldPolicy<TollBoothRouteLine>
+const TOLL_BOOTH_MONEY_FIELDS = moneyFieldsOf(TOLL_BOOTH_LINE_FIELD_POLICY)
 
 function redactTollBoothLine(booth: TollBoothRouteLine): RedactedTollBoothLine {
   return omitFields(booth, TOLL_BOOTH_MONEY_FIELDS)
 }
 
+/** `booths` fica `safe` aqui: o campo em si não some, o que ele guarda é que se redige à parte. */
+const ROUTE_GEOMETRY_TOLL_FIELD_POLICY = {
+  axles: 'safe',
+  booths: 'safe',
+  boothsFallenBackToManual: 'safe',
+  boothsWithoutCharge: 'safe',
+  catalog: 'safe',
+  chargePerAxle: 'money',
+  multiplier: 'safe',
+  multiplierLabel: 'safe',
+  paymentMode: 'safe',
+  tariffObservedOn: 'safe',
+  total: 'money',
+} as const satisfies FieldPolicy<RouteGeometryToll>
+const ROUTE_GEOMETRY_TOLL_MONEY_FIELDS = moneyFieldsOf(ROUTE_GEOMETRY_TOLL_FIELD_POLICY)
+
 function redactRouteGeometryToll(toll: RouteGeometryToll): RedactedRouteGeometryToll {
-  const withoutTotals = omitFields(toll, ['chargePerAxle', 'total'] as const)
+  const withoutTotals = omitFields(toll, ROUTE_GEOMETRY_TOLL_MONEY_FIELDS)
   return { ...withoutTotals, booths: toll.booths.map(redactTollBoothLine) }
 }
 
+/** `toll` fica `safe` pelo mesmo motivo de `booths` acima: redigido à parte, nunca omitido inteiro. */
+const ROUTE_GEOMETRY_OPTION_FIELD_POLICY = {
+  distanceMeters: 'safe',
+  durationSeconds: 'safe',
+  fuelTotal: 'money',
+  isNoToll: 'safe',
+  legs: 'safe',
+  points: 'safe',
+  signature: 'safe',
+  toll: 'safe',
+  totalCost: 'money',
+} as const satisfies FieldPolicy<RouteGeometryOption>
+const ROUTE_GEOMETRY_OPTION_MONEY_FIELDS = moneyFieldsOf(ROUTE_GEOMETRY_OPTION_FIELD_POLICY)
+
 function redactRouteGeometryOption(option: RouteGeometryOption): RedactedRouteGeometryOption {
-  const withoutMoney = omitFields(option, ['fuelTotal', 'totalCost'] as const)
+  const withoutMoney = omitFields(option, ROUTE_GEOMETRY_OPTION_MONEY_FIELDS)
   return {
     ...withoutMoney,
     toll: option.toll === null ? null : redactRouteGeometryToll(option.toll),

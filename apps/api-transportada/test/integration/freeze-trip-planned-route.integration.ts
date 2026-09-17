@@ -39,6 +39,7 @@ const FULL_ROUTE: WritePlannedRouteInput['route'] = {
   depot: null,
   distanceMeters: 89_400,
   durationSeconds: 4_200,
+  isNoToll: false,
   legs: [{ distanceMetres: 89_400, durationSeconds: 4_200 }],
   points: [
     { latitude: '-21.17750', longitude: '-47.81030' },
@@ -197,6 +198,7 @@ describe('freeze trip planned route repository integration', () => {
           choiceReproduced: true,
           criterion: 'cheapest',
           depot: null,
+          isNoToll: false,
           legs: FULL_ROUTE?.legs,
           points: FULL_ROUTE?.points,
           signature: 'abc123deadbeef',

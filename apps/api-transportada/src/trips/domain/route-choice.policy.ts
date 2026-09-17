@@ -20,8 +20,14 @@ import type { RankedRouteOption } from '../../toll-booths/domain/route-option.po
 
 const ERROR_CODE_PREFIX = 'ROUTE_CHOICE'
 
-/** Os 16 primeiros bytes do sha256 — sobra de folga para as poucas opções de uma rota. */
-const SIGNATURE_HEX_LENGTH = 32
+/**
+ * Os 16 primeiros bytes do sha256 — sobra de folga para as poucas opções de uma rota.
+ *
+ * ⚠️ Exportado porque a fronteira HTTP (`trip-request.schema.ts`, L3 da revisão final da 153)
+ * valida o formato da assinatura que chega no corpo — mesmo teto, uma fonte só, para o schema
+ * nunca aceitar um valor mais curto ou mais longo do que o que esta política de fato gera.
+ */
+export const SIGNATURE_HEX_LENGTH = 32
 
 const LEG_SEPARATOR = ';'
 const NODE_SEPARATOR = ','

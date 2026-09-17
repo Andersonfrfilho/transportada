@@ -13,6 +13,8 @@ export type ParsedRoutePoint = Readonly<{ latitude: string; longitude: string }>
 export type ParsedPlannedRoute = Readonly<{
   choiceReproduced: boolean
   criterion: RouteChoiceCriterion
+  /** L5 (revisão final da 153): se a rota gravada veio da chamada `exclude=toll` (RF2). */
+  isNoToll: boolean
   legs: readonly ParsedRouteLeg[]
   points: readonly ParsedRoutePoint[]
   signature: null | string
@@ -24,6 +26,7 @@ export function parsePlannedRoute(value: unknown): null | ParsedPlannedRoute {
   if (typeof value !== 'object' || value === null) return null
   const record = value as Record<string, unknown>
   if (typeof record.choiceReproduced !== 'boolean') return null
+  if (typeof record.isNoToll !== 'boolean') return null
   if (!isRouteChoiceCriterion(record.criterion)) return null
   if (!isNullableString(record.signature)) return null
 
@@ -35,6 +38,7 @@ export function parsePlannedRoute(value: unknown): null | ParsedPlannedRoute {
   return {
     choiceReproduced: record.choiceReproduced,
     criterion: record.criterion,
+    isNoToll: record.isNoToll,
     legs,
     points,
     signature: record.signature,
