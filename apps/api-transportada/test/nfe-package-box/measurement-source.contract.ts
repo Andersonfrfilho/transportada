@@ -492,3 +492,46 @@ describe('createMeasurePackageBox recusa câmera com a função desligada (spec 
     expect(captured?.measurementMarginMm).toBe(9)
   })
 })
+
+/**
+ * Spec 155 T2.1 (D6): `replicated` é origem de banco, não de cliente. A rota de medir aceita só o
+ * que o operador mede; a de replicar grava `replicated` por conta própria — aceitar no corpo de
+ * medir deixaria qualquer cliente declarar medida replicada sem origem nenhuma.
+ */
+describe('a origem replicated (spec 155, T2.1)', () => {
+  const MIGRATION_DIRECTORY = '20260917153000_package_box_replicated_source'
+
+  async function readMigration(file: string): Promise<string> {
+    return Bun.file(new URL(`../../drizzle/${MIGRATION_DIRECTORY}/${file}`, import.meta.url)).text()
+  }
+
+  test('o schema e o domínio conhecem replicated', () => {
+    expect(SCHEMA_SOURCES).toContain('replicated')
+    expect(PACKAGE_BOX_MEASUREMENT_SOURCES).toContain('replicated')
+  })
+
+  test('o corpo de medir recusa replicated, com ou sem bloco de câmera', () => {
+    expect(() => parsePackageBoxMeasurement({ ...TYPED_BODY, source: 'replicated' })).toThrow()
+    expect(() => parsePackageBoxMeasurement(cameraBody({}, 'replicated' as 'camera'))).toThrow()
+  })
+
+  test('a migration é aditiva e só alarga os checks para replicated', async () => {
+    const migrationSql = await readMigration('migration.sql')
+
+    expect(migrationSql).not.toMatch(/drop\s+(table|column)/i)
+    expect(migrationSql).toContain('ADD COLUMN "replicated_from_box_id" uuid')
+    expect(migrationSql).toMatch(/nfe_package_boxes_measurement_source_check[^;]*'replicated'/)
+    expect(migrationSql).toMatch(/nfe_package_box_measurements_source_check[^;]*'replicated'/)
+    expect(migrationSql).toMatch(
+      /FOREIGN KEY \("company_id","replicated_from_box_id"\) REFERENCES "nfe_package_boxes"\("company_id","id"\)/,
+    )
+    expect(migrationSql).toContain('nfe_package_box_measurements_replicated_from_check')
+  })
+
+  test('o rollback recusa desfazer com medida replicada gravada', async () => {
+    const rollbackSql = await readMigration('rollback.sql')
+
+    expect(rollbackSql).toMatch(/RAISE EXCEPTION[^;]*replicated/)
+    expect(rollbackSql).toContain(MIGRATION_DIRECTORY)
+  })
+})
