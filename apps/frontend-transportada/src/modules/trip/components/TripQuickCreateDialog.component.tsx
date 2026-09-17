@@ -21,6 +21,10 @@ import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTrip
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
+import {
+  displayDailyAllowanceDays,
+  readSuggestedDailyAllowanceDays,
+} from '../shared/dailyAllowanceDaysField.service'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
@@ -323,11 +327,13 @@ export function TripQuickCreateDialog({
             {t('creation.dailyAllowanceDays')}
             <input
               inputMode="numeric"
-              min={1}
               onChange={(event) => quickCreate.setDailyAllowanceDaysInput(event.target.value)}
               placeholder={t('creation.dailyAllowanceDaysPlaceholder')}
-              type="number"
-              value={quickCreate.dailyAllowanceDaysInput}
+              type="text"
+              value={displayDailyAllowanceDays({
+                suggestedDays: readSuggestedDailyAllowanceDays(valuationPreview.valuation),
+                typed: quickCreate.dailyAllowanceDaysInput,
+              })}
             />
           </label>
         </div>

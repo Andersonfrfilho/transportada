@@ -16,20 +16,67 @@ const QUICK_CREATE_HOOK_PATH = 'src/modules/trip/hooks/useTripQuickCreate.hook.t
 const DIALOG_PATH = 'src/modules/trip/components/TripQuickCreateDialog.component.tsx'
 const VALUATION_PREVIEW_HOOK_PATH =
   'src/modules/trip-financials/hooks/useTripValuationPreview.hook.ts'
+const LOCALE_PATHS = [
+  'src/modules/trip/locales/trip.locale.json',
+  'src/modules/trip/locales/trip.en.locale.json',
+]
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
 }
 
+type DailyAllowanceDaysReading =
+  | Readonly<{ of: 'absent' }>
+  | Readonly<{ days: number; of: 'informed' }>
+  | Readonly<{ of: 'invalid' }>
+
+type DriverParcelValuation = Readonly<{
+  costParcels: readonly Readonly<{
+    basis: null | Readonly<{ days: number; daysOrigin: string; of: string }>
+  }>[]
+}>
+
+type DailyAllowanceFieldModule = Readonly<{
+  displayDailyAllowanceDays: (
+    input: Readonly<{ suggestedDays: number | undefined; typed: string | undefined }>,
+  ) => string
+  readDailyAllowanceDaysInput: (value: string) => DailyAllowanceDaysReading
+  readSuggestedDailyAllowanceDays: (valuation: null | DriverParcelValuation) => number | undefined
+}>
+
+function loadDailyAllowanceField(): Promise<DailyAllowanceFieldModule> {
+  return loadFutureModule<DailyAllowanceFieldModule>(
+    '../../src/modules/trip/shared/dailyAllowanceDaysField.service',
+  )
+}
+
 type QuickCreateModule = Readonly<{
-  resolveDailyAllowanceDaysInput: (value: string) => number | undefined
+  validateQuickCreate: (
+    input: Readonly<{
+      dailyAllowanceDays: DailyAllowanceDaysReading
+      driverIds: readonly string[]
+      queue: readonly unknown[]
+      vehicleId: string
+    }>,
+  ) => readonly string[]
 }>
 
 function loadQuickCreate(): Promise<QuickCreateModule> {
   return loadFutureModule<QuickCreateModule>(
     '../../src/modules/trip/shared/tripQuickCreate.service',
   )
+}
+
+function valuationWithDriverDays(
+  input: Readonly<{ days: number; daysOrigin: string }>,
+): DriverParcelValuation {
+  return {
+    costParcels: [
+      { basis: null },
+      { basis: { days: input.days, daysOrigin: input.daysOrigin, of: 'driver' } },
+    ],
+  }
 }
 
 type CreateTripInput = Readonly<{
@@ -95,17 +142,105 @@ async function createValuationRecordingClient(
 }
 
 describe('trip daily allowance days contract', () => {
-  /** Spec 143 D4: o inteiro só é aceito a partir de `1` — vazio, `0` e negativo nunca vão à rede. */
-  test('resolves a typed value to a positive integer, and rejects empty, zero and negative input', async () => {
-    const { resolveDailyAllowanceDaysInput } = await loadQuickCreate()
+  /**
+   * ⚠️ Ausente e inválido são **estados diferentes**. Colapsar os dois faz `2,5` virar silenciosamente
+   * a estimativa do servidor: o operador digitou um número, viu o campo aceitar, e a viagem nasceu
+   * com outro valor — sem uma linha na tela dizendo que o que ele escreveu foi descartado.
+   */
+  test('reads an empty field as absent, a positive integer as informed, and anything else as invalid', async () => {
+    const { readDailyAllowanceDaysInput } = await loadDailyAllowanceField()
 
-    expect(resolveDailyAllowanceDaysInput('')).toBeUndefined()
-    expect(resolveDailyAllowanceDaysInput('   ')).toBeUndefined()
-    expect(resolveDailyAllowanceDaysInput('0')).toBeUndefined()
-    expect(resolveDailyAllowanceDaysInput('-3')).toBeUndefined()
-    expect(resolveDailyAllowanceDaysInput('abc')).toBeUndefined()
-    expect(resolveDailyAllowanceDaysInput('4')).toBe(4)
-    expect(resolveDailyAllowanceDaysInput(' 4 ')).toBe(4)
+    expect(readDailyAllowanceDaysInput('')).toEqual({ of: 'absent' })
+    expect(readDailyAllowanceDaysInput('   ')).toEqual({ of: 'absent' })
+    expect(readDailyAllowanceDaysInput('4')).toEqual({ days: 4, of: 'informed' })
+    expect(readDailyAllowanceDaysInput(' 4 ')).toEqual({ days: 4, of: 'informed' })
+    expect(readDailyAllowanceDaysInput('04')).toEqual({ days: 4, of: 'informed' })
+
+    /** O último é o que a coluna `integer` não guarda: recusado aqui, e não em 500 no banco. */
+    for (const typed of ['0', '00', '-3', 'abc', '2,5', '2.5', '1e3', '+4', '9999999999']) {
+      expect(readDailyAllowanceDaysInput(typed)).toEqual({ of: 'invalid' })
+    }
+  })
+
+  /** Nenhuma leitura inválida carrega número: o que não é diária não tem como chegar ao corpo. */
+  test('no invalid entry ever produces a day count', async () => {
+    const { readDailyAllowanceDaysInput } = await loadDailyAllowanceField()
+
+    for (const typed of ['0', '-3', 'abc', '2,5', '', '   ']) {
+      expect(readDailyAllowanceDaysInput(typed).of).not.toBe('informed')
+    }
+  })
+
+  /** O inválido **trava o botão**, o ausente não: campo vazio é uma escolha, `2,5` é um engano. */
+  test('an invalid day count blocks the creation, and an empty field does not', async () => {
+    const { validateQuickCreate } = await loadQuickCreate()
+
+    const invalid = validateQuickCreate({
+      dailyAllowanceDays: { of: 'invalid' },
+      driverIds: [DRIVER_ID],
+      queue: [],
+      vehicleId: VEHICLE_ID,
+    })
+    expect(invalid).toContain('dailyAllowanceDaysInvalid')
+
+    for (const reading of [{ of: 'absent' } as const, { days: 2, of: 'informed' } as const]) {
+      const issues = validateQuickCreate({
+        dailyAllowanceDays: reading,
+        driverIds: [DRIVER_ID],
+        queue: [],
+        vehicleId: VEHICLE_ID,
+      })
+      expect(issues).not.toContain('dailyAllowanceDaysInvalid')
+    }
+  })
+
+  /** Recusa sem frase é recusa muda: o botão desligado precisa dizer por quê, em cada idioma. */
+  test('every locale names the invalid day count', async () => {
+    const locales = await Promise.all(LOCALE_PATHS.map(readApplicationFile))
+
+    for (const locale of locales) {
+      const dictionary = JSON.parse(locale) as Record<
+        string,
+        Record<string, Record<string, string>>
+      >
+      const sentence = dictionary.quickCreate?.issue?.dailyAllowanceDaysInvalid
+      expect(typeof sentence).toBe('string')
+      expect(sentence).not.toBe('')
+    }
+  })
+
+  /**
+   * Spec 143 D4: o campo abre **preenchido com a sugestão**. `undefined` é "ninguém digitou ainda";
+   * `''` é o operador que apagou de propósito — e apagado não pode ser reescrito pela sugestão, ou a
+   * tela desfaz o que ele acabou de fazer a cada resposta da prévia.
+   */
+  test('the field shows the suggestion until it is typed, and never overwrites what was typed', async () => {
+    const { displayDailyAllowanceDays } = await loadDailyAllowanceField()
+
+    expect(displayDailyAllowanceDays({ suggestedDays: 3, typed: undefined })).toBe('3')
+    expect(displayDailyAllowanceDays({ suggestedDays: undefined, typed: undefined })).toBe('')
+    expect(displayDailyAllowanceDays({ suggestedDays: 3, typed: '2' })).toBe('2')
+    expect(displayDailyAllowanceDays({ suggestedDays: 3, typed: '' })).toBe('')
+    expect(displayDailyAllowanceDays({ suggestedDays: 7, typed: '2,5' })).toBe('2,5')
+  })
+
+  /**
+   * A sugestão só existe enquanto a API **estima**. Depois que o operador informou, a resposta volta
+   * `informed` com o número dele — reoferecê-lo como sugestão seria a tela sugerindo a si mesma.
+   */
+  test('the suggestion comes from the estimated driver parcel, and from nowhere else', async () => {
+    const { readSuggestedDailyAllowanceDays } = await loadDailyAllowanceField()
+
+    expect(
+      readSuggestedDailyAllowanceDays(
+        valuationWithDriverDays({ days: 3, daysOrigin: 'estimated' }),
+      ),
+    ).toBe(3)
+    expect(
+      readSuggestedDailyAllowanceDays(valuationWithDriverDays({ days: 3, daysOrigin: 'informed' })),
+    ).toBeUndefined()
+    expect(readSuggestedDailyAllowanceDays(null)).toBeUndefined()
+    expect(readSuggestedDailyAllowanceDays({ costParcels: [] })).toBeUndefined()
   })
 
   /**
@@ -195,8 +330,25 @@ describe('trip daily allowance days contract', () => {
     ])
 
     expect(dialog).toContain('dailyAllowanceDaysInput')
-    expect(hook).toContain('resolveDailyAllowanceDaysInput')
+    expect(hook).toContain('readDailyAllowanceDaysInput')
     expect(hook).toContain('dailyAllowanceDays')
+  })
+
+  /**
+   * ⚠️ `type="number"` **come** o que não é número: em vários navegadores `2,5` chega ao `onChange`
+   * como string vazia, e a recusa que a tela deveria mostrar nunca teria como acontecer.
+   */
+  test('the day field is a text field that renders the suggestion, not a browser number field', async () => {
+    const dialog = await readApplicationFile(DIALOG_PATH)
+
+    const labelStart = dialog.indexOf("creation.dailyAllowanceDays'")
+    expect(labelStart).toBeGreaterThan(-1)
+    const field = dialog.slice(labelStart, dialog.indexOf('</label>', labelStart))
+
+    expect(field).toContain('inputMode="numeric"')
+    expect(field).toContain('displayDailyAllowanceDays(')
+    expect(field).not.toContain('type="number"')
+    expect(field).not.toContain('min={1}')
   })
 
   /**

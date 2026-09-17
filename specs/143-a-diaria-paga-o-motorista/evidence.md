@@ -2208,3 +2208,73 @@ dentro dela.
 
 Achados 3 a 7 e 9/10 seguem abertos e estão listados na resposta ao usuário — nenhum deles derruba
 tela, e mexer neles sem decisão de escopo seria ampliar a spec por conta própria.
+
+## Revisão final — achados 3 e 4: o campo "Diárias" da criação rápida
+
+### O defeito 3 — a sugestão nunca chegava à tela
+
+`spec.md:128` promete o campo "preenchido com a sugestão e editável". O estado nascia
+`useState('')` e **nada** o preenchia: a sugestão existia só do lado da API, e o operador via um
+campo vazio com um `placeholder` explicando um número que a tela não mostrava.
+
+A armadilha do conserto óbvio — semear a cada resposta da prévia — é o defeito oposto: a resposta
+volta a cada bipe, e cada volta reescreveria por cima do que o operador acabou de digitar.
+
+**A saída é derivação, não efeito.** O estado passa a ser `string | undefined`, e `undefined` é
+"ninguém digitou ainda":
+
+| `typed`     | `suggestedDays` | campo |
+| ----------- | --------------- | ----- |
+| `undefined` | `3`             | `3`   |
+| `undefined` | —               | vazio |
+| `'2'`       | `3`             | `2`   |
+| `''`        | `3`             | vazio |
+
+`''` (apagado de propósito) **não** volta a ser preenchido — apagar é uma escolha, e é ela que diz
+"deixa a API estimar". Sem efeito, sem laço, e a sugestão não tem como desfazer digitação.
+
+⚠️ **Enquanto ninguém digita, o campo não vai à rede.** Mostrar a estimativa e mandá-la de volta
+congelaria o número: a rota cresce a cada nota bipada, e a estimativa do servidor precisa continuar
+acompanhando. Por isso `readSuggestedDailyAllowanceDays` só lê a parcela com `daysOrigin` igual a
+`estimated` — depois de informado, a resposta traz o número do próprio operador, e reoferecê-lo como
+sugestão seria a tela sugerindo a si mesma.
+
+### O defeito 4 — `2,5` virava silenciosamente a estimativa do servidor
+
+`resolveDailyAllowanceDaysInput` devolvia `undefined` para **duas coisas diferentes**: "campo vazio"
+e "não é um número de dias". As duas caíam na mesma omissão, então quem digitasse `2,5` via o campo
+aceitar e a viagem nascer com outro valor, sem uma linha na tela dizendo que o que ele escreveu foi
+descartado. `min={1}` num `type="number"` não é validação: o navegador ainda envia, e o atributo só
+enfeita a setinha.
+
+Agora a leitura é um estado de três: `absent` · `informed` · `invalid`. `invalid` vira a lacuna
+`dailyAllowanceDaysInvalid`, que **trava o botão** e imprime a frase — nos dois idiomas. `absent`
+não trava nada: campo vazio continua sendo uma escolha legítima.
+
+⚠️ O campo deixou de ser `type="number"`: em vários navegadores `2,5` chega ao `onChange` como
+string vazia, e a recusa que a tela deveria mostrar nunca teria como acontecer — o estado `invalid`
+seria código morto. É `type="text"` com `inputMode="numeric"`, o mesmo arranjo do painel da diária.
+
+O teto também é o da coluna: acima de `2_147_483_647` a leitura recusa aqui, em vez de o `integer`
+do banco responder 500.
+
+### Contrato (escrito antes)
+
+`test/trip/daily-allowance-days.contract.ts` — reescrita no lugar, **nenhuma suíte apagada**, e
+ganhou o cabeçalho de copyright que faltava. `test/trip/quick-create.contract.ts` acompanhou a
+assinatura nova de `validateQuickCreate`. Os 13 casos provam: as três leituras e seus limites; que
+nenhuma entrada inválida produz número; que `invalid` trava e `absent` não; que os dois locales
+nomeiam a recusa; a tabela de exibição acima; a origem da sugestão; e, por texto de fonte, que o
+campo não é `type="number"` nem carrega `min={1}`.
+
+### Gates
+
+| Gate                  | Comando                                         | Resultado                                                |
+| --------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| Contrato novo (antes) | `bun test ./test/trip/daily-allowance-days...`  | ✅ **8 de 13 falharam** — TDD                            |
+| Typecheck             | `bun run typecheck` (raiz, 6 apps)              | ✅ limpo                                                 |
+| Testes do frontend    | `bun run --cwd apps/frontend-transportada test` | ✅ **4143 pass · 0 fail** · 36085 expect() · 29 arquivos |
+| Lint                  | `bun run lint`                                  | ✅ limpo                                                 |
+| Formatação            | `bun run format:check`                          | ✅ limpo                                                 |
+
+Nenhum arquivo novo em `scripts.test`: o serviço novo entra por `import` na suíte que já existia.

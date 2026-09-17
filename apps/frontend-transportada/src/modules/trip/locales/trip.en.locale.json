@@ -557,6 +557,7 @@
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
     "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
     "issue": {
+      "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."

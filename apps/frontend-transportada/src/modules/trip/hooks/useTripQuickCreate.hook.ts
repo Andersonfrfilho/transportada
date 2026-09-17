@@ -18,6 +18,7 @@ import {
   resolveStopOrder,
   type AssemblyCityOrder,
 } from '../shared/assemblyOrder.service'
+import { readDailyAllowanceDaysInput } from '../shared/dailyAllowanceDaysField.service'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 import type { ScannedNfeDocument, TripDetail } from '../shared/trip.types'
@@ -26,7 +27,6 @@ import {
   EMPTY_QUICK_CREATE_QUEUE,
   refuseQuickCreateEntry,
   removeQuickCreateEntry,
-  resolveDailyAllowanceDaysInput,
   resolveQuickCreateEntry,
   stageQuickCreateDocuments,
   stagedDocumentIds,
@@ -53,8 +53,13 @@ export function useTripQuickCreate(
   const [queue, setQueue] = useState<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
   const [vehicleId, setVehicleId] = useState('')
-  const [dailyAllowanceDaysInput, setDailyAllowanceDaysInput] = useState('')
-  const dailyAllowanceDays = resolveDailyAllowanceDaysInput(dailyAllowanceDaysInput)
+  /** `undefined` é "ninguém digitou ainda", e é o que deixa a sugestão da prévia aparecer no campo. */
+  const [dailyAllowanceDaysInput, setDailyAllowanceDaysInput] = useState<string | undefined>(
+    undefined,
+  )
+  const dailyAllowanceDaysReading = readDailyAllowanceDaysInput(dailyAllowanceDaysInput ?? '')
+  const dailyAllowanceDays =
+    dailyAllowanceDaysReading.of === 'informed' ? dailyAllowanceDaysReading.days : undefined
   /**
    * A ordem das cidades que o operador arranja no mapa. Ela vive aqui, e não no mapa, porque é ela
    * que vira `PATCH /stops/order` no fim da criação — no componente ela morreria ao fechar o modal.
@@ -104,7 +109,7 @@ export function useTripQuickCreate(
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
     setDriverIds([])
     setVehicleId('')
-    setDailyAllowanceDaysInput('')
+    setDailyAllowanceDaysInput(undefined)
   }
 
   /**
@@ -152,7 +157,12 @@ export function useTripQuickCreate(
     )
   }, [staged])
 
-  const issues = validateQuickCreate({ driverIds, queue, vehicleId })
+  const issues = validateQuickCreate({
+    dailyAllowanceDays: dailyAllowanceDaysReading,
+    driverIds,
+    queue,
+    vehicleId,
+  })
 
   /**
    * A viagem e os vínculos são um passo só do ponto de vista de quem clica, mas não são atômicos no

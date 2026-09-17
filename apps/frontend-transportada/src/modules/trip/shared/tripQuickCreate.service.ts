@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { extractNfeAccessKey } from '@/modules/shared/nfeAccessKey.service'
 
+import type { DailyAllowanceDaysReading } from './dailyAllowanceDaysField.service'
 import type { ScannedNfeDocument } from './trip.types'
 
 /**
@@ -26,7 +27,11 @@ export type TripQuickCreateQueue = readonly TripQuickCreateEntry[]
 
 export const EMPTY_QUICK_CREATE_QUEUE: TripQuickCreateQueue = []
 
-export type TripQuickCreateIssue = 'driverRequired' | 'noDocument' | 'vehicleRequired'
+export type TripQuickCreateIssue =
+  | 'dailyAllowanceDaysInvalid'
+  | 'driverRequired'
+  | 'noDocument'
+  | 'vehicleRequired'
 
 /**
  * A leitura da câmera dispara a cada quadro e a mesma etiqueta passa duas vezes o tempo todo: texto
@@ -150,19 +155,8 @@ export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean 
   return entry.status === 'resolving'
 }
 
-/**
- * Spec 143 D4: campo vazio, `0` e negativo nunca chegam à rede — ausência é "a API sugere pela
- * duração estimada" (`suggestAllowanceDays`), e mandar `0` ganharia 400 do `min(1)` do zod.
- */
-export function resolveDailyAllowanceDaysInput(value: string): number | undefined {
-  const trimmed = value.trim()
-  if (!/^\d+$/.test(trimmed)) return undefined
-
-  const parsed = Number.parseInt(trimmed, 10)
-  return parsed < 1 ? undefined : parsed
-}
-
 export function validateQuickCreate(input: {
+  readonly dailyAllowanceDays: DailyAllowanceDaysReading
   readonly driverIds: readonly string[]
   readonly queue: TripQuickCreateQueue
   readonly vehicleId: string
@@ -171,6 +165,8 @@ export function validateQuickCreate(input: {
   if (stagedDocumentIds(input.queue).length === 0) issues.push('noDocument')
   if (input.driverIds.length === 0) issues.push('driverRequired')
   if (input.vehicleId === '') issues.push('vehicleRequired')
+  /** Campo vazio é escolha; `2,5` é engano — e engano que passa vira viagem com outro número. */
+  if (input.dailyAllowanceDays.of === 'invalid') issues.push('dailyAllowanceDaysInvalid')
   return issues
 }
 

@@ -55,6 +55,7 @@ type QuickCreateModule = Readonly<{
   }) => readonly Readonly<{ accessKey: string; refusal?: string; status: string }>[]
   stagedDocumentIds: (queue: readonly unknown[]) => readonly string[]
   validateQuickCreate: (input: {
+    dailyAllowanceDays: Readonly<{ of: string }>
     driverIds: readonly string[]
     queue: readonly unknown[]
     vehicleId: string
@@ -147,13 +148,22 @@ describe('trip quick create contract', () => {
     })
     expect(stagedDocumentIds(staged)).toEqual(['document-1'])
 
-    expect(validateQuickCreate({ driverIds: [], queue: [], vehicleId: '' })).toEqual([
-      'noDocument',
-      'driverRequired',
-      'vehicleRequired',
-    ])
+    const absentDays = { of: 'absent' } as const
     expect(
-      validateQuickCreate({ driverIds: ['driver-1'], queue: staged, vehicleId: 'vehicle-1' }),
+      validateQuickCreate({
+        dailyAllowanceDays: absentDays,
+        driverIds: [],
+        queue: [],
+        vehicleId: '',
+      }),
+    ).toEqual(['noDocument', 'driverRequired', 'vehicleRequired'])
+    expect(
+      validateQuickCreate({
+        dailyAllowanceDays: absentDays,
+        driverIds: ['driver-1'],
+        queue: staged,
+        vehicleId: 'vehicle-1',
+      }),
     ).toEqual([])
   })
 
