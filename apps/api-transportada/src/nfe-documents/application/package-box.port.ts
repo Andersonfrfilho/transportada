@@ -102,6 +102,8 @@ export type PackageBoxSiblingView = {
   readonly id: string
   readonly lengthMm: number | null
   readonly measuredAt: string | null
+  /** Spec 155 (D12, G012): a origem preferida de "aplicar a todos" não é `replicated`. */
+  readonly measurementSource: PackageBoxMeasurementSource | null
   readonly packagingUnitCount: number | undefined
   readonly productCode: string
   readonly unitsPerBox: number

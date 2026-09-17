@@ -30,6 +30,7 @@ const SIBLING_ITEM = {
   id: 'sibling-1',
   lengthMm: null,
   measuredAt: null,
+  measurementSource: null,
   packagingUnitCount: 36,
   productCode: '6959',
   unitsPerBox: 1,

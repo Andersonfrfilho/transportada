@@ -10,6 +10,7 @@ import {
   nfePackageBoxMeasurements,
   nfeParticipants,
   nfeProducts,
+  type PackageBoxMeasurementSource,
 } from '../../database/nfe.schema.js'
 import type {
   PackageBoxFilters,
@@ -407,6 +408,7 @@ const SIBLING_COLUMNS = {
   id: nfePackageBoxes.id,
   lengthMm: nfePackageBoxes.lengthMm,
   measuredAt: nfePackageBoxes.measuredAt,
+  measurementSource: nfePackageBoxes.measurementSource,
   productCode: nfePackageBoxes.productCode,
   unitsPerBox: nfePackageBoxes.unitsPerBox,
   widthMm: nfePackageBoxes.widthMm,
@@ -421,6 +423,7 @@ type SiblingRow = {
   readonly id: string
   readonly lengthMm: number | null
   readonly measuredAt: Date | null
+  readonly measurementSource: PackageBoxMeasurementSource | null
   readonly productCode: string
   readonly unitsPerBox: number
   readonly widthMm: number | null
@@ -435,6 +438,7 @@ function toSiblingView(row: SiblingRow): PackageBoxSiblingView {
     id: row.id,
     lengthMm: row.lengthMm,
     measuredAt: row.measuredAt?.toISOString() ?? null,
+    measurementSource: row.measurementSource,
     packagingUnitCount: resolvePackagingUnitCount(row.commercialUnit),
     productCode: row.productCode,
     unitsPerBox: row.unitsPerBox,

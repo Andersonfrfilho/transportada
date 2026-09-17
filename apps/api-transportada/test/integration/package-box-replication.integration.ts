@@ -57,6 +57,13 @@ describe('irmãs e réplica de medida de caixa (spec 155 T2.3/T2.4)', () => {
         // A embalagem irmã não é família: unidade comercial diferente muda a chave (D1).
         expect(result.family.map((item) => item.id)).not.toContain(scenario.packagingSiblingId)
 
+        // D12/G012: a irmã medida sai da consulta já com `measurementSource`, para a tela escolher
+        // a origem preferida ("aplicar a todos") sem uma segunda ida ao banco.
+        const measuredSibling = result.family.find((item) => item.id === scenario.familyMeasuredId)
+        expect(measuredSibling?.measurementSource).toBe('typed')
+        const pendingSibling = result.family.find((item) => item.id === scenario.familyPendingId)
+        expect(pendingSibling?.measurementSource).toBeNull()
+
         await expect(
           listSiblings.execute({
             boxId: scenario.originId,
