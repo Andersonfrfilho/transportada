@@ -156,6 +156,7 @@ describe('família de variação e réplica de medida (spec 155)', () => {
       id: '22222222-2222-4222-8222-222222222222',
       lengthMm: null,
       measuredAt: null,
+      measurementSource: null,
       packagingUnitCount: 36,
       productCode: '6959',
       unitsPerBox: 1,

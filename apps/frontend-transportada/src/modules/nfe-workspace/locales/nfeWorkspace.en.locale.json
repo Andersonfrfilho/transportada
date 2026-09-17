@@ -470,7 +470,9 @@
       "title": "{{description}} · product code {{productCode}}"
     },
     "family": {
-      "counter": "{{measured}} of {{total}} measured in this family"
+      "counter": "{{measured}} of {{total}} measured in this family",
+      "applyToAll": "Apply this flavor's measurement to all flavors",
+      "applyUnresolved": "No confirmed measurement available to apply in this family."
     },
     "quickFill": {
       "useMeasurementOf": "Use the measurement from {{label}}"

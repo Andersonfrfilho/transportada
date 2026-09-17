@@ -18,6 +18,7 @@ function buildSibling(
     heightMm: null,
     lengthMm: null,
     measuredAt: null,
+    measurementSource: null,
     packagingUnitCount: 36,
     productCode: '6959',
     unitsPerBox: 1,

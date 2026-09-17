@@ -69,6 +69,8 @@ export type PackageBoxSibling = Readonly<{
   id: string
   lengthMm: null | number
   measuredAt: null | string
+  /** Spec 155 (D12, G012): a origem preferida de "aplicar a todos" não é `replicated`. */
+  measurementSource: null | PackageBoxMeasurementSource
   packagingUnitCount: number | undefined
   productCode: string
   unitsPerBox: number
@@ -340,7 +342,8 @@ function isPackageBoxSibling(value: unknown): value is PackageBoxSibling {
     isNullableNumber(value.heightMm) &&
     isNullableNumber(value.grossWeightGrams) &&
     isNumber(value.unitsPerBox) &&
-    isOptionalNumber(value.packagingUnitCount)
+    isOptionalNumber(value.packagingUnitCount) &&
+    isNullableMeasurementSource(value.measurementSource)
   )
 }
 

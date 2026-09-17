@@ -644,7 +644,9 @@
       "title": "{{description}} · cProd {{productCode}}"
     },
     "family": {
-      "counter": "{{measured}} de {{total}} medidas nesta família"
+      "counter": "{{measured}} de {{total}} medidas nesta família",
+      "applyToAll": "Aplicar medida do sabor a todos os sabores",
+      "applyUnresolved": "Nenhuma medida conferida disponível para aplicar nesta família."
     },
     "quickFill": {
       "useMeasurementOf": "Usar a medida de {{label}}"

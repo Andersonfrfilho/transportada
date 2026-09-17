@@ -13,6 +13,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
 import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
+import { PackageBoxFamilyApplyButton } from './PackageBoxFamilyApplyButton.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
 import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
 import {
@@ -214,6 +215,16 @@ export function PackageBoxMeasurementPanel({
   function closeReplicateDialog(): void {
     setReplicateDialog(undefined)
     onResetReplicate()
+  }
+
+  /**
+   * Spec 155 (D12, G012): "aplicar medida de um sabor a todos" abre o MESMO diálogo de replicar —
+   * a origem já vem resolvida pelo botão (a irmã medida preferida, ou a própria caixa), nunca a
+   * caixa da linha clicada.
+   */
+  function openReplicateDialogFromFamilyApply(offer: ReplicateOffer): void {
+    onResetReplicate()
+    setReplicateDialog(offer)
   }
 
   useEffect(() => {
@@ -430,6 +441,7 @@ export function PackageBoxMeasurementPanel({
                         box={box}
                         isEditing={editingId === box.id}
                         key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
+                        onApplyFamilyMeasure={openReplicateDialogFromFamilyApply}
                         onCancel={() => setEditingId(null)}
                         onMeasure={(measurement) => {
                           onMeasure({ ...measurement, id: box.id }, () =>
@@ -602,6 +614,8 @@ function PackageBoxCandidatePicker({
 type PackageBoxRowProps = Readonly<{
   box: PackageBox
   isEditing: boolean
+  /** Spec 155 (D12, G012): o botão já devolve a origem resolvida — o painel só abre o diálogo. */
+  onApplyFamilyMeasure: (offer: ReplicateOffer) => void
   onCancel: () => void
   onMeasure: (input: PackageBoxMeasurementInput) => void
   /** `undefined` com a medida pela câmera desligada na empresa — o botão nem aparece. */
@@ -613,6 +627,7 @@ type PackageBoxRowProps = Readonly<{
 function PackageBoxRow({
   box,
   isEditing,
+  onApplyFamilyMeasure,
   onCancel,
   onMeasure,
   onMeasureWithCamera,
@@ -637,6 +652,12 @@ function PackageBoxRow({
   /** D9: os contadores já chegam prontos da API — a tela nunca soma de novo por conta própria. */
   const familySize = box.familyPendingCount + box.familyMeasuredCount
   const showFamilyCounter = box.familyKey !== undefined && familySize > 1
+  /**
+   * D12/G012: medido e pendente na família — para a caixa medida, `familyPendingCount` já exclui
+   * ela mesma; para a pendente, `familyPendingCount` já conta a própria (>= 1 sempre).
+   */
+  const canApplyFamilyMeasure =
+    box.familyKey !== undefined && box.familyMeasuredCount >= 1 && box.familyPendingCount >= 1
 
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
@@ -716,6 +737,9 @@ function PackageBoxRow({
               <Icon name="camera" />
               {t('packageBoxes.measureWithCamera')}
             </Button>
+          )}
+          {!canApplyFamilyMeasure ? null : (
+            <PackageBoxFamilyApplyButton box={box} onResolved={onApplyFamilyMeasure} />
           )}
         </div>
       )}
