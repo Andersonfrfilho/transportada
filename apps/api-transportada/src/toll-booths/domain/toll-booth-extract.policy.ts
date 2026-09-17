@@ -6,6 +6,8 @@
  * fonte da chave do objeto: ela aparece no upload, na recarga (T302) e no runbook, e o CHECK
  * `toll_booth_extracts_object_key_check` da migration (T101) exige exatamente esta forma.
  */
+import type { TollBoothSeedRecord } from '../application/toll-booth.port.js'
+
 const OBJECT_KEY_PREFIX = 'toll-booths/osm'
 const OBJECT_KEY_FILENAME = 'toll-booths.json'
 
@@ -68,4 +70,47 @@ export function summarizeTollBoothExtract(
   }
 
   return { boothCount: rows.length, boothsWithAxleCharge, boothsWithCharge }
+}
+
+/** A praça do JSON com `osmNodeId` ainda em texto ou já `bigint` — a CLI aceita os dois. */
+export type TollBoothExtractSeedInput = Omit<TollBoothExtractRowInput, 'osmNodeId'> &
+  Readonly<{ osmNodeId: bigint | string }>
+
+/**
+ * O extrato vira entrada do seed com **uma** data para todas as praças: a do extrato, nunca a de
+ * hoje (`toll-booth.schema.ts`). Usada pela CLI (`toll-booth-seed.service.ts`) e pela recarga (T302).
+ */
+export function toTollBoothSeedRecords(input: {
+  readonly booths: readonly TollBoothExtractSeedInput[]
+  readonly observedOn: string
+}): readonly TollBoothSeedRecord[] {
+  return input.booths.map((booth) => ({
+    chargeCar: booth.chargeCar,
+    chargePerAxle: booth.chargePerAxle,
+    latitude: booth.latitude,
+    longitude: booth.longitude,
+    name: booth.name,
+    observedOn: input.observedOn,
+    operator: booth.operator,
+    osmNodeId: BigInt(booth.osmNodeId),
+  }))
+}
+
+/** Nó repetido no mesmo extrato faria o upsert em lote falhar (`ON CONFLICT` duas vezes na mesma linha). */
+export function hasRepeatedOsmNodeId(rows: readonly TollBoothExtractRowInput[]): boolean {
+  return new Set(rows.map((row) => row.osmNodeId)).size !== rows.length
+}
+
+/**
+ * `audit_logs.entity_id` é `uuid`, e o extrato tem chave natural: os primeiros 32 hex do sha256 dão
+ * um id determinístico — a mesma recarga do mesmo extrato aponta sempre para o mesmo alvo.
+ */
+export function buildTollBoothExtractAuditEntityId(sha256: string): string {
+  return [
+    sha256.slice(0, 8),
+    sha256.slice(8, 12),
+    sha256.slice(12, 16),
+    sha256.slice(16, 20),
+    sha256.slice(20, 32),
+  ].join('-')
 }

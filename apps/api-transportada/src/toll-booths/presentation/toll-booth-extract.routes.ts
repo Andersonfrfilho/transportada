@@ -6,7 +6,15 @@
  * standart §9 pede um arquivo por conceito de qualquer forma.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { API_TOLL_BOOTH_EXTRACTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import {
+  API_TOLL_BOOTH_EXTRACTS_PATH,
+  API_TOLL_BOOTH_RELOAD_PATH,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
+import type {
+  ReloadTollBoothCatalogInput,
+  ReloadTollBoothCatalogResult,
+} from '../application/reload-toll-booth-catalog.use-case.js'
 import type {
   TollBoothExtractRow,
   TollBoothExtractRowInput,
@@ -70,6 +78,42 @@ export function createTollBoothExtractRoutes(
       method: 'GET',
       parse: () => undefined,
       pathname: API_TOLL_BOOTH_EXTRACTS_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+  ]
+}
+
+type ReloadInput = TollBoothExtractQuery & { readonly correlationId: string }
+
+/**
+ * `POST /v1/toll-booths/reload` (spec 154 RF4) — `?dataset=&observedOn=`, corpo ignorado. Ator,
+ * empresa e correlação vêm do contexto autenticado, nunca da requisição.
+ */
+export function createTollBoothCatalogReloadRoutes(dependencies: {
+  readonly reloadCatalog: {
+    execute(input: ReloadTollBoothCatalogInput): Promise<ReloadTollBoothCatalogResult>
+  }
+}): readonly ReturnType<typeof defineRoute>[] {
+  return [
+    defineRoute<ReloadInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.reloadCatalog.execute({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          dataset: input.dataset,
+          observedOn: input.observedOn,
+        })
+        return jsonResponse({
+          body: { data: { ...result, reloadedAt: result.reloadedAt.toISOString() } },
+        })
+      },
+      method: 'POST',
+      parse: ({ correlationId, request }) => ({
+        ...parseTollBoothExtractQuery(new URL(request.url)),
+        correlationId,
+      }),
+      pathname: API_TOLL_BOOTH_RELOAD_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
   ]

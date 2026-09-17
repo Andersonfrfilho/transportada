@@ -55,7 +55,12 @@ import { createCreateTollBoothExtractUseCase } from './toll-booths/application/c
 import { createListTollBoothExtractsUseCase } from './toll-booths/application/list-toll-booth-extracts.use-case.js'
 import { createDrizzleTollBoothExtractRepository } from './toll-booths/infrastructure/drizzle-toll-booth-extract.repository.js'
 import { createTollBoothExtractStorageGateway } from './toll-booths/infrastructure/toll-booth-extract-storage.gateway.js'
-import { createTollBoothExtractRoutes } from './toll-booths/presentation/toll-booth-extract.routes.js'
+import {
+  createTollBoothCatalogReloadRoutes,
+  createTollBoothExtractRoutes,
+} from './toll-booths/presentation/toll-booth-extract.routes.js'
+import { createReloadTollBoothCatalogUseCase } from './toll-booths/application/reload-toll-booth-catalog.use-case.js'
+import { createDrizzleTollBoothCatalogReloadRepository } from './toll-booths/infrastructure/drizzle-toll-booth-catalog-reload.repository.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
 import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
 import { DrizzleTollBoothSightingRepository } from './trips/infrastructure/drizzle-toll-booth-sighting.repository.js'
@@ -1564,6 +1569,10 @@ function createApplicationRoutes({
     finalBucket: storageBucket,
     stagingBucket: storageBucket,
   })
+  const tollBoothExtractStorage = createTollBoothExtractStorageGateway({
+    bucket: storageBucket,
+    storage: storageGateway,
+  })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
   const listNfeDocumentEvents = createListNfeDocumentEvents({
@@ -2012,12 +2021,17 @@ function createApplicationRoutes({
     ...createTollBoothExtractRoutes({
       createExtract: createCreateTollBoothExtractUseCase({
         extracts: tollBoothExtractRepository,
-        storage: createTollBoothExtractStorageGateway({
-          bucket: storageBucket,
-          storage: storageGateway,
-        }),
+        storage: tollBoothExtractStorage,
       }),
       listExtracts: createListTollBoothExtractsUseCase({ extracts: tollBoothExtractRepository }),
+    }),
+    ...createTollBoothCatalogReloadRoutes({
+      reloadCatalog: createReloadTollBoothCatalogUseCase({
+        catalogReload: createDrizzleTollBoothCatalogReloadRepository(database),
+        extracts: tollBoothExtractRepository,
+        logger,
+        storage: tollBoothExtractStorage,
+      }),
     }),
     ...createCompanyEnergyRoutes({
       choose: createChooseEnergyDistributorUseCase({ energy: companyEnergyRepository }),

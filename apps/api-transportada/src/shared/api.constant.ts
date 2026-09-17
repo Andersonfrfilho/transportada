@@ -83,6 +83,7 @@ export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batche
 export const API_TOLL_BOOTHS_PATH = '/toll-booths'
 /** Spec 154 RF3/RF3b: registro do extrato versionado no bucket (D10), `settings.manage`. */
 export const API_TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
+export const API_TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'

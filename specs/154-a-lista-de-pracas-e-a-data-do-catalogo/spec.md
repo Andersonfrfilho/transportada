@@ -225,5 +225,7 @@ ações independentemente da tela.
 
 - O provider de objetos **não tem `list`** (`@adatechnology/object-storage-provider`: `put`, `get`,
   `head`, `delete`, URL assinada). É o que obriga a D10.
-- **Não existe trilha de auditoria de uso geral na API.** `src/database/` não tem tabela de
-  auditoria; a linha do extrato é a trilha desta ação.
+- ~~Não existe trilha de auditoria de uso geral na API.~~ **Corrigido na T302:** existe —
+  `audit_logs` (`src/database/fiscal-operation.schema.ts`), já usada por
+  `drizzle-contractor-mail.repository.ts`. A recarga grava nas duas: `reloaded_*` na linha do
+  extrato (RF5) e uma linha `toll_booth_catalog.reloaded` em `audit_logs`, na mesma transação.

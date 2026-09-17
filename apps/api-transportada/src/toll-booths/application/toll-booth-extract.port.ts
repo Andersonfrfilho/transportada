@@ -14,11 +14,16 @@ export type CreateTollBoothExtractRowInput = Readonly<{
   uploadedByUserId: string
 }>
 
+export type TollBoothExtractKey = Readonly<{ dataset: string; observedOn: string }>
+
 export type TollBoothExtractPort = Readonly<{
   /** `(dataset, observedOn)` duplicado lança `TollBoothExtractDuplicateError` (spec 154 D10). */
   create: (input: CreateTollBoothExtractRowInput) => Promise<TollBoothExtractRow>
+  find: (key: TollBoothExtractKey) => Promise<TollBoothExtractRow | undefined>
   /** Do mais novo para o mais antigo — RF3 nunca devolve em ordem de inserção. */
   list: () => Promise<readonly TollBoothExtractRow[]>
+  /** Observação datada fora da transação da recarga: `missing_object_observed_at = now()`. */
+  markObjectMissing: (key: TollBoothExtractKey) => Promise<void>
 }>
 
 export type PutExtractObjectInput = Readonly<{
@@ -30,7 +35,13 @@ export type PutExtractObjectInput = Readonly<{
 
 export type PutExtractObjectResult = Readonly<{ disposition: 'created' | 'replayed' }>
 
+export type ReadExtractObjectInput = Readonly<{ key: string; maxBytes: number }>
+
 export type TollBoothExtractStoragePort = Readonly<{
+  /** Só o `head` distingue objeto ausente (`undefined`) de storage fora — o `get` responde `unavailable` aos dois. */
+  head: (key: string) => Promise<Readonly<{ contentLength: number }> | undefined>
   /** `create-only`: conteúdo diferente na mesma chave lança `TollBoothExtractObjectConflictError`. */
   putCreateOnly: (input: PutExtractObjectInput) => Promise<PutExtractObjectResult>
+  /** Bytes crus; passar de `maxBytes` lança `TollBoothExtractIntegrityError` sem ler o resto. */
+  read: (input: ReadExtractObjectInput) => Promise<Uint8Array>
 }>

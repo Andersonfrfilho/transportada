@@ -42,7 +42,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 - [x] T301 `POST /v1/toll-booths/extracts`: Zod sobre o JSON, sha256, `put` em `create-only`, linha
       registrada, `409` no duplicado — contrato + integração com o MinIO local.
-- [ ] T302 🧠 `POST /v1/toll-booths/reload`: lê a linha, baixa, valida, chama o seed existente,
+- [x] T302 🧠 `POST /v1/toll-booths/reload`: lê a linha, baixa, valida, chama o seed existente,
       grava `reloaded_*`, serializa concorrentes (RNF3). Erros de domínio próprios. Contratos:
       idempotência, nada apagado (D7), extrato desconhecido, objeto ausente.
 - [ ] T303 Frontend: bloco de recarga só com `settings.manage`, seletor de extrato, resultado da

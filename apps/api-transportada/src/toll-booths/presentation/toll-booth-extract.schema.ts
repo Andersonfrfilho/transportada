@@ -63,7 +63,7 @@ const tollBoothExtractRowSchema = z
   })
   .strict() satisfies z.ZodType<TollBoothExtractRowInput>
 
-const tollBoothExtractBodySchema = z.array(tollBoothExtractRowSchema).min(1)
+export const tollBoothExtractBodySchema = z.array(tollBoothExtractRowSchema).min(1)
 
 export async function parseTollBoothExtractBody(request: Request): Promise<{
   readonly booths: readonly TollBoothExtractRowInput[]

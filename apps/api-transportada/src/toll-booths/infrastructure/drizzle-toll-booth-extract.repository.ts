@@ -5,12 +5,13 @@
  * antes do `INSERT` (janela de corrida), sempre o `23505` do banco mapeado aqui.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { desc } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { tollBoothExtracts } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
   CreateTollBoothExtractRowInput,
+  TollBoothExtractKey,
   TollBoothExtractPort,
 } from '../application/toll-booth-extract.port.js'
 import { TollBoothExtractDuplicateError } from '../domain/toll-booth-extract.error.js'
@@ -48,6 +49,10 @@ export function createDrizzleTollBoothExtractRepository(
         throw error
       }
     },
+    async find(key: TollBoothExtractKey): Promise<TollBoothExtractRow | undefined> {
+      const [row] = await database.select().from(tollBoothExtracts).where(matchesKey(key)).limit(1)
+      return row === undefined ? undefined : toRow(row)
+    },
     async list(): Promise<readonly TollBoothExtractRow[]> {
       const rows = await database
         .select()
@@ -56,10 +61,23 @@ export function createDrizzleTollBoothExtractRepository(
 
       return rows.map(toRow)
     },
+    async markObjectMissing(key: TollBoothExtractKey): Promise<void> {
+      await database
+        .update(tollBoothExtracts)
+        .set({ missingObjectObservedAt: sql`now()` })
+        .where(matchesKey(key))
+    },
   }
 }
 
-function toRow(row: typeof tollBoothExtracts.$inferSelect): TollBoothExtractRow {
+export function matchesKey(key: TollBoothExtractKey) {
+  return and(
+    eq(tollBoothExtracts.dataset, key.dataset),
+    eq(tollBoothExtracts.observedOn, key.observedOn),
+  )
+}
+
+export function toRow(row: typeof tollBoothExtracts.$inferSelect): TollBoothExtractRow {
   return {
     boothCount: row.boothCount,
     boothsWithAxleCharge: row.boothsWithAxleCharge,

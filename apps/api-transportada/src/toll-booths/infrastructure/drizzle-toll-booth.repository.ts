@@ -12,7 +12,10 @@ import type {
   TollCatalogSummary,
 } from '../application/toll-booth.port.js'
 
-export type TollBoothDatabase = ReturnType<typeof createDrizzleProvider>['db']
+type TollBoothProviderDatabase = ReturnType<typeof createDrizzleProvider>['db']
+type TollBoothTransaction = Parameters<Parameters<TollBoothProviderDatabase['transaction']>[0]>[0]
+/** A transação entra aqui para a recarga (spec 154 T302) gravar sob a trava do catálogo. */
+export type TollBoothDatabase = TollBoothProviderDatabase | TollBoothTransaction
 
 export function createDrizzleTollBoothRepository(database: TollBoothDatabase): TollBoothRepository {
   return {
@@ -86,6 +89,11 @@ export function createDrizzleTollBoothRepository(database: TollBoothDatabase): T
             operator: sql`excluded.operator`,
             updatedAt: sql`now()`,
           },
+          /**
+           * Sem isto a segunda recarga do mesmo extrato regravaria `updated_at` em toda praça — o
+           * aceite 3 da spec 154 exige que ela não mude linha nenhuma.
+           */
+          setWhere: sql`(${tollBooths.chargeCar}, ${tollBooths.chargePerAxle}, ${tollBooths.latitude}, ${tollBooths.longitude}, ${tollBooths.name}, ${tollBooths.observedOn}, ${tollBooths.operator}) is distinct from (excluded.charge_car, excluded.charge_per_axle, excluded.latitude, excluded.longitude, excluded.name, excluded.observed_on, excluded.operator)`,
           target: tollBooths.osmNodeId,
         })
 

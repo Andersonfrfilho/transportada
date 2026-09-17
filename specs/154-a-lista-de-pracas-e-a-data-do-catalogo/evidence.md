@@ -1018,3 +1018,142 @@ $ bun run format:check # exit 0 (2 arquivos reformatados por --write antes do ch
   que `fleet.error.ts`/`company-settings.error.ts` usam.
 - **Credencial do `.env.test`** (acima): fora do escopo desta task e fora deste worktree; reportado,
   não corrigido.
+
+### T302 — `POST /v1/toll-booths/reload`
+
+Task 🧠: desenho decidido pelo `architect` (opus) antes da implementação e seguido como veio.
+
+#### Desenho resumido
+
+- **Trava global não bloqueante.** A primeira instrução da transação é
+  `select pg_try_advisory_xact_lock(TOLL_BOOTH_CATALOG_RELOAD_LOCK_ID)` (`14_154`, literal em
+  `toll-booth-catalog.constant.ts`, no molde de `14_026`/`14_014`; conferido que nenhum outro id literal
+  ou chamada de trava do monorepo usa esse valor). `false` → `TollBoothCatalogReloadInProgressError`
+  (409). Sem `FOR UPDATE`. Global porque o recurso disputado é `toll_booths`; não bloqueante porque
+  esperar estouraria o teto de 10s da requisição.
+- **Porta** `TollBoothCatalogReloadPort.runExclusive(work)`
+  (`infrastructure/drizzle-toll-booth-catalog-reload.repository.ts`): `database.transaction` → trava
+  → `createDrizzleTollBoothRepository(tx)` (o tipo `TollBoothDatabase` passou a aceitar a transação) →
+  entrega a `work` `saveMany`, `readCatalogSummary`, `markReloaded` (`UPDATE … RETURNING`, grava
+  `reloaded_*` e zera `missing_object_observed_at`) e `insertAudit`.
+- **Use case** `reload-toll-booth-catalog.use-case.ts` (sem `try/catch` fora do `JSON.parse`), nesta
+  ordem: linha por `(dataset, observedOn)` ou 404 sem tocar no storage → `head` (ausente: grava
+  `missing_object_observed_at = now()` fora da transação e responde 409) → `contentLength` acima de
+  `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` é 409 de integridade, sem baixar → download limitado ao mesmo
+  teto → sha256 dos bytes crus diferente do da linha é 409, com `warn` só de dataset, data e os dois
+  hashes → Zod do upload (`tollBoothExtractBodySchema`, agora exportado) + recusa de `osmNodeId`
+  repetido → **só então** `runExclusive`: seed pelo `createSeedTollBoothsUseCase` com o `saveMany` da
+  transação e `observedOn` **da linha** → resumo do catálogo → `markReloaded` → `audit_logs` → commit.
+- **Erros** (`ApiError`, `toll-booth-extract.error.ts`): `TOLL_BOOTH_EXTRACT_NOT_FOUND` 404,
+  `TOLL_BOOTH_EXTRACT_OBJECT_MISSING` 409, `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH` 409,
+  `TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS` 409.
+- **D7:** `saveMany` continua só upsert. A conversão de texto para `BigInt` saiu de
+  `toll-booth-seed.service.ts` para `toTollBoothSeedRecords` na policy, usada pela CLI e pela recarga.
+- **Idempotência:** o upsert ganhou `setWhere` com `(charge_car, charge_per_axle, latitude, longitude,
+name, observed_on, operator) is distinct from (excluded.…)`.
+- **Resposta 200** `{ data: { dataset, observedOn, savedBoothCount, catalogBoothCount,
+boothsMissingFromExtract, reloadedAt, reloadedByUserId } }`, `no-store`; entrada por
+  `parseTollBoothExtractQuery` (chave extra → 400), corpo ignorado. Rota
+  `createTollBoothCatalogReloadRoutes` em `toll-booth-extract.routes.ts`, `API_TOLL_BOOTH_RELOAD_PATH`,
+  `settings.manage`. Ator, empresa e `correlationId` vêm do contexto.
+- **Auditoria:** uma linha em `audit_logs` na mesma transação — `action 'toll_booth_catalog.reloaded'`,
+  `entityType/targetType 'toll_booth_extract'`, `entityId/targetId` = UUID determinístico dos primeiros
+  32 hex do sha256, `metadata {dataset, observedOn, savedBoothCount}` (sem nome nem operador),
+  `permission 'settings.manage'`.
+
+#### Premissas contrariadas pelo código
+
+1. **"Não existe trilha de auditoria de uso geral"** (spec.md): falso — `audit_logs` existe
+   (`fiscal-operation.schema.ts`) e já é usada por `drizzle-contractor-mail.repository.ts`. A spec foi
+   corrigida. O comentário de `src/database/toll-booth-extract.schema.ts` (T101) repete o erro e ficou
+   como está, para não mexer no arquivo de schema nesta task.
+2. **Aceite 3 ("a segunda execução não muda linha nenhuma") era falso:** o upsert gravava
+   `updated_at = now()` sempre. Provado em vermelho abaixo e corrigido com `setWhere`.
+3. **O `get` do provider não distingue objeto ausente:** transforma `NoSuchKey` em `unavailable`
+   (`object-storage-provider/dist/index.js`, `get`). Por isso o objeto ausente é decidido pelo `head`.
+4. **"Storage caindo sobe `unavailable` cru → 503 pelo handler":** o handler central
+   (`http/response.service.ts`) **não** mapeia `ObjectStorageError`; só banco vira 503. O erro cru
+   responde **500 genérico** (logado, sem stack ao cliente). Mantido como o desenho manda (sobe cru) — é
+   divergência a decidir fora desta task. A evidência da T301 afirma o mesmo 503 e está errada no mesmo
+   ponto.
+
+#### Vermelho antes da implementação
+
+Contrato de unidade escrito primeiro:
+
+```
+$ bun test ./test/toll-booths.contract.test.ts
+error: Cannot find module '../../src/toll-booths/application/reload-toll-booth-catalog.use-case.js'
+ 0 pass
+ 1 fail
+ 1 error
+```
+
+Aceite 3 contra Postgres real: com a implementação pronta, **sem** o `setWhere`, a integração falha
+exatamente em `updated_at`:
+
+```
+-     "updatedAt": 2026-09-17T17:25:38.326Z,
++     "updatedAt": 2026-09-17T17:25:38.339Z,
+(fail) toll booth catalog reload integration (spec 154, T302) > reloads idempotently, keeps booths outside the extract and audits once
+ 3 pass
+ 1 fail
+```
+
+#### Verde depois
+
+Contrato de unidade (`test/toll-booths/toll-booth-reload.contract.ts`, 11 casos pela rota real com o
+caso de uso real e portas dubladas que registram a ordem: 403 sem tocar nada; 400 de query inválida e
+de chave extra; 404 sem tocar o storage; objeto ausente → 409 + `markObjectMissing` e nada de
+`runExclusive`; objeto acima do teto → 409 sem `read`; sha divergente → 409 sem seed nem `reloaded_*`;
+nó repetido → 409; trava ocupada → 409; ordem `find → head → read → runExclusive → saveMany →
+readCatalogSummary → markReloaded → insertAudit`; `observedOn` do seed = da linha, ator/empresa/
+correlação do contexto; forma da resposta com `no-store`):
+
+```
+$ bun test ./test/toll-booths.contract.test.ts
+ 106 pass
+ 9 skip
+ 0 fail
+```
+
+Integração (`test/integration/toll-booth-reload.integration.ts`, acrescentada ao `test:integration`;
+`createDatabaseProvider`, Postgres descartável + MinIO de `make e2e-up`, casos de uso reais de subida e
+recarga, nada de `Promise.all`): 1) sobe e recarrega; a 2ª recarga deixa `toll_booths` **idêntica,
+`updated_at` incluso**; a praça plantada fora do extrato continua com `observed_on` 2026-01-01 (D7);
+`boothsMissingFromExtract` 1; `audit_logs` com uma linha e os campos acima. 2) linha sem objeto → 409,
+`missing_object_observed_at` preenchido, `toll_booths` intacta; depois o objeto é posto e a recarga zera
+a coluna. 3) bytes diferentes na chave → 409 de integridade, `toll_booths` vazia. 4) conexão separada
+faz `begin; select pg_advisory_xact_lock(14154)`; recarga de extrato **diferente** → 409 e `toll_booths`
+inalterada; após `rollback`, a mesma chamada passa.
+
+`STORAGE_SECRET_KEY` passado como override de ambiente com a credencial do `compose.yaml` (mesma
+divergência do `.env.test` compartilhado registrada na T301; o arquivo não foi editado nem exibido):
+
+```
+$ cd apps/api-transportada && STORAGE_SECRET_KEY=<compose.yaml> bun --env-file=../../.env.test test \
+    ./test/integration/toll-booth-reload.integration.ts ./test/integration/toll-booth-extract-storage.integration.ts --timeout 120000
+ 6 pass
+ 0 fail
+ 28 expect() calls
+Ran 6 tests across 2 files.
+```
+
+#### Gates
+
+```
+$ bun run typecheck     # exit 0
+$ bun run lint          # exit 0
+$ bun run format:check  # exit 0
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6310 pass
+ 23 skip
+ 0 fail
+ 22052 expect() calls
+Ran 6333 tests across 177 files.
+```
+
+(Eram 6299 pass na T301: +11 desta task; as demais vieram com a base.)
+
+Arquivos acima de 200 linhas divididos: fixture HTTP em `toll-booth-reload-http.fixture.ts` +
+`toll-booth-reload-ports.fixture.ts`; ajudantes da integração em `toll-booth-reload-integration.fixture.ts`.
