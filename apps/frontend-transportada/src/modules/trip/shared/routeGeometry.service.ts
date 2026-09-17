@@ -155,6 +155,9 @@ export type RouteChoice = Readonly<{
  */
 export type RouteChoice = Readonly<{ criterion: RouteChoiceCriterion; signature: null | string }>
 
+/** D1: a mais barata é o default — quem nunca tocou o seletor aceitou esta opção (spec 153 T404). */
+export const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }
+
 /**
  * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
  * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.

@@ -140,7 +140,10 @@ export type TripClient = Readonly<{
       vehicleIds?: readonly string[]
       /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
       releaseUnplacedFromLayoutIds?: readonly string[]
-      /** Spec 153: a rota vista por caminhão. Ausente é o critério padrão do servidor. */
+      /**
+       * Spec 153 D7/D2: a rota vista por caminhão, identificada por critério e assinatura — ausente
+       * é o critério padrão do servidor.
+       */
       routeChoiceByVehicle?: readonly Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]
     }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>

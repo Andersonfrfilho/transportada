@@ -10,6 +10,7 @@ import { useSuggestionValuation } from '@/modules/routing/queries/useSuggestionV
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { TripRouteAssemblyController } from '../hooks/useTripRouteAssembly.hook'
+import { resolveVehicleRouteChoice } from '../shared/proposalRouteChoice.service'
 import { resolveMoveTargets } from '../shared/proposalStopMove.service'
 import { buildProposalVehicleViews } from '../shared/proposalView.service'
 import { TripProposalDetail } from './TripProposalDetail.component'
@@ -202,6 +203,13 @@ export function TripRouteAssemblyDialog({
                   draftOrder={assembly.draftOrderByVehicle.get(view.vehicleId) ?? null}
                   hasDraftMove={assembly.draftMovedVehicleIds.has(view.vehicleId)}
                   manualOrder={assembly.orderByVehicle.get(view.vehicleId) ?? null}
+                  onRouteChoiceChange={(routeChoice) =>
+                    assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)
+                  }
+                  routeChoice={resolveVehicleRouteChoice({
+                    routeChoiceByVehicle: assembly.routeChoiceByVehicle,
+                    vehicleId: view.vehicleId,
+                  })}
                   moveTargetsFor={(stopWeightKilograms) =>
                     resolveMoveTargets({
                       fromVehicleId: view.vehicleId,

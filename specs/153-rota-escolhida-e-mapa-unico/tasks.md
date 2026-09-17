@@ -56,7 +56,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
       `canReadFinancials` no mapa e no `RouteTollSummary`. Trocar **regrava** a escolha (RF13); opção
       única avisa em tela em vez de oferecer switch inerte.
 - [x] T403 Criação manual envia a escolha; ordem reorder → plan corrigida.
-- [ ] T404 Proposta: escolha por veículo no aceite e na prévia da conta.
+- [x] T404 Proposta: escolha por veículo no aceite e na prévia da conta.
 - [ ] T405 Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com
       permissão.
 

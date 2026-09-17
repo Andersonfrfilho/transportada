@@ -27,6 +27,7 @@ import {
 } from '../shared/proposalTripDistance.service'
 import { describeProposalTripTime } from '../shared/proposalTripTime.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
@@ -69,6 +70,9 @@ type TripProposalDetailProps = Readonly<{
     isMarked: (layoutId: string) => boolean
     onToggle: (layoutId: string) => void
   }>
+  /** D7: a rota escolhida **deste** veículo — nunca a de outro na mesma proposta. */
+  routeChoice: RouteChoice
+  onRouteChoiceChange: (routeChoice: RouteChoice) => void
   valuation: null | SuggestionVehicleValuation
   vehicle: FleetVehicleDetail | undefined
   view: ProposalVehicleView
@@ -99,6 +103,8 @@ export function TripProposalDetail({
   permissions,
   preferredRouteChoice,
   releaseUnplaced,
+  routeChoice,
+  onRouteChoiceChange,
   valuation,
   vehicle,
   view,
@@ -185,6 +191,7 @@ export function TripProposalDetail({
     isPaused: isMeasurementPaused,
     nfeDocumentIds: documentIds,
     permissions,
+    routeChoice,
     stopOrder,
     vehicleId: view.vehicleId,
   })

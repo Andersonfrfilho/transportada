@@ -2417,3 +2417,202 @@ MapLibre não voltou ao bundle principal.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T404 — Proposta: escolha por veículo no aceite e na prévia da conta ✅ 2026-09-17
+
+### Escopo
+
+D7: a proposta com **mais de um veículo** grava uma escolha de rota **por veículo**, nunca um valor
+único compartilhado por toda a proposta. Cobre (a) o aceite (`acceptMultiVehicleSuggestion`) — a rota
+congelada de cada veículo usa a escolha daquele veículo — e (b) a prévia da conta
+(`useTripValuationPreview`/`previewValuation`) — a conta muda com a rota escolhida daquele veículo.
+D2: a escolha é identificada por `signature` + `criterion`, nunca por índice. D1: a mais barata é o
+default por veículo; quem nunca toca o seletor ainda manda `cheapest` explícito, nunca omitido. Fora
+do escopo: detalhe da viagem já congelada (T405) e Fase 5.
+
+### API: nenhuma mudança necessária, confirmado com evidência de código
+
+O backend já implementa `routeChoiceByVehicle`/`routeChoice` ponta a ponta desde T204/RF4 — spec 153
+não pediu, e não recebeu, alteração de contrato nesta task:
+
+- `apps/api-transportada/src/routing/presentation/route-suggestion-request.schema.ts:143` —
+  `routeChoiceByVehicle` já é campo aceito no corpo do aceite multi-veículo.
+- `apps/api-transportada/src/routing/application/multi-vehicle-suggestion.use-case.ts:171-172` —
+  `routeChoiceByVehicleMap` é montado a partir do array recebido, chaveado por `vehicleId`.
+- `multi-vehicle-suggestion.use-case.ts:262-266` — dentro do laço por grupo,
+  `routeChoiceByVehicleMap.get(group.vehicleId)` busca a escolha **daquele** veículo antes de chamar
+  `trips.planRoute` — é a aplicação por veículo que D7 exige, já em produção.
+- `apps/api-transportada/src/trips/presentation/trip-request.schema.ts:112` —
+  `previewTripValuationSchema.routeChoice` (`routeChoiceRequestSchema.optional()`) já aceita a
+  escolha na prévia de um veículo.
+- `apps/api-transportada/src/trips/presentation/trip.routes.ts:738-767` — a rota `POST
+/trips/valuation-preview` (`TRIP_VALUATION_PREVIEW_PATH`) já encaminha `body.routeChoice` ao
+  `previewValuation.execute` e já está protegida por `policy: TRIP_FINANCIALS_POLICY` (linha 767) —
+  D10/D9: sem `trip.financials` o handler nunca roda, 403 antes de qualquer cálculo; km/tempo
+  continuam fora dessa rota (a prévia de carga usa `TRIP_MANAGE_POLICY`, comentário já existente na
+  linha 771).
+
+Logo: T404 é uma task **só de frontend** — fiar a escolha por veículo já guardada pelo servidor até a
+tela que hoje lê/escreve um valor único.
+
+### D5 — o que acontece com os demais veículos quando um falha (confirmado por leitura, não alterado)
+
+Dois mecanismos distintos, ambos pré-existentes:
+
+1. **Falha de OSRM/congelamento dentro de um único veículo não aborta aquele veículo.**
+   `apps/api-transportada/src/trips/application/plan-trip-route.use-case.ts:94-102`: o congelamento de
+   pedágio roda **depois** de `markRoutePlanned`, dentro de um `try {} catch {}` que absorve qualquer
+   falha (`/* o roteiro está planejado; o pedágio congela no próximo replanejamento */`) — o
+   `route_planned` daquele veículo não é desfeito, e o pedágio recongela no próximo replanejamento.
+2. **Falha "dura" (não-OSRM) em um veículo aborta o restante do aceite naquela chamada.**
+   `multi-vehicle-suggestion.use-case.ts:247-297`: um único `try { for (const group of groups) {...} }
+catch (cause) { ... }` envolve o laço inteiro. Se um veículo lançar uma exceção que o `catch` de
+   `plan-trip-route` não absorveu (ex.: `linkDocument`, `reorderStops`, `applyEstimatedArrivals`), o
+   `catch` externo **libera a sugestão de volta para `ready`** (`suggestions.release`) e relança —
+   nenhum veículo depois dele na mesma chamada de aceite chega a ser processado. As viagens já criadas
+   para veículos **anteriores** na mesma chamada **não são desfeitas** (comentário explícito próximo à
+   linha 288: "não desfaz as viagens já criadas: apagá-las seria destruir trabalho que pode estar
+   correto"). Ou seja: o operador pode reabrir e reaceitar a sugestão, e vai encontrar as viagens que
+   já nasceram antes da falha, mais os veículos restantes ainda por aceitar. Nenhum código deste
+   mecanismo foi tocado por T404 — só confirmado, porque T404 depende dele para garantir que a escolha
+   de um veículo nunca contamina o resultado de outro mesmo sob falha parcial.
+
+### Vermelho genuíno (antes da implementação)
+
+Arquivo novo `apps/frontend-transportada/test/trip/proposal-route-choice.contract.ts` (18 asserções
+novas), saída completa em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t404-red.txt`:
+
+```
+$ bun test ./test/trip.contract.test.ts
+927 pass
+18 fail
+17753 expect() calls
+Ran 945 tests across 1 file.
+```
+
+Os 18 falhos são exatamente as 18 asserções novas (nenhuma das 927 pré-existentes mudou de resultado
+— zero regressão introduzida pela chegada do arquivo). A asserção mais importante do lote — a prova
+de que **dois veículos com escolhas diferentes continuam diferentes ao serem lidos de volta**:
+
+```ts
+test('cada veículo lê a própria escolha — a de um nunca vaza para o outro', async () => {
+  const { resolveVehicleRouteChoice } = await loadProposalRouteChoice()
+  const routeChoiceByVehicle = new Map<string, RouteChoice>([
+    [VEHICLE_ID, { criterion: 'fastest', signature: 'rota-a' }],
+    [SECOND_VEHICLE_ID, { criterion: 'no_toll', signature: 'rota-b' }],
+  ])
+
+  const first = resolveVehicleRouteChoice({ routeChoiceByVehicle, vehicleId: VEHICLE_ID })
+  const second = resolveVehicleRouteChoice({ routeChoiceByVehicle, vehicleId: SECOND_VEHICLE_ID })
+
+  expect(first).toEqual({ criterion: 'fastest', signature: 'rota-a' })
+  expect(second).toEqual({ criterion: 'no_toll', signature: 'rota-b' })
+  expect(first).not.toEqual(second)
+})
+```
+
+Antes da implementação isso falhava por ausência do módulo (`proposalRouteChoice.service.ts` não
+existia). As demais 17 asserções cobrem: D1 (veículo ausente resolve para `cheapest` explícito, nunca
+omitido, tanto na leitura quanto no corpo do aceite), isolamento por veículo no corpo do aceite
+(`routeChoiceByVehicle` do POST nunca troca a escolha de um veículo pela de outro) e na prévia (duas
+chamadas para dois veículos não compartilham a escolha — cada `previewValuation` leva só a rota do seu
+próprio veículo), e o fio de ponta a ponta até a tela por leitura de fonte (import, prop, chave de
+`useQuery`, corpo do `POST`).
+
+### Implementação
+
+- `routeGeometry.service.ts`: exporta `DEFAULT_ROUTE_CHOICE` (antes duplicado só dentro de
+  `useTripQuickCreate.hook.ts`) — dedup por código-padrão §16, já que agora dois módulos precisam do
+  mesmo default.
+- `useTripQuickCreate.hook.ts`: importa `DEFAULT_ROUTE_CHOICE` do lugar canônico em vez de declarar a
+  própria cópia.
+- `proposalRouteChoice.service.ts` (novo, `shared/`): `resolveVehicleRouteChoice` (leitura isolada por
+  veículo, `cheapest` se ausente) e `resolveAcceptedRouteChoices` (uma entrada por veículo aceito,
+  sempre pareada, nunca trocada) — o núcleo puro e testável de D7.
+- `useTripRouteAssembly.hook.ts`: novo estado `routeChoiceByVehicle` (`ReadonlyMap<string,
+RouteChoice>`, nunca um valor único), `setVehicleRouteChoice(vehicleId, routeChoice)` exposto no
+  controller, limpo (`new Map()`) tanto ao propor de novo quanto ao aceitar com sucesso — a escolha da
+  proposta anterior nunca vaza para a próxima. No aceite, `resolveAcceptedRouteChoices` monta
+  `routeChoiceByVehicleForAccept` — **sempre presente** no corpo de `acceptMultiVehicleSuggestion`,
+  nunca condicionado a `.length === 0` como os campos opcionais vizinhos, porque D1 exige o
+  `cheapest` explícito mesmo quando ninguém tocou nada.
+- `tripClient.service.ts`: `acceptMultiVehicleSuggestion` aceita `routeChoiceByVehicle?: readonly
+Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]` e inclui no corpo JSON quando presente.
+- `TripProposalDetail.component.tsx`: recebe `routeChoice`/`onRouteChoiceChange` por veículo, repassa
+  ao `TripAssemblyMap` (que já expunha `onRouteChoiceChange` desde T402) e à consulta de
+  `useTripValuationPreview`.
+- `useTripValuationPreview.hook.ts`: aceita `routeChoice?: RouteChoice` opcional, inclui no corpo de
+  `previewValuation` quando presente e entra na `queryKey` (via `routeChoiceKey`, serializando
+  `criterion:signature`) — trocar a rota de um veículo invalida só a consulta daquele veículo.
+- `tripFinancialsClient.service.ts`: `previewValuation` aceita `routeChoice?: RouteChoice` (import
+  type-only de `trip/shared/routeGeometry.service` — primeira vez que `trip-financials` importa de
+  `trip`, seguro por ser só tipo, apagado em tempo de compilação) e inclui no corpo quando presente.
+- `TripRouteAssemblyDialog.component.tsx`: cada linha de `<TripProposalDetail>` passa
+  `routeChoice={resolveVehicleRouteChoice({ routeChoiceByVehicle: assembly.routeChoiceByVehicle,
+vehicleId: view.vehicleId })}` e `onRouteChoiceChange={(routeChoice) =>
+assembly.setVehicleRouteChoice(view.vehicleId, routeChoice)}` — a leitura é sempre por
+  `view.vehicleId`, nunca um valor lido fora do laço.
+
+### Como a prévia e o aceite são mantidos de acordo
+
+Os dois pontos usam a **mesma fonte** por veículo: o mapa `routeChoiceByVehicle` do
+`useTripRouteAssembly`. A prévia lê via `resolveVehicleRouteChoice` dentro de
+`TripRouteAssemblyDialog` a cada render da linha daquele veículo (nunca um snapshot separado), e o
+aceite lê o mesmo mapa via `resolveAcceptedRouteChoices` no momento do clique — ambos convergem para o
+mesmo `Map`, nunca duas cópias que poderiam divergir. Trocar a escolha de um veículo no seletor do
+mapa (`onRouteChoiceChange`) atualiza o mapa uma vez; a próxima leitura da prévia **e** o próximo
+aceite enxergam o valor novo, do mesmo lugar.
+
+### Três ajustes feitos durante o red → green (no próprio teste, não na produção)
+
+1. **Mock de resposta do aceite incompleto**: o mock de `fetch` de `createAcceptRecordingClient`
+   respondia `{ suggestion: { id: SUGGESTION_ID }, trips: [] } }` sem `status`;
+   `multiVehicleSuggestionFromApi` exige `status` num dos valores de `MultiVehicleSuggestionStatus` e
+   lançava `TRIP_RESPONSE_INVALID` ao validar a resposta — nada a ver com o corpo da requisição que o
+   teste de fato verifica. Corrigido acrescentando `status: 'accepted'` ao mock.
+2. **Janela de 1500 caracteres da asserção de `TripRouteAssemblyDialog`**: a posição original de
+   `routeChoice`/`onRouteChoiceChange` na JSX (depois de `releaseUnplaced`) ficava a 1629 caracteres
+   do início de `<TripProposalDetail`, fora da janela de 1500 que o teste lê. Corrigido reposicionando
+   as duas props para logo depois de `manualOrder` (492 caracteres do início) — mudança de ordem de
+   props, não de comportamento.
+3. **Prettier quebrou a anotação `useState<ReadonlyMap<string, RouteChoice>>` em duas linhas** (a
+   linha inteira excede os 100 caracteres de `printWidth`), e o regex original
+   `/routeChoiceByVehicle.*ReadonlyMap<string, RouteChoice>/u` não casa `.` com quebra de linha.
+   Ajustado para `[\s\S]*` no lugar de `.*` — o mesmo teste, tolerante à formatação, sem enfraquecer o
+   que ele prova (que o estado é `ReadonlyMap`, não um valor único).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros. (1 erro corrigido no caminho: `TRIP_ID` importado e não usado em
+apps/frontend-transportada/test/trip/proposal-route-choice.contract.ts — removido do import.)
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão (depois de aplicar `prettier --write` nos 3 arquivos que a
+alteração deixou fora do estilo: useTripRouteAssembly.hook.ts, proposalRouteChoice.service.ts,
+proposal-route-choice.contract.ts).
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+945 pass / 0 fail — 927 pré-existentes (T401-T403) inalterados + 18 novos de D7, todos verdes.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4188 pass / 0 fail — baseline T403 (4170 pass / 0 fail) + 18, exatamente o delta do arquivo novo.
+Nenhum teste pré-existente mudou de contagem ou de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 9.35s — PWA precache 129 entries (4469.52 KiB), mesma contagem do baseline (129).
+`vectorBasemap.service` (997.94 kB) e `index` (952.92 kB) seguem como chunks separados, ambos abaixo
+do teto de 2 MiB por asset — MapLibre não voltou ao bundle principal.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task (ver
+seção acima) — os três achados de código citados são leitura, não mudança.
+
+### Commit
+
+`<preenchido após o commit>`
