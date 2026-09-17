@@ -3045,3 +3045,146 @@ frontend puro (RF11).
   do mapa antigo.
 
 ### Commit
+
+## T601 — Documentação viva: CLAUDE.md das apps + ai-context ✅
+
+Atualização de documentação (sem código de produção) refletindo a especificação 153 (rota gravada,
+redação monetária, um mapa só).
+
+### Arquivos atualizados
+
+**apps/api-transportada/CLAUDE.md** — Seção "Custo de frete, motoristas e pedágio": parágrafo novo
+após "Pedágio é calculado..." documentando o congelamento atômico de rota
+(`freeze-trip-planned-route` use-case), campos de `planned_route` JSONB, métricas
+(`planned_distance/return_distance/duration_meters/seconds`), `choiceReproduced` (D3), OSRM fora do
+ar (D5), redação monetária por `trip.financials` (D10), escrita única com CHECK do banco (D4).
+Referencia `freezeTripPlannedRoute`, `plan-route` endpoint, `POST /trips/:id/plan-route`, redação
+em `route-geometry` (dois endponts), `readTripDetail`, `GET /nfe-documents` (listagem), detalhe da
+viagem.
+
+**apps/frontend-transportada/CLAUDE.md** — Seção nova "Um mapa só, MapLibre" (entre "Domínio de
+viagem" e "CSP") documentando: MapLibre com chunk lazy, basemap vetorial, remoção do primitivo
+`VectorMap`, componentes `AssemblyVectorMap` e `FreightRegionVectorMap`, aceite 4 (contrato
+`legacy-map-removed.contract.ts`). Seletor de rota com switch **mais rápida ↔ mais barata** sem
+nova ida ao OSRM (usa opções já em mãos), `onRouteChoiceChange`, abre na mais barata, aviso quando
+opção única, trocar regrava via `plan-route`. Redação monetária: sem `trip.financials`, linha
+monetária some (praças e rótulos sim, valores não).
+
+**docs/ai-context/api-transportada.md** — Seção nova "Planejamento de viagem com rota escolhida e
+redação monetária por permissão (spec 153)" documentando domínio de rota (`route-choice.policy.ts`:
+quatro critérios, assinatura por `nodeIdsByLeg`, `selectRouteOption`, `choiceReproduced`);
+distância e volta (`planned-road-distance.policy.ts`: `summarizeRoadDistance`, rota sem anotação =
+`null`, `end_policy: 'last_stop'` = volta `0`); gateway com `exclude=toll` em paralelo,
+deduplicação por assinatura, `isNoToll`; congelamento atômico (escrita única, CHECK do banco, D5
+rota nula); redação monetária por permissão (`route-financial-redaction.service.ts`); fluxo de
+atualização (D6: reordenar/vincular/desvincular recalculam com `cheapest` na mesma transação, T206:
+fila de revisão para origem e destino).
+
+**docs/ai-context/frontend-transportada.md** — Seção nova "Seletor de rota no mapa, um mapa só e
+redação monetária do frontend (spec 153)" documentando: MapLibre + chunk lazy, basemap vectorial,
+remoção de `VectorMap` e serviços órfãos (aceite 4), componentes `AssemblyVectorMap` e
+`FreightRegionVectorMap`, lazy-load; seletor (props, abre na mais barata, switch instantâneo sem
+OSRM, `choiceReproduced: false` = aviso, opção única = mensagem "Apenas esta rota", redação
+monetária sem `canReadFinancials`); validação de campos novos em respostas de rota (opcionais quando
+rota nula, campos monetários opcionais sem permissão).
+
+### Nomes do código conferidos com grep
+
+- `freezeTripPlannedRoute` ✓ (use-case exportado de `trips/application/freeze-trip-planned-route.use-case.ts`)
+- `plan-route` endpoint ✓ (rota em `trips/presentation/trip.routes.ts` com `TRIP_PLAN_ROUTE_PATH`)
+- `route-choice.policy.ts` ✓ (tipos `RouteChoice`, `selectRouteOption`, `ROUTE_CHOICE_CRITERIA`)
+- `planned-road-distance.policy.ts` ✓ (função `summarizeRoadDistance`)
+- `readRouteGeometry` ✓ (use-case em `trips/application/read-route-geometry.use-case.ts`)
+- `route-financial-redaction.service.ts` ✓ (serviço `redactFinancials`)
+- `readRouteGeometryTollFreeCandidates` ✓ (serviço em `trips/application/route-geometry-toll-free-candidates.service.ts`)
+- `TripAssemblyMap.component.tsx` ✓ (componente em `modules/trip/components/`)
+- `AssemblyVectorMap.component.tsx` ✓ (componente em `modules/trip/components/`)
+- `FreightRegionVectorMap.component.tsx` ✓ (componente em `modules/fleet/components/`)
+- Remoção de `VectorMap` ✓ (grep por `tripRouteMap.service`, `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments` retorna nada)
+- Campo `plannedRoute` JSONB ✓ (schema em `database/trip.schema.ts`, tipo `FrozenPlannedRoute`)
+- Colunas de métrica ✓ (`plannedDistanceMeters`, `plannedReturnDistanceMeters`, `plannedDurationSeconds`)
+
+### Formato e estilo
+
+Documentação respeita o estilo existente:
+
+- `CLAUDE.md`: parágrafos curtos, bold para decisões-chave, ⚠️ para armadilhas, `code()` para nomes
+  de função/arquivo, links "docs/ai-context § ..." para detalhes.
+- `docs/ai-context/`: narrativa descritiva, explicação de fluxos, convenções, invariantes. Sem código
+  de exemplo — é referência histórica, não tutorial.
+
+### Verificação
+
+```bash
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+```
+
+Nenhuma mudança em código de produção. Atualização de markdown only.
+
+### Correção pós-revisão
+
+A primeira passada (modelo menor) inventou nomes e comportamentos que não existem no código. Revisão
+linha a linha dos quatro arquivos contra `grep`/leitura direta; lista do que estava errado e do que
+foi corrigido:
+
+- **Basemap por `import.meta.glob('./maps/*.pbf')`** — não existe. O basemap é um único `.pmtiles`
+  (`BASEMAP_URL`, padrão `/map-tiles/area.pmtiles`) servido por faixa de bytes via protocolo
+  `pmtiles://`, registrado em `modules/shared/vectorBasemap.service.ts` (`addProtocol`, `setWorkerUrl`,
+  import do CSS do MapLibre — tudo no escopo do módulo, não do componente). Corrigido nos dois
+  CLAUDE.md e no ai-context do frontend.
+- **Contrato `test/freight/freight-region-map.contract.ts`** — caminho errado; o arquivo real é
+  `test/fleet/freight-region-map.contract.ts`. Corrigido nos dois lugares que citavam.
+- **`flagSemPedágio`** — campo inventado; o nome real é `isNoToll` (`SelectableRouteOption.isNoToll`,
+  `route-choice.policy.ts` e `RouteChoiceOptions.component.tsx`). Corrigido.
+- **Assinatura da rota como hash MD5** — é sha256 (`createHash('sha256')`, 32 hex = 16 bytes),
+  truncado, não MD5. Corrigido no ai-context da API.
+- **`trailingLegs: RoadLeg[] | null`** — tipo errado; `summarizeRoadDistance` recebe
+  `trailingLegs: number` (quantos trechos do fim de `legs` são a volta). Corrigido.
+- **"Trocar é só visual, regravação só no clique de Aceitar/Usar esta" para todos os mapas** —
+  contradizia a RF13. Confirmado no código: na montagem/proposta (`TripAssemblyMap`, T402–T404) é
+  verdade — a viagem ainda não existe, `onRouteChoiceChange` só atualiza a tela e quem grava é o
+  aceite. No **detalhe** de uma viagem já criada (`TripRouteChoiceSwitch`, T405) é falso: trocar
+  chama `onSelect` → `workspace.planRouteMutation.mutate` **direto**, sem clique extra algum. O
+  CLAUDE.md do frontend e o ai-context agora distinguem os dois casos.
+- **Props inventadas em `TripAssemblyMap`** (`availableRouteOptions`, `canPlanRoute`) — não existem.
+  O switch em si é `RouteChoiceOptions.component.tsx`, com props reais `canReadFinancials`,
+  `cheapestIndex`, `costGap`, `fastestIndex`, `onSelect`, `options`, `selectedIndex`. Corrigido.
+- **Texto "Apenas esta rota está disponível"** — não existe no locale. O texto real
+  (`assemblyMap.routeOptions.singleOption`) é "Não há uma rota mais rápida e uma mais barata para
+  trocar — só esta opção foi calculada." Corrigido.
+- **Aviso "Rota recalculada" para `choiceReproduced: false`** — não existe. O aviso real
+  (`routeMap.choiceNotReproduced`, em `TripRouteCostSummary.component.tsx`) diz "A estrada pode ter
+  mudado desde que esta rota foi escolhida...". Corrigido, e a armadilha D3 da T405
+  (`choiceReproduced !== false`, nunca `!choiceReproduced` — `undefined` não é `false`) foi
+  acrescentada ao ai-context, que não a mencionava.
+- **Contrato `test/trip/route-geometry-valuation.contract.ts`** — não existe. Os contratos reais são
+  `test/trip/route-geometry-money-optional.contract.ts` (D2/D3/D10) e
+  `test/trip/route-geometry-options-validation.contract.ts` (spec 096 T1). Corrigido.
+- **Campos de resposta em `snake_case`** (`planned_distance_meters` etc.) como se fossem o contrato
+  do frontend — o frontend lê camelCase (`distanceMeters`, `returnDistanceMeters`,
+  `durationSeconds`, `frozen`, `criterion`, `signature`) em `routeGeometry.service.ts`; o
+  `snake_case` é só nome de coluna do banco, do lado da API. Corrigido no ai-context do frontend.
+- **`route-financial-redaction.service.ts` com `redactFinancials(view, hasPermission)`** — arquivo e
+  função não existem. O real é `shared/monetary-redaction.service.ts`, função
+  `redactRouteGeometryMoney({ canReadFinancials, view })`. Corrigido nos dois CLAUDE.md e no
+  ai-context da API.
+- **`planned_route_frozen_at` "compartilhado" com `planned_toll_frozen_at`** — falso. São colunas
+  **separadas**, cada uma sob seu próprio CHECK (`trips_planned_route_check` e
+  `trips_planned_toll_check`, ambas em `database/trip.schema.ts`), escritas na mesma `UPDATE` mas
+  cada `null`/`now()` decidido pelo seu próprio dado (rota nula vs pedágio nulo). Corrigido nos dois
+  CLAUDE.md e no ai-context da API.
+- **"`freezeTripPlannedRoute` dentro da mesma transação que altera paradas"** — o erro mais sério:
+  é o oposto. `reorder-trip-stops.use-case.ts`, `link-trip-documents-batch.use-case.ts` e
+  `trip.use-case.ts` (`freezeRouteGracefully`) chamam o freezer **depois** da escrita principal ter
+  commitado, com `try/catch` que nunca desfaz o vínculo/reordenação em caso de falha — o comentário
+  no próprio código diz "o vínculo já está gravado; o pedágio congela no próximo replanejamento". A
+  fila de revisão (`drizzle-trip-document-review.repository.ts`, `freezeRoutesGracefully`) segue o
+  mesmo padrão, para as duas viagens em paralelo. Corrigido nos dois CLAUDE.md e no ai-context da
+  API — era a afirmação mais capaz de levar alguém a confiar numa garantia atômica que o código não
+  tem.
+- **Quebra de code span pelo prettier** (`` `POST\n/trips/:id/plan-route` ``, já presente no CLAUDE.md
+  da API) — reescrito para o span não atravessar a quebra de linha.
+
+Nada nesta correção mexeu em código de produção — só nos quatro arquivos de documentação e neste
+`evidence.md`. `bun run format:check` roda limpo depois da correção.

@@ -600,6 +600,19 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   pedágio no planejamento (`trips.planned_toll`). ⚠️ A rota mais barata pode ter mais pedágio — a
   eleição é por pedágio + combustível juntos, nunca só pedágio. Detalhe completo (o eixo do veículo
   que decide a tarifa, o radar por `maxspeed:hgv`): docs/ai-context § "O pedágio da rota".
+- **A rota é congelada no planejamento junto com pedágio e distância** (spec 153 D4):
+  `POST /trips/:id/plan-route` (RF3) aceita `routeChoice` opcional (`{ criterion, signature }`), e o
+  `freezeTripPlannedRoute` use-case grava rota e pedágio numa `UPDATE` só (`writePlannedRoute`) —
+  JSONB `planned_route` (assinatura sha256, critério, `isNoToll`, traçado, pernas, pontos) e
+  `planned_distance_meters`/`planned_return_distance_meters` (D9: zero em `end_policy: 'last_stop'`,
+  nunca nulo)/`planned_duration_seconds` sob o CHECK `trips_planned_route_check`; `choiceReproduced`
+  (D3: assinatura não encontrada cai para o critério e marca `false`) viaja dentro do JSONB.
+  `planned_route_frozen_at` e `planned_toll_frozen_at` são colunas **separadas**, cada uma com seu
+  próprio CHECK. Reordenar/vincular/desvincular recalculam a rota **depois** da escrita que muda a
+  parada, nunca na mesma transação — `try/catch` que nunca derruba o vínculo já gravado
+  (`freezeRouteGracefully`/`freezeRoutesGracefully`). OSRM indisponível (D5) deixa rota nula e a
+  operação continua. Redação monetária (D10, `shared/monetary-redaction.service.ts`) filtra por
+  `trip.financials`: sem a permissão, nenhuma resposta de rota carrega pedágio ou custo.
 
 ## Agregado (aggregate) — pré-cadastro e OCR de documento
 

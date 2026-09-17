@@ -71,7 +71,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `haiku` (docs) · `opus` (revisão)
 
-- [ ] T601 `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e
+- [x] T601 `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e
       `docs/ai-context/*`: rota gravada, redação monetária, mapa único.
 - [ ] T602 Revisão final com `code-reviewer` `model=opus`; `make check`.
 

@@ -1924,3 +1924,71 @@ registro datado: o que se decidiu, o que se mediu e os defeitos achados no camin
   - robustez: diagnóstico do gancho (C10), `new Error` cru (C11), S3 dentro da transação (C12),
     posição duplicada das respostas rápidas (C13), atualização perdida no contato (C14),
     fingerprint sem ator (C15).
+
+## Planejamento de viagem com rota escolhida e redação monetária por permissão (spec 153)
+
+### Rota gravada no planejamento, não descartada após criação (spec 153 Fase 1–2)
+
+**O seam de assinatura e critério** (`trips/domain/route-choice.policy.ts`): quatro critérios
+(`ROUTE_CHOICE_CRITERIA = 'cheapest' | 'fastest' | 'no_toll' | 'alternative'`); assinatura é sha256
+de `nodeIdsByLeg` truncado nos 32 primeiros hex (16 bytes) — assina os nós **por perna**, não a lista
+achatada (`nodeIds`), para evitar colisão entre rotas que diferem só em onde a parada cai;
+`selectRouteOption({ options, choice })` elege a opção cuja assinatura bate o pedido, ou cai para o
+critério quando não encontra ou quando o critério tem de escolher entre várias. `reproduced` (que
+`freezeTripPlannedRoute` grava como `choiceReproduced`) é `true` quando a eleição bate o que foi
+pedido, `false` quando caiu para o critério ou a assinatura não foi encontrada. Pedido sem assinatura
+que o critério atende é `true` — todo congelamento sem seletor manual (recálculo de rota no
+reordenar/vincular) e sem assinatura é uma escolha bem-sucedida do critério padrão, não uma falha.
+
+**Seam de distância e volta** (`trips/domain/planned-road-distance.policy.ts`): `summarizeRoadDistance`
+lê pernas da rota (`legs: RoadLeg[]`, que é traçado com nós) e quantos trechos do fim são a volta ao
+depot (`trailingLegs: number`, como `route-depot.policy.ts` já os conta), devolve
+`{ distanceMeters, durationSeconds, returnDistanceMeters }`. Sem perna nenhuma (`legs.length === 0`)
+o resumo é todo `null` — nunca zero, porque a conta de combustível não pode fingir que a viagem não
+consome. `end_policy: 'last_stop'` = volta `0` (já vem como `trailingLegs: 0`).
+
+**Gateway com `exclude=toll` em paralelo** (`infrastructure/osrm-route-geometry.gateway.ts`,
+`application/route-geometry-toll-free-candidates.service.ts`): `readRouteGeometry` ganha flag
+`options?: { excludeToll?: boolean }` na porta; o chamador (`read-route-geometry.use-case.ts`) dispara
+as duas chamadas em paralelo com `Promise.allSettled` (isola falha de uma), deduplica por assinatura
+(assinatura nula nunca deduplica), marca `isNoToll` em cada candidata. `readRouteGeometryTollFreeCandidates`
+aplica a dedupe pura — o use-case a usa para montar `options[]` no retorno.
+
+**Congelamento numa escrita só, não numa transação com a mudança de parada**
+(`application/freeze-trip-planned-route.use-case.ts`,
+`infrastructure/drizzle-trip-planned-route.repository.ts`): `WritePlannedRouteInput` recebe rota
+(`FrozenPlannedRoute | null`) e pedágio (`TollRouteCost | null`); `writePlannedRoute` faz um `UPDATE`
+só, com `plannedRoute`/`plannedDistanceMeters`/`plannedReturnDistanceMeters`/`plannedDurationSeconds`/
+`plannedRouteFrozenAt` (`null` em bloco quando a rota é nula — D5) e `plannedToll`/
+`plannedTollFrozenAt` (`null` em bloco quando o pedágio é nulo) lado a lado. **As duas datas de
+congelamento são colunas separadas**, cada uma sob seu próprio CHECK (`trips_planned_route_check`
+força as quatro colunas da rota a nascerem e morrerem juntas com `planned_route_frozen_at`;
+`trips_planned_toll_check`, de sempre — spec 090 —, faz o mesmo para `planned_toll` com
+`planned_toll_frozen_at`). ⚠️ **O congelamento não roda dentro da transação que muda a parada.**
+Reordenar (`reorder-trip-stops.use-case.ts`), vincular (`link-trip-documents-batch.use-case.ts`) e
+vincular/desvincular no detalhe (`trip.use-case.ts`, `freezeRouteGracefully`) chamam o freezer
+**depois** da escrita principal ter commitado, com `try/catch` que nunca a desfaz — "o vínculo já
+está gravado; o pedágio congela no próximo replanejamento" é o comentário no próprio código. A fila
+de revisão (`drizzle-trip-document-review.repository.ts`, `freezeRoutesGracefully`) segue o mesmo
+padrão para origem e destino, em paralelo, cada tentativa isolada por `try/catch`.
+
+**Redação monetária por permissão** (`shared/monetary-redaction.service.ts`):
+`redactRouteGeometryMoney({ canReadFinancials, view })` devolve a view sem alteração quando
+`canReadFinancials`, e senão omite os campos monetários — `fuelTotal`/`totalCost` de cada opção,
+`chargePerAxle`/`total` do pedágio (do topo e de cada opção) e as parcelas por praça de cada
+`TollBoothRouteLine` (`chargeCar`, `chargePerAxle`, `chargePerAxleAutomatic`,
+`effectiveChargePerAxle`, `total`) — nunca `null` nem zero no lugar, para o TypeScript recusar quem
+ler o campo sem checar a ausência primeiro.
+`redactNfeDocumentMoney`/`redactTripDocumentMoney`, no mesmo arquivo, fazem o mesmo para NF-e e para
+o total da viagem; a fila de revisão usa a mesma redação.
+
+### Fluxo de atualização de rota (spec 153 Fase 2, T205–T206)
+
+`POST /trips/:id/plan-route` (RF3): `{ routeChoice?: { criterion, signature } }` opcional; tira a
+rota anterior (coloca `null`), recalcula com OSRM (D6), aplica a escolha ou o padrão `cheapest`,
+congela. Toda mudança de parada antes do despacho recalcula: `linkDocument`, `unlinkDocument`
+(`releaseLiveLink`, que chama `reconcileStopOnUnlink` dentro da transação da liberação) e
+`reorderTripStops` (T205) disparam o freezer graciosamente **depois** de gravar a mudança — nunca na
+mesma transação, para uma falha do roteirizador não desfazer o vínculo ou a reordenação. Fila de
+revisão (`move`/`swap`) funciona por vinculação/desvinculação das duas viagens (origem e destino);
+ambas recalculam, em paralelo e cada uma isolada, antes do despacho (T206, RF12).
