@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "14514211-a59c-4a12-a159-fcbcc99fccc5",
+  "id": "b4602f4e-44db-4660-9f75-376e35391be7",
   "prevIds": [
-    "819cd900-881a-4ec2-822e-f80d777433b8"
+    "7bf9bfc4-dc11-4d74-bcce-671001718960"
   ],
   "ddl": [
     {
@@ -477,6 +477,12 @@
     {
       "isRlsEnabled": false,
       "name": "fuel_price_references",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "toll_booth_extracts",
       "entityType": "tables",
       "schema": "public"
     },
@@ -13975,6 +13981,201 @@
       "entityType": "columns",
       "schema": "public",
       "table": "fuel_price_references"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_on",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "object_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sha256",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "booth_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "booths_with_charge",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "booths_with_axle_charge",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_url",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "extracted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "uploaded_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "missing_object_observed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reloaded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reloaded_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reloaded_booth_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "toll_booth_extracts"
     },
     {
       "type": "uuid",
@@ -41254,6 +41455,17 @@
     },
     {
       "columns": [
+        "dataset",
+        "observed_on"
+      ],
+      "nameExplicit": true,
+      "name": "toll_booth_extracts_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "columns": [
         "vehicle_type",
         "body_type"
       ],
@@ -48164,6 +48376,55 @@
       "entityType": "checks",
       "schema": "public",
       "table": "fuel_price_references"
+    },
+    {
+      "value": "\"dataset\" ~ '^[a-z0-9][a-z0-9-]*$'",
+      "name": "toll_booth_extracts_dataset_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "\"object_key\" ~ '^toll-booths/osm/[a-z0-9-]+/[0-9]{4}-[0-9]{2}-[0-9]{2}/toll-booths\\.json$'",
+      "name": "toll_booth_extracts_object_key_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "\"sha256\" ~ '^[0-9a-f]{64}$'",
+      "name": "toll_booth_extracts_sha256_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "\"booth_count\" > 0 and \"booths_with_charge\" between 0 and \"booth_count\" and \"booths_with_axle_charge\" between 0 and \"booths_with_charge\"",
+      "name": "toll_booth_extracts_counts_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "\"source_url\" is null or \"source_url\" ~ '^https://'",
+      "name": "toll_booth_extracts_source_url_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "(\"reloaded_at\" is null) = (\"reloaded_by_user_id\" is null) and (\"reloaded_at\" is null) = (\"reloaded_booth_count\" is null) and (\"reloaded_booth_count\" is null or \"reloaded_booth_count\" >= 0)",
+      "name": "toll_booth_extracts_reload_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
+    },
+    {
+      "value": "(\"reloaded_at\" is null or \"reloaded_at\" >= \"created_at\") and (\"missing_object_observed_at\" is null or \"missing_object_observed_at\" >= \"created_at\")",
+      "name": "toll_booth_extracts_timeline_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "toll_booth_extracts"
     },
     {
       "value": "\"osm_node_id\" > 0",
