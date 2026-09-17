@@ -851,3 +851,170 @@ reescrito desta task).
 **Divergência de escopo, não bloqueio:** o bloco de recarga do extrato (RF3/RF4, botão só com
 `settings.manage`) é T303, explicitamente fora desta task — o painel de hoje não oferece recarregar,
 só ler o catálogo e ajustar.
+
+### T301 — `POST`/`GET /v1/toll-booths/extracts`
+
+Arquivos novos: `src/toll-booths/domain/toll-booth-extract.policy.ts` (`buildExtractObjectKey`,
+`summarizeTollBoothExtract`, `TollBoothExtractRow`/`TollBoothExtractRowInput`),
+`toll-booth-extract.error.ts` (`TollBoothExtractDuplicateError` 409,
+`TollBoothExtractObjectConflictError` 409, ambas `ApiError` — **este repositório não tem
+`DomainError`/`shared/errors/codes.ts`**; a base real é `src/shared/api.error.ts`, conferido antes de
+escrever qualquer coisa: nenhum módulo estende `DomainError`),
+`application/toll-booth-extract.port.ts`, `create-toll-booth-extract.use-case.ts` (sem `try/catch` —
+o mapeamento dos dois conflitos é da infraestrutura), `list-toll-booth-extracts.use-case.ts`,
+`infrastructure/drizzle-toll-booth-extract.repository.ts`,
+`infrastructure/toll-booth-extract-storage.gateway.ts`,
+`presentation/toll-booth-extract.schema.ts`, `presentation/toll-booth-extract.routes.ts` (arquivo
+próprio, separado de `toll-booth.routes.ts`, que continua com 76 linhas). Constante nova
+`API_TOLL_BOOTH_EXTRACTS_PATH` em `shared/api.constant.ts`. Wiring em `src/main.ts`
+(`tollBoothExtractRepository`, as duas rotas registradas ao lado de `createTollBoothRoutes`,
+reaproveitando o `storageGateway`/`storageBucket` que `nfe-imports`/billing já montam — a spec (D3)
+não pede bucket próprio, só "o bucket do ambiente").
+
+#### Desenho: `dataset`/`observedOn` na query, o corpo é o array cru
+
+O corpo é **exatamente** o JSON do extrator — o mesmo array que `toll-booths.json` guarda no bucket
+(T001), sem envelope. `dataset` e `observedOn` não cabem nele (o extrator nunca os escreve, T001
+P1), então viajam na query string (`?dataset=sudeste&observedOn=2026-09-14`), no molde de
+`parseTollBoothCatalogQuery`. Isso é o que permite ao sha256 ser calculado sobre os **bytes crus**
+lidos da requisição (nunca sobre um `JSON.stringify` de novo, que não reproduz os mesmos bytes por
+ordem de chave/espaço) — condição para a resubida byte-a-byte do extrato hoje só manual em staging
+(T001, decisão de resubir pela RF3b) ser reconhecida como `replayed` pelo `create-only` em vez de
+gerar objeto divergente.
+
+A forma de cada linha reaproveita `TollBoothExtractRowInput` (mesmos campos que
+`osm-toll-booth.types.ts`/o extrator escrevem — `osmNodeId` incluso, tudo texto, RNF5); o Zod em
+`toll-booth-extract.schema.ts` usa `satisfies z.ZodType<TollBoothExtractRowInput>` para nunca
+divergir do tipo do domínio, e importa `MONEY_DECIMAL` de `shared/money.constant.ts` em vez de
+redeclarar o regex de dinheiro (code-standart §16). Erros de todas as linhas juntos: `parseBody`/
+`safeParse` do Zod já devolve `result.error.issues` inteiro, e o teste do 400 cobre duas violações
+na mesma linha (`chargeCar` com duas casas, `osmNodeId` não numérico) numa resposta só.
+
+#### `create-only` fim a fim: quem garante o quê
+
+1. **Objeto antes da linha.** O use case chama `storage.putCreateOnly` primeiro; só grava a linha se
+   o `put` não lançar. Isso evita o cenário em que a linha existe e o objeto não (ao contrário do
+   caso extremo "objeto sumiu do bucket" da spec, que é depois de uma recarga, T302).
+2. **Duplicidade da linha** é a `pkey` natural `(dataset, observed_on)` da T101 —
+   `drizzle-toll-booth-extract.repository.ts` nunca faz `SELECT` antes do `INSERT` (janela de
+   corrida); o `23505` do Postgres é mapeado por `violatedUniqueConstraint` (o mesmo helper de
+   `postgres-error.support.ts` que `drizzle-fiscal-sequence-reservation.repository.ts` usa) para
+   `TollBoothExtractDuplicateError`.
+3. **Duplicidade do objeto** é o próprio `@adatechnology/object-storage-provider`: `mode:
+'create-only'` devolve `disposition: 'replayed'` para os mesmos bytes na mesma chave, e lança
+   `ObjectStorageError(objectConflict)` para bytes diferentes — confirmado lendo
+   `node_modules/.../object-storage-provider/dist/index.js:198-230` antes de escrever o gateway.
+   `toll-booth-extract-storage.gateway.ts` traduz esse `objectConflict` para
+   `TollBoothExtractObjectConflictError`; qualquer outro erro do provider sobe cru (503 do handler
+   central, nunca escondido).
+4. **Nunca sobrescreve**: nenhum caminho do código chama `put` com outro `mode` — `create-only` é
+   literal no `NfeStorageGateway.storeObject` que o módulo reaproveita, e a integração (abaixo)
+   prova isso lendo o objeto de volta depois de cada tentativa.
+
+#### Vermelho antes da implementação
+
+```
+$ bun test ./test/toll-booths.contract.test.ts
+error: Cannot find module '../../src/toll-booths/presentation/toll-booth-extract.routes.js'
+```
+
+(o arquivo de teste foi escrito primeiro, contra os tipos/rotas que ainda não existiam.)
+
+#### Verde depois
+
+Contrato HTTP (`test/toll-booths/toll-booth-extract-routes.contract.ts`, 15 casos, dependências
+dubladas — `201` com a linha; `409` no duplicado de linha; `409` no conflito de objeto; `400` com
+duas violações Zod na mesma resposta; `400` de `dataset` inválido na query; `403` sem
+`settings.manage` nas duas rotas; `companyId`/ator nunca lidos do corpo; listagem do mais novo para
+o mais antigo):
+
+```
+$ bun test ./test/toll-booths.contract.test.ts
+ 95 pass
+ 9 skip
+ 0 fail
+ 190 expect() calls
+Ran 104 tests across 1 file. [342.00ms]
+```
+
+Suíte completa de contrato da API:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6299 pass
+ 23 skip
+ 0 fail
+ 22018 expect() calls
+Ran 6322 tests across 177 files. [23.65s]
+```
+
+(Eram 6263 pass/23 skip na linha de base do T101 — as 36 novas são as 15 desta task mais as que já
+existiam entre T101 e agora nas fases 1-2; nenhuma quebrou.)
+
+#### Integração real: MinIO + Postgres, não dublados
+
+`test/integration/toll-booth-extract-storage.integration.ts` (novo, acrescentado à lista explícita
+do script `test:integration` do `package.json`, ao lado de
+`toll-booth-sighting-repository.integration.ts`) sobe um Postgres descartável
+(`runDatabaseMigrations` + `createDrizzleProvider`, molde de
+`toll-booth-sighting-repository.integration.ts`) e fala com o MinIO de `make e2e-up` via
+`createObjectStorageProvider` de verdade — dois casos:
+
+1. Primeira chamada grava objeto + linha; a segunda, com os mesmos bytes/`dataset`/`observedOn`,
+   recebe `TollBoothExtractDuplicateError` — e o `head()` do objeto depois da segunda tentativa
+   prova `sha256`/`contentLength` **inalterados** frente à primeira (o `put` da segunda tentativa
+   respondeu `replayed`, nunca reescreveu).
+2. Um objeto de terceiro (bytes diferentes) plantado na chave antes da chamada: o use case responde
+   `TollBoothExtractObjectConflictError`, o `head()` depois mostra o objeto do terceiro **intacto**,
+   e nenhuma linha é gravada (`list()` vazio) — a linha nunca nasce sem o objeto ter sido aceito.
+
+```
+$ make e2e-up
+ Container transportada-test-postgres-1  Healthy
+ Container transportada-test-rabbitmq-1  Healthy
+ Container transportada-test-minio-1     Healthy
+
+$ cd apps/api-transportada && bun --env-file=../../.env.test test \
+    ./test/integration/toll-booth-extract-storage.integration.ts --timeout 60000
+ 2 pass
+ 0 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [2.65s]
+```
+
+⚠️ **Divergência encontrada, não desta task:** com o `.env.test` do repositório _sem alteração_, a
+suíte acima (e a já existente `cte-archive-gateway.integration.ts`, confirmada com o mesmo sintoma
+antes de eu tocar em qualquer arquivo) responde `ObjectStorageError: Object storage is unavailable`.
+Causa: `STORAGE_SECRET_KEY=replace-me` no `.env.test` compartilhado (link simbólico para
+`~/Documents/personal/transportada/.env.test`, fora deste worktree) não bate com a senha fixa que
+`compose.yaml` grava no container (`MINIO_ROOT_PASSWORD: minio-local-password`, linha 39). MinIO
+**subiu** — não é o caso de "não subir" da instrução — só a credencial do arquivo compartilhado está
+desatualizada. Corrigi-la exige editar um arquivo fora deste worktree, e o classificador de
+permissões da sessão recusou a escrita ("Modify Shared Resources"); a correção de uma linha
+(`STORAGE_SECRET_KEY=minio-local-password`) fica para quem tiver permissão sobre
+`~/Documents/personal/transportada/.env.test`. As duas rodadas acima (contra o MinIO/Postgres reais)
+foram obtidas passando `STORAGE_SECRET_KEY=minio-local-password` como override de ambiente na
+própria chamada do `bun test`, sem alterar nenhum arquivo — é a prova genuína de create-only, só não
+reproduzível com o comando exato do runbook até aquele arquivo compartilhado ser corrigido.
+
+#### Gates
+
+```
+$ bun run typecheck    # 6 apps — exit 0
+$ bun run lint         # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check # exit 0 (2 arquivos reformatados por --write antes do check final)
+```
+
+#### Divergências em relação ao plano/instrução
+
+- **Nome do tipo da linha do extrato:** o `plan.md` sugeriu `TollBoothExtractRecord`, mas esse nome
+  já existe em `osm-toll-booth.types.ts` com outro significado (uma praça do extract, não a linha da
+  tabela). Usei `TollBoothExtractRow` para a linha e `TollBoothExtractRowInput` para uma praça do
+  corpo, evitando colisão sem inventar um terceiro conceito.
+- **`shared/errors/codes.ts`/`DomainError`:** a instrução original pedia essa hierarquia (padrão
+  genérico do ecossistema), mas este repositório não a tem — confirmado por busca em todo `src/`
+  antes de escrever. Segui o padrão real e medido do repositório (`ApiError` de
+  `shared/api.error.ts`, um `*.error.ts` por módulo, código inline sem catálogo central), o mesmo
+  que `fleet.error.ts`/`company-settings.error.ts` usam.
+- **Credencial do `.env.test`** (acima): fora do escopo desta task e fora deste worktree; reportado,
+  não corrigido.

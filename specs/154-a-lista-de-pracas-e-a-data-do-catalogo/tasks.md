@@ -40,7 +40,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 > 🤖 Modelo: `sonnet` (T302 é 🧠 — validar com `architect` antes)
 
-- [ ] T301 `POST /v1/toll-booths/extracts`: Zod sobre o JSON, sha256, `put` em `create-only`, linha
+- [x] T301 `POST /v1/toll-booths/extracts`: Zod sobre o JSON, sha256, `put` em `create-only`, linha
       registrada, `409` no duplicado — contrato + integração com o MinIO local.
 - [ ] T302 🧠 `POST /v1/toll-booths/reload`: lê a linha, baixa, valida, chama o seed existente,
       grava `reloaded_*`, serializa concorrentes (RNF3). Erros de domínio próprios. Contratos:

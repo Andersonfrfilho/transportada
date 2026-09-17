@@ -51,6 +51,11 @@ import { createListTollBoothChargesUseCase } from './companies/application/list-
 import { createListTollBoothCatalogUseCase } from './toll-booths/application/list-toll-booth-catalog.use-case.js'
 import { createDrizzleTollBoothCatalogRepository } from './toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.js'
 import { createTollBoothRoutes } from './toll-booths/presentation/toll-booth.routes.js'
+import { createCreateTollBoothExtractUseCase } from './toll-booths/application/create-toll-booth-extract.use-case.js'
+import { createListTollBoothExtractsUseCase } from './toll-booths/application/list-toll-booth-extracts.use-case.js'
+import { createDrizzleTollBoothExtractRepository } from './toll-booths/infrastructure/drizzle-toll-booth-extract.repository.js'
+import { createTollBoothExtractStorageGateway } from './toll-booths/infrastructure/toll-booth-extract-storage.gateway.js'
+import { createTollBoothExtractRoutes } from './toll-booths/presentation/toll-booth-extract.routes.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
 import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
 import { DrizzleTollBoothSightingRepository } from './trips/infrastructure/drizzle-toll-booth-sighting.repository.js'
@@ -1483,6 +1488,7 @@ function createApplicationRoutes({
   const routeDepotQuery = createRouteDepotQuery(database)
   const tollBoothRepository = createDrizzleTollBoothRepository(database)
   const tollBoothCatalogRepository = createDrizzleTollBoothCatalogRepository(database)
+  const tollBoothExtractRepository = createDrizzleTollBoothExtractRepository(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
@@ -2002,6 +2008,16 @@ function createApplicationRoutes({
         clock: { now: () => new Date() },
         sightings: tollBoothSightingRepository,
       }),
+    }),
+    ...createTollBoothExtractRoutes({
+      createExtract: createCreateTollBoothExtractUseCase({
+        extracts: tollBoothExtractRepository,
+        storage: createTollBoothExtractStorageGateway({
+          bucket: storageBucket,
+          storage: storageGateway,
+        }),
+      }),
+      listExtracts: createListTollBoothExtractsUseCase({ extracts: tollBoothExtractRepository }),
     }),
     ...createCompanyEnergyRoutes({
       choose: createChooseEnergyDistributorUseCase({ energy: companyEnergyRepository }),
