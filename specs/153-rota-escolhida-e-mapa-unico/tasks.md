@@ -87,3 +87,35 @@ isolado, evidência em evidence.md.
 Pare e pergunte antes de: deploy em produção, migration destrutiva, T001 negativo (OSRM sem
 exclude=toll), qualquer [NEEDS CLARIFICATION].
 ```
+
+## Fase 7 — Correções da revisão final (T602)
+
+> 🤖 Modelo: `sonnet`
+
+Cada task fecha como as demais: contrato vermelho → correção → gates → evidência → commit isolado.
+
+- [ ] T701 **C1** Redação da NF-e quebra o frontend sem `trip.financials`: `totalAmount` e
+      `freightAmount` opcionais em `nfeWorkspaceClient.service.ts` e `tripResponse.validation.ts`,
+      célula oculta quando ausentes (nunca traço nem zero), bipe e busca por faixa funcionando para
+      `fiscal`, `viewer` e `separator`. Contrato com payload redigido.
+- [ ] T702 **H1** "Mais barata" nunca é eleita: `fuelBaseline` no congelador e na prévia; frontend
+      emite a escolha quando a resposta chega (montagem, criação e proposta — M7 junto); critério
+      resolvido sem assinatura grava `choiceReproduced: true` (só a assinatura que não reproduz é
+      `false`).
+- [ ] T703 **H2** Aceite por viagem não pode lançar por nota sem parada nem promover status: usar o
+      congelador tolerante no lugar de `planTripRoute`. Contrato com nota sem endereço.
+- [ ] T704 **M1–M4 + L7** Limpeza de `planned_*` dentro da transação de reorder/link/release/
+      move/swap; `releaseUnplaced` e `overrideDeliveryAddress` recalculam (M2); guarda de status e
+      concorrência na escrita da rota (M3); parada sem coordenada grava rota nula, nunca parcial
+      (M4); `logger.warn` nos `catch` do congelamento (L7).
+- [ ] T705 **M5 + L6** Aba Regiões: erro de basemap não pode apagar as zonas; copyright e `useMemo`
+      no `selectedCodes`.
+- [ ] T706 **M6** Teste de comportamento do switch do detalhe (T405): observer sobre a query real
+      prova que a troca regrava e que a busca não se repete nem após o `invalidate`.
+- [ ] T707 **H3** `GET /trips` redige `amounts` sem `trip.financials` (D10) + registro em
+      `docs/SECURITY.md`. Anterior à 153.
+- [ ] T708 **H4** Aceite multi-veículo retomável: falha num veículo não deixa viagem órfã nem entra
+      em laço no reaceite. Anterior à 153.
+- [ ] T709 **L1–L5** Ajustes menores: opção marcada por assinatura, `choiceReproduced` não booleano
+      omitido, `signature` com formato no schema, redação por lista de permissão, praça da rota
+      congelada com `isNoToll`/`legIndex` reais.
