@@ -14,6 +14,9 @@ export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 154 RF1: o catálogo inteiro de praças, não só as que a operação já cruzou. */
 export const TOLL_BOOTH_CATALOG_PATH = '/toll-booths'
+/** Spec 154 RF3/RF4: extratos registrados e o botão que recarrega o catálogo a partir de um deles. */
+export const TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
+export const TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 

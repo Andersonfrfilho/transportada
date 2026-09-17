@@ -14,6 +14,7 @@ import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
 import { FreightRegionPanel } from '../components/FreightRegionPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
+import { TollBoothCatalogReloadPanel } from '../components/TollBoothCatalogReloadPanel.component'
 import { TollBoothChargePanel } from '../components/TollBoothChargePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
@@ -27,6 +28,7 @@ import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
 import { useTollBoothCatalog } from '../hooks/useTollBoothCatalog.hook'
+import { useTollBoothCatalogReload } from '../hooks/useTollBoothCatalogReload.hook'
 import { useTollBoothCharges } from '../hooks/useTollBoothCharges.hook'
 import {
   useVehicleCatalog,
@@ -170,6 +172,13 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.tollBoothCharges,
   })
+  /**
+   * Spec 154 T303: só consulta os extratos com `settings.manage` — sem a permissão, nem a lista
+   * é pedida (RF6, aceite 4).
+   */
+  const tollBoothCatalogReload = useTollBoothCatalogReload({
+    enabled: canManageSettings && settingsScope.tollBoothCharges,
+  })
   const freightRegions = useFreightRegions({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: settingsScope.freightRegions,
@@ -258,6 +267,7 @@ export function FleetWorkspacePage() {
   const tollBoothChargeErrorCode = toErrorCode(
     tollBoothCharges.adjustMutation.error ?? tollBoothCharges.clearMutation.error,
   )
+  const tollBoothReloadErrorCode = toErrorCode(tollBoothCatalogReload.reloadMutation.error)
   const fuelTab: TabsItem = {
     id: 'fuel',
     label: t('tabs.fuel'),
@@ -291,22 +301,40 @@ export function FleetWorkspacePage() {
     id: 'tolls',
     label: t('tabs.tolls'),
     panel: (
-      <TollBoothChargePanel
-        catalog={tollBoothCatalog.query.data}
-        {...(tollBoothChargeErrorCode === undefined ? {} : { errorCode: tollBoothChargeErrorCode })}
-        disabled={
-          tollBoothCharges.adjustMutation.isPending || tollBoothCharges.clearMutation.isPending
-        }
-        loading={tollBoothCatalog.query.isLoading}
-        saved={
-          tollBoothCharges.adjustMutation.isSuccess || tollBoothCharges.clearMutation.isSuccess
-        }
-        search={tollBoothCatalog.search}
-        onAdjust={(input) => tollBoothCharges.adjustMutation.mutate(input)}
-        onClear={(osmNodeId) => tollBoothCharges.clearMutation.mutate(osmNodeId)}
-        onPageChange={tollBoothCatalog.setPage}
-        onSearchChange={tollBoothCatalog.setSearch}
-      />
+      <>
+        <TollBoothChargePanel
+          catalog={tollBoothCatalog.query.data}
+          {...(tollBoothChargeErrorCode === undefined
+            ? {}
+            : { errorCode: tollBoothChargeErrorCode })}
+          disabled={
+            tollBoothCharges.adjustMutation.isPending || tollBoothCharges.clearMutation.isPending
+          }
+          loading={tollBoothCatalog.query.isLoading}
+          saved={
+            tollBoothCharges.adjustMutation.isSuccess || tollBoothCharges.clearMutation.isSuccess
+          }
+          search={tollBoothCatalog.search}
+          onAdjust={(input) => tollBoothCharges.adjustMutation.mutate(input)}
+          onClear={(osmNodeId) => tollBoothCharges.clearMutation.mutate(osmNodeId)}
+          onPageChange={tollBoothCatalog.setPage}
+          onSearchChange={tollBoothCatalog.setSearch}
+        />
+        {/* Spec 154 T303: só quem tem settings.manage vê e dispara a recarga (RF6, aceite 4). */}
+        {canManageSettings && (
+          <TollBoothCatalogReloadPanel
+            catalogStatus={tollBoothCatalog.query.data?.summary.status}
+            {...(tollBoothReloadErrorCode === undefined
+              ? {}
+              : { errorCode: tollBoothReloadErrorCode })}
+            extracts={tollBoothCatalogReload.extractsQuery.data}
+            isPending={tollBoothCatalogReload.reloadMutation.isPending}
+            loading={tollBoothCatalogReload.extractsQuery.isLoading}
+            result={tollBoothCatalogReload.reloadMutation.data}
+            onReload={(input) => tollBoothCatalogReload.reloadMutation.mutate(input)}
+          />
+        )}
+      </>
     ),
   }
 

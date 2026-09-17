@@ -732,6 +732,32 @@
     "observedOnFieldLabel": "Fare date",
     "operator": "Operator: {{operator}}",
     "operatorUnknown": "Unknown operator on the map",
+    "reload": {
+      "button": "Reload catalog",
+      "cancel": "Cancel",
+      "close": "Close",
+      "confirmButton": "Reload",
+      "confirmSubtitle": "Extract {{dataset}}, from {{date}}.",
+      "confirmTitle": "Confirm catalog reload",
+      "confirmWarning": "The reload affects the toll booth catalog for every company in this installation — not only the one currently open.",
+      "errors": {
+        "TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS": "Another reload is already in progress. Wait for it to finish and try again.",
+        "TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH": "The bucket object does not match the registered extract. Upload the extract again through the runbook before reloading.",
+        "TOLL_BOOTH_EXTRACT_NOT_FOUND": "This extract is no longer registered. Choose another one from the list.",
+        "TOLL_BOOTH_EXTRACT_OBJECT_MISSING": "This extract's object is missing from the bucket. Upload it again through the runbook before reloading.",
+        "default": "Could not reload the catalog. Code: {{code}}."
+      },
+      "hint": "Reloads the toll booth catalog from an already registered extract (D3/D6) — the effect reaches every company in this installation, and no booth is ever deleted.",
+      "noExtracts": "No extract registered yet — there is nothing to reload.",
+      "noExtractsWithCatalog": "The catalog already has booths loaded, but no extract is registered on this installation. Upload an extract through the runbook docs/runbooks/osrm-extract.md to be able to reload.",
+      "optionLabel": "{{name}} — {{date}} ({{count}} booths)",
+      "reloading": "Reloading…",
+      "resultMissing": "{{count}} booths from the catalog were not in this extract.",
+      "resultObservedOn": "Extract used: {{date}}.",
+      "resultSaved": "{{count}} booths saved.",
+      "selectLabel": "Registered extract",
+      "title": "Reload catalog"
+    },
     "save": "Save adjustment",
     "saved": "Adjustment saved.",
     "source": {

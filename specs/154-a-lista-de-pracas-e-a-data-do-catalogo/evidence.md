@@ -1157,3 +1157,160 @@ Ran 6333 tests across 177 files.
 
 Arquivos acima de 200 linhas divididos: fixture HTTP em `toll-booth-reload-http.fixture.ts` +
 `toll-booth-reload-ports.fixture.ts`; ajudantes da integração em `toll-booth-reload-integration.fixture.ts`.
+
+### T303 — bloco de recarga do catálogo (RF3/RF4/RF6, `apps/frontend-transportada`)
+
+`apps/frontend-transportada`: dentro da aba de pedágio (Frota), abaixo de `TollBoothChargePanel`
+(T204), um segundo bloco lê `GET /v1/toll-booths/extracts` e dispara `POST /v1/toll-booths/reload`
+— só quando `settings.manage` está entre as permissões (RF6, D6, aceite 4).
+
+**Arquivos novos** (todos abaixo do teto de 200 linhas):
+
+- `src/modules/fleet/shared/tollBoothExtract.validation.ts` (97 linhas) — guarda de forma de
+  `TollBoothExtractRow` (o que `GET /extracts` devolve) e `TollBoothReloadResult` (o que `POST
+/reload` devolve), usando `hasExactKeys` de `objectKeys.service.ts` — a mesma guarda única da
+  T204, nunca uma cópia local.
+- `src/modules/fleet/shared/tollBoothExtractClient.service.ts` (96 linhas) — cliente próprio, no
+  molde de `tollBoothCatalogClient.service.ts`: `listTollBoothExtracts` (`GET`) e
+  `reloadTollBoothCatalog` (`POST …?dataset=&observedOn=`). Os helpers de requisição
+  (`requestError`/`readErrorCode`/`requestJson`/`authorizedRequest`) repetem os de
+  `tollBoothCatalogClient.service.ts` e `fleetCatalogClient.service.ts` — divergência conhecida do
+  módulo (cada cliente já duplica o mesmo bloco de ~20 linhas hoje); corrigir essa duplicação é
+  fora do escopo desta task, que segue o padrão real em vez de introduzir um terceiro molde.
+- `src/modules/fleet/hooks/useTollBoothCatalogReload.hook.ts` (49 linhas) — `extractsQuery`
+  (`enabled` só com `settings.manage`) e `reloadMutation`, que invalida
+  `TOLL_BOOTH_CATALOG_QUERY_KEY` **e** a chave nova `TOLL_BOOTH_EXTRACTS_QUERY_KEY` ao terminar —
+  o catálogo e a lista de extratos moram na mesma praça recarregada.
+- `src/modules/fleet/components/TollBoothCatalogReloadDialog.component.tsx` (95 linhas) — a
+  confirmação (D6: a recarga afeta todas as empresas da instalação), molde de
+  `CompanyUserRemoveDialog.component.tsx` (`useModalDialog`, portal, foco preso, `Escape` fecha).
+- `src/modules/fleet/components/TollBoothCatalogReloadPanel.component.tsx` (146 linhas) — o
+  seletor de extrato (`@/components/ui/select`, nunca `<select>` nativo), o botão que abre o
+  diálogo, o resultado da execução e os dois casos extremos de "nenhum extrato".
+- CSS: `.overlay`/`.dialog`/`.dialogHeader`/`.dialogFooter` acrescentados a `fleet.module.css`
+  (molde de `userAdministration.module.css`) — o módulo `fleet` não tinha diálogo antes desta task.
+
+**Constantes novas** em `fleet.constant.ts`: `TOLL_BOOTH_EXTRACTS_PATH`, `TOLL_BOOTH_RELOAD_PATH`.
+
+**Wiring em `FleetWorkspace.page.tsx`:** `useTollBoothCatalogReload({ enabled: canManageSettings &&
+settingsScope.tollBoothCharges })` — a mesma condição do catálogo (T204) e da aba. O bloco só entra
+no JSX dentro de `{canManageSettings && (<TollBoothCatalogReloadPanel …/>)}`: sem a permissão, nem
+o componente monta nem o hook chega a ter `enabled: true` — a lista de extratos nunca é pedida.
+`catalogStatus` vem de `tollBoothCatalog.query.data?.summary.status` (o mesmo resumo do RF2/T204),
+para decidir entre as duas frases de "nenhum extrato".
+
+#### Confirmação e efeito sobre a instalação inteira (D6)
+
+O botão da lista nunca chama `onReload` direto — `setConfirming(selectedExtract ?? null)` abre
+`TollBoothCatalogReloadDialog`, que mostra `tollBoothCharges.reload.confirmWarning` ("a recarga
+afeta o catálogo de praças de todas as empresas desta instalação") antes de qualquer botão de
+confirmar. Só `onConfirm` (dentro do diálogo) chama `props.onReload({ dataset, observedOn })`. Ao
+suceder, um `useEffect` que observa `props.result` fecha o diálogo sozinho; ao falhar, o diálogo
+continua aberto com o código do erro, para tentar de novo ou cancelar.
+
+#### Seletor de extrato (RF3) e resultado (aceite 3)
+
+O `Select` é montado a partir de `extracts` (já ordenado do mais novo para o mais antigo pela API,
+T301) com `tollBoothCharges.reload.optionLabel` ("{{name}} — {{date}} ({{count}} praças)"); o valor
+de cada opção é `${dataset}::${observedOn}` (nem o dataset nem a data ISO usam `::`, então a volta
+por `split` nunca ambiguidade). Um `useEffect` seleciona o mais recente assim que a lista chega, se
+nada foi escolhido ainda. A recarga chama `reloadTollBoothCatalog({ dataset, observedOn })` — o
+cliente monta a query com os dois na URL (`toll-booth-extract.schema.ts` já exige exatamente essas
+duas chaves, T301). O resultado (`props.result`) mostra as três linhas do RF4:
+`resultSaved` (`savedBoothCount`), `resultObservedOn` (o `observedOn` **da resposta**, formatado por
+`useDayFormatter`, ao lado do resumo — não o do cabeçalho do RF2, que só muda depois do
+`invalidateQueries` seguinte) e `resultMissing` (`boothsMissingFromExtract`).
+
+#### Os quatro códigos de erro (aceite 8, lado da tela)
+
+`tollBoothCharges.reload.errors.*` — uma frase por código, no molde de
+`users.errors.${errorCode}` (`CompanyUserRemoveDialog` e as outras seis telas de `identity` que já
+usam `defaultValue`, spec anterior a esta): `TOLL_BOOTH_EXTRACT_NOT_FOUND` (escolha outro extrato),
+`TOLL_BOOTH_EXTRACT_OBJECT_MISSING` (suba de novo pelo runbook), `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH`
+(idem, objeto não bate), `TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS` (espere a outra recarga terminar).
+A rejeição do extrato **duplicado** (`TOLL_BOOTH_EXTRACT_DUPLICATE`, 409 de `POST /extracts`) não
+tem tela nesta task — a subida do extrato pela UI é explicitamente fora de escopo do enunciado
+("Upload do extrato pela tela NÃO é desta task"); o aceite 8 (subir duas vezes responde 409, objeto
+não sobrescrito) é provado na API (T301, integração real contra MinIO).
+
+#### Caso extremo: nenhum extrato registrado (RF3, RF6)
+
+`extracts.length === 0` ramifica em duas frases, decidida por `catalogStatus`:
+
+- `catalogStatus === 'empty'` → `tollBoothCharges.reload.noExtracts` ("nenhum extrato registrado
+  ainda — não há o que recarregar"), sem menção a runbook — quem já lê "o catálogo nunca foi
+  carregado" no cabeçalho do RF2 (T204) não precisa de uma segunda frase repetindo o mesmo fato.
+- `catalogStatus !== 'empty'` (staging hoje: 592 praças carregadas pelo caminho manual, T001 P1,
+  zero linhas em `toll_booth_extracts` até a T301 resubir) → `tollBoothCharges.reload.noExtractsWithCatalog`,
+  que cita `docs/runbooks/osrm-extract.md` — o caso extremo exato que a spec descreve ("instalação
+  que já tem `toll_booths` carregada pelo caminho manual… a tela tem de dizer isso sem sugerir que
+  o catálogo está vazio").
+
+#### Aceite 5 (auditoria) — provado fora desta tela
+
+A trilha de auditoria (ator, dataset, data do extrato) é gravada pela API na mesma transação da
+recarga (`audit_logs`, ação `toll_booth_catalog.reloaded`) — provada na integração da T302
+(`toll-booth-reload.integration.ts`, item 1: "audit_logs com uma linha e os campos acima"). Esta
+tela não lê nem exibe a trilha; ela só dispara a ação que a gera.
+
+#### Vermelho antes da implementação
+
+```
+$ cd apps/frontend-transportada && bun run test 2>&1 | grep -A2 "Cannot find module"
+error: Cannot find module '../../src/modules/fleet/components/TollBoothCatalogReloadPanel.component.js'
+```
+
+(o describe `fleet toll booth catalog reload contract (spec 154 T303)` foi escrito primeiro, contra
+componentes/hooks/cliente que ainda não existiam — mesmo padrão de teste de contrato por leitura de
+texto-fonte que a T204 já usa nesta app, sem `zod` e sem framework de render: a suíte lê os
+arquivos e confere substring/estrutura, nunca monta DOM.)
+
+#### Verde depois
+
+```
+$ cd apps/frontend-transportada && bun run test
+ 4178 pass
+ 0 fail
+ 36636 expect() calls
+Ran 4178 tests across 29 files. [3.65s]
+```
+
+(Eram 4169 pass na T204: +9 desta task — 8 testes novos do describe de recarga mais a alteração do
+teste "o hook do catálogo abre..." não contou porque reaproveita asserção existente; nenhum teste
+antigo quebrou ou foi afrouxado.)
+
+#### Gates
+
+```
+$ bun run typecheck     # 6 apps — exit 0
+$ bun run lint          # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check  # exit 0 (3 arquivos reformatados por --write antes do check final:
+                         # TollBoothCatalogReloadPanel.component.tsx, FleetWorkspace.page.tsx,
+                         # toll-booth-charge-tab.contract.ts)
+$ cd apps/frontend-transportada && bun run build
+✓ built in 8.76s   # PWA gerado, mesmo aviso pré-existente de chunk >500kB (vectorBasemap/index)
+```
+
+**Aceites conferidos:**
+
+3. `POST /v1/toll-booths/reload` sobre um extrato do bucket deixa `toll_booths` com as praças dele,
+   sem apagar as que não vieram, e a segunda execução não muda linha nenhuma — provado na API
+   (T302, integração e contrato). **Lado da tela:** o seletor manda exatamente o `dataset`/
+   `observedOn` do extrato escolhido (`tollBoothCatalogReload.reloadMutation.mutate({dataset,
+observedOn})`) e o resultado mostra `savedBoothCount`/`observedOn`/`boothsMissingFromExtract` —
+   contrato novo desta task.
+4. A recarga sem `settings.manage` responde 403 (provado na API, T302) — **a tela nem mostra o
+   botão nem consulta a lista de extratos**: `TollBoothCatalogReloadPanel` só entra no JSX com
+   `canManageSettings`, e `useTollBoothCatalogReload` só habilita a query com a mesma condição —
+   contrato novo desta task ("o bloco de recarga só renderiza e só consulta extratos com
+   settings.manage").
+5. A recarga aparece na trilha de auditoria com ator, dataset e data do extrato — provado na API
+   (T302, `audit_logs` na mesma transação). Fora do alcance desta tela.
+6. Subir o mesmo extrato duas vezes responde 409 na segunda, sem sobrescrever o objeto — provado na
+   API (T301, integração real com MinIO: `head()` confirma bytes inalterados). **Lado da tela:**
+   fora de escopo (upload não é desta task); o que a tela cobre é o efeito indireto — o extrato
+   duplicado nunca aparece duas vezes no seletor, porque `(dataset, observedOn)` é a mesma linha.
+
+**Divergência de escopo, não bloqueio:** a subida do extrato (RF3b, `POST /extracts`) não tem tela
+— o enunciado da task exclui isso explicitamente. `RouteTollSummary` (T401, aceite 6) e o runbook
+(T501) continuam fora desta task.

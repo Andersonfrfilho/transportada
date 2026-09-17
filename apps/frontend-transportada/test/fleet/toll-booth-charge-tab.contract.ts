@@ -62,6 +62,40 @@ const CATALOG_LABEL_KEYS = [
 
 const CATALOG_STATUS_KEYS = ['empty', 'stale', 'current'] as const
 
+// Spec 154 T303 — o bloco de recarga do catálogo (RF3/RF4/RF6).
+const RELOAD_PANEL_PATH = 'src/modules/fleet/components/TollBoothCatalogReloadPanel.component.tsx'
+const RELOAD_DIALOG_PATH = 'src/modules/fleet/components/TollBoothCatalogReloadDialog.component.tsx'
+const RELOAD_HOOK_PATH = 'src/modules/fleet/hooks/useTollBoothCatalogReload.hook.ts'
+const RELOAD_CLIENT_PATH = 'src/modules/fleet/shared/tollBoothExtractClient.service.ts'
+
+const RELOAD_LABEL_KEYS = [
+  'button',
+  'cancel',
+  'close',
+  'confirmButton',
+  'confirmSubtitle',
+  'confirmTitle',
+  'confirmWarning',
+  'hint',
+  'noExtracts',
+  'noExtractsWithCatalog',
+  'optionLabel',
+  'reloading',
+  'resultMissing',
+  'resultObservedOn',
+  'resultSaved',
+  'selectLabel',
+  'title',
+] as const
+
+const RELOAD_ERROR_KEYS = [
+  'TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS',
+  'TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH',
+  'TOLL_BOOTH_EXTRACT_NOT_FOUND',
+  'TOLL_BOOTH_EXTRACT_OBJECT_MISSING',
+  'default',
+] as const
+
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
 }
@@ -268,5 +302,126 @@ describe('fleet toll booth charge tab contract (spec 095 item 4, spec 154 T204)'
 
     const panel = await readApplicationFile(PANEL_PATH)
     expect(panel).toContain("useTranslation('fleet')")
+  })
+})
+
+describe('fleet toll booth catalog reload contract (spec 154 T303)', () => {
+  // Aceite 4: sem settings.manage a API recusa a ação de qualquer forma, e a tela nem oferece.
+  test('o bloco de recarga só renderiza e só consulta extratos com settings.manage', async () => {
+    const page = await readApplicationFile(PAGE_PATH)
+
+    expect(page).toContain('canManageSettings && (')
+    expect(page).toContain('<TollBoothCatalogReloadPanel')
+    expect(page).toContain('enabled: canManageSettings && settingsScope.tollBoothCharges,')
+    expect(page).toContain('useTollBoothCatalogReload({')
+  })
+
+  test('o seletor lista os extratos registrados, com data e contagem', async () => {
+    const panel = await readApplicationFile(RELOAD_PANEL_PATH)
+
+    expect(panel).toContain("import { Select, type SelectOption } from '@/components/ui/select'")
+    expect(panel).toContain('tollBoothCharges.reload.optionLabel')
+    expect(panel).toContain('extract.boothCount')
+    expect(panel).toContain('extract.observedOn')
+    expect(panel).not.toContain('<select')
+  })
+
+  // Aceite 3: a recarga chama a rota com o dataset/observedOn do extrato escolhido.
+  test('a recarga chama o cliente com o dataset e a data escolhidos, depois de confirmar', async () => {
+    const [panel, dialog, client, hook] = await Promise.all([
+      readApplicationFile(RELOAD_PANEL_PATH),
+      readApplicationFile(RELOAD_DIALOG_PATH),
+      readApplicationFile(RELOAD_CLIENT_PATH),
+      readApplicationFile(RELOAD_HOOK_PATH),
+    ])
+
+    // Confirmação: o clique no botão da lista abre o diálogo, e só o diálogo dispara a mutação.
+    expect(panel).toContain('onClick={() => setConfirming(selectedExtract ?? null)}')
+    expect(panel).toContain('onConfirm={confirmReload}')
+    expect(panel).toContain(
+      'props.onReload({ dataset: confirming.dataset, observedOn: confirming.observedOn })',
+    )
+    expect(dialog).toContain('tollBoothCharges.reload.confirmWarning')
+    expect(dialog).toContain('onClick={props.onConfirm}')
+    expect(client).toContain("search.set('dataset', input.dataset)")
+    expect(client).toContain("search.set('observedOn', input.observedOn)")
+    expect(hook).toContain('mutationFn: client.reloadTollBoothCatalog')
+  })
+
+  test('o resultado mostra quantas praças foram gravadas, a data do extrato e quantas ficaram fora', async () => {
+    const panel = await readApplicationFile(RELOAD_PANEL_PATH)
+
+    expect(panel).toContain('tollBoothCharges.reload.resultSaved')
+    expect(panel).toContain('tollBoothCharges.reload.resultObservedOn')
+    expect(panel).toContain('tollBoothCharges.reload.resultMissing')
+    expect(panel).toContain('props.result.savedBoothCount')
+    expect(panel).toContain('props.result.observedOn')
+    expect(panel).toContain('props.result.boothsMissingFromExtract')
+  })
+
+  // Aceite 5: a trilha de auditoria (ator, dataset, data) é gravada e provada no backend (T302
+  // evidence.md — audit_logs, mesma transação); esta tela não lê nem exibe a trilha.
+
+  // Aceite 8, lado da tela: os quatro códigos de erro do RF4, cada um com frase própria.
+  test('cada um dos quatro códigos de erro da recarga mostra a própria frase', async () => {
+    const [panel, dialog] = await Promise.all([
+      readApplicationFile(RELOAD_PANEL_PATH),
+      readApplicationFile(RELOAD_DIALOG_PATH),
+    ])
+
+    for (const source of [panel, dialog]) {
+      expect(source).toContain('tollBoothCharges.reload.errors.${')
+      expect(source).toContain("defaultValue: t('tollBoothCharges.reload.errors.default')")
+    }
+  })
+
+  // Caso extremo: nenhum extrato registrado, catálogo já populado — aponta o runbook.
+  test('nenhum extrato registrado com catálogo populado aponta o runbook', async () => {
+    const panel = await readApplicationFile(RELOAD_PANEL_PATH)
+    const locale = (await readLocale(LOCALE_PATH))['tollBoothCharges'] as Record<string, unknown>
+    const reload = locale['reload'] as Record<string, string>
+
+    expect(panel).toContain("props.catalogStatus === 'empty'")
+    expect(panel).toContain('tollBoothCharges.reload.noExtracts')
+    expect(panel).toContain('tollBoothCharges.reload.noExtractsWithCatalog')
+    expect(reload['noExtractsWithCatalog']).toContain('docs/runbooks/osrm-extract.md')
+    // Catálogo vazio sem extrato: a frase de "nunca carregado" continua sendo a do RF2 (T204).
+    expect(reload['noExtracts']).not.toContain('runbook')
+  })
+
+  test('a recarga invalida o catálogo e a lista de extratos ao terminar', async () => {
+    const hook = await readApplicationFile(RELOAD_HOOK_PATH)
+
+    expect(hook).toContain(
+      "import { TOLL_BOOTH_CATALOG_QUERY_KEY } from './useTollBoothCatalog.hook'",
+    )
+    expect(hook).toContain('invalidateQueries({ queryKey: [TOLL_BOOTH_CATALOG_QUERY_KEY] })')
+    expect(hook).toContain('invalidateQueries({ queryKey: [TOLL_BOOTH_EXTRACTS_QUERY_KEY] })')
+  })
+
+  test('o painel e o diálogo usam só o design system, sem controle cru', async () => {
+    const [panel, dialog] = await Promise.all([
+      readApplicationFile(RELOAD_PANEL_PATH),
+      readApplicationFile(RELOAD_DIALOG_PATH),
+    ])
+    const combined = `${panel}\n${dialog}`
+
+    expect(combined).toContain('Button')
+    expect(combined).toContain('useModalDialog')
+    expect(combined).not.toContain('<svg')
+    expect(combined).not.toContain('window.confirm')
+    expect(combined).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+  })
+
+  test('traduz cada rótulo e cada código de erro da recarga nos dois pacotes de tradução', async () => {
+    for (const localePath of [LOCALE_PATH, ENGLISH_LOCALE_PATH]) {
+      const locale = await readLocale(localePath)
+      const tollBoothCharges = locale['tollBoothCharges'] as Record<string, unknown>
+      const reload = tollBoothCharges['reload'] as Record<string, unknown>
+      const errors = reload['errors'] as Record<string, unknown>
+
+      for (const key of RELOAD_LABEL_KEYS) expect(reload[key]).toBeString()
+      for (const key of RELOAD_ERROR_KEYS) expect(errors[key]).toBeString()
+    }
   })
 })
