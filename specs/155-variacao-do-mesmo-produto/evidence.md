@@ -667,8 +667,77 @@ bun run --cwd apps/frontend-transportada build                           ✓ bui
 
 ## T4.1 — Locales
 
-_(pendente)_
+Data: 2026-09-17. Modelo: `haiku`. Verificação:
+
+**Chaves de packageBoxes idênticas em ambos os locales:**
+
+- `nfeWorkspace.locale.json` pt-BR: 141 chaves sob `packageBoxes.*`
+- `nfeWorkspace.en.locale.json`: 141 chaves sob `packageBoxes.*` — exatamente o mesmo conjunto
+- Novo script de comparação confirmou paridade completa
+
+**Nenhuma string hardcoded nos componentes:**
+
+- `PackageBoxMeasurementPanel.component.tsx`: 38+ ocorrências de `packageBoxes.` via `t()`
+- `PackageBoxMeasurementForm.component.tsx`: 30+ ocorrências via `t()`
+- `PackageBoxCameraFlow.component.tsx`: 76+ ocorrências via `t()`
+- `PackageBoxReplicateDialog.component.tsx`: 18+ ocorrências via `t()`
+- Verificado: zero strings literais visíveis ao usuário fora de locales
+
+**Acentuação correta do pt-BR:**
+
+- "Replicar", "Não", "Não há", "vácuo", "sachê" — tudo com acentos corretos
+- `family.counter`: "{{measured}} de {{total}} medidas nesta família"
+- `replicateDialog.lowConfidence`: "Esta família mistura formatos diferentes (ex.: vácuo e sachê)"
+
+**Gate:**
+
+```
+bun run --cwd apps/frontend-transportada test
+4182 pass · 0 fail · 36200 expect() calls
+```
 
 ## T4.2 — Documentação
 
-_(pendente)_
+Data: 2026-09-17. Modelo: `haiku`.
+
+**Comentário do schema `nfe_package_boxes`:**
+
+- Arquivo: `apps/api-transportada/src/database/nfe.schema.ts` linhas 542–548
+- Adicionado comentário explicando identidade em dois eixos:
+  - Família de variação: `(emitente, prefixo, uCom)` replicável
+  - Grupo de embalagem: `(emitente, cProd)` só agrupa tela
+- Verificado com `bun run typecheck` — exit 0
+
+**Documentação `docs/ai-context/api-transportada.md`:**
+
+- Adicionado parágrafo após spec 152 (linhas ~560–574) explicando spec 155:
+  - Rotas `GET /siblings` e `POST /replicate` com status de erro (422, 409, 404)
+  - Origem `replicated` + `replicated_from_box_id`
+  - Família com emitente na chave, `isLowConfidenceFamily`
+  - Invariante: nunca sobrescrever medida existente sob concorrência
+
+**Documentação `docs/ai-context/frontend-transportada.md`:**
+
+- Adicionado parágrafo após spec 152 (linhas ~117–130) explicando spec 155 na tela:
+  - Badge de unidade com contagem (resolução de "duplicação")
+  - Agrupamento por embalagem com descrição + cProd
+  - Botão rápido preenche, não grava
+  - Diálogo pré-marcado (confiável) ou desmarcado (assimétrico)
+  - Descrição completa + cProd em cada alvo (evita confusão em rótulos curtos)
+  - Mensagens de erro específicas por falha (422, 409)
+  - Referências aos contratos de teste
+
+**D10 em `specs/PERGUNTAS-ABERTAS.md`:**
+
+- Adicionada nova seção "155 — a variação do mesmo produto mede uma vez e replica"
+- Item 27 registra que `carton_gtin` guarda `cEAN` (unidade de consumo), não o GTIN da caixa (DUN-14)
+- Especifica que precisa de spec própria com coluna `box_gtin` e validação de três colunas no bipe
+- Data: 2026-09-17
+
+**Gates:**
+
+```
+bun run typecheck                           exit 0
+bun run --cwd apps/api-transportada test   6319 pass · 23 skip · 0 fail
+bun run --cwd apps/frontend-transportada test  4182 pass · 0 fail
+```
