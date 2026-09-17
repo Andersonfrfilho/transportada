@@ -2742,3 +2742,47 @@ português.
 | `bun run --cwd apps/frontend-transportada test`      | 4163 pass · 0 fail (+1 caso)                 |
 | `bun run lint`                                       | limpo                                        |
 | `bun run format:check`                               | `All matched files use Prettier code style!` |
+
+## Pós-push — o gate da CI reprovou, e o smoke achou o que o `bun run test` não roda
+
+O push para a `staging` **não virou deploy**: o job `gate / integration` falhou e os cinco jobs de
+deploy foram `skipped`. Nada da 143 subiu para o ambiente.
+
+A causa é **um caractere do teste**, não do produto. A T11 acrescentou ao Playwright
+(`responsive.smoke.spec.ts:1567`) a asserção da frase da diária na proposta:
+
+```ts
+await expect(dialog.getByText(/R\$ 370,00 × 4 dias · valor geral/u)).toBeVisible()
+```
+
+O `Intl.NumberFormat` pt-BR separa símbolo e número com **espaço inflexível** (U+00A0). O espaço
+comum do regex não casa com ele, e a frase — que **está na tela** — some do localizador.
+
+Prova, do `error-context.md` que o próprio Playwright gravou na falha local:
+
+```
+- term [ref=e380]: Motorista
+- definition [ref=e381]: R$ 1.480,00
+- paragraph [ref=e382]: R$ 370,00 × 4 dias · valor geral
+```
+
+O parágrafo existe, renderizado, com o texto certo. Trocando o espaço por `\s` o mesmo teste passa
+em 3,7 s, sem tocar em uma linha de produto.
+
+### Por que passou por dez commits de gate verde
+
+**`bun run test` não roda este arquivo.** O `responsive.smoke.spec.ts` é Playwright, roda em
+`make smoke`, e `make smoke` só é exercitado pelo job `gate / integration` da CI — que precisa da
+stack inteira de pé. O gate local de cada task (`typecheck` + testes das apps + `lint` +
+`format:check`) nunca o viu. É o mesmo formato de defeito que a spec 092 registrou: **pular não é
+passar** — aqui, "não rodar" não é "passar".
+
+| Rodada                                                                 | Resultado                         |
+| ---------------------------------------------------------------------- | --------------------------------- |
+| Reprodução local, antes (`bun run smoke -- -g "a proposta se revisa"`) | 1 failed                          |
+| Depois da correção, o mesmo teste                                      | 1 passed (3,7 s)                  |
+| Suíte inteira do smoke (`bun run smoke`)                               | **51 passed · 0 failed** (47,0 s) |
+
+A asserção ficou tolerante de propósito, com o porquê escrito acima dela: a forma do espaço é
+decisão do formatador de locale, não contrato da tela. O que a tela promete é _valor × dias ·
+origem_, e é isso que o teste cobra.

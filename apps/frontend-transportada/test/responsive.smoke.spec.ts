@@ -1563,8 +1563,12 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   /**
    * Spec 143: a derivação do motorista virou a diária composta na tela (valor × dias · origem),
    * uma linha por condutor — não mais "zona · classe". A frase é a do `VEHICLE_VALUATION` acima.
+   *
+   * ⚠️ O espaço depois de `R$` é `\s` de propósito: o `Intl.NumberFormat` pt-BR separa símbolo e
+   * número com espaço **inflexível** (U+00A0), e um espaço comum aqui não casa com nada. O `bun run
+   * test` não roda este arquivo — quem cobra é o `make smoke` da CI.
    */
-  await expect(dialog.getByText(/R\$ 370,00 × 4 dias · valor geral/u)).toBeVisible()
+  await expect(dialog.getByText(/R\$\s370,00 × 4 dias · valor geral/u)).toBeVisible()
   await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
 
   /**
