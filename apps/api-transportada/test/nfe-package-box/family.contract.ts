@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  isLowConfidenceFamily,
   MINIMUM_FAMILY_PREFIX_TOKENS,
   resolveBoxFamily,
   resolvePackagingUnitCount,
@@ -203,5 +204,70 @@ describe('a contagem de unidades da embalagem (spec 155 D3/D8)', () => {
   test('unidade sem sufixo numérico não inventa contagem', () => {
     expect(resolvePackagingUnitCount('CX')).toBeUndefined()
     expect(resolvePackagingUnitCount('')).toBeUndefined()
+  })
+})
+
+describe('a familia de formato assimetrico (spec 155 D11)', () => {
+  /**
+   * Das 121 familias de producao com dois ou mais membros, o predicado marca estas duas e mais
+   * nenhuma. O cafe a vacuo e tijolo e o tradicional e almofada; o Pringles de tubo nao e o saco.
+   */
+  test.each([
+    [['EXTRA FORTE TRA', 'VACUO TRADICION']],
+    [['CHURRASCO', 'CREME E CEBOLA', 'TUBO QUEIJO']],
+  ])('marca %j, onde a palavra de formato esta em alguns rotulos e nao em todos', (labels) => {
+    expect(isLowConfidenceFamily(labels)).toBe(true)
+  })
+
+  /** Palavra de formato em todos os rotulos nao distingue nada: as quatro simetricas de producao. */
+  test.each([
+    [['VACUO EXTRA FORTE', 'VACUO TRADICIONAL']],
+    [['SACHE MACIEZ', 'SACHE PRIMAV']],
+    [['PCT INSTANTANEO', 'PCT INTEGRAL']],
+    [['SACHE BOLONHESA', 'SACHE PIZZA', 'SACHE TRAD']],
+  ])('nao marca %j, onde a palavra de formato esta em todos', (labels) => {
+    expect(isLowConfidenceFamily(labels)).toBe(false)
+  })
+
+  /**
+   * O criterio recusado: marcar por grau de tamanho (`PP|P|M|G|GG|XG`) acusaria sete familias de
+   * producao por engano, porque `M FRAMBOESA` e `B AMENDOAS` sao iniciais de abreviacao do sabor.
+   */
+  test('nao marca a familia cujos rotulos comecam por inicial de abreviacao', () => {
+    expect(
+      isLowConfidenceFamily([
+        'B AMENDOAS',
+        'BRAN AVELA',
+        'C ALECRIM',
+        'FR PESSEGO',
+        'GARD ARGAN',
+        'LA DAMASCO',
+        'M FRAMBOESA',
+      ]),
+    ).toBe(false)
+  })
+
+  test('familia de um rotulo so nao tem com que divergir', () => {
+    expect(isLowConfidenceFamily(['VACUO TRADICION'])).toBe(false)
+    expect(isLowConfidenceFamily([])).toBe(false)
+  })
+
+  test('a palavra de formato e o token inteiro, nao um pedaco dele', () => {
+    expect(isLowConfidenceFamily(['PETALAS', 'FLORAL'])).toBe(false)
+  })
+})
+
+describe('a normalizacao da unidade comercial (spec 155 T1.3)', () => {
+  /** Producao nao tem `CX 36` hoje; colapsar o espaco interno e defesa, e custa uma linha. */
+  test('CX 36 e CX36 caem na mesma familia', () => {
+    const description = 'AMAC CONC DOWNY 500ML BRISA SUAVE'
+
+    expect(resolveBoxFamily({ commercialUnit: 'CX 36', description }).familyKey).toBe(
+      resolveBoxFamily({ commercialUnit: 'CX36', description }).familyKey,
+    )
+  })
+
+  test('a contagem tambem ignora o espaco interno', () => {
+    expect(resolvePackagingUnitCount('CX 36')).toBe(36)
   })
 })

@@ -156,6 +156,67 @@ ausente significa "esta caixa não replica", e é a única leitura possível.
 há dígito — não inventa `1`. Contagem ausente e contagem igual a um são coisas diferentes na tela da
 D8, e as 663 caixas de produção têm `units_per_box = 1` justamente porque ninguém preencheu.
 
+## T1.3 — `isLowConfidenceFamily` e a normalização da unidade
+
+Vermelho primeiro, pelo motivo certo:
+
+```
+SyntaxError: Export named 'isLowConfidenceFamily' not found in module
+  .../src/nfe-documents/domain/package-box-family.policy.ts
+ 0 pass · 1 fail · 1 error
+```
+
+Depois da implementação, a suíte de família passou de 90 para **101 pass · 0 fail**, e o gate fechou:
+`bun run typecheck` exit 0 nas seis apps, `bun run --cwd apps/api-transportada test` com
+**6298 pass · 23 skip · 0 fail** em 177 arquivos.
+
+### A medição que escolheu o predicado
+
+Rodado sobre as 655 descrições de produção, com o piso de três tokens já aplicado (121 famílias de
+dois ou mais membros, 401 caixas):
+
+| Critério                                                         | Famílias marcadas | Veredito            |
+| ---------------------------------------------------------------- | ----------------- | ------------------- |
+| Palavra de formato em **alguns** rótulos, não todos              | **2**             | adotado             |
+| Palavra de formato em **todos** os rótulos                       | 4                 | benigno — não marca |
+| Grau de tamanho (`PP\|P\|M\|G\|GG\|XG\|XXG\|RN`) em algum rótulo | 7                 | recusado            |
+
+As duas marcadas:
+
+```
+CAFE MELITTA 500G|CX20     EXTRA FORTE TRA / VACUO TRADICION
+BATATA PRINGLES 109G|CX18  CHURRASCO / CREME E CEBOLA / TUBO QUEIJO
+```
+
+As quatro simétricas que o predicado **não** marca, e deveria mesmo não marcar — a palavra está em
+todos os rótulos, então não separa nada:
+
+```
+CAFE CABOCLO 500G|FD20         VACUO EXTRA FORTE / VACUO TRADICIONAL
+LAVA ROUPA PO TIXAN 800G|FD20  SACHE MACIEZ / SACHE PRIMAV
+LEITE PO ITAMBE 400G|CX25      PCT INSTANTANEO / PCT INTEGRAL
+MOLHO QUERO 240G|CX32          SACHE BOLONHESA / SACHE PIZZA / SACHE TRAD
+```
+
+O critério de grau de tamanho foi descartado porque as sete que ele marca são, na maioria, iniciais
+de abreviação do sabor — não tamanho:
+
+```
+SAB FLOR YPE SV 85G|CX72   B AMENDOAS / BRAN AVELA / C ALECRIM / FR PESSEGO / M FRAMBOESA …
+DES AERO ABOVE 150ML|FR12  F CLASS CANDY / F FRESH / M EXTREME BLACK / M SPORT ENERGY …
+DES ROLL REXONA 50ML|CX12  A F ANTIBAC / A M XTRA COOL / A INVISIBLE …
+```
+
+`M FRAMBOESA` não é "tamanho M": é `MEL`/`FRAMBOESA` abreviado. Marcar essas sete tiraria a
+pré-marcação de 7 famílias reais para pegar 2 problemas — o predicado adotado pega os 2 e não mexe
+nas 7.
+
+### A normalização da unidade
+
+`CX 36` e `CX36` passam a cair na mesma chave, e `resolvePackagingUnitCount('CX 36')` devolve 36.
+Produção não tem nenhuma unidade com espaço interno hoje (68 unidades distintas, zero colisões): a
+normalização é defesa contra digitação futura, não remendo de dado existente.
+
 ## T2.1 — Schema e migration de `replicated`
 
 _(pendente)_
