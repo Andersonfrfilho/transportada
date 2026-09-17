@@ -219,6 +219,87 @@ describe('irmãs e réplica de medida de caixa (spec 155 T2.3/T2.4)', () => {
   )
 
   /**
+   * T14 (revisão final, BAIXO): a origem é lida `FOR UPDATE` — uma remedida concorrente da origem
+   * trava a linha, e a réplica espera para copiar o valor que ficou depois da remedida, nunca o
+   * que estava lá antes de uma escrita concorrente que já estava em andamento.
+   */
+  testWithPostgres(
+    'trava a origem: remedida concorrente não deixa a réplica copiar o valor antigo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const replicate = createReplicatePackageBoxMeasurement({
+          repository: new DrizzlePackageBoxRepository(database.db),
+        })
+
+        let releaseOriginUpdate: () => void = () => undefined
+        const originUpdateReleased = new Promise<void>((resolve) => {
+          releaseOriginUpdate = resolve
+        })
+        let markOriginLocked: () => void = () => undefined
+        const originLocked = new Promise<void>((resolve) => {
+          markOriginLocked = resolve
+        })
+
+        const concurrentOriginUpdate = database.db.transaction(async (transaction) => {
+          await transaction
+            .update(nfePackageBoxes)
+            .set({ lengthMm: 999 })
+            .where(eq(nfePackageBoxes.id, scenario.originId))
+          markOriginLocked()
+          await originUpdateReleased
+        })
+        await originLocked
+
+        const replication = replicate.execute({
+          boxId: scenario.originId,
+          context: { companyId: scenario.companyId, userId: scenario.userId },
+          targetIds: [scenario.familyPendingId],
+        })
+        await Bun.sleep(500)
+        releaseOriginUpdate()
+        await concurrentOriginUpdate
+        await replication
+
+        const [target] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, scenario.familyPendingId))
+        // Sem o `FOR UPDATE`, a leitura da origem não esperaria a remedida concorrente e copiaria
+        // os 300mm antigos, gravados antes deste teste.
+        expect(target?.lengthMm).toBe(999)
+      })
+    },
+    60_000,
+  )
+
+  /** T14 (revisão final, BAIXO): id repetido no corpo é defeito do cliente, não do domínio. */
+  testWithPostgres(
+    'targetIds repetido replica uma vez só, sem gravar história em duplicidade',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const repository = new DrizzlePackageBoxRepository(database.db)
+
+        const replicatedCount = await repository.replicate({
+          boxId: scenario.originId,
+          companyId: scenario.companyId,
+          measuredByUserId: scenario.userId,
+          targetIds: [scenario.familyPendingId, scenario.familyPendingId],
+        })
+        expect(replicatedCount).toBe(1)
+
+        const history = await database.db
+          .select()
+          .from(nfePackageBoxMeasurements)
+          .where(eq(nfePackageBoxMeasurements.packageBoxId, scenario.familyPendingId))
+        expect(history).toHaveLength(1)
+      })
+    },
+    60_000,
+  )
+
+  /**
    * D4 sob concorrência: o conferente mede o alvo enquanto a réplica está a caminho. A leitura da
    * réplica ainda vê o alvo vazio; a gravação dela não pode passar por cima da medida conferida.
    */

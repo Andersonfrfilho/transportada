@@ -10,13 +10,13 @@ import {
   type PackageBoxSiblings,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import { PACKAGE_BOX_REPLICATE_FAILED_CODE } from '../shared/nfeWorkspace.constant'
 import { isRepeatedScan } from '../shared/packageBoxScan.js'
 
 const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
-const PACKAGE_BOX_REPLICATE_FAILED_CODE = 'PACKAGE_BOX_REPLICATE_FAILED'
 
 /** BAIXO-5 (T14, 5ª revisão): reexportada para não quebrar quem já importa a partir do hook. */
 export { isRepeatedScan } from '../shared/packageBoxScan.js'

@@ -20,6 +20,7 @@ import type {
   PackageBoxView,
 } from '../application/package-box.port.js'
 import {
+  buildPackagingKey,
   resolveBoxFamily,
   resolveEmitterFamilyKey,
   resolvePackagingUnitCount,
@@ -72,11 +73,9 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         : companyBoxes.filter(
             (box) => box.id !== origin.id && resolveEmitterFamilyKey(box) === originFamilyKey,
           )
+    const originPackagingKey = buildPackagingKey(origin)
     const packaging = companyBoxes.filter(
-      (box) =>
-        box.id !== origin.id &&
-        box.productCode === origin.productCode &&
-        box.emitterTaxId === origin.emitterTaxId,
+      (box) => box.id !== origin.id && buildPackagingKey(box) === originPackagingKey,
     )
 
     return {
@@ -284,6 +283,8 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     readonly measuredByUserId: string
     readonly targetIds: readonly string[]
   }): Promise<number> {
+    /** T14 (revisão final, BAIXO): id repetido no corpo é defeito do cliente — a réplica é por alvo. */
+    const targetIds = [...new Set(input.targetIds)]
     return this.#database.transaction(async (transaction) => {
       const [origin] = await transaction
         .select({
@@ -301,6 +302,11 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         .where(
           and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
         )
+        /**
+         * T14 (revisão final, BAIXO): trava a origem — uma remedida concorrente dela espera esta
+         * transação terminar, em vez de a réplica seguir com dimensões que já estão sendo trocadas.
+         */
+        .for('update')
         .limit(1)
       if (origin === undefined) throw new PackageBoxNotFoundError()
       /**
@@ -332,12 +338,12 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         .where(
           and(
             eq(nfePackageBoxes.companyId, input.companyId),
-            inArray(nfePackageBoxes.id, [...input.targetIds]),
+            inArray(nfePackageBoxes.id, targetIds),
           ),
         )
       const targetsById = new Map(targets.map((target) => [target.id, target]))
 
-      for (const targetId of input.targetIds) {
+      for (const targetId of targetIds) {
         const target = targetsById.get(targetId)
         if (target === undefined) throw new PackageBoxNotFoundError()
         if (resolveEmitterFamilyKey(target) !== originFamilyKey) {
@@ -362,13 +368,13 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         .where(
           and(
             eq(nfePackageBoxes.companyId, input.companyId),
-            inArray(nfePackageBoxes.id, [...input.targetIds]),
+            inArray(nfePackageBoxes.id, targetIds),
             /** D4 sob concorrência: a leitura acima pode ter visto o alvo antes de alguém medi-lo. */
             isNull(nfePackageBoxes.measuredAt),
           ),
         )
         .returning({ id: nfePackageBoxes.id })
-      if (updated.length !== input.targetIds.length) {
+      if (updated.length !== targetIds.length) {
         throw new PackageBoxReplicationTargetAlreadyMeasuredError()
       }
 

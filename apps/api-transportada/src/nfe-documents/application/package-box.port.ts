@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  PackageBoxMeasuredSource,
   PackageBoxMeasurementSource,
   PackageBoxMeasurementWarning,
 } from '../domain/package-box-measurement.constant.js'
@@ -80,8 +81,11 @@ export type PackageBoxMeasurement = {
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   readonly unitsPerBox: number
   readonly lengthMm: number
-  /** `typed` é o padrão retrocompatível (D8 revista: `manual` nunca existiu no contrato). */
-  readonly source: PackageBoxMeasurementSource
+  /**
+   * `typed` é o padrão retrocompatível (D8 revista: `manual` nunca existiu no contrato).
+   * T14 (revisão final, BAIXO): sem `replicated` — quem grava essa origem é só `replicate()`.
+   */
+  readonly source: PackageBoxMeasuredSource
   readonly widthMm: number
 }
 

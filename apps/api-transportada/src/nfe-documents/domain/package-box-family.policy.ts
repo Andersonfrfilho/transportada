@@ -106,6 +106,20 @@ export function resolveEmitterFamilyKey(params: ResolveEmitterFamilyKeyParams): 
   return familyKey === undefined ? undefined : `${params.emitterTaxId}|${familyKey}`
 }
 
+export type PackagingKeyParams = {
+  readonly emitterTaxId: string
+  readonly productCode: string
+}
+
+/**
+ * O grupo de embalagem (D3): `(emitente, cProd)`, nunca a família — a mesma chave conta os irmãos
+ * (`countPackagingSiblings`) e separa a lista de `getSiblings`. T14 (revisão final, BAIXO, §16
+ * code-standards): extraída para não repetir a montagem da string nos dois lugares.
+ */
+export function buildPackagingKey(params: PackagingKeyParams): string {
+  return `${params.emitterTaxId}|${params.productCode}`
+}
+
 /** A unidade comercial carrega a contagem no sufixo (`CX36`, `FR12`) — é o que o conferente confere. */
 export function resolvePackagingUnitCount(commercialUnit: string): number | undefined {
   const digits =

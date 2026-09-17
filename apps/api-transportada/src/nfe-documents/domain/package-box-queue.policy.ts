@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  buildPackagingKey,
   resolveBoxFamily,
   resolveEmitterFamilyKey,
   resolvePackagingUnitCount,
@@ -170,11 +171,9 @@ export type PackagingCounts = {
 export function countPackagingSiblings(
   boxes: readonly PackagingCountableBox[],
 ): ReadonlyMap<string, PackagingCounts> {
-  const keyOf = (box: PackagingCountableBox): string => `${box.emitterTaxId}|${box.productCode}`
-
   const totals = new Map<string, number>()
   for (const box of boxes) {
-    const key = keyOf(box)
+    const key = buildPackagingKey(box)
     totals.set(key, (totals.get(key) ?? 0) + 1)
   }
 
@@ -182,7 +181,7 @@ export function countPackagingSiblings(
     boxes.map((box) => [
       box.id,
       {
-        packagingSiblingCount: (totals.get(keyOf(box)) ?? 1) - 1,
+        packagingSiblingCount: (totals.get(buildPackagingKey(box)) ?? 1) - 1,
         packagingUnitCount: resolvePackagingUnitCount(box.commercialUnit),
       },
     ]),

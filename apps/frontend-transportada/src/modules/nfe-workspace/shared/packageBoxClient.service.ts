@@ -1,4 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  PACKAGE_BOX_REPLICATE_FAILED_CODE,
+  PACKAGE_BOX_SIBLINGS_MALFORMED_CODE,
+} from './nfeWorkspace.constant'
 
 /**
  * D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida.
@@ -11,6 +15,14 @@ export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'replicated',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
+
+/**
+ * D6, T14 (revisão final, BAIXO): cópia por valor de `PACKAGE_BOX_MEASURED_SOURCES` (API,
+ * `nfe-documents/domain/package-box-measurement.constant.ts`) — `replicated` só a rota de
+ * replicar grava; o corpo que o formulário digitado/câmera monta nunca o aceita.
+ */
+export const PACKAGE_BOX_MEASURED_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export type PackageBoxMeasuredSource = (typeof PACKAGE_BOX_MEASURED_SOURCES)[number]
 
 export type PackageBox = Readonly<{
   cartonGtin: null | string
@@ -109,7 +121,7 @@ export type PackageBoxMeasurementInput = Readonly<{
   id: string
   lengthMm: number
   /** D8: ausente grava `typed` (retrocompatível) — o corpo antigo continua válido. */
-  source?: PackageBoxMeasurementSource
+  source?: PackageBoxMeasuredSource
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   unitsPerBox: number
   widthMm: number
@@ -236,7 +248,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
           method: 'POST',
         },
       )
-      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_REPLICATE_FAILED')
+      if (!response.ok) await rejectionOf(response, PACKAGE_BOX_REPLICATE_FAILED_CODE)
       const body: unknown = await response.json()
       if (!isRecord(body) || !isRecord(body.data) || !isNumber(body.data.replicatedCount)) {
         throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_REPLICATE_MALFORMED' })
@@ -299,7 +311,7 @@ function isPackageBox(value: unknown): value is PackageBox {
  */
 function packageBoxSiblingsFromApi(body: unknown): PackageBoxSiblings {
   if (!isRecord(body) || !isRecord(body.data))
-    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_SIBLINGS_MALFORMED' })
+    throw new PackageBoxRequestError({ code: PACKAGE_BOX_SIBLINGS_MALFORMED_CODE })
   const { family, isLowConfidenceFamily, originVariantLabel, packaging } = body.data
   if (
     !Array.isArray(family) ||
@@ -309,7 +321,7 @@ function packageBoxSiblingsFromApi(body: unknown): PackageBoxSiblings {
     typeof originVariantLabel !== 'string' ||
     typeof isLowConfidenceFamily !== 'boolean'
   ) {
-    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_SIBLINGS_MALFORMED' })
+    throw new PackageBoxRequestError({ code: PACKAGE_BOX_SIBLINGS_MALFORMED_CODE })
   }
   return { family, isLowConfidenceFamily, originVariantLabel, packaging }
 }

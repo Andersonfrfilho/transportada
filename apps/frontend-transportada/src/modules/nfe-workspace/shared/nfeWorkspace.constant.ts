@@ -11,3 +11,13 @@ export const ADDRESS_CORRECTION_REQUESTS_QUERY_KEY = 'address-correction-request
  * com link, porque é a única que aponta para um documento que existe e pode ser aberto.
  */
 export const NFSE_LINK_BLOCK_REASON = 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE'
+
+/**
+ * T14 (revisão final, BAIXO, §16 code-standards): último recurso quando a réplica falha sem código
+ * vindo da API (rede caiu) — repetido em `packageBoxClient.service.ts` e
+ * `usePackageBoxQueue.hook.ts`.
+ */
+export const PACKAGE_BOX_REPLICATE_FAILED_CODE = 'PACKAGE_BOX_REPLICATE_FAILED'
+
+/** T14 (revisão final, BAIXO, §16): corpo das irmãs que não bate o formato esperado, duas vezes no mesmo arquivo. */
+export const PACKAGE_BOX_SIBLINGS_MALFORMED_CODE = 'PACKAGE_BOX_SIBLINGS_MALFORMED'
