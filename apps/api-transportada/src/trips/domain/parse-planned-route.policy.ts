@@ -26,7 +26,6 @@ export function parsePlannedRoute(value: unknown): null | ParsedPlannedRoute {
   if (typeof value !== 'object' || value === null) return null
   const record = value as Record<string, unknown>
   if (typeof record.choiceReproduced !== 'boolean') return null
-  if (typeof record.isNoToll !== 'boolean') return null
   if (!isRouteChoiceCriterion(record.criterion)) return null
   if (!isNullableString(record.signature)) return null
 
@@ -38,7 +37,14 @@ export function parsePlannedRoute(value: unknown): null | ParsedPlannedRoute {
   return {
     choiceReproduced: record.choiceReproduced,
     criterion: record.criterion,
-    isNoToll: record.isNoToll,
+    /**
+     * N8 (segunda revisão da 153): antes desta correção, `isNoToll` ausente invalidava a rota
+     * inteira — toda rota congelada antes da T709b virar ilegível, e viagem já despachada com a
+     * coluna preenchida sem este campo perderia a rota da leitura. Mesma tolerância do parser
+     * irmão (`parseFrozenBoothLegIndexes`, `toll-route-cost-snapshot.policy.ts`): ausência de dado
+     * novo não derruba um registro antigo.
+     */
+    isNoToll: typeof record.isNoToll === 'boolean' ? record.isNoToll : false,
     legs,
     points,
     signature: record.signature,

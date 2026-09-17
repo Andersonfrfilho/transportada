@@ -51,26 +51,29 @@ function omitFields<TRecord extends object, TField extends keyof TRecord>(
 
 /**
  * L4 (revisão final da 153): a lista de exclusão deixava campo monetário novo vazar por padrão —
- * foi o que produziu C1 e H3, os dois em tipos que não passam por aqui. Para `TollBoothRouteLine`,
- * `RouteGeometryToll` e `RouteGeometryOption` — os três tipos concretos que este arquivo já importa,
- * e onde uma lista de exclusão desatualizada vazaria dinheiro em silêncio — a lista vira uma
- * classificação **exaustiva**: `Record<keyof T, 'money' | 'safe'>` obriga toda chave existente a
- * estar aqui, e o TypeScript já reprova a compilação se `T` ganhar um campo novo sem entrada — antes
- * de qualquer teste rodar, no mesmo `bun run typecheck` que já é gate.
+ * foi o que produziu C1 e H3. `TollBoothRouteLine`, `RouteGeometryToll` e `RouteGeometryOption` já
+ * usavam a classificação **exaustiva** abaixo: `Record<keyof T, 'money' | 'safe'>` obriga toda chave
+ * existente a estar aqui, e o TypeScript já reprova a compilação se `T` ganhar um campo novo sem
+ * entrada — antes de qualquer teste rodar, no mesmo `bun run typecheck` que já é gate.
  *
- * ⚠️ `redactNfeDocumentMoney`/`redactTripDocumentMoney`/`redactTripAmountsMoney` abaixo continuam
- * como lista de exclusão: são genéricas sobre um `TDocument` cujo formato completo este arquivo não
- * conhece (o chamador só garante um bound mínimo), então não há `keyof` exaustivo possível sem
- * acoplar este módulo compartilhado ao tipo concreto de cada consumidor.
+ * N6 (segunda revisão da 153): C1 e H3 aconteciam em `NfeDocumentSummary`, `TripDocumentDetail` e
+ * `TripAmounts` — três tipos que este arquivo compartilhado não conhece, e que nunca passavam pela
+ * exaustividade acima. Declarar a política aqui, genérica sobre `TDocument`, reproduzia a mesma
+ * lista de exclusão que causou os dois achados. `FieldPolicy`/`moneyFieldsOf` saem exportados, e
+ * `redactMoneyFields` abaixo troca a lista fixa de chaves por um array — quem conhece o tipo
+ * concreto (o módulo dono: `nfe-documents.routes.ts`, `trip.routes.ts`,
+ * `read-trip-revenue-totals.use-case.ts`) declara a própria `FieldPolicy<T>` com `satisfies` e passa
+ * `moneyFieldsOf(...)` para cá. O acoplamento fica na direção certa, e a exaustividade chega aos três
+ * tipos que de fato vazaram.
  */
-type FieldPolicy<TRecord> = Readonly<Record<keyof TRecord, 'money' | 'safe'>>
+export type FieldPolicy<TRecord> = Readonly<Record<keyof TRecord, 'money' | 'safe'>>
 
 /** As chaves de `TPolicy` classificadas `'money'` — computado do tipo **literal** da política. */
-type MoneyKeysOf<TPolicy> = {
+export type MoneyKeysOf<TPolicy> = {
   readonly [TKey in keyof TPolicy]: TPolicy[TKey] extends 'money' ? TKey : never
 }[keyof TPolicy]
 
-function moneyFieldsOf<TPolicy extends Record<string, 'money' | 'safe'>>(
+export function moneyFieldsOf<TPolicy extends Record<string, 'money' | 'safe'>>(
   policy: TPolicy,
 ): readonly MoneyKeysOf<TPolicy>[] {
   return (Object.keys(policy) as (keyof TPolicy)[]).filter(
@@ -158,49 +161,20 @@ export function redactRouteGeometryMoney<TView extends RouteGeometryView>(input:
   } as RedactedRouteGeometryView<TView>
 }
 
-/** NF-e: `freightRuleName` fica — é regra aplicada, não valor. */
-export function redactNfeDocumentMoney<
-  TDocument extends Readonly<{ freightAmount: unknown; totalAmount: unknown }>,
->(input: {
-  readonly canReadFinancials: boolean
-  readonly document: TDocument
-}): Omit<TDocument, 'freightAmount' | 'totalAmount'> | TDocument {
-  if (input.canReadFinancials) return input.document
-  return omitFields(input.document, ['freightAmount', 'totalAmount'] as const)
-}
-
-/** Spec 176: `freightRuleName` fica — é regra aplicada, não valor; só `freightAmount` é dinheiro. */
-export function redactTripDocumentMoney<
-  TDocument extends Readonly<{ freightAmount: unknown; nfeTotalValue: unknown }>,
->(input: {
-  readonly canReadFinancials: boolean
-  readonly document: TDocument
-}): Omit<TDocument, 'freightAmount' | 'nfeTotalValue'> | TDocument {
-  if (input.canReadFinancials) return input.document
-  return omitFields(input.document, ['freightAmount', 'nfeTotalValue'] as const)
-}
-
-/** Spec 156 L6: `amounts` da listagem de viagens é receita e soma das notas — dinheiro inteiro. */
-export function redactTripAmounts<TTrip extends Readonly<{ amounts: unknown }>>(input: {
-  readonly canReadFinancials: boolean
-  readonly trip: TTrip
-}): Omit<TTrip, 'amounts'> | TTrip {
-  if (input.canReadFinancials) return input.trip
-  return omitFields(input.trip, ['amounts'] as const)
-}
-
 /**
- * T707 (H3, achado anterior à 153): `GET /trips` mandava `documentsTotal`/`revenueTotal` sob a
- * política de leitura de viagem — a RF9 cobriu route-geometry, valuation-preview, NF-e e o
- * detalhe, mas esqueceu a listagem. `revenueSource` fica: é a origem do número, não o número.
+ * N6 (segunda revisão da 153): substituem `redactNfeDocumentMoney`/`redactTripDocumentMoney`/
+ * `redactTripAmountsMoney` — cada um era lista de exclusão fixa, cega a campo monetário novo no
+ * próprio tipo (o mesmo defeito de C1/H3). `redactMoneyFields` é o helper genérico sobre um array de
+ * chaves; quem conhece o tipo concreto (`nfe-documents.routes.ts`, `trip.routes.ts`,
+ * `read-trip-revenue-totals.use-case.ts` — o módulo dono de cada um) declara a própria
+ * `FieldPolicy<T>` exaustiva com `satisfies` e passa `moneyFieldsOf(...)` para cá. O acoplamento
+ * fica na direção certa, e a exaustividade chega aos três tipos que de fato vazaram.
  */
-export function redactTripAmountsMoney<
-  TAmounts extends Readonly<{ documentsTotal: unknown; revenueTotal: unknown }>,
->(input: {
-  readonly amounts: TAmounts | null
+export function redactMoneyFields<TRecord extends object, TField extends keyof TRecord>(input: {
   readonly canReadFinancials: boolean
-}): null | Omit<TAmounts, 'documentsTotal' | 'revenueTotal'> | TAmounts {
-  if (input.amounts === null) return null
-  if (input.canReadFinancials) return input.amounts
-  return omitFields(input.amounts, ['documentsTotal', 'revenueTotal'] as const)
+  readonly fields: readonly TField[]
+  readonly record: TRecord
+}): Omit<TRecord, TField> | TRecord {
+  if (input.canReadFinancials) return input.record
+  return omitFields(input.record, input.fields)
 }

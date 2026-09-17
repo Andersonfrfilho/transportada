@@ -1752,16 +1752,14 @@ já mandava `amounts: null` de qualquer forma). Prova em
 continua; com `trip.financials`, a resposta permanece igual à de hoje.
 
 **Frontend:** `TripTable.component.tsx` e `tripTable.service.ts` já leem `amounts?.documentsTotal`/
-`amounts?.revenueTotal` com encadeamento opcional e toleram a ausência. O validador de contrato não
-tolera: `isAbsentOrTripAmounts` (`modules/trip/shared/tripResponse.validation.ts`) usa
-`hasExactKeys(value, TRIP_AMOUNTS_KEYS)` com `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource',
-'revenueTotal']` (`modules/trip/shared/trip.constant.ts`) e exige `documentsTotal`/`revenueTotal`
-presentes sempre que `amounts` não é `null`/ausente (`modules/trip/shared/tripResponse.validation.ts`).
-Contra um objeto redigido (`amounts` presente, mas sem as duas chaves), a validação reprova a
-resposta inteira e quebra a listagem para quem não tem `trip.financials` — o mesmo padrão do achado
-C1/T701. Não corrigido aqui (sessão em paralelo em `apps/frontend-transportada`); os três arquivos
-acima precisam tratar `documentsTotal`/`revenueTotal` como opcionais dentro de `amounts`, e
-`trip.types.ts` (`TripAmounts`) precisa dos mesmos dois campos como opcionais no tipo.
+`amounts?.revenueTotal` com encadeamento opcional e toleram a ausência. `TRIP_AMOUNTS_KEYS`
+(`modules/trip/shared/trip.constant.ts`) ficou só com `['revenueSource']` — `documentsTotal` e
+`revenueTotal` migraram para `TRIP_AMOUNTS_OPTIONAL_KEYS`, e `isAbsentOrTripAmounts`
+(`modules/trip/shared/tripResponse.validation.ts`) passou a aceitar `amounts` presente sem as duas
+chaves, sem reprovar a resposta inteira. `TripAmounts` (`trip.types.ts`) tem os dois campos como
+opcionais (`documentsTotal?: null | string`, `revenueTotal?: string`), e `TripTable.component.tsx`
+omite a receita quando `revenueTotal` está ausente, nunca formatando `undefined` como dinheiro
+(D10). Corrigido pela T710 (`63317a9b`, Fase 7 da 153).
 
 ### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
 

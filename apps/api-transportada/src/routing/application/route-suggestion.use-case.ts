@@ -6,6 +6,10 @@ import {
   RouteSuggestionNotFoundError,
   RouteSuggestionTripDispatchedError,
 } from '../domain/routing.error.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from '../../trips/application/freeze-trip-route-gracefully.js'
 import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type {
   RouteSuggestion,
@@ -74,6 +78,8 @@ export type RouteSuggestionDependencies = Readonly<{
   trips: TripRouteGate
   /** Injetado para o determinismo ser testável: semente sorteada não se verifica. */
   createSeed?: () => number
+  /** N10 (segunda revisão da 153): o congelamento silencioso não avisava falha nenhuma. */
+  logger?: TripRouteFreezeLogger
 }>
 
 const MAX_SEED = 2_147_483_647
@@ -175,14 +181,20 @@ export function createRouteSuggestionUseCase(
        * da reordenação: se a viagem não virar `accepted`, o conferente tenta de novo, e replanejar
        * de novo é idempotente (T201).
        *
-       * Congelamento gracioso (mesmo caminho de `freezeRouteGracefully` em `trip.use-case.ts`): a
-       * ordem já está gravada, então uma nota sem parada (`hasRoute` falso) ou o OSRM fora do ar
-       * (D5) não podem derrubar o aceite — o pedágio/traçado congelam no próximo replanejamento.
-       * Diferente de `planTripRoute`, esta porta nunca promove o status da viagem.
+       * Congelamento gracioso pelo helper compartilhado (`freeze-trip-route-gracefully.ts`, o mesmo
+       * que `trip.use-case.ts` usa): a ordem já está gravada, então uma nota sem parada (`hasRoute`
+       * falso) ou o OSRM fora do ar (D5) não podem derrubar o aceite — o pedágio/traçado congelam
+       * no próximo replanejamento. Diferente de `planTripRoute`, esta porta nunca promove o status
+       * da viagem.
+       *
+       * N10 (segunda revisão da 153): antes desta correção, um helper local duplicava o mesmo
+       * `try`/`catch` sem logger — a falha do congelamento no aceite era a única muda: reordenar e
+       * vincular avisam, aceitar não, mesmo sendo o aceite que deixa a viagem sem rota.
        */
-      await freezeRouteGracefully({
+      await freezeTripRouteGracefully({
         companyId: input.context.companyId,
-        routeFreezer: dependencies.routeFreezer,
+        freezer: dependencies.routeFreezer,
+        ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
         ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
         tripId: input.tripId,
       })
@@ -211,29 +223,6 @@ export function createRouteSuggestionUseCase(
 
       return toSuggestion(decided)
     },
-  }
-}
-
-/**
- * Mesmo `catch` de fallback gracioso do `code-standart.md` §7: a ordem já está gravada, então um
- * congelamento que falha — nota sem parada, OSRM fora do ar (D5), ou qualquer outra falha do
- * congelador — não pode derrubar o aceite, só deixar o pedágio/traçado sem congelar até o próximo
- * replanejamento.
- */
-async function freezeRouteGracefully(input: {
-  readonly companyId: string
-  readonly routeChoice?: RouteChoice
-  readonly routeFreezer: TripRouteFreezer
-  readonly tripId: string
-}): Promise<void> {
-  try {
-    await input.routeFreezer.freeze({
-      companyId: input.companyId,
-      ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
-      tripId: input.tripId,
-    })
-  } catch {
-    /* a ordem já está gravada; o pedágio congela no próximo replanejamento */
   }
 }
 

@@ -4957,3 +4957,116 @@ manual do switch, T402) — ele já emitia corretamente e não tinha a dependên
 ### Commit
 
 `<hash desta mudança — ver git log>`
+
+## T805 — N6 + N8 + N9 + N10: classificação exaustiva nos tipos que vazaram, `isNoToll` tolerado, `docs/SECURITY.md` atualizado, congelamento do aceite com log
+
+### N6 — `FieldPolicy<T>` exaustiva nos três tipos que vazaram (C1/H3)
+
+`shared/monetary-redaction.service.ts` aplicava a classificação exaustiva (`Record<keyof T, 'money' |
+'safe'>` com `satisfies`) só a `TollBoothRouteLine`, `RouteGeometryToll` e `RouteGeometryOption` —
+nenhum dos três nunca vazou. As três superfícies que de fato vazaram (`redactNfeDocumentMoney`,
+`redactTripDocumentMoney`, `redactTripAmountsMoney`) continuavam por lista de exclusão genérica sobre
+um `TDocument` cujo formato completo o arquivo compartilhado não conhece.
+
+Correção: as três funções específicas saem do arquivo compartilhado. No lugar delas,
+`redactMoneyFields` — genérico sobre um array de chaves (`fields: readonly TField[]`), sem conhecer
+tipo concreto nenhum. `FieldPolicy`, `MoneyKeysOf` e `moneyFieldsOf` saem **exportados**, e cada
+módulo dono declara a própria política:
+
+- `trips/application/read-trip-revenue-totals.use-case.ts` — `TRIP_AMOUNTS_FIELD_POLICY` sobre
+  `TripAmounts` (o tipo já morava ali), `documentsTotal`/`revenueTotal` = `'money'`.
+- `trips/presentation/trip.routes.ts` — `TRIP_DOCUMENT_DETAIL_FIELD_POLICY` sobre um novo tipo
+  `SerializedTripDocumentDetail`. `serializeTripDocument` tinha retorno `object`: espalhar um valor
+  `object`-tipado num literal apaga as chaves do tipo resultante (provado à parte com
+  `bunx tsc --noEmit` sobre um arquivo de teste descartável — `typeof { ...f(), c: 3 }` com
+  `f(): object` não carrega as chaves de `f`), então a exaustividade não alcançaria os 15 campos
+  herdados de `serializeTripDocument`. Troquei o retorno para o tipo concreto
+  `SerializedTripDocument` — mudança contida a essa função, sem efeito nos outros três chamadores
+  (`trip.routes.ts:909,958,1612`), que já tratavam o retorno como `object` solto.
+- `nfe-documents/presentation/nfe-documents.routes.ts` — `NFE_DOCUMENT_FIELD_POLICY` sobre o tipo
+  local `NfeDocumentSummary` já existente no arquivo (37 campos, todos preenchidos por atribuição
+  direta — sem a armadilha do `object` acima), `freightAmount`/`totalAmount` = `'money'`.
+
+**Experimento do N6 (provando que a exaustividade barra em compile-time):** acrescentei um campo
+`marginTotal: string` a `TripAmounts` (`read-trip-revenue-totals.use-case.ts`) e rodei
+`bunx tsc --noEmit` dentro de `apps/api-transportada`. Falhou exatamente na linha da
+`FieldPolicy<TripAmounts>`:
+
+```
+src/trips/application/read-trip-revenue-totals.use-case.ts(40,12): error TS1360: Type '{ readonly
+documentsTotal: "money"; readonly revenueSource: "safe"; readonly revenueTotal: "money"; }' does not
+satisfy the expected type 'Readonly<Record<"documentsTotal" | "revenueSource" | "revenueTotal" |
+"marginTotal", "money" | "safe">>'.
+  Property 'marginTotal' is missing in type '{ ... }' but required in type 'Readonly<Record<...>>'.
+```
+
+Mais três erros em cascata (o `use-case.ts` linha 108 e a fixture de teste HTTP), todos porque
+`marginTotal` também faltava nos objetos concretos — nenhum deles é o teste em si, é o compilador
+recusando compilar até o campo ser classificado. Revertido o campo depois (`git diff` limpo
+confirmado com `bunx tsc --noEmit` voltando a 0 erros).
+
+### N8 — `isNoToll` ausente não invalida mais a rota
+
+`trips/domain/parse-planned-route.policy.ts`: `if (typeof record.isNoToll !== 'boolean') return
+null` derrubava o parser inteiro — rota congelada antes da T709b (que introduziu o campo) virava
+"não congelada" na leitura, mesmo com toda a rota disponível. Trocado por
+`typeof record.isNoToll === 'boolean' ? record.isNoToll : false`, no mesmo idioma tolerante do
+parser irmão `parseFrozenBoothLegIndexes` (`toll-booths/domain/toll-route-cost-snapshot.policy.ts`):
+ausência de dado novo não derruba um registro antigo.
+
+### N9 — `docs/SECURITY.md` atualizado
+
+A entrada de 2026-09-17 sobre `GET /trips` (H3) dizia, na parte de frontend, "Não corrigido aqui
+(sessão em paralelo)" e citava `TRIP_AMOUNTS_KEYS` com três chaves. Conferido contra o código atual:
+`TRIP_AMOUNTS_KEYS` (`trip.constant.ts`) já é só `['revenueSource']`,
+`documentsTotal`/`revenueTotal` migraram para `TRIP_AMOUNTS_OPTIONAL_KEYS`, `isAbsentOrTripAmounts`
+aceita a ausência das duas, e `TripAmounts` (`trip.types.ts`) já as tem opcionais — tudo pela T710
+(commit `63317a9b`, Fase 7). Parágrafo reescrito para descrever o estado corrigido em vez do
+pendente.
+
+### N10 — aceite de sugestão usa o congelador compartilhado, com log
+
+`routing/application/route-suggestion.use-case.ts` tinha um `freezeRouteGracefully` local
+duplicando o `try`/`catch` de `freeze-trip-route-gracefully.ts` (usado por `trip.use-case.ts`), mas
+sem logger: reordenar e vincular avisam a falha do congelamento (`TRIP_ROUTE_FREEZE_FAILED_MESSAGE`),
+aceitar sugestão não — e é justamente o aceite que deixa a viagem sem rota até o próximo
+replanejamento. Removido o helper local; `accept()` chama `freezeTripRouteGracefully` diretamente.
+`RouteSuggestionDependencies` ganhou `logger?: TripRouteFreezeLogger`, e `main.ts` (~2044) passa o
+`logger` da app na construção de `createRouteSuggestionUseCase`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21965 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+9 pass / 0 fail.
+
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts --timeout 120000
+9 pass / 0 fail.
+
+$ bun --env-file=../../.env.test test ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/nfe-document-listing-order.integration.ts ./test/integration/trip-document-review.integration.ts --timeout 120000
+25 pass / 0 fail, 88 expect() calls.
+```
+
+Não tocou frontend — nenhuma mudança de T805 alcança `apps/frontend-transportada`.
+
+### O que não fez
+
+Não mudou `TollBoothRouteLine`/`RouteGeometryToll`/`RouteGeometryOption` (já exaustivos, nunca
+vazaram). Não mudou a assinatura pública de `redactRouteGeometryMoney` nem seu uso. Não mexeu no
+comportamento de congelamento em si — só a fiação do logger e a remoção do helper duplicado.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

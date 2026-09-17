@@ -8,6 +8,7 @@ import {
 } from '../../shared/decimal.service.js'
 import { buildTripValuation } from '../domain/trip-valuation.policy.js'
 import type { ValuationSource } from '../domain/trip-valuation.policy.js'
+import { moneyFieldsOf, type FieldPolicy } from '../../shared/monetary-redaction.service.js'
 
 import { resolveRevenueLine } from './read-trip-valuation.use-case.js'
 import type {
@@ -24,6 +25,19 @@ export type TripAmounts = Readonly<{
   revenueSource: ValuationSource
   revenueTotal: string
 }>
+
+/**
+ * N6 (segunda revisão da 153): T707 (H3) redigia `documentsTotal`/`revenueTotal` por lista de
+ * exclusão em `shared/monetary-redaction.service.ts`, cega a campo monetário novo aqui. A política
+ * mora no módulo dono do tipo — se `TripAmounts` ganhar um `marginTotal` amanhã sem entrada nesta
+ * classificação, `bun run typecheck` reprova antes de qualquer teste rodar.
+ */
+export const TRIP_AMOUNTS_FIELD_POLICY = {
+  documentsTotal: 'money',
+  revenueSource: 'safe',
+  revenueTotal: 'money',
+} as const satisfies FieldPolicy<TripAmounts>
+export const TRIP_AMOUNTS_MONEY_FIELDS = moneyFieldsOf(TRIP_AMOUNTS_FIELD_POLICY)
 
 export type TripRevenueTotalsPort = Readonly<{
   findApplicableRule: (input: {

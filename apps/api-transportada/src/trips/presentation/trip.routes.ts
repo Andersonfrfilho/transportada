@@ -60,10 +60,12 @@ import type {
 } from '../application/request-cargo-layout.types.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
+  moneyFieldsOf,
+  redactMoneyFields,
   redactRouteGeometryMoney,
-  redactTripAmountsMoney,
-  redactTripDocumentMoney,
+  type FieldPolicy,
 } from '../../shared/monetary-redaction.service.js'
+import { TRIP_AMOUNTS_MONEY_FIELDS } from '../application/read-trip-revenue-totals.use-case.js'
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import {
@@ -1946,10 +1948,14 @@ function serializeTrip(input: {
      * T707 (H3): sem `trip.financials`, `documentsTotal`/`revenueTotal` somem — a listagem é a
      * primeira leitura de viagem que qualquer papel com `fleet.read` enxerga.
      */
-    amounts: redactTripAmountsMoney({
-      amounts: trip.amounts,
-      canReadFinancials: input.canReadFinancials,
-    }),
+    amounts:
+      trip.amounts === null
+        ? null
+        : redactMoneyFields({
+            canReadFinancials: input.canReadFinancials,
+            fields: TRIP_AMOUNTS_MONEY_FIELDS,
+            record: trip.amounts,
+          }),
     companyId: trip.companyId,
     createdAt: trip.createdAt,
     id: trip.id,
@@ -2031,7 +2037,27 @@ function serializeTripDetail(input: {
   }
 }
 
-function serializeTripDocument(document: TripDocument): object {
+/** N6: tipo concreto — `object` apagava as chaves no spread de `serializeTripDocumentDetail`
+ * abaixo, e a `FieldPolicy` exaustiva ali só alcança o que o `typeof` do literal consegue ver. */
+type SerializedTripDocument = Readonly<{
+  createdAt: TripDocument['createdAt']
+  deliveredAt: TripDocument['deliveredAt']
+  destinationOrigin: TripDocument['destinationOrigin']
+  freightCalculationId: TripDocument['freightCalculationId']
+  id: TripDocument['id']
+  loadedAt: TripDocument['loadedAt']
+  nfeDocumentId: TripDocument['nfeDocumentId']
+  releasedAt: TripDocument['releasedAt']
+  returnedAt: TripDocument['returnedAt']
+  returnReason: TripDocument['returnReason']
+  separatedAt: TripDocument['separatedAt']
+  separationStatus: TripDocument['separationStatus']
+  stopId: TripDocument['stopId']
+  tripId: TripDocument['tripId']
+  updatedAt: TripDocument['updatedAt']
+}>
+
+function serializeTripDocument(document: TripDocument): SerializedTripDocument {
   return {
     createdAt: document.createdAt,
     deliveredAt: document.deliveredAt,
@@ -2051,12 +2077,55 @@ function serializeTripDocument(document: TripDocument): object {
   }
 }
 
+type SerializedTripDocumentDetail = SerializedTripDocument &
+  Readonly<{
+    contact: TripDocumentDetail['contact']
+    cteAuthorized: TripDocumentDetail['cteAuthorized']
+    fiscalStatus: TripDocumentDetail['fiscalStatus']
+    nfeIssuedAt: TripDocumentDetail['nfeIssuedAt']
+    nfeNumber: TripDocumentDetail['nfeNumber']
+    nfeSeries: TripDocumentDetail['nfeSeries']
+    nfeTotalValue: TripDocumentDetail['nfeTotalValue']
+  }>
+
+/**
+ * N6 (segunda revisão da 153): defeito H3 nascia aqui — `redactTripDocumentMoney` redigia
+ * `nfeTotalValue` por lista de exclusão, cega a campo monetário novo neste tipo. A política mora no
+ * módulo dono da serialização: se este objeto ganhar um valor novo sem classificação, `bun run
+ * typecheck` reprova antes de qualquer teste rodar.
+ */
+const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
+  contact: 'safe',
+  createdAt: 'safe',
+  cteAuthorized: 'safe',
+  deliveredAt: 'safe',
+  destinationOrigin: 'safe',
+  fiscalStatus: 'safe',
+  freightCalculationId: 'safe',
+  id: 'safe',
+  loadedAt: 'safe',
+  nfeDocumentId: 'safe',
+  nfeIssuedAt: 'safe',
+  nfeNumber: 'safe',
+  nfeSeries: 'safe',
+  nfeTotalValue: 'money',
+  releasedAt: 'safe',
+  returnedAt: 'safe',
+  returnReason: 'safe',
+  separatedAt: 'safe',
+  separationStatus: 'safe',
+  stopId: 'safe',
+  tripId: 'safe',
+  updatedAt: 'safe',
+} as const satisfies FieldPolicy<SerializedTripDocumentDetail>
+const TRIP_DOCUMENT_DETAIL_MONEY_FIELDS = moneyFieldsOf(TRIP_DOCUMENT_DETAIL_FIELD_POLICY)
+
 function serializeTripDocumentDetail(input: {
   readonly canReadFinancials: boolean
   readonly document: TripDocumentDetail
 }): object {
   const document = input.document
-  const serialized = {
+  const serialized: SerializedTripDocumentDetail = {
     ...serializeTripDocument(document),
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
@@ -2071,9 +2140,10 @@ function serializeTripDocumentDetail(input: {
     nfeTotalValue: document.nfeTotalValue,
     openOccurrenceCase: document.openOccurrenceCase,
   }
-  return redactTripDocumentMoney({
+  return redactMoneyFields({
     canReadFinancials: input.canReadFinancials,
-    document: serialized,
+    fields: TRIP_DOCUMENT_DETAIL_MONEY_FIELDS,
+    record: serialized,
   })
 }
 

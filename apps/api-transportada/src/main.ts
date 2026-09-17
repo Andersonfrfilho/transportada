@@ -2820,6 +2820,8 @@ function createApplicationRoutes({
             routeFreezer: tripRouteTollFreezer,
             stopOrder: createTripStopOrderWriter(tripRouteRepository),
             trips: createDrizzleTripRouteGate(database),
+            /** N10 (segunda revisão da 153): o aceite silenciava a falha do congelamento. */
+            logger,
           }),
         })),
     /**

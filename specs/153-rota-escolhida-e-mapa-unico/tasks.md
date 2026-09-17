@@ -148,7 +148,7 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 - [x] T804 **N4 + N11** Refetch da geometria apaga a escolha do operador (regressão do RF13): separar
       reset de emissão, dependências corretas; e trocar as provas por regex do frontend por teste de
       comportamento, no molde da T706.
-- [ ] T805 **N6 + N8 + N9 + N10** Classificação exaustiva nos tipos que vazaram (NF-e, documento,
+- [x] T805 **N6 + N8 + N9 + N10** Classificação exaustiva nos tipos que vazaram (NF-e, documento,
       amounts); `isNoToll` ausente tolerado no parser, como o parser irmão; `docs/SECURITY.md`
       atualizado (a parte do frontend já foi feita na T710); aceite de sugestão usa o
       `freezeTripRouteGracefully` com log, sem helper duplicado.
