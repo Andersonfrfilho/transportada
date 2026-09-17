@@ -1717,7 +1717,17 @@ Ran 21 tests across 4 files. [27.27s]
 
 Mesmo defeito de forma que o `CLAUDE.md` já registra para outro alvo — "pular não é passar" vale
 também para "falhar por teto de tempo baixo demais não é falhar de verdade"; corrigir o script em si
-é fora do escopo desta task.
+é fora do escopo desta task. Confirmado rodando a suíte completa de novo com `--timeout 120000`
+(`bun run test:integration -- --timeout 120000`, mesma credencial de override):
+
+```
+$ STORAGE_SECRET_KEY=minio-local-password bun --env-file=../../.env.test run test:integration -- --timeout 120000
+ 378 pass
+ 4 skip
+ 0 fail
+ 2540 expect() calls
+Ran 382 tests across 74 files. [239.44s]
+```
 
 ```
 $ cd apps/frontend-transportada && bun run test
