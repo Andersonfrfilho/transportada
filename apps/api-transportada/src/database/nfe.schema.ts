@@ -540,6 +540,11 @@ export const nfePackageBoxes = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    /**
+     * Identidade em dois eixos (spec 155): (1) família de variação — `(emitente, prefixo, uCom)`
+     * da descrição é replicável (mesma caixa física, sabores diferentes); (2) grupo de embalagem —
+     * `(emitente, cProd)` agrupa só a tela, nunca replica dimensão entre unidades diferentes.
+     */
     unique('nfe_package_boxes_identity_unique').on(
       table.companyId,
       table.emitterTaxId,

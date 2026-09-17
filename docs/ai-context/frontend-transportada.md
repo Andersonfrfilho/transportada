@@ -113,6 +113,22 @@ validação com caixas reais (spec 152 T15). Sem câmera, permissão negada, fal
 acima de 15 s ou análise lenta — tudo cai no formulário digitado da caixa lida. Regra completa em
 `docs/frontend/box-dimension-scanner.md`, contrato em `test/design-system/box-dimension-scanner.contract.ts`.
 
+**Replicar medida entre variações da mesma caixa (spec 155):** linha com medida ganha badge visível
+de unidade comercial (resolução da reclamação de "duplicação aparente" — `CX36` e `FR12` do mesmo
+produto agora mostram a contagem explícita, `CX36 · 36 un`). Linhas do mesmo produto são agrupadas no
+cabeçalho com descrição completa + código de produto (grupo de embalagem, **não** replicável). Quando
+a família tem irmã medida, botão rápido **preenche** (não grava) os campos do formulário — atalho de
+digitação — porque o conferente confere contra a caixa na mão. Depois de gravar, se a família tiver
+pendentes, diálogo oferece replicar. Pré-marcado quando a família é confiável (mesma unidade ou
+formato consistente), **desmarcado** quando `isLowConfidenceFamily` (ex.: vácuo e sachê misturados —
+D11) — descrição completa + cProd de cada alvo evita confusão em 16 rótulos de 3 caracteres ou menos.
+Replicar copia comprimento, largura, altura e contagem de unidades; não toca peso (fora de escopo).
+Cancelar no diálogo nunca grava (D5). Mensagem de erro específica por falha: 422 origem sem medida ou
+alvo fora da família, 409 alvo já medido — operador sabe por que o replicar recusou. Contrato de
+cliente em `test/nfe-workspace/package-box-measurement.contract.ts`, diálogo em
+`test/nfe-workspace/package-box-replicate-dialog.contract.ts`, agrupamento em
+`test/nfe-workspace/package-box-family.contract.ts`.
+
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.

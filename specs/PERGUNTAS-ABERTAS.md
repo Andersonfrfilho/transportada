@@ -108,3 +108,12 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
 26. **Prioridade:** confirma que a 063 vem depois da 062? Ela é a única que não parte de código
     existente, tem a maior superfície de segurança, e o WhatsApp resolve boa parte do mesmo problema
     por muito menos.
+
+### 155 — a variação do mesmo produto mede uma vez e replica
+
+27. **O GTIN da caixa e o GTIN da unidade de consumo** (155 D10, 2026-09-17): `carton_gtin` carrega 650
+    de 655 caixas, mas **não é o GTIN da caixa impressa** — é o `cEAN` da linha, o GTIN da unidade de
+    consumo que o emitente repete em toda linha. Duas embalagens distintas (`CX36` + `FR12` do mesmo
+    produto) compartilham o mesmo GTIN porque o código traz a unidade, não a caixa. Ler o DUN-14 da
+    caixa nunca casa com `carton_gtin`. Precisa de spec própria: `carton_gtin` guardando `cUnitGtin`,
+    caixa nova coluna `box_gtin` (DUN-14), e adaptar a validação do bipe de duas para três colunas.

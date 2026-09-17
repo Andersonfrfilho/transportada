@@ -558,6 +558,18 @@ controla se a câmera está ligada na aba **Caixas** — com a função desligad
 interruptor. Export do histórico por período: `GET /nfe-package-box-measurements?from=&to=&cursor=`
 (`settings.manage`, `perPage ≤ 100`) para validação com caixas reais (spec 152 T15).
 
+**Replicar medida entre variações da mesma caixa (spec 155):** `GET /nfe-package-boxes/:id/siblings`
+(`cargo.measure`) lista irmãs por família — `(emitente, prefixo da descrição até o último dígito, uCom)`
+é replicável (sabores diferentes da mesma caixa física). Mesmo emitente + cProd são agrupadas só na tela
+como grupo de embalagem e **nunca** replicam (unidades diferentes = caixas de tamanho diferente, D3).
+Irmãs já medidas são filtradas na tela (D4). `POST /nfe-package-boxes/:id/replicate` com `{ targetIds }`
+grava comprimento, largura, altura, peso, contagem de unidades e `measurement_source = 'replicated'`
+(nunca conferida, apenas informativa) no histórico com `replicated_from_box_id`. Status 422 se origem
+sem medida, alvo fora da família ou família assimétrica marcada (`isLowConfidenceFamily`, quando sabor
+e formato se misturam — ex.: vácuo e sachê). Status 409 se alvo já medido — **invariante que não se
+negocia**: replicar nunca sobrescreve medida existente, nem por concorrência. Respostas com código
+específico permitem a tela oferecer diálogo pré-marcado só em família confiável (D5).
+
 ⚠️ **Etiqueta que não vira código nenhum é busca vazia, nunca busca sem filtro** — tratá-la como
 ausência de filtro mostrava as cinquenta primeiras caixas como se a leitura tivesse achado algo, e o
 conferente media a primeira da lista. E a fila ordena por `coalesce(volumes, 0) desc`: em Postgres
