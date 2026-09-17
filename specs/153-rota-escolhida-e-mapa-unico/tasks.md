@@ -64,7 +64,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T501 Aba Regiões em MapLibre (polígonos por zona, clique, legenda, cidades fora da malha).
+- [x] T501 Aba Regiões em MapLibre (polígonos por zona, clique, legenda, cidades fora da malha).
 - [ ] T502 Remoção de `VectorMap` e do resto do mapa antigo (RF11) + contrato de fonte (aceite 4).
 
 ## Fase 6 — Documentação e revisão

@@ -1151,9 +1151,14 @@
   text-transform: uppercase;
 }
 
-/* O desenho é largo, e o estado alto (Bahia, Minas) estouraria a dobra sem um teto de altura. */
-.mapDrawing {
-  max-height: 26rem;
+/*
+ * O canvas do MapLibre não tem tamanho intrínseco como o `<svg>` de antes — precisa de altura
+ * declarada, senão o mapa nasce 0×0 e nunca pede telha nenhuma (spec 153 RF11).
+ */
+.regionMapCanvas {
+  width: 100%;
+  height: 26rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
 }
 
 .mapLegend {

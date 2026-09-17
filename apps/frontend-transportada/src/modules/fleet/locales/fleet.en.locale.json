@@ -621,6 +621,7 @@
     "state": "Map state",
     "title": "Route map",
     "unassigned": "No route",
+    "withoutBasemap": "Street map unavailable — the legend and the city list are still valid",
     "zone": "Zone {{zone}}"
   },
   "regionSelection": {

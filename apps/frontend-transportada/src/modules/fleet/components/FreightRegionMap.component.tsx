@@ -1,17 +1,25 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { JSX } from 'react'
+import { lazy, Suspense, useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import { VectorMap } from '@/components/ui/vector-map'
 
 import { useFreightRegionMap } from '../hooks/useFreightRegionMap.hook'
 import { BRAZIL_STATE } from '../shared/fleet.types'
 import type { FreightRegion, FreightRegionCity } from '../shared/freightRegion.types'
-import { resolveZoneFill } from '../shared/freightRegionMap.service'
 import { cityKeyOf } from '../shared/regionCityName.service'
 import styles from '../styles/fleet.module.css'
 import { FleetSelectField } from './FleetField.component'
+
+/**
+ * ⚠️ O mapa entra por `lazy`, mesmo motivo do mapa da viagem: o MapLibre sozinho estoura o teto de
+ * 2 MiB do precache do PWA se entrar no pacote principal — e a aba Regiões nem sempre abre.
+ */
+const FreightRegionVectorMap = lazy(async () => ({
+  default: (await import('./FreightRegionVectorMap.component')).FreightRegionVectorMap,
+}))
+
+const MAP_HEIGHT = '26rem'
 
 type FreightRegionMapProps = Readonly<{
   cities?: readonly FreightRegionCity[] | undefined
@@ -27,7 +35,13 @@ type FreightRegionMapProps = Readonly<{
 export function FreightRegionMap(props: FreightRegionMapProps): JSX.Element {
   const { t } = useTranslation('fleet')
   const entry = useFreightRegionMap(props)
+  const [hasBasemap, setHasBasemap] = useState(true)
   const selectedKeys = new Set((props.cities ?? []).map(cityKeyOf))
+  const selectedCodes = new Set(
+    entry.model.shapes
+      .filter((shape) => selectedKeys.has(cityKeyOf({ city: shape.city, state: entry.state })))
+      .map((shape) => shape.code),
+  )
 
   return (
     <section className={styles.mapPanel}>
@@ -55,23 +69,25 @@ export function FreightRegionMap(props: FreightRegionMapProps): JSX.Element {
       {!entry.isLoading && !entry.hasFailed && entry.model.shapes.length === 0 ? (
         <p className={styles.fieldHint}>{t('regionMap.empty')}</p>
       ) : null}
-      {entry.model.shapes.length > 0 ? (
-        <VectorMap
-          ariaLabel={t('regionMap.title')}
-          className={styles.mapDrawing}
-          shapes={entry.model.shapes.map((shape) => ({
-            fill: resolveZoneFill(shape.zone),
-            id: shape.code,
-            label:
-              shape.claims.length === 0
-                ? shape.city
-                : `${shape.city} — ${shape.claims.map((claim) => claim.name).join(' · ')}`,
-            path: shape.path,
-            selected: selectedKeys.has(cityKeyOf({ city: shape.city, state: entry.state })),
-          }))}
-          viewBox={entry.model.viewBox}
-          {...(entry.isEditing ? { onSelect: entry.selectShape } : {})}
-        />
+      {entry.model.shapes.length > 0 && hasBasemap ? (
+        <Suspense
+          fallback={
+            <SkeletonGroup label={t('loading')}>
+              <Skeleton height={MAP_HEIGHT} variant="block" />
+            </SkeletonGroup>
+          }
+        >
+          <FreightRegionVectorMap
+            ariaLabel={t('regionMap.title')}
+            onBasemapMissing={() => setHasBasemap(false)}
+            selectedCodes={selectedCodes}
+            shapes={entry.model.shapes}
+            {...(entry.isEditing ? { onSelect: entry.selectShape } : {})}
+          />
+        </Suspense>
+      ) : null}
+      {entry.model.shapes.length > 0 && !hasBasemap ? (
+        <p className={styles.fieldHint}>{t('regionMap.withoutBasemap')}</p>
       ) : null}
       {entry.legend.length > 0 ? (
         <div className={styles.mapLegend}>

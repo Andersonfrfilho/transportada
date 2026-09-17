@@ -8,12 +8,15 @@ import {
   buildStateMeshUrl,
   loadStateMesh,
   projectStateMesh,
+  readStateMeshFeatures,
 } from '../../src/modules/shared/ibgeMesh.service'
 import {
   FREIGHT_REGION_ZONE_FILL,
   buildFreightRegionMap,
   resolveDefaultMapState,
+  resolveFreightRegionBounds,
   resolveZoneFill,
+  toFreightRegionFeatureCollection,
   toggleRegionMapCity,
 } from '../../src/modules/fleet/shared/freightRegionMap.service'
 
@@ -205,7 +208,7 @@ describe('ibge mesh contract', () => {
 describe('freight region map contract', () => {
   test('o polígono casa com a cidade da zona pelo codarea', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM, MOGI_GUACU],
       regions: [region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }] })],
       state: 'SP',
@@ -214,6 +217,7 @@ describe('freight region map contract', () => {
     const drawn = model.shapes.find((shape) => shape.code === MOGI_MIRIM.code)
     expect(drawn?.city).toBe('Mogi Mirim')
     expect(drawn?.zone).toBe(1)
+    expect(drawn?.rings.length).toBeGreaterThan(0)
     expect(drawn?.claims.map((claim) => claim.id)).toEqual(['region-1'])
     expect(model.outside).toEqual([])
   })
@@ -221,7 +225,7 @@ describe('freight region map contract', () => {
   /** O município sem zona continua desenhado: o mapa serve para ver o que **não** está coberto. */
   test('município sem zona é desenhado em branco, não escondido', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM, MOGI_GUACU],
       regions: [region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }] })],
       state: 'SP',
@@ -236,7 +240,7 @@ describe('freight region map contract', () => {
   /** A dobra é a mesma da entrada de cidade: `MOGI-MIRIM` da planilha é a linha do IBGE. */
   test('a cidade casa pela dobra, não pela grafia', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM, MOGI_GUACU],
       regions: [region({ cities: [{ city: 'MOGI-MIRIM', state: 'SP' }] })],
       state: 'SP',
@@ -251,7 +255,7 @@ describe('freight region map contract', () => {
    */
   test('cidade sem polígono aparece nomeada fora do mapa', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM],
       regions: [
         region({
@@ -275,7 +279,7 @@ describe('freight region map contract', () => {
    */
   test('cidade em duas rotas é desenhada uma vez, com as duas rotas nomeadas', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM],
       regions: [
         region({
@@ -298,7 +302,7 @@ describe('freight region map contract', () => {
   /** Rota inativada pela importação não pinta: o desenho mostra o que a transportadora paga hoje. */
   test('rota inativa não pinta e não vira aviso', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM],
       regions: [
         region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }], status: 'inactive' }),
@@ -318,7 +322,7 @@ describe('freight region map contract', () => {
   /** A malha é de uma UF: cidade de outro estado não é cidade que faltou no desenho. */
   test('cidade de outra UF fica fora da conta do estado desenhado', () => {
     const model = buildFreightRegionMap({
-      mesh: projectStateMesh(meshPayload()),
+      features: readStateMeshFeatures(meshPayload()),
       municipalities: [MOGI_MIRIM],
       regions: [region({ cities: [{ city: 'Uberaba', state: 'MG' }] })],
       state: 'SP',
@@ -330,7 +334,7 @@ describe('freight region map contract', () => {
 
   test('a malha ainda carregando não inventa mapa', () => {
     const model = buildFreightRegionMap({
-      mesh: EMPTY_STATE_MESH,
+      features: [],
       municipalities: [],
       regions: [region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }] })],
       state: 'SP',
@@ -377,6 +381,60 @@ describe('freight region map contract', () => {
   })
 })
 
+describe('freight region geojson contract', () => {
+  /** Ilha e enclave viram subpolígono do mesmo `MultiPolygon` — o mesmo município, nunca dois. */
+  test('cada município vira uma feição GeoJSON, com a zona como propriedade numérica', () => {
+    const model = buildFreightRegionMap({
+      features: readStateMeshFeatures(meshPayload()),
+      municipalities: [MOGI_MIRIM, MOGI_GUACU],
+      regions: [region({ cities: [{ city: 'Mogi Mirim', state: 'SP' }] })],
+      state: 'SP',
+    })
+
+    const collection = toFreightRegionFeatureCollection(model.shapes)
+
+    expect(collection.type).toBe('FeatureCollection')
+    expect(collection.features).toHaveLength(2)
+    const drawn = collection.features.find((feature) => feature.properties.code === MOGI_MIRIM.code)
+    expect(drawn?.geometry.type).toBe('MultiPolygon')
+    expect(drawn?.properties.zone).toBe(1)
+    expect(drawn?.id).toBe(MOGI_MIRIM.code)
+    /** Sem zona não é `null` na feição: expressão de estilo do MapLibre não lê `null`. */
+    const uncovered = collection.features.find(
+      (feature) => feature.properties.code === MOGI_GUACU.code,
+    )
+    expect(uncovered?.properties.zone).toBe(-1)
+  })
+
+  test('município sem anel não vira feição sem geometria', () => {
+    const collection = toFreightRegionFeatureCollection([
+      { city: 'Sem malha', claims: [], code: '0000000', rings: [], zone: null },
+    ])
+
+    expect(collection.features).toEqual([])
+  })
+
+  test('o quadro enquadra a extensão real das coordenadas, não um viewBox fixo', () => {
+    const model = buildFreightRegionMap({
+      features: readStateMeshFeatures(meshPayload()),
+      municipalities: [MOGI_MIRIM, MOGI_GUACU],
+      regions: [],
+      state: 'SP',
+    })
+
+    const bounds = resolveFreightRegionBounds(model.shapes)
+
+    expect(bounds).not.toBeNull()
+    const [minLng, minLat, maxLng, maxLat] = bounds ?? [0, 0, 0, 0]
+    expect(minLng).toBeLessThan(maxLng)
+    expect(minLat).toBeLessThan(maxLat)
+  })
+
+  test('sem forma nenhuma o quadro é nulo, não um retângulo inventado', () => {
+    expect(resolveFreightRegionBounds([])).toBeNull()
+  })
+})
+
 const MAP_KEYS = [
   'empty',
   'failed',
@@ -387,6 +445,7 @@ const MAP_KEYS = [
   'state',
   'title',
   'unassigned',
+  'withoutBasemap',
   'zone',
 ] as const
 
@@ -471,10 +530,11 @@ describe('freight region default state contract', () => {
 
 describe('freight region map component contract', () => {
   /**
-   * O desenho é `path` do nosso bundle, não página de terceiro: `iframe` e imagem remota mandariam
-   * a zona do cliente para fora, e o `frame-src 'none'` da CSP recusaria o quadro em silêncio.
+   * Spec 153 D11 — um mapa só: a aba Regiões passa a desenhar no MapLibre, o mesmo motor do mapa da
+   * viagem, e não mais o primitivo SVG `VectorMap` (que continua existindo para quem mais o usa —
+   * só esta tela para de depender dele).
    */
-  test('o mapa é desenho nosso, sem iframe, imagem remota ou html cru', async () => {
+  test('o mapa não depende mais de VectorMap nem desenha iframe, imagem remota ou html cru', async () => {
     const component = await readApplicationFile(
       'src/modules/fleet/components/FreightRegionMap.component.tsx',
     )
@@ -482,7 +542,25 @@ describe('freight region map component contract', () => {
     expect(component).not.toContain('iframe')
     expect(component).not.toContain('<img')
     expect(component).not.toContain('dangerouslySetInnerHTML')
-    expect(component).toContain("from '@/components/ui/vector-map'")
+    expect(component).not.toContain("from '@/components/ui/vector-map'")
+    expect(component).toContain('FreightRegionVectorMap')
+  })
+
+  /**
+   * ⚠️ O mapa entra por `lazy`, mesmo motivo do mapa da viagem: MapLibre no pacote principal estoura
+   * o teto de 2 MiB do precache do PWA. Sem isto o build passa, mas o chunk some — só o `bun run
+   * build` mede o tamanho de verdade (ver `evidence.md`).
+   */
+  test('o mapa vetorial entra por import dinâmico, não estático', async () => {
+    const component = await readApplicationFile(
+      'src/modules/fleet/components/FreightRegionMap.component.tsx',
+    )
+
+    expect(component).toContain('lazy(async () => (')
+    expect(component).toContain("await import('./FreightRegionVectorMap.component')")
+    expect(component).not.toContain(
+      "import { FreightRegionVectorMap } from './FreightRegionVectorMap.component'",
+    )
   })
 
   test('a lógica mora no hook e o componente só renderiza', async () => {
@@ -494,7 +572,7 @@ describe('freight region map component contract', () => {
     expect(component).toContain('useFreightRegionMap')
     expect(component).not.toContain('useQuery')
     expect(component).not.toContain('loadStateMesh')
-    expect(hook).toContain('loadStateMesh')
+    expect(hook).toContain('loadStateMeshFeatures')
     expect(hook).toContain('IBGE_MESH_QUERY_KEY')
     expect(hook).toContain('buildFreightRegionMap')
   })
@@ -508,16 +586,28 @@ describe('freight region map component contract', () => {
     expect(component).toContain("from '@/components/ui/skeleton'")
     expect(component).toContain('regionMap.failed')
     expect(component).toContain('regionMap.outsideTitle')
+    /** ADR-0044 §6: sem o arquivo de mapa a tela cai para a legenda/lista e diz isso — nunca some. */
+    expect(component).toContain('onBasemapMissing')
+    expect(component).toContain('regionMap.withoutBasemap')
   })
 
-  /** O `<svg>` do mapa é dado vindo da malha, e por isso mora no design system, não no módulo. */
-  test('o desenho é primitivo do design system, com nome acessível', async () => {
-    const primitive = await readApplicationFile('src/components/ui/vector-map.tsx')
+  /**
+   * O engine do desenho: fonte GeoJSON própria (nunca telha de terceiro para a geometria da zona),
+   * clique delegado à camada de preenchimento (não a cada `<path>`, como o SVG fazia), e nada de
+   * `iframe`/imagem remota — mesma exigência de CSP do `VectorMap` que ele substitui.
+   */
+  test('o mapa vetorial desenha por fonte GeoJSON e delega o clique à camada de zona', async () => {
+    const engine = await readApplicationFile(
+      'src/modules/fleet/components/FreightRegionVectorMap.component.tsx',
+    )
 
-    expect(primitive).toContain('export function VectorMap(')
-    expect(primitive).toContain('<svg')
-    expect(primitive).toContain('role="img"')
-    expect(primitive).toContain('aria-label')
+    expect(engine).toContain("from 'maplibre-gl'")
+    expect(engine).toContain("type: 'geojson'")
+    expect(engine).toContain('toFreightRegionFeatureCollection')
+    expect(engine).toContain("map.on('click', ZONE_FILL_LAYER")
+    expect(engine).not.toContain('iframe')
+    expect(engine).not.toContain('<img')
+    expect(engine).not.toContain('dangerouslySetInnerHTML')
   })
 
   /** A malha é `fetch` do navegador do operador: destino fora do `connect-src` é pedido bloqueado. */

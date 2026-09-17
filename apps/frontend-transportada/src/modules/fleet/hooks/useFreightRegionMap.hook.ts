@@ -11,16 +11,19 @@ import {
   toggleRegionMapCity,
 } from '../shared/freightRegionMap.service'
 import {
-  EMPTY_STATE_MESH,
   IBGE_MESH_QUERY_KEY,
   IBGE_MESH_STALE_TIME_MS,
-  loadStateMesh,
+  loadStateMeshFeatures,
+  type MeshFeature,
 } from '@/modules/shared/ibgeMesh.service'
 import {
   listMunicipalityIdentities,
   MUNICIPALITY_IDENTITY_QUERY_KEY,
   MUNICIPALITY_STALE_TIME_MS,
 } from '../shared/municipality.service'
+
+/** Fallback antes da primeira resposta — a malha ainda carregando não pode virar `undefined` solto. */
+const EMPTY_MESH_FEATURES: readonly MeshFeature[] = []
 
 export type FreightRegionMapInputProps = Readonly<{
   cities?: readonly FreightRegionCity[] | undefined
@@ -73,7 +76,7 @@ export function useFreightRegionMap(input: FreightRegionMapInputProps): FreightR
 
   const meshQuery = useQuery({
     enabled: state !== '',
-    queryFn: ({ signal }) => loadStateMesh({ fetch: fetchImplementation, signal, state }),
+    queryFn: ({ signal }) => loadStateMeshFeatures({ fetch: fetchImplementation, signal, state }),
     queryKey: [IBGE_MESH_QUERY_KEY, state],
     staleTime: IBGE_MESH_STALE_TIME_MS,
   })
@@ -88,7 +91,7 @@ export function useFreightRegionMap(input: FreightRegionMapInputProps): FreightR
   const model = useMemo(
     () =>
       buildFreightRegionMap({
-        mesh: meshQuery.data ?? EMPTY_STATE_MESH,
+        features: meshQuery.data ?? EMPTY_MESH_FEATURES,
         municipalities: municipalityQuery.data ?? [],
         regions,
         state,

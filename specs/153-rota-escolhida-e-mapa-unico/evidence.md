@@ -2766,4 +2766,158 @@ Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi to
 
 ### Commit
 
-`<preenchido após o commit>`
+`5ab43a43`
+
+## T501 — Aba Regiões em MapLibre (polígonos por zona, clique, legenda, cidades fora da malha) ✅ 2026-09-17
+
+### Onde fica a aba e o que ela fazia com `VectorMap`
+
+`FreightRegionMap.component.tsx` (`apps/frontend-transportada/src/modules/fleet/components/`),
+montado por `FreightRegionPanel.component.tsx` nos dois modos (leitura e edição, dentro do
+formulário de zona). Toda a lógica de estado e consulta já morava em `useFreightRegionMap.hook.ts`
+— o componente só renderizava. Ele desenhava `entry.model.shapes` (um por município da UF) como
+`<path d={shape.path}>` do primitivo SVG `VectorMap` (`src/components/ui/vector-map.tsx`), com
+`fill` por `resolveZoneFill(shape.zone)`, clique delegado a `onSelect` só em modo edição, e a
+malha vinha **já projetada** em `d` de SVG por `ibgeMesh.service.ts` (`loadStateMesh` →
+`projectStateMesh`, que também calculava um `viewBox`). Legenda e lista de cidades fora da malha
+(`entry.model.outside`) já eram HTML puro, fora do `<svg>` — não dependiam do motor do mapa.
+
+### A malha crua já existia — não precisou inventar geometria
+
+`ibgeMesh.service.ts` já expunha `loadStateMeshFeatures`/`readStateMeshFeatures`, que devolvem os
+polígonos do IBGE **sem projetar** — anéis em longitude/latitude crus (`MeshFeature.rings`) — para
+quem enquadra em escala própria (usado hoje por `TripAssemblyMap.component.tsx`, para achar o
+centro aproximado do município quando a NF-e não tem geocodificação fina, não para desenhar
+polígono nenhum). É exatamente o formato que uma fonte GeoJSON do MapLibre precisa — coordenada
+lon/lat direta, sem o `toPath`/`toViewBox` equirretangular que só serve a um `<svg viewBox>`. Não
+havia necessidade de parar e reportar: o dado geográfico já existia em forma utilizável, só não
+estava ligado a nenhum desenho MapLibre ainda.
+
+### Implementação
+
+- `freightRegionMap.service.ts`: `buildFreightRegionMap` passa a receber `features: readonly
+MeshFeature[]` (em vez de `mesh: StateMesh`); `FreightRegionMapShape` troca `path` por `rings`
+  (anéis crus) e `FreightRegionMapModel` perde `viewBox` (o MapLibre projeta sozinho, então quem
+  enquadra é quem monta o mapa, não o serviço). Duas funções puras novas, cobertas por contrato:
+  `toFreightRegionFeatureCollection` (shapes → `FeatureCollection` de `MultiPolygon`, um subpolígono
+  por anel — ilha/enclave continuam o mesmo município, como o `d` antigo fazia — com `zone` como
+  propriedade **numérica**, sentinela `-1` para sem-zona porque expressão de estilo do MapLibre não
+  lê `null`) e `resolveFreightRegionBounds` (extensão real das coordenadas, para `fitBounds`).
+- `useFreightRegionMap.hook.ts`: troca `loadStateMesh` por `loadStateMeshFeatures` na mesma
+  `useQuery` (mesma `IBGE_MESH_QUERY_KEY`, mesmo `staleTime` de uma semana); resto do hook
+  (derivação de UF, `selectShape` por código, `legend`) não mudou — a lógica de zona/claim/outside já
+  era por `codarea`, indiferente a SVG ou GeoJSON.
+- `FreightRegionVectorMap.component.tsx` (novo): o motor MapLibre da aba, montado do mesmo jeito que
+  `AssemblyVectorMap`/`DriverHomeMap` já fazem — `configureVectorBasemap()`, `try/catch` no
+  construtor (sem WebGL2 cai para `onBasemapMissing`), `buildBasemapStyle(readToken,
+basemapThemeForApp('dark'))` como pano de fundo. Fonte `geojson` própria (`zona-de-frete`,
+  `promoteId: 'code'`) com duas layers: `fill` (cor por zona via expressão `match` sobre a
+  propriedade `zone`, tokens resolvidos em runtime, igual ao resto do produto) e `line` (contorno,
+  com `feature-state` `hover`/`selected` — mesma escala visual do `.selected`/`.interactive:hover` do
+  `vector-map.module.css` que ela substitui: fino e semitransparente em repouso, grosso e opaco em
+  destaque). Fonte e layers são reaplicadas de forma idempotente a cada `styledata` (mesmo padrão de
+  `applyRoute` em `AssemblyVectorMap` — a troca de tema descarta camada em runtime). Clique delegado
+  à layer de preenchimento (`map.on('click', ZONE_FILL_LAYER, ...)`), lendo `properties.code` da
+  feição sob o cursor e chamando `onSelect` — o mesmo `entry.selectShape` de sempre, que resolve a
+  shape e chama `toggleRegionMapCity`. Seleção (cidades já na zona) aplicada como `feature-state`,
+  não como propriedade da fonte — trocar a lista de cidades não refaz o GeoJSON. Popup do MapLibre no
+  hover reproduz o `<title>` nativo do SVG antigo (nome da cidade, ou cidade + rotas reivindicantes).
+- `FreightRegionMap.component.tsx`: troca o `<VectorMap>` estático por `FreightRegionVectorMap`
+  carregado por `lazy`/`Suspense`, mesmo padrão de `TripAssemblyMap` — o MapLibre não pode entrar no
+  pacote principal. Ganha `hasBasemap`/`onBasemapMissing` (ADR-0044 §6: sem o `.pmtiles` a tela cai
+  para a legenda/lista, dizendo isso, em vez de travar) — comportamento que o `VectorMap` antigo não
+  precisava ter (SVG não depende de arquivo externo) e que o novo motor precisa, por herdar a mesma
+  dependência de basemap do mapa da viagem. Legenda e lista de cidades fora da malha **não mudaram
+  uma linha** — já eram HTML puro fora do desenho.
+- `fleet.module.css`: `.mapDrawing` (do `<svg>` antigo) sai — nada mais o usa —, entra
+  `.regionMapCanvas` (altura fixa de `26rem`: o canvas do MapLibre não tem tamanho intrínseco como o
+  `<svg>`, e sem altura declarada o mapa nasce 0×0 e nunca pede telha).
+- `fleet.locale.json`/`fleet.en.locale.json`: `regionMap.withoutBasemap`, novo, nos dois idiomas.
+
+### Acessibilidade — a alternativa por teclado já existia, preservada
+
+O `VectorMap` antigo já era `role="img"` **sem** foco nem navegação por teclado nas formas — o
+comentário do próprio primitivo explica por quê: "leitor de tela não navega polígono... quem usa
+teclado escreve pela busca e pela colagem do campo de cidade ao lado, que fazem a mesma escrita". A
+alternativa de teclado/lista para selecionar uma zona sempre foi o campo de cidade do formulário
+(`FreightRegionCityField`/`FreightRegionForm`), fora deste componente e não tocado nesta task — o
+novo motor mantém o mesmo `role="img"` no contêiner do canvas, sem regressão nem promessa nova de
+acessibilidade que o desenho antigo não cumpria.
+
+### O que não fiz
+
+- Não toquei `VectorMap` (`src/components/ui/vector-map.tsx`), `tripRouteMap.service.ts`,
+  `tripBasemap.service.ts`, `tileMap.service.ts` nem `resolveRouteTraceSegments`
+  (`routeGeometry.service.ts`) — nem seus testes (`test/design-system/vector-map.contract.ts`,
+  `test/trip/route-basemap.contract.ts`, `test/trip/route-map-panel.contract.ts` e outros). Todos
+  continuam existindo e passando; a aba Regiões só parou de **depender** de `VectorMap`.
+- Não mexi em `ibgeMesh.service.ts` além de trocar qual função o hook chama. `loadStateMesh`,
+  `projectStateMesh`, `StateMesh`, `MeshShape` e `EMPTY_STATE_MESH` (a família que projeta a malha em
+  `d` de SVG) ficaram **sem consumidor de produção** depois desta task — só a própria
+  `ibgeMesh.service.ts` e o describe `ibge mesh contract` (que já existia) ainda os referenciam. Não
+  removi porque não estavam na lista explícita do pedido (`VectorMap`, `tripRouteMap.service`,
+  `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments`) e remover é decisão de T502
+  (RF11), não desta task — listados abaixo para a varredura de lá.
+- Não toquei `TripAssemblyMap.component.tsx`, `AssemblyVectorMap.component.tsx` nem
+  `DriverHomeMap.component.tsx` — só li os três como referência de padrão (montagem do MapLibre,
+  `lazy`/`Suspense`, tokens de cor em runtime).
+
+### O que ainda referencia o mapa antigo (achados para a T502)
+
+Confirmado por leitura e por `grep`, sem chamador fora do próprio arquivo em nenhum dos casos:
+
+- `src/components/ui/vector-map.tsx` (`VectorMap`) — sem consumidor de produção depois desta task
+  (a aba Regiões era o único). Só o teste `test/design-system/vector-map.contract.ts` o exercita.
+- `src/modules/trip/shared/tripRouteMap.service.ts` (`resolveTripRouteMap`) — já estava órfão antes
+  desta task; nada o importa fora dele mesmo.
+- `src/modules/trip/shared/tripBasemap.service.ts` (`buildTripBasemapPaths`) — já estava órfão antes
+  desta task; só `test/trip/route-basemap.contract.ts` o exercita.
+- `src/modules/trip/shared/tileMap.service.ts` — importado só como `import {} from
+'../shared/tileMap.service'` em `TripAssemblyMap.component.tsx` (linha 48), um import vazio sem
+  nenhuma binding usada — efeito nenhum, remoção seria só apagar a linha.
+- `resolveRouteTraceSegments` em `src/modules/trip/shared/routeGeometry.service.ts` — sem chamador
+  fora do próprio arquivo.
+- **Novo nesta task**: `loadStateMesh`, `projectStateMesh`, `StateMesh`, `MeshShape`,
+  `EMPTY_STATE_MESH` em `src/modules/shared/ibgeMesh.service.ts` (a projeção SVG da malha) — a aba
+  Regiões era a única consumidora de produção; ficaram só com o describe `ibge mesh contract` do
+  próprio arquivo de teste.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão (depois de `prettier --write` nos dois arquivos novos/mudados
+que a formatação apontou).
+
+$ bun test ./test/fleet.contract.test.ts   (apps/frontend-transportada)
+530 pass / 0 fail — 6605 expect() calls.
+`test/fleet/freight-region-map.contract.ts` ganhou 5 testes líquidos (32 → 37 blocos `test(...)`):
++4 do novo describe `freight region geojson contract` (`toFreightRegionFeatureCollection`,
+`resolveFreightRegionBounds`), +2 do describe de componente (import dinâmico, fonte GeoJSON/clique
+por layer), -1 do teste que só verificava o primitivo `VectorMap` em si (ele continua coberto por
+`test/design-system/vector-map.contract.ts`, não removido, só deixou de ser reasserido aqui).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4208 pass / 0 fail — baseline T405 (4202 pass / 0 fail) + 6.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.49s — PWA precache 130 entries (4484.23 KiB), baseline T405 129 entries (4472.34 KiB):
++1 entrada, o chunk novo do motor MapLibre da aba Regiões.
+`FreightRegionVectorMap.component-CU6y1ydP.js`: 4.48 kB — chunk próprio, não entrou no `index`.
+`vectorBasemap.service-QvV4NZCb.js`: 1 004.90 kB — segue chunk único e compartilhado (trip e fleet),
+abaixo do teto de 2 MiB por asset.
+`index-DX-Ux_U8.js` (pacote principal): 953.45 kB — MapLibre não voltou a ele.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task —
+T501 é frontend puro (RF11).
+
+### Commit
+
+`ede9d598`
