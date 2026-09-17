@@ -21,6 +21,7 @@ import {
 } from '../domain/toll-booth-extract.policy.js'
 import { tollBoothExtractBodySchema } from '../presentation/toll-booth-extract.schema.js'
 import { createSeedTollBoothsUseCase } from './seed-toll-booths.use-case.js'
+import type { TollBoothAxleChargeGapCachePort } from './toll-booth-axle-charge-gap-cache.port.js'
 import type { TollBoothCatalogReloadPort } from './toll-booth-catalog-reload.port.js'
 import type {
   TollBoothExtractPort,
@@ -48,6 +49,7 @@ export type ReloadTollBoothCatalogResult = Readonly<{
 }>
 
 export type ReloadTollBoothCatalogDependencies = Readonly<{
+  axleChargeGapCache: TollBoothAxleChargeGapCachePort
   catalogReload: TollBoothCatalogReloadPort
   extracts: TollBoothExtractPort
   logger: Readonly<{ warn: (message: string, metadata?: Record<string, unknown>) => void }>
@@ -128,7 +130,7 @@ async function reloadWithinLock(params: {
   const { booths, extract, input } = params
   const key = { dataset: extract.dataset, observedOn: extract.observedOn }
 
-  return params.dependencies.catalogReload.runExclusive(async (unit) => {
+  const result = await params.dependencies.catalogReload.runExclusive(async (unit) => {
     const seed = createSeedTollBoothsUseCase({ repository: { saveMany: unit.saveMany } })
     const { saved } = await seed.save(
       toTollBoothSeedRecords({ booths, observedOn: extract.observedOn }),
@@ -156,4 +158,9 @@ async function reloadWithinLock(params: {
       savedBoothCount: saved,
     }
   })
+
+  // Spec 154 T503, defeito 2: a recarga reescreve `toll_booths` para a instalação inteira — a
+  // contagem de "sem tarifa por eixo conhecida" (RF2) de TODA empresa pode ter mudado.
+  params.dependencies.axleChargeGapCache.invalidateAll()
+  return result
 }

@@ -1767,3 +1767,296 @@ $ cd apps/frontend-transportada && bun run build
 **Divergência de escopo, não bloqueio:** nenhuma das seis pendências exigiu decisão de produto —
 todas eram técnicas, decididas e justificadas nesta seção. T502 (revisão final) continua fora desta
 task.
+
+### T503 — defeitos da revisão final fechados
+
+Onze defeitos confirmados por T502 (fora de escopo: rate limit das rotas novas, `--timeout` no
+script `test:integration`, imports sem `.js` nos entrypoints de teste do frontend, arquivos grandes
+pré-existentes). Cada item abaixo tem o vermelho antes da correção, quando fazia sentido escrever um.
+
+#### 1. Código de erro literal `{{code}}` quando o backend responde um código sem frase própria
+
+`TollBoothCatalogReloadPanel.component.tsx` e `TollBoothCatalogReloadDialog.component.tsx`
+chamavam `t(errors.${errorCode}, { defaultValue: t(errors.default) })` sem `{ code: errorCode }` —
+nem no `t` externo, nem no `t` interno do `defaultValue`. Um código desconhecido (`STORAGE_UNAVAILABLE`,
+o 503 de storage indisponível da T402 item 3, sem frase própria em `fleet.locale.json`) aparecia
+como "Código: {{code}}." literal.
+
+**Correção:** a frase virou um componente compartilhado, `TollBoothCatalogReloadError.component.tsx`
+(elimina a duplicação entre painel e diálogo), com `{ code: errorCode }` nos dois `t()`. Contrato
+novo `test/fleet/toll-booth-catalog-reload-error.contract.tsx` (`renderToStaticMarkup`, i18n real):
+
+```
+$ bun test ./test/fleet/toll-booth-catalog-reload-error.contract.tsx
+(fail) painel: o operador vê o código real, nunca o literal {{code}}
+Expected to contain: "STORAGE_UNAVAILABLE"
+Received: "...<p role=\"alert\">Não foi possível recarregar o catálogo. Código: {{code}}.</p>..."
+```
+
+`TollBoothCatalogReloadDialog` monta com `createPortal(..., document.body)`, e o renderizador de
+servidor não suporta portal nenhum (`Portals are not currently supported by the server renderer`,
+confirmado tentando) — por isso o contrato renderiza o `TollBoothCatalogReloadError` que os dois
+efetivamente montam, cobrindo os dois usos com uma render só, sem jsdom. Verde depois:
+
+```
+$ bun test ./test/fleet/toll-booth-catalog-reload-error.contract.tsx
+ 2 pass
+ 0 fail
+ 4 expect() calls
+```
+
+O contrato antigo em `toll-booth-charge-tab.contract.ts` ("cada um dos quatro códigos de erro...")
+lia texto-fonte da interpolação — reescrito para conferir que os dois componentes delegam ao
+compartilhado (`<TollBoothCatalogReloadError errorCode={`), já que a prova de verdade da
+interpolação mora no contrato novo.
+
+#### 2. A contagem do RF2 recalculava em toda requisição, mesmo sem depender de `page`/`search`
+
+RNF2 dizia que a rota "nunca lê a tabela inteira sem paginar", mas `readCatalogAxleCharges()`
+(colunas mínimas) lia `toll_booths` inteira a cada chamada de `GET /v1/toll-booths` — 592 linhas
+hoje em staging, ~10-15 mil se o recorte virar Brasil — mesmo quando só a página ou a busca
+mudavam, dos quais a contagem não depende.
+
+**Decisão registrada no RNF2 (`spec.md`):** cache por empresa em memória do processo
+(`TollBoothAxleChargeGapCachePort`/`createInMemoryTollBoothAxleChargeGapCache`), nunca distribuído —
+cada réplica recalcula a própria cópia. Invalidação exatamente onde o resultado pode mudar: ajuste
+ou remoção de ajuste da própria empresa (`adjust`/`clear-toll-booth-charge.use-case.ts`, por
+`companyId`) e recarga do catálogo (`reload-toll-booth-catalog.use-case.ts`, `invalidateAll` —
+afeta toda empresa porque reescreve `toll_booths` para a instalação inteira). Wiring: uma única
+instância por processo em `main.ts`, compartilhada pelas quatro rotas.
+
+Vermelho (revertendo temporariamente só o `if (cached !== undefined) return cached` do use case):
+
+```
+$ bun test ./test/toll-booths/toll-booth-axle-charge-gap-cache.contract.ts
+(fail) trocar de página ou de busca não recalcula a contagem para a mesma empresa
+Expected: 1
+Received: 3
+```
+
+Verde depois, e as quatro pontas de invalidação provadas (empresas diferentes não compartilham
+cópia; ajustar/remover ajuste invalida só a empresa; a recarga invalida todas):
+
+```
+$ bun test ./test/toll-booths/toll-booth-axle-charge-gap-cache.contract.ts
+ 5 pass
+ 0 fail
+ 11 expect() calls
+```
+
+#### 3. `apps/api-transportada/CLAUDE.md` descrevia um mecanismo que não existe
+
+Dizia "só o recarregamento marca `catalogKnown: false` para a que sumiu de um extrato novo" —
+falso: a recarga (D7) nunca apaga nem marca nada, `toll-booth-reload.integration.ts:84-86` prova
+que uma praça fora do extrato novo mantém `catalogKnown: true` e a data antiga.
+`catalogKnown: false` vem de `list-toll-booth-catalog-seen-rows.service.ts:51-69` — ajuste da
+empresa sem linha correspondente em `toll_booths` (praça "órfã"). Corrigido no `CLAUDE.md`.
+
+#### 4. `docs/runbooks/osrm-extract.md`: dois erros e uma frase truncada
+
+(a) "o objeto fica registrado no banco na mesma transação" — falso;
+`create-toll-booth-extract.use-case.ts:41-57` grava no bucket e só **depois** a linha, sequencial
+(bucket não entra em transação de banco), de propósito para nunca apontar para um objeto
+inexistente — descrito agora como `docs/ai-context/api-transportada.md` já fazia.
+(b) "extrato desatualizado deixa de aparecer na recarga" — falso; nada remove linha de
+`toll_booth_extracts` e `list()` (`drizzle-toll-booth-extract.repository.ts:56-62`) não filtra por
+idade — todo extrato registrado aparece sempre no seletor. (c) parágrafo truncado em "(catálogo
+velho → e aí está)" — reescrito por inteiro.
+
+#### 5. `docs/ai-context/api-transportada.md`: teto de corpo errado e raciocínio invertido
+
+"500 KiB" → `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` é `1_048_576` = 1 MiB
+(`shared/api.constant.ts:178`). "`missing_object_observed_at` é booleano dinâmico" invertia o
+próprio comentário do schema (`database/toll-booth-extract.schema.ts:65-67`: "sinalizador booleano
+mentiria para sempre" — é **timestamp de propósito**, nunca booleano). Os dois corrigidos.
+
+#### 6. Histórico da spec 154 no frontend nunca foi escrito
+
+`apps/frontend-transportada/CLAUDE.md:151` aponta `docs/ai-context/frontend-transportada.md` para
+"spec 154 T204–T303, T401", mas o arquivo não tinha nada da 154. Escrita a seção "Fleet — pedágio:
+catálogo inteiro e recarga (spec 154, T204/T303/T401)" com o resumo de arquitetura de cada task.
+
+#### 7. `source_url`/`extracted_at` nunca escritas por caminho de produção, doc/comentário afirmavam o contrário
+
+Nenhuma rota grava as duas colunas: `POST /v1/toll-booths/extracts` não as aceita,
+`TollBoothExtractRow` (aplicação) não as declara, `serializeExtract` não as devolve. **Decisão:**
+manter as colunas (migration destrutiva proibida) como reserva de esquema, e corrigir a
+documentação/comentário para não afirmar um mecanismo ativo que não existe — em vez de estender o
+caminho de produção para aceitá-las, o que exigiria mudar Zod da rota, o tipo de domínio, o
+repositório e a serialização por um dado que nenhum requisito desta spec pede hoje.
+`database/toll-booth-extract.schema.ts` (comentário) e `docs/ai-context/api-transportada.md`
+corrigidos: as colunas existem, mas são sempre `null` até um caminho de produção passar a gravá-las.
+
+#### 8. Contagem do RF2 duplica a precedência da política sem contrato de paridade
+
+`countBoothsWithoutKnownAxleCharge` reimplementa `adjustment?.chargePerAxle ?? catalog.chargePerAxle`,
+que `resolveEffectiveTollBoothCharge` também define — sem nada barrando as duas divergirem em
+silêncio. Contrato novo `test/toll-booths/toll-booth-axle-charge-gap-parity.contract.ts`, no molde
+de `list-toll-booth-charges-catalog-parity.contract.ts` (T203): quatro praças (sem ajuste/sem
+tarifa, sem ajuste/com tarifa, ajuste corrige, ajuste isenta com `0.00`), provando que a contagem
+concorda com `resolveEffectiveTollBoothCharge` praça a praça.
+
+```
+$ bun test ./test/toll-booths/toll-booth-axle-charge-gap-parity.contract.ts
+ 1 pass
+ 0 fail
+ 5 expect() calls
+```
+
+#### 9. `TollBoothCatalogReloadPanel`: `useEffect` para estado derivado, com bug real na reabertura
+
+Dois `useEffect` (seleção default do extrato; fechar o diálogo no sucesso) contra
+`standards/react.md`. O segundo tinha consequência real: reabrir o diálogo depois de uma recarga
+que falhou mostrava o erro antigo (a mutação só troca `error` na tentativa seguinte) antes mesmo de
+confirmar de novo.
+
+**Correção:** os dois `useEffect` saíram. A seleção default virou valor derivado
+(`effectiveSelectedValue`, calculado a cada render). Abrir/fechar o diálogo e mostrar o erro viraram
+a função pura `resolveReloadDialogState` (exportada, testável isolada) — a chave é
+`hasSubmittedConfirmation`, que volta a `false` toda vez que o diálogo reabre, então o erro só
+reaparece depois que ESTA sessão de confirmação chamou `onReload` de verdade.
+
+Vermelho (a lógica antiga, `confirming === null ? undefined : errorCode`, contra o contrato novo):
+
+```
+$ bun test ./test/fleet/toll-booth-catalog-reload-dialog-state.contract.ts
+(fail) reabrir o diálogo depois de uma recarga que falhou não mostra o erro antigo
+Expected: undefined
+Received: "TOLL_BOOTH_EXTRACT_NOT_FOUND"
+(fail) depois de confirmar e ter sucesso, o diálogo fecha sozinho
+Expected: null
+Received: {...praça...}
+```
+
+Verde depois:
+
+```
+$ bun test ./test/fleet/toll-booth-catalog-reload-dialog-state.contract.ts
+ 4 pass
+ 0 fail
+ 7 expect() calls
+```
+
+A asserção antiga de texto-fonte (`onClick={() => setConfirming(...)}`) virou `onClick={openConfirmation}`.
+
+#### 10. `toll-booth-catalog-row.mapper.ts`: `as Date` lavando nulidade
+
+`toAdjustment` checava `adjustmentActorUserId`/`adjustmentObservedOn` como marcador de "sem
+ajuste", mas cravava `row.adjustmentUpdatedAt as Date` sem checar o terceiro campo do mesmo jeito.
+Uma linha de join inconsistente (actor e data presentes, `updatedAt` nulo) produzia um
+`TollBoothChargeAdjustmentRow.updatedAt` que é `null` em runtime apesar do tipo dizer `Date`.
+
+**Correção:** guarda explícita nos três campos — nenhum sozinho é o marcador, os três são gravados
+juntos. Vermelho (revertendo temporariamente para `as Date`):
+
+```
+$ bun test ./test/toll-booths/toll-booth-catalog-row-mapper.contract.ts
+(fail) linha inconsistente (actor e data presentes, updatedAt nulo) não vira um ajuste com Date falso
+Expected: null
+Received: { ...updatedAt: null }
+```
+
+Verde depois:
+
+```
+$ bun test ./test/toll-booths/toll-booth-catalog-row-mapper.contract.ts
+ 3 pass
+ 0 fail
+ 3 expect() calls
+```
+
+#### 11. Aceites 2 e 3 do frontend provados só por texto-fonte
+
+`test/fleet/toll-booth-charge-tab.contract.ts` conferia `expect(panel).toContain("catalog.summary.status
+=== 'empty'")` — prova só que a string existe no arquivo, nunca o que a tela produz. Convertido
+para o renderizado em `test/fleet/toll-booth-charge-panel-render.contract.tsx`
+(`renderToStaticMarkup`, i18n real, no molde de `toll-booth-catalog-reload-gate.contract.tsx`):
+catálogo vazio (`status: 'empty'`) renderiza a frase de "nunca carregado" e não a de "nada a
+corrigir"; catálogo com praças não renderiza a frase de "nunca carregado"; busca sem resultado
+nomeia a data do catálogo (`14/09/2026` no HTML, prova que usou `summary.observedOn`); lista vazia
+sem busca mostra "nada a corrigir". O que não dava para renderizar sem duplicar cobertura (as
+chaves de tradução existirem nos dois dicionários, pt-BR e en) ficou como teste próprio, separado do
+de render, no mesmo arquivo de origem.
+
+```
+$ bun test ./test/fleet/toll-booth-charge-panel-render.contract.tsx
+ 4 pass
+ 0 fail
+ 6 expect() calls
+```
+
+#### Gates (T503)
+
+```
+$ bun run typecheck    # 6 apps — exit 0
+$ bun run lint         # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check # exit 0 (arquivos reformatados por --write antes do check final)
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6380 pass
+ 23 skip
+ 0 fail
+ 22176 expect() calls
+Ran 6403 tests across 177 files. [20.85s]
+```
+
+(Eram 6314 pass/23 skip na T402: +66 desta task, 0 quebrado.)
+
+```
+$ cd apps/frontend-transportada && bun run test
+ 4237 pass
+ 0 fail
+ 36831 expect() calls
+Ran 4237 tests across 29 files. [4.04s]
+$ cd apps/frontend-transportada && bun run build
+✓ built in 8.42s   # PWA gerado, mesmo aviso pré-existente de chunk >500kB
+```
+
+(Eram 4184 pass na T402: +53 desta task, 0 quebrado.)
+
+Integração de storage/recarga (MinIO/Postgres reais):
+
+```
+$ STORAGE_SECRET_KEY=minio-local-password bun --env-file=../../.env.test test \
+    ./test/integration/toll-booth-extract-storage.integration.ts ./test/integration/toll-booth-reload.integration.ts --timeout 120000
+ 6 pass
+ 0 fail
+ 28 expect() calls
+```
+
+**Arquivos por caminho explícito (commit isolado, `fix(toll): ...`):**
+
+- `apps/frontend-transportada/src/modules/fleet/components/TollBoothCatalogReloadPanel.component.tsx` (itens 1, 9)
+- `apps/frontend-transportada/src/modules/fleet/components/TollBoothCatalogReloadDialog.component.tsx` (item 1)
+- `apps/frontend-transportada/src/modules/fleet/components/TollBoothCatalogReloadError.component.tsx` (novo, item 1)
+- `apps/frontend-transportada/test/fleet/toll-booth-catalog-reload-error.contract.tsx` (novo, item 1)
+- `apps/frontend-transportada/test/fleet/toll-booth-catalog-reload-dialog-state.contract.ts` (novo, item 9)
+- `apps/frontend-transportada/test/fleet/toll-booth-charge-panel-render.contract.tsx` (novo, item 11)
+- `apps/frontend-transportada/test/fleet/toll-booth-charge-tab.contract.ts` (itens 1, 11)
+- `apps/frontend-transportada/test/fleet.contract.test.ts` (registro dos arquivos novos)
+- `apps/api-transportada/src/toll-booths/application/toll-booth-axle-charge-gap-cache.port.ts` (novo, item 2)
+- `apps/api-transportada/src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.ts` (novo, item 2)
+- `apps/api-transportada/src/toll-booths/application/list-toll-booth-catalog.use-case.ts` (item 2)
+- `apps/api-transportada/src/companies/application/adjust-toll-booth-charge.use-case.ts` (item 2)
+- `apps/api-transportada/src/companies/application/clear-toll-booth-charge.use-case.ts` (item 2)
+- `apps/api-transportada/src/toll-booths/application/reload-toll-booth-catalog.use-case.ts` (item 2)
+- `apps/api-transportada/src/main.ts` (item 2, wiring)
+- `apps/api-transportada/src/toll-booths/infrastructure/toll-booth-catalog-row.mapper.ts` (item 10)
+- `apps/api-transportada/src/database/toll-booth-extract.schema.ts` (item 7)
+- `apps/api-transportada/test/toll-booths/toll-booth-axle-charge-gap-cache.contract.ts` (novo, item 2)
+- `apps/api-transportada/test/toll-booths/toll-booth-axle-charge-gap-parity.contract.ts` (novo, item 8)
+- `apps/api-transportada/test/toll-booths/toll-booth-catalog-row-mapper.contract.ts` (novo, item 10)
+- `apps/api-transportada/test/toll-booths.contract.test.ts` (registro dos arquivos novos)
+- `apps/api-transportada/test/fixtures/toll-booth-reload-ports.fixture.ts` (item 2, expõe o cache)
+- `apps/api-transportada/test/fixtures/toll-booth-reload-integration.fixture.ts` (item 2, wiring)
+- `apps/api-transportada/test/toll-booths/list-toll-booth-catalog-use-case.contract.ts` (item 2, wiring)
+- `apps/api-transportada/CLAUDE.md` (item 3)
+- `docs/runbooks/osrm-extract.md` (item 4)
+- `docs/ai-context/api-transportada.md` (itens 5, 7)
+- `docs/ai-context/frontend-transportada.md` (novo conteúdo, item 6)
+- `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/spec.md` (RNF2, item 2)
+- `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (esta seção)
+
+**Fora de escopo, não bloqueio:** rate limit das rotas novas (D-8 da revisão, tratado separado pelo
+usuário); `--timeout` no script `test:integration`; imports sem `.js` nos entrypoints de teste do
+frontend; arquivos grandes pré-existentes (`main.ts` etc.) — nenhum tocado por esta task além do
+wiring pontual do item 2.

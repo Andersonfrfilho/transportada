@@ -1698,15 +1698,20 @@ a ler o **catálogo inteiro** com busca e paginação do servidor. O catálogo n
 quando um novo `.pbf` é processado — a recarga é idempotente e não apaga praça nenhuma.
 
 **T101–T102: dados.** Migration aditiva `toll_booth_extracts` (chave natural `(dataset, observed_on)`):
-quem subiu, quando, contagens, sha256, URI do objeto no bucket, procedência do `.pbf` (URL e data do
-Geofabrik). `toll_booths` continua sem `company_id` — catálogo é da instalação, uma transportadora por
+quem subiu, quando, contagens, sha256, URI do objeto no bucket. As colunas `source_url`/`extracted_at`
+(procedência do `.pbf`: URL e data do Geofabrik) existem no schema, mas **nenhum caminho de produção
+as grava** ainda (T503, defeito 7) — `POST /v1/toll-booths/extracts` não as aceita, e nem a aplicação
+nem a serialização da resposta as conhecem; reserva de esquema para o dia em que a rota passar a
+aceitá-las. `toll_booths` continua sem `company_id` — catálogo é da instalação, uma transportadora por
 deploy (ADR-0021). Duas colunas de ator (`uploaded_by_user_id` para a subida original,
 `reloaded_by_user_id` para cada recarga) **sem FK** — `removeMembership` (spec 149) apaga o usuário
 e uma FK `RESTRICT` travaria a remoção, `SET NULL`/`CASCADE` apagaria o ator histórico. Coluna
 `missing_object_observed_at` observa quando um `head()` falha (objeto sumiu do bucket após a linha ser
-gravada) — é booleano dinâmico, não estado estável, porque o objeto pode voltar sem que alguém
-intervenha e a coluna meramente registra "nesta data tentamos e foi embora"; zera no primeiro
-`get()` que funciona.
+gravada) — é **timestamp, de propósito nunca um booleano** (comentário do schema): um sinalizador
+`true`/`false` mentiria para sempre, porque o `put` é `create-only` e a ressubida dos mesmos bytes
+responde `replayed`, então o objeto pode voltar sem que ninguém intervenha para "desligar a flag". A
+coluna registra a data da última observação, não um estado estável, e zera no primeiro `get()` que
+funciona.
 
 **T201–T204: catálogo em leitura.** `TollBoothCatalogPort.listCatalog` (novo repositório
 `drizzle-toll-booth-catalog.repository.ts`) entrega o catálogo paginado com busca (`ilike` por nome
@@ -1741,7 +1746,7 @@ de transação global mais interessante desta feature_ — roda com advisory loc
 `TOLL_BOOTH_CATALOG_RELOAD_LOCK_ID = 14_154`, false responde `409 TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS`;
 lê a linha por `(dataset, observedOn)` ou 404, `head()` o objeto (ausente: marca
 `missing_object_observed_at` fora da transação, responde 409) ou baixa cuidado com teto
-(`contentLength` > `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` = 500 KiB é 409 sem `get()`), valida
+(`contentLength` > `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` = 1 MiB é 409 sem `get()`), valida
 sha256 (divergente: 409 com log de dataset, data e dois hashes em texto — **sem revelar os bytes**),
 reprocessa o JSON pelo mesmo Zod (nó repetido: 409 `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH`), executa
 o seed existente (`createSeedTollBoothsUseCase`) **dentro da transação** (seed que antes recebia

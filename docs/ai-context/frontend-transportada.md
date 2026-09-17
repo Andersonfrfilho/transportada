@@ -630,3 +630,48 @@ configuração pelo mesmo atalho do T404.
 
 Detalhe completo (contratos, arquivos tocados, decisões de layout):
 `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).
+
+## Fleet — pedágio: catálogo inteiro e recarga (spec 154, T204/T303/T401)
+
+Spec 154 T503 (revisão final) apontou que `CLAUDE.md` mandava este histórico para cá, mas nada tinha
+sido escrito ainda — corrigido.
+
+**T204 — a aba de pedágio (Fleet Workspace) deixou de listar só as praças vistas** (spec 095) e passou
+a ler o catálogo inteiro, paginado, de `GET /v1/toll-booths` (T202). `TollBoothChargePanel.component.tsx`
+(218 → 100 linhas) virou orquestrador fino; o resto saiu para arquivos novos, todos abaixo do teto de
+200 linhas: `tollBoothCatalog.validation.ts` (guarda de forma via `hasExactKeys` de
+`objectKeys.service.ts` — nunca uma cópia local, `object-keys-single-source.contract.ts` cobra isso),
+`tollBoothCatalogClient.service.ts`, `useTollBoothCatalog.hook.ts` (debounce de 400ms, `keepPreviousData`,
+reinício de página a cada busca nova), `TollBoothChargeRow.component.tsx` (a linha de sempre, com
+`Badge` `unknownCatalog` para `catalogKnown: false`) e `TollBoothCatalogSummary.component.tsx`
+(cabeçalho com total/data/estado/pendência de eixo, e a paginação). `useTollBoothCharges` (spec 095)
+perdeu a leitura — só grava; as duas mutações passam a invalidar `TOLL_BOOTH_CATALOG_QUERY_KEY` além
+da própria chave, porque a praça ajustada mora nas duas listas.
+
+**T303 — bloco de recarga do catálogo** (RF3/RF4/RF6), abaixo do painel da T204, só renderiza e só
+consulta `GET /v1/toll-booths/extracts` com `settings.manage` (D6, aceite 4) — hoje extraído para
+`TollBoothCatalogReloadGate.component.tsx` (T402 item 6, ver abaixo). Arquivos: `tollBoothExtract.validation.ts`,
+`tollBoothExtractClient.service.ts` (repete os helpers de request dos outros clientes do módulo —
+divergência conhecida, corrigi-la é fora de escopo), `useTollBoothCatalogReload.hook.ts` (invalida
+catálogo **e** lista de extratos ao terminar), `TollBoothCatalogReloadDialog.component.tsx`
+(confirmação D6: "afeta todas as empresas da instalação", molde `CompanyUserRemoveDialog`) e
+`TollBoothCatalogReloadPanel.component.tsx` (seletor de extrato, botão, resultado, dois casos
+extremos de "nenhum extrato" decididos por `catalogStatus`). Erro tem frase própria por código
+(`tollBoothCharges.reload.errors.*`, molde `users.errors.${errorCode}` com `defaultValue`).
+
+_(Revisão T503 mexeu de novo aqui: a interpolação `{{code}}` do `defaultValue` estava quebrada — a
+frase e a lógica de abrir/fechar o diálogo saíram para `TollBoothCatalogReloadError.component.tsx` e
+para a função pura `resolveReloadDialogState`, ver `evidence.md` da 154, seção T503, defeitos 1 e 9.)_
+
+**T401 — a praça sem tarifa conhecida no extrato de pedágio da rota (Trip) ganhou ação de ajuste**
+(RF7), só com `settings.manage`: botão em `RouteTollSummary.component.tsx` que abre
+`/fleet?tollBoothSearch=<nome ou operador da praça>` — a mesma constante `FLEET_TOLL_BOOTH_PARAMETER`
+que a navegação de driver/vehicle já usa (`fleetRoute.service.ts`). `TripDetail`/`TripAssemblyMap`
+ganharam a prop `canAdjustTollBooth`, computada de `permissions.includes(SETTINGS_MANAGE_PERMISSION)`
+— independente de `canManage` (`trip.manage`), que é outra permissão. Contrato próprio
+(`route-toll-adjustment.contract.tsx`) renderiza de verdade (`renderToStaticMarkup`, i18n real) em vez
+de ler texto-fonte, porque o pedido explicitamente cobrava isso para os três casos de
+permissão/tarifa — molde reaproveitado depois pela T402 item 6 e pela T503.
+
+Detalhe completo (contratos, vermelhos, arquivos por caminho, gates):
+`specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (T204, T303, T401, T402, T503).

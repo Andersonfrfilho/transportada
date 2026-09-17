@@ -49,6 +49,7 @@ import { createAdjustTollBoothChargeUseCase } from './companies/application/adju
 import { createClearTollBoothChargeUseCase } from './companies/application/clear-toll-booth-charge.use-case.js'
 import { createListTollBoothChargesUseCase } from './companies/application/list-toll-booth-charges.use-case.js'
 import { createListTollBoothCatalogUseCase } from './toll-booths/application/list-toll-booth-catalog.use-case.js'
+import { createInMemoryTollBoothAxleChargeGapCache } from './toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 import { createDrizzleTollBoothCatalogRepository } from './toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.js'
 import { createTollBoothRoutes } from './toll-booths/presentation/toll-booth.routes.js'
 import { createCreateTollBoothExtractUseCase } from './toll-booths/application/create-toll-booth-extract.use-case.js'
@@ -1494,6 +1495,9 @@ function createApplicationRoutes({
   const tollBoothRepository = createDrizzleTollBoothRepository(database)
   const tollBoothCatalogRepository = createDrizzleTollBoothCatalogRepository(database)
   const tollBoothExtractRepository = createDrizzleTollBoothExtractRepository(database)
+  // Spec 154 T503, defeito 2: uma cópia por processo, compartilhada pelas rotas que leem e pelas
+  // que invalidam (ajuste, remoção de ajuste, recarga do catálogo).
+  const tollBoothAxleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
@@ -1999,10 +2003,14 @@ function createApplicationRoutes({
     ...createContractorMailTemplateRoutes({ templates: contractorMailTemplates }),
     ...createTollBoothChargeRoutes({
       adjust: createAdjustTollBoothChargeUseCase({
+        axleChargeGapCache: tollBoothAxleChargeGapCache,
         catalog: tollBoothRepository,
         charges: tollBoothChargeRepository,
       }),
-      clear: createClearTollBoothChargeUseCase({ charges: tollBoothChargeRepository }),
+      clear: createClearTollBoothChargeUseCase({
+        axleChargeGapCache: tollBoothAxleChargeGapCache,
+        charges: tollBoothChargeRepository,
+      }),
       list: createListTollBoothChargesUseCase({
         catalog: tollBoothCatalogRepository,
         charges: tollBoothChargeRepository,
@@ -2011,6 +2019,7 @@ function createApplicationRoutes({
     }),
     ...createTollBoothRoutes({
       listCatalog: createListTollBoothCatalogUseCase({
+        axleChargeGapCache: tollBoothAxleChargeGapCache,
         catalog: tollBoothCatalogRepository,
         catalogSummary: tollBoothRepository,
         charges: tollBoothChargeRepository,
@@ -2027,6 +2036,7 @@ function createApplicationRoutes({
     }),
     ...createTollBoothCatalogReloadRoutes({
       reloadCatalog: createReloadTollBoothCatalogUseCase({
+        axleChargeGapCache: tollBoothAxleChargeGapCache,
         catalogReload: createDrizzleTollBoothCatalogReloadRepository(database),
         extracts: tollBoothExtractRepository,
         logger,

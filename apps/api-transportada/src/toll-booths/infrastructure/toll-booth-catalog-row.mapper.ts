@@ -52,9 +52,19 @@ export function toRow(row: CatalogJoinRow, seenIds: ReadonlySet<number>): TollBo
   }
 }
 
-/** `actorUserId` nunca é nulo numa linha de ajuste de verdade — é o marcador de "sem ajuste aqui". */
+/**
+ * `actorUserId`, `observedOn` e `updatedAt` são gravados juntos, na mesma linha de ajuste — nulo
+ * num é o marcador de "sem ajuste aqui" (join sem correspondência), nunca um dos três sozinho.
+ * Checar os três explicitamente (spec 154 T503, defeito 10) em vez de `as Date` deixa esse
+ * invariante visível no código, no lugar de presumido.
+ */
 function toAdjustment(row: CatalogJoinRow, osmNodeId: number): TollBoothChargeAdjustmentRow | null {
-  if (row.adjustmentActorUserId === null || row.adjustmentObservedOn === null) return null
+  if (
+    row.adjustmentActorUserId === null ||
+    row.adjustmentObservedOn === null ||
+    row.adjustmentUpdatedAt === null
+  )
+    return null
 
   return {
     actorUserId: row.adjustmentActorUserId,
@@ -63,6 +73,6 @@ function toAdjustment(row: CatalogJoinRow, osmNodeId: number): TollBoothChargeAd
     chargePerAxleAutomatic: row.adjustmentChargePerAxleAutomatic,
     observedOn: row.adjustmentObservedOn,
     osmNodeId,
-    updatedAt: row.adjustmentUpdatedAt as Date,
+    updatedAt: row.adjustmentUpdatedAt,
   }
 }

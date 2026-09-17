@@ -74,8 +74,11 @@ empresa do contexto o valor efetivo e a origem de cada campo (`catalog | manual`
 ajuste manual do operador vence catálogo público. Permissão: `fleet.read`. Resumo: total de praças,
 data do catálogo (`observed_on`), estado (`empty | stale | current`), e contagem de praças sem tarifa
 por eixo conhecida para a empresa (inclui o efeito do ajuste manual). **Nenhuma praça do catálogo é
-apagada por operação do produto** — só o recarregamento marca `catalogKnown: false` para a que sumiu
-de um extrato novo.
+apagada por operação do produto** — a recarga (D7) nunca remove linha nenhuma de `toll_booths`: uma
+praça que sumiu do extrato novo continua com `catalogKnown: true` e a data antiga
+(`toll-booth-reload.integration.ts`). `catalogKnown: false` vem de outro lugar:
+`list-toll-booth-catalog-seen-rows.service.ts` marca assim o ajuste "órfão" — a praça vista que a
+empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `toll_booths`.
 
 **Extrato registrado e recarga (spec 154 RF3/RF3b/RF4):**
 

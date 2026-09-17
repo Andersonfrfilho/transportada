@@ -7,7 +7,7 @@
  * extrato registrado aponta o runbook quando o catálogo já está populado (aceite 8 é a rejeição de
  * duplicata, provada na API — T301).
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import type {
 } from '../shared/tollBoothExtract.validation'
 import styles from '../styles/fleet.module.css'
 import { TollBoothCatalogReloadDialog } from './TollBoothCatalogReloadDialog.component'
+import { TollBoothCatalogReloadError } from './TollBoothCatalogReloadError.component'
 
 export type TollBoothCatalogReloadPanelProps = Readonly<{
   catalogStatus: TollBoothCatalogStatus | undefined
@@ -44,25 +45,62 @@ function findExtract(
   return extracts.find((extract) => extractOptionValue(extract) === value)
 }
 
+export type TollBoothCatalogReloadDialogState = Readonly<{
+  dialogErrorCode: string | undefined
+  dialogExtract: TollBoothExtractRow | null
+}>
+
+/**
+ * Spec 154 T503, defeito 9: puro e testável isolado, sem `useEffect` — o diálogo fecha sozinho
+ * quando a recarga termina com sucesso, e reabrir depois de uma recarga que falhou não mostra o
+ * erro antigo antes da nova tentativa. A chave é `hasSubmittedConfirmation`: volta a `false` toda
+ * vez que o diálogo é reaberto (`openConfirmation`), então o erro só reaparece depois que ESTA
+ * sessão de confirmação chamou `onReload` de verdade.
+ */
+export function resolveReloadDialogState(
+  input: Readonly<{
+    confirming: TollBoothExtractRow | null
+    errorCode: string | undefined
+    hasSubmittedConfirmation: boolean
+    result: TollBoothReloadResult | undefined
+  }>,
+): TollBoothCatalogReloadDialogState {
+  const isOpen =
+    input.confirming !== null && !(input.hasSubmittedConfirmation && input.result !== undefined)
+  return {
+    dialogErrorCode: input.hasSubmittedConfirmation ? input.errorCode : undefined,
+    dialogExtract: isOpen ? input.confirming : null,
+  }
+}
+
 export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelProps) {
   const { t } = useTranslation('fleet')
   const formatDay = useDayFormatter()
   const [selectedValue, setSelectedValue] = useState('')
-  const [confirming, setConfirming] = useState<TollBoothExtractRow | null>(null)
+  const [confirmingValue, setConfirmingValue] = useState<string | null>(null)
+  const [hasSubmittedConfirmation, setHasSubmittedConfirmation] = useState(false)
   const extracts = props.extracts ?? []
 
-  // A recarga sempre começa apontando o extrato mais novo (RF3 devolve do mais novo ao mais antigo).
-  useEffect(() => {
-    if (selectedValue !== '' || extracts.length === 0) return
-    setSelectedValue(extractOptionValue(extracts[0] as TollBoothExtractRow))
-  }, [extracts, selectedValue])
+  // A recarga sempre começa apontando o extrato mais novo (RF3 devolve do mais novo ao mais
+  // antigo) — derivado a cada render, nunca por `useEffect` sincronizando estado com estado
+  // (standards/react.md): o operador só grava algo no estado quando troca a seleção.
+  const effectiveSelectedValue =
+    selectedValue !== ''
+      ? selectedValue
+      : extracts.length === 0
+        ? ''
+        : extractOptionValue(extracts[0] as TollBoothExtractRow)
+  const selectedExtract = findExtract(extracts, effectiveSelectedValue)
 
-  // A recarga terminou com sucesso: o diálogo de confirmação fecha sozinho, o resultado fica no painel.
-  useEffect(() => {
-    if (props.result !== undefined) setConfirming(null)
-  }, [props.result])
+  const confirming =
+    confirmingValue === null ? null : (findExtract(extracts, confirmingValue) ?? null)
+  const { dialogErrorCode, dialogExtract } = resolveReloadDialogState({
+    confirming,
+    errorCode: props.errorCode,
+    hasSubmittedConfirmation,
+    result: props.result,
+  })
 
-  const selectedExtract = findExtract(extracts, selectedValue)
   const options: readonly SelectOption[] = extracts.map((extract) => ({
     label: t('tollBoothCharges.reload.optionLabel', {
       count: extract.boothCount,
@@ -72,12 +110,19 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
     value: extractOptionValue(extract),
   }))
 
+  function openConfirmation(): void {
+    if (selectedExtract === undefined) return
+    setConfirmingValue(extractOptionValue(selectedExtract))
+    setHasSubmittedConfirmation(false)
+  }
+
   function closeConfirmation(): void {
-    setConfirming(null)
+    setConfirmingValue(null)
   }
 
   function confirmReload(): void {
     if (confirming === null) return
+    setHasSubmittedConfirmation(true)
     props.onReload({ dataset: confirming.dataset, observedOn: confirming.observedOn })
   }
 
@@ -100,13 +145,13 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
               ariaLabel={t('tollBoothCharges.reload.selectLabel')}
               onChange={setSelectedValue}
               options={options}
-              value={selectedValue}
+              value={effectiveSelectedValue}
             />
           </label>
           <Button
             disabled={selectedExtract === undefined || props.isPending}
             type="button"
-            onClick={() => setConfirming(selectedExtract ?? null)}
+            onClick={openConfirmation}
           >
             {t('tollBoothCharges.reload.button')}
           </Button>
@@ -131,17 +176,13 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
         </dl>
       )}
 
-      {props.errorCode !== undefined && confirming === null && (
-        <p className={styles.feedback} role="alert">
-          {t(`tollBoothCharges.reload.errors.${props.errorCode}`, {
-            defaultValue: t('tollBoothCharges.reload.errors.default'),
-          })}
-        </p>
+      {props.errorCode !== undefined && dialogExtract === null && (
+        <TollBoothCatalogReloadError errorCode={props.errorCode} />
       )}
 
       <TollBoothCatalogReloadDialog
-        errorCode={confirming === null ? undefined : props.errorCode}
-        extract={confirming}
+        errorCode={dialogErrorCode}
+        extract={dialogExtract}
         isPending={props.isPending}
         onClose={closeConfirmation}
         onConfirm={confirmReload}

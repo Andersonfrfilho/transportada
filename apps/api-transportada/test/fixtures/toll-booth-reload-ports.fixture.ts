@@ -11,6 +11,7 @@ import type { TollBoothSeedRecord } from '../../src/toll-booths/application/toll
 import type { TollBoothCatalogReloadAuditInput } from '../../src/toll-booths/application/toll-booth-catalog-reload.port.js'
 import { TollBoothCatalogReloadInProgressError } from '../../src/toll-booths/domain/toll-booth-extract.error.js'
 import type { TollBoothExtractRow } from '../../src/toll-booths/domain/toll-booth-extract.policy.js'
+import { createInMemoryTollBoothAxleChargeGapCache } from '../../src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 
 const RELOADED_AT = new Date('2026-09-17T12:00:00.000Z')
 
@@ -30,7 +31,9 @@ export function createReloadPorts(params: ReloadPortParams) {
   const audits: TollBoothCatalogReloadAuditInput[] = []
   const markedMissing: unknown[] = []
   const markedReloaded: unknown[] = []
+  const axleChargeGapCache = createInMemoryTollBoothAxleChargeGapCache()
   const useCase = createReloadTollBoothCatalogUseCase({
+    axleChargeGapCache,
     catalogReload: {
       async runExclusive(work) {
         events.push('runExclusive')
@@ -102,5 +105,5 @@ export function createReloadPorts(params: ReloadPortParams) {
     },
   })
 
-  return { audits, events, markedMissing, markedReloaded, savedBooths, useCase }
+  return { audits, axleChargeGapCache, events, markedMissing, markedReloaded, savedBooths, useCase }
 }

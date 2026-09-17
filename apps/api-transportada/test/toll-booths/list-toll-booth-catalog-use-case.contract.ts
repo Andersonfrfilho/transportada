@@ -15,6 +15,7 @@ import type {
   TollBoothCatalogPort,
 } from '../../src/toll-booths/application/toll-booth-catalog.port.js'
 import type { TollBoothSightingPort } from '../../src/toll-booths/application/toll-booth-sighting.port.js'
+import { createInMemoryTollBoothAxleChargeGapCache } from '../../src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 
 const COMPANY_A = '11111111-1111-1111-1111-111111111111'
 const COMPANY_B = '22222222-2222-2222-2222-222222222222'
@@ -136,6 +137,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ chargePerAxle: '7.0000', osmNodeId: 4 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -160,6 +162,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
   test('caps perPage at 100 even when the caller asks for 500', async () => {
     const booths = Array.from({ length: 3 }, (_, index) => booth({ osmNodeId: index + 1 }))
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -181,6 +184,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ name: 'Pedágio Bandeirantes', operator: 'CCR', osmNodeId: 2 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -219,6 +223,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       ],
     ])
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ adjustmentsByCompany, booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -244,6 +249,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       booth({ chargePerAxle: '10.0000', osmNodeId: 2 }),
     ]
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -291,6 +297,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       ],
     ])
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths }),
       catalogSummary: fakeCatalogSummary({
         boothCount: booths.length,
@@ -310,6 +317,7 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
 
   test('an empty catalog answers the empty status, never a lie about missing toll', async () => {
     const useCase = createListTollBoothCatalogUseCase({
+      axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
       catalog: createFakeCatalog({ booths: [] }),
       catalogSummary: fakeCatalogSummary({ boothCount: 0, latestObservedOn: null }),
       charges: fakeCharges(),

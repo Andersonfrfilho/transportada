@@ -54,12 +54,20 @@ export const tollBoothExtracts = pgTable(
     boothsWithCharge: integer('booths_with_charge').notNull(),
     boothsWithAxleCharge: integer('booths_with_axle_charge').notNull(),
     /**
-     * De qual recorte do Geofabrik o `.pbf` veio. É a única coluna que permite notar depois que
+     * ⚠️ Spec 154 T503, defeito 7: nenhum caminho de produção grava esta coluna hoje —
+     * `POST /v1/toll-booths/extracts` não a aceita no corpo, `TollBoothExtractRow` (aplicação) nem
+     * a declara, e `serializeExtract` não a devolve. Ela existe **de propósito** para o dia em que
+     * a rota passar a aceitar a URL do `.pbf` (aí sim vira a única forma de notar depois que
      * alguém recortou outra região reusando o mesmo `dataset` — caso em que o id de nó deixa de
-     * casar com o do OSRM e a rota passa a subestimar o total em silêncio.
+     * casar com o do OSRM e a rota passa a subestimar o total em silêncio), mas hoje é sempre
+     * `null` e não protege nada. Não é rede de segurança ativa — é reserva de esquema.
      */
     sourceUrl: text('source_url'),
-    /** Quando o extrator rodou — não é `created_at`, que é quando o produto recebeu o JSON. */
+    /**
+     * ⚠️ Mesmo estado do comentário acima: nenhum caminho de produção grava esta coluna hoje.
+     * Quando isso mudar, ela é quando o extrator rodou — não `created_at`, que é quando o produto
+     * recebeu o JSON.
+     */
     extractedAt: timestamp('extracted_at', { withTimezone: true }),
     uploadedByUserId: uuid('uploaded_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

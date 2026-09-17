@@ -169,8 +169,22 @@ ações independentemente da tela.
 ## Requisitos não funcionais
 
 - **RNF1** Nenhuma rota nova baixa `.pbf` nem executa binário externo.
-- **RNF2** `GET /v1/toll-booths` nunca lê a tabela inteira sem paginar; o resumo do RF2 continua
-  saindo de `readCatalogSummary` (`count` + `max`), numa consulta só.
+- **RNF2** `GET /v1/toll-booths` nunca lê a tabela inteira **sem paginar a lista** — a lista
+  devolvida ao cliente continua paginada, sem exceção; o resumo do RF2 (total, data, estado)
+  continua saindo de `readCatalogSummary` (`count` + `max`), numa consulta só. ⚠️ **Decisão
+  registrada na revisão final (T503, defeito 2):** a contagem de "sem tarifa por eixo conhecida"
+  (parte do RF2) é pendência da empresa do contexto (T202b), não do catálogo cru, e por isso
+  **não** dá para calculá-la em SQL agregado — ela exige cruzar o catálogo inteiro (colunas
+  mínimas: `osmNodeId` + `chargePerAxle`) com os ajustes da empresa em memória
+  (`countBoothsWithoutKnownAxleCharge`). `readCatalogAxleCharges()` lê essa tabela inteira, sem
+  paginar, a cada chamada — medido em 592 linhas hoje em staging (recorte Sudeste de RNF1); um
+  recorte Brasil chegaria a 10-15 mil. Essa leitura não depende de `page` nem `search`, então
+  repeti-la a cada troca de página ou letra digitada na busca era desperdício puro: corrigido com
+  `TollBoothAxleChargeGapCachePort`, uma cópia por empresa em memória do processo (nunca
+  distribuída), invalidada só quando o resultado pode mudar de verdade — ajuste ou remoção de
+  ajuste da própria empresa (`adjust`/`clear-toll-booth-charge.use-case.ts`), ou recarga do
+  catálogo (`reload-toll-booth-catalog.use-case.ts`, que invalida a cópia de toda empresa, porque
+  reescreve `toll_booths` para a instalação inteira).
 - **RNF3** `POST /v1/toll-booths/reload` é protegido contra execução concorrente — duas recargas
   simultâneas do mesmo extrato não podem se sobrepor.
 - **RNF4** Nenhum log de nome de operador, ator ou conteúdo do extrato além de contagens e ids.

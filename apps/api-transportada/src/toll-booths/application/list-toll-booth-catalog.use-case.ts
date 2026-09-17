@@ -14,9 +14,18 @@
  * empresa do contexto, não do catálogo cru — `readCatalogAxleCharges` (colunas mínimas, catálogo
  * inteiro) e `charges.loadAdjustments` (ajustes da empresa) entram crus, e
  * `countBoothsWithoutKnownAxleCharge` resolve em memória, nunca em SQL.
+ *
+ * T503 (revisão final, defeito 2): essa contagem não depende de `page` nem de `search` — só do
+ * catálogo inteiro e dos ajustes da empresa — mas era recalculada em toda requisição, lendo
+ * `toll_booths` inteira a cada troca de página ou letra digitada na busca (592 linhas hoje em
+ * staging; o recorte de RNF2 é o Sudeste — um recorte Brasil chegaria a 10-15 mil). `axleChargeGapCache`
+ * (por empresa, em memória do processo) evita isso: só recalcula na primeira leitura depois de subir
+ * ou de uma invalidação — que acontece exatamente quando o resultado pode ter mudado (ajuste/remoção
+ * de ajuste da própria empresa, ou recarga do catálogo, que afeta todas).
  */
 import type { TollBoothChargePort } from '../../companies/application/toll-booth-charge.port.js'
 import { countBoothsWithoutKnownAxleCharge } from '../domain/toll-booth-axle-charge-gap.policy.js'
+import type { TollBoothAxleChargeGapCachePort } from './toll-booth-axle-charge-gap-cache.port.js'
 import {
   orderSeenRowsByChargeKnown,
   toEntryView,
@@ -63,7 +72,31 @@ type CatalogSummarySource = Readonly<{
   readCatalogSummary(): Promise<Readonly<{ boothCount: number; latestObservedOn: null | string }>>
 }>
 
+async function resolveBoothsWithoutAxleChargeCount(
+  dependencies: {
+    readonly axleChargeGapCache: TollBoothAxleChargeGapCachePort
+    readonly catalog: TollBoothCatalogPort
+    readonly charges: TollBoothChargePort
+  },
+  companyId: string,
+): Promise<number> {
+  const cached = dependencies.axleChargeGapCache.read(companyId)
+  if (cached !== undefined) return cached
+
+  const [catalogAxleCharges, companyAdjustments] = await Promise.all([
+    dependencies.catalog.readCatalogAxleCharges(),
+    dependencies.charges.loadAdjustments({ companyId }),
+  ])
+  const count = countBoothsWithoutKnownAxleCharge({
+    adjustments: companyAdjustments,
+    catalog: catalogAxleCharges,
+  })
+  dependencies.axleChargeGapCache.write(companyId, count)
+  return count
+}
+
 export function createListTollBoothCatalogUseCase(dependencies: {
+  readonly axleChargeGapCache: TollBoothAxleChargeGapCachePort
   readonly catalog: TollBoothCatalogPort
   readonly catalogSummary: CatalogSummarySource
   readonly charges: TollBoothChargePort
@@ -81,17 +114,11 @@ export function createListTollBoothCatalogUseCase(dependencies: {
       )
       const searchTerm = input.search?.trim() || undefined
 
-      const [seenOsmNodeIds, catalogSummary, catalogAxleCharges, companyAdjustments] =
-        await Promise.all([
-          dependencies.sightings.readSeenOsmNodeIds({ companyId: input.companyId }),
-          dependencies.catalogSummary.readCatalogSummary(),
-          dependencies.catalog.readCatalogAxleCharges(),
-          dependencies.charges.loadAdjustments({ companyId: input.companyId }),
-        ])
-      const boothsWithoutAxleChargeCount = countBoothsWithoutKnownAxleCharge({
-        adjustments: companyAdjustments,
-        catalog: catalogAxleCharges,
-      })
+      const [seenOsmNodeIds, catalogSummary, boothsWithoutAxleChargeCount] = await Promise.all([
+        dependencies.sightings.readSeenOsmNodeIds({ companyId: input.companyId }),
+        dependencies.catalogSummary.readCatalogSummary(),
+        resolveBoothsWithoutAxleChargeCount(dependencies, input.companyId),
+      ])
 
       const seenRows = await resolveSeenRows({
         catalog: dependencies.catalog,

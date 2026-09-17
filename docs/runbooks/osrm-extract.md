@@ -164,19 +164,25 @@ O fluxo é:
 
 1. Rodar `bun run --cwd apps/api-transportada scripts/toll-booth-extract.ts --pbf <arquivo> --out /tmp/pracas.json`
 2. Preparar o JSON como corpo de `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>`
-   (usuário com `settings.manage`); **o objeto fica registrado no banco na mesma transação** — a subida é idempotente
-   por `(dataset, observedOn)`: tentar de novo com os mesmos bytes responde `409` e o objeto do bucket
-   não é sobrescrito.
+   (usuário com `settings.manage`); o objeto sobe para o bucket em modo `create-only` e **só depois** a
+   linha é gravada em `toll_booth_extracts` — sequencial, não a mesma transação (bucket não entra em
+   transação de banco); o objeto vem primeiro de propósito, para nunca deixar uma linha apontando para
+   um objeto que não existe. A subida é idempotente por `(dataset, observedOn)`: tentar de novo com os
+   mesmos bytes responde `409` e o objeto do bucket não é sobrescrito.
 3. Na tela (Frota → Pedágio), o operador abre o **seletor de extratos** — lista do mais novo para o mais antigo
    — e toca em **recarregar** (`POST /v1/toll-booths/reload?dataset=<dataset>&observedOn=<...>`).
    A recarga **não apaga praça nenhuma** — só faz upsert pela chave `osm_node_id` — e é **idempotente**: rodar
    de novo com o mesmo extrato deixa `toll_booths` exatamente igual (não muda nem `updated_at`). Só uma
    recarga roda por vez (segunda responde `409 TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS`).
 
-**Caso especial: extrato velho, catálogo novo.** Um extrato que ficou desatualizado (praça foi apagada
-de um `.pbf` novo) deixa de aparecer na recarga; o operador vê quantas praças "ficaram de fora" do
-extrato escolhido. Quem quiser preencher essas praças com tarifa manual, a aba continua listando o
-catálogo inteiro — só muda a fonte (catálogo velho → e aí está).
+**Caso especial: extrato velho, catálogo novo.** Nenhuma linha de `toll_booth_extracts` some — a
+recarga (D7) nunca apaga nada, e `GET /v1/toll-booths/extracts` lista **todo** extrato já registrado,
+do mais novo ao mais antigo, sem filtrar por idade. Um extrato desatualizado continua aparecendo no
+seletor da tela, disponível para recarregar de novo se for o caso. O que muda é o resultado da
+recarga em si: se o `.pbf` novo não trouxer mais uma praça que o catálogo já conhecia, essa praça não
+é apagada (D7) — ela fica com `catalogKnown: true` e a data antiga, e o operador vê quantas praças
+"ficaram de fora" do extrato escolhido no resultado da recarga. Quem quiser corrigir a tarifa dessas
+praças à mão, a aba continua listando o catálogo inteiro — só muda a fonte, de catálogo para manual.
 
 Registro (15/09/2026): staging usa `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
 579 com tarifa, 571 com tarifa por eixo, em `toll-booths/osm/sudeste/2026-09-14/` do bucket de

@@ -15,6 +15,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useDayFormatter } from '../hooks/useDayFormatter.hook'
 import type { TollBoothExtractRow } from '../shared/tollBoothExtract.validation'
 import styles from '../styles/fleet.module.css'
+import { TollBoothCatalogReloadError } from './TollBoothCatalogReloadError.component'
 
 export type TollBoothCatalogReloadDialogProps = Readonly<{
   errorCode: string | undefined
@@ -71,11 +72,7 @@ export function TollBoothCatalogReloadDialog(props: TollBoothCatalogReloadDialog
         </p>
 
         {props.errorCode !== undefined && (
-          <p className={styles.feedback} role="alert">
-            {t(`tollBoothCharges.reload.errors.${props.errorCode}`, {
-              defaultValue: t('tollBoothCharges.reload.errors.default'),
-            })}
-          </p>
+          <TollBoothCatalogReloadError errorCode={props.errorCode} />
         )}
 
         <footer className={styles.dialogFooter}>

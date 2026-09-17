@@ -25,6 +25,7 @@ import { createCreateTollBoothExtractUseCase } from '../../src/toll-booths/appli
 import { createReloadTollBoothCatalogUseCase } from '../../src/toll-booths/application/reload-toll-booth-catalog.use-case.js'
 import { createDrizzleTollBoothCatalogReloadRepository } from '../../src/toll-booths/infrastructure/drizzle-toll-booth-catalog-reload.repository.js'
 import { createDrizzleTollBoothExtractRepository } from '../../src/toll-booths/infrastructure/drizzle-toll-booth-extract.repository.js'
+import { createInMemoryTollBoothAxleChargeGapCache } from '../../src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 import { buildExtractObjectKey } from '../../src/toll-booths/domain/toll-booth-extract.policy.js'
 import { createTollBoothExtractStorageGateway } from '../../src/toll-booths/infrastructure/toll-booth-extract-storage.gateway.js'
 
@@ -81,6 +82,7 @@ async function createReloadWorld(url: string) {
   })
   const upload = createCreateTollBoothExtractUseCase({ extracts, storage })
   const reload = createReloadTollBoothCatalogUseCase({
+    axleChargeGapCache: createInMemoryTollBoothAxleChargeGapCache(),
     catalogReload: createDrizzleTollBoothCatalogReloadRepository(database.db),
     extracts,
     logger: { warn() {} },

@@ -202,20 +202,31 @@ describe('fleet toll booth charge tab contract (spec 095 item 4, spec 154 T204)'
     expect(summary).toContain('tollBoothCharges.catalog.pendingCount')
   })
 
-  // Caso extremo da spec: catálogo vazio é ausência de dado, nunca "sem pedágio".
-  test('catálogo vazio mostra a frase própria de "nunca carregado"', async () => {
-    const panel = await readApplicationFile(PANEL_PATH)
+  // Caso extremo da spec (aceite 2: catálogo vazio é ausência de dado, nunca "sem pedágio") e
+  // caso extremo (aceite 3: busca sem resultado nunca é indistinguível de "nada a corrigir") —
+  // spec 154 T503, defeito 11: as duas asserções liam texto-fonte (`toContain` sobre a condicional
+  // e a chave de tradução), o que só prova que a string existe no arquivo, nunca o que a tela
+  // produz. Convertidas para o **renderizado** em `toll-booth-charge-panel-render.contract.tsx`
+  // (`renderToStaticMarkup`, i18n real, no molde de `toll-booth-catalog-reload-gate.contract.tsx`).
+  // O que fica aqui é só a existência das duas chaves nos dois dicionários (`fleet.locale.json` +
+  // `fleet.en.locale.json`) — cobertura que o contrato de render não repete, porque ele só carrega
+  // o dicionário pt-BR.
+  test('as chaves de "nunca carregado" e "busca sem resultado" existem nos dois dicionários', async () => {
+    const [ptLocale, enLocale] = await Promise.all([
+      readLocale(LOCALE_PATH),
+      readLocale('src/modules/fleet/locales/fleet.en.locale.json'),
+    ])
+    const ptTollBoothCharges = ptLocale['tollBoothCharges'] as Record<string, unknown>
+    const ptCatalog = ptTollBoothCharges['catalog'] as Record<string, unknown>
+    const enTollBoothCharges = enLocale['tollBoothCharges'] as Record<string, unknown>
+    const enCatalog = enTollBoothCharges['catalog'] as Record<string, unknown>
 
-    expect(panel).toContain("catalog.summary.status === 'empty'")
-    expect(panel).toContain('tollBoothCharges.catalog.status.empty')
-  })
-
-  // Caso extremo: busca sem resultado nunca é indistinguível de "nada a corrigir".
-  test('busca sem resultado nomeia a data do catálogo, nunca lista vazia muda', async () => {
-    const panel = await readApplicationFile(PANEL_PATH)
-
-    expect(panel).toContain('tollBoothCharges.catalog.searchEmpty')
-    expect(panel).toContain('tollBoothCharges.empty')
+    expect(typeof ptCatalog['searchEmpty']).toBe('string')
+    expect(typeof enCatalog['searchEmpty']).toBe('string')
+    expect(typeof (ptCatalog['status'] as Record<string, unknown>)['empty']).toBe('string')
+    expect(typeof (enCatalog['status'] as Record<string, unknown>)['empty']).toBe('string')
+    expect(typeof ptTollBoothCharges['empty']).toBe('string')
+    expect(typeof enTollBoothCharges['empty']).toBe('string')
   })
 
   // D1: o ajuste de praça que o catálogo não conhece mais continua aparecendo, marcado, editável.
@@ -342,7 +353,10 @@ describe('fleet toll booth catalog reload contract (spec 154 T303)', () => {
     ])
 
     // Confirmação: o clique no botão da lista abre o diálogo, e só o diálogo dispara a mutação.
-    expect(panel).toContain('onClick={() => setConfirming(selectedExtract ?? null)}')
+    // spec 154 T503 defeito 9: a abertura/fechamento é derivada por `resolveReloadDialogState`
+    // (contrato próprio, `toll-booth-catalog-reload-dialog-state.contract.ts`), não por
+    // `useEffect` — `openConfirmation` só grava a seleção no estado.
+    expect(panel).toContain('onClick={openConfirmation}')
     expect(panel).toContain('onConfirm={confirmReload}')
     expect(panel).toContain(
       'props.onReload({ dataset: confirming.dataset, observedOn: confirming.observedOn })',
@@ -368,16 +382,17 @@ describe('fleet toll booth catalog reload contract (spec 154 T303)', () => {
   // Aceite 5: a trilha de auditoria (ator, dataset, data) é gravada e provada no backend (T302
   // evidence.md — audit_logs, mesma transação); esta tela não lê nem exibe a trilha.
 
-  // Aceite 8, lado da tela: os quatro códigos de erro do RF4, cada um com frase própria.
-  test('cada um dos quatro códigos de erro da recarga mostra a própria frase', async () => {
+  // Aceite 8, lado da tela: os quatro códigos de erro do RF4, cada um com frase própria — a
+  // interpolação de `{{code}}` (spec 154 T503, defeito 1) é provada sobre o renderizado em
+  // `toll-booth-catalog-reload-error.contract.tsx`, no componente que os dois usam.
+  test('painel e diálogo delegam a frase de erro ao componente compartilhado', async () => {
     const [panel, dialog] = await Promise.all([
       readApplicationFile(RELOAD_PANEL_PATH),
       readApplicationFile(RELOAD_DIALOG_PATH),
     ])
 
     for (const source of [panel, dialog]) {
-      expect(source).toContain('tollBoothCharges.reload.errors.${')
-      expect(source).toContain("defaultValue: t('tollBoothCharges.reload.errors.default')")
+      expect(source).toContain('<TollBoothCatalogReloadError errorCode={')
     }
   })
 
