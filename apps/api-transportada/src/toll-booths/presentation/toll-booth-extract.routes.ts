@@ -20,6 +20,10 @@ import type {
   TollBoothExtractRowInput,
 } from '../domain/toll-booth-extract.policy.js'
 import {
+  TOLL_BOOTH_CATALOG_RELOAD_RATE_LIMIT,
+  TOLL_BOOTH_EXTRACT_UPLOAD_RATE_LIMIT,
+} from './toll-booth-extract.rate-limit.js'
+import {
   parseTollBoothExtractBody,
   parseTollBoothExtractQuery,
   type TollBoothExtractQuery,
@@ -69,6 +73,7 @@ export function createTollBoothExtractRoutes(
       },
       pathname: API_TOLL_BOOTH_EXTRACTS_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      rateLimit: TOLL_BOOTH_EXTRACT_UPLOAD_RATE_LIMIT,
     }),
     defineRoute<undefined>({
       async handle(): Promise<Response> {
@@ -115,6 +120,7 @@ export function createTollBoothCatalogReloadRoutes(dependencies: {
       }),
       pathname: API_TOLL_BOOTH_RELOAD_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      rateLimit: TOLL_BOOTH_CATALOG_RELOAD_RATE_LIMIT,
     }),
   ]
 }

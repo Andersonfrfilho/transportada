@@ -2094,3 +2094,47 @@ Verde, com o teto:
 
 Suíte completa da API: **6381 pass · 23 skip · 0 fail** (22179 expect(), 177 arquivos).
 `bun run typecheck`, `bun run lint` e `bun run format:check`: exit 0 nas seis apps.
+
+### T505 — teto de requisições nas duas rotas de escrita do extrato (revisão final D-8)
+
+As rotas `POST /v1/toll-booths/extracts` e `POST /v1/toll-booths/reload` subiram sem `rateLimit`,
+enquanto o precedente do repositório para upload é `UPLOAD_RATE_LIMIT`
+(`src/fleet/presentation/aggregate-application-attachment.routes.ts:29`). A amplificação da recarga
+é o que pesa: o download e o sha256 acontecem **antes** da trava (deliberado, para encurtar o lock),
+então N chamadas concorrentes pagam N downloads para receber N × 409.
+
+`src/toll-booths/presentation/toll-booth-extract.rate-limit.ts`: seis requisições por 30 minutos em
+cada rota, **balde em memória, por usuário**. Escolha registrada no próprio arquivo — o custo é do
+processo que atende (banda e CPU do sha256), não de terceiro cobrado por chamada, e o balde
+compartilhado no Postgres existe para envio de e-mail; todo serviço roda com uma réplica
+(`.railway/railway.ts`). Janela larga porque subir extrato e recarregar são atos de administração,
+e quem erra `dataset` ou data refaz duas ou três vezes seguidas.
+
+A `GET /v1/toll-booths/extracts` segue sem teto próprio, de propósito: leitura barata, sem efeito
+externo — e o contrato afirma isso, para que a ausência seja decisão e não esquecimento.
+
+A fixture HTTP do extrato saiu de dentro do contrato da T301 para
+`test/fixtures/toll-booth-extract-http.fixture.ts`, reaproveitada pelos dois contratos. Nenhuma
+asserção da T301 mudou (os 130 casos anteriores seguem verdes).
+
+Vermelho, antes do `rateLimit` nas rotas:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts --timeout 120000
+
+(fail) teto das rotas de escrita do extrato (spec 154, revisão final D-8) > a recarga responde 429 com retry-after depois do teto, no mesmo usuário [1.08ms]
+(fail) teto das rotas de escrita do extrato (spec 154, revisão final D-8) > a recarga recusada pelo teto não baixa o objeto nem toca a trava [0.63ms]
+(fail) teto das rotas de escrita do extrato (spec 154, revisão final D-8) > a subida do extrato responde 429 depois do teto, sem chamar o use case [1.95ms]
+ 130 pass
+ 3 fail
+```
+
+Verde, depois:
+
+```
+ 133 pass
+ 0 fail
+```
+
+Suíte completa da API: **6385 pass · 23 skip · 0 fail** (22206 expect(), 177 arquivos).
+`bun run typecheck`, `bun run lint` e `bun run format:check`: exit 0 nas seis apps.
