@@ -136,10 +136,14 @@ criterion } }`; o aceite multi-veículo aceita `routeChoice` por veículo; o ace
   `reconcileStopOnUnlink` dentro da própria transação: muda o conjunto de paradas das **duas**
   viagens antes do despacho. Origem e destino recalculam com `cheapest` (D6), pela mesma escrita
   atômica da RF1, e o OSRM fora do ar não derruba a movimentação (D5).
-- **RF13** — Trocar a rota escolhida numa viagem não despachada **recalcula e regrava**, não é só
-  redesenho: a escolha nova volta por `plan-route` e a viagem ganha `frozen_at` novo. O mapa oferece
-  um switch explícito entre **mais rápida** e **mais barata** — a D1 já oferece as duas opções e
-  `fastest` já é critério da D2, o que falta é a afordância em tela e o disparo do recálculo.
+- **RF13** — O mapa oferece um switch explícito entre **mais rápida** (menor duração) e **mais
+  barata** (menor custo total). As duas saem do mesmo conjunto que a RF2 já trouxe numa ida só, então
+  trocar **não chama o OSRM de novo**: as opções ficam como rotas temporárias em mãos e o switch é
+  instantâneo. O que a troca dispara é a **regravação** — a opção escolhida volta por `plan-route` e
+  a viagem ganha `frozen_at` novo, porque a viagem tem de guardar a rota que o operador escolheu, não
+  a que ela abriu. Quando só existe uma opção (OSRM sem alternativa, ou a mais rápida é também a mais
+  barata), calcula-se uma só e a **tela avisa** que não há alternativa, em vez de mostrar um switch
+  que não muda nada.
 
 > RF12 e RF13 entraram em 2026-09-16, durante a execução, a pedido do usuário. Não reabrem D1–D11:
 > a D6 já fala de mudança de parada em geral, e a D1/D2 já preveem os critérios. RF12 é a T206;
