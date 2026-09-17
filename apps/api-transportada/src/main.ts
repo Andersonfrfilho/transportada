@@ -1987,7 +1987,7 @@ function createApplicationRoutes({
       }),
       clear: createClearTollBoothChargeUseCase({ charges: tollBoothChargeRepository }),
       list: createListTollBoothChargesUseCase({
-        catalog: tollBoothRepository,
+        catalog: tollBoothCatalogRepository,
         charges: tollBoothChargeRepository,
         sightings: tollBoothSightingRepository,
       }),

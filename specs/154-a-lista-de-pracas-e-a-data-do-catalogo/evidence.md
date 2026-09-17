@@ -515,3 +515,98 @@ Postgres nativo descartável.
 `toll-booths/presentation/` nesta task; T202 entrega só `GET /v1/toll-booths` (RF1/RF2), como o
 escopo do prompt pediu — `GET`/`POST /toll-booths/extracts` e `POST /toll-booths/reload` continuam
 para T301/T302 (Fase 3), sem código morto ou rota parcial no meio do caminho.
+
+### T203
+
+`list-toll-booth-charges.use-case.ts` não é apagado nem muda de assunto: continua sendo a lista das
+praças que a operação já viu, atrás da rota antiga `GET /v1/company-settings/toll-booth-charges`
+(`toll-booth-charge.routes.ts`), no mesmo formato de resposta de sempre
+(`EffectiveTollBoothCharge[]`, ordenado por `orderTollBoothChargesByUnknownFirst`). O que muda é só a
+fonte: o `catalog` do use case deixou de ser `TollBoothCatalogLookupPort.readByNodeIds`
+(`TollBoothRepository`) e passou a ser `TollBoothCatalogPort.listCatalog({ seenFilter: 'only' })` — o
+mesmo contrato que a T202 já usa para alimentar `GET /v1/toll-booths`. `charges.loadAdjustmentsByNodeIds`
+continua sendo chamado em paralelo, mas só para achar o ajuste "órfão" (praça vista que o catálogo não
+conhece mais, `catalogKnown: false`) — para a praça que o catálogo conhece, o ajuste já vem embutido na
+linha do `LEFT JOIN` (`row.adjustment`), sem precisar de uma segunda consulta por ajuste conhecido.
+
+`TollBoothCatalogLookupPort` (o tipo antigo, com `readByNodeIds`) não foi apagado: continua exportado
+por este arquivo e usado por `adjust-toll-booth-charge.use-case.ts`, que resolve uma praça por vez a
+partir do `osmNodeId` do `PUT` — caso que `listCatalog` não cobre e que não faz parte do escopo desta
+task.
+
+Wiring em `main.ts:1989`: o `catalog:` de `createListTollBoothChargesUseCase` trocou de
+`tollBoothRepository` para `tollBoothCatalogRepository` (já criado em `main.ts:1483` para a T202,
+antes do ponto de uso). `adjust`/`clear` (mesma rota) não mudaram — `adjust` continua em
+`tollBoothRepository` de propósito, pela razão do parágrafo acima.
+
+**Contrato novo — as duas listas concordam, praça a praça:**
+`test/companies/list-toll-booth-charges-catalog-parity.contract.ts` (novo), com um catálogo falso
+minimalista que reproduz só o recorte que este use case exercita (`seenFilter: 'only'` filtrando por
+`seenOsmNodeIds`). Duas suítes:
+
+- **ajuste parcial (só o eixo corrigido):** duas praças vistas, uma com ajuste que corrige só
+  `chargePerAxle` e deixa `chargeCar` do catálogo. Para a mesma praça, a lista antiga
+  (`createListTollBoothChargesUseCase`) e o `catalog.listCatalog({ seenFilter: 'only' })` bruto
+  concordam: `chargePerAxleSource: 'manual'` com `effectiveChargePerAxle: '8.5000'` (do
+  `row.adjustment.chargePerAxle`) e `chargeCarSource: 'catalog'` com `effectiveChargeCar: '4.2000'`
+  (do `row.catalog.chargeCar`) — a origem é **por campo**, não por linha, e as duas listas decidem
+  campo a campo do mesmo jeito. A segunda praça, sem ajuste algum, tem `chargePerAxleSource:
+'catalog'` e `effectiveChargePerAxle: null` nas duas. Toda praça da lista antiga aparece com
+  `seen: true` no catálogo novo.
+- **praça sem ajuste:** confirma que, sem nenhum ajuste, as duas concordam que a origem é o catálogo
+  puro, valor a valor.
+
+Vermelho antes da implementação (o `catalog` do use case ainda exigia `readByNodeIds`, que o fake
+novo — só com `listCatalog` — não tem):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/companies.contract.test.ts --timeout 60000
+TypeError: input.catalog.readByNodeIds is not a function. (In 'input.catalog.readByNodeIds(osmNodeIds)', 'input.catalog.readByNodeIds' is undefined)
+      at .../src/companies/application/list-toll-booth-charges.use-case.ts:38:23
+ 162 pass
+ 2 fail
+ 468 expect() calls
+Ran 164 tests across 1 file. [95.00ms]
+```
+
+Verde depois — `test/companies/list-toll-booth-charges-use-case.contract.ts` (suíte já existente)
+também precisou trocar o fake de `catalog: { readByNodeIds }` para um `TollBoothCatalogPort` mínimo
+(`createFakeCatalog`, filtra por `seenOsmNodeIds` e já embute o ajuste na linha, como o `LEFT JOIN`
+real faria) — as seis suítes continuam provando exatamente o mesmo comportamento de antes (vazio sem
+viagem, praça vista sem ajuste, ajuste mesclado, ordem de desconhecida primeiro, nó ausente do
+catálogo, praça ajustada órfã):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/companies.contract.test.ts --timeout 60000
+ 164 pass
+ 0 fail
+ 493 expect() calls
+Ran 164 tests across 1 file. [113.00ms]
+```
+
+Suíte completa da API, antes e depois — dois testes a mais (a parity nova), zero falha:
+
+```
+antes: 6281 pass · 23 skip · 0 fail · 21970 expect() calls · Ran 6304 tests across 177 files
+depois:
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6283 pass
+ 23 skip
+ 0 fail
+ 21995 expect() calls
+Ran 6306 tests across 177 files. [22.52s]
+```
+
+Demais gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`) exit 0
+· `bun run format:check` exit 0 (o `prettier --write` só reformatou a quebra de linha do contrato
+novo, conferido não haver mudança de comportamento).
+
+Nenhum arquivo novo entrou no `package.json`: `list-toll-booth-charges-catalog-parity.contract.ts`
+entra por um import a mais em `test/companies.contract.test.ts`, que já está na lista `"test"` da
+API — o mesmo padrão de toda suíte de contrato desta app.
+
+**Nenhum contrato existente foi afrouxado ou apagado.** A rota
+`GET/PUT/DELETE /v1/company-settings/toll-booth-charges[/:osmNodeId]` (`toll-booth-charge.routes.ts`)
+não mudou — nem assinatura, nem serialização (`serializeTollBoothCharge`), nem permissão
+(`settings.manage`) —, e `test/companies/toll-booth-charge.contract.ts` (a suíte HTTP dessa rota,
+fora do escopo desta task) continua verde na suíte completa acima, sem edição.

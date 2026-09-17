@@ -6,8 +6,15 @@
  * Corrigir praça por onde ninguém passa é trabalho jogado fora, e é por isso que uma praça
  * corrigida no passado mas nunca vista some da lista se nenhuma viagem a tiver cruzado ainda — o
  * ajuste continua no banco, valendo assim que a primeira viagem passar por ela.
+ *
+ * ⚠️ Spec 154 T203: a fonte do catálogo passou a ser `TollBoothCatalogPort.listCatalog` com
+ * `seenFilter: 'only'` — o mesmo contrato que alimenta `GET /v1/toll-booths` (T202) — no lugar de
+ * `TollBoothCatalogLookupPort.readByNodeIds`. A rota antiga (`company-settings`) e a forma da
+ * resposta não mudam; só a origem da leitura. `list-toll-booth-charges-catalog-parity.contract.ts`
+ * prova que, para a mesma praça, as duas listas concordam (valor efetivo, origem por campo, `seen`).
  */
 import type { TollBoothSightingPort } from '../../toll-booths/application/toll-booth-sighting.port.js'
+import type { TollBoothCatalogPort } from '../../toll-booths/application/toll-booth-catalog.port.js'
 import type { TollBoothRouteRecord } from '../../toll-booths/application/toll-booth.port.js'
 import {
   orderTollBoothChargesByUnknownFirst,
@@ -16,12 +23,13 @@ import {
 } from '../domain/toll-booth-charge.policy.js'
 import type { TollBoothChargePort } from './toll-booth-charge.port.js'
 
+/** Usado por `adjust-toll-booth-charge.use-case.ts` para achar a praça de uma correção pontual. */
 export type TollBoothCatalogLookupPort = Readonly<{
   readByNodeIds: (nodeIds: readonly number[]) => Promise<readonly TollBoothRouteRecord[]>
 }>
 
 export function createListTollBoothChargesUseCase(input: {
-  readonly catalog: TollBoothCatalogLookupPort
+  readonly catalog: TollBoothCatalogPort
   readonly charges: TollBoothChargePort
   readonly sightings: TollBoothSightingPort
 }): {
@@ -34,23 +42,16 @@ export function createListTollBoothChargesUseCase(input: {
       const osmNodeIds = await input.sightings.readSeenOsmNodeIds({ companyId })
       if (osmNodeIds.length === 0) return []
 
-      const [catalogEntries, adjustments] = await Promise.all([
-        input.catalog.readByNodeIds(osmNodeIds),
+      const [catalogPage, adjustments] = await Promise.all([
+        input.catalog.listCatalog({ companyId, seenFilter: 'only', seenOsmNodeIds: osmNodeIds }),
         input.charges.loadAdjustmentsByNodeIds({ companyId, osmNodeIds }),
       ])
-      const adjustmentByNode = new Map(adjustments.map((row) => [row.osmNodeId, row]))
 
-      const catalogNodeIds = new Set(catalogEntries.map((entry) => entry.osmNodeId))
+      const catalogNodeIds = new Set(catalogPage.rows.map((row) => row.osmNodeId))
 
-      const resolved: EffectiveTollBoothCharge[] = []
-      for (const catalog of catalogEntries) {
-        resolved.push(
-          resolveEffectiveTollBoothCharge({
-            adjustment: adjustmentByNode.get(catalog.osmNodeId) ?? null,
-            catalog,
-          }),
-        )
-      }
+      const resolved: EffectiveTollBoothCharge[] = catalogPage.rows.map((row) =>
+        resolveEffectiveTollBoothCharge({ adjustment: row.adjustment, catalog: row.catalog }),
+      )
 
       /**
        * ⚠️ Ajuste de praça que o catálogo não conhece mais sumia da lista, e o trabalho de quem o
