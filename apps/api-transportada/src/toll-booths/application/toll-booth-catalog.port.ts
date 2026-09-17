@@ -21,6 +21,12 @@ export type TollBoothCatalogRow = Readonly<{
   seen: boolean
 }>
 
+/** Colunas mínimas do catálogo inteiro, para o agregado da T202b — nunca a praça inteira. */
+export type TollBoothCatalogAxleChargeRow = Readonly<{
+  chargePerAxle: null | string
+  osmNodeId: number
+}>
+
 export type TollBoothCatalogPage = Readonly<{
   page: number
   perPage: number
@@ -55,8 +61,12 @@ export type ListTollBoothCatalogParams = Readonly<{
 export type TollBoothCatalogPort = Readonly<{
   listCatalog(params: ListTollBoothCatalogParams): Promise<TollBoothCatalogPage>
   /**
-   * `count(*)` das praças do catálogo sem tarifa por eixo — nunca composta com o ajuste da empresa
-   * (RF2 é resumo do catálogo, não o valor efetivo): numa consulta só, sem ler a tabela inteira.
+   * Colunas mínimas (`osmNodeId` + `chargePerAxle`) do catálogo **inteiro** — sem paginar, porque o
+   * agregado da T202b (RF2, decisão de 2026-09-17: a contagem é pendência da empresa) precisa de
+   * toda praça para resolver em memória contra o ajuste da empresa do contexto
+   * (`toll-booth-axle-charge-gap.policy.ts`). Isto não é a listagem sem paginação que a RNF2 proíbe
+   * — é leitura de duas colunas para um agregado, do mesmo jeito que `readCatalogSummary` já lê
+   * `count`/`max` numa consulta só.
    */
-  readAxleChargeGapCount(): Promise<number>
+  readCatalogAxleCharges(): Promise<readonly TollBoothCatalogAxleChargeRow[]>
 }>

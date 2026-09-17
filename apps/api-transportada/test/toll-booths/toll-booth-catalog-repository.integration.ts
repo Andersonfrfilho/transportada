@@ -185,6 +185,25 @@ describe('toll booth catalog repository (spec 154, T201)', () => {
       expect(page).toEqual({ page: 1, perPage: 20, rows: [], total: 0 })
     })
   })
+
+  // T202b: colunas mínimas do catálogo inteiro, sem paginar e sem tocar `company_toll_booth_charges`
+  // — a pendência por empresa é resolvida em memória por `toll-booth-axle-charge-gap.policy.ts`.
+  testWithPostgres(
+    'reads only osmNodeId and chargePerAxle for the whole catalog, never paginated',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        await seedTollBooth({ chargePerAxle: '10.0000', database, osmNodeId: 1n })
+        await seedTollBooth({ database, osmNodeId: 2n })
+
+        const rows = await repository(database).readCatalogAxleCharges()
+
+        expect([...rows].sort((left, right) => left.osmNodeId - right.osmNodeId)).toEqual([
+          { chargePerAxle: '10.0000', osmNodeId: 1 },
+          { chargePerAxle: null, osmNodeId: 2 },
+        ])
+      })
+    },
+  )
 })
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>

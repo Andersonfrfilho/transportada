@@ -29,6 +29,7 @@ import {
 } from '../application/toll-booth-catalog.constant.js'
 import type {
   ListTollBoothCatalogParams,
+  TollBoothCatalogAxleChargeRow,
   TollBoothCatalogPage,
   TollBoothCatalogPort,
   TollBoothCatalogRow,
@@ -147,13 +148,15 @@ export function createDrizzleTollBoothCatalogRepository(
         total: totalRow?.total ?? 0,
       }
     },
-    async readAxleChargeGapCount(): Promise<number> {
-      const [row] = await database
-        .select({ gapCount: sql<number>`count(*)::int` })
+    async readCatalogAxleCharges(): Promise<readonly TollBoothCatalogAxleChargeRow[]> {
+      const rows = await database
+        .select({ chargePerAxle: tollBooths.chargePerAxle, osmNodeId: tollBooths.osmNodeId })
         .from(tollBooths)
-        .where(sql`${tollBooths.chargePerAxle} is null`)
 
-      return row?.gapCount ?? 0
+      return rows.map((row) => ({
+        chargePerAxle: row.chargePerAxle,
+        osmNodeId: Number(row.osmNodeId),
+      }))
     },
   }
 }

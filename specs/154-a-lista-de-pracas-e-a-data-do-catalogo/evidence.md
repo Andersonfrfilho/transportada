@@ -610,3 +610,113 @@ API — o mesmo padrão de toda suíte de contrato desta app.
 não mudou — nem assinatura, nem serialização (`serializeTollBoothCharge`), nem permissão
 (`settings.manage`) —, e `test/companies/toll-booth-charge.contract.ts` (a suíte HTTP dessa rota,
 fora do escopo desta task) continua verde na suíte completa acima, sem edição.
+
+### T202b — a contagem do RF2 é pendência da empresa
+
+**Razão (decisão do usuário em 2026-09-17, não conflito resolvido por invenção):** a T202 implementou
+o resumo do RF2 ("praças sem tarifa por eixo conhecida") como `TollBoothCatalogPort.readAxleChargeGapCount()`
+— `count(*) where charge_per_axle is null` só no catálogo cru, ignorando o ajuste da empresa. O
+usuário decidiu que a contagem certa é a **pendência da empresa do contexto**: a mesma resposta que
+`resolveEffectiveTollBoothCharge` (spec 086) daria, campo a campo, para `chargePerAxle` de cada praça
+— para que o número do resumo bata com quantas linhas da lista aparecem "sem tarifa conhecida" para
+aquela empresa, não para o catálogo em abstrato.
+
+**Restrição respeitada, não violada:** o plano 154 item 4 proíbe compor o valor efetivo em SQL
+(`COALESCE` entre catálogo e ajuste), e a RNF2 proíbe ler `toll_booths` inteira sem paginar **na
+listagem**. Nenhuma das duas é violada aqui — é leitura de **colunas mínimas** do catálogo inteiro
+para um **agregado**, exatamente o que a RNF2 já autoriza para `readCatalogSummary` (`count` + `max`
+numa consulta só) e o que a evidência da T202 já registrou como decisão válida para este mesmo
+resumo. Não é a listagem paginada (RF1), que continua paginada sem tocar neste caminho.
+
+**Implementação — duas leituras estreitas + resolução em memória na aplicação, nunca no SQL:**
+
+1. `TollBoothCatalogPort.readAxleChargeGapCount()` foi **removido** (sem uso restante) e substituído
+   por `TollBoothCatalogPort.readCatalogAxleCharges()`, que devolve só `{ osmNodeId, chargePerAxle }`
+   do catálogo inteiro, sem `LIMIT`/`OFFSET` e sem tocar `company_toll_booth_charges`
+   (`drizzle-toll-booth-catalog.repository.ts`) — ~600 linhas hoje (staging), duas colunas
+   (`bigint`/`numeric` como texto), não a praça inteira.
+2. `TollBoothChargePort.loadAdjustments({ companyId })` — **já existia**, sem mudança de contrato —
+   devolve todos os ajustes da empresa do contexto.
+3. `src/toll-booths/domain/toll-booth-axle-charge-gap.policy.ts` (novo, puro):
+   `countBoothsWithoutKnownAxleCharge({ catalog, adjustments })` monta um `Map<osmNodeId,
+chargePerAxle>` dos ajustes e replica, praça a praça, a mesma precedência que
+   `resolveEffectiveTollBoothCharge` já define para este campo
+   (`adjustment?.chargePerAxle ?? catalog.chargePerAxle`), contando quantas resolvem `null`. Não
+   chama `resolveEffectiveTollBoothCharge` diretamente porque aquela função exige a praça inteira
+   (nome, operador, `chargeCar`, `observedOn`) que a leitura mínima do item 1 não traz — mas o
+   resultado para `chargePerAxle` é idêntico, porque a precedência daquele campo na política depende
+   só de `adjustment?.chargePerAxle` e `catalog.chargePerAxle`.
+4. `list-toll-booth-catalog.use-case.ts` chama as duas leituras em paralelo (`Promise.all`, ao lado de
+   `readSeenOsmNodeIds`/`readCatalogSummary`) e passa o resultado para a política. Nome do campo na
+   resposta **mantido**: `boothsWithoutAxleChargeCount` já expressava a ideia; só a fonte mudou.
+
+**Caso-chave provado em três camadas** (política pura, use case, e nomeado no teste): praça sem
+`charge_per_axle` no catálogo **e** com ajuste da empresa A não conta para A (`0`) e conta para uma
+empresa B que nunca a ajustou (`1`); praça com tarifa por eixo no catálogo nunca conta, ajustada ou
+não.
+
+Vermelho, antes da política existir:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts --timeout 120000
+error: Cannot find module '../../src/toll-booths/domain/toll-booth-axle-charge-gap.policy.js' from
+'.../test/toll-booths/toll-booth-axle-charge-gap-policy.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [288.00ms]
+```
+
+Verde depois — política pura (`test/toll-booths/toll-booth-axle-charge-gap-policy.contract.ts`, novo,
+5 suítes incluindo os dois casos-chave do prompt), o use case (`list-toll-booth-catalog-use-case.contract.ts`,
+suíte nova "the RF2 gap does not count a booth the company already adjusted, but still counts it for
+another company", fakes ajustados para `readCatalogAxleCharges`/`loadAdjustments`), o repositório
+(`toll-booth-catalog-repository.integration.ts`, suíte nova contra Postgres real provando as colunas
+mínimas e a ausência de paginação), e os dois fakes de `readAxleChargeGapCount` que só existiam para
+satisfazer o tipo do port (`test/companies/list-toll-booth-charges-catalog-parity.contract.ts`,
+`test/companies/list-toll-booth-charges-use-case.contract.ts`) trocados por `readCatalogAxleCharges`:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts ./test/companies.contract.test.ts --timeout 120000
+ 259 pass
+ 0 fail
+ 683 expect() calls
+Ran 259 tests across 2 files. [9.63s]
+```
+
+Suíte completa da API, antes e depois — sete testes a mais (5 da política + 1 do use case + 1 de
+integração), zero falha:
+
+```
+antes: 6283 pass · 23 skip · 0 fail · 21995 expect() calls · Ran 6306 tests across 177 files
+depois:
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6290 pass
+ 23 skip
+ 0 fail
+ 22003 expect() calls
+Ran 6313 tests across 177 files. [25.50s]
+```
+
+Demais gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`) exit 0
+· `bun run format:check` exit 0 (o `prettier --write` reformatou só a quebra de linha do contrato
+novo de política, `toll-booth-axle-charge-gap-policy.contract.ts`, sem mudança de comportamento).
+
+Nenhum arquivo novo entrou no `package.json`: `toll-booth-axle-charge-gap-policy.contract.ts` entra
+por um import a mais em `test/toll-booths.contract.test.ts`, que já está na lista `"test"` da API.
+
+**Sem violação da RNF2 concluída — decisão registrada, não bloqueio.** A leitura do item 1
+(`readCatalogAxleCharges`) é agregado de colunas mínimas sem paginar, do mesmo tipo que
+`readCatalogSummary` já faz; a RNF2 proíbe a listagem (RF1) de ler a tabela inteira sem paginar, e
+RF1 continua paginado — nada mudou ali. Se essa leitura crescer para exigir mais colunas no futuro, é
+o sinal de reabrir esta decisão, não de generalizá-la sem revisão.
+
+**Divergência registrada — regra de 200 linhas por arquivo:** `list-toll-booth-catalog.use-case.ts`
+(214 → 226 linhas) e `drizzle-toll-booth-catalog.repository.ts` (216 → 219 linhas) já estavam acima
+do teto de 200 do code-standart §"File Organization" **antes** desta task, herdado da T201/T202. A
+lógica nova desta decisão foi isolada num arquivo próprio e pequeno
+(`toll-booth-axle-charge-gap.policy.ts`, 40 linhas) para não empurrar o crescimento além do
+estritamente necessário — a T202b só acrescenta ~12 linhas ao use case (a troca de uma chamada por
+duas mais a chamada da política) e ~3 ao repositório (a nova query, no lugar da antiga). Dividir os
+dois arquivos pré-existentes por responsabilidade é refatoração maior que o escopo desta task (só a
+contagem do RF2) autoriza — fica registrado aqui para decisão numa task própria, não escondido.

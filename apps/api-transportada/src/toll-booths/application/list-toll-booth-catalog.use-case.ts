@@ -9,12 +9,18 @@
  * As vistas são um conjunto pequeno (spec 090/095): lidas inteiras, sem teto de página, e resolvidas
  * pela política em memória. O resto do catálogo continua pesado (592 em staging e crescendo) e
  * nunca é lido além da fatia que a página pede (RNF2).
+ *
+ * T202b (decisão de 2026-09-17): o resumo do RF2 ("sem tarifa por eixo conhecida") é pendência da
+ * empresa do contexto, não do catálogo cru — `readCatalogAxleCharges` (colunas mínimas, catálogo
+ * inteiro) e `charges.loadAdjustments` (ajustes da empresa) entram crus, e
+ * `countBoothsWithoutKnownAxleCharge` resolve em memória, nunca em SQL.
  */
 import {
   resolveEffectiveTollBoothCharge,
   type EffectiveTollBoothCharge,
 } from '../../companies/domain/toll-booth-charge.policy.js'
 import type { TollBoothChargePort } from '../../companies/application/toll-booth-charge.port.js'
+import { countBoothsWithoutKnownAxleCharge } from '../domain/toll-booth-axle-charge-gap.policy.js'
 import {
   resolveTollCatalogStatus,
   type TollCatalogStatus,
@@ -73,11 +79,17 @@ export function createListTollBoothCatalogUseCase(dependencies: {
       )
       const searchTerm = input.search?.trim() || undefined
 
-      const [seenOsmNodeIds, catalogSummary, boothsWithoutAxleChargeCount] = await Promise.all([
-        dependencies.sightings.readSeenOsmNodeIds({ companyId: input.companyId }),
-        dependencies.catalogSummary.readCatalogSummary(),
-        dependencies.catalog.readAxleChargeGapCount(),
-      ])
+      const [seenOsmNodeIds, catalogSummary, catalogAxleCharges, companyAdjustments] =
+        await Promise.all([
+          dependencies.sightings.readSeenOsmNodeIds({ companyId: input.companyId }),
+          dependencies.catalogSummary.readCatalogSummary(),
+          dependencies.catalog.readCatalogAxleCharges(),
+          dependencies.charges.loadAdjustments({ companyId: input.companyId }),
+        ])
+      const boothsWithoutAxleChargeCount = countBoothsWithoutKnownAxleCharge({
+        adjustments: companyAdjustments,
+        catalog: catalogAxleCharges,
+      })
 
       const seenRows = await resolveSeenRows({
         catalog: dependencies.catalog,

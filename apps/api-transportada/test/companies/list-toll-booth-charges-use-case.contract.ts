@@ -57,8 +57,8 @@ function createFakeCatalog(input: {
         total: rows.length,
       }
     },
-    async readAxleChargeGapCount(): Promise<number> {
-      return 0
+    async readCatalogAxleCharges() {
+      return []
     },
   }
 }

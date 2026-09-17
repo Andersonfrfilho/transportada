@@ -94,8 +94,11 @@ function createFakeCatalog(input: {
         total,
       }
     },
-    async readAxleChargeGapCount(): Promise<number> {
-      return input.booths.filter((candidate) => candidate.chargePerAxle === null).length
+    async readCatalogAxleCharges() {
+      return input.booths.map((candidate) => ({
+        chargePerAxle: candidate.chargePerAxle,
+        osmNodeId: candidate.osmNodeId,
+      }))
     },
   }
 }
@@ -104,11 +107,13 @@ function fakeSightings(osmNodeIds: readonly number[]): TollBoothSightingPort {
   return { readSeenOsmNodeIds: async () => osmNodeIds }
 }
 
-function fakeCharges(): TollBoothChargePort {
+function fakeCharges(
+  adjustmentsByCompany?: ReadonlyMap<string, ReadonlyMap<number, TollBoothChargeAdjustmentRow>>,
+): TollBoothChargePort {
   return {
     async clearAdjustment() {},
-    async loadAdjustments() {
-      return []
+    async loadAdjustments(input) {
+      return [...(adjustmentsByCompany?.get(input.companyId)?.values() ?? [])]
     },
     async loadAdjustmentsByNodeIds() {
       return []
@@ -257,6 +262,50 @@ describe('list toll booth catalog use case (spec 154, T202)', () => {
       observedOn: '2026-09-14',
       status: 'current',
     })
+  })
+
+  // T202b — decisão do usuário em 2026-09-17: a contagem do RF2 é pendência da EMPRESA, a mesma
+  // resposta que `resolveEffectiveTollBoothCharge` daria para cada praça, não o catálogo cru.
+  test('the RF2 gap does not count a booth the company already adjusted, but still counts it for another company', async () => {
+    const booths = [
+      booth({ chargePerAxle: null, osmNodeId: 1 }),
+      booth({ chargePerAxle: '10.0000', osmNodeId: 2 }),
+    ]
+    const adjustmentsByCompany = new Map([
+      [
+        COMPANY_A,
+        new Map<number, TollBoothChargeAdjustmentRow>([
+          [
+            1,
+            {
+              actorUserId: 'actor-a',
+              chargeCar: null,
+              chargePerAxle: '8.5000',
+              chargePerAxleAutomatic: null,
+              observedOn: '2026-09-01',
+              osmNodeId: 1,
+              updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+            },
+          ],
+        ]),
+      ],
+    ])
+    const useCase = createListTollBoothCatalogUseCase({
+      catalog: createFakeCatalog({ booths }),
+      catalogSummary: fakeCatalogSummary({
+        boothCount: booths.length,
+        latestObservedOn: '2026-09-14',
+      }),
+      charges: fakeCharges(adjustmentsByCompany),
+      clock: { now: () => TODAY },
+      sightings: fakeSightings([]),
+    })
+
+    const pageForA = await useCase.execute({ companyId: COMPANY_A })
+    const pageForB = await useCase.execute({ companyId: COMPANY_B })
+
+    expect(pageForA.summary.boothsWithoutAxleChargeCount).toBe(0)
+    expect(pageForB.summary.boothsWithoutAxleChargeCount).toBe(1)
   })
 
   test('an empty catalog answers the empty status, never a lie about missing toll', async () => {

@@ -76,8 +76,11 @@ function createFakeCatalog(input: {
         total: rows.length,
       }
     },
-    async readAxleChargeGapCount(): Promise<number> {
-      return input.booths.filter((candidate) => candidate.chargePerAxle === null).length
+    async readCatalogAxleCharges() {
+      return input.booths.map((candidate) => ({
+        chargePerAxle: candidate.chargePerAxle,
+        osmNodeId: candidate.osmNodeId,
+      }))
     },
   }
 }
