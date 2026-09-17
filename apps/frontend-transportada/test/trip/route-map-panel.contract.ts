@@ -28,7 +28,8 @@ describe('o mapa do roteiro na tela (spec 079 T013)', () => {
   it('desenha pelo mesmo mapa da montagem, com pedágio e custo da rota', () => {
     expect(source).toInclude('<AssemblyVectorMap')
     expect(source).toInclude('<RouteTollSummary')
-    expect(source).toInclude('route.fuelTotal')
+    /** Spec 153 D10: a chave pode sair da resposta, daí o encadeamento opcional. */
+    expect(source).toInclude('route?.fuelTotal')
     expect(source).not.toInclude('<VectorMap')
   })
 

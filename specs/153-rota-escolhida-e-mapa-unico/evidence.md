@@ -1961,3 +1961,150 @@ que exponha esses campos. Os quatro pontos de T301 são os únicos.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T401 — Validação de respostas com campos novos e monetários opcionais ✅ 2026-09-17
+
+Frontend só: `*.validation.ts` + `*.types.ts` (aqui, os tipos moram junto com o serviço,
+`routeGeometry.service.ts`) reconhecidos aos dois lados do T101–T301 já mergeados no backend —
+signature/critério/`frozen_at`/`choiceReproduced` na rota congelada (D2/D3) e dinheiro
+condicionalmente ausente (D10, T301).
+
+### Vermelho capturado primeiro (typecheck + runtime, os dois genuínos)
+
+Arquivo: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t401-red.txt`.
+
+Primeiro `bun run typecheck` na raiz, **antes** de qualquer implementação — 22 erros reais, o teste
+novo referenciando campos que ainda não existem no tipo ou ainda não são opcionais:
+
+```
+test/trip/route-geometry-money-optional.contract.ts(48,31): error TS2339: Property 'isNoToll' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(63,17): error TS2339: Property 'choiceReproduced' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(84,17): error TS2339: Property 'criterion' does not exist on type ...
+test/trip/route-geometry-money-optional.contract.ts(219,13): error TS2739: ... missing ... chargePerAxle, total
+test/trip/route-geometry-money-optional.contract.ts(235,13): error TS2739: ... missing ... chargeCar, chargePerAxle, effectiveChargePerAxle, total
+test/trip/route-geometry-money-optional.contract.ts(256,7): error TS2578: Unused '@ts-expect-error' directive.
+test/trip/route-geometry-money-optional.contract.ts(261,9): error TS2322: Type 'undefined' is not assignable to type 'string | null'.
+(22 erros no total, todos no arquivo novo)
+```
+
+Em seguida, `bun test ./test/trip.contract.test.ts` (a barra existente, com uma linha de import
+nova para o arquivo novo) — vermelho de runtime nas asserções que já compilam (o tipo ainda aceita
+a leitura, o adaptador é que descartava o campo por validação estrita):
+
+```
+ 900 pass
+ 6 fail
+ 17683 expect() calls
+Ran 906 tests across 1 file. [516.00ms]
+```
+
+As 6 falhas, na ordem: `view.choiceReproduced`/`view.criterion`/`view.frozen` undefined (campo
+não lido pelo adaptador), `view.distanceMeters` undefined em vez de `null` (D5), `option`
+undefined (o validador rejeitava a opção sem `fuelTotal`/`totalCost` como malformada, D10), `toll`
+caindo para `null` pela mesma razão no pedágio.
+
+### O que virou opcional, e por quê (D10) — e o que ficou obrigatório (D9)
+
+| Campo                                                                         | Optional?                                                                | Motivo                                                                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `RouteGeometryOption.fuelTotal`                                               | sim (`?:`)                                                               | dinheiro — some sem `trip.financials` (D10)                                            |
+| `RouteGeometryOption.totalCost`                                               | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryToll.chargePerAxle`                                             | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryToll.total`                                                     | sim (`?:`)                                                               | idem                                                                                   |
+| `RouteGeometryTollBooth.chargeCar/chargePerAxle/effectiveChargePerAxle/total` | sim (`?:`)                                                               | idem, por praça                                                                        |
+| `RouteGeometryOption.distanceMeters`/`durationSeconds`                        | **não**                                                                  | não é dinheiro (D9) — sempre presente, mesmo sem `trip.financials`                     |
+| `RouteGeometry.distanceMeters`/`durationSeconds`/`returnDistanceMeters`       | opcional na chave, mas `null` nunca ausente-de-verdade — ver nota abaixo | D5: OSRM fora do ar é `null` explícito (rota indisponível), não a chave sumindo        |
+| `RouteGeometryOption.isNoToll`/`signature`                                    | sim (`?:`, novo campo)                                                   | novo em `/route-geometry` avulso; ausente quando a resposta é a de viagem sem eles     |
+| `RouteGeometry.selectedIndex`/`choiceReproduced`/`criterion`/`frozen`         | sim (`?:`, novo campo)                                                   | só existem na rota **congelada** da viagem (T203); ausente em `/route-geometry` avulso |
+
+A distinção real: os campos de D9 (distância, duração, volta ao barracão) nunca saem da chave — o
+adaptador sempre publica `null` explícito quando o valor não pôde ser calculado (D5), e nunca
+`undefined`/chave ausente. Os campos de D10 (dinheiro) são o oposto: a **chave em si** desaparece
+do objeto quando a permissão falta, e o adaptador (`isOptionalNullableString`/`isOptionalString`
+em `tripResponse.validation.ts`) aceita `undefined` como resposta válida só para esses campos —
+nunca `null` fabricado, nunca zero.
+
+`exactOptionalPropertyTypes: true` é o que torna a distinção visível ao compilador, não só ao
+runtime: o teste
+`test/trip/route-geometry-money-optional.contract.ts` prova isso com um `@ts-expect-error`
+genuíno — atribuir `fuelTotal: undefined` explicitamente a um `RouteGeometryOption` **não compila**
+(`TS2375`), porque só a ausência da própria chave conta como D10, nunca o valor `undefined`. Achado
+empírico durante a implementação: antes do campo virar opcional, o erro (`TS2322`) aparece na linha
+da propriedade; depois de opcional, o erro (`TS2375`) muda de classe e aparece na linha de
+declaração do literal do objeto — o comentário `@ts-expect-error` teve que subir para lá para
+continuar provando a asserção (confirmado por typecheck limpo depois da mudança).
+
+### Toques mínimos fora do escopo original, revelados pelo próprio gate de typecheck
+
+O escopo pedido era só `*.validation.ts`/`*.types.ts` e o serviço que valida a forma
+(`routeGeometry.service.ts`). Tornar `chargePerAxle`/`total`/`effectiveChargePerAxle`/`chargeCar`
+opcionais quebrou compilação em cinco pontos que já liam esses campos como sempre presentes —
+nenhum deles tem lógica nova, só a checagem de ausência que faltava:
+
+- `assemblyRouteOptions.service.ts:54` — `totalCost: option.totalCost` → `option.totalCost ?? null`
+  (a lista de opções já tratava pedágio ausente como `null`; dinheiro ausente ganhou o mesmo
+  tratamento).
+- `TripRouteMap.component.tsx` — `fuelTotal`/`totalCost` extraídos em consts locais com `?? null`
+  logo após `route`, e o total do pedágio ganhou o checar de `undefined` ao lado do `null` já
+  existente. Zero mudança de comportamento visível: chave ausente e `null` sempre significaram
+  "não calculado" nesta tela.
+- `RouteTollSummary.component.tsx` — o parágrafo de resumo com valor (`toll.chargePerAxle`/
+  `toll.total`) ganhou uma trava a mais (`=== undefined`) antes de chamar `formatAmount`; e a
+  checagem por praça (`booth.effectiveChargePerAxle`/`booth.total`) que já testava `=== null`
+  ganhou `|| === undefined` ao lado. Achado empírico: `(x ?? null) === null` **não estreita** o
+  tipo de `x` no `else` sob `strict` — o TypeScript só estreita comparação direta com a própria
+  propriedade, não uma expressão derivada. Reescrito com as quatro comparações diretas.
+- `TripAssemblyMap.component.tsx` (linhas ~464–472, fora do escopo original — hot path do projeto)
+  — **mesmo defeito, mesmo trecho**, linha por linha idêntico ao de `RouteTollSummary`. O
+  typecheck genuinamente não fecha sem o toque: `TS2345: Argument of type 'string | undefined' is
+not assignable to parameter of type 'string'` nas duas chamadas a `formatAmount`. Aplicada a
+  mesma correção de quatro comparações diretas, sem tocar em mais nada do componente.
+- `assemblyToll.service.ts:69` — `formatBoothCharge(booth.chargePerAxle)` recebia
+  `string | undefined` para um parâmetro `null | string`; normalizado com `?? null` no call site
+  (o marcador do mapa já tratava tarifa desconhecida como `null` → `'—'`; ausência por D10 vira o
+  mesmo símbolo).
+
+Nenhum desses cinco toques mexe em `TripAssemblyMap`/detalhe/proposta/criação além da linha exigida
+pelo compilador — T402–T405 continuam intocados no resto.
+
+### Barra existente, sem editar `package.json`
+
+O arquivo novo (`test/trip/route-geometry-money-optional.contract.ts`) entra por
+`test/trip.contract.test.ts`, que já está na lista explícita de `package.json` — só uma linha de
+import nova na barra, confirmado suficiente para o `bun test` pegar as 12 novas asserções.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros — os 5 remanescentes do meio da sessão (2× TripAssemblyMap, 1× assemblyToll.service,
+2× o par TS2375/TS2578 do @ts-expect-error) todos resolvidos.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — 1 rodada intermediária pegou 2 erros reais de `@typescript-eslint/no-unused-vars`
+(`fuelTotal`/`totalCost` destructurados e nunca lidos); corrigido do mesmo jeito que
+`test/fleet/vehicle-cost-fields.contract.ts` já fazia (asserção sobre o valor extraído antes de
+descartá-lo do objeto), sem eslint-disable.
+
+$ bun run format:check   (raiz)
+1 arquivo fora do padrão na primeira rodada — `tripResponse.validation.ts` (só formatação, prettier
+--write, sem mudança de lógica). Segunda rodada: limpo.
+
+$ bun run test   (apps/frontend-transportada)
+4148 pass / 1 fail → 4149 pass / 0 fail
+A 1 falha intermediária: `test/trip/route-map-panel.contract.ts` fazia grep de código-fonte por
+`route.fuelTotal` — string literal que sumiu quando o acesso virou `route?.fuelTotal` (D10 exige
+optional chaining). Ajustada a asserção para o padrão novo, correto (o comentário já explica a
+razão). Delta de 4148→4149 é o total já incluindo as 12 novas asserções deste arquivo desde a
+implementação — nenhum teste pré-existente mudou de contagem, só de resultado.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.00s — PWA precache 129 entries (4466.45 KiB), sem estourar o teto por-arquivo do
+Workbox (o build falharia se estourasse). `AssemblyVectorMap.component` (11.20 kB) e
+`vectorBasemap.service` (997.94 kB) continuam como chunks separados do `index` principal — MapLibre
+não voltou ao bundle principal.
+```
+
+### Commit
+
+`<preenchido após o commit>`

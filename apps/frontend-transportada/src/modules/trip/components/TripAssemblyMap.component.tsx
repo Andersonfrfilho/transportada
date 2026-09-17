@@ -541,7 +541,11 @@ export function TripAssemblyMap({
                 })}
               </span>
               <span className={styles.assemblyStopLeg}>
-                {booth.effectiveChargePerAxle === null || booth.total === null
+                {/* Sem `trip.financials` a chave some (spec 153 D10) — mesmo aviso de sempre. */}
+                {booth.effectiveChargePerAxle === null ||
+                booth.effectiveChargePerAxle === undefined ||
+                booth.total === null ||
+                booth.total === undefined
                   ? t('assemblyMap.toll.statementWithoutCharge')
                   : t('assemblyMap.toll.statementLine', {
                       charge: formatAmount(booth.effectiveChargePerAxle),

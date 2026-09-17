@@ -57,7 +57,8 @@ export function resolveRouteOptionSummaries(input: {
       isFastest,
       isNoToll: option.isNoToll,
       minutes: Math.round(option.durationSeconds / SECONDS_PER_MINUTE),
-      totalCost: option.totalCost,
+      /** Sem `trip.financials` a chave some (spec 153 D10) — a lista trata isso como "não calculado". */
+      totalCost: option.totalCost ?? null,
     }
   })
 }

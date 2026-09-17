@@ -874,9 +874,11 @@ export function createTripResponseAdapters() {
       const options = rawOptions.every(isGeometryOption) ? rawOptions.map(toGeometryOption) : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
-        choiceReproduced: input.choiceReproduced !== false,
+        choiceReproduced: input.choiceReproduced === true,
         criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
+        distanceMeters: isNullableNumber(input.distanceMeters) ? input.distanceMeters : null,
+        durationSeconds: isNullableNumber(input.durationSeconds) ? input.durationSeconds : null,
         costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
         fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
         frozen: input.frozen === true,
@@ -884,7 +886,11 @@ export function createTripResponseAdapters() {
         legs: legs.every(isGeometryLeg) ? legs : [],
         options,
         points,
+        returnDistanceMeters: isNullableNumber(input.returnDistanceMeters)
+          ? input.returnDistanceMeters
+          : null,
         selectedIndex: readOptionIndex({ index: input.selectedIndex, optionCount: options.length }),
+        signature: isNullableString(input.signature) ? input.signature : null,
         source: input.source,
         toll: isGeometryToll(input.toll) ? input.toll : null,
       }
@@ -1378,11 +1384,11 @@ function isGeometryLeg(value: unknown): value is RouteGeometryLeg {
 function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
   return (
     isRecord(value) &&
-    isNullableString(value.chargeCar) &&
-    isNullableString(value.chargePerAxle) &&
-    isNullableString(value.effectiveChargePerAxle) &&
+    isOptionalNullableString(value.chargeCar) &&
+    isOptionalNullableString(value.chargePerAxle) &&
+    isOptionalNullableString(value.effectiveChargePerAxle) &&
     typeof value.fellBackToManual === 'boolean' &&
-    isNullableString(value.total) &&
+    isOptionalNullableString(value.total) &&
     isString(value.latitude) &&
     isString(value.longitude) &&
     isNullableString(value.name) &&
@@ -1436,10 +1442,10 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     typeof boothsWithoutCharge === 'number' &&
     isGeometryTollCatalog(catalog) &&
     isString(value.multiplierLabel) &&
-    isString(chargePerAxle) &&
+    isOptionalString(chargePerAxle) &&
     isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&
     isNullableString(tariffObservedOn) &&
-    isString(total)
+    isOptionalString(total)
   )
 }
 
@@ -1468,24 +1474,48 @@ function toGeometryOption(option: RawGeometryOption): RouteGeometryOption {
 
 function isGeometryOption(value: unknown): value is RawGeometryOption {
   if (!isRecord(value)) return false
-  const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
+  const {
+    distanceMeters,
+    durationSeconds,
+    fuelTotal,
+    isNoToll,
+    legs,
+    points,
+    signature,
+    toll,
+    totalCost,
+  } = value
   return (
     typeof distanceMeters === 'number' &&
     Number.isFinite(distanceMeters) &&
     typeof durationSeconds === 'number' &&
     Number.isFinite(durationSeconds) &&
-    isNullableString(fuelTotal) &&
+    isOptionalNullableString(fuelTotal) &&
+    (isNoToll === undefined || typeof isNoToll === 'boolean') &&
     Array.isArray(legs) &&
     legs.every(isGeometryLeg) &&
     Array.isArray(points) &&
     points.every(isGeometryPoint) &&
+    (signature === undefined || isNullableString(signature)) &&
     (toll === null || isGeometryToll(toll)) &&
-    isNullableString(totalCost)
+    isOptionalNullableString(totalCost)
   )
 }
 
 function isNullableNumber(value: unknown): value is null | number {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
+}
+
+/**
+ * ⚠️ Distinta de `isNullableString`: aqui a **chave pode estar ausente** (spec 153 D10, dinheiro
+ * sem `trip.financials`) — `undefined` é uma resposta válida, não malformação.
+ */
+function isOptionalNullableString(value: unknown): value is null | string | undefined {
+  return value === undefined || isNullableString(value)
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || isString(value)
 }
 
 const OCCURRENCE_TYPE_REQUIRED_KEYS = [

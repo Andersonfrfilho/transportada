@@ -148,6 +148,12 @@ export function TripRouteMap({
   /** Spec 178 RF2/RF5: mesma lista de `checkPlanRoute` — fora dela o critério aparece e a troca não. */
   const canTradeRoute =
     canManage && (REPLANNABLE_TRIP_STATUSES as readonly string[]).includes(tripStatus)
+  /**
+   * Sem `trip.financials` a chave sai da resposta (spec 153 D10) — `?? null` trata a ausência com o
+   * mesmo "não calculado" que o `null` sempre teve, sem inventar zero.
+   */
+  const fuelTotal = route?.fuelTotal ?? null
+  const totalCost = route?.totalCost ?? null
 
   return (
     <section className={styles.panel}>
@@ -202,15 +208,13 @@ export function TripRouteMap({
           <div>
             <dt>{t('routeMap.cost.fuel')}</dt>
             <dd className={styles.routeCostExpense}>
-              {route.fuelTotal === null
-                ? t('routeMap.cost.notCalculated')
-                : formatAmount(route.fuelTotal)}
+              {fuelTotal === null ? t('routeMap.cost.notCalculated') : formatAmount(fuelTotal)}
             </dd>
           </div>
           <div>
             <dt>{t('routeMap.cost.toll')}</dt>
             <dd className={styles.routeCostExpense}>
-              {route.toll === null
+              {route.toll === null || route.toll.total === undefined
                 ? t('routeMap.cost.notCalculated')
                 : formatAmount(route.toll.total)}
             </dd>
@@ -218,15 +222,13 @@ export function TripRouteMap({
           <div>
             <dt>{t('routeMap.cost.total')}</dt>
             <dd className={styles.routeCostExpense}>
-              {route.totalCost === null
-                ? t('routeMap.cost.notCalculated')
-                : formatAmount(route.totalCost)}
+              {totalCost === null ? t('routeMap.cost.notCalculated') : formatAmount(totalCost)}
             </dd>
           </div>
         </dl>
       )}
       {route === null ||
-      route.totalCost !== null ||
+      totalCost !== null ||
       geometry?.costGap === undefined ||
       geometry.costGap === null ? null : (
         <p className={styles.hint}>{t(`assemblyMap.routeOptions.gap.${geometry.costGap}`)}</p>

@@ -50,7 +50,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T401 Validação de respostas com campos novos e monetários opcionais.
+- [x] T401 Validação de respostas com campos novos e monetários opcionais.
 - [ ] T402 `TripAssemblyMap`: seletor com "Sem pedágio", switch **mais rápida ↔ mais barata** sobre
       as opções já em mãos (sem nova ida ao OSRM), abre na mais barata, `onRouteChoiceChange`,
       `canReadFinancials` no mapa e no `RouteTollSummary`. Trocar **regrava** a escolha (RF13); opção
