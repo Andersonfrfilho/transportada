@@ -954,24 +954,22 @@ export function TripDetail({
           <TripRouteMap
             canAdjustTollBooth={canAdjustTollBooth}
             canCorrect={canManage}
-            canManage={canManage}
             canReadFinancials={canReadFinancials}
+            canSwitchRoute={canManage && isEditable}
             geometry={workspace.routeGeometryQuery.data ?? null}
             stops={trip.stops}
             isCorrecting={workspace.correctAddressMutation.isPending}
             isGeometryError={workspace.routeGeometryQuery.isError}
             isGeometryPending={workspace.routeGeometryQuery.isPending}
-            isPlanRoutePending={workspace.planRouteMutation.isPending}
+            isRouteChoicePending={workspace.planRouteMutation.isPending}
             onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-            onPlanRoute={(routeChoice) =>
-              workspace.planRouteMutation.mutate({
-                ...(routeChoice === undefined ? {} : { routeChoice }),
-                tripId: trip.id,
-              })
-            }
             onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-            tripStatus={trip.status}
-            vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
+            onRouteChoiceSelect={(routeChoice) =>
+              workspace.planRouteMutation.mutate({ routeChoice, tripId: trip.id })
+            }
+            /** Spec 217 (RF1/D1): `trip.vehicleId` é `null` sem veículo — o sentinela `''` que a
+             * cadeia de props do switch usa (T405/T402) é convertido só nesta borda. */
+            vehicleId={trip.vehicleId ?? ''}
           />
         </>
       ) : null}

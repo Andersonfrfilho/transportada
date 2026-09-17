@@ -11,6 +11,10 @@ const COMPONENT = new URL(
   '../../src/modules/trip/components/TripRouteMap.component.tsx',
   import.meta.url,
 )
+const COST_SUMMARY = new URL(
+  '../../src/modules/trip/components/TripRouteCostSummary.component.tsx',
+  import.meta.url,
+)
 const DETAIL = new URL(
   '../../src/modules/trip/components/TripDetail.component.tsx',
   import.meta.url,
@@ -24,23 +28,35 @@ describe('o mapa do roteiro na tela (spec 079 T013)', () => {
    * O detalhe desenha **o mesmo mapa da criação da viagem**. Ele tinha um desenho à parte, em
    * contorno de município, e quem montava a viagem num mapa de ruas a reabria num mapa que não
    * reconhecia — sem praça de pedágio nem custo da rota.
+   *
+   * ⚠️ Spec 153 T405: o custo (km, tempo, combustível, pedágio, total) saiu para
+   * `TripRouteCostSummary` — mesmo motivo de `RouteChoiceOptions`/`RouteTollSummary` em T402,
+   * manter este arquivo abaixo do limite de 200 linhas do padrão de código. O mapa continua
+   * montando o resumo, só que por composição.
    */
   it('desenha pelo mesmo mapa da montagem, com pedágio e custo da rota', () => {
     expect(source).toInclude('<AssemblyVectorMap')
     expect(source).toInclude('<RouteTollSummary')
-    /** Spec 153 D10: a chave pode sair da resposta, daí o encadeamento opcional. */
-    expect(source).toInclude('route?.fuelTotal')
+    expect(source).toInclude('<TripRouteCostSummary')
     expect(source).not.toInclude('<VectorMap')
+
+    const costSource = readFileSync(COST_SUMMARY, 'utf8')
+    /** Spec 153 D10: a chave pode sair da resposta, daí o encadeamento opcional. */
+    expect(costSource).toInclude('route?.fuelTotal')
   })
 
   /**
    * Spec 153: o painel mostra a rota que a viagem usa — `options[selectedIndex]` —, não sempre a
    * principal. Medido em staging: a mais barata (224,9 km) foi escolhida e congelada, e o detalhe
    * imprimia a principal (213,5 km).
+   *
+   * ⚠️ Spec 153 T405: a conta saiu para `TripRouteCostSummary` (ver o bloco acima) — é lá, não mais
+   * neste arquivo, que a leitura por `selectedIndex` precisa sobreviver.
    */
   it('mostra a rota escolhida, não sempre a principal', () => {
-    expect(source).toInclude('geometry?.options?.[geometry.selectedIndex ?? 0]')
-    expect(source).not.toInclude('geometry?.options?.[0]')
+    const costSource = readFileSync(COST_SUMMARY, 'utf8')
+    expect(costSource).toInclude('geometry?.options?.[geometry.selectedIndex ?? 0]')
+    expect(costSource).not.toInclude('geometry?.options?.[0]')
   })
 
   /** A cor sai dos tokens: hexadecimal literal é rejeitado em code review (web.md §8). */

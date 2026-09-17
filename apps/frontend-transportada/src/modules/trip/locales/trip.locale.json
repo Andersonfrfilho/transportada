@@ -92,6 +92,7 @@
     "revenueEstimated": "previsto",
     "revenueRule": "por {{rule}}{{percentage}}",
     "routeOptions": {
+      "alternative": "alternativa",
       "cheapest": "mais barata",
       "fastest": "mais rápida",
       "fastestAndCheapest": "mais rápida e mais barata",
@@ -1180,23 +1181,20 @@
   "routeMap": {
     "basemapLabel": "Contorno do município",
     "cancel": "Cancelar",
+    "choiceNotReproduced": "A estrada pode ter mudado desde que esta rota foi escolhida: não foi possível encontrar de novo a rota gravada, e a viagem está com a rota mais barata calculada hoje.",
     "correct": "Corrigir ponto no mapa",
     "correctionScope": "A correção é do endereço, não desta viagem: ela vale para todas as viagens que passarem por este portão.",
     "cost": {
       "distance": "Distância",
+      "duration": "Tempo estimado",
       "fuel": "Combustível",
       "kilometers": "{{distance}} km",
       "notCalculated": "Não calculado",
+      "returnDistance": "Volta ao barracão",
       "toll": "Pedágio",
       "total": "Custo da rota"
     },
-    "criterion": {
-      "alternative": "Rota escolhida manualmente pelo operador.",
-      "cheapest": "Critério: mais barata (combustível + pedágio).",
-      "fastest": "Critério: mais rápida.",
-      "noToll": "Critério: sem pedágio — evita praça de propósito.",
-      "title": "Critério da rota"
-    },
+    "criterion": "Rota gravada: {{criterion}}",
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
     "invalidatedNotice": "O roteiro desta viagem não está montado. Se você trocou o veículo, o roteiro e o pedágio calculados para o caminhão anterior foram descartados. Clique em «$t(stateActions.planRoute)» para montar o roteiro e calcular o pedágio.",
     "latitude": "Latitude",

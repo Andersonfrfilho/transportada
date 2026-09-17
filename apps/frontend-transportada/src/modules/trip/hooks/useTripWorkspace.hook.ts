@@ -209,7 +209,10 @@ export type TripController = Readonly<{
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  /** Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor. */
+  /**
+   * Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor.
+   * Regrava a rota já congelada com a escolha do switch do detalhe (spec 153 T405).
+   */
   planTripRoute: (
     input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
   ) => Promise<PlanTripRouteResult>

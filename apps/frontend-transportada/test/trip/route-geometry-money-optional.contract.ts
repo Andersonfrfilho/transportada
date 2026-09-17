@@ -98,10 +98,37 @@ describe('rota escolhida — campos novos e dinheiro opcional (spec 153 T401)', 
       toll: null,
     })
 
-    expect(view.choiceReproduced).toBe(false)
+    /**
+     * ⚠️ Spec 153 D3: ausente é diferente de `false`. `/route-geometry` avulso não tem viagem para
+     * reproduzir, então o campo nem se aplica — nunca um `false` que diria "tentei e não bati".
+     */
+    expect(view.choiceReproduced).toBeUndefined()
     expect(view.selectedIndex).toBeNull()
     expect(view.criterion).toBeNull()
     expect(view.frozen).toBe(false)
+  })
+
+  /** D3, os dois lados juntos: ausente vira `undefined`, presente e `false` continua `false`. */
+  it('choiceReproduced distingue ausência (undefined) de assinatura não reproduzida (false)', () => {
+    const ausente = routeGeometryFromApi({
+      legs: [],
+      options: [opcaoBruta()],
+      points: [PONTO, PONTO],
+      source: 'road',
+      toll: null,
+    })
+    const naoReproduzida = routeGeometryFromApi({
+      choiceReproduced: false,
+      legs: [],
+      options: [opcaoBruta()],
+      points: [PONTO, PONTO],
+      source: 'road',
+      toll: null,
+    })
+
+    expect(ausente.choiceReproduced).toBeUndefined()
+    expect(naoReproduzida.choiceReproduced).toBe(false)
+    expect(ausente.choiceReproduced).not.toBe(naoReproduzida.choiceReproduced)
   })
 
   /** D5: OSRM fora do ar na leitura ao vivo é rota ausente — número `null`, nunca zero. */

@@ -874,7 +874,15 @@ export function createTripResponseAdapters() {
       const options = rawOptions.every(isGeometryOption) ? rawOptions.map(toGeometryOption) : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
-        choiceReproduced: input.choiceReproduced === true,
+        /**
+         * ⚠️ Spec 153 D3: chave **ausente** (`/route-geometry` avulso, sem viagem) e `false`
+         * gravado (assinatura não reproduzida) são coisas diferentes — a primeira não se aplica, a
+         * segunda é o aviso "escolha não reproduzida". Colapsar as duas em `=== true` apagava a
+         * distinção que o detalhe (T405) precisa para decidir se mostra o aviso.
+         */
+        ...(input.choiceReproduced === undefined
+          ? {}
+          : { choiceReproduced: input.choiceReproduced === true }),
         criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
         distanceMeters: isNullableNumber(input.distanceMeters) ? input.distanceMeters : null,

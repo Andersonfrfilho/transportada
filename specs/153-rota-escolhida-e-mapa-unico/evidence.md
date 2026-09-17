@@ -2615,4 +2615,155 @@ seção acima) — os três achados de código citados são leitura, não mudan�
 
 ### Commit
 
+`2ec6c5e3`
+
+## T405 — Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com permissão ✅ 2026-09-17
+
+### Escopo e a decisão do requisito 1 (regravação no detalhe)
+
+Frontend só (`apps/frontend-transportada`). O detalhe é, de fato, **a única tela que sobra** onde o
+operador troca a rota de uma viagem já congelada (RF13/D6): a montagem (`TripAssemblyMap`, T402) e
+a criação manual (T403) regravam **antes** de a viagem existir, e a proposta (T404) regrava por
+veículo no aceite — nenhuma delas mexe numa rota já `frozen`. Confirmado por leitura de
+`read-trip-route-geometry.use-case.ts` (`toFrozenView`) que a rota **congelada** da viagem só
+devolve **uma** opção (`options: [option]`, `cheapestIndex`/`fastestIndex` ambos `0`,
+`hasChoice: false`) — as alternativas (mais rápida, sem pedágio) não sobrevivem ao congelamento.
+Logo, "as opções já em mãos" do switch do detalhe **não podem vir** da leitura congelada
+(`GET /trips/:id/route-geometry`, já consumida por `workspace.routeGeometryQuery`); precisam de uma
+segunda leitura, **viva**, por pontos — o mesmo `readPointsRouteGeometry` que `TripAssemblyMap`
+já usa (T402) — feita **uma única vez** por tela, nunca refeita pela troca. Regravar continua sendo
+`plan-route` (RF3), reaproveitando o `planRouteMutation` que o detalhe já tinha para o botão
+"planejar rota" de sempre (`TripStateActions.onPlanRoute`), agora aceitando `routeChoice` opcional.
+
+### Requisito 2 — a armadilha do `choiceReproduced` da T401, corrigida
+
+`tripResponse.validation.ts` (`routeGeometryFromApi`) gravava
+`choiceReproduced: input.choiceReproduced === true` incondicionalmente — chave **ausente** (o
+`/route-geometry` avulso da montagem, sem viagem, nunca manda este campo) virava `false`, o mesmo
+valor que "tentei reproduzir a assinatura e não bati" (D3). O detalhe não tinha como distinguir "o
+aviso não se aplica aqui" de "a estrada mudou, avise o operador". Corrigido para preservar a
+ausência com espalhamento condicional (`...(input.choiceReproduced === undefined ? {} : {
+choiceReproduced: input.choiceReproduced === true })`) — `exactOptionalPropertyTypes: true` exige
+que a chave **suma** do objeto, nunca receba `undefined` explícito. O tipo em
+`routeGeometry.service.ts` já era opcional (`choiceReproduced?: boolean`); só o adaptador colapsava
+a distinção.
+
+O teste de `route-geometry-money-optional.contract.ts` (T401) **enshrined o defeito**: a asserção
+`expect(view.choiceReproduced).toBe(false)` rodava sobre um `input` que **não tinha a chave**
+`choiceReproduced` — provando exatamente o comportamento errado. Corrigida para
+`toBeUndefined()`, e acrescentado um teste novo (`choiceReproduced distingue ausência (undefined)
+de assinatura não reproduzida (false)`) que prova os dois lados na mesma asserção: ausente vira
+`undefined`, presente-e-`false` continua `false`, e os dois nunca são iguais.
+
+### Requisito 3 — a prova das duas metades juntas
+
+`test/trip/route-choice-detail.contract.ts`, teste
+`trocar mais rápida ↔ mais barata regrava via plan-route usando as opções já buscadas — nenhuma
+chamada nova ao roteirizador`: grava as requisições reais de um `TripClient` fake (mesmo padrão de
+`route-choice-manual-creation.contract.ts`, T403), monta a `RouteChoice` a partir de opções que
+**nunca passaram por fetch** (dados em memória, iguais aos que uma leitura viva já traria), chama
+só `planTripRoute`, e afirma na mesma asserção: (1) o corpo do POST carrega
+`{ criterion: 'cheapest', signature: 'rota-mais-barata' }` — a regravação de fato aconteceu — e (2)
+`requests` tem **exatamente uma** entrada, para `/plan-route`, nunca para `/route-geometry` — nenhum
+novo fetch ao roteirizador. Provar só uma das duas deixaria passar o defeito que o pedido veio
+evitar (ex.: um componente que regrava mas também refaz a leitura viva a cada troca).
+
+Complementado por três testes de fonte sobre `TripRouteChoiceSwitch.component.tsx`: a leitura viva
+aparece **uma única vez** no arquivo (`chamadas = source.split('readPointsRouteGeometry').length -
+1; expect(chamadas).toBe(1)`, mesmo molde de T402), a `queryKey` não inclui `selectedIndex`/
+`criterion` (trocar não muda a chave, então o TanStack Query não refaz a busca), e a troca sai por
+`onSelect(resolveRouteChoiceFromIndex(...))` — nunca o índice cru.
+
+### Implementação
+
+- `tripResponse.validation.ts`: fix do requisito 2 acima.
+- `TripRouteChoiceSwitch.component.tsx` (novo): o switch do detalhe. Busca a geometria viva **uma
+  vez** por `routeKey`/`vehicleId` (mesmo padrão de `TripAssemblyMap`), reaproveita
+  `RouteChoiceOptions` (T402) sobre essas opções, e emite `onSelect(routeChoice)` — nunca chama
+  `plan-route` sozinho (mesma fronteira documentada em `TripAssemblyMap`: "quem tem `tripId` é quem
+  regrava"). Só liga a consulta quando `canSwitch` (trip.manage **e** viagem editável, D6) — sem
+  isso nem gasta uma requisição.
+- `TripRouteCostSummary.component.tsx` (novo, extraído de `TripRouteMap`): km/volta/tempo (D9,
+  sempre presentes, lidos de `geometry.distanceMeters/durationSeconds/returnDistanceMeters` — a
+  rota **da viagem**, não a opção crua, que é o que RF1/D4 gravaram), combustível/pedágio/total
+  (D10, cada linha atrás de `!canReadFinancials ? null : (...)` — a linha inteira some, nunca
+  traço/zero), o critério gravado (D2, rótulos reaproveitados de `assemblyMap.routeOptions.*`, mais
+  um rótulo novo `alternative`) e o aviso de escolha não reproduzida (D3,
+  `geometry.choiceReproduced !== false` — só dispara com `false` de verdade). Extraído pelo mesmo
+  motivo de `RouteChoiceOptions`/`RouteTollSummary` em T402: manter `TripRouteMap` abaixo do limite
+  de 200 linhas do padrão de código (o arquivo tinha 285 linhas antes desta task, teria passado de
+  370 com os campos novos inline; ficou em 257 com a extração — ainda acima do limite, violação
+  pré-existente ao T402, fora do escopo zerar por completo, mesma decisão já registrada lá).
+- `TripRouteMap.component.tsx`: monta `<TripRouteCostSummary>` e `<TripRouteChoiceSwitch>` logo
+  depois de `<RouteTollSummary>`; ganha as props `canSwitchRoute`, `isRouteChoicePending`,
+  `onRouteChoiceSelect`, `vehicleId`; perde os cálculos locais que migraram para
+  `TripRouteCostSummary`.
+- `useTripWorkspace.hook.ts`: `TripController.planTripRoute` passa a aceitar `routeChoice?:
+RouteChoice` (a implementação já só repassava `body`; só o tipo travava). `planRouteMutation`
+  (já existente, `onSuccess: invalidate`) não mudou — `invalidate()` já invalida `tripKey` por
+  prefixo, e `route-geometry` mora sob esse prefixo, então a regravação já refaz o fetch da rota
+  congelada sem código extra.
+- `TripDetail.component.tsx`: `<TripRouteMap>` ganha `canSwitchRoute={canManage && isEditable}`,
+  `isRouteChoicePending={workspace.planRouteMutation.isPending}`,
+  `onRouteChoiceSelect={(routeChoice) => workspace.planRouteMutation.mutate({ routeChoice, tripId:
+trip.id })}` (reaproveita a mutação que já existia para o botão "planejar rota") e
+  `vehicleId={trip.vehicleId}`.
+- `trip.locale.json`: `routeMap.cost.duration`, `routeMap.cost.returnDistance`,
+  `routeMap.criterion`, `routeMap.choiceNotReproduced` (novos); `assemblyMap.routeOptions.alternative`
+  (rótulo que faltava para o quarto critério).
+- `route-map-panel.contract.ts` (pré-existente, T013): a asserção `route?.fuelTotal` apontava para
+  `TripRouteMap.component.tsx`, que não tem mais esse literal depois da extração — atualizada para
+  ler o literal em `TripRouteCostSummary.component.tsx`, mantendo a asserção de que
+  `<TripRouteCostSummary` continua montado no mapa.
+
+### O que não fiz
+
+- Não toquei `TripStopList.component.tsx` (valor da NF-e por parada): já lida corretamente com a
+  ausência da chave (`document.nfeTotalValue === null || === undefined ? null : ...`), e o
+  backend (T301) já corta a chave sem `trip.financials` — o pedido "valor da NF só com permissão"
+  já estava satisfeito antes desta task, confirmado por leitura, sem mudança necessária.
+- Não toquei a API: RF3 (`plan-route` aceita `routeChoice`), RF7 (`route-geometry` devolve a
+  gravada) e a leitura por pontos já existiam desde T201-T204/T104 — confirmado por leitura de
+  `read-trip-route-geometry.use-case.ts`, `freeze-trip-planned-route.use-case.ts` e
+  `tripClient.service.ts` (o mesmo achado que T404 já tinha registrado para o aceite multi-veículo).
+- O texto "rota não calculada" (D5) já existia (`routeMap.trace.straight`, mostrado sempre que
+  `geometry === null || geometry.legs.length === 0`) — não criei um segundo aviso redundante.
+- Não movi `TripRouteMap.component.tsx` para abaixo de 200 linhas por completo (ficou em 257,
+  contra 285 antes desta task) — dividir o resto (o mapa MapLibre em si, a correção de ponto)
+  ultrapassa o pedido da T405 e altera comportamento fora do escopo, mesma decisão de T402.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão.
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+946 pass / 0 fail (baseline antes da T405) → 960 pass / 0 fail
+Delta de +14: as 13 asserções novas de `route-choice-detail.contract.ts` (regravação combinada: 1;
+switch: 4; TripRouteCostSummary: 5; TripDetail: 2; total 12 — a 13ª é o teste extra de
+`choiceReproduced` ausente-vs-`false` acrescentado a `route-geometry-money-optional.contract.ts`)
+mais a 1 asserção nova de `route-map-panel.contract.ts` (o `<TripRouteCostSummary` verificado junto
+do `route?.fuelTotal` movido) — nenhum teste pré-existente mudou de contagem.
+
+$ bun run test   (apps/frontend-transportada)
+4202 pass / 0 fail
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.28s — PWA precache 129 entries (4472.34 KiB), mesma contagem de entradas do baseline
+T404 (129), variação de poucos KiB só por texto/código novos. `vectorBasemap.service` (997.94 kB)
+continua chunk separado do `index` principal — MapLibre não voltou ao bundle principal.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado nesta task (ver
+"o que não fiz" acima) — os achados de código citados são leitura, não mudança.
+
+### Commit
+
 `<preenchido após o commit>`

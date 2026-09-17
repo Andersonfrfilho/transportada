@@ -57,7 +57,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
       única avisa em tela em vez de oferecer switch inerte.
 - [x] T403 Criação manual envia a escolha; ordem reorder → plan corrigida.
 - [x] T404 Proposta: escolha por veículo no aceite e na prévia da conta.
-- [ ] T405 Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com
+- [x] T405 Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com
       permissão.
 
 ## Fase 5 — Um mapa só
