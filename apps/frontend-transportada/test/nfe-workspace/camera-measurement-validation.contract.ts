@@ -216,6 +216,22 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
     expect(lines).toHaveLength(1)
   })
 
+  /**
+   * T14 (revisão final, ALTO-1): `replicated` nunca deveria chegar aqui — o cliente já recusa a
+   * página inteira antes disso (`EXPORT_SOURCES`, `cameraMeasurementExportClient.service.ts`) — mas
+   * o filtro precisa ser positivo (`camera`/`camera_adjusted`), não `!== 'typed'`: a checagem
+   * negativa deixaria passar qualquer origem nova que não seja `typed`, `replicated` incluída. O
+   * `as` só existe para simular um dado que a validação de fronteira já barra hoje.
+   */
+  test('origem replicada nunca gera linha, mesmo se escapasse da validação de fronteira', () => {
+    const csv = buildCameraMeasurementCsv([
+      entry({ source: 'replicated' as unknown as CameraMeasurementExportEntry['source'] }),
+    ])
+    const lines = csv.replace('﻿', '').split('\r\n')
+
+    expect(lines).toHaveLength(1)
+  })
+
   test('uma linha por dimensão, com fita/câmera/erro/margem e sem descrição do produto', () => {
     const csv = buildCameraMeasurementCsv([
       entry({
