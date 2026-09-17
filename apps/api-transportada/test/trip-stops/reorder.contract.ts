@@ -7,6 +7,7 @@ import {
   reorderTripStops,
   type ReorderTripStopsPort,
 } from '../../src/trips/application/reorder-trip-stops.use-case.js'
+import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
@@ -126,5 +127,68 @@ describe('trip stop reorder contract', () => {
 
     expect((error as ApiError).code).toBe('TRIP_STOP_SET_MISMATCH')
     expect(repository.reorderCalls).toEqual([])
+  })
+})
+
+/** D6: mudar a ordem das paradas invalida a rota gravada — recalcula com `cheapest`, D5 valendo. */
+describe('trip stop reorder route recalculation (D6)', () => {
+  function createFreezer(
+    options: { readonly shouldFail?: boolean } = {},
+  ): PlanTripRouteTollFreezer & { readonly freezeCalls: unknown[] } {
+    const freezeCalls: unknown[] = []
+    return {
+      freezeCalls,
+      async freeze(input) {
+        freezeCalls.push(input)
+        if (options.shouldFail === true) throw new Error('OSRM indisponível')
+      },
+    }
+  }
+
+  test('recalculates the route with cheapest after the stops are reordered', async () => {
+    const repository = createFakePort({ stopIds: [STOP_A, STOP_B, STOP_C] })
+    const routeFreezer = createFreezer()
+
+    await reorderTripStops({
+      companyId: COMPANY_ID,
+      orderedStopIds: [STOP_C, STOP_A, STOP_B],
+      repository,
+      routeFreezer,
+      tripId: TRIP_ID,
+    })
+
+    /** Sem `routeChoice`: o congelador cai no default `cheapest` (D6), nunca reafirma a escolha antiga. */
+    expect(routeFreezer.freezeCalls).toEqual([{ companyId: COMPANY_ID, tripId: TRIP_ID }])
+  })
+
+  test('still reorders the stops when the route freezer fails (D5, OSRM fora do ar)', async () => {
+    const repository = createFakePort({ stopIds: [STOP_A, STOP_B] })
+    const routeFreezer = createFreezer({ shouldFail: true })
+
+    const result = await reorderTripStops({
+      companyId: COMPANY_ID,
+      orderedStopIds: [STOP_B, STOP_A],
+      repository,
+      routeFreezer,
+      tripId: TRIP_ID,
+    })
+
+    expect(result).toEqual({ tripStatus: 'draft' })
+    expect(repository.reorderCalls).toEqual([
+      { companyId: COMPANY_ID, orderedStopIds: [STOP_B, STOP_A], tripId: TRIP_ID },
+    ])
+  })
+
+  test('does not recalculate the route when no route freezer is configured', async () => {
+    const repository = createFakePort({ stopIds: [STOP_A, STOP_B] })
+
+    const result = await reorderTripStops({
+      companyId: COMPANY_ID,
+      orderedStopIds: [STOP_B, STOP_A],
+      repository,
+      tripId: TRIP_ID,
+    })
+
+    expect(result).toEqual({ tripStatus: 'draft' })
   })
 })

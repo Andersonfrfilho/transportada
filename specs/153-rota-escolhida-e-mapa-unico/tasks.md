@@ -34,7 +34,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
       paridade prévia × viagem (aceite 2).
 - [x] T203 `GET /trips/:id/route-geometry` devolve a gravada (`frozen`) — contrato HTTP.
 - [x] T204 Aceite multi-veículo com `routeChoice` por veículo; aceite por viagem grava rota.
-- [ ] T205 Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho —
+- [x] T205 Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho —
       contratos nos caminhos, OSRM falhando sem derrubar.
 
 ## Fase 3 — Dinheiro só para o financeiro (API)

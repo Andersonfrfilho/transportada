@@ -10,6 +10,7 @@ import type {
   TripPage,
   TripRepositoryPort,
 } from '../../src/trips/application/trip.port.js'
+import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { TripDocumentAlreadyLinkedError } from '../../src/trips/domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -419,6 +420,79 @@ describe('trip use case contract', () => {
   })
 })
 
+/** D6: vincular ou desvincular nota muda as paradas — recalcula a rota com `cheapest`, D5 valendo. */
+describe('trip document link/release route recalculation (D6)', () => {
+  test('recalculates the route with cheapest after linking a document', async () => {
+    const fixture = createFixture()
+    const routeFreezer = createFreezer()
+    const useCase = createTripUseCase({
+      locations: purgeSpy(),
+      repository: fixture.repository,
+      routeFreezer,
+    })
+
+    await useCase.linkDocument({
+      context: CONTEXT,
+      freightCalculationId: null,
+      nfeDocumentId: NFE_DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(routeFreezer.freezeCalls).toEqual([{ companyId: COMPANY_ID, tripId: TRIP_ID }])
+  })
+
+  test('links the document even when the route freezer fails (D5, OSRM fora do ar)', async () => {
+    const fixture = createFixture()
+    const routeFreezer = createFreezer({ shouldFail: true })
+    const useCase = createTripUseCase({
+      locations: purgeSpy(),
+      repository: fixture.repository,
+      routeFreezer,
+    })
+
+    const linked = await useCase.linkDocument({
+      context: CONTEXT,
+      freightCalculationId: null,
+      nfeDocumentId: NFE_DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(linked.nfeDocumentId).toBe(NFE_DOCUMENT_ID)
+  })
+
+  test('recalculates the route with cheapest after releasing a document', async () => {
+    const fixture = createFixture()
+    const routeFreezer = createFreezer()
+    const useCase = createTripUseCase({
+      locations: purgeSpy(),
+      repository: fixture.repository,
+      routeFreezer,
+    })
+
+    await useCase.releaseDocument({ context: CONTEXT, documentId: DOCUMENT_ID, tripId: TRIP_ID })
+
+    expect(routeFreezer.freezeCalls).toEqual([{ companyId: COMPANY_ID, tripId: TRIP_ID }])
+  })
+
+  test('releases the document even when the route freezer fails (D5, OSRM fora do ar)', async () => {
+    const fixture = createFixture()
+    const routeFreezer = createFreezer({ shouldFail: true })
+    const useCase = createTripUseCase({
+      locations: purgeSpy(),
+      repository: fixture.repository,
+      routeFreezer,
+    })
+
+    const released = await useCase.releaseDocument({
+      context: CONTEXT,
+      documentId: DOCUMENT_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(released.releasedAt).not.toBeNull()
+  })
+})
+
 /**
  * ADR-0050 §5: fechar a viagem apaga o rastro ao vivo. O espião existe para o contrato dizer que o
  * expurgo é chamado — a suíte de fechamento não precisa de banco para provar isso.
@@ -429,6 +503,19 @@ function purgeSpy(purged: { companyId: string; tripId: string }[] = []): {
   return {
     async purgeByTrip(input) {
       purged.push({ companyId: input.companyId, tripId: input.tripId })
+    },
+  }
+}
+
+function createFreezer(
+  options: { readonly shouldFail?: boolean } = {},
+): PlanTripRouteTollFreezer & { readonly freezeCalls: unknown[] } {
+  const freezeCalls: unknown[] = []
+  return {
+    freezeCalls,
+    async freeze(input) {
+      freezeCalls.push(input)
+      if (options.shouldFail === true) throw new Error('OSRM indisponível')
     },
   }
 }

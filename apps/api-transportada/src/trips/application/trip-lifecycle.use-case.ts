@@ -236,6 +236,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           companyId: input.context.companyId,
           orderedStopIds: input.stopIds,
           repository: dependencies.routeRepository,
+          ...(dependencies.tollFreezer === undefined
+            ? {}
+            : { routeFreezer: dependencies.tollFreezer }),
           tripId: input.tripId,
         })
       },

@@ -1411,3 +1411,176 @@ message: <vehicleId> }]`.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T205 — Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho
+
+### D6 — mudou a parada antes do despacho, recalcula e pega a mais barata
+
+A ordem, o vínculo e o desvínculo de nota mudam o conjunto/sequência de paradas de uma viagem ainda
+não despachada. A rota congelada (T201) descreve uma sequência que deixou de existir, e o T202 lê
+distância/pedágio gravados direto — uma rota velha precifica errado em silêncio. D6 exige recalcular
+com `cheapest` depois de cada uma dessas mudanças; D5 exige que o OSRM fora do ar não derrube a
+operação principal.
+
+### Varredura exaustiva de todo caminho que muda o conjunto de paradas antes do despacho
+
+**Dentro do escopo (4 pontos de chamada — bate exatamente com RF8/plan.md/título da task):**
+
+1. `reorderTripStops` (`src/trips/application/reorder-trip-stops.use-case.ts`)
+2. `TripUseCase.linkDocument` (`src/trips/application/trip.use-case.ts`)
+3. `LinkTripDocumentsBatchUseCase.execute` (`src/trips/application/link-trip-documents-batch.use-case.ts`)
+4. `TripUseCase.releaseDocument` (`src/trips/application/trip.use-case.ts`)
+
+**Fora do escopo — sinalizado para o orquestrador, não implementado:**
+
+- `trip-document-review.port.ts` → `releaseUnplaced` / `move` / `swap`
+  (rotas `POST {API_TRIPS_PATH}/:id/cargo-layouts/:layoutId/release-unplaced`,
+  `POST {TRIP_DOCUMENT_REVIEWS_PATH}/:id/move`, `.../swap`). Esses três também mudam
+  membership de nota/parada entre viagens antes do despacho, satisfazendo a condição literal
+  de D6. Mas pertencem a um subsistema distinto (fila de revisão de layout de carga da
+  ADR-0043/spec 148 — ver `trip-document-review-relink.support.ts`, status `'relinked'`), não
+  nomeado em RF8 nem no título da T205. Implementar recálculo ali exigiria decisões novas fora
+  de D1–D11 (qual viagem recalcula quando a nota muda de viagem — a de origem, a de destino, ou
+  as duas; ordem entre a troca e o congelamento). Isso aciona a regra de "parar e perguntar diante
+  de decisão nova" — fica registrado aqui como pendência, não decidido nem implementado nesta task.
+
+**Descartados — não são caminho separado, ou não são pré-despacho:**
+
+- `reconcileStopOnLink` / `reconcileStopOnUnlink` (`reconcile-trip-stops.use-case.ts`): helpers
+  internos já invocados PELOS fluxos de vínculo/desvínculo, não uma porta de entrada própria.
+- `transitionTripDocument` / `transitionTripDocumentsBatch`, ações `deliver`/`return`
+  (`transition-trip-document(s-batch).use-case.ts`): o comentário no `trip-state.policy.ts` fixa que
+  "entregar e devolver acontecem na rua" — só valem com a viagem já `dispatched`, fora do escopo de
+  D6 por definição (D6 é sobre viagem **ainda não despachada**).
+- `report-stop-arrival` / `report-stop-occurrence`: exigem `DISPATCHED_STATUS = 'dispatched'` como
+  precondição — mesmo motivo acima.
+- Varredura de `INSERT`/`UPDATE`/`DELETE` em `tripStops` nos repositórios (`grep` em
+  `src/trips/infrastructure/*.repository.ts`): nenhum ponto de escrita de parada fora dos 4 já
+  listados e do `reconcile-trip-stops` (que eles já chamam).
+
+### D5 já vem "de graça" — sem camada de fallback duplicada
+
+O congelamento (`freezeTripPlannedRoute`, seam de T201) é **uma única escrita atômica**: grava
+rota+métricas+pedágio juntos, ou grava rota `null` quando o OSRM/geometria falha — nunca parcial.
+Não existe um "passo de limpeza" separado a implementar: cada chamada ao `PlanTripRouteTollFreezer`
+já é "limpa primeiro, tenta recalcular depois" por construção, herdado de T201. A T205 reaproveita
+esse mesmo tipo (`PlanTripRouteTollFreezer`, de `plan-trip-route.use-case.ts`) nos 3 novos pontos de
+chamada, e o `try { await routeFreezer.freeze(...) } catch { /* comentário */ }` ao redor de cada
+chamada **espelha exatamente** — não duplica — o padrão já existente em `planTripRoute` (linhas
+94-104 daquele arquivo). Confirmado por contrato: os testes
+`'still reorders the stops when the route freezer fails (D5, OSRM fora do ar)'`,
+`'still returns the batch result when the route freezer fails (D5, OSRM fora do ar)'`, e os
+equivalentes de link/release em `trip-use-case.contract.ts` passam mesmo quando o freezer falso
+lança erro — a operação principal (reordenar/vincular/liberar) sempre é concluída e retornada.
+
+### Portas de despacho reaproveitadas, não duplicadas
+
+Os 4 pontos em escopo já checavam a porta de não-retorno antes desta task:
+`reorderTripStops` chama `checkTripAcceptsLinkage` diretamente; `linkDocument` e `releaseDocument`
+chamam via `assertTripOpen` (que por sua vez chama `checkTripAcceptsLinkage`);
+`LinkTripDocumentsBatchUseCase` delega ao repositório, que já aplicava a mesma regra na versão
+lote. Nenhuma guarda nova foi adicionada — o recálculo só roda depois que a escrita principal já
+passou por essa porta.
+
+### RED (antes da implementação)
+
+```
+mkdir -p <scratchpad> && cd apps/api-transportada && bun test \
+  ./test/trip-stops/reorder.contract.ts \
+  ./test/trip-application/link-documents-batch.contract.ts \
+  ./test/trip-application/trip-use-case.contract.ts \
+  2>&1 | tee <scratchpad>/t205-red.txt
+```
+
+Resultado real, capturado antes de qualquer alteração de código de produção:
+
+```
+bun test v1.3.14 (0d9b296a)
+ 32 pass
+ 4 fail
+ 74 expect() calls
+Ran 36 tests across 3 files.
+```
+
+As 4 falhas eram exatamente as 4 asserções positivas (`recalculates the route with cheapest
+after/when...`) de reorder, link em lote, vínculo unitário e liberação — todas com
+`expect(routeFreezer.freezeCalls).toEqual([{ companyId, tripId }])` recebendo `[]`, porque nenhum
+código de produção chamava o freezer ainda. Saída completa salva em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t205-red.txt`.
+
+### Implementação
+
+- `reorder-trip-stops.use-case.ts`: `routeFreezer?: PlanTripRouteTollFreezer` opcional em
+  `ReorderTripStopsInput`; depois de `repository.reorderStops(...)`, `try/catch` gracioso chamando
+  `routeFreezer.freeze({ companyId, tripId })` (sem `routeChoice` — o congelador cai no default
+  `cheapest`, D6).
+- `link-trip-documents-batch.use-case.ts`: `routeFreezer?: PlanTripRouteTollFreezer` opcional nas
+  dependências; recalcula só quando `result.linked.length > 0` (lote todo pulado não muda parada
+  nenhuma — recalcular seria trabalho à toa, coberto pelo teste
+  `'does not recalculate the route when every document in the batch was skipped'`).
+- `trip.use-case.ts`: `routeFreezer?: PlanTripRouteTollFreezer` opcional nas dependências; extraído
+  `freezeRouteGracefully` (helper local, mesmo arquivo — evita duplicar o `try/catch` entre
+  `linkDocument` e `releaseDocument`) chamado depois da escrita confirmada em ambos.
+- `trip-lifecycle.use-case.ts`: `reorderStops.execute` passou a repassar
+  `dependencies.tollFreezer` (campo já existente em `TripLifecycleDependencies`, usado por
+  `planRoute`) como `routeFreezer` — nenhum campo novo na dependência.
+- `main.ts`: `trips = createTripUseCase({ ..., routeFreezer: tripRouteTollFreezer })` e
+  `linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({ repository: tripRepository,
+routeFreezer: tripRouteTollFreezer })` — reaproveita o mesmo singleton já injetado em
+  `tripLifecycle`/`planRoute`.
+
+Nenhuma migration, nenhum campo novo em D1–D11, nenhum `[NEEDS CLARIFICATION]`.
+
+### GREEN (depois da implementação)
+
+```
+cd apps/api-transportada && bun test \
+  ./test/trip-stops/reorder.contract.ts \
+  ./test/trip-application/link-documents-batch.contract.ts \
+  ./test/trip-application/trip-use-case.contract.ts
+```
+
+```
+bun test v1.3.14 (0d9b296a)
+ 36 pass
+ 0 fail
+ 74 expect() calls
+Ran 36 tests across 3 files. [21.00ms]
+```
+
+Regressão nas suítes vizinhas (`trip-stops.contract.test.ts`, `trip-application.contract.test.ts`,
+`trip-http.contract.test.ts`, `trip-infrastructure.contract.test.ts`, `trip-documents.contract.test.ts`,
+`trip-domain.contract.test.ts`): 482 pass, 0 fail, 1532 `expect()`.
+
+### Gates (raiz do worktree)
+
+```
+bun run typecheck   # 6 tsc --noEmit, todos limpos
+bun run lint        # 6 eslint --max-warnings=0, todos limpos
+bun run format:check
+# All matched files use Prettier code style!
+
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6174 pass
+ 23 skip
+ 0 fail
+Ran 6197 tests across 177 files. [12.75s]
+```
+
+**Baseline (fim de T204): 6164 pass, 23 skip, 0 fail, 177 arquivos. Depois de T205: 6174 pass
+(+10, exatamente os 10 testes novos do bloco D6: 3 em reorder, 3 em link em lote, 4 em
+vínculo/liberação unitários), 23 skip (inalterado — nenhum teste novo caiu em skip), 0 fail, 177
+arquivos (inalterado — os 3 arquivos de teste editados já estavam na lista explícita do
+`package.json`, via os entrypoints `trip-stops.contract.test.ts` e
+`trip-application.contract.test.ts`; nenhum arquivo novo precisou ser adicionado).**
+
+### Nenhum arquivo novo de teste
+
+`test/trip-stops/reorder.contract.ts` e `test/trip-application/link-documents-batch.contract.ts` e
+`test/trip-application/trip-use-case.contract.ts` já existiam e já eram importados pelos
+entrypoints registrados no `package.json`. Nenhuma mudança em `package.json` foi necessária —
+confirmado pela contagem de arquivos estável em 177 antes e depois.
+
+### Commit
+
+`<preenchido após o commit>`

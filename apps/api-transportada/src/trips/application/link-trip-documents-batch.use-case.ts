@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
 /**
@@ -45,6 +46,8 @@ export type LinkTripDocumentsBatchUseCase = {
 
 export function createLinkTripDocumentsBatchUseCase(dependencies: {
   readonly repository: LinkTripDocumentsBatchPort
+  /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
+  readonly routeFreezer?: PlanTripRouteTollFreezer
 }): LinkTripDocumentsBatchUseCase {
   return {
     async execute(input) {
@@ -54,11 +57,29 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
        * primeira **da mesma transação** — um erro que não diz nada ao operador.
        */
       const unique = [...new Set(input.nfeDocumentIds)]
-      return dependencies.repository.linkDocumentsBatch({
+      const result = await dependencies.repository.linkDocumentsBatch({
         companyId: input.context.companyId,
         nfeDocumentIds: unique,
         tripId: input.tripId,
       })
+
+      /**
+       * D6/D5: nenhuma nota vinculada não muda o conjunto de paradas — recalcular seria trabalho à
+       * toa. O congelamento roda **depois** da escrita principal e nunca a derruba, mesmo `catch` de
+       * fallback gracioso do `plan-trip-route`.
+       */
+      if (dependencies.routeFreezer !== undefined && result.linked.length > 0) {
+        try {
+          await dependencies.routeFreezer.freeze({
+            companyId: input.context.companyId,
+            tripId: input.tripId,
+          })
+        } catch {
+          /* o lote já está gravado; o pedágio congela no próximo replanejamento */
+        }
+      }
+
+      return result
     },
   }
 }

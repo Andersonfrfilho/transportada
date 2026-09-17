@@ -1656,6 +1656,7 @@ function createApplicationRoutes({
     },
     locations: tripLocationRepository,
     repository: tripRepository,
+    routeFreezer: tripRouteTollFreezer,
   })
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
@@ -2722,7 +2723,10 @@ function createApplicationRoutes({
           }),
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
-      linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({ repository: tripRepository }),
+      linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({
+        repository: tripRepository,
+        routeFreezer: tripRouteTollFreezer,
+      }),
       previewCargo: {
         execute: (input) =>
           previewTripCargo({
