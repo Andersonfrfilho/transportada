@@ -1402,3 +1402,26 @@
   color: var(--color-copper);
   font-size: 0.72rem;
 }
+
+/* Spec 154 T204: cabeçalho e paginação do catálogo de praças na aba de pedágio. */
+.catalogHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.catalogPagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.catalogPageLabel {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}

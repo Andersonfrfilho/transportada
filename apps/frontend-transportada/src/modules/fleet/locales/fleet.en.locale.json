@@ -704,12 +704,28 @@
   "tollBoothCharges": {
     "adjustedBy": "Adjustment recorded on {{date}}.",
     "automaticFieldLabel": "New tag fare",
+    "catalog": {
+      "nextPage": "Next page",
+      "pageOfTotal": "Page {{page}} of {{pageCount}}",
+      "pendingCount": "{{count}} booths without a known axle fare.",
+      "previousPage": "Previous page",
+      "searchEmpty": "No booth with that name in the {{date}} catalog.",
+      "searchLabel": "Search booth by name or operator",
+      "status": {
+        "current": "Catalog up to date.",
+        "empty": "The toll booth catalog has never been loaded on this installation.",
+        "stale": "Catalog out of date."
+      },
+      "summaryObservedOn": "Catalog from {{date}}.",
+      "summaryTotal": "{{count}} booths in the catalog.",
+      "unknownCatalog": "Not in the current catalog"
+    },
     "clear": "Clear adjustment",
     "effectiveAutomatic": "In use, with tag: {{price}} ({{source}}).",
     "effectiveManual": "In use, manual: {{price}} ({{source}}).",
-    "empty": "No booth crossed yet — as soon as a trip with a planned route crosses one, it shows up here.",
+    "empty": "No booth in the catalog.",
     "error": "Could not save the adjustment. Code: {{code}}.",
-    "hint": "The map does not always carry the right fare: a booth with no fare at all, or with R$ 0.00, can be a real exemption or just a field the map never filled in. Adjust here what the carrier knows — the adjustment wins over the map, manual and tag (automatic) per axle independently. Only booths some trip has already crossed show up here.",
+    "hint": "The map does not always carry the right fare: a booth with no fare at all, or with R$ 0.00, can be a real exemption or just a field the map never filled in. Adjust here what the carrier knows — the adjustment wins over the map, manual and tag (automatic) per axle independently.",
     "loadError": "Could not load toll fares.",
     "manualFieldLabel": "New manual fare",
     "mapTariff": "Map fare: manual {{manual}}, with tag {{automatic}} — observed on {{date}}.",

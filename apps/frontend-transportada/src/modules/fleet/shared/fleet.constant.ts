@@ -12,6 +12,8 @@ export const FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'
+/** Spec 154 RF1: o catálogo inteiro de praças, não só as que a operação já cruzou. */
+export const TOLL_BOOTH_CATALOG_PATH = '/toll-booths'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
@@ -144,6 +146,9 @@ export const DRIVER_COVERAGE_KEYS = [
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
 export const FLEET_DRIVER_OPTIONS_PAGE_SIZE = 100
+
+/** Spec 154 D2: lista pequena e voltada a gente — não precisa do teto de 100 que a API aceita. */
+export const TOLL_BOOTH_CATALOG_PAGE_SIZE = 20
 
 export const VEHICLE_COST_KEYS = [
   'acquisitionAmount',

@@ -26,6 +26,7 @@ import { useEnergySettings } from '../hooks/useEnergySettings.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
+import { useTollBoothCatalog } from '../hooks/useTollBoothCatalog.hook'
 import { useTollBoothCharges } from '../hooks/useTollBoothCharges.hook'
 import {
   useVehicleCatalog,
@@ -163,7 +164,9 @@ export function FleetWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.fuelPrices,
   })
-  const tollBoothCharges = useTollBoothCharges({
+  /** Spec 154 T204: a leitura vem do catálogo — este hook só grava o ajuste (spec 095). */
+  const tollBoothCharges = useTollBoothCharges()
+  const tollBoothCatalog = useTollBoothCatalog({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.tollBoothCharges,
   })
@@ -289,17 +292,20 @@ export function FleetWorkspacePage() {
     label: t('tabs.tolls'),
     panel: (
       <TollBoothChargePanel
-        charges={tollBoothCharges.query.data}
+        catalog={tollBoothCatalog.query.data}
         {...(tollBoothChargeErrorCode === undefined ? {} : { errorCode: tollBoothChargeErrorCode })}
         disabled={
           tollBoothCharges.adjustMutation.isPending || tollBoothCharges.clearMutation.isPending
         }
-        loading={tollBoothCharges.query.isLoading}
+        loading={tollBoothCatalog.query.isLoading}
         saved={
           tollBoothCharges.adjustMutation.isSuccess || tollBoothCharges.clearMutation.isSuccess
         }
+        search={tollBoothCatalog.search}
         onAdjust={(input) => tollBoothCharges.adjustMutation.mutate(input)}
         onClear={(osmNodeId) => tollBoothCharges.clearMutation.mutate(osmNodeId)}
+        onPageChange={tollBoothCatalog.setPage}
+        onSearchChange={tollBoothCatalog.setSearch}
       />
     ),
   }

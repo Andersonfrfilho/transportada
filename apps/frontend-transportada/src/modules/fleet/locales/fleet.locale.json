@@ -736,12 +736,28 @@
   "tollBoothCharges": {
     "adjustedBy": "Ajuste registrado em {{date}}.",
     "automaticFieldLabel": "Nova tarifa com tag",
+    "catalog": {
+      "nextPage": "Próxima página",
+      "pageOfTotal": "Página {{page}} de {{pageCount}}",
+      "pendingCount": "{{count}} praças sem tarifa por eixo conhecida.",
+      "previousPage": "Página anterior",
+      "searchEmpty": "Nenhuma praça com esse nome no catálogo de {{date}}.",
+      "searchLabel": "Buscar praça por nome ou operadora",
+      "status": {
+        "current": "Catálogo atualizado.",
+        "empty": "O catálogo de praças ainda não foi carregado nesta instalação.",
+        "stale": "Catálogo desatualizado."
+      },
+      "summaryObservedOn": "Catálogo de {{date}}.",
+      "summaryTotal": "{{count}} praças no catálogo.",
+      "unknownCatalog": "Fora do catálogo atual"
+    },
     "clear": "Remover ajuste",
     "effectiveAutomatic": "Em uso, com tag: {{price}} ({{source}}).",
     "effectiveManual": "Em uso, manual: {{price}} ({{source}}).",
-    "empty": "Ainda não passamos por nenhuma praça — assim que uma viagem com roteiro planejado cruzar uma, ela aparece aqui.",
+    "empty": "Nenhuma praça no catálogo.",
     "error": "Não foi possível salvar o ajuste. Código: {{code}}.",
-    "hint": "O mapa nem sempre traz a tarifa certa: praça sem tarifa nenhuma ou com R$ 0,00 pode ser isenção de verdade ou só um campo que o mapa não preencheu. Ajuste aqui o que a transportadora sabe — a correção vence o mapa, por eixo manual e por eixo automático (tag) de forma independente. Só aparecem as praças que alguma viagem já cruzou.",
+    "hint": "O mapa nem sempre traz a tarifa certa: praça sem tarifa nenhuma ou com R$ 0,00 pode ser isenção de verdade ou só um campo que o mapa não preencheu. Ajuste aqui o que a transportadora sabe — a correção vence o mapa, por eixo manual e por eixo automático (tag) de forma independente.",
     "loadError": "Não foi possível carregar as tarifas de pedágio.",
     "manualFieldLabel": "Nova tarifa manual",
     "mapTariff": "Tarifa do mapa: manual {{manual}}, com tag {{automatic}} — observada em {{date}}.",

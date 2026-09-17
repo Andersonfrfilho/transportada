@@ -720,3 +720,134 @@ estritamente necessário — a T202b só acrescenta ~12 linhas ao use case (a tr
 duas mais a chamada da política) e ~3 ao repositório (a nova query, no lugar da antiga). Dividir os
 dois arquivos pré-existentes por responsabilidade é refatoração maior que o escopo desta task (só a
 contagem do RF2) autoriza — fica registrado aqui para decisão numa task própria, não escondido.
+
+### T204 — a aba de pedágio passa a ler o catálogo
+
+`apps/frontend-transportada`: `TollBoothChargePanel` (Frota → Pedágio) deixou de consumir
+`GET /company-settings/toll-booth-charges` (só as praças vistas) e passou a ler o catálogo inteiro
+de `GET /v1/toll-booths` (T202/T202b), com busca e paginação do servidor. **Aceites 1 e 2 fecham
+aqui.**
+
+**Arquivos novos** (todos abaixo do teto de 200 linhas do code-standart §"File Organization"):
+
+- `src/modules/fleet/shared/tollBoothCatalog.validation.ts` (176 linhas) — tipos e guarda de forma
+  da resposta (`data`/`pagination`/`summary`), usando a guarda única `hasExactKeys` de
+  `shared/objectKeys.service.ts` (spec 079) — não uma cópia local, que o
+  `object-keys-single-source.contract.ts` teria recusado (vermelho visto e corrigido, ver abaixo).
+- `src/modules/fleet/shared/tollBoothCatalogClient.service.ts` (93 linhas) — cliente próprio
+  (`GET /toll-booths?search&page&perPage`), no molde de `fleetCatalogClient.service.ts` (um cliente
+  por recurso, em vez de inchar `fleetClient.service.ts`, já com 403 linhas).
+- `src/modules/fleet/hooks/useTollBoothCatalog.hook.ts` (68 linhas) — busca com debounce de 400ms
+  (mesmo intervalo de `usePackageBoxQueue.hook.ts`), `keepPreviousData` para trocar de página sem
+  piscar a lista inteira para o esqueleto, e reinício da página a cada busca nova.
+- `src/modules/fleet/hooks/useDayFormatter.hook.ts` (12 linhas) e
+  `src/modules/fleet/shared/tollBoothChargeFormat.service.ts` (10 linhas) — extraídos da linha para
+  serem compartilhados entre a linha e o cabeçalho do catálogo sem duplicar a formatação de data e
+  de tarifa.
+- `src/modules/fleet/components/TollBoothChargeRow.component.tsx` (164 linhas) — a linha
+  reaproveitada **sem mudança de comportamento**, só com a marca de `catalogKnown: false` (D1): um
+  `Badge` com `tollBoothCharges.catalog.unknownCatalog`, ao lado do nome, sem esconder o formulário
+  de ajuste (que continua incondicional).
+- `src/modules/fleet/components/TollBoothCatalogSummary.component.tsx` (85 linhas) — o cabeçalho
+  (`TollBoothCatalogHeader`: total, data, estado, pendência de tarifa por eixo — os quatro dados do
+  RF2) e a paginação (`TollBoothCatalogPagination`: anterior/próxima com `Icon
+chevron-left/chevron-right`, `Página X de Y`).
+
+`TollBoothChargePanel.component.tsx` (218 → 100 linhas) virou o orquestrador fino: busca (`<input
+type="search">`, no molde de `FreightRegionFilters.component.tsx`), cabeçalho, e os quatro ramos do
+corpo — carregando (`Skeleton`), erro de leitura, catálogo `empty` (frase própria de "nunca
+carregado", nunca "sem pedágio" — a mesma trava que `resolveTollCatalogStatus` já documenta para o
+mapa da viagem), busca sem resultado (`catalog.searchEmpty` com a data do catálogo) e a lista com
+paginação.
+
+**Wiring em `FleetWorkspace.page.tsx`:** `useTollBoothCatalog` abre na mesma condição de antes
+(`canManageSettings && settingsScope.tollBoothCharges` — mudar essa gate é fora do escopo desta
+task, que é só a fonte dos dados). `useTollBoothCharges` (mutações de ajuste/limpeza, spec 095)
+**perdeu a leitura**: o `query`/`read` que buscava `GET /company-settings/toll-booth-charges` para a
+tela morreu por não ter mais chamador (nada além desta página usava
+`useTollBoothCharges().query`) — o hook agora só grava, e o parâmetro `{ companyId, enabled }` saiu
+da assinatura por não sobrar uso para ele. As duas mutações passam a invalidar a chave do catálogo
+(`TOLL_BOOTH_CATALOG_QUERY_KEY`) além da própria, porque a praça ajustada mora nas duas listas —
+sem isso, o ajuste ficaria com cara de não ter salvo até o `staleTime` de 30s vencer sozinho.
+
+**Vermelho visto, corrigido antes do verde:** a primeira versão de `tollBoothCatalog.validation.ts`
+declarava um `hasExactKeys` local (combinando `hasEveryKey`+`hasOnlyKeys` de
+`fleetGuards.validation.ts`). `bun run test` (suíte completa) reprovou
+`test/shared/object-keys-single-source.contract.ts` ("a guarda de chaves tem um lugar só", spec
+079):
+
+```
+- []
++ ["fleet/shared/tollBoothCatalog.validation.ts"]
+```
+
+Corrigido importando `hasExactKeys` de `@/modules/shared/objectKeys.service` (a guarda única,
+_type predicate_) em vez de reimplementá-la — nenhuma regra afrouxada, a duplicata some.
+
+**Contrato reescrito, não afrouxado:** `test/fleet/toll-booth-charge-tab.contract.ts` (spec 095)
+tinha três asserções literais amarradas à arquitetura antiga (`charges={tollBoothCharges.query.data}`,
+`loading={tollBoothCharges.query.isLoading}`, e `chargePerAxleSource`/`FleetDateField`/`Skeleton`
+lidos só de `PANEL_PATH`) — incompatíveis com a mudança que esta própria task pede. Reescrito
+mantendo toda asserção que continua verdadeira (permissão `settings.manage`, calendário do design
+system, sem controle cru, dicionário completo nos dois idiomas) e acrescentando a cobertura do
+processo pedido:
+
+- busca dispara a consulta com `search` e reinicia a página (`useTollBoothCatalog.hook.ts`);
+- troca de página passa `page`/`perPage` ao cliente (`tollBoothCatalogClient.service.ts`);
+- cabeçalho mostra os quatro dados do RF2 (`TollBoothCatalogSummary.component.tsx`);
+- catálogo vazio mostra a frase própria de "nunca carregado";
+- busca sem resultado nomeia a data do catálogo;
+- praça `catalogKnown: false` aparece marcada (`Badge` com `unknownCatalog`) e continua editável
+  (`onAdjust` incondicional na mesma linha);
+- os nove novos rótulos (mais os três de `status`) aparecem nos dois dicionários de locale.
+
+**Os "quatro dicionários" do plano item 12 não se aplicam integralmente a esta task**: o plano
+descreve o rigor de `valuation-gap-labels.contract.ts` (que cobre **dois módulos**, `trip` e
+`trip-financials`, porque o mesmo texto aparece nas duas telas) para a spec 154 **inteira**
+(T204+T303+T401). T204 só toca `TollBoothChargePanel`, que mora sozinho no módulo `fleet` — os
+textos novos entram nos dois dicionários desse módulo (`fleet.locale.json` +
+`fleet.en.locale.json`). Os outros dois dicionários do rigor completo (`trip.locale.json` +
+`trip.en.locale.json`, para a ação de ajuste em `RouteTollSummary`) pertencem à T401, que ainda não
+rodou. Nenhum texto de T204 ficou de fora dos dois dicionários que lhe cabem — conferido pelo
+próprio contrato reescrito acima.
+
+**Textos atualizados que descreviam o comportamento antigo:** `tollBoothCharges.hint` e
+`tollBoothCharges.empty` (nos dois idiomas) diziam "só aparecem as praças que alguma viagem já
+cruzou" — falso a partir desta task. `hint` perdeu a frase; `empty` (que só sobra como retaguarda
+para o caso quase inalcançável de página além do total sem busca) virou um texto genérico, porque o
+caso que ele descrevia (viagem não vista) não existe mais nesta tela — quem descreve catálogo
+vazio agora é `catalog.status.empty`, e quem descreve busca sem resultado é `catalog.searchEmpty`.
+
+**Gates:**
+
+```
+$ bun run typecheck   # 6 apps — exit 0
+$ bun run lint        # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check  # exit 0 (2 arquivos reformatados por --write antes do check final)
+$ cd apps/frontend-transportada && bun run test
+ 4169 pass
+ 0 fail
+ 36402 expect() calls
+Ran 4169 tests across 29 files. [3.50s]
+$ cd apps/frontend-transportada && bun run build
+✓ built in 9.46s   # PWA gerado, mesmo aviso pré-existente de chunk >500kB (vectorBasemap/index)
+```
+
+`test/fleet.contract.test.ts` sozinho: 531 pass, 0 fail (inclui as 15 asserções do contrato
+reescrito desta task).
+
+**Aceites conferidos:**
+
+1. Com `catalogKnown`/`seen` resolvidos pela política do servidor (T202) e a busca do painel indo
+   direto para `GET /v1/toll-booths?search=...`, uma praça nunca vista pela operação aparece e é
+   editável — a lista deixou de depender de `readSeenOsmNodeIds`. Prova é o contrato de use case da
+   T202 (catálogo inteiro, ordem D1) somado ao contrato novo desta task (o painel lê `catalog`, não
+   mais `tollBoothCharges.query`).
+2. `TollBoothCatalogHeader` mostra `boothCount`, a data (`observedOn`) ou a frase de nunca
+   carregado, o `status` e `boothsWithoutAxleChargeCount` — os quatro dados — e o corpo mostra a
+   frase própria de `status === 'empty'` quando `toll_booths` está vazia, nunca "sem pedágio" nem
+   lista muda.
+
+**Divergência de escopo, não bloqueio:** o bloco de recarga do extrato (RF3/RF4, botão só com
+`settings.manage`) é T303, explicitamente fora desta task — o painel de hoje não oferece recarregar,
+só ler o catálogo e ajustar.
