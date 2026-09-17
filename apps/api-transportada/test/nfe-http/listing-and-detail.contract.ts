@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { serializeScheduledDistributionStatus } from '../../src/companies/presentation/scheduled-distribution.serializer'
+import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 import {
   DISTRIBUTION_STATUS,
   DOCUMENT_DETAIL,
@@ -80,7 +81,11 @@ describe('nfe http listing and detail contract', () => {
   })
 
   test('lists and details documents with decimal strings and safe metadata only', async () => {
-    const fixture = await createNfeHttpFixture()
+    const financialsContext: CompanyContext = {
+      ...COMPANY_CONTEXT,
+      permissions: new Set([...COMPANY_CONTEXT.permissions, 'trip.financials']),
+    }
+    const fixture = await createNfeHttpFixture({ permissions: financialsContext.permissions })
 
     const listResponse = await fixture.handle(
       documentsListRequest({
@@ -100,7 +105,7 @@ describe('nfe http listing and detail contract', () => {
     })
     expect(fixture.documentListCalls[0]).toEqual({
       accessKey: null,
-      context: COMPANY_CONTEXT,
+      context: financialsContext,
       cursor: DOCUMENT_LIST_CURSOR,
       limit: 10,
     })

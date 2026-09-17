@@ -38,6 +38,10 @@ import type {
   RequestCargoLayoutUseCase,
 } from '../application/request-cargo-layout.types.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import {
+  redactRouteGeometryMoney,
+  redactTripDocumentMoney,
+} from '../../shared/monetary-redaction.service.js'
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
@@ -855,7 +859,15 @@ export function createTripRoutes(
         const served = enqueued
           ? { ...trip, cargoLayoutState: markCargoLayoutRequested(trip.cargoLayoutState) }
           : trip
-        return jsonResponse({ body: { data: serializeTripDetail(served) }, status: 200 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip: served,
+            }),
+          },
+          status: 200,
+        })
       },
       method: 'GET',
       parse: ({ correlationId, pathParameters }) => ({
@@ -868,7 +880,15 @@ export function createTripRoutes(
     defineRoute<Omit<CreateTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const trip = await dependencies.createTrip.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 201 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 201,
+        })
       },
       method: 'POST',
       parse: ({ request }) => parseCreateTripRequest(request),
@@ -943,7 +963,15 @@ export function createTripRoutes(
     defineRoute<Omit<CloseTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const trip = await dependencies.closeTrip.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 200 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 200,
+        })
       },
       method: 'POST',
       parse: ({ pathParameters }) => ({
@@ -1031,7 +1059,11 @@ export function createTripRoutes(
           context: context.scope,
           ...input,
         })
-        return jsonResponse({ body: { data: geometry }, status: 200 })
+        const redacted = redactRouteGeometryMoney({
+          canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+          view: geometry,
+        })
+        return jsonResponse({ body: { data: redacted }, status: 200 })
       },
       method: 'GET',
       parse: ({ pathParameters }) => ({ tripId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
@@ -1053,7 +1085,11 @@ export function createTripRoutes(
           points: input.points,
           vehicleId: input.vehicleId,
         })
-        return jsonResponse({ body: { data: geometry }, status: 200 })
+        const redacted = redactRouteGeometryMoney({
+          canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+          view: geometry,
+        })
+        return jsonResponse({ body: { data: redacted }, status: 200 })
       },
       method: 'POST',
       parse: ({ request }) => parseRouteGeometryRequest(request),
@@ -1463,14 +1499,20 @@ function serializeTrip(trip: Trip): object {
   }
 }
 
-function serializeTripDetail(trip: TripDetail): object {
+function serializeTripDetail(input: {
+  readonly canReadFinancials: boolean
+  readonly trip: TripDetail
+}): object {
+  const trip = input.trip
   return {
     ...serializeTrip(trip),
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
     /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
     cargoLayoutState: { ...trip.cargoLayoutState },
-    documents: trip.documents.map(serializeTripDocumentDetail),
+    documents: trip.documents.map((document) =>
+      serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
+    ),
     drivers: trip.drivers.map((driver) => ({
       driverEmail: driver.driverEmail,
       driverId: driver.driverId,
@@ -1482,7 +1524,9 @@ function serializeTripDetail(trip: TripDetail): object {
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
     cargoWeight: trip.cargoWeight === null ? null : { ...trip.cargoWeight },
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
-    stops: trip.stops.map(serializeTripStopDetail),
+    stops: trip.stops.map((stop) =>
+      serializeTripStopDetail({ canReadFinancials: input.canReadFinancials, stop }),
+    ),
   }
 }
 
@@ -1506,8 +1550,12 @@ function serializeTripDocument(document: TripDocument): object {
   }
 }
 
-function serializeTripDocumentDetail(document: TripDocumentDetail): object {
-  return {
+function serializeTripDocumentDetail(input: {
+  readonly canReadFinancials: boolean
+  readonly document: TripDocumentDetail
+}): object {
+  const document = input.document
+  const serialized = {
     ...serializeTripDocument(document),
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
@@ -1517,10 +1565,22 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
     nfeSeries: document.nfeSeries,
     nfeTotalValue: document.nfeTotalValue,
   }
+  return redactTripDocumentMoney({
+    canReadFinancials: input.canReadFinancials,
+    document: serialized,
+  })
 }
 
-function serializeTripStopDetail(stop: TripStopDetail): object {
-  return { ...stop, documents: stop.documents.map(serializeTripDocumentDetail) }
+function serializeTripStopDetail(input: {
+  readonly canReadFinancials: boolean
+  readonly stop: TripStopDetail
+}): object {
+  return {
+    ...input.stop,
+    documents: input.stop.documents.map((document) =>
+      serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
+    ),
+  }
 }
 
 function serializeDeliveryAddressOverride(record: DeliveryAddressOverrideRecord): object {

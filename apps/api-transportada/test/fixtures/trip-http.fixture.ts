@@ -52,6 +52,7 @@ type RouteDependencies = {
   readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readTripRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
   readonly requestCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
   readonly previewCargo: { execute(input: ExecuteCall): Promise<unknown> }
@@ -99,6 +100,8 @@ type CreateFixtureParams = {
    * congelamento (a fixture não conhece a rota congelada; o teste, sim).
    */
   readonly readTripRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
+  /** Espelha `readTripRouteGeometryExecute` para a rota solta (`POST /route-geometry`, T301). */
+  readonly readRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   readonly overrideDeliveryAddressError?: Error
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
@@ -123,6 +126,32 @@ export const FLEET_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set([
 
 export const READ_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set(['fleet.read'])
 
+/** Spec 153 D10/T301: única permissão que devolve dinheiro na resposta HTTP. */
+export const FINANCIALS_PERMISSIONS: CompanyContext['permissions'] = new Set([
+  'fleet.read',
+  'trip.financials',
+])
+
+/**
+ * Mesma forma de `UNAVAILABLE_VIEW` do use case ao vivo (`read-route-geometry.use-case.ts`) —
+ * `options`/`toll` presentes e vazios, para T301 (redação monetária) não quebrar ao mapear uma
+ * rota que nenhum teste pediu de propósito.
+ */
+const UNAVAILABLE_ROUTE_GEOMETRY_VIEW = {
+  cheapestIndex: null,
+  choiceReproduced: false,
+  costGap: null,
+  depot: null,
+  fastestIndex: null,
+  hasChoice: false,
+  legs: [],
+  options: [],
+  points: [],
+  selectedIndex: null,
+  source: 'unavailable',
+  toll: null,
+}
+
 export async function createTripHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly batchStatusCalls: ExecuteCall[]
   readonly cancelTripCalls: ExecuteCall[]
@@ -146,6 +175,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
+  readonly readRouteGeometryCalls: ExecuteCall[]
   readonly readTripRouteGeometryCalls: ExecuteCall[]
   readonly requestCargoLayoutCalls: ExecuteCall[]
   readonly previewCargoCalls: ExecuteCall[]
@@ -171,6 +201,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const readValuationCalls: ExecuteCall[] = []
+  const readRouteGeometryCalls: ExecuteCall[] = []
   const readTripRouteGeometryCalls: ExecuteCall[] = []
   const requestCargoLayoutCalls: ExecuteCall[] = []
   const previewCargoCalls: ExecuteCall[] = []
@@ -346,11 +377,18 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         }
       },
     },
+    readRouteGeometry: {
+      async execute(input) {
+        readRouteGeometryCalls.push(structuredClone(input))
+        if (params.readRouteGeometryExecute) return params.readRouteGeometryExecute(input)
+        return UNAVAILABLE_ROUTE_GEOMETRY_VIEW
+      },
+    },
     readTripRouteGeometry: {
       async execute(input) {
         readTripRouteGeometryCalls.push(structuredClone(input))
         if (params.readTripRouteGeometryExecute) return params.readTripRouteGeometryExecute(input)
-        return { choiceReproduced: false, frozen: false, source: 'unavailable' }
+        return { ...UNAVAILABLE_ROUTE_GEOMETRY_VIEW, frozen: false }
       },
     },
     logger: {
@@ -472,6 +510,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
     readValuationCalls,
+    readRouteGeometryCalls,
     readTripRouteGeometryCalls,
     listDeliveryAddressHistoryCalls,
     listStopsCalls,

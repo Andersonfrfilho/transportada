@@ -16,13 +16,14 @@ import {
 } from '../fixtures/trip-http-payload.fixture'
 import {
   COMPANY_CONTEXT,
-  READ_ONLY_PERMISSIONS,
   createTripHttpFixture,
+  FINANCIALS_PERMISSIONS,
+  READ_ONLY_PERMISSIONS,
 } from '../fixtures/trip-http.fixture'
 
 describe('GET /trips/:id', () => {
   test('answers the trip with its documents (fiscal status included) and drivers', async () => {
-    const fixture = await createTripHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
+    const fixture = await createTripHttpFixture({ permissions: FINANCIALS_PERMISSIONS })
 
     const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
 
@@ -30,7 +31,7 @@ describe('GET /trips/:id', () => {
     expect(await responseData(response)).toEqual(TRIP_DETAIL)
     expect(fixture.getTripCalls).toEqual([
       {
-        context: { ...COMPANY_CONTEXT, permissions: READ_ONLY_PERMISSIONS },
+        context: { ...COMPANY_CONTEXT, permissions: FINANCIALS_PERMISSIONS },
         tripId: TRIP_ID,
       },
     ])
@@ -111,6 +112,7 @@ describe('GET /trips/:id', () => {
           stops: [{ clientName: 'Cliente Sigiloso', label: 'Rua Sigilosa, 10', sequence: 1 }],
         },
       },
+      permissions: FINANCIALS_PERMISSIONS,
       requestCargoLayoutError: new ApiError({
         code: 'DATABASE_UNAVAILABLE',
         message: 'Database unavailable.',

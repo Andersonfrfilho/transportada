@@ -43,7 +43,7 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T301 Serviço de redação monetária + aplicação em route-geometry ×2, detalhe da viagem e NF-e
+- [x] T301 Serviço de redação monetária + aplicação em route-geometry ×2, detalhe da viagem e NF-e
       (listagem e leitura) — contrato HTTP sem `trip.financials` (aceite 3).
 
 ## Fase 4 — Frontend da rota e dos valores

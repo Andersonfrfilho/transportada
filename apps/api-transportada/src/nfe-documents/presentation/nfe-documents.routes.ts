@@ -15,6 +15,7 @@ import type {
 } from '../application/nfe-document-event.port.js'
 import { parseDocumentEventList } from './nfe-document-events.schema.js'
 import { parseDocumentList } from './nfe-documents.schema.js'
+import { redactNfeDocumentMoney } from '../../shared/monetary-redaction.service.js'
 
 /**
  * Spec 149 D19 diz "permissão `nfe.read`, a mesma do detalhe" — o catálogo de permissões
@@ -23,6 +24,8 @@ import { parseDocumentList } from './nfe-documents.schema.js'
  * histórico usa, por ser literalmente "a mesma do detalhe".
  */
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
+/** Spec 153 D10: `freightAmount`/`totalAmount` são dinheiro — a mesma permissão que corta o resto. */
+const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 /**
  * ADR-0043 §3, spec 056 RF-6/P3: o separador bipa a etiqueta e o painel responde onde a nota está.
  * Rota do módulo `nfe-documents` porque a entrada é a chave de acesso, não o id da viagem — quem
@@ -156,9 +159,10 @@ export function createNfeDocumentRoutes(
     defineRoute<ListDocumentsInput>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listDocuments.execute({ context: context.scope, ...input })
+        const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
         return jsonResponse({
           body: {
-            data: page.items.map(serializeDocument),
+            data: page.items.map((document) => serializeDocument({ canReadFinancials, document })),
             page: { nextCursor: page.nextCursor },
           },
           status: 200,
@@ -171,11 +175,16 @@ export function createNfeDocumentRoutes(
     }),
     defineRoute<DocumentIdentifierInput>({
       async handle({ context, input }): Promise<Response> {
+        const document = await dependencies.getDocument.execute({
+          context: context.scope,
+          ...input,
+        })
         return jsonResponse({
           body: {
-            data: serializeDocument(
-              await dependencies.getDocument.execute({ context: context.scope, ...input }),
-            ),
+            data: serializeDocument({
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              document,
+            }),
           },
           status: 200,
         })
@@ -285,8 +294,12 @@ function serializeTripLocation(location: TripLocationByAccessKey): object {
   }
 }
 
-function serializeDocument(document: NfeDocumentSummary): object {
-  return {
+function serializeDocument(input: {
+  readonly canReadFinancials: boolean
+  readonly document: NfeDocumentSummary
+}): object {
+  const document = input.document
+  const serialized = {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
     documentOutput: { ...document.documentOutput },
@@ -326,6 +339,10 @@ function serializeDocument(document: NfeDocumentSummary): object {
     tripStatus: document.tripStatus,
     variant: document.variant,
   }
+  return redactNfeDocumentMoney({
+    canReadFinancials: input.canReadFinancials,
+    document: serialized,
+  })
 }
 
 /** Nunca `xml_object_id`, chave de storage ou XML (D19) — só o que a linha do tempo mostra. */

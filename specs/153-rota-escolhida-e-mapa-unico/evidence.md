@@ -1752,3 +1752,212 @@ de `test:integration` no `package.json`. Nenhuma mudança em `package.json` foi 
 ### Commit
 
 `<preenchido após o commit>`
+
+## T301 — Redação monetária (D10) em route-geometry ×2, detalhe da viagem e NF-e ✅ 2026-09-17
+
+Serviço único `src/shared/monetary-redaction.service.ts` + quatro pontos de aplicação: `POST
+/route-geometry`, `GET /trips/:id/route-geometry`, `GET /trips/:id` (detalhe) e `GET
+/nfe-documents` + `GET /nfe-documents/:id`. Sem `trip.financials`, o campo monetário **sai** do
+objeto (`Omit`, checado por `Object.hasOwn`), nunca vira `null`/zero.
+
+### Vermelho capturado primeiro
+
+Arquivo: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t301-red.txt`.
+
+```
+cd apps/api-transportada
+bun --env-file=../../.env.test test ./test/trip-http.contract.test.ts ./test/trips.contract.test.ts ./test/nfe-http.contract.test.ts --timeout 120000
+ 5 fail
+ 152 pass
+ 447 expect() calls
+Ran 157 tests across 3 files.
+```
+
+As 5 falhas, todas por `Object.hasOwn(...)` devolvendo `true` onde o teste esperava `false`
+(campo de dinheiro presente sem `trip.financials`) — a razão certa, redação ainda não ligada nas
+rotas:
+
+1. `test/trip-http/money-redaction.contract.ts:48` — `nfeTotalValue` presente no detalhe da viagem.
+2. `test/trips/route-geometry-money-redaction.contract.ts` (`expectTollRedacted`) —
+   `chargePerAxle` presente no `toll` do `POST /route-geometry`.
+3. Mesma asserção, para `GET /trips/:id/route-geometry` (rota congelada).
+4. `test/nfe-http/money-redaction.contract.ts:26` — `freightAmount` presente na listagem.
+5. `test/nfe-http/money-redaction.contract.ts:50` — `freightAmount` presente no detalhe.
+
+A primeira captura (antes desta) tinha um sexto "vermelho" falso: `POST /route-geometry`
+devolvendo `400` em vez de `200`, porque o corpo de teste mandava `latitude`/`longitude` como
+string e `routeGeometrySchema` exige `z.number()` — bug do dado de teste, não da redação. Corrigido
+trocando para literais numéricos antes de recapturar o vermelho definitivo acima.
+
+### Veredito sobre os 4 arquivos herdados (rascunho de sessão interrompida, não revisado)
+
+- `src/shared/monetary-redaction.service.ts`: **arquiteturalmente correto**. Todo nome de campo
+  (`chargeCar`, `chargePerAxle`, `chargePerAxleAutomatic`, `effectiveChargePerAxle`, `total` em
+  `TollBoothStatementLine`/`TollRouteCost`; `fuelTotal`/`totalCost` em `RouteGeometryOption`)
+  conferido contra os tipos reais (`toll-route-cost.policy.ts`, `read-route-geometry.use-case.ts`,
+  `read-trip-route-geometry.use-case.ts`) e todos batem. Único defeito: falhava
+  `bunx prettier --check` — corrigido com `--write`, sem mudança de lógica. Usado como está.
+- `test/trip-http/money-redaction.contract.ts`: correto como está, sem mudança de lógica (só
+  formatação e a tipagem de `FINANCIALS_PERMISSIONS` — ver abaixo).
+- `test/trips/route-geometry-money-redaction.contract.ts`: **um bug real** — `ROUTE_GEOMETRY_BODY`
+  mandava `latitude`/`longitude` como string; corrigido para `z.number()`. Fora isso, correto.
+- `test/nfe-http/money-redaction.contract.ts`: não herdado — não existia rascunho para NF-e;
+  escrito nesta sessão seguindo o mesmo padrão dos outros dois.
+
+Em todos os três arquivos de teste, `new Set([...])` inferia `Set<string>`, incompatível com
+`ReadonlySet<CompanyPermission>` sob `strict`. Corrigido tipando a constante como
+`CompanyContext['permissions']` — o mesmo padrão já usado em `test/fixtures/trip-http.fixture.ts`
+para `READ_ONLY_PERMISSIONS`. A constante `FINANCIALS_PERMISSIONS` de viagem virou export
+compartilhado em `test/fixtures/trip-http.fixture.ts` (evita duplicar o mesmo `new Set([...])` em
+dois arquivos, code-standart §16).
+
+### Acerto campo a campo com D10
+
+| Superfície                                              | Campo cortado                                                                                     | Sobrevive (D9 / não é dinheiro)                                                                                                                                                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /route-geometry`, `GET /trips/:id/route-geometry` | `toll.chargePerAxle`, `toll.total` (topo)                                                         | `distanceMeters`, `durationSeconds`, `legs`, `returnDistanceMeters` (rota congelada), `points`, `frozen`, `criterion`, `signature`, `cheapestIndex`/`fastestIndex`/`selectedIndex`                   |
+| idem                                                    | `toll.booths[].chargeCar/chargePerAxle/chargePerAxleAutomatic/effectiveChargePerAxle/total`       | `booths[].name`, `.operator`, `.latitude`, `.longitude`, `.osmNodeId`, `.legIndex`, `.fellBackToManual` — a praça continua no mapa, sem preço                                                        |
+| idem                                                    | `options[].fuelTotal`, `options[].totalCost`, `options[].toll.*` (recursivo, mesmos campos acima) | `options[].distanceMeters`, `.durationSeconds`, `.legs`, `.points`, `.signature`, `.isNoToll`                                                                                                        |
+| `GET /trips/:id`                                        | `documents[].nfeTotalValue` — solto em `trip.documents` **e** aninhado em `stops[].documents`     | `nfeNumber`, `nfeSeries`, `nfeIssuedAt`, `fiscalStatus`, `cteAuthorized`, `contact`                                                                                                                  |
+| `GET /nfe-documents`, `GET /nfe-documents/:id`          | `freightAmount`, `totalAmount`                                                                    | `freightRuleName` (regra aplicada, não valor), `emitterTaxId`/`City`/`Address`, `recipientTaxId`/`City`/`Address`/`Latitude`/`Longitude`, `accessKey`, `status`, `cteBlockReason`, `nfseBlockReason` |
+
+Nenhum campo vira `null`/zero — toda ausência é `Omit<>` real, checada por `Object.hasOwn(...) ===
+false` (não `=== undefined`, que passaria mesmo com a chave presente e valor `undefined`, inválido
+sob `exactOptionalPropertyTypes`).
+
+### O que `valuation-preview` faz de fato
+
+`POST /trips/valuation-preview` (`trip.routes.ts:737`) usa `policy: TRIP_FINANCIALS_POLICY`
+diretamente no `defineRoute` — é um gate 403 tudo-ou-nada, resolvido pelo router **antes** do
+handler rodar; quem não tem `trip.financials` nunca chega ao handler, então não há redação de
+campo para fazer ali (a resposta inteira é dinheiro — uma prévia de valorização). É o comentário já
+presente logo abaixo, sobre a prévia de carga usar `TRIP_MANAGE_POLICY` em vez de
+`TRIP_FINANCIALS_POLICY`, que confirma a distinção: rota que é 100% dinheiro leva `policy` cheia;
+rota que mistura dinheiro com o resto (as quatro de T301) leva `policy` de leitura + redação
+condicional dentro do handler.
+
+### Prova de que a asserção é sobre o corpo serializado, não o objeto interno
+
+Todo teste novo chama `fixture.handle(jsonRequest(...))` — o handler HTTP real, sem mockar o
+serializer — e só então lê `await response.json()` / `responseData(response)`, isto é, o JSON que
+sairia pela rede. `Object.hasOwn(parsedBody, 'campo')` roda sobre esse objeto desserializado, não
+sobre o `TripDetail`/`RouteGeometryView` que o use case devolveu. Se a redação estivesse só no tipo
+TypeScript e não na função que monta o corpo, o teste veria o campo (o JSON não tem tipos) — as 5
+falhas do vermelho provam isso: o tipo já existia (`Omit<>`), mas a chamada à função de redação
+ainda não estava no handler.
+
+### Como D9 ficou protegido
+
+`redactRouteGeometryMoney` desestrutura só `options`/`toll` do `RouteGeometryView` e devolve o
+resto (`...rest`) intocado — `distanceMeters`, `durationSeconds`, `legs`,
+`returnDistanceMeters`/`frozen`/`criterion` (campos exclusivos da view congelada) nunca passam
+pela função de corte. As duas suítes de teste (`route-geometry-money-redaction.contract.ts`)
+afirmam isso positivamente, não por omissão: `expect(options[0]?.distanceMeters).toBe(42_000)`,
+`.durationSeconds`, `data.distanceMeters`, `.durationSeconds`, `.returnDistanceMeters`, `.frozen`,
+`.cheapestIndex` — todos lidos do corpo **redigido** (`READ_ONLY_PERMISSIONS`), provando que sair
+dinheiro não arrasta o resto junto.
+
+### Gates
+
+```
+cd apps/api-transportada && bunx prettier --check src/trips/presentation/trip.routes.ts \
+  src/nfe-documents/presentation/nfe-documents.routes.ts src/shared/monetary-redaction.service.ts
+All matched files use Prettier code style!
+```
+
+```
+bun run typecheck   # raiz do monorepo — api, worker, cron, 3 frontends
+$ tsc --noEmit   (todas as 6 apps, sem saída = 0 erro)
+```
+
+```
+bun run lint        # raiz do monorepo
+$ eslint ... --max-warnings=0   (todas as 6 apps, sem saída = 0 erro/warning)
+```
+
+```
+bun run format:check   # raiz
+Checking formatting...
+All matched files use Prettier code style!
+```
+
+Contrato (raiz `apps/api-transportada`):
+
+```
+bun --env-file=../../.env.test test --timeout 120000
+ 6187 pass
+ 23 skip
+ 0 fail
+ 21766 expect() calls
+Ran 6210 tests across 177 files.
+```
+
+Baseline era `6177 pass / 23 skip / 0 fail / 177 arquivos`. Delta: **+10 pass, 0 skip novo, 0
+fail**, mesma contagem de arquivos (177) porque os três arquivos novos de teste
+(`test/trip-http/money-redaction.contract.ts`,
+`test/trips/route-geometry-money-redaction.contract.ts`,
+`test/nfe-http/money-redaction.contract.ts`) são folhas importadas pelos barrels já existentes
+(`test/trip-http.contract.test.ts`, `test/trips.contract.test.ts`, `test/nfe-http.contract.test.ts`
+— cada um já estava na lista explícita do `test` em `package.json`); nenhum barrel novo nasceu,
+então a lista não precisou de edição. +10 = 2 (detalhe da viagem, com/sem `trip.financials`) + 4
+(`route-geometry` solto e congelado, com/sem) + 4 (NF-e lista e detalhe, com/sem).
+
+Integração (`apps/api-transportada`):
+
+```
+bun --env-file=../../.env.test run test:integration
+ 369 pass
+ 4 skip
+ 2 fail
+ 2485 expect() calls
+Ran 375 tests across 72 files.
+```
+
+Idêntico ao estado atual reportado (`369 pass / 4 skip / 2 fail / 72 arquivos`) — zero delta,
+como esperado: T301 não criou nenhum arquivo `.integration.ts`, e nenhum teste de integração
+existente toca as quatro rotas mexidas. As 2 falhas continuam sendo exatamente as duas de
+`test/integration/cte-archive-gateway.integration.ts` (`ObjectStorageError: Object storage is
+unavailable` — MinIO local fora do ar neste ambiente), sem relação com T301 (nenhum arquivo de
+object storage foi tocado). Não mascaradas nem "consertadas".
+
+### Consequência não solicitada, mas obrigatória: refatoração de `serializeTripDetail`
+
+`serializeTripDetail`/`serializeTripDocumentDetail`/`serializeTripStopDetail` (`trip.routes.ts`)
+ganharam parâmetro `canReadFinancials` (objeto tipado, code-standart §10). Como TypeScript exige
+todo call site atualizado, isso alcançou também `POST /trips` (criar) e `POST
+/trips/:id/close` (fechar) — que devolvem `TripDetail` pelo mesmo serializer e por isso também
+passaram a cortar `nfeTotalValue` sem `trip.financials`. Não é um quinto ponto de vazamento
+descoberto — é o mesmo serializer, reusado; T301 listava 4 rotas, mas o corte estrutural em
+`serializeTripDetail` obrigatoriamente cobre todo chamador dele, consistente com o "todo dinheiro é
+`trip.financials`" de D10. Nenhum teste de `POST /trips`/`POST /trips/:id/close` quebrou (nenhum
+deles fixa `TRIP_DETAIL` completo como corpo esperado sem `trip.financials` — confirmado pelo
+contrato 100% verde acima).
+
+### Correções em teste pré-existente (sem tocar produção)
+
+Três testes quebraram por consequência direta da redação entrar em produção — corrigidos
+concedendo `trip.financials` no fixture, não afrouxando a asserção:
+
+- `test/trip-http/detail.contract.ts` — "answers the trip with its documents..." e "a failing lazy
+  request still answers the read...": ambos comparam a resposta inteira contra `TRIP_DETAIL`
+  (que inclui `nfeTotalValue`) — passaram a usar `FINANCIALS_PERMISSIONS` (novo export de
+  `test/fixtures/trip-http.fixture.ts`) em vez de `READ_ONLY_PERMISSIONS`/permissão padrão.
+- `test/nfe-http/listing-and-detail.contract.ts` — "lists and details documents with decimal
+  strings and safe metadata only": comparava contra `serializeDocumentSummary(...)` completo
+  (com `freightAmount`/`totalAmount`) — passou a montar um `financialsContext` local (permissões da
+  `COMPANY_CONTEXT` de import mais `trip.financials`) e usá-lo tanto na chamada da fixture quanto
+  na asserção de `documentListCalls[0].context`.
+
+Nenhuma dessas três é redundante com as suítes novas de T301: elas testam a forma completa do
+documento/detalhe (drivers, contato, bloqueio fiscal, cursor); as suítes novas testam
+especificamente o corte/presença dos campos de dinheiro.
+
+### Nenhum quinto ponto de vazamento encontrado
+
+Busca por `freightAmount|totalAmount|nfeTotalValue|fuelTotal|totalCost|chargePerAxle|chargeCar` em
+`src/**/presentation/*.routes.ts` fora dos dois arquivos tocados não retornou serializer adicional
+que exponha esses campos. Os quatro pontos de T301 são os únicos.
+
+### Commit
+
+`<preenchido após o commit>`
