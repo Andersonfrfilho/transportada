@@ -179,6 +179,33 @@ describe('the driver allowance sentence is composed on the screen (spec 143)', (
     expect(detail).toBe(legacyText)
   })
 
+  /**
+   * ⚠️ A base existe e **não** é a do motorista: combustível e ICMS têm a própria estrutura, e o
+   * composto da diária passa reto. Sem este caso, trocar o guarda por `basis === null` deixaria a
+   * suíte verde e a linha do combustível tentaria se explicar com `crew` que ela não tem.
+   */
+  test('a basis that is not the driver one keeps its own detail, whatever it says', () => {
+    const fuelText = 'R$ 6,12/L · 2,5 km/L'
+    const fuel = composeCostParcelDetail({
+      basis: {
+        kilometersPerLiter: '2.5000',
+        litres: '120.0000',
+        of: 'fuel',
+        pricePerLiter: '6.1200',
+      },
+      detail: fuelText,
+      t: translate(financialsPt),
+    })
+    const icms = composeCostParcelDetail({
+      basis: { baseReductionRate: '0.0000', cst: '00', of: 'icms', rate: '0.1200' },
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(fuel).toBe(fuelText)
+    expect(icms).toBeNull()
+  })
+
   test('the sentence matches the one the API freezes, word for word', () => {
     const source = readFileSync(
       new URL(
