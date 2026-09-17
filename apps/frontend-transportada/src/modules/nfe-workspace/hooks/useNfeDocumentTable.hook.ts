@@ -417,7 +417,12 @@ function matchesNumberRange(rawNumber: string, from: string, to: string): boolea
   return true
 }
 
-function matchesAmount(rawAmount: string, operator: AmountOperator, target: string): boolean {
+/** Spec 153 D10: `rawAmount` ausente (sem `trip.financials`) nunca casa filtro — `Number(undefined)` é `NaN`. */
+function matchesAmount(
+  rawAmount: string | undefined,
+  operator: AmountOperator,
+  target: string,
+): boolean {
   if (target.trim().length === 0) return true
   const value = Number(rawAmount)
   const bound = Number(target)
@@ -466,7 +471,7 @@ function documentMatchesFilters(document: NfeDocumentListItem, filters: Document
 function documentMatchesSearch(document: NfeDocumentListItem, term: string): boolean {
   const needle = term.trim().toLowerCase()
   if (needle.length === 0) return true
-  const haystack: readonly (string | null)[] = [
+  const haystack: readonly (string | null | undefined)[] = [
     document.number,
     document.series,
     document.emitterName,

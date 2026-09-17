@@ -544,7 +544,8 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
     isString(value.recipientName) &&
     isString(value.series) &&
     isOneOf(value.status, SCANNED_NFE_STATUS) &&
-    isString(value.totalAmount)
+    /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não malformação. */
+    isOptionalString(value.totalAmount)
   )
 }
 
@@ -674,7 +675,7 @@ export function createTripResponseAdapters() {
         recipientState: readNullableColumn(row, 'recipientState'),
         series: row.series,
         status: row.status,
-        totalAmount: row.totalAmount,
+        totalAmount: readNullableColumn(row, 'totalAmount'),
         tripId: isString((row as Record<string, unknown>).tripId)
           ? ((row as Record<string, unknown>).tripId as string)
           : null,
@@ -738,7 +739,7 @@ export function createTripResponseAdapters() {
                   recipientState: readNullableColumn(row, 'recipientState'),
                   series: row.series,
                   status: row.status,
-                  totalAmount: row.totalAmount,
+                  totalAmount: readNullableColumn(row, 'totalAmount'),
                   tripId: isString((row as Record<string, unknown>).tripId)
                     ? ((row as Record<string, unknown>).tripId as string)
                     : null,

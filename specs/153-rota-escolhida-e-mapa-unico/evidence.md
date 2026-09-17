@@ -3251,3 +3251,111 @@ continua verde, provando que a rota escolhida ainda é gravada.
   `6245 pass, 23 skip, 0 fail` em 177 arquivos, 21889 `expect()`. A suíte alvo isolada
   (`test/routing-application.contract.test.ts`, que importa `route-suggestion.contract.ts`):
   `73 pass, 0 fail`.
+
+## T701 — C1: dinheiro opcional da NF-e no frontend (D10) — busca, bipe e faixa ✅ 2026-09-17
+
+### Defeito (achado CRITICAL da revisão final)
+
+T301 fez a API cortar `totalAmount`/`freightAmount` de `/nfe-documents` quando o usuário não tem
+`trip.financials` (D10: a **chave** some do corpo, nunca `null`, nunca zero —
+`redactNfeDocumentMoney` em `apps/api-transportada/src/shared/monetary-redaction.service.ts`). O
+frontend continuava exigindo as duas sempre presentes em três guardas independentes, e quebrava:
+
+- `nfeWorkspaceClient.service.ts`: `isNfeDocumentListItem` exigia `isString(value.totalAmount)` e
+  `isNullableString(value.freightAmount)` — os dois reprovam `undefined` (chave ausente) —, então
+  `mapDocumentListPage` lançava `NFE_WORKSPACE_RESPONSE_INVALID` e **a listagem inteira** parava de
+  carregar para quem não tem a permissão.
+- `tripResponse.validation.ts`: `isScannedDocument` exigia `isString(value.totalAmount)`, usado por
+  `scannedNfeDocumentFromApi` (o **bipe por chave de acesso**, ADR-0043 §3) e por
+  `tripCandidateDocumentPageFromApi` (a **busca por faixa** de numeração da tela de notas da
+  viagem). O bipe lançava `TRIP_RESPONSE_INVALID`; a busca por faixa **descartava a linha em
+  silêncio** (o `flatMap` de `isScannedDocument` some com a nota sem avisar).
+- `TripDocumentSearch.component.tsx` chamava `formatAmount(document.totalAmount)` sem guarda —
+  mesmo corrigidos os validadores, a célula formatava `undefined` e explodia em runtime.
+
+Os três papéis afetados: `fiscal`, `viewer` e `separator` — é o separador quem bipa a nota sem ver
+o valor (ADR-0043 §3).
+
+### Correção
+
+**Dois formatos de ausência coexistem**, e cada consumidor precisa do seu:
+
+1. `nfeWorkspaceClient.service.ts` devolve o array **cru** da API sem reconstruir objetos
+   (`mapDocumentListPage` faz `items: data` direto) — a ausência aqui é literalmente `undefined`
+   (chave que não existe no JSON). `NfeDocumentListItem.totalAmount` virou `totalAmount?: string` e
+   `freightAmount?: null | string`; o guard usa os novos `isOptionalString`/
+   `isOptionalNullableString` (mesmo padrão que `isOptionalNullableString` já cunhado em
+   `tripResponse.validation.ts` pelo T401 para `route-geometry`, D10).
+2. `tripResponse.validation.ts` **reconstrói** cada campo via `readNullableColumn` (que já
+   normaliza ausente/`null`/não-string para `null`) — então `totalAmount` no `ScannedNfeDocument`
+   virou `null | string` (igual a `freightAmount`, que já era assim) e as duas ocorrências de
+   `totalAmount: row.totalAmount` passaram a `totalAmount: readNullableColumn(row, 'totalAmount')`.
+   `isScannedDocument` passou a aceitar `isOptionalString(value.totalAmount)` (helper local já
+   existente no arquivo, cunhado pelo T401).
+3. `ScannedNfeDocument.totalAmount`/`freightAmount` **também** viraram opcionais (`?:`), não só
+   anuláveis — achado ao rodar `tsc`: `TripDocumentSearch.component.tsx` e
+   `useTripRouteAssembly.hook.ts` reusam a linha crua de `NfeDocumentListItem` como
+   `ScannedNfeDocument`/`TripCandidateDocument` por **compatibilidade estrutural** (nenhum adaptador
+   os separa nesses dois pontos — é a mesma busca da listagem de notas, reaproveitada na tela da
+   viagem). Propriedade opcional na origem não satisfaz propriedade obrigatória no destino mesmo com
+   o mesmo tipo de valor, então sem esse ajuste o `tsc` reprovava as duas telas.
+4. `TripDocumentSearch.component.tsx`: a célula do total passou a checar
+   `document.totalAmount === null || document.totalAmount === undefined` antes de formatar (a
+   mesma linha já tratava `freightAmount` assim, ajustada para cobrir `undefined` também — a origem
+   real aqui é `NfeDocumentListItem`, que produz `undefined`, não `null`).
+5. `NfeDocumentTable.component.tsx` (coluna "amount" da listagem principal) e
+   `useNfeDocumentTable.hook.ts` (`matchesAmount`, o haystack da busca livre) ajustados para aceitar
+   `totalAmount: string | undefined` sem quebrar filtro, busca ou ordenação — `Number(undefined)` já
+   é `NaN`, que os dois já tratavam como "não bate".
+6. `assemblyMapNote.service.ts` normaliza a ausência de volta para `null` ao montar `AssemblyMapNote`
+   (`document.totalAmount ?? null`) — esse tipo já era `null | string` e seus consumidores
+   (`TripAssemblyMap.component.tsx`, `assemblyNoteFigures.service.ts`) já tratavam `null` como
+   "sem valor"; nenhum dos dois precisou mudar.
+
+### Consumidores conferidos e não tocados (fora do escopo de D10 para NF-e)
+
+Busca por `totalAmount`/`freightAmount` em todo `apps/frontend-transportada/src/modules` e
+confirmação, um a um, de que os demais usos são **outro** campo homônimo, de outro domínio, não
+coberto pela redação de `/nfe-documents`:
+
+- `mdfeManifestCteSource.service.ts` / `MdfeManifestCreationPanel.component.tsx` — `totalAmount` do
+  CT-e (`CteBatchItem`), não da NF-e.
+- `cteEmission.service.ts` / `CteEmissionDialog.component.tsx` / `cteEmissionQueue.service.ts` —
+  `totalAmount` é a soma calculada da prévia de emissão de CT-e (`CteBatchPreview`), campo próprio,
+  não vem de `/nfe-documents`.
+- `NfeDocumentFilterPanel.component.tsx` — só o rótulo estático do campo de filtro
+  (`documents.fields.totalAmount`), não lê valor de documento.
+- `TripAssemblyMap.component.tsx`, `assemblyNoteFigures.service.ts` — consomem `AssemblyMapNote`
+  (já `null | string`, ver item 6 acima), não `ScannedNfeDocument` diretamente.
+- `tripResponse.validation.ts` `isDocument`/`TripDocument.nfeTotalValue` (detalhe da viagem) — já
+  opcional (`nfeTotalValue?: null | string`), tratado por T301/T401; não fazia parte deste achado.
+
+### Contrato vermelho, antes da correção
+
+- `apps/frontend-transportada/test/nfe-workspace/document-money-optional.contract.ts` (novo,
+  registrado em `test/nfe-workspace.contract.test.ts`): contra o código de antes de T701, o teste
+  "payload sem totalAmount e freightAmount passa na validação da listagem" falhava —
+  `client.listDocuments` rejeitava com `NFE_WORKSPACE_RESPONSE_INVALID`.
+- `apps/frontend-transportada/test/trip/nfe-document-money-optional.contract.ts` (novo, registrado
+  em `test/trip.contract.test.ts`): contra o código de antes, "o bipe por chave de acesso não lança"
+  falhava com `TRIP_RESPONSE_INVALID`, e "a busca por faixa mantém a linha sem dinheiro" falhava
+  porque `page.items` vinha vazio (a linha era descartada em silêncio pelo `flatMap`).
+- `apps/frontend-transportada/test/trip/document-search-columns.contract.ts` (existente, ajustado):
+  as asserções de string exata sobre `formatAmount(document.totalAmount)` sem guarda,
+  `freightAmount: null | string` (sem `?`) e `isNullableString(value.freightAmount)` refletiam o
+  código antigo — atualizadas para o código corrigido, mais dois testes novos cobrindo a ausência.
+
+Depois da correção, as quatro suítes ficam verdes (ver Gates).
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) — limpo.
+- `bun run lint` (raiz, 6 apps) — limpo.
+- `bun run format:check` (raiz) — limpo (1 arquivo novo precisou de `prettier --write` antes).
+- `bun run test` em `apps/frontend-transportada` — `4204 pass, 0 fail`, `36241 expect()` em 29
+  arquivos (inclui as duas suítes novas e a suíte ajustada).
+- `bun run build` em `apps/frontend-transportada` — build de produção concluído sem erro.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

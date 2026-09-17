@@ -140,7 +140,8 @@ export type NfeDocumentListItem = Readonly<{
    * também quando duas casam igualmente bem: célula vazia manda alguém olhar a configuração,
    * número arbitrário não.
    */
-  freightAmount: null | string
+  /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não `null`. */
+  freightAmount?: null | string
   freightRuleName: null | string
   cargoGrossWeight: null | string
   cargoWeightSource: 'estimated' | 'xml' | null
@@ -156,7 +157,8 @@ export type NfeDocumentListItem = Readonly<{
   recipientTaxId: null | string
   series: string
   status: 'authorized' | 'cancelled' | 'denied'
-  totalAmount: string
+  /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não malformação. */
+  totalAmount?: string
   /**
    * Spec 065 D4b: a viagem em que a nota saiu. **Sinal, não bloqueio** — fatura-se o que saiu, e
    * quem monta o lote precisa ver isso sem abrir a tela de viagem nota por nota.
@@ -327,6 +329,18 @@ function isNullableString(value: unknown): value is null | string {
   return value === null || typeof value === 'string'
 }
 
+/**
+ * Spec 153 D10: sem `trip.financials` a API corta `freightAmount`/`totalAmount` do corpo — a chave
+ * some, não vira `null`. Ausente é resposta válida aqui, distinto de `isNullableString`.
+ */
+function isOptionalNullableString(value: unknown): value is null | string | undefined {
+  return value === undefined || isNullableString(value)
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || isString(value)
+}
+
 function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
@@ -419,7 +433,7 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.recipientAddress) &&
     isNullableString(value.recipientPostalCode) &&
     isNullableString(value.recipientPhone) &&
-    isNullableString(value.freightAmount) &&
+    isOptionalNullableString(value.freightAmount) &&
     isNullableString(value.freightRuleName) &&
     isNullableString(value.cargoGrossWeight) &&
     isCargoWeightSource(value.cargoWeightSource) &&
@@ -436,7 +450,7 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.recipientTaxId) &&
     isString(value.series) &&
     isDocumentStatus(value.status) &&
-    isString(value.totalAmount) &&
+    isOptionalString(value.totalAmount) &&
     (value.updatedAt === undefined || isString(value.updatedAt)) &&
     isDocumentVariant(value.variant)
   )

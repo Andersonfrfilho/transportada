@@ -214,8 +214,11 @@ export function TripDocumentSearch({
                         {document.recipientCity ?? ''}
                         {document.recipientState === null ? '' : `/${document.recipientState}`}
                       </td>
+                      {/* Spec 153 D10: sem `trip.financials` a API não manda o valor — a célula some, nunca zero. */}
                       <td className={styles.searchNumericCell}>
-                        {formatAmount(document.totalAmount)}
+                        {document.totalAmount === null || document.totalAmount === undefined
+                          ? ''
+                          : formatAmount(document.totalAmount)}
                       </td>
                       {/*
                       ⚠️ O peso vem **com a origem**. `estimated` é `volumes × peso padrão da
@@ -249,7 +252,7 @@ export function TripDocumentSearch({
                       ambígua aparecer em vez de sair um número arbitrário.
                     */}
                       <td className={styles.searchNumericCell}>
-                        {document.freightAmount === null ? (
+                        {document.freightAmount === null || document.freightAmount === undefined ? (
                           ''
                         ) : (
                           <>

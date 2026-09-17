@@ -94,7 +94,7 @@ exclude=toll), qualquer [NEEDS CLARIFICATION].
 
 Cada task fecha como as demais: contrato vermelho → correção → gates → evidência → commit isolado.
 
-- [ ] T701 **C1** Redação da NF-e quebra o frontend sem `trip.financials`: `totalAmount` e
+- [x] T701 **C1** Redação da NF-e quebra o frontend sem `trip.financials`: `totalAmount` e
       `freightAmount` opcionais em `nfeWorkspaceClient.service.ts` e `tripResponse.validation.ts`,
       célula oculta quando ausentes (nunca traço nem zero), bipe e busca por faixa funcionando para
       `fiscal`, `viewer` e `separator`. Contrato com payload redigido.

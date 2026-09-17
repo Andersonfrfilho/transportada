@@ -100,7 +100,8 @@ export type NfeDocumentListItemContract = Readonly<{
   recipientPhone: null | string
   /** Peso bruto da carga e a origem dele — `estimated` é palpite e a tela precisa dizer isso. */
   /** Frete previsto e a regra que o produziu — ausentes quando nenhuma regra casa, ou duas casam. */
-  freightAmount: null | string
+  /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não `null`. */
+  freightAmount?: null | string
   freightRuleName: null | string
   cargoGrossWeight: null | string
   cargoWeightSource: 'estimated' | 'xml' | null
@@ -114,7 +115,8 @@ export type NfeDocumentListItemContract = Readonly<{
   recipientTaxId: null | string
   series: string
   status: 'authorized' | 'cancelled' | 'denied'
-  totalAmount: string
+  /** Spec 153 D10: sem `trip.financials` a chave some do corpo — ausente é resposta, não malformação. */
+  totalAmount?: string
   tripId: null | string
   tripStatus: null | string
   updatedAt?: string

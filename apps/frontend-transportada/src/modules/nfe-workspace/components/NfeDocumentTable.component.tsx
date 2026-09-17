@@ -271,7 +271,9 @@ export function NfeDocumentTable({
       )
     }
     if (column === 'amount') {
-      return copyableCell('amount', formatAmount(document.totalAmount), styles.amountCell)
+      /* Spec 153 D10: sem `trip.financials` a API não manda o valor — a célula some, nunca zero. */
+      const amount = document.totalAmount === undefined ? '' : formatAmount(document.totalAmount)
+      return copyableCell('amount', amount, styles.amountCell)
     }
     if (column === 'documentOutput') return <td>{documentOutputLabel(document)}</td>
     const nfseLink = resolveNfseLink(document)

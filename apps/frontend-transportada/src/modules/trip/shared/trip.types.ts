@@ -1112,8 +1112,12 @@ export type ScannedNfeDocument = Readonly<{
    */
   cargoGrossWeight: null | string
   cargoWeightSource: 'estimated' | 'xml' | null
-  /** O frete previsto pela parametrização e a regra que o produziu — a listagem os calcula sem veículo. */
-  freightAmount: null | string
+  /**
+   * O frete previsto pela parametrização e a regra que o produziu — a listagem os calcula sem
+   * veículo. Spec 153 D10: sem `trip.financials` a chave some do corpo — `null` continua sendo
+   * "sem regra casada", ausente é "sem permissão para ver".
+   */
+  freightAmount?: null | string
   freightRuleName: null | string
   /** O número **do endereço**, não o da nota: é ele que entra na chave da parada. */
   recipientAddressNumber: null | string
@@ -1136,7 +1140,8 @@ export type ScannedNfeDocument = Readonly<{
   recipientState: null | string
   series: string
   status: ScannedNfeStatus
-  totalAmount: string
+  /** Spec 153 D10: sem `trip.financials` a API não manda a chave — a tela some a linha, nunca zero. */
+  totalAmount?: null | string
   /**
    * A viagem em que a nota já saiu. A rota sempre mandou este campo; era o adaptador que o
    * descartava — e sem ele a criação rápida não teria como recusar uma nota que já está em outra
