@@ -29,7 +29,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 - [x] T201 Consulta do catálogo paginada com busca (nome, operador), `seen` e ajuste da empresa —
       contrato de repositório. O valor efetivo continua saindo da política, nunca do SQL.
-- [ ] T202 `src/toll-booths/presentation/toll-booth.routes.ts`: `GET /v1/toll-booths` com `fleet.read`,
+- [x] T202 `src/toll-booths/presentation/toll-booth.routes.ts`: `GET /v1/toll-booths` com `fleet.read`,
       resumo do catálogo no corpo, teto de 100 por página — contrato HTTP + `403` sem permissão.
 - [ ] T203 `list-toll-booth-charges` passa a ser filtro `onlySeen` da consulta nova, com a rota de
       `company-settings` intacta — contrato afirmando que as duas listas concordam na mesma praça.

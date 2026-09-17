@@ -79,6 +79,8 @@ export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
  * autenticado.
  */
 export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batches/:token'
+/** Spec 154 RF1: o catálogo de praças inteiro, com busca e paginação — nunca só as vistas. */
+export const API_TOLL_BOOTHS_PATH = '/toll-booths'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'

@@ -48,6 +48,9 @@ import { createListFuelPricesUseCase } from './companies/application/list-fuel-p
 import { createAdjustTollBoothChargeUseCase } from './companies/application/adjust-toll-booth-charge.use-case.js'
 import { createClearTollBoothChargeUseCase } from './companies/application/clear-toll-booth-charge.use-case.js'
 import { createListTollBoothChargesUseCase } from './companies/application/list-toll-booth-charges.use-case.js'
+import { createListTollBoothCatalogUseCase } from './toll-booths/application/list-toll-booth-catalog.use-case.js'
+import { createDrizzleTollBoothCatalogRepository } from './toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.js'
+import { createTollBoothRoutes } from './toll-booths/presentation/toll-booth.routes.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
 import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
 import { DrizzleTollBoothSightingRepository } from './trips/infrastructure/drizzle-toll-booth-sighting.repository.js'
@@ -1477,6 +1480,7 @@ function createApplicationRoutes({
    */
   const routeDepotQuery = createRouteDepotQuery(database)
   const tollBoothRepository = createDrizzleTollBoothRepository(database)
+  const tollBoothCatalogRepository = createDrizzleTollBoothCatalogRepository(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
@@ -1985,6 +1989,15 @@ function createApplicationRoutes({
       list: createListTollBoothChargesUseCase({
         catalog: tollBoothRepository,
         charges: tollBoothChargeRepository,
+        sightings: tollBoothSightingRepository,
+      }),
+    }),
+    ...createTollBoothRoutes({
+      listCatalog: createListTollBoothCatalogUseCase({
+        catalog: tollBoothCatalogRepository,
+        catalogSummary: tollBoothRepository,
+        charges: tollBoothChargeRepository,
+        clock: { now: () => new Date() },
         sightings: tollBoothSightingRepository,
       }),
     }),

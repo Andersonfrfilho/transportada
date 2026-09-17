@@ -428,3 +428,90 @@ Ran 6295 tests across 177 files. [25.25s]
 Demais gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`)
 exit 0 · `bun run format` exit 0 (sem reescrita fora do próprio arquivo novo, que o `prettier
 --write` só reformatou a quebra de linha do `or(ilike(...), ilike(...))`).
+
+### T202
+
+`src/toll-booths/presentation/toll-booth.routes.ts` nasce agora: `GET /v1/toll-booths`, `fleet.read`,
+query validada por Zod (`toll-booth.schema.ts`) com `search`/`page`/`perPage`. `perPage` acima de 100
+nunca é `400` — o Zod só valida forma (inteiro positivo); quem corta o teto é o use case, no mesmo
+lugar que decide os outros padrões (`toll-booth-catalog.constant.ts`, mesmo teto que a T201 já
+aplicava no repositório).
+
+**A ordem da D1 mora no use case novo** (`list-toll-booth-catalog.use-case.ts`), não na rota nem no
+repositório — exatamente o buraco que a evidência da T201 apontou ("Ordenação (D1) deliberadamente
+fora do escopo... fica para a camada que compõe a resposta HTTP"). Algoritmo implementado ao pé da
+letra do prompt:
+
+1. `sightings.readSeenOsmNodeIds` (conjunto pequeno) → `catalog.listCatalog({ seenFilter: 'only' })`
+   sem teto de página (o repositório, com `'only'`, nunca aplica `LIMIT`/`OFFSET` — devolve o grupo
+   inteiro) + `charges.loadAdjustmentsByNodeIds` para recuperar o ajuste de praça vista que o
+   catálogo não conhece mais (`catalogKnown: false`, D1) — que a T201 nunca devolveria sozinha,
+   porque a consulta dela parte de `FROM toll_booths`. Resolvidas pela política
+   (`resolveEffectiveTollBoothCharge`) e ordenadas: sem tarifa por eixo primeiro, com tarifa depois,
+   desempate por `osmNodeId` (não por nome — regra própria desta feature, diferente da
+   `orderTollBoothChargesByUnknownFirst` de 3 grupos que a lista antiga usa).
+2. O resto do catálogo vem do repositório com `seenFilter: 'exclude'`, paginado por **offset
+   explícito** (novo parâmetro `offset` no `ListTollBoothCatalogParams` — nunca `page`, porque o
+   corte de página pode cair no meio da lista de vistas).
+3. A página final fatia `[vistas ordenadas] ++ [resto]` pelo deslocamento absoluto
+   `(page-1)*perPage`; quando a fatia cabe inteira nas vistas, o pedido ao repositório vai com
+   `perPage: 0` (`LIMIT 0` do Postgres — zero linhas, `total` continua correto na mesma consulta).
+   `total = vistas.length + resto.total`.
+
+Testado em `test/toll-booths/list-toll-booth-catalog-use-case.contract.ts` com um catálogo falso que
+implementa a mesma semântica de filtro/paginação do repositório real (não é integração — a T201 já
+prova o SQL; aqui prova-se a composição): ordem atravessando duas páginas (praça vista `osmNodeId
+50` sem tarifa aparece antes de `osmNodeId 1` na página 1, mesmo sendo maior; página 2 e 3 continuam
+a sequência sem repetir nem pular), `perPage` 500 → 100, busca por nome/operador, isolamento de
+tenant (empresa B nunca vê o ajuste de A no mesmo `osmNodeId`), resumo do RF2 completo e o caso
+extremo do catálogo vazio (`status: 'empty'`).
+
+**RF2 — a contagem "sem tarifa por eixo conhecida" (decisão, não conflito resolvido por invenção):**
+o prompt pediu para não compor o valor efetivo no SQL nem ler a tabela inteira por requisição.
+Investigado: a contagem podia significar (a) quantas praças do **catálogo puro** não têm
+`charge_per_axle`, ou (b) quantas ficam sem tarifa **depois do ajuste da empresa** (efetivo). (b)
+exigiria ou compor `COALESCE(ajuste, catálogo)` em SQL (a mesma composição que a T201 baniu do
+repositório) ou ler catálogo+ajustes inteiros e rodar a política sobre cada linha (viola RNF2: "nunca
+lê a tabela inteira sem paginar"). (a) é uma consulta nova, de uma linha, só na tabela do catálogo
+(`count(*) where charge_per_axle is null`), sem `company_toll_booth_charges` no meio — não compõe
+nada, e RNF2 já autoriza exatamente este tipo de consulta agregada avulsa ("o resumo do RF2 continua
+saindo de `readCatalogSummary`... numa consulta só"). Implementado como (a):
+`TollBoothCatalogPort.readAxleChargeGapCount()`, query própria no repositório. **Decisão registrada,
+não conflito**: a leitura de RF2 é resumo do _catálogo_, coerente com `boothCount`/`observedOn`, que
+também não passam pelo ajuste da empresa.
+
+`test/toll-booths/toll-booth-routes.contract.ts` cobre a camada HTTP: `200` com o envelope `{ data,
+pagination: { page, perPage, total }, summary }`; `companyId` nunca lido da query nem do corpo — só
+`context.scope.companyId` (isolamento de tenant na fronteira HTTP); `403` sem `fleet.read`.
+
+Wiring em `main.ts`: `tollBoothCatalogRepository = createDrizzleTollBoothCatalogRepository(database)`
+e `createTollBoothRoutes({ listCatalog: createListTollBoothCatalogUseCase({ catalog:
+tollBoothCatalogRepository, catalogSummary: tollBoothRepository, charges: tollBoothChargeRepository,
+clock: { now: () => new Date() }, sightings: tollBoothSightingRepository }) })`, registrada ao lado
+de `createTollBoothChargeRoutes`. `test/separator-role.contract.test.ts` não importa
+`toll-booths/presentation/*` — confirmado que a lista exaustiva do separador continua intacta, sem
+precisar de decisão nova.
+
+Suítes exercitadas: `test/toll-booths.contract.test.ts` (88 pass, 0 fail, incluindo os 3 novos
+arquivos deste T202 e a integração Postgres da T201) e a suíte completa da API:
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6281 pass
+ 23 skip
+ 0 fail
+ 21970 expect() calls
+Ran 6304 tests across 177 files. [20.07s]
+```
+
+Gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`) exit 0 ·
+`bun run format` exit 0 (reescreveu só a quebra de linha dos arquivos novos/editados desta task —
+conferido por `git diff --stat`, sem mudança de comportamento).
+
+Postgres de teste: `transportada-test-postgres-1` (Docker) já estava saudável — não foi preciso subir
+Postgres nativo descartável.
+
+**Divergência do plano registrada:** `plan.md` item 3 previa três rotas em
+`toll-booths/presentation/` nesta task; T202 entrega só `GET /v1/toll-booths` (RF1/RF2), como o
+escopo do prompt pediu — `GET`/`POST /toll-booths/extracts` e `POST /toll-booths/reload` continuam
+para T301/T302 (Fase 3), sem código morto ou rota parcial no meio do caminho.
