@@ -85,7 +85,41 @@ export type PackageBoxMeasurement = {
   readonly widthMm: number
 }
 
+/**
+ * Spec 155 (G003): uma irmã da família ou do grupo de embalagem — nunca a caixa de origem. D11
+ * corolário: quem confirma escrita mostra `description` + `productCode`, nunca só o `variantLabel`
+ * (rótulos curtos e prefixados colidem: `UVA` ⊂ `UVA INTENSA`).
+ */
+export type PackageBoxSiblingView = {
+  readonly commercialUnit: string
+  readonly description: string
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number | null
+  readonly id: string
+  readonly lengthMm: number | null
+  readonly measuredAt: string | null
+  readonly packagingUnitCount: number | undefined
+  readonly productCode: string
+  readonly unitsPerBox: number
+  readonly variantLabel: string
+  readonly widthMm: number | null
+}
+
+export type PackageBoxSiblings = {
+  readonly family: readonly PackageBoxSiblingView[]
+  readonly packaging: readonly PackageBoxSiblingView[]
+}
+
 export type PackageBoxRepositoryPort = {
+  /**
+   * Spec 155 (G003, D1): as irmãs de família (replicáveis) e de embalagem (só mostradas, nunca
+   * replicadas — D3) da caixa `boxId`, sempre dentro de `companyId`. `null` quando a origem não
+   * existe nesta empresa — a rota converte para 404.
+   */
+  getSiblings(input: {
+    readonly boxId: string
+    readonly companyId: string
+  }): Promise<PackageBoxSiblings | null>
   list(input: {
     readonly companyId: string
     readonly filters: PackageBoxFilters
@@ -109,4 +143,20 @@ export type PackageBoxRepositoryPort = {
     readonly measurementMarginMm: number | null
     readonly measuredByUserId: string
   }): Promise<boolean>
+  /**
+   * Spec 155 (D4, D6, G004, G005, G006): copia a medida de `boxId` para cada `targetIds`, numa
+   * única transação — devolve quantos alvos gravou (sempre `targetIds.length` em caso de sucesso,
+   * porque a rota é tudo-ou-nada: qualquer alvo inválido rejeita a chamada inteira, sem gravar
+   * nenhum). Lança `PackageBoxNotFoundError` (origem ou alvo fora da empresa),
+   * `PackageBoxReplicationSourceNotMeasuredError`, `PackageBoxReplicationTargetOutsideFamilyError`
+   * e `PackageBoxReplicationTargetAlreadyMeasuredError` (`domain/package-box-measurement.error.ts`)
+   * — a validação lê a origem e os alvos dentro da mesma transação que escreve, por isso o erro sai
+   * daqui e não da camada de aplicação.
+   */
+  replicate(input: {
+    readonly boxId: string
+    readonly companyId: string
+    readonly measuredByUserId: string
+    readonly targetIds: readonly string[]
+  }): Promise<number>
 }

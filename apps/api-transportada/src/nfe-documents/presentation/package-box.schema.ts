@@ -116,6 +116,27 @@ export function parsePackageBoxMeasurement(body: unknown): PackageBoxMeasurement
   return parsed.data
 }
 
+const MAX_REPLICATE_TARGETS = 200
+
+/** Spec 155 (G004): 1..200 UUIDs únicos — duplicata no corpo não é erro do domínio, é do cliente. */
+const replicateSchema = z
+  .object({
+    targetIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(MAX_REPLICATE_TARGETS)
+      .refine((ids) => new Set(ids).size === ids.length, { message: 'target ids must be unique' }),
+  })
+  .strict()
+
+export function parsePackageBoxReplication(body: unknown): {
+  readonly targetIds: readonly string[]
+} {
+  const parsed = replicateSchema.safeParse(body)
+  if (!parsed.success) throw invalidRequest()
+  return parsed.data
+}
+
 export type PackageBoxListInput = {
   readonly filters: {
     readonly gtin?: string

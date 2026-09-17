@@ -15,8 +15,17 @@ import type {
   PackageBoxFilters,
   PackageBoxMeasurement,
   PackageBoxRepositoryPort,
+  PackageBoxSiblings,
+  PackageBoxSiblingView,
   PackageBoxView,
 } from '../application/package-box.port.js'
+import { resolveBoxFamily, resolvePackagingUnitCount } from '../domain/package-box-family.policy.js'
+import {
+  PackageBoxNotFoundError,
+  PackageBoxReplicationSourceNotMeasuredError,
+  PackageBoxReplicationTargetAlreadyMeasuredError,
+  PackageBoxReplicationTargetOutsideFamilyError,
+} from '../domain/package-box-measurement.error.js'
 import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -26,6 +35,48 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
   constructor(database: Database) {
     this.#database = database
+  }
+
+  /**
+   * Spec 155 (G003, D1, D3): a origem lida por `(id, companyId)`, e as irmãs de família e de
+   * embalagem varridas sobre a empresa inteira — mesmo padrão da D9 em `list`, e pelo mesmo motivo:
+   * a família não tem coluna própria, e recalcular em SQL duplicaria a regex da D2.
+   */
+  async getSiblings(input: {
+    readonly boxId: string
+    readonly companyId: string
+  }): Promise<PackageBoxSiblings | null> {
+    const [origin] = await this.#database
+      .select(SIBLING_COLUMNS)
+      .from(nfePackageBoxes)
+      .where(
+        and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
+      )
+      .limit(1)
+    if (origin === undefined) return null
+
+    const companyBoxes = await this.#database
+      .select(SIBLING_COLUMNS)
+      .from(nfePackageBoxes)
+      .where(eq(nfePackageBoxes.companyId, input.companyId))
+
+    const originFamily = resolveBoxFamily(origin)
+
+    const family =
+      originFamily.familyKey === undefined
+        ? []
+        : companyBoxes.filter(
+            (box) =>
+              box.id !== origin.id && resolveBoxFamily(box).familyKey === originFamily.familyKey,
+          )
+    const packaging = companyBoxes.filter(
+      (box) =>
+        box.id !== origin.id &&
+        box.productCode === origin.productCode &&
+        box.emitterTaxId === origin.emitterTaxId,
+    )
+
+    return { family: family.map(toSiblingView), packaging: packaging.map(toSiblingView) }
   }
 
   /**
@@ -212,6 +263,161 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
       return true
     })
+  }
+
+  /**
+   * Spec 155 (D1, D4, D6, G004, G005, G006, G007): origem e alvos lidos **dentro** da transação que
+   * escreve — sem isso, uma leitura fora da transação abriria uma corrida entre duas réplicas
+   * concorrentes que passam as duas na validação e escrevem sobre o mesmo alvo. Tudo-ou-nada: o
+   * primeiro alvo inválido lança e desfaz a transação inteira, nenhum alvo é gravado pela metade.
+   */
+  async replicate(input: {
+    readonly boxId: string
+    readonly companyId: string
+    readonly measuredByUserId: string
+    readonly targetIds: readonly string[]
+  }): Promise<number> {
+    return this.#database.transaction(async (transaction) => {
+      const [origin] = await transaction
+        .select({
+          commercialUnit: nfePackageBoxes.commercialUnit,
+          description: nfePackageBoxes.description,
+          grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+          heightMm: nfePackageBoxes.heightMm,
+          id: nfePackageBoxes.id,
+          lengthMm: nfePackageBoxes.lengthMm,
+          unitsPerBox: nfePackageBoxes.unitsPerBox,
+          widthMm: nfePackageBoxes.widthMm,
+        })
+        .from(nfePackageBoxes)
+        .where(
+          and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
+        )
+        .limit(1)
+      if (origin === undefined) throw new PackageBoxNotFoundError()
+      /**
+       * As três dimensões são tudo-ou-nada por CHECK (`nfe_package_boxes_dimensions_together_check`)
+       * — conferir as três aqui é só o que deixa o TypeScript estreitar os tipos para a gravação
+       * abaixo, não uma segunda fonte de verdade.
+       */
+      if (origin.lengthMm === null || origin.widthMm === null || origin.heightMm === null) {
+        throw new PackageBoxReplicationSourceNotMeasuredError()
+      }
+      /** A narrowing acima não atravessa a closure do `.map` abaixo — por isso os locais explícitos. */
+      const sourceHeightMm = origin.heightMm
+      const sourceLengthMm = origin.lengthMm
+      const sourceWidthMm = origin.widthMm
+
+      const originFamily = resolveBoxFamily(origin)
+
+      const targets = await transaction
+        .select({
+          commercialUnit: nfePackageBoxes.commercialUnit,
+          description: nfePackageBoxes.description,
+          id: nfePackageBoxes.id,
+          measuredAt: nfePackageBoxes.measuredAt,
+        })
+        .from(nfePackageBoxes)
+        .where(
+          and(
+            eq(nfePackageBoxes.companyId, input.companyId),
+            inArray(nfePackageBoxes.id, [...input.targetIds]),
+          ),
+        )
+      const targetsById = new Map(targets.map((target) => [target.id, target]))
+
+      for (const targetId of input.targetIds) {
+        const target = targetsById.get(targetId)
+        if (target === undefined) throw new PackageBoxNotFoundError()
+        if (resolveBoxFamily(target).familyKey !== originFamily.familyKey) {
+          throw new PackageBoxReplicationTargetOutsideFamilyError()
+        }
+        if (target.measuredAt !== null) throw new PackageBoxReplicationTargetAlreadyMeasuredError()
+      }
+
+      const updated = await transaction
+        .update(nfePackageBoxes)
+        .set({
+          grossWeightGrams: origin.grossWeightGrams,
+          heightMm: origin.heightMm,
+          lengthMm: origin.lengthMm,
+          measuredAt: new Date(),
+          measurementMarginMm: null,
+          measurementSource: 'replicated',
+          unitsPerBox: origin.unitsPerBox,
+          updatedAt: new Date(),
+          widthMm: origin.widthMm,
+        })
+        .where(
+          and(
+            eq(nfePackageBoxes.companyId, input.companyId),
+            inArray(nfePackageBoxes.id, [...input.targetIds]),
+          ),
+        )
+        .returning({ id: nfePackageBoxes.id })
+
+      if (updated.length > 0) {
+        await transaction.insert(nfePackageBoxMeasurements).values(
+          updated.map((target) => ({
+            companyId: input.companyId,
+            heightMm: sourceHeightMm,
+            lengthMm: sourceLengthMm,
+            measuredByUserId: input.measuredByUserId,
+            packageBoxId: target.id,
+            replicatedFromBoxId: origin.id,
+            source: 'replicated' as const,
+            widthMm: sourceWidthMm,
+          })),
+        )
+      }
+
+      return updated.length
+    })
+  }
+}
+
+const SIBLING_COLUMNS = {
+  commercialUnit: nfePackageBoxes.commercialUnit,
+  description: nfePackageBoxes.description,
+  emitterTaxId: nfePackageBoxes.emitterTaxId,
+  grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+  heightMm: nfePackageBoxes.heightMm,
+  id: nfePackageBoxes.id,
+  lengthMm: nfePackageBoxes.lengthMm,
+  measuredAt: nfePackageBoxes.measuredAt,
+  productCode: nfePackageBoxes.productCode,
+  unitsPerBox: nfePackageBoxes.unitsPerBox,
+  widthMm: nfePackageBoxes.widthMm,
+} as const
+
+type SiblingRow = {
+  readonly commercialUnit: string
+  readonly description: string
+  readonly emitterTaxId: string
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number | null
+  readonly id: string
+  readonly lengthMm: number | null
+  readonly measuredAt: Date | null
+  readonly productCode: string
+  readonly unitsPerBox: number
+  readonly widthMm: number | null
+}
+
+function toSiblingView(row: SiblingRow): PackageBoxSiblingView {
+  return {
+    commercialUnit: row.commercialUnit,
+    description: row.description,
+    grossWeightGrams: row.grossWeightGrams,
+    heightMm: row.heightMm,
+    id: row.id,
+    lengthMm: row.lengthMm,
+    measuredAt: row.measuredAt?.toISOString() ?? null,
+    packagingUnitCount: resolvePackagingUnitCount(row.commercialUnit),
+    productCode: row.productCode,
+    unitsPerBox: row.unitsPerBox,
+    variantLabel: resolveBoxFamily(row).variantLabel,
+    widthMm: row.widthMm,
   }
 }
 

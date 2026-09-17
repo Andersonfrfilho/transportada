@@ -11,9 +11,15 @@ import { JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { parseUuidPathIdentifier } from '../../nfe-imports/presentation/nfe-imports.schema.js'
 import type { CameraMeasurementSettingsPort } from '../application/camera-measurement-settings.port.js'
 import type { ListPackageBoxes } from '../application/list-package-boxes.use-case.js'
+import type { ListPackageBoxSiblings } from '../application/list-package-box-siblings.use-case.js'
 import type { MeasurePackageBox } from '../application/measure-package-box.use-case.js'
 import type { PackageBoxMeasurement } from '../application/package-box.port.js'
-import { parsePackageBoxList, parsePackageBoxMeasurement } from './package-box.schema.js'
+import type { ReplicatePackageBoxMeasurement } from '../application/replicate-package-box-measurement.use-case.js'
+import {
+  parsePackageBoxList,
+  parsePackageBoxMeasurement,
+  parsePackageBoxReplication,
+} from './package-box.schema.js'
 import type { PackageBoxListInput } from './package-box.schema.js'
 
 export const API_NFE_PACKAGE_BOXES_PATH = '/nfe-package-boxes'
@@ -31,10 +37,21 @@ type MeasureInput = {
   readonly measurement: PackageBoxMeasurement
 }
 
+type SiblingsInput = {
+  readonly boxId: string
+}
+
+type ReplicateInput = {
+  readonly boxId: string
+  readonly targetIds: readonly string[]
+}
+
 export function createPackageBoxRoutes(dependencies: {
   readonly cameraMeasurementSettings: CameraMeasurementSettingsPort
   readonly listPackageBoxes: ListPackageBoxes
+  readonly listPackageBoxSiblings: ListPackageBoxSiblings
   readonly measurePackageBox: MeasurePackageBox
+  readonly replicatePackageBoxMeasurement: ReplicatePackageBoxMeasurement
 }): readonly ReturnType<typeof defineRoute>[] {
   return [
     /**
@@ -95,6 +112,40 @@ export function createPackageBoxRoutes(dependencies: {
         measurement: parsePackageBoxMeasurement(await readMeasurementBody(request)),
       }),
       pathname: `${API_NFE_PACKAGE_BOXES_PATH}/:id`,
+      policy: CARGO_MEASURE_POLICY,
+    }),
+    /** Spec 155 (G003): as irmãs de família (replicáveis) e de embalagem (só mostradas, D3). */
+    defineRoute<SiblingsInput>({
+      async handle({ context, input }): Promise<Response> {
+        const siblings = await dependencies.listPackageBoxSiblings.execute({
+          boxId: input.boxId,
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: siblings }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        boxId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${API_NFE_PACKAGE_BOXES_PATH}/:id/siblings`,
+      policy: CARGO_MEASURE_POLICY,
+    }),
+    /** Spec 155 (G004, G005, G006): copia a medida da origem para os alvos da mesma família. */
+    defineRoute<ReplicateInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.replicatePackageBoxMeasurement.execute({
+          boxId: input.boxId,
+          context: context.scope,
+          targetIds: input.targetIds,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      parse: async ({ pathParameters, request }) => ({
+        boxId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        targetIds: parsePackageBoxReplication(await readMeasurementBody(request)).targetIds,
+      }),
+      pathname: `${API_NFE_PACKAGE_BOXES_PATH}/:id/replicate`,
       policy: CARGO_MEASURE_POLICY,
     }),
   ]

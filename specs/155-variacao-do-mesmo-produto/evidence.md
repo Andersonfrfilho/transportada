@@ -300,13 +300,89 @@ Sem integração de banco nesta task — a contagem é pura (`countBoxFamilies`/
 e o repositório só monta duas seleções já cobertas pelos contratos de listagem existentes; o
 `.env.test` foi reservado para T2.4/T2.5, que são as tasks com regra nova de escrita.
 
-## T2.3 — `GET /nfe-package-boxes/:id/siblings`
+## T2.3 — `GET /nfe-package-boxes/:id/siblings` e T2.4 — `POST /nfe-package-boxes/:id/replicate`
 
-_(pendente)_
+⚠️ **Desvio do `tasks.md`, registrado por escrito:** as duas tasks fecham num commit só. As duas
+compartilham o mesmo port (`getSiblings`/`replicate` em `PackageBoxRepositoryPort`), o mesmo arquivo
+de rotas, o mesmo schema e os mesmos erros de domínio (`PackageBoxNotFoundError`,
+`PackageBoxReplicationTargetOutsideFamilyError` etc.) — a validação de "alvo fora da família" que a
+T2.4 exige é literalmente a mesma leitura de irmãs que a T2.3 expõe, e separar o diff em dois
+commits exigiria desfazer e refazer as mesmas linhas de `drizzle-package-box.repository.ts`. Cada
+uma tem sua seção de evidência abaixo; o commit é um só.
 
-## T2.4 — `POST /nfe-package-boxes/:id/replicate`
+Vermelho primeiro, em duas frentes:
 
-_(pendente)_
+```
+# routes.contract.ts — lista de rotas ainda sem /siblings nem /replicate
+expect(received).toEqual(expected)  // GET /nfe-package-boxes/:id/siblings e POST .../:id/replicate ausentes
+
+# replicate.contract.ts (novo)
+error: Cannot find module '../../src/nfe-documents/application/list-package-box-siblings.use-case.js'
+ 0 pass · 1 fail · 1 error
+```
+
+### O que mudou
+
+- `domain/package-box-measurement.error.ts`: `PackageBoxNotFoundError` (404, reusada para origem e
+  alvo fora da empresa — a mesma resposta para "não existe" e "não é seu", como
+  `AddressCorrectionAddressNotFoundError`), `PackageBoxReplicationSourceNotMeasuredError` (422),
+  `PackageBoxReplicationTargetOutsideFamilyError` (422),
+  `PackageBoxReplicationTargetAlreadyMeasuredError` (409, D4).
+- `application/package-box.port.ts`: `PackageBoxSiblingView`/`PackageBoxSiblings` e os métodos novos
+  do port — `getSiblings` (devolve `null` quando a origem não existe na empresa) e `replicate`
+  (devolve quantos alvos gravou; lança os quatro erros acima).
+- `application/list-package-box-siblings.use-case.ts` e
+  `application/replicate-package-box-measurement.use-case.ts`: sem try/catch, só repassam para o
+  repositório — a validação mora lá porque lê origem e alvos **dentro** da mesma transação que
+  escreve (evita corrida entre duas réplicas concorrentes no mesmo alvo).
+- `infrastructure/drizzle-package-box.repository.ts`: `getSiblings` varre a empresa inteira (mesmo
+  padrão da D9 em `list`) e separa família (mesmo `familyKey`) de embalagem (mesmo
+  `emitterTaxId`+`productCode`). `replicate` é uma transação: lê a origem (rejeita sem medida —
+  as três dimensões são checadas juntas para o TypeScript estreitar o tipo, não como segunda fonte
+  de verdade sobre o invariante já garantido pelo CHECK `dimensions_together_check`), lê os alvos por
+  `inArray`, valida cada um (família, medida existente) e só então grava — um `UPDATE`/`INSERT` em
+  lote (sem `await` em loop), tudo-ou-nada.
+- `presentation/package-box.schema.ts`: `parsePackageBoxReplication` — `targetIds` 1..200 UUIDs
+  únicos, `.strict()`.
+- `presentation/package-box.routes.ts` e `main.ts`: as duas rotas novas, mesma `CARGO_MEASURE_POLICY`
+  das demais.
+- `test/separator-role.contract.test.ts`: as duas rotas entram na lista exaustiva de rotas
+  alcançáveis pelo separador — decisão já registrada ali para `cargo.measure` (T14 item 4); as rotas
+  novas só tornam essa mesma permissão exercível para família/réplica, sem abrir nada em
+  fleet/billing/fiscal.
+
+### Gates
+
+```
+bun run typecheck (as seis apps)                          exit 0
+bun run --cwd apps/api-transportada test                  6318 pass · 23 skip · 0 fail (177 arquivos)
+```
+
+### Integração de verdade (T2.4, `.env.test`)
+
+`test/integration/package-box-replication.integration.ts`, registrado no `package.json`
+(`test:integration`), rodado de dentro de `apps/api-transportada`:
+
+```
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/package-box-replication.integration.ts
+
+bun test v1.3.14 (0d9b296a)
+ 3 pass
+ 0 fail
+ 24 expect() calls
+Ran 3 tests across 1 file. [3.13s]
+```
+
+Sem a flag `--env-file`, os mesmos três testes aparecem como `skip` (confirmado rodando
+`bun run --cwd apps/api-transportada test` isolado, que os lista entre os 23 pulados) — a prova de
+que a integração exercitou banco de verdade e não passou por omissão.
+
+Os três testes: (1) `GET siblings` separa família de embalagem e devolve `PackageBoxNotFoundError`
+para caixa de outra empresa; (2) replicar grava dimensões/peso/`unitsPerBox`/
+`measurement_source='replicated'`/`measurement_margin_mm=null` no alvo, uma linha de histórico com
+`replicated_from_box_id`, e a **segunda** chamada no mesmo alvo recusa com 409 sem gravar linha nova
+no histórico (D4, critério de aceite 3 da spec); (3) os três caminhos de recusa (origem sem medida,
+alvo fora da família, alvo de outra empresa) não gravam nada.
 
 ## T2.5 — Regressão da G007
 

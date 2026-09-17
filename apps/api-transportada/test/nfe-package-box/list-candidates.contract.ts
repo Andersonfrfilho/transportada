@@ -53,11 +53,13 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
     let capturedCompanyId: string | undefined
     const repository: PackageBoxRepositoryPort = {
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: (input) => {
         capturedCompanyId = input.companyId
         return Promise.resolve(boxes)
       },
       measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
     }
 
     const listPackageBoxes = createListPackageBoxes({ repository })
@@ -74,8 +76,10 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
   test('uma caixa só continua respondendo uma candidata', async () => {
     const repository: PackageBoxRepositoryPort = {
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: () => Promise.resolve([buildBox({ id: 'unica' })]),
       measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
     }
 
     const result = await createListPackageBoxes({ repository }).execute({
@@ -89,8 +93,10 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
 
   test('nenhuma caixa devolve lista vazia, não erro', async () => {
     const repository: PackageBoxRepositoryPort = {
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: () => Promise.resolve([]),
       measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
     }
 
     const result = await createListPackageBoxes({ repository }).execute({
@@ -106,11 +112,13 @@ describe('a busca por código devolve todas as candidatas da empresa (spec em an
   test('o filtro chega ao repositório sem sobrar em nenhum outro lugar', async () => {
     let capturedFilters: PackageBoxFilters | undefined
     const repository: PackageBoxRepositoryPort = {
+      getSiblings: () => Promise.reject(new Error('not stubbed')),
       list: (input) => {
         capturedFilters = input.filters
         return Promise.resolve([])
       },
       measure: () => Promise.resolve(true),
+      replicate: () => Promise.reject(new Error('not stubbed')),
     }
 
     await createListPackageBoxes({ repository }).execute({
