@@ -109,6 +109,22 @@ describe('diálogo de replicar depois de salvar (spec 155 D5, D6, D11, G010, G01
     expect(dialog).toContain('packageBoxes.replicateDialog.dimensions')
   })
 
+  /**
+   * Re-revisão (B3): a origem só se conhece no clique — o rótulo do sabor de origem entra no
+   * cabeçalho para o conferente saber de qual sabor a medida está vindo, nunca só "esta medida".
+   */
+  it('o cabeçalho diz de qual sabor vem a medida (B3)', async () => {
+    const dialog = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxReplicateDialog.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(dialog).toContain('originVariantLabel')
+    expect(dialog).toContain('packageBoxes.replicateDialog.titleWithOrigin')
+  })
+
   it('cancelar fecha sem chamar onConfirm — nada é gravado (D5)', async () => {
     const dialog = await Bun.file(
       new URL(

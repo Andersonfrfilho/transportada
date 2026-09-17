@@ -480,6 +480,7 @@
     },
     "replicateDialog": {
       "title": "Replicate this measurement to the other variations?",
+      "titleWithOrigin": "Replicate {{originVariantLabel}}'s measurement to the other variations?",
       "dimensions": "This will save {{length}} × {{width}} × {{height}} cm, {{units}} unit(s) per box",
       "lowConfidence": "This family mixes different formats (e.g. vacuum-packed and sachet) — check each target before selecting it.",
       "noTargets": "No other variation is pending in this family right now.",

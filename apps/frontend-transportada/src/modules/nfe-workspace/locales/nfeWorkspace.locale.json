@@ -654,6 +654,7 @@
     },
     "replicateDialog": {
       "title": "Replicar esta medida para as outras variações?",
+      "titleWithOrigin": "Replicar a medida de {{originVariantLabel}} para as outras variações?",
       "dimensions": "Vai gravar {{length}} × {{width}} × {{height}} cm, {{units}} un. por caixa",
       "lowConfidence": "Esta família mistura formatos diferentes (ex.: vácuo e sachê) — confira cada alvo antes de marcar.",
       "noTargets": "Não há outra variação pendente nesta família agora.",

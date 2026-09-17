@@ -202,10 +202,14 @@ que peça confirmação para escrever mostra **descrição completa + `cProd`**,
 
 O botão rápido (D7) preenche **uma** caixa por vez — quem tem oito sabores da mesma caixa física
 digita "usar a medida de {rótulo}" oito vezes. Em qualquer linha da fila cuja família tenha **pelo
-menos um** membro medido e **pelo menos um** pendente, a tela mostra "Aplicar medida de {rótulo} a
-todos os sabores". O clique abre o **mesmo** diálogo de replicar da D5/D6 (`PackageBoxReplicateDialog`)
-com origem = o sabor medido e alvos = os sabores pendentes da família — nada grava sem confirmar (D5),
-e a família assimétrica (D11) abre desmarcada como sempre.
+menos um** membro medido e **pelo menos um** pendente, a tela mostra "Aplicar medida do sabor a
+todos os sabores" — rótulo genérico, porque a origem só se conhece **depois** do clique: é o clique
+que busca as irmãs e resolve qual delas empresta a medida (a regra de preferência abaixo). O clique
+abre o **mesmo** diálogo de replicar da D5/D6 (`PackageBoxReplicateDialog`) com origem = o sabor
+medido resolvido e alvos = os sabores pendentes da família — nada grava sem confirmar (D5), e a
+família assimétrica (D11) abre desmarcada como sempre. O cabeçalho do diálogo diz de qual sabor a
+medida está vindo (`originVariantLabel`), a mesma consulta de irmãs que resolveu a origem — sem isso,
+"replicar esta medida" não diz **qual** medida a quem não acompanhou o clique.
 
 Origem preferida: entre a própria caixa (se medida) e as irmãs medidas, a que tem
 `measurementSource` diferente de `replicated` — uma medida **conferida**, não copiada de outra vez.
@@ -241,10 +245,13 @@ sempre a conferida quando ela existir, pela regra acima.
   com a lista pré-marcada (D5).
 - **G011** — Família de formato assimétrico (D11) chega ao diálogo de replicar **sem** pré-marcação,
   com o motivo visível; a lista de alvos mostra descrição completa e `cProd` de cada caixa.
-- **G012** — Linha cuja família tem membro medido e membro pendente mostra "Aplicar medida de
-  {rótulo} a todos os sabores"; o clique abre o diálogo de replicar (D5/D6) com origem = irmã medida
-  preferindo `measurementSource` diferente de `replicated` (D12), alvos = pendentes da família; sem
-  origem resolvida, nada abre.
+- **G012** — Linha cuja família tem membro medido e membro pendente mostra "Aplicar medida do sabor
+  a todos os sabores" (rótulo genérico — a origem só se resolve no clique); o clique busca as irmãs
+  frescas (sem cache obsoleto) e abre o diálogo de replicar (D5/D6) com origem = irmã medida
+  preferindo `measurementSource` diferente de `replicated` (D12), alvos = pendentes da família; o
+  cabeçalho do diálogo mostra o rótulo do sabor de origem (`originVariantLabel`); sem origem
+  resolvida, nada abre — mensagem de "nenhuma medida conferida disponível"; se a busca falhar,
+  mensagem de erro, nunca o botão travado sem explicação.
 
 ## Critério de aceite
 

@@ -57,6 +57,12 @@ export function PackageBoxReplicateDialog({
   const { loading, siblings } = usePackageBoxSiblings({ boxId })
   const targets = siblings === null ? [] : resolveReplicateTargets(siblings.family)
   const isLowConfidenceFamily = siblings?.isLowConfidenceFamily ?? false
+  /**
+   * Re-revisão (B3): `boxId` é sempre a origem resolvida — a própria caixa medida (D5/D6) ou a
+   * irmã preferida por "aplicar a todos" (D12) — então `originVariantLabel` desta MESMA consulta
+   * já é o rótulo do sabor de origem, nunca o da caixa que abriu o fluxo.
+   */
+  const originVariantLabel = siblings?.originVariantLabel ?? ''
 
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const initializedForRef = useRef<string | undefined>(undefined)
@@ -93,7 +99,11 @@ export function PackageBoxReplicateDialog({
         role="dialog"
         tabIndex={-1}
       >
-        <h3 id="package-box-replicate-title">{t('packageBoxes.replicateDialog.title')}</h3>
+        <h3 id="package-box-replicate-title">
+          {originVariantLabel === ''
+            ? t('packageBoxes.replicateDialog.title')
+            : t('packageBoxes.replicateDialog.titleWithOrigin', { originVariantLabel })}
+        </h3>
         <p className={styles.hint}>
           {t('packageBoxes.replicateDialog.dimensions', {
             height: toCentimetres(dimensions.heightMm),
