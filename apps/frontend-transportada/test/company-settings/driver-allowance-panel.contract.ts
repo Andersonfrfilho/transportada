@@ -7,6 +7,11 @@ import {
   isDriverAllowanceResponse,
   isDriverAllowanceSettings,
 } from '../../src/modules/company-settings/shared/driverAllowance.validation'
+import {
+  buildDriverAllowanceSubmission,
+  startDriverAllowanceDraft,
+  typeDriverAllowanceAmount,
+} from '../../src/modules/company-settings/shared/driverAllowanceForm.service'
 
 import en from '../../src/modules/company-settings/locales/companySettings.en.locale.json'
 import pt from '../../src/modules/company-settings/locales/companySettings.locale.json'
@@ -17,8 +22,13 @@ import pt from '../../src/modules/company-settings/locales/companySettings.local
  * resposta `200` com o padrão do sistema, nunca `404`.
  */
 const API_POLICY = '../../../api-transportada/src/trips/domain/daily-allowance.policy.ts'
+const API_SCHEMA =
+  '../../../api-transportada/src/companies/presentation/driver-allowance-settings.schema.ts'
 const PANEL = '../../src/modules/company-settings/components/DriverAllowancePanel.component.tsx'
 const PAGE = '../../src/modules/company-settings/pages/CompanySettings.page.tsx'
+
+/** O que o operador realmente digita num campo de dinheiro, incluindo o passo intermediário. */
+const TYPED_ENTRIES = ['200,', '200.', 'R$ 200,00', '1,2,3', 'abc', '0', '200', '  ', '1.250,00']
 
 function apiRateOrigins(): readonly string[] {
   const source = readFileSync(new URL(API_POLICY, import.meta.url), 'utf8')
@@ -26,6 +36,15 @@ function apiRateOrigins(): readonly string[] {
   const body = line.slice(line.indexOf('{'), line.indexOf('}'))
 
   return [...body.matchAll(/(\w+):\s*'(\w+)'/g)].map((match) => match[2] ?? '')
+}
+
+/** Lê o `MONEY_DECIMAL` do próprio schema da API: o que o campo envia tem de passar lá. */
+function apiMoneyPattern(): RegExp {
+  const source = readFileSync(new URL(API_SCHEMA, import.meta.url), 'utf8')
+  const declaration = source.slice(source.indexOf('MONEY_DECIMAL = '))
+  const literal = declaration.slice(declaration.indexOf('/') + 1, declaration.indexOf('\n'))
+
+  return new RegExp(literal.slice(0, literal.lastIndexOf('/')))
 }
 
 describe('driver allowance panel (spec 143 D7)', () => {
@@ -64,21 +83,82 @@ describe('driver allowance panel (spec 143 D7)', () => {
     expect(isDriverAllowanceResponse({})).toBe(false)
   })
 
+  test('typing never throws, whatever the operator writes in the field', () => {
+    for (const entry of TYPED_ENTRIES) {
+      const typed = typeDriverAllowanceAmount(entry)
+      expect(() => buildDriverAllowanceSubmission(typed)).not.toThrow()
+    }
+  })
+
+  test('the mask writes the field, so the digits enter from the right and the group shows up', () => {
+    expect(typeDriverAllowanceAmount('2')).toBe('0,02')
+    expect(typeDriverAllowanceAmount('200')).toBe('2,00')
+    expect(typeDriverAllowanceAmount('20000')).toBe('200,00')
+    expect(typeDriverAllowanceAmount('R$ 200,00')).toBe('200,00')
+    expect(typeDriverAllowanceAmount('200,')).toBe('2,00')
+    expect(typeDriverAllowanceAmount('1,2,3')).toBe('1,23')
+    expect(typeDriverAllowanceAmount('125000000')).toBe('1.250.000,00')
+    expect(typeDriverAllowanceAmount('abc')).toBe('')
+  })
+
+  test('the mask is idempotent: retyping over its own output gives the same output', () => {
+    for (const entry of TYPED_ENTRIES) {
+      const once = typeDriverAllowanceAmount(entry)
+      expect(typeDriverAllowanceAmount(once)).toBe(once)
+    }
+  })
+
+  test('the submission is the API decimal, and it is null while the field is not a daily rate', () => {
+    expect(buildDriverAllowanceSubmission(typeDriverAllowanceAmount('20000'))).toBe('200.0000')
+    expect(buildDriverAllowanceSubmission(typeDriverAllowanceAmount('125000'))).toBe('1250.0000')
+    expect(buildDriverAllowanceSubmission('')).toBe(null)
+    expect(buildDriverAllowanceSubmission('0,00')).toBe(null)
+    expect(buildDriverAllowanceSubmission('200,')).toBe(null)
+    expect(buildDriverAllowanceSubmission('abc')).toBe(null)
+  })
+
+  test('what the field submits passes the API money pattern, zero included', () => {
+    const pattern = apiMoneyPattern()
+
+    for (const entry of [...TYPED_ENTRIES, '125000', '999999999999999']) {
+      const submission = buildDriverAllowanceSubmission(typeDriverAllowanceAmount(entry))
+      if (submission === null) continue
+      expect(pattern.test(submission)).toBe(true)
+      expect(Number.parseFloat(submission)).toBeGreaterThan(0)
+    }
+  })
+
+  test('the stored amount opens the field already masked, and the draft round-trips', () => {
+    expect(startDriverAllowanceDraft(undefined)).toBe('')
+    expect(
+      startDriverAllowanceDraft({ amount: '200.0000', rateOrigin: 'default', updatedAt: null }),
+    ).toBe('200,00')
+    const stored = startDriverAllowanceDraft({
+      amount: '1250.0000',
+      rateOrigin: 'company',
+      updatedAt: '2026-09-10T12:00:00.000Z',
+    })
+    expect(stored).toBe('1.250,00')
+    expect(buildDriverAllowanceSubmission(stored)).toBe('1250.0000')
+  })
+
   test('the panel is built from the design system', () => {
     const panel = readFileSync(new URL(PANEL, import.meta.url), 'utf8')
 
     expect(panel).toContain("from '@/components/ui/skeleton'")
-    expect(panel).toContain("from '@/modules/shared/decimalAmount.service'")
+    expect(panel).toContain("from '../shared/driverAllowanceForm.service'")
     expect(panel).not.toContain('<select')
     expect(panel).not.toContain(' title=')
   })
 
-  test('the panel converts the typed amount through the shared decimal helpers, never by hand', () => {
+  test('the panel never parses the typed amount inside the handler, it goes through the service', () => {
     const panel = readFileSync(new URL(PANEL, import.meta.url), 'utf8')
 
-    expect(panel).toContain('parseTypedAmount(')
-    expect(panel).toContain('toTypedAmount(')
+    expect(panel).toContain('typeDriverAllowanceAmount(')
+    expect(panel).toContain('buildDriverAllowanceSubmission(')
+    expect(panel).not.toContain('parseTypedAmount(')
     expect(panel).not.toContain("replace(',', '.')")
+    expect(panel).toContain('submission === null')
   })
 
   test('the page hosts the panel on its own tab, and only there loads it', () => {

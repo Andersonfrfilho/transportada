@@ -4,14 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import {
-  AMOUNT_DISPLAY_SCALE,
-  AMOUNT_MAX_SCALE,
-  parseTypedAmount,
-  toTypedAmount,
-} from '@/modules/shared/decimalAmount.service'
-
 import type { DriverAllowanceSettings } from '../shared/driverAllowance.validation'
+import {
+  buildDriverAllowanceSubmission,
+  startDriverAllowanceDraft,
+  typeDriverAllowanceAmount,
+} from '../shared/driverAllowanceForm.service'
 import styles from '../styles/companySettings.module.css'
 
 export type DriverAllowancePanelProps = Readonly<{
@@ -36,17 +34,12 @@ function DriverAllowanceSkeleton() {
 /** Rascunho local: um campo só, então não precisa da máquina de estados do painel de tributos. */
 function DriverAllowanceForm(props: DriverAllowancePanelProps) {
   const { t } = useTranslation('companySettings')
-  const [amount, setAmount] = useState(() =>
-    props.stored === undefined
-      ? ''
-      : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: props.stored.amount }),
-  )
-  const trimmed = amount.trim()
-  const canSave = trimmed !== ''
+  const [amount, setAmount] = useState(() => startDriverAllowanceDraft(props.stored))
+  const submission = buildDriverAllowanceSubmission(amount)
 
   function handleSave() {
-    if (!canSave) return
-    props.onSave(parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: trimmed }))
+    if (submission === null) return
+    props.onSave(submission)
   }
 
   return (
@@ -56,10 +49,10 @@ function DriverAllowanceForm(props: DriverAllowancePanelProps) {
         <input
           disabled={props.disabled}
           id="driver-allowance-amount"
-          inputMode="decimal"
+          inputMode="numeric"
           maxLength={12}
           value={amount}
-          onChange={(event) => setAmount(event.target.value)}
+          onChange={(event) => setAmount(typeDriverAllowanceAmount(event.target.value))}
         />
       </label>
       {props.stored === undefined ? null : (
@@ -68,7 +61,7 @@ function DriverAllowanceForm(props: DriverAllowancePanelProps) {
         </span>
       )}
       <div className={styles.federalTaxActions}>
-        <button disabled={props.disabled || !canSave} type="button" onClick={handleSave}>
+        <button disabled={props.disabled || submission === null} type="button" onClick={handleSave}>
           <Icon name="save" />
           {t('driverAllowance.save')}
         </button>

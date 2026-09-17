@@ -2132,16 +2132,79 @@ worktree é anterior ao bump que a staging trouxe — `@adatechnology/keycloak-a
 
 ### Gates depois do rebase
 
-| Gate               | Comando                                                                           | Resultado                                                              |
-| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Typecheck          | `bun run typecheck` (raiz, 6 apps)                                                | ✅ limpo                                                                 |
-| Testes da API      | `cd apps/api-transportada && bun test`                                            | ✅ **6235 pass · 23 skip · 0 fail** · 21797 expect() · 177 arquivos      |
-| Testes do frontend | `bun run --cwd apps/frontend-transportada test`                                   | ✅ **4131 pass · 0 fail** · 35999 expect() · 29 arquivos                 |
-| Lint               | `bun run lint`                                                                    | ✅ limpo — 6 apps                                                        |
-| Formatação         | `bun run format:check`                                                            | ✅ limpo                                                                 |
-| Migration          | `make migration-test`                                                             | ✅ **97 pass · 0 fail** contra Postgres real, na ordem nova              |
-| Integração         | `cd apps/api-transportada && bun --env-file=../../.env.test run test:integration` | ⚠️ **370 pass · 4 skip · 2 fail** — os 2 de MinIO, pré-existentes       |
+| Gate               | Comando                                                                           | Resultado                                                           |
+| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                                                | ✅ limpo                                                            |
+| Testes da API      | `cd apps/api-transportada && bun test`                                            | ✅ **6235 pass · 23 skip · 0 fail** · 21797 expect() · 177 arquivos |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`                                   | ✅ **4131 pass · 0 fail** · 35999 expect() · 29 arquivos            |
+| Lint               | `bun run lint`                                                                    | ✅ limpo — 6 apps                                                   |
+| Formatação         | `bun run format:check`                                                            | ✅ limpo                                                            |
+| Migration          | `make migration-test`                                                             | ✅ **97 pass · 0 fail** contra Postgres real, na ordem nova         |
+| Integração         | `cd apps/api-transportada && bun --env-file=../../.env.test run test:integration` | ⚠️ **370 pass · 4 skip · 2 fail** — os 2 de MinIO, pré-existentes   |
 
 As duas falhas de integração seguem sendo `cte-archive-gateway`: `ObjectStorageError: Object storage
 is unavailable`, mesmo depois de `make up`. Provadas pré-existentes em worktree descartável sobre
 `origin/staging`, sem código da 143.
+
+## Revisão final (`code-reviewer`, `opus`) — achado 1: correção
+
+A revisão em `opus` rodou depois do push para a staging e devolveu **um bloqueante**, confirmado por
+leitura direta do fonte antes de qualquer correção.
+
+### O defeito
+
+`DriverAllowancePanel.component.tsx` escrevia o campo cru (`setAmount(event.target.value)`) e o
+único guarda antes do envio era `trimmed !== ''`. O `parseTypedAmount` **lança** `INVALID_AMOUNT`
+para tudo que não case `/^(?:\d+|\d*\.\d+)$/` depois de normalizado, e ele era chamado dentro do
+handler do React. Então `200,` — passo normal de quem digita —, `200.`, `R$ 200,00`, `1,2,3` e
+`abc` derrubavam a página inteira de Configurações, não o campo. Estava vivo na staging.
+
+### A correção, no molde que já existia
+
+Lógica de campo desta app não mora no componente: `useFederalTaxForm.hook.ts:18-21` diz por que —
+o teste do frontend não tem DOM, então a transição é função pura num `*.service.ts` e é lá que o
+contrato a prova. O novo `shared/driverAllowanceForm.service.ts` segue isso:
+
+| Função                           | Papel                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `startDriverAllowanceDraft`      | o gravado abre o campo já mascarado (`'1250.0000'` → `'1.250,00'`)                                        |
+| `typeDriverAllowanceAmount`      | `maskTypedAmount` é a **única** escrita do campo — dígitos pela direita, milhar na digitação, idempotente |
+| `buildDriverAllowanceSubmission` | parse tolerante (`try`/`catch` → `null`) + `NON_ZERO_DIGIT`                                               |
+
+O painel passou a derivar `submission` do rascunho; o botão desabilita em `submission === null` e o
+`handleSave` só envia o que já é decimal da API. O `inputMode` virou `numeric`, como o
+`FleetMoneyField`, porque a máscara descarta qualquer caractere que não seja dígito.
+
+Isso fecha junto o **achado 2** da revisão (zero virando 400 opaco): `0` não forma submissão, então
+o botão nem habilita — antes o `CHECK ("amount" > 0)` do banco só reclamava depois da viagem de ida
+e volta.
+
+### O contrato, reescrito para exercer a entrada real
+
+`test/company-settings/driver-allowance-panel.contract.ts` deixou de afirmar `toContain('parseTypedAmount(')`
+— texto de fonte não prova comportamento de campo. Agora ele digita `200,`, `200.`, `R$ 200,00`,
+`1,2,3`, `abc`, `0`, `  ` e `1.250,00`, e afirma que:
+
+- nenhuma entrada faz o envio lançar;
+- a máscara é idempotente (reaplicar sobre a própria saída devolve a saída);
+- o que o campo envia **passa no `MONEY_DECIMAL` lido do fonte do schema da API** e é `> 0`;
+- o painel não chama `parseTypedAmount` dentro do handler.
+
+### Gates
+
+| Gate                  | Comando                                           | Resultado                                                |
+| --------------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| Contrato novo (antes) | `bun test test/company-settings.contract.test.ts` | ✅ falhou por módulo inexistente — TDD                   |
+| Typecheck             | `bun run typecheck` (raiz, 6 apps)                | ✅ limpo                                                 |
+| Testes do frontend    | `bun run --cwd apps/frontend-transportada test`   | ✅ **4137 pass · 0 fail** · 36053 expect() · 29 arquivos |
+| Testes da API         | `bun run --cwd apps/api-transportada test`        | ✅ **6235 pass · 23 skip · 0 fail**                      |
+| Lint                  | `bun run lint`                                    | ✅ limpo                                                 |
+| Formatação            | `bun run format:check`                            | ✅ limpo                                                 |
+
+Nenhum arquivo novo entrou em `scripts.test`: a suíte já existia e o serviço novo entra por `import`
+dentro dela.
+
+### O que a revisão deixou em aberto (não é desta correção)
+
+Achados 3 a 7 e 9/10 seguem abertos e estão listados na resposta ao usuário — nenhum deles derruba
+tela, e mexer neles sem decisão de escopo seria ampliar a spec por conta própria.
