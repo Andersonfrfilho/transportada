@@ -155,4 +155,26 @@ describe('diálogo de replicar depois de salvar (spec 155 D5, D6, D11, G010, G01
       'onReplicate({ boxId: replicateDialog.boxId, targetIds }, closeReplicateDialog)',
     )
   })
+
+  /** Re-revisão (B1): oferta nova nunca substitui diálogo aberto nem entra por cima de gravação. */
+  it('não abre nova oferta com o diálogo já aberto ou a réplica gravando (B1)', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    const openIfEligible = panel.slice(
+      panel.indexOf('function openReplicateDialogIfEligible'),
+      panel.indexOf('function closeReplicateDialog'),
+    )
+    const openFromFamilyApply = panel.slice(
+      panel.indexOf('function openReplicateDialogFromFamilyApply'),
+      panel.indexOf('useEffect(() => {\n    return () => window.clearTimeout'),
+    )
+
+    expect(openIfEligible).toContain('shouldOpenReplicateDialog')
+    expect(openFromFamilyApply).toContain('shouldOpenReplicateDialog')
+  })
 })

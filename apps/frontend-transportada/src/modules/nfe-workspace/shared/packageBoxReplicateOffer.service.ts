@@ -36,3 +36,15 @@ export function resolveReplicateOffer(
   if (otherPendingCount < 1) return undefined
   return { boxId: input.box.id, dimensions: input.dimensions }
 }
+
+/**
+ * Re-revisão (B1, spec 155 T3.5): uma oferta nova (do `onSuccess` de medir, ou de "aplicar a
+ * todos") nunca substitui um diálogo já aberto nem entra por cima de uma réplica em gravação — a
+ * troca de `boxId`/`dimensions` embaixo do conferente no meio da conferência é o próprio risco que
+ * o diálogo existe para evitar (D5).
+ */
+export function shouldOpenReplicateDialog(
+  input: Readonly<{ replicateDialogOpen: boolean; replicateSaving: boolean }>,
+): boolean {
+  return !input.replicateDialogOpen && !input.replicateSaving
+}

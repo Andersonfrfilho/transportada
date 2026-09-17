@@ -31,6 +31,7 @@ import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
 import {
   resolveReplicateOffer,
+  shouldOpenReplicateDialog,
   type ReplicateOffer,
 } from '../shared/packageBoxReplicateOffer.service'
 import styles from '../styles/packageBoxes.module.css'
@@ -208,6 +209,13 @@ export function PackageBoxMeasurementPanel({
   ): void {
     const offer = resolveReplicateOffer({ box, dimensions })
     if (offer === undefined) return
+    if (
+      !shouldOpenReplicateDialog({
+        replicateDialogOpen: replicateDialog !== undefined,
+        replicateSaving,
+      })
+    )
+      return
     onResetReplicate()
     setReplicateDialog(offer)
   }
@@ -223,6 +231,13 @@ export function PackageBoxMeasurementPanel({
    * caixa da linha clicada.
    */
   function openReplicateDialogFromFamilyApply(offer: ReplicateOffer): void {
+    if (
+      !shouldOpenReplicateDialog({
+        replicateDialogOpen: replicateDialog !== undefined,
+        replicateSaving,
+      })
+    )
+      return
     onResetReplicate()
     setReplicateDialog(offer)
   }

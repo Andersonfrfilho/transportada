@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import { resolveReplicateOffer } from '@/modules/nfe-workspace/shared/packageBoxReplicateOffer.service'
+import {
+  resolveReplicateOffer,
+  shouldOpenReplicateDialog,
+} from '@/modules/nfe-workspace/shared/packageBoxReplicateOffer.service'
 
 const DIMENSIONS = { heightMm: 150, lengthMm: 300, unitsPerBox: 1, widthMm: 200 }
 
@@ -50,5 +53,35 @@ describe('oferta de replicar depois de salvar uma medida (D9, G010)', () => {
     })
 
     expect(offer).toBeUndefined()
+  })
+})
+
+/**
+ * Re-revisão (B1): uma oferta nova nunca substitui um diálogo já aberto nem entra por cima de uma
+ * réplica em gravação.
+ */
+describe('abrir o diálogo de replicar por cima de outro (B1)', () => {
+  it('abre quando não há diálogo aberto nem réplica gravando', () => {
+    expect(shouldOpenReplicateDialog({ replicateDialogOpen: false, replicateSaving: false })).toBe(
+      true,
+    )
+  })
+
+  it('não abre com o diálogo já aberto', () => {
+    expect(shouldOpenReplicateDialog({ replicateDialogOpen: true, replicateSaving: false })).toBe(
+      false,
+    )
+  })
+
+  it('não abre com uma réplica gravando', () => {
+    expect(shouldOpenReplicateDialog({ replicateDialogOpen: false, replicateSaving: true })).toBe(
+      false,
+    )
+  })
+
+  it('não abre com os dois ao mesmo tempo', () => {
+    expect(shouldOpenReplicateDialog({ replicateDialogOpen: true, replicateSaving: true })).toBe(
+      false,
+    )
   })
 })
