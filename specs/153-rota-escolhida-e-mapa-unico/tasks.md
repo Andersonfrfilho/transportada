@@ -123,3 +123,8 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       `test/trip/route-choice-detail.contract.ts` e `test/trip/route-geometry-money-optional.contract.ts`.
 - [ ] T709b **L3–L5** (API, sessão separada) `signature` com formato no schema, redação por lista de
       permissão, praça da rota congelada com `isNoToll`/`legIndex` reais.
+
+- [ ] T710 **Ponta solta da T707** `isAbsentOrTripAmounts` exige as três chaves (`hasExactKeys` sobre
+      `TRIP_AMOUNTS_KEYS`): a listagem redigida reprova e a tela quebra, como no C1. Tornar
+      `documentsTotal` e `revenueTotal` opcionais em `tripResponse.validation.ts`, `trip.types.ts` e
+      `trip.constant.ts`, com a linha sumindo na tela.
