@@ -978,3 +978,114 @@ Commits:
 
 Desvio: nenhum. Documentação (`docs/ai-context/*.md`) atualizada num commit próprio, ao final desta
 seção.
+
+## Re-revisão — correções
+
+Ressalvas da re-revisão da T3.5 (D12/G012): M1, M2 e B1 tratados como vermelho→verde (teste
+existente ajustado ou teste novo antes da correção); B3, B4, B5 idem; B2 registrado como limitação
+conhecida, sem correção — decisão do usuário.
+
+**M1 + M2 — `PackageBoxFamilyApplyButton` busca no clique, não mais por efeito.** O `useEffect` que
+resolvia a origem tinha dois defeitos: (M1) com `retry: false` (`main.tsx:54`), uma busca de irmãs
+que falhasse nunca devolvia `loading=false` de novo — `requested` ficava ligado para sempre e o
+botão travava sem mensagem nenhuma; (M2) o React Query pode responder com dado `stale` e
+`isLoading=false` enquanto refaz em segundo plano — o efeito abria o diálogo de replicar com a
+medida **antiga** da origem, exatamente quando a API já tinha a atual gravada.
+
+Vermelho: o contrato de fonte existente (`package-box-family-apply.contract.ts`) exigia
+`usePackageBoxSiblings({ boxId: requested ? box.id : null })` no botão — a reprovação confirmou o
+padrão a substituir antes de qualquer edição.
+
+Correção: `usePackageBoxQueue.hook.ts` ganhou `packageBoxSiblingsQuery` (chave/função únicas) e
+`usePackageBoxSiblingsFetcher`, que expõe `queryClient.fetchQuery({ ...query, staleTime: 0 })` — a
+mesma chave/função de `usePackageBoxSiblings`, nunca uma segunda definição que pudesse divergir.
+`PackageBoxFamilyApplyButton` chama isso direto no `onClick`, com `try/catch/finally`: sucesso →
+`resolveFamilyReplicationSource` → abre o diálogo; sem origem → dica `applyUnresolved`; erro →
+`applyFailed` com o código (`packageBoxErrorCode` ou `PACKAGE_BOX_FAMILY_APPLY_FAILED_CODE`); em
+todo caminho o `finally` solta o estado de busca. `PackageBoxReplicateDialog` já recebe as
+dimensões da origem por prop (vindas deste fetch fresco) — não relê o cache para o cabeçalho, então
+nada mais a ajustar ali para o M2.
+
+```
+bun run --cwd apps/frontend-transportada test    4198 pass · 0 fail (+1 desta correção)
+bun run typecheck                                exit 0
+bun run --cwd apps/frontend-transportada lint    sem erros
+```
+
+**B1 — oferta de replicar não substitui diálogo aberto nem gravação em curso.** Extraída função
+pura `shouldOpenReplicateDialog({ replicateDialogOpen, replicateSaving })` em
+`packageBoxReplicateOffer.service.ts`, usada por `openReplicateDialogIfEligible` e
+`openReplicateDialogFromFamilyApply` (`PackageBoxMeasurementPanel`) antes de chamar
+`onResetReplicate`/`setReplicateDialog`. Vermelho: `bun test -t shouldOpenReplicateDialog` não
+achava teste nenhum (função não existia) — quatro casos novos em
+`package-box-replicate-offer.contract.ts` cobrem as combinações de `replicateDialogOpen`/
+`replicateSaving`, mais um contrato de fonte confirmando o uso nas duas funções do painel.
+
+```
+bun run --cwd apps/frontend-transportada test    4203 pass · 0 fail (+5 desta correção)
+```
+
+**B3 — o cabeçalho do diálogo diz de qual sabor vem a medida.** `boxId` do `PackageBoxReplicateDialog`
+é sempre a origem resolvida (a própria caixa medida em D5/D6, ou a irmã preferida em D12) — a mesma
+consulta de irmãs que o diálogo já fazia devolve `originVariantLabel` **da origem**, nunca da caixa
+que abriu o fluxo. Só faltava mostrá-lo: título vira
+`packageBoxes.replicateDialog.titleWithOrigin` quando `originVariantLabel` não é vazio, mantendo o
+genérico `title` enquanto a consulta carrega. `spec.md` (D12, G012) corrigido para o rótulo
+entregue — "Aplicar medida do sabor a todos os sabores", genérico, porque a origem só se conhece
+depois do clique.
+
+```
+bun run --cwd apps/frontend-transportada test    4204 pass · 0 fail (+1 desta correção)
+```
+
+**B4 — acessibilidade do botão.** `aria-label` com a descrição/`productCode` da linha (os rótulos
+"aplicar a todos" se repetem em toda a fila — sem a linha, quem usa leitor de tela não distingue
+uma da outra), `aria-busy` enquanto busca, `role="status"` na dica de origem não resolvida e na
+mensagem de erro.
+
+```
+bun run --cwd apps/frontend-transportada test    4205 pass · 0 fail (+1 desta correção)
+```
+
+**B5 — `CAMERA_PARTICIPATION_SOURCES` tipada e derivada, sem literais soltos.** Movida de
+`cameraMeasurementExport.service.ts` para `packageBoxMeasurement.constant.ts`, tipada
+`ReadonlySet<PackageBoxMeasurementSource>` e derivada de `PACKAGE_BOX_MEASURED_SOURCES`
+(`packageBoxClient.service.ts`) por filtro — exclui `'typed'` em vez de redeclarar
+`'camera'`/`'camera_adjusted'` (§16 code-standards).
+
+```
+bun run --cwd apps/frontend-transportada test    4207 pass · 0 fail (+2 desta correção)
+```
+
+**B2 — não corrigido, limitação conhecida (decisão do usuário).** Confirmado em
+`NfeWorkspace.page.tsx:721`: `packageBoxes.measure.mutate(measurement, { onSuccess })` chama a
+**mesma** instância de `useMutation` (`usePackageBoxQueue.hook.ts`) para toda linha da fila. No
+TanStack Query v5, os callbacks passados por chamada a `mutate()` são amarrados ao observer da
+mutação, não à chamada individual — gravar uma segunda caixa antes da primeira resolver substitui o
+callback pendente, e o `onSuccess` da primeira (que abriria a oferta de replicar dela) nunca
+dispara. Efeito: perda **silenciosa** da oferta de replicar da primeira caixa — nunca abre o
+diálogo errado, porque `resolveReplicateOffer`/`resolveFamilyReplicationSource` sempre recebem a
+caixa e as dimensões da chamada que efetivamente correu. Corrigir exigiria uma mutação por
+`boxId` (ou uma fila de ofertas pendentes fora do `useMutation`) — fora do escopo desta
+re-revisão.
+
+**Gates finais desta re-revisão:**
+
+```
+bun run --cwd apps/frontend-transportada test    4207 pass · 0 fail
+bun run --cwd apps/frontend-transportada lint    sem erros
+bun run typecheck                                exit 0
+bun run format:check                             sem erros
+make check                                       exit 0 (format:check + lint + typecheck + test + build, todas as apps, 0 fail)
+```
+
+Commits:
+
+- `04b90cce` — fix(nfe-workspace): aplicar a todos busca fresca no clique, sem travar em falha (M1/M2)
+- `68623fde` — fix(nfe-workspace): oferta de replicar não substitui diálogo aberto nem gravação (B1)
+- `93906b7c` — fix(nfe-workspace): cabeçalho do diálogo de replicar diz de qual sabor vem a medida (B3)
+- `910d85a7` — fix(nfe-workspace): acessibilidade do botão aplicar a todos os sabores (B4)
+- `246d8b60` — refactor(nfe-workspace): CAMERA_PARTICIPATION_SOURCES deriva de PACKAGE_BOX_MEASURED_SOURCES (B5)
+
+Desvio: nenhum, além de B2 (limitação conhecida registrada acima, decisão do usuário de não
+corrigir nesta rodada).
