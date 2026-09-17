@@ -465,8 +465,15 @@ export const nfeVolumes = pgTable(
  * `camera_adjusted` so existem com a funcao ligada na empresa (`company_cargo_settings`).
  * `camera_adjusted` e `camera` que o conferente editou a mao antes de gravar — a origem some, a
  * edicao fica registrada.
+ * `replicated` (spec 155, D6) e medida copiada de outra variacao do mesmo produto: nao foi
+ * conferida nesta caixa, e o cadastro precisa saber a diferenca.
  */
-export const PACKAGE_BOX_MEASUREMENT_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
+  'typed',
+  'camera',
+  'camera_adjusted',
+  'replicated',
+] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 
 /**
@@ -565,7 +572,7 @@ export const nfePackageBoxes = pgTable(
     ),
     check(
       'nfe_package_boxes_measurement_source_check',
-      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted')`,
+      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
     ),
     check(
       'nfe_package_boxes_measurement_margin_check',
@@ -576,10 +583,10 @@ export const nfePackageBoxes = pgTable(
       'nfe_package_boxes_measurement_source_pairing_check',
       sql`${table.measurementSource} is null or ${table.lengthMm} is not null`,
     ),
-    /** `typed` não carrega margem — margem é só do que a câmera propôs. */
+    /** `typed` e `replicated` não carregam margem — margem é só do que a câmera propôs. */
     check(
       'nfe_package_boxes_measurement_margin_pairing_check',
-      sql`${table.measurementSource} <> 'typed' or ${table.measurementMarginMm} is null`,
+      sql`${table.measurementSource} not in ('typed', 'replicated') or ${table.measurementMarginMm} is null`,
     ),
     index('nfe_package_boxes_company_pending_idx')
       .on(table.companyId)
@@ -647,6 +654,8 @@ export const nfePackageBoxMeasurements = pgTable(
     proposedWidthMm: integer('proposed_width_mm'),
     proposedHeightMm: integer('proposed_height_mm'),
     measuredByUserId: uuid('measured_by_user_id').notNull(),
+    /** Spec 155 (D6): a caixa de onde a medida foi copiada. Só existe com `source = replicated`. */
+    replicatedFromBoxId: uuid('replicated_from_box_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -657,9 +666,22 @@ export const nfePackageBoxMeasurements = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /** Composta pelo mesmo motivo da FK acima: a origem da réplica nunca é caixa de outra empresa. */
+    foreignKey({
+      columns: [table.companyId, table.replicatedFromBoxId],
+      foreignColumns: [nfePackageBoxes.companyId, nfePackageBoxes.id],
+      name: 'nfe_package_box_measurements_company_replicated_from_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     check(
       'nfe_package_box_measurements_source_check',
-      sql`${table.source} in ('typed', 'camera', 'camera_adjusted')`,
+      sql`${table.source} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
+    ),
+    /** Réplica sem origem não é auditável, e origem em medida que não é réplica não descreve nada. */
+    check(
+      'nfe_package_box_measurements_replicated_from_check',
+      sql`(${table.source} = 'replicated') = (${table.replicatedFromBoxId} is not null)`,
     ),
     check(
       'nfe_package_box_measurements_dimensions_check',
@@ -669,15 +691,15 @@ export const nfePackageBoxMeasurements = pgTable(
       'nfe_package_box_measurements_margin_range_check',
       sql`(${table.lengthMarginMm} is null or (${table.lengthMarginMm} >= 0 and ${table.lengthMarginMm} <= 3000)) and (${table.widthMarginMm} is null or (${table.widthMarginMm} >= 0 and ${table.widthMarginMm} <= 3000)) and (${table.heightMarginMm} is null or (${table.heightMarginMm} >= 0 and ${table.heightMarginMm} <= 3000))`,
     ),
-    /** `typed` não tem margem, proposta nem motor — esses só existem quando a câmera participou. */
+    /** `typed` e `replicated` não têm margem, proposta nem motor — só existem quando a câmera participou. */
     check(
       'nfe_package_box_measurements_typed_pairing_check',
-      sql`${table.source} <> 'typed' or (${table.lengthMarginMm} is null and ${table.widthMarginMm} is null and ${table.heightMarginMm} is null and ${table.proposedLengthMm} is null and ${table.proposedWidthMm} is null and ${table.proposedHeightMm} is null and ${table.engine} is null)`,
+      sql`${table.source} not in ('typed', 'replicated') or (${table.lengthMarginMm} is null and ${table.widthMarginMm} is null and ${table.heightMarginMm} is null and ${table.proposedLengthMm} is null and ${table.proposedWidthMm} is null and ${table.proposedHeightMm} is null and ${table.engine} is null)`,
     ),
     /** `camera`/`camera_adjusted` sempre sabem qual motor mediu — nunca proposta sem autor. */
     check(
       'nfe_package_box_measurements_camera_engine_check',
-      sql`${table.source} = 'typed' or ${table.engine} is not null`,
+      sql`${table.source} in ('typed', 'replicated') or ${table.engine} is not null`,
     ),
     check(
       'nfe_package_box_measurements_warnings_domain_check',

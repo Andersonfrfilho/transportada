@@ -219,7 +219,40 @@ normalização é defesa contra digitação futura, não remendo de dado existen
 
 ## T2.1 — Schema e migration de `replicated`
 
-_(pendente)_
+Vermelho primeiro (`test/nfe-package-box/measurement-source.contract.ts`, bloco da spec 155):
+`SCHEMA_SOURCES` sem `replicated` e `ENOENT` na migration e no rollback — **34 pass · 3 fail**. O
+quarto teste (corpo de medir recusa `replicated`) nasceu verde e fica como trava: a implementação
+precisava **não** quebrá-lo.
+
+O que mudou:
+
+- `replicated` em `PACKAGE_BOX_MEASUREMENT_SOURCES` (schema e cópia do domínio, paridade mantida).
+- ⚠️ O corpo de medir passou a usar `PACKAGE_BOX_MEASURED_SOURCES` (sem `replicated`). Sem isso, a
+  paridade arrastava `replicated` para o `z.enum` da rota de medir, e qualquer cliente declarava
+  medida replicada sem origem.
+- Checks alargados nas duas tabelas; `typed_pairing`, `camera_engine` e `margin_pairing` tratam
+  `replicated` como `typed` (sem margem, proposta nem motor).
+- `replicated_from_box_id` com FK composta `(company_id, replicated_from_box_id)` e o check
+  `(source = 'replicated') = (replicated_from_box_id is not null)` — mais estrito que o plano
+  (réplica **sem** origem também é recusada).
+- O worker **não** foi tocado: a cópia dele de `nfe.schema.ts` nunca recebeu as colunas da spec 152.
+
+As linhas já gravadas passam em todos os checks novos por construção: nenhuma tem `replicated`, e a
+coluna nova nasce nula. Migration `20260917153054_package_box_replicated_source` gerada pelo
+drizzle-kit (com `snapshot.json`); rollback recusa com qualquer linha `replicated`.
+
+Gates:
+
+```
+bun run typecheck                                  exit 0
+bun test measurement-source + static-migration + schema-snapshot   77 pass · 0 fail
+bun run --cwd apps/api-transportada db:check       Everything's fine
+bun run --cwd apps/api-transportada test           6302 pass · 23 skip · 0 fail (177 arquivos)
+db:test contra o Postgres do .env.test (migration + rollback descartáveis)   97 pass · 0 fail · 0 skip
+```
+
+⚠️ Pendente para a T3.1: o guard `isNullableMeasurementSource` do frontend recusa `replicated` — a
+primeira réplica gravada quebraria a leitura da fila se a tela não for atualizada antes de publicar.
 
 ## T2.2 — Contadores de família na listagem
 

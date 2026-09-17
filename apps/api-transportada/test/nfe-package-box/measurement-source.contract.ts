@@ -499,7 +499,7 @@ describe('createMeasurePackageBox recusa câmera com a função desligada (spec 
  * medir deixaria qualquer cliente declarar medida replicada sem origem nenhuma.
  */
 describe('a origem replicated (spec 155, T2.1)', () => {
-  const MIGRATION_DIRECTORY = '20260917153000_package_box_replicated_source'
+  const MIGRATION_DIRECTORY = '20260917153054_package_box_replicated_source'
 
   async function readMigration(file: string): Promise<string> {
     return Bun.file(new URL(`../../drizzle/${MIGRATION_DIRECTORY}/${file}`, import.meta.url)).text()
