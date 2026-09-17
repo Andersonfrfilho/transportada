@@ -1859,3 +1859,135 @@ nunca por corpo estrito — a única asserção de `postDataJSON()` no arquivo �
 `/trips/:id/mdfe-requirement`, alheia a este campo. Um campo novo e opcional no corpo da requisição
 não quebra um mock que não lê aquele corpo. Nenhum arquivo de smoke foi alterado. Isso é leitura, não
 execução.
+
+## T14 — ADR-0066, contexto da IA e gate (fechamento)
+
+**Data:** 2026-09-17 · **Branch:** `work/spec-143-diaria` · **Worktree:** `../transportada-wt/spec-143-diaria`
+
+### ADR — número corrigido de 0063 para 0066
+
+O `tasks.md` (T14) pedia ADR-0063. Conferido antes de escrever, dos dois lados: `ls docs/adr/ | tail`
+no worktree e `git ls-tree origin/staging docs/adr/ | tail` — `docs/adr/` já tem dois `0058`, dois
+`0062` e três `0063` (`a-planta-do-baú-é-calculada-no-worker`, `a-resposta-por-e-mail-decide-a-taxa`,
+`o-telefone-vira-credencial-so-verificado`), e o maior arquivo é
+`0065-a-caixa-se-mede-com-cartao-e-nunca-grava-sozinha.md`. `origin/staging` não trouxe ADR nova nos
+commits à frente. **A ADR entrou como 0066**, não como o `tasks.md` nomeava — desvio deliberado,
+registrado aqui.
+
+`docs/adr/0066-a-diaria-paga-o-motorista-e-a-zona-fica-de-arquivo.md` registra a decisão do usuário:
+`trip-driver-zone.policy.ts` (264 linhas) e `trip-driver-tie.policy.ts` continuam versionados, sem
+consumidor de produção, com `driver-zone.contract.ts` / `driver-route-vote.contract.ts` /
+`driver-route-tie.contract.ts` provando que ambos continuam funcionando. Cobre também o vocabulário
+de lacuna: seis códigos (`SALARIED_CREW_MEMBER`, `NO_DRIVER_RATE`, `CITY_WITHOUT_REGION`,
+`DRIVER_RATE_MISSING_FOR_CLASS`, `DRIVER_ZONE_PRICED_FROM_TABLE`, `DRIVER_ROUTE_TIE_HIGHEST_RATE`)
+deixam de ser produzidos mas continuam no vocabulário e nos quatro locales — resultado congelado
+antes da 143 os carrega, e apagar o dicionário faria viagem antiga imprimir a chave crua. Registra
+também os dois órfãos **anteriores** à 143 (`DRIVER_ZONE_NOT_COVERED`, `DRIVER_ROUTE_AMBIGUOUS`),
+para não parecerem estrago desta spec.
+
+### Contexto de IA — `apps/api-transportada/CLAUDE.md` e `apps/frontend-transportada/CLAUDE.md`
+
+Ambos ganharam um parágrafo cada (não a narrativa longa, que fica em `docs/ai-context/`):
+
+- **API:** o custo do motorista é `diária × dias`; a diária resolve em cascata
+  motorista → empresa → padrão; `days` vem de `trips.daily_allowance_days` ou de
+  `suggestAllowanceDays`, mínimo **1**, nunca zero; a API nunca compõe frase de exibição (`detail`
+  sempre `null`, exceto a `note` do congelamento); `GET /trips/:id/costs` é `trip.financials`,
+  assimétrico do `POST` da mesma rota (`trip.manage`); aponta para a ADR-0066 antes de mexer nas
+  políticas de zona/empate.
+- **Frontend:** a frase da diária nasce em `composeCostParcelDetail`, compartilhada entre o razão da
+  viagem e o da proposta, e tem de bater literal com a `note` que a API congela (contrato da T11); a
+  frase aparece no razão da viagem mas não na proposta de roteiro (comportamento esperado, não
+  regressão).
+
+### Os dois buracos de produto herdados da spec 061 — um fechado, um em aberto por decisão
+
+1. **Zero:** fechado na T12. `AMOUNT_PATTERN` (`trip-financial.schema.ts:9`) segue idêntico
+   (`/^[0-9]{1,13}(\.[0-9]{1,4})?$/u`) e ganhou `.refine((value) => NON_ZERO_DIGIT.test(value))`
+   (`:18`) — string sem dígito 1–9 é recusada com `400` antes de chegar ao `CHECK ("amount" > 0)` do
+   banco. `test/trip-financial/cost-amount.contract.ts` prova `'0'`, `'0.0000'`, `'0.00'`, `'000'` →
+   `400`.
+2. **Negativo: continua fora, decisão do usuário (2026-09-16), spec própria.**
+   `AMOUNT_PATTERN` não aceita sinal e o `CHECK` do banco é `amount > 0` — o "Errou, lança um ajuste"
+   do `spec.md:119` **não existe**; ajuste que subtrai é impossível, e editar/apagar está fora do
+   escopo (`spec.md:135`). A spec futura precisa resolver quatro pontos: sinal no valor **ou**
+   lançamento de estorno; quem pode estornar; efeito sobre resultado já congelado; trilha de
+   auditoria. Não se abre `specs/1XX/` aqui — é ponteiro, não implementação.
+
+### Decisões do usuário registradas no fechamento
+
+1. **Nenhuma suíte de teste foi apagada** ao longo da 143 — as que ficaram sem objeto foram
+   reescritas no lugar (tabela completa na seção T3 acima).
+2. **`trip-driver-zone.policy.ts` e a política de empate ficam no repositório**, sem consumidor de
+   produção — corpo da ADR-0066.
+3. **O ajuste de valor negativo vira spec própria** — ver acima.
+
+### Efeitos visíveis que o fechamento avisa antes do deploy
+
+- Toda viagem aberta existente passa a exibir "estimado" na linha do motorista — nenhuma tem
+  `trips.daily_allowance_days` preenchido hoje.
+- `hasGaps` encolhe, e com ele `isComplete` para congelamentos novos — afeta telas e relatórios que
+  filtram por isso.
+- A frase da diária aparece no razão da viagem, mas não na proposta de roteiro (ver acima).
+
+### Achado registrado, não corrigido nesta spec — `federal-tax-settings.contract.ts`
+
+Ao fechar a T10, o executor notou que `test/companies/federal-tax-settings.contract.ts` tem o mesmo
+defeito que a T10 evitou: exercita os use cases e afirma a policy das rotas, mas nunca chama o
+handler, então o corpo que a rota monta não é coberto por asserção nenhuma. Não é regressão da 143 —
+é anterior, e o padrão bom (`route.execute({...})` de verdade) veio de
+`distribution-cursor.contract.ts`, não daquele arquivo. Registrado aqui para não se perder no
+histórico do chat; conserto é mecânico com os helpers `routesFor`/`callRoute`/`readData` da T10, mas
+é escopo de outra task — não corrigido aqui.
+
+### Varredura de fixture obsoleta da base do motorista — sem pendência
+
+Feita na T11: busca por `regionCity`, `tiedZones`, `tiedCityCount`, `routeAmount`, `routeGap`,
+`cityToRegister` em todo o repositório. Único achado real corrigido na própria T11
+(`test/multi-vehicle-smoke.helper.ts`); os demais casos (`fleet/*regionCityName*`,
+`trip-driver-zone.policy.ts` e as três suítes de zona/empate) são falso positivo ou o código
+deliberadamente mantido pela ADR-0066. Nenhuma pendência nova.
+
+### Achado — o comando de integração que o `CLAUDE.md` raiz recomenda não roda integração
+
+Levantado na T12, conferido número a número: 177 arquivos `*.test.ts` sob `test/`, todos descobertos
+pelo comando prescrito (`bun --env-file=... test --timeout 120000`); os 71 arquivos de
+`test/integration/*.integration.ts` **não** casam com a descoberta padrão do `bun test`
+(`*.test.*`/`*.spec.*`/`*_test.*`) e continuam exigindo o script `test:integration`, que pede Docker.
+A flag `--env-file` alimenta env para a suíte de contrato; não muda quais arquivos rodam. Ou seja:
+os cinco gates desta spec, em todas as tasks, nunca tocaram banco por integração — só `make
+migration-test` provou schema contra Postgres real. Isto é anterior à 143 e não é efeito dela.
+Corrigir o bloco ⚠️ do `CLAUDE.md` raiz é fora do escopo desta task (exige aval do usuário) —
+**não editado aqui**, por instrução explícita.
+
+⚠️ **Desvio da premissa do briefing, registrado com transparência:** o briefing assumia Docker fora
+do ar nesta máquina. **Não estava** — `make migration-test` subiu o Postgres normalmente nesta
+sessão (ver Gates abaixo). `test:integration` não foi rodado mesmo assim: não está na lista de gates
+que este T14 pede (o `tasks.md` e o prompt de execução da spec listam `make check`/gates de
+contrato + `make migration-test` para o fechamento, não `test:integration`), e rodá-lo alargaria o
+escopo desta task sem pedido explícito. Fica como encaminhamento para quem fizer o rebase e o push
+(a próxima etapa, fora desta T14): rodar `bun run --cwd apps/api-transportada test:integration` com
+Docker de pé antes do push, e — com aval do usuário — corrigir o bloco ⚠️ do `CLAUDE.md` raiz.
+
+### Gates
+
+| Gate               | Comando                                                                            | Resultado                                                           |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                                                 | ✅ limpo                                                            |
+| Testes da API      | `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` | ✅ **6143 pass · 23 skip · 0 fail** · 21552 expect() · 177 arquivos |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`                                    | ✅ **4119 pass · 0 fail** · 35958 expect() · 29 arquivos            |
+| Lint               | `bun run lint`                                                                     | ✅ limpo — 6 apps                                                   |
+| Formatação         | `bun run format:check`                                                             | ✅ limpo (após `prettier --write` na ADR-0066, recém-criada)        |
+| Migration          | `make migration-test`                                                              | ✅ **96 pass · 0 fail** · 1268 expect() · 8 arquivos · exit 0       |
+
+Baseline da T13 batido exatamente: API 6143 pass / 0 fail, FE 4119 pass / 0 fail — nenhum teste a
+mais, nenhum a menos, nenhuma falha. `make migration-test` rodou de verdade contra Postgres (container
+`transportada-local-postgres-1`), diferente do que o briefing previa.
+
+### Fora do escopo desta task, por instrução explícita
+
+Não fiz rebase, não fiz push, não toquei a pasta de migration
+(`apps/api-transportada/drizzle/20260916120000_driver_daily_allowance/`), não editei o `CLAUDE.md`
+raiz e não abri `specs/1XX/` para o ajuste negativo. A revisão final com `code-reviewer` `opus` (T14,
+"revisão final com `code-reviewer` `opus`") não faz parte deste passe do executor — é um passe
+separado, pedido pelo próprio `tasks.md` como item distinto do `make check`.

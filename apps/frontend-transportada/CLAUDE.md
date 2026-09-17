@@ -80,6 +80,13 @@ engano:
 
 - A conta (`buildValuationFromContext`) e a distância/pedágio da proposta têm **um** seam cada,
   compartilhado entre viagem, prévia e sugestão — segunda implementação diverge calada.
+- **A frase da diária nasce em `composeCostParcelDetail`** (spec 143, ADR-0066) e é **compartilhada**
+  entre o razão da viagem (`ValuationLedger`) e o da proposta — a API nunca compõe texto, `detail` da
+  parcela do motorista chega sempre `null`. A frase tem de bater, **literal**, com a que a API
+  congela em `note` ao fechar a viagem; é o contrato da T11 que segura essa igualdade. A frase
+  aparece no razão da viagem mas não na proposta de roteiro
+  (`SuggestionVehicleValuation.component.tsx` só compõe detalhe de parcela com lacuna, e a parcela do
+  motorista deixou de ter lacuna) — comportamento esperado, não regressão.
 - Verde é o que entra, vermelho é o que sai — `--color-ready`/`--color-alert`, nunca `.negative`
   (que é cobre, usado por outras telas).
 - Tirar destino é marcação (riscar + desfazer), nunca destruição; mover destino entre caminhões não

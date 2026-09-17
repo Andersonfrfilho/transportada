@@ -286,6 +286,18 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   `federal-tax-settings`: sem linha é `200` com `rateOrigin: 'default'` e `R$200,00`, nunca `404`;
   `PUT` faz upsert por `companyId` (nunca insert-then-update) e audita em `auditLogs`; `DELETE` é
   idempotente. Mesma permissão `settings.manage`, nunca uma nova.
+- **O custo do motorista é `diária × dias`, não mais zona/rota/tabela** (spec 143, ADR-0066): a
+  diária resolve em cascata `motorista → empresa → padrão`
+  (`resolveDailyAllowance`, `DEFAULT_DAILY_ALLOWANCE_AMOUNT = '200.0000'`); `days` vem de
+  `trips.daily_allowance_days` quando informado, senão de `suggestAllowanceDays` (duração estimada
+  do roteiro, arredondada para cima) — **o mínimo é sempre 1**, nunca zero. `buildTripDriverCost`
+  não compõe frase: `detail` da parcela do motorista é sempre `null`, a frase de exibição é do
+  frontend (`composeCostParcelDetail`); a única exceção é a `note` do congelamento, que é
+  persistência histórica, não exibição. `GET /trips/:id/costs` é `trip.financials` — **assimétrico**
+  em relação ao `POST` da mesma rota, que é `trip.manage` (quem lança não necessariamente vê
+  dinheiro). ⚠️ `trip-driver-zone.policy.ts`/`trip-driver-tie.policy.ts` e as suítes que os
+  exercitam continuam no repositório sem consumidor de produção — ler a ADR-0066 antes de supor
+  código morto e apagar.
 - **Pedágio é calculado a partir da rota, não lançado à mão** (spec 090) — praça casa por identidade
   de nó do OSM (`annotations=nodes`), nunca por proximidade; pedágio viaja **na mesma resposta** de
   rota que a distância (nunca chamada própria); manual sempre vence calculado. Viagem congela o
