@@ -351,7 +351,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async createTrip(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ driverIds: input.driverIds, vehicleId: input.vehicleId }),
+        body: JSON.stringify({
+          /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+          ...(input.dailyAllowanceDays === undefined
+            ? {}
+            : { dailyAllowanceDays: input.dailyAllowanceDays }),
+          driverIds: input.driverIds,
+          vehicleId: input.vehicleId,
+        }),
         dependencies,
         method: 'POST',
         path: TRIPS_PATH,

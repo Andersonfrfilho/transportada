@@ -237,6 +237,8 @@
     "vehicleId": "Vehicle"
   },
   "creation": {
+    "dailyAllowanceDays": "Daily allowance days",
+    "dailyAllowanceDaysPlaceholder": "Suggested from the trip duration",
     "drivers": "Drivers",
     "driversClearAll": "Remove all",
     "driversEmpty": "Register an active driver in the fleet before creating the trip.",

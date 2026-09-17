@@ -150,6 +150,18 @@ export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean 
   return entry.status === 'resolving'
 }
 
+/**
+ * Spec 143 D4: campo vazio, `0` e negativo nunca chegam à rede — ausência é "a API sugere pela
+ * duração estimada" (`suggestAllowanceDays`), e mandar `0` ganharia 400 do `min(1)` do zod.
+ */
+export function resolveDailyAllowanceDaysInput(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (!/^\d+$/.test(trimmed)) return undefined
+
+  const parsed = Number.parseInt(trimmed, 10)
+  return parsed < 1 ? undefined : parsed
+}
+
 export function validateQuickCreate(input: {
   readonly driverIds: readonly string[]
   readonly queue: TripQuickCreateQueue

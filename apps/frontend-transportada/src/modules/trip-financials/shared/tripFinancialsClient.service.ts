@@ -35,6 +35,8 @@ export type TripFinancialsClient = Readonly<{
    */
   previewValuation: (
     input: Readonly<{
+      /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
+      dailyAllowanceDays?: number
       driverIds: readonly string[]
       nfeDocumentIds: readonly string[]
       stopOrder: readonly string[]
@@ -77,6 +79,10 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
       return toTripValuation(
         await request({
           body: JSON.stringify({
+            /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+            ...(input.dailyAllowanceDays === undefined
+              ? {}
+              : { dailyAllowanceDays: input.dailyAllowanceDays }),
             driverIds: input.driverIds,
             nfeDocumentIds: input.nfeDocumentIds,
             stopOrder: input.stopOrder,

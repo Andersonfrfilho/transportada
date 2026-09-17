@@ -1753,3 +1753,109 @@ literal `'trip.financials'` dentro de `useTripCostEntries.hook.ts`, o que obriga
 string que já existe — exatamente o que o §16 proíbe. A asserção passou a cobrar a constante
 (`export const FINANCIALS_PERMISSION = 'trip.financials'`) mais o uso do identificador no hook. O
 alvo do teste não mudou; o caminho para satisfazê-lo, sim.
+
+## T13 — Campo "Diárias" na criação da viagem (FE)
+
+`TripQuickCreateDialog` + `useTripQuickCreate` + `tripClient`/`tripFinancialsClient`.
+
+### Contrato antes da implementação — o vermelho literal
+
+Suíte nova, `test/trip/daily-allowance-days.contract.ts`, registrada por `import` no entrypoint
+`test/trip.contract.test.ts` (última linha) — nunca no `package.json`, pelo mesmo motivo do T12.
+
+⚠️ **Duas das seis asserções chegaram já verdes no primeiro vermelho**, porque `trip.types.ts` e
+`tripClient.service.ts` tinham sido editados numa sessão anterior a esta, antes de qualquer teste
+existir para o campo — na ordem contrária à que o briefing pede ("não negociável": teste primeiro).
+Não desfiz essas duas edições: reverter seria decisão de escopo tanto quanto seguir, e o código nelas
+está correto e é exercitado pelo restante da suíte. Fica registrado como desvio.
+
+`bun test test/trip.contract.test.ts` (vermelho, antes de tocar nos quatro arquivos restantes):
+
+```
+(fail) trip daily allowance days contract > the valuation preview carries the same value, and omits it when the field is empty [1.22ms]
+(fail) trip daily allowance days contract > the days value is part of the preview query key, forcing a new calculation when it changes [0.12ms]
+(fail) trip daily allowance days contract > the dialog and the controller hook wire the typed days into both network calls [0.19ms]
+
+ 891 pass
+ 3 fail
+ 17659 expect() calls
+Ran 894 tests across 1 file. [442.00ms]
+```
+
+As três falhas mapeiam 1:1 para os três arquivos ainda não tocados — `tripFinancialsClient.service.ts`
+(sem `dailyAllowanceDays` em `previewValuation`), `useTripValuationPreview.hook.ts` (sem o campo na
+`queryKey`) e o par `useTripQuickCreate.hook.ts`/`TripQuickCreateDialog.component.tsx` (sem o
+`dailyAllowanceDaysInput`) — e a mensagem é sempre um `expect` que não bate, nunca um import quebrado.
+
+### O que mudou
+
+| Arquivo                                                          | Papel                                                                           |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `test/trip/daily-allowance-days.contract.ts`                     | a suíte de contrato (novo, 6 casos)                                             |
+| `test/trip.contract.test.ts`                                     | uma linha de `import`                                                           |
+| `src/.../trip/shared/tripQuickCreate.service.ts`                 | `resolveDailyAllowanceDaysInput` — string digitada → inteiro ≥ 1 ou `undefined` |
+| `src/.../trip/hooks/useTripQuickCreate.hook.ts`                  | estado `dailyAllowanceDaysInput`, resolvido e passado ao `createTrip`           |
+| `src/.../trip/components/TripQuickCreateDialog.component.tsx`    | o campo `<input type="number">` no `fieldGrid`, e o valor passado à prévia      |
+| `src/.../trip/shared/trip.types.ts`                              | `CreateTripBody.dailyAllowanceDays?: number`                                    |
+| `src/.../trip/shared/tripClient.service.ts`                      | `createTrip` manda o campo por espalhamento condicional                         |
+| `src/.../trip-financials/shared/tripFinancialsClient.service.ts` | `previewValuation` ganha o mesmo campo, mesmo espalhamento                      |
+| `src/.../trip-financials/hooks/useTripValuationPreview.hook.ts`  | o campo entra na chamada e na `queryKey` — mudar o valor força novo cálculo     |
+| `src/.../trip/locales/trip{,.en}.locale.json`                    | `creation.dailyAllowanceDays` e `creation.dailyAllowanceDaysPlaceholder`        |
+
+As decisões que valem registro:
+
+- **A sugestão é só exibida, nunca recalculada no FE.** Nenhum dos arquivos tocados contém `86400` —
+  a suíte afirma isso por leitura de arquivo, não só pela ausência de um teste que quebraria. Quem
+  sugere é `suggestAllowanceDays` na API; o FE lê `days`/`daysOrigin` da resposta, como desde a T11.
+- **Ausente nunca é `0` nem `null`.** `resolveDailyAllowanceDaysInput` recusa vazio, espaço, `'0'`,
+  negativo e não-dígito, todos devolvendo `undefined`; e todo ponto de rede usa espalhamento
+  condicional (`...(x === undefined ? {} : { x })`) — nunca `dailyAllowanceDays: undefined` explícito,
+  que sob `exactOptionalPropertyTypes` é um valor diferente de "chave ausente" no JSON.
+- **A prévia recebe o campo, não só a criação.** Esse era o defeito que a task existe para evitar:
+  `useTripValuationPreview` manda `dailyAllowanceDays` no corpo do `POST /trips/valuation-preview` e
+  o inclui na `queryKey`, então digitar um novo valor invalida o cache e dispara novo cálculo.
+- **`0` e negativo nunca chegam à rede.** Coberto na função pura (`resolveDailyAllowanceDaysInput`)
+  antes de qualquer requisição existir — o zod da API (`min(1)`) nunca vê esses valores partindo do
+  diálogo de criação rápida.
+
+### Divergências registradas, não corrigidas
+
+- **A ordem do TDD foi quebrada em duas edições feitas antes desta sessão.** `trip.types.ts` e
+  `tripClient.service.ts` já tinham `dailyAllowanceDays` quando a suíte nasceu, então 2 das 6
+  asserções desse arquivo passaram de primeira — não porque o teste fosse fraco, mas porque a
+  implementação chegou antes dele. Registrado, não desfeito.
+- **A asserção da `queryKey` foi reescrita depois do vermelho colado acima**, pelo mesmo motivo do
+  §16/`format:check`: o array `queryKey` com o novo campo passa de 100 colunas, e o `prettier` o
+  quebra em uma linha por item — o que invalidava a checagem original por linha única. A asserção
+  passou a recortar o bloco entre `queryKey: [` e o `]` que fecha, e cobrar as duas substrings
+  (`TRIP_VALUATION_PREVIEW_QUERY_KEY` e `dailyAllowanceDays`) nesse bloco, em vez de numa linha só.
+  O alvo do teste não mudou — o campo continua obrigatório na chave — só o modo de verificar.
+- **Nenhum arquivo tocado nesta task refatora `TripQuickCreateDialog.component.tsx`.** Ele estava em
+  454 linhas antes desta task e termina em 470, sobre o teto de 200 do repositório — dívida anterior
+  à spec 143 (a T9 já adicionou campos a ele sem extrair nada). O mesmo vale para
+  `DriverQuickCreateDialog.component.tsx` (359 linhas) e `DriverForm.component.tsx` (341 linhas), que
+  esta task não tocou. Uma versão anterior deste briefing pedia extrair o diálogo; foi revogada
+  explicitamente, e refatorar um arquivo pré-existente por causa de uma task de um campo só é decisão
+  do usuário, não do executor — fica só registrado aqui.
+
+### Gates
+
+| Gate               | Comando                                              | Resultado                                                         |
+| ------------------ | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                   | ✅ limpo                                                          |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`      | ✅ **4119 pass · 0 fail** · 35958 expect() · 29 arquivos · 3,60 s |
+| Testes da API      | — (nenhum arquivo de `apps/api-transportada` tocado) | não aplicável — nenhum contrato da API foi alterado               |
+| Lint               | `bun run lint`                                       | ✅ limpo — 6 apps                                                 |
+| Formatação         | `bun run format:check`                               | ✅ limpo                                                          |
+
+Baseline batido: FE 4112 → **4119** (as 6 da suíte nova, mais uma linha de `import`), com **0 fail**
+e nenhum teste a menos. Isolada: `bun test test/trip.contract.test.ts` dá **894 pass · 0 fail ·
+17663 expect()**.
+
+⚠️ **`make smoke` não foi executado** — Docker fora do ar nesta máquina, como no T12. A verificação
+foi **estática, por leitura**: `test/trip-smoke.helper.ts` e `test/responsive.smoke.spec.ts`
+interceptam `/trips`, `/trips/valuation-preview` e as demais rotas por **padrão de URL e método**,
+nunca por corpo estrito — a única asserção de `postDataJSON()` no arquivo é sobre
+`/trips/:id/mdfe-requirement`, alheia a este campo. Um campo novo e opcional no corpo da requisição
+não quebra um mock que não lê aquele corpo. Nenhum arquivo de smoke foi alterado. Isso é leitura, não
+execução.

@@ -608,6 +608,8 @@ export type TripListInput = Readonly<{
 }>
 
 export type CreateTripBody = Readonly<{
+  /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
+  dailyAllowanceDays?: number
   driverIds: readonly string[]
   vehicleId: string
 }>

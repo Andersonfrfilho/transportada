@@ -163,6 +163,10 @@ export function TripQuickCreateDialog({
   })
 
   const valuationPreview = useTripValuationPreview({
+    /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+    ...(quickCreate.dailyAllowanceDays === undefined
+      ? {}
+      : { dailyAllowanceDays: quickCreate.dailyAllowanceDays }),
     driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
@@ -312,6 +316,18 @@ export function TripQuickCreateDialog({
               placeholder={t('creation.vehiclePlaceholder')}
               searchPlaceholder={t('creation.vehicleSearch')}
               value={quickCreate.vehicleId}
+            />
+          </label>
+
+          <label>
+            {t('creation.dailyAllowanceDays')}
+            <input
+              inputMode="numeric"
+              min={1}
+              onChange={(event) => quickCreate.setDailyAllowanceDaysInput(event.target.value)}
+              placeholder={t('creation.dailyAllowanceDaysPlaceholder')}
+              type="number"
+              value={quickCreate.dailyAllowanceDaysInput}
             />
           </label>
         </div>

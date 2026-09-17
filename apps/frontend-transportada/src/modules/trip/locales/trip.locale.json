@@ -335,6 +335,8 @@
     "withoutPhone": "Sem telefone na nota"
   },
   "creation": {
+    "dailyAllowanceDays": "Diárias",
+    "dailyAllowanceDaysPlaceholder": "Sugerido pela duração da viagem",
     "drivers": "Motoristas",
     "driversClearAll": "Retirar todos",
     "driversEmpty": "Cadastre um motorista ativo na frota antes de criar a viagem.",

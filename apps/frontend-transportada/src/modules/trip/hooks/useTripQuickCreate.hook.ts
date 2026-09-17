@@ -26,6 +26,7 @@ import {
   EMPTY_QUICK_CREATE_QUEUE,
   refuseQuickCreateEntry,
   removeQuickCreateEntry,
+  resolveDailyAllowanceDaysInput,
   resolveQuickCreateEntry,
   stageQuickCreateDocuments,
   stagedDocumentIds,
@@ -52,6 +53,8 @@ export function useTripQuickCreate(
   const [queue, setQueue] = useState<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
   const [vehicleId, setVehicleId] = useState('')
+  const [dailyAllowanceDaysInput, setDailyAllowanceDaysInput] = useState('')
+  const dailyAllowanceDays = resolveDailyAllowanceDaysInput(dailyAllowanceDaysInput)
   /**
    * A ordem das cidades que o operador arranja no mapa. Ela vive aqui, e não no mapa, porque é ela
    * que vira `PATCH /stops/order` no fim da criação — no componente ela morreria ao fechar o modal.
@@ -101,6 +104,7 @@ export function useTripQuickCreate(
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
     setDriverIds([])
     setVehicleId('')
+    setDailyAllowanceDaysInput('')
   }
 
   /**
@@ -158,7 +162,12 @@ export function useTripQuickCreate(
   const createMutation = useMutation({
     mutationFn: async (): Promise<TripDetail> => {
       const client = getTripClient()
-      const trip = await client.createTrip({ driverIds, vehicleId })
+      const trip = await client.createTrip({
+        /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+        ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+        driverIds,
+        vehicleId,
+      })
       /**
        * Uma requisição para o maço inteiro. O laço de antes pagava uma ida ao servidor por nota, e
        * uma viagem de trezentas notas falhava no meio com a viagem já criada.
@@ -202,6 +211,8 @@ export function useTripQuickCreate(
     close: () => setIsOpen(false),
     closeScanner: () => setIsScannerOpen(false),
     createMutation,
+    dailyAllowanceDays,
+    dailyAllowanceDaysInput,
     driverIds,
     isOpen,
     isScannerOpen,
@@ -214,6 +225,7 @@ export function useTripQuickCreate(
     removeEntry: (accessKey: string) =>
       updateQueue(removeQuickCreateEntry({ accessKey, queue: queueRef.current })),
     reset,
+    setDailyAllowanceDaysInput,
     setDriverIds,
     setVehicleId,
     stagedCount: stagedDocumentIds(queue).length,
