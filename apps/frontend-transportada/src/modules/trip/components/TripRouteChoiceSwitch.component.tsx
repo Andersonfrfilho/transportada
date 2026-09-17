@@ -5,9 +5,49 @@ import { useQuery } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import { resolveRouteChoiceFromIndex } from '../shared/assemblyRouteOptions.service'
-import type { RouteChoice, RouteChoiceCriterion } from '../shared/routeGeometry.service'
+import type {
+  RouteChoice,
+  RouteChoiceCriterion,
+  RouteGeometry,
+} from '../shared/routeGeometry.service'
+import type { TripClient } from '../shared/tripClient.service'
 import type { TripStopDetail } from '../shared/trip.types'
 import { RouteChoiceOptions } from './RouteChoiceOptions.component'
+
+const FIVE_MINUTES_MS = 5 * 60 * 1000
+
+export type CreateTripRouteChoiceQueryOptionsParams = Readonly<{
+  client: TripClient
+  enabled: boolean
+  points: readonly Readonly<{ latitude: number; longitude: number }>[]
+  vehicleId: null | string
+}>
+
+/**
+ * Spec 153 T706/RF13: opções puras da query de geometria viva — extraídas para que o teste de
+ * comportamento monte um `QueryObserver` real sobre a mesma `queryKey` que o componente usa, em vez
+ * de contar ocorrências de string no fonte. A chave nunca inclui o critério escolhido nem começa
+ * por `'trips'` — senão o `invalidate()` pós `plan-route` (que atinge `['trips', ...]`) refaria a
+ * busca ao roteirizador, o próprio defeito que o RF13 pede para nunca acontecer.
+ */
+export function createTripRouteChoiceQueryOptions(
+  params: CreateTripRouteChoiceQueryOptionsParams,
+): Readonly<{
+  enabled: boolean
+  queryFn: () => Promise<RouteGeometry>
+  queryKey: readonly [string, string, null | string]
+  staleTime: number
+}> {
+  const routeKey = params.points.map((point) => `${point.latitude},${point.longitude}`).join(';')
+
+  return {
+    enabled: params.enabled,
+    queryFn: () =>
+      params.client.readPointsRouteGeometry({ points: params.points, vehicleId: params.vehicleId }),
+    queryKey: ['trip-detail-route-choice', routeKey, params.vehicleId] as const,
+    staleTime: FIVE_MINUTES_MS,
+  }
+}
 
 type TripRouteChoiceSwitchProps = Readonly<{
   /** Sem `trip.financials` o total por opção some — nunca zero (spec 153 D10). */
@@ -23,8 +63,6 @@ type TripRouteChoiceSwitchProps = Readonly<{
   stops: readonly TripStopDetail[]
   vehicleId: string
 }>
-
-const FIVE_MINUTES_MS = 5 * 60 * 1000
 
 /**
  * Spec 153 T405/RF13: o switch mais rápida ↔ mais barata da **última** tela onde o operador troca
@@ -48,16 +86,16 @@ export function TripRouteChoiceSwitch({
       longitude: Number(stop.longitude ?? Number.NaN),
     }))
     .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
-  const routeKey = points.map((point) => `${point.latitude},${point.longitude}`).join(';')
   const tollVehicleId = vehicleId === '' ? null : vehicleId
 
-  const geometryQuery = useQuery({
-    enabled: canSwitch && points.length >= 2,
-    queryFn: () => getTripClient().readPointsRouteGeometry({ points, vehicleId: tollVehicleId }),
-    /** A chave nunca inclui o critério escolhido — senão a troca refaria a busca (RF13). */
-    queryKey: ['trip-detail-route-choice', routeKey, tollVehicleId] as const,
-    staleTime: FIVE_MINUTES_MS,
-  })
+  const geometryQuery = useQuery(
+    createTripRouteChoiceQueryOptions({
+      client: getTripClient(),
+      enabled: canSwitch && points.length >= 2,
+      points,
+      vehicleId: tollVehicleId,
+    }),
+  )
 
   if (!canSwitch || points.length < 2) return null
 

@@ -10,9 +10,16 @@
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it, test } from 'bun:test'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 
+import { createTripRouteChoiceQueryOptions } from '../../src/modules/trip/components/TripRouteChoiceSwitch.component'
 import { resolveRouteChoiceFromIndex } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
-import type { RouteGeometryOption } from '../../src/modules/trip/shared/routeGeometry.service'
+import type {
+  RouteGeometry,
+  RouteGeometryOption,
+} from '../../src/modules/trip/shared/routeGeometry.service'
+import { TRIP_QUERY_KEY } from '../../src/modules/trip/shared/trip.constant'
+import type { TripClient } from '../../src/modules/trip/shared/tripClient.service'
 import { loadFutureModule, SYNTHETIC_ACCESS_TOKEN, TRIP_ID } from './trip.fixture'
 
 const TRIP_ROUTE_CHOICE_SWITCH = new URL(
@@ -87,14 +94,14 @@ function opcao(input: {
   }
 }
 
-describe('regravação no detalhe: plan-route com a escolha nova, sem ida nova ao route-geometry (spec 153 T405/RF13)', () => {
+describe('regravação no detalhe: plan-route serializa a escolha nova (spec 153 T405/RF13)', () => {
   /**
-   * ⚠️ Prova as duas metades JUNTAS, na mesma asserção: (1) o corpo do POST carrega a escolha nova
-   * — a regravação de fato aconteceu — e (2) a única requisição feita foi essa, nunca uma segunda
-   * ao `/route-geometry` — a troca reaproveitou as opções que a leitura viva já tinha em mãos.
-   * Provar só uma das duas deixaria passar o defeito que o pedido veio evitar.
+   * Prova só a serialização do corpo: a escolha resolvida a partir de opções já em mãos vira
+   * `{ criterion, signature }` no POST de `/plan-route`. A garantia de que a troca não refaz a
+   * busca ao roteirizador é da suíte abaixo, com `QueryObserver` sobre a query real — aqui não há
+   * nenhuma leitura viva envolvida, só o client de regravação.
    */
-  test('trocar mais rápida ↔ mais barata regrava via plan-route usando as opções já buscadas — nenhuma chamada nova ao roteirizador', async () => {
+  test('trocar mais rápida ↔ mais barata regrava via plan-route usando as opções já buscadas', async () => {
     const requests: Request[] = []
     const client = await createPlanRouteRecordingClient(requests)
 
@@ -117,6 +124,114 @@ describe('regravação no detalhe: plan-route com a escolha nova, sem ida nova a
     if (request === undefined) throw new Error('PLAN_ROUTE_REQUEST_MISSING')
     expect(request.url).toInclude('/plan-route')
     expect(request.url).not.toInclude('/route-geometry')
+    const body = await readJsonBody(request)
+    expect(body.routeChoice).toEqual({ criterion: 'cheapest', signature: 'rota-mais-barata' })
+  })
+})
+
+describe('TripRouteChoiceSwitch: comportamento real da query — busca uma vez, sobrevive ao invalidate do plan-route (spec 153 T706/RF13/M6)', () => {
+  const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
+  const POINTS = [
+    { latitude: -23.55, longitude: -46.63 },
+    { latitude: -22.9, longitude: -43.2 },
+  ] as const
+
+  const GEOMETRY_OPTIONS: readonly RouteGeometryOption[] = [
+    opcao({ signature: 'rota-mais-rapida' }),
+    opcao({ signature: 'rota-mais-barata' }),
+  ]
+
+  /**
+   * Observador real do TanStack sobre `createTripRouteChoiceQueryOptions` — a mesma função que o
+   * componente chama. Nenhuma leitura de fonte: quem decide se o `queryFn` dispara é o próprio
+   * `QueryObserver`, como no navegador (mesmo molde de `test/identity/user-picture.contract.ts`).
+   */
+  function createGeometryObserver(input: Readonly<{ queryClient: QueryClient }>): Readonly<{
+    observer: QueryObserver<RouteGeometry>
+    requestCount: () => number
+  }> {
+    let requests = 0
+    const client = {
+      readPointsRouteGeometry: () => {
+        requests += 1
+        return Promise.resolve({
+          cheapestIndex: 1,
+          costGap: null,
+          fastestIndex: 0,
+          legs: [],
+          options: GEOMETRY_OPTIONS,
+          points: [],
+          toll: null,
+        })
+      },
+    } as unknown as TripClient
+    const observer = new QueryObserver<RouteGeometry>(
+      input.queryClient,
+      createTripRouteChoiceQueryOptions({
+        client,
+        enabled: true,
+        points: POINTS,
+        vehicleId: null,
+      }),
+    )
+    return { observer, requestCount: () => requests }
+  }
+
+  /**
+   * ⚠️ As chaves são as reais que `invalidate()` de `useTripWorkspace.hook.ts` dispara pós
+   * `plan-route`: `[TRIP_QUERY_KEY, companyId, tripId]` (a viagem) e `[TRIP_QUERY_KEY]` (a lista).
+   * Se a query de geometria fosse prefixada por `TRIP_QUERY_KEY` (`'trips'`), o `invalidateQueries`
+   * por prefixo a alcançaria e o observer refaria a busca — o defeito que este teste existe para
+   * pegar. Prefixo hoje é `'trip-detail-route-choice'`, então a contagem some em 1.
+   */
+  async function invalidateAsPlanRouteDoes(queryClient: QueryClient): Promise<void> {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, COMPANY_ID, TRIP_ID] }),
+      queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] }),
+    ])
+  }
+
+  test('busca a geometria uma única vez, e o invalidate pós plan-route não refaz a busca', async () => {
+    const queryClient = new QueryClient()
+    const { observer, requestCount } = createGeometryObserver({ queryClient })
+    const unsubscribe = observer.subscribe(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(requestCount()).toBe(1)
+
+    await invalidateAsPlanRouteDoes(queryClient)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    unsubscribe()
+    expect(requestCount()).toBe(1)
+  })
+
+  test('a troca dispara plan-route com a escolha nova, montada com as opções que a mesma busca trouxe', async () => {
+    const queryClient = new QueryClient()
+    const { observer, requestCount } = createGeometryObserver({ queryClient })
+    const unsubscribe = observer.subscribe(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    unsubscribe()
+
+    const geometry = observer.getCurrentResult().data
+    if (geometry === undefined) throw new Error('GEOMETRY_QUERY_DID_NOT_RESOLVE')
+
+    /** É exatamente o que `handleSelect` do componente faz ao trocar para "mais barata" (índice 1). */
+    const routeChoice = resolveRouteChoiceFromIndex({
+      cheapestIndex: geometry.cheapestIndex ?? null,
+      fastestIndex: geometry.fastestIndex ?? null,
+      index: 1,
+      options: geometry.options ?? [],
+    })
+
+    const planRouteRequests: Request[] = []
+    const client = await createPlanRouteRecordingClient(planRouteRequests)
+    await client.planTripRoute({ routeChoice, tripId: TRIP_ID })
+
+    expect(requestCount()).toBe(1)
+    expect(planRouteRequests).toHaveLength(1)
+    const [request] = planRouteRequests
+    if (request === undefined) throw new Error('PLAN_ROUTE_REQUEST_MISSING')
     const body = await readJsonBody(request)
     expect(body.routeChoice).toEqual({ criterion: 'cheapest', signature: 'rota-mais-barata' })
   })
