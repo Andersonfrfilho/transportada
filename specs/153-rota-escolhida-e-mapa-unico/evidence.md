@@ -4582,3 +4582,98 @@ só passou a **usá-los** também aqui. Não criou migration.
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T803 — N2 + N5: valor ausente da NF-e vira `0` no filtro avançado, `NaN` na ordenação
+
+Sessão em `apps/frontend-transportada` (só este diretório e `specs/`, por instrução — outra sessão
+mexe em `apps/api-transportada` ao mesmo tempo).
+
+### N2 — `conditionFieldRaw` transformava ausência em `0`
+
+`apps/frontend-transportada/src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook.ts`:
+
+- `conditionFieldRaw` (linha ~504) fazia `return document[field] ?? ''` para todo `ConditionField`,
+  inclusive `totalAmount`. Sem `trip.financials` a chave **some** do corpo (spec 153 D10) —
+  `document.totalAmount` é `undefined`, não `null` —, e `'' ?? ...` não intercepta `undefined` de
+  jeito nenhum: o valor virava `''`, e `Number('')` é `0`, não `NaN`. Resultado: a condição
+  `totalAmount < 100` casava **toda** nota sem valor, e `totalAmount = 0` a devolvia como se
+  valesse zero — o "nunca zero" que a D10 proíbe, e a mesma classe do defeito C1.
+- Fix: `conditionFieldRaw` agora devolve `string | undefined`, com um ramo próprio para
+  `totalAmount` que repassa `document.totalAmount` sem cair no `?? ''`. `evaluateCondition` recusa
+  a condição (`return false`) assim que `raw` vem `undefined`, antes de despachar por tipo — campo
+  ausente nunca casa condição nenhuma, em vez de tentar decidir um valor pra ele.
+- O filtro simples (`matchesAmount`, linha ~419) já estava correto desde a D10 — não mudou.
+
+### N5 — ordenação por valor com `NaN`
+
+Mesmo arquivo, `compareByColumn` (linha ~708): `Number(first.totalAmount) - Number(second.totalAmount)`
+devolve `NaN` para qualquer par em que um dos dois lados não tenha `totalAmount`
+(`Number(undefined)` é `NaN`). `Array.prototype.sort` trata retorno `NaN` como "não sei comparar" —
+a ordenação por "Valor" ficava indefinida, embaralhando a lista sem erro nenhum sempre que havia
+nota sem `trip.financials` na página.
+
+- Fix: reusei o par que já existia em `apps/frontend-transportada/src/modules/trip/shared/tripTable.service.ts`
+  para a mesma regra na listagem de viagens — só que ele não era exportado. Extraí as duas funções
+  puras de dentro de `moneyValue`/`compareMoney` (que continuam existindo, agora delegando):
+  `parseMoneyAmount(raw: string | null | undefined): number | null` (nunca `NaN`, ausência vira
+  `null`) e `compareMoneyAmounts(left, right)` (ausência sempre por último). `useNfeDocumentTable.hook.ts`
+  importa as duas.
+- `compareByColumn`'s `'amount'` branch chama `compareMoneyAmounts(parseMoneyAmount(...), ...)`.
+- `sortDocuments` ganhou o mesmo truque de `tripTable.service.ts`: quando a coluna é `amount` e
+  **um dos dois lados** não tem valor, o comparador bruto (sem multiplicar pelo `direction`) decide
+  — é isso que joga a ausência para o fim **nos dois sentidos**, em vez de promovê-la ao topo
+  quando o operador inverte a ordenação.
+
+### Testes novos
+
+`apps/frontend-transportada/test/nfe-workspace/advanced-filter-and-columns.contract.ts`:
+
+- `'nota sem totalAmount nunca casa condição numérica sobre ela, nem "< 100" nem "= 0"'` — prova
+  N2 com uma nota sem `totalAmount` (chave removida com `delete`, nunca `undefined` atribuído —
+  `exactOptionalPropertyTypes` recusa atribuir `undefined` a `totalAmount?: string`) contra as duas
+  condições que o achado citou, mais um controle com valor presente continuando a funcionar.
+
+`apps/frontend-transportada/test/nfe-workspace/default-sort.contract.ts`:
+
+- Três testes novos sob `'nfe-workspace: ordenação por valor com nota sem totalAmount'`: fim da
+  lista ordenando crescente, fim da lista ordenando decrescente (prova que inverter não promove a
+  ausência ao topo), e duas notas sem valor não trocam de posição entre si (estabilidade).
+- `buildDocumentWithoutAmount` novo helper local, mesmo padrão de
+  `test/trip/nfe-document-money-optional.contract.ts` (`delete row.totalAmount`).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun test test/nfe-workspace.contract.test.ts   (apps/frontend-transportada)
+489 pass / 0 fail / 1661 expect() calls.
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada, por causa da mudança em
+tripTable.service.ts)
+974 pass / 0 fail / 17830 expect() calls.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, sem erro novo (mesmo aviso preexistente de chunk > 500kB).
+```
+
+### O que não fez
+
+Não tocou `apps/api-transportada`/`apps/worker-transportada`/`apps/cron-transportada` (fora do
+escopo desta sessão). Não mudou `matchesAmount` do filtro simples (já corrigido pela D10). Não
+mexeu em `test/trip/amount-columns.contract.ts` — o achado N11 (T804) cita esse arquivo junto com
+`route-choice-switch.contract.ts` para a fragilidade de prova por string, mas a linha ~137 hoje
+testa a célula de receita redigida da `TripTable`, sem relação com o efeito de rota da T804; o
+achado N4/N11 do T804 foi resolvido só nos dois arquivos de fato ligados à regressão do RF13
+(`TripAssemblyMap.component.tsx` e `route-choice-switch.contract.ts`) — ver evidência do T804.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

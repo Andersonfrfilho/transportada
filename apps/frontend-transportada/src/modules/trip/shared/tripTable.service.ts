@@ -56,24 +56,36 @@ export function visibleTripColumns(input: {
   return TRIP_COLUMN_KEYS.filter((column) => !MONEY_COLUMNS.has(column))
 }
 
+/**
+ * O par que qualquer coluna de dinheiro reusa (spec 153, segunda revisão N5): string crua vira
+ * número ou `null` — nunca `NaN` solto —, e a comparação joga a ausência para o fim **nos dois
+ * sentidos**, porque ela não é o menor valor, é a falta dele. A tabela de NF-e reusa este par em
+ * vez de duplicar a regra com `Number(undefined)`, que devolve `NaN` e embaralha o `sort`.
+ */
+export function parseMoneyAmount(raw: null | string | undefined): null | number {
+  if (raw === null || raw === undefined) return null
+  const parsed = Number(raw)
+
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+export function compareMoneyAmounts(left: null | number, right: null | number): number {
+  if (left === null) return right === null ? 0 : 1
+  if (right === null) return -1
+
+  return left - right
+}
+
 function moneyValue(row: Trip, column: TripColumnKey): null | number {
   const amount =
     column === 'cargoValue'
       ? (row.amounts?.documentsTotal ?? null)
       : (row.amounts?.revenueTotal ?? null)
-  if (amount === null) return null
-  const parsed = Number(amount)
-
-  return Number.isFinite(parsed) ? parsed : null
+  return parseMoneyAmount(amount)
 }
 
 function compareMoney(column: TripColumnKey, left: Trip, right: Trip): number {
-  const leftValue = moneyValue(left, column)
-  const rightValue = moneyValue(right, column)
-  if (leftValue === null) return rightValue === null ? 0 : 1
-  if (rightValue === null) return -1
-
-  return leftValue - rightValue
+  return compareMoneyAmounts(moneyValue(left, column), moneyValue(right, column))
 }
 
 function columnValue(row: Trip, column: TripColumnKey): string {

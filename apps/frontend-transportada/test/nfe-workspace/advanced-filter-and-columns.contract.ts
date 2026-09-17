@@ -177,6 +177,29 @@ describe('nfe workspace advanced filter evaluator contract', () => {
     ).toBe(false)
   })
 
+  /**
+   * Segunda revisão da spec 153, N2: `totalAmount` some do corpo sem `trip.financials` (D10), e o
+   * antigo `document[field] ?? ''` virava `Number('')` = `0` — a condição `< 100` casava toda nota
+   * sem valor, e `= 0` a devolvia como se valesse zero. Ausência nunca pode casar condição numérica.
+   */
+  test('nota sem totalAmount nunca casa condição numérica sobre ela, nem "< 100" nem "= 0"', () => {
+    const menorQueCem = model('and', [
+      group('and', [condition({ field: 'totalAmount', operator: 'lt', value: '100' })]),
+    ])
+    const igualAZero = model('and', [
+      group('and', [condition({ field: 'totalAmount', operator: 'eq', value: '0' })]),
+    ])
+    const semValor: NfeDocumentListItem = { ...buildDocument() }
+    delete (semValor as { totalAmount?: string }).totalAmount
+
+    expect(evaluateAdvancedFilter(semValor, menorQueCem)).toBe(false)
+    expect(evaluateAdvancedFilter(semValor, igualAZero)).toBe(false)
+    /** Controle: com valor, as duas condições continuam funcionando normalmente. */
+    expect(evaluateAdvancedFilter(buildDocument({ totalAmount: '50.0000' }), menorQueCem)).toBe(
+      true,
+    )
+  })
+
   test('date operators between/before/after compare the day portion only', () => {
     const between = model('and', [
       group('and', [

@@ -57,6 +57,15 @@ function sortedIds(documents: readonly NfeDocumentListItem[]): readonly string[]
   return sortDocuments({ documents, sort: DEFAULT_SORT }).map((document) => document.id)
 }
 
+/** `totalAmount` é opcional na API (D10) — a ausência é a chave sumindo, nunca `undefined` atribuído. */
+function buildDocumentWithoutAmount(
+  overrides: Partial<NfeDocumentListItem> = {},
+): NfeDocumentListItem {
+  const document: Record<string, unknown> = { ...buildDocument(overrides) }
+  delete document.totalAmount
+  return document as NfeDocumentListItem
+}
+
 describe('nfe-workspace default sort', () => {
   test('the default sort is the most recently updated document first', () => {
     expect(DEFAULT_SORT).toEqual({ column: 'updatedAt', direction: 'desc' })
@@ -156,5 +165,52 @@ describe('nfe-workspace default sort', () => {
     expect(
       parseTableViewPreferences({ sort: { column: 'emitter', direction: 'asc' } }).sort,
     ).toEqual({ column: 'emitter', direction: 'asc' })
+  })
+})
+
+/**
+ * Segunda revisão da spec 153, N5: `Number(undefined)` é `NaN`, e o comparador antigo devolvia
+ * `NaN` para todo par com uma nota sem `totalAmount` — o `sort` fica indefinido, e clicar em
+ * "Valor" embaralha a lista sem erro nenhum. O comparador reusa `compareMoneyAmounts` de
+ * `tripTable.service.ts`, que joga a ausência para o fim nos dois sentidos.
+ */
+describe('nfe-workspace: ordenação por valor com nota sem totalAmount (spec 153, segunda revisão N5)', () => {
+  test('nota sem valor vai para o fim ordenando por valor crescente', () => {
+    const sem = buildDocumentWithoutAmount({ id: 'sem' })
+    const barata = buildDocument({ id: 'barata', totalAmount: '100.0000' })
+    const cara = buildDocument({ id: 'cara', totalAmount: '900.0000' })
+
+    expect(
+      sortDocuments({
+        documents: [cara, sem, barata],
+        sort: { column: 'amount', direction: 'asc' },
+      }).map((document) => document.id),
+    ).toEqual(['barata', 'cara', 'sem'])
+  })
+
+  /** Ausência não é o menor valor — inverter o sentido não pode promovê-la ao topo. */
+  test('nota sem valor continua no fim ordenando por valor decrescente', () => {
+    const sem = buildDocumentWithoutAmount({ id: 'sem' })
+    const barata = buildDocument({ id: 'barata', totalAmount: '100.0000' })
+    const cara = buildDocument({ id: 'cara', totalAmount: '900.0000' })
+
+    expect(
+      sortDocuments({
+        documents: [barata, sem, cara],
+        sort: { column: 'amount', direction: 'desc' },
+      }).map((document) => document.id),
+    ).toEqual(['cara', 'barata', 'sem'])
+  })
+
+  test('duas notas sem valor não trocam de posição entre si', () => {
+    const semA = buildDocumentWithoutAmount({ id: 'sem-a' })
+    const semB = buildDocumentWithoutAmount({ id: 'sem-b' })
+
+    expect(
+      sortDocuments({
+        documents: [semA, semB],
+        sort: { column: 'amount', direction: 'asc' },
+      }).map((document) => document.id),
+    ).toEqual(['sem-a', 'sem-b'])
   })
 })

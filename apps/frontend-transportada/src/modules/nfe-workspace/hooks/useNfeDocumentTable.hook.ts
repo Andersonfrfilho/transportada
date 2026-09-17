@@ -5,6 +5,7 @@ import {
   clearAdvancedFilterConditions,
   removeAdvancedFilterCondition,
 } from '@/modules/shared/advancedFilterConditions.service'
+import { compareMoneyAmounts, parseMoneyAmount } from '@/modules/trip/shared/tripTable.service'
 
 import {
   countSelectionHiddenByFilter,
@@ -503,9 +504,19 @@ export function hasAnyActiveFilter(filters: DocumentFilters): boolean {
   return textActive || selectActive || rangeActive || unlinkedOnlyActive
 }
 
-function conditionFieldRaw(document: NfeDocumentListItem, field: ConditionField): string {
+/**
+ * Spec 153 (segunda revisão, N2): `totalAmount` é o único campo que **some** do corpo sem
+ * `trip.financials` (D10) — `undefined` aqui é "não sei o valor", nunca `''`. Um `''` vira `0` em
+ * `Number('')`, e a condição numérica `< 100` passaria a casar toda nota sem valor, e `= 0` a
+ * devolveria como se valesse zero. `evaluateCondition` recusa a condição antes de avaliar.
+ */
+function conditionFieldRaw(
+  document: NfeDocumentListItem,
+  field: ConditionField,
+): string | undefined {
   if (field === 'cteIssued') return cteIssuedValue(document)
   if (field === 'issuedAt') return document.issuedAt.slice(0, 10)
+  if (field === 'totalAmount') return document.totalAmount
   return document[field] ?? ''
 }
 
@@ -564,6 +575,8 @@ function evaluateSelectCondition(raw: string, operator: ConditionOperator, value
 function evaluateCondition(document: NfeDocumentListItem, condition: FilterCondition): boolean {
   const type = CONDITION_FIELD_TYPE[condition.field]
   const raw = conditionFieldRaw(document, condition.field)
+  /** Campo ausente nunca casa condição nenhuma — só `totalAmount` chega aqui (N2). */
+  if (raw === undefined) return false
   if (type === 'text') return evaluateTextCondition(raw, condition.operator, condition.value)
   if (type === 'number' || type === 'amount') {
     return evaluateNumericCondition(raw, condition.operator, condition.value)
@@ -707,7 +720,12 @@ function compareByColumn(
   if (column === 'recipient') {
     return first.recipientName.localeCompare(second.recipientName, 'pt-BR')
   }
-  if (column === 'amount') return Number(first.totalAmount) - Number(second.totalAmount)
+  if (column === 'amount') {
+    return compareMoneyAmounts(
+      parseMoneyAmount(first.totalAmount),
+      parseMoneyAmount(second.totalAmount),
+    )
+  }
   if (column === 'number') return Number(first.number) - Number(second.number)
   if (column === 'series') return Number(first.series) - Number(second.series)
   if (column === 'issuedAt') return first.issuedAt.localeCompare(second.issuedAt)
@@ -733,6 +751,18 @@ export function sortDocuments(params: {
   const { documents, sort } = params
   if (sort === null) return documents
   return [...documents].sort((first, second) => {
+    /**
+     * Ausência vai pro fim nos dois sentidos (N5): inverter a ordenação não pode promover ao topo
+     * justamente as notas sem valor — por isso o comparador bruto ignora o `direction` quando um
+     * dos dois lados não tem `totalAmount`.
+     */
+    if (sort.column === 'amount') {
+      const firstValue = parseMoneyAmount(first.totalAmount)
+      const secondValue = parseMoneyAmount(second.totalAmount)
+      if (firstValue === null || secondValue === null) {
+        return compareMoneyAmounts(firstValue, secondValue)
+      }
+    }
     const base = compareByColumn(sort.column, first, second)
     return sort.direction === 'asc' ? base : -base
   })

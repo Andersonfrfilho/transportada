@@ -142,7 +142,7 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 - [ ] T802 **N3** O compare-and-set por `updated_at` descarta congelamento legítimo em silêncio
       (qualquer escrita em `trips` na janela, inclusive relato do motorista). Revisão própria do
       conjunto de paradas, comparação como `timestamptz` e log quando o UPDATE não pega linha.
-- [ ] T803 **N2 + N5** Filtro avançado de NF-e transforma valor ausente em `0` (`?? ''` → `Number`),
+- [x] T803 **N2 + N5** Filtro avançado de NF-e transforma valor ausente em `0` (`?? ''` → `Number`),
       e a ordenação por valor embaralha a lista com `NaN`. Ausente nunca casa condição numérica, e a
       ordenação joga a ausência para o fim.
 - [ ] T804 **N4 + N11** Refetch da geometria apaga a escolha do operador (regressão do RF13): separar
