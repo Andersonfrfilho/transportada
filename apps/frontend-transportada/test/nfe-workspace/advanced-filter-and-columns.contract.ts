@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   countActiveConditions,
+  documentMatchesSearch,
   documentMatchesSimpleMode,
   EMPTY_FILTERS,
   evaluateAdvancedFilter,
@@ -309,6 +310,40 @@ describe('nfe workspace saved advanced filter as simple-mode pill contract', () 
     expect(documentMatchesSimpleMode(buildDocument(), EMPTY_FILTERS, emptySaved)).toBe(true)
   })
 })
+
+/**
+ * T905 (P11): `matchesText` (simple filter, `?? ''`) e `documentMatchesSearch` (busca livre,
+ * `(value ?? '').toLowerCase()`) já tratam campo ausente corretamente hoje — mas por acaso, sem
+ * teste nenhum reprovando se `Number.isNaN` virasse outra checagem ou `?? ''` virasse `?? '0'`.
+ * Estes dois testes fecham essa lacuna (o defeito que a N2/T803 já corrigiu num outro filtro).
+ */
+describe('nfe workspace simple filter and free search with missing values contract', () => {
+  test('simple text filter never matches a null address field', () => {
+    const filters = simpleFiltersWithText({ emitterAddress: 'Rua das Cargas' })
+    expect(documentMatchesSimpleMode(buildDocument({ emitterAddress: null }), filters, null)).toBe(
+      false,
+    )
+    // Control: the same filter matches when the address is present.
+    expect(documentMatchesSimpleMode(buildDocument(), filters, null)).toBe(true)
+  })
+
+  test('free search never matches a document without totalAmount, and other fields still search', () => {
+    const document = buildDocumentWithoutAmount()
+    expect(documentMatchesSearch(document, '1500')).toBe(false)
+    // Control: searching by a field that is still present keeps working.
+    expect(documentMatchesSearch(document, document.emitterName)).toBe(true)
+  })
+})
+
+function simpleFiltersWithText(overrides: Partial<DocumentFilters['text']>): DocumentFilters {
+  return { ...EMPTY_FILTERS, text: { ...EMPTY_FILTERS.text, ...overrides } }
+}
+
+function buildDocumentWithoutAmount(): NfeDocumentListItem {
+  const document: Record<string, unknown> = { ...buildDocument() }
+  delete document.totalAmount
+  return document as NfeDocumentListItem
+}
 
 describe('nfe workspace column reorder contract', () => {
   const order: readonly ColumnKey[] = [

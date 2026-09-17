@@ -165,9 +165,9 @@ export class DrizzleTripPlannedRouteRepository
   }
 
   /**
-   * T802: só roda no caminho frio (o UPDATE já falhou) — decide entre as duas causas que o filtro
+   * T802: só roda no caminho frio (o UPDATE já falhou) — decide entre as causas que o filtro
    * misturava numa linha só, para o log distinguir "a rota mudou enquanto congelava" de "a viagem
-   * já tinha saído para a rua".
+   * já tinha saído para a rua" de "a viagem nem existe mais" (T905 P8).
    */
   private async diagnosePlannedRouteWriteDiscard(
     input: WritePlannedRouteInput,
@@ -177,7 +177,7 @@ export class DrizzleTripPlannedRouteRepository
       .from(trips)
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
       .limit(1)
-    if (current === undefined) return 'stale_revision'
+    if (current === undefined) return 'trip_not_found'
 
     return (TRIP_STATUSES_BEFORE_DISPATCH as readonly string[]).includes(current.status)
       ? 'stale_revision'

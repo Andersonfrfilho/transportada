@@ -1857,7 +1857,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
     tripId: input.tripId,
   })
   if (coordinates === null) {
-    input.logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+    input.logger.warn(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
       companyId: input.companyId,
       reason: 'missing_coordinate',
       tripId: input.tripId,
@@ -1865,7 +1865,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
     return []
   }
   if (coordinates.length === 0) {
-    input.logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
+    input.logger.warn(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, {
       companyId: input.companyId,
       reason: 'no_stops',
       tripId: input.tripId,

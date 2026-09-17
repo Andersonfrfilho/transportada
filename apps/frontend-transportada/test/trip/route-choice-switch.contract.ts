@@ -189,13 +189,19 @@ describe('TripAssemblyMap: switch mais rápida ↔ mais barata sem novo OSRM (sp
   /**
    * spec 153 H1/M7: sem emitir a escolha inicial, o pai (criação manual, proposta) nunca ouve
    * falar da rota que a API abriu, e sempre manda o default `cheapest`/`signature: null` — mesmo
-   * quando ninguém tocou o seletor. `onRouteChoiceChange?.(` precisa aparecer **duas** vezes: uma
-   * no clique manual (`handleSelectRouteOptionIndex`), outra no efeito que reage à resposta da
-   * consulta — a mesma chamada que já mexe em `selectedOptionIndex`.
+   * quando ninguém tocou o seletor. A emissão precisa acontecer em **dois** pontos: o clique
+   * manual (`handleSelectRouteOptionIndex`, via `onRouteChoiceChange?.(`) e o efeito que reage à
+   * resposta da consulta — a mesma chamada que já mexe em `selectedOptionIndex`.
+   *
+   * T905 (P12): o efeito passou a ler o callback por `onRouteChoiceChangeRef.current?.(` (não
+   * `onRouteChoiceChange?.(` direto) para satisfazer `react-hooks/exhaustive-deps` sem reemitir a
+   * escolha a cada render do pai — mesmo motivo de `geometryDataRef` já existente neste arquivo.
+   * A prova conta os dois padrões, não mais um único literal.
    */
   it('emite a escolha assim que a resposta chega, não só no clique do seletor', () => {
-    const callCount = source.split('onRouteChoiceChange?.(').length - 1
-    expect(callCount).toBe(2)
+    const directCallCount = source.split('onRouteChoiceChange?.(').length - 1
+    const refCallCount = source.split('onRouteChoiceChangeRef.current?.(').length - 1
+    expect(directCallCount + refCallCount).toBe(2)
   })
 
   /**

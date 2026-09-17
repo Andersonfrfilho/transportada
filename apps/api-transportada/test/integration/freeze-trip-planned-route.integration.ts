@@ -399,6 +399,32 @@ describe('freeze trip planned route repository integration', () => {
   )
 
   testWithPostgres(
+    'T905 (P8): viagem apagada entre o disparo e a escrita tem motivo próprio, não "paradas mudaram"',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const revision = await readTripRevision(repository, companyId, tripId)
+        await database.db.delete(trips).where(eq(trips.id, tripId))
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('trip_not_found')
+      })
+    },
+  )
+
+  testWithPostgres(
     'T704 M1: a limpeza zera o grupo inteiro e o CHECK aceita — mas não toca em despachada',
     async () => {
       await withDisposableDatabase(async ({ database }) => {

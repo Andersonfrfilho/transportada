@@ -5386,3 +5386,182 @@ congelamento está fora do escopo de T901/T902.
 ### Commit
 
 `<hash desta mudança — ver git log>`
+
+## T905 — P6 + P8 + P9 + P10 + P11 + P12: ajustes menores da terceira revisão
+
+Cada leitura confirmada no código antes de mexer, porque a T901 (99c29ba2) tinha acabado de
+reescrever a guarda de concorrência do repositório de rota planejada.
+
+### P6 — literal da NF-e ancorado no tipo vigiado
+
+`apps/api-transportada/src/nfe-documents/presentation/nfe-documents.routes.ts`: `serializeDocument`
+tinha `const serialized = { ... }` inferido — `NFE_DOCUMENT_FIELD_POLICY` vigia `NfeDocumentSummary`,
+não a forma que sai da função, então um campo monetário a mais no literal compilava, ficava fora da
+`FieldPolicy` e vazava sem redação. Fix: `const serialized: NfeDocumentSummary = { ... }`, mesmo
+padrão que `serializeTripDocumentDetail` (`trip.routes.ts:1642`) já usa.
+
+**Experimento (mesmo da T805):** acrescentei `experimentMoneyField: '0.00'` só no literal —
+`bun run typecheck` reprovou com `TS2353: Object literal may only specify known properties, and
+'experimentMoneyField' does not exist in type 'NfeDocumentSummary'` — e desfiz o experimento antes
+de seguir.
+
+### P7 — dívida, não implementada
+
+Já registrada na Fase 9 (`tasks.md`, "Dívida declarada, fora de escopo") desde a T904. Nada a fazer
+aqui além de confirmar.
+
+### P8 — viagem inexistente ganha motivo próprio no descarte
+
+`apps/api-transportada/src/trips/infrastructure/drizzle-trip-planned-route.repository.ts`:
+`diagnosePlannedRouteWriteDiscard` caía no mesmo `'stale_revision'` quando a viagem não existe mais
+(`current === undefined`) e quando as paradas mudaram de verdade — o log dizia "as paradas mudaram"
+para uma viagem apagada. Novo motivo `'trip_not_found'` em `PlannedRouteWriteOutcome`
+(`freeze-trip-planned-route.use-case.ts`), devolvido só nesse ramo; `throwIfDiscarded` já propaga
+qualquer motivo que não seja `'written'` para `logger.warn` via `freezeTripRouteGracefully` — nada
+a mudar ali. Teste de integração novo em `freeze-trip-planned-route.integration.ts`: seeda a viagem,
+lê a revisão, `DELETE` a viagem e confere `outcome === 'trip_not_found'`. Comentário do teste unitário
+em `planned-route-invalidation.contract.ts` (que já caía nesse mesmo fallback por um mock sem linha)
+atualizado para o novo nome.
+
+### P9 — gap de parada sem coordenada vira `warn`
+
+`apps/api-transportada/src/main.ts` (~1338 e ~1345):
+`readTripRouteGeometryStopsOrWarn` logava `logger.info(TRIP_ROUTE_GEOMETRY_STOPS_GAP_MESSAGE, ...)`
+nos dois ramos (`missing_coordinate` e `no_stops`). Pelo padrão da casa (nodejs.md: `warn` é
+inesperado-mas-recuperável) e pelo irmão `freezeTripRouteGracefully`, que já usa `warn` para o mesmo
+tipo de descarte silencioso, os dois viraram `logger.warn`. Nenhum teste referenciava
+`trip_route_geometry_stops_gap` pelo nível de log (confirmado por grep antes de mudar).
+
+### P10 — teste do N12 aponta o campo que falhou
+
+`apps/api-transportada/test/trip-valuation/preview-route-choice.contract.ts`: o teste `'um critério
+fora de ROUTE_CHOICE_CRITERIA é 400...'` só afirmava `result.success === false`, que passaria mesmo
+se o corpo reprovasse por outro campo. Agora afirma `result.error.issues` contendo
+`{ path: ['routeChoice', 'criterion'] }`, e ganhou o par de controle `'caso de controle: um critério
+válido no mesmo corpo passa na fronteira HTTP'` (`criterion: 'cheapest'` → `success === true`) — sem
+o controle, a asserção do caminho não provaria que um critério válido de fato passa.
+
+### P11 — filtro simples e busca livre com valor ausente
+
+`apps/frontend-transportada/src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook.ts`: `matchesText`
+(filtro simples, `document[field] ?? ''`) e `documentMatchesSearch` (busca livre,
+`(value ?? '').toLowerCase()`) já tratavam campo ausente/nulo corretamente, mas sem teste nenhum —
+trocar `?? ''` por `?? '0'` ou reescrever a checagem reintroduziria a classe do defeito N2 sem
+reprovar nada. Exportei `documentMatchesSearch` (não estava exportada; `documentMatchesSimpleMode`
+já cobria o filtro simples e já era exportada) e acrescentei
+`describe('nfe workspace simple filter and free search with missing values contract', ...)` em
+`advanced-filter-and-columns.contract.ts`: um teste prova que `emitterAddress: null` nunca casa um
+filtro de texto preenchido (com controle do caminho presente), outro prova que um documento sem
+`totalAmount` (chave removida com `delete`, mesmo padrão de `document-money-optional.contract.ts`)
+nunca casa busca livre pelo valor antigo, com controle buscando por um campo ainda presente.
+
+### P12 — `exhaustive-deps` no ESLint do frontend
+
+`eslint-plugin-react-hooks` não estava instalado. Instalei como devDependency
+(`bun add -D eslint-plugin-react-hooks`, resolveu `7.1.1`) — `bun install --frozen-lockfile` depois
+de atualizar o lockfile continua passando (757 installs, sem mudança).
+
+`apps/frontend-transportada/eslint.config.mjs` ganhou um bloco novo com só
+`react-hooks/exhaustive-deps` e `react-hooks/rules-of-hooks`, não o `configs['recommended-latest']`
+inteiro do pacote v7 — esse traz regras do React Compiler (`purity`, `immutability`,
+`set-state-in-render`, `refs`, ...) sem relação com o que a T804/T903 afinaram à mão nos arrays de
+dependência, e ligá-las agora seria escopo muito maior que o pedido. As duas regras ficam `warn`,
+não `error`: `exhaustive-deps` porque o objetivo é rede de proteção, não bloquear o build por achado
+pré-existente fora do raio da spec 153; `rules-of-hooks` pelo mesmo motivo, depois que ela achou um
+hook condicional de verdade fora desse raio (abaixo).
+
+Com a regra ligada, `bun run lint` (frontend-transportada sozinho) acusou 16 avisos em 9 arquivos —
+nenhum tocado por commit da spec 153 (conferido por `git log --oneline -- <arquivo>` em cada um),
+exceto `TripAssemblyMap.component.tsx`, que é tocado e foi corrigido:
+
+| Arquivo                                                                                             | Avisos                                                                                  |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `src/modules/trip/components/TripCargoLayers.component.tsx`                                         | 5 (`rules-of-hooks`: `useMemo` chamado condicionalmente, hook de verdade fora de ordem) |
+| `src/modules/fleet/components/FreightRegionVectorMap.component.tsx`                                 | 2                                                                                       |
+| `src/modules/trip/components/AssemblyVectorMap.component.tsx` (não confundir com `TripAssemblyMap`) | 2                                                                                       |
+| `src/modules/trip/components/TripDocumentSearch.component.tsx`                                      | 2                                                                                       |
+| `src/components/ui/useBarcodeScanner.hook.ts`                                                       | 1                                                                                       |
+| `src/modules/fleet/hooks/useFreightRegionCities.hook.ts`                                            | 1                                                                                       |
+| `src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx`                     | 1                                                                                       |
+| `src/modules/routing/hooks/useMultiVehicleSuggestion.hook.ts`                                       | 1                                                                                       |
+| `src/modules/trip/components/DeliveryAddressOverrideDialog.component.tsx`                           | 1                                                                                       |
+
+Nenhum destes nove foi tocado — viram task própria, com destaque para `TripCargoLayers.component.tsx`
+(5 erros de `rules-of-hooks`, correção real, não falso positivo).
+
+**Corrigido em `TripAssemblyMap.component.tsx`** (único arquivo tocado por commits da spec 153 entre
+os que a regra acusou):
+
+- `useMemo` de `map` (linha ~310): `const features = meshQuery.data ?? ([] as readonly
+MeshFeature[])` morava fora do `useMemo`, e `?? []` cria um array novo a cada render — a própria
+  dependência que o comentário acima ("Memoizado, e isso não é performance") descreve como a defesa
+  nunca memoizava nada enquanto a malha não carregava. Movido para dentro do callback; a dependência
+  agora é `meshQuery.data`.
+- `useEffect` que emite a escolha inicial da rota (linha ~373): faltava `onRouteChoiceChange` no
+  array de dependências. Incluir direto reabriria o defeito que a T904 fechou — o pai recria a
+  função a cada render, e o efeito reemitiria a escolha a cada render em vez de só quando a rota
+  muda. `react.md` proíbe `eslint-disable` para `exhaustive-deps`, então segui o padrão que o próprio
+  arquivo já usa para `geometryDataRef`: `onRouteChoiceChangeRef` (mesmo `useRef` + atribuição direta
+  no corpo do componente), lido por `onRouteChoiceChangeRef.current?.(...)` dentro do efeito.
+  `route-choice-switch.contract.ts` tinha um teste textual contando ocorrências literais de
+  `onRouteChoiceChange?.(` no source (esperava 2) — atualizado para somar as duas formas
+  (`onRouteChoiceChange?.(` do clique manual + `onRouteChoiceChangeRef.current?.(` do efeito),
+  continuando a provar que a emissão acontece nos dois pontos.
+
+Depois das duas correções, `TripAssemblyMap.component.tsx` não aparece mais na lista de avisos.
+
+### Testes novos/alterados
+
+- `apps/api-transportada/test/integration/freeze-trip-planned-route.integration.ts`: teste
+  `'T905 (P8): viagem apagada entre o disparo e a escrita tem motivo próprio, não "paradas
+mudaram"'`.
+- `apps/api-transportada/test/trip-infrastructure/planned-route-invalidation.contract.ts`:
+  comentário atualizado (`'trip_not_found'` no lugar de `'stale_revision'`).
+- `apps/api-transportada/test/trip-valuation/preview-route-choice.contract.ts`: asserção de `path`
+  e teste de controle novo (P10).
+- `apps/frontend-transportada/test/nfe-workspace/advanced-filter-and-columns.contract.ts`: describe
+  novo com os dois testes de valor ausente (P11).
+- `apps/frontend-transportada/test/trip/route-choice-switch.contract.ts`: asserção da contagem de
+  emissão adaptada ao padrão de ref (P12).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — frontend-transportada com 16 avisos novos de react-hooks (tabela acima, fora do raio da
+spec 153); as outras apps continuam em --max-warnings=0.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (1 arquivo de teste precisou de `prettier --write` antes)
+
+$ bun install --frozen-lockfile   (raiz, depois de `bun add -D eslint-plugin-react-hooks`)
+Checked 757 installs across 890 packages (no changes).
+
+$ bun run test   (apps/frontend-transportada)
+4246 pass / 0 fail, 36318 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, PWA precache 130 entries.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6279 pass / 23 skip / 0 fail, 21968 expect() calls, 177 arquivos.
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+11 pass / 0 fail, 28 expect() calls (10 pré-existentes + 1 novo do P8).
+
+$ bun --env-file=../../.env.test test ./test/integration/nfe-document-listing-order.integration.ts ./test/integration/nfe-document-output.integration.ts ./test/integration/trip-document-review.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+25 pass / 0 fail, 122 expect() calls.
+```
+
+### O que não fez / virou task própria
+
+Os 9 arquivos com aviso de `react-hooks` fora do raio da spec 153 (tabela acima) — sobretudo
+`TripCargoLayers.component.tsx`, que tem um hook de verdade chamado condicionalmente (5 ocorrências
+de `rules-of-hooks`), não corrigido aqui porque nenhum commit desta spec tocou esse arquivo.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

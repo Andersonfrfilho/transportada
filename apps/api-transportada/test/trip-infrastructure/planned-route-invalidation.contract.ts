@@ -95,7 +95,8 @@ describe('T704 M3: a escrita do congelamento não atropela estado mais novo', ()
        * T802: quando o UPDATE afeta zero linhas (o caso aqui — o mock nunca "acha" a linha), o
        * repositório faz uma segunda leitura para distinguir o motivo do descarte. Este `select`
        * devolve nenhuma linha, então `diagnosePlannedRouteWriteDiscard` cai no fallback
-       * `'stale_revision'` — irrelevante para o que estes dois testes provam (a forma do UPDATE).
+       * `'trip_not_found'` (T905 P8) — irrelevante para o que estes dois testes provam (a forma
+       * do UPDATE).
        */
       select: () => ({
         from: () => ({

@@ -175,7 +175,7 @@ Terceira revisão: APROVADA COM RESSALVAS, sem achado crítico ou alto e sem reg
 - [x] T904 **P5** A garantia do RF13 no `TripAssemblyMap` ainda é `toInclude` sobre o texto-fonte:
       renderizar o componente, escolher a opção 2, refazer a busca com o mesmo conteúdo e provar que
       a escolha não foi reemitida nem perdida.
-- [ ] T905 **P6 + P8 + P9 + P10 + P11 + P12** Ajustes: literal da NF-e ancorado no tipo vigiado;
+- [x] T905 **P6 + P8 + P9 + P10 + P11 + P12** Ajustes: literal da NF-e ancorado no tipo vigiado;
       viagem inexistente não vira "paradas mudaram" no log; `warn` no gap de paradas; a prova do N12
       aponta o campo; teste para o filtro simples e a busca livre sem valor; `exhaustive-deps` no
       ESLint do frontend.

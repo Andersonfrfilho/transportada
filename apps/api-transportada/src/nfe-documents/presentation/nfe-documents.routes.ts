@@ -303,7 +303,7 @@ function serializeDocument(input: {
   readonly document: NfeDocumentSummary
 }): object {
   const document = input.document
-  const serialized = {
+  const serialized: NfeDocumentSummary = {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
     documentOutput: { ...document.documentOutput },

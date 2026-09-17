@@ -469,7 +469,7 @@ function documentMatchesFilters(document: NfeDocumentListItem, filters: Document
   return true
 }
 
-function documentMatchesSearch(document: NfeDocumentListItem, term: string): boolean {
+export function documentMatchesSearch(document: NfeDocumentListItem, term: string): boolean {
   const needle = term.trim().toLowerCase()
   if (needle.length === 0) return true
   const haystack: readonly (string | null | undefined)[] = [

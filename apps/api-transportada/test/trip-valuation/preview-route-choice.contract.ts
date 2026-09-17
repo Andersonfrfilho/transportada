@@ -154,6 +154,10 @@ describe('a prévia aceita a rota escolhida (spec 153 RF4)', () => {
      * o `expect(true).toBe(true)` só documentava uma afirmação nunca verificada.
      * `previewTripValuationSchema` usa `z.enum(ROUTE_CHOICE_CRITERIA)`, a mesma validação que
      * `planTripRouteSchema` já usa (T201); a asserção de verdade é aqui.
+     *
+     * T905 (P10): `result.success === false` também passaria se o corpo reprovasse por outro
+     * motivo — asserir o caminho do problema (`['routeChoice', 'criterion']`) prova que é
+     * exatamente o enum inválido que reprova, não outra coisa no payload.
      */
     const result = previewTripValuationSchema.safeParse({
       nfeDocumentIds: [COMPANY_ID],
@@ -162,6 +166,22 @@ describe('a prévia aceita a rota escolhida (spec 153 RF4)', () => {
     })
 
     expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['routeChoice', 'criterion'] }),
+      )
+    }
+  })
+
+  it('caso de controle: um critério válido no mesmo corpo passa na fronteira HTTP', () => {
+    /** T905 (P10): sem este par, o teste acima não provaria nada — só que "algo" falha. */
+    const result = previewTripValuationSchema.safeParse({
+      nfeDocumentIds: [COMPANY_ID],
+      routeChoice: { criterion: 'cheapest', signature: null },
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(result.success).toBe(true)
   })
 
   it('com `no_toll`, troca de rota — a distância e o pedágio passam a ser os da estrada sem praça', async () => {

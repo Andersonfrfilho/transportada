@@ -316,17 +316,27 @@ export function TripAssemblyMap({
     return [...selected].sort((left, right) => rankOf(left) - rankOf(right))
   }, [order, selected])
 
-  const features = meshQuery.data ?? ([] as readonly MeshFeature[])
   /**
    * ⚠️ **Memoizado, e isso não é performance.** Sem `useMemo` o `map` é reconstruído a cada
    * renderização, e com ele `map.points` — um array novo toda vez. Os dois efeitos do mapa vetorial
    * têm `points` nas dependências: eles removiam e recriavam todos os marcadores, e re-enquadravam
    * o mapa, a cada render. Pino e linha passavam a discordar de lugar porque nunca terminavam de
    * ser desenhados sobre o mesmo estado.
+   *
+   * T905 (P12): `meshQuery.data ?? []` morava fora do `useMemo` — o `[]` do fallback é um array
+   * novo a cada render, então a dependência `features` nunca era `===` à anterior, e o próprio
+   * `useMemo` que o comentário acima descreve como a defesa nunca memoizava nada quando a malha
+   * ainda não tinha carregado. Calculado dentro do callback, só `meshQuery.data` entra no array de
+   * dependências.
    */
   const map = useMemo(
-    () => buildAssemblyMap({ features, nearby, selected: orderedSelection }),
-    [features, nearby, orderedSelection],
+    () =>
+      buildAssemblyMap({
+        features: meshQuery.data ?? ([] as readonly MeshFeature[]),
+        nearby,
+        selected: orderedSelection,
+      }),
+    [meshQuery.data, nearby, orderedSelection],
   )
 
   /**
@@ -386,6 +396,15 @@ export function TripAssemblyMap({
   const geometryDataRef = useRef(geometryQuery.data)
   geometryDataRef.current = geometryQuery.data
   const routeSignatureKey = buildRouteChoiceSignatureKey(geometryQuery.data)
+  /**
+   * T905 (P12): `onRouteChoiceChange` mora numa ref pela mesma razão de `geometryDataRef` — o
+   * efeito só deve rodar quando a rota de verdade muda (routeKey/tollVehicleId/routeSignatureKey),
+   * nunca quando o pai recria a função a cada render. Sem a ref, satisfazer `exhaustive-deps`
+   * incluindo `onRouteChoiceChange` no array reabriria o defeito que o T904 fechou: reemissão da
+   * escolha a cada render do pai, não só quando a rota muda.
+   */
+  const onRouteChoiceChangeRef = useRef(onRouteChoiceChange)
+  onRouteChoiceChangeRef.current = onRouteChoiceChange
 
   useEffect(() => {
     const data = geometryDataRef.current
@@ -395,7 +414,7 @@ export function TripAssemblyMap({
     }
     const emission = resolveRouteChoiceEmission(data)
     setSelectedOptionIndex(emission.selectedIndex)
-    onRouteChoiceChange?.(emission.routeChoice)
+    onRouteChoiceChangeRef.current?.(emission.routeChoice)
   }, [routeKey, tollVehicleId, routeSignatureKey])
 
   /**

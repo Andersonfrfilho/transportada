@@ -100,6 +100,11 @@ export type PlannedRouteWriteOutcome =
   | 'stale_revision'
   /** A viagem saiu para a rua no meio do caminho — o roteiro congelado no despacho é o que vale. */
   | 'status_not_before_dispatch'
+  /**
+   * T905 (P8): a viagem sumiu entre o disparo e esta escrita — outro motivo que `'stale_revision'`
+   * calava. O log agora diz "viagem inexistente", não "as paradas mudaram".
+   */
+  | 'trip_not_found'
 
 export type FreezeTripPlannedRoutePort = {
   /** `null` quando a viagem sumiu entre o gate do planejamento e aqui — não há o que congelar. */
