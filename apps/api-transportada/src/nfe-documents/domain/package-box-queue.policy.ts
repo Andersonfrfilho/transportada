@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveBoxFamily, resolvePackagingUnitCount } from './package-box-family.policy.js'
+import {
+  resolveBoxFamily,
+  resolveEmitterFamilyKey,
+  resolvePackagingUnitCount,
+} from './package-box-family.policy.js'
 
 /** Cobre 80% do que roda: o resto da cauda custa o mesmo tempo do conferente por fatia irrelevante. */
 const DEFAULT_COVERAGE_TARGET = 0.8
@@ -93,6 +97,7 @@ function computeCheckDigit(base: string): number {
 export type FamilyCountableBox = {
   readonly commercialUnit: string
   readonly description: string
+  readonly emitterTaxId: string
   readonly id: string
   readonly measured: boolean
 }
@@ -115,8 +120,9 @@ export function countBoxFamilies(
   boxes: readonly FamilyCountableBox[],
 ): ReadonlyMap<string, FamilyCounts> {
   const resolved = boxes.map((box) => ({
-    ...resolveBoxFamily(box),
+    familyKey: resolveEmitterFamilyKey(box),
     id: box.id,
+    variantLabel: resolveBoxFamily(box).variantLabel,
     measured: box.measured,
   }))
 

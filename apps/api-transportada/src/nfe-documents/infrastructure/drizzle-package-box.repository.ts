@@ -19,7 +19,11 @@ import type {
   PackageBoxSiblingView,
   PackageBoxView,
 } from '../application/package-box.port.js'
-import { resolveBoxFamily, resolvePackagingUnitCount } from '../domain/package-box-family.policy.js'
+import {
+  resolveBoxFamily,
+  resolveEmitterFamilyKey,
+  resolvePackagingUnitCount,
+} from '../domain/package-box-family.policy.js'
 import {
   PackageBoxNotFoundError,
   PackageBoxReplicationSourceNotMeasuredError,
@@ -60,14 +64,13 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       .from(nfePackageBoxes)
       .where(eq(nfePackageBoxes.companyId, input.companyId))
 
-    const originFamily = resolveBoxFamily(origin)
+    const originFamilyKey = resolveEmitterFamilyKey(origin)
 
     const family =
-      originFamily.familyKey === undefined
+      originFamilyKey === undefined
         ? []
         : companyBoxes.filter(
-            (box) =>
-              box.id !== origin.id && resolveBoxFamily(box).familyKey === originFamily.familyKey,
+            (box) => box.id !== origin.id && resolveEmitterFamilyKey(box) === originFamilyKey,
           )
     const packaging = companyBoxes.filter(
       (box) =>
@@ -282,6 +285,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         .select({
           commercialUnit: nfePackageBoxes.commercialUnit,
           description: nfePackageBoxes.description,
+          emitterTaxId: nfePackageBoxes.emitterTaxId,
           grossWeightGrams: nfePackageBoxes.grossWeightGrams,
           heightMm: nfePackageBoxes.heightMm,
           id: nfePackageBoxes.id,
@@ -308,12 +312,15 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       const sourceLengthMm = origin.lengthMm
       const sourceWidthMm = origin.widthMm
 
-      const originFamily = resolveBoxFamily(origin)
+      const originFamilyKey = resolveEmitterFamilyKey(origin)
+      /** Sem família não há com quem replicar — e `undefined === undefined` não é parentesco. */
+      if (originFamilyKey === undefined) throw new PackageBoxReplicationTargetOutsideFamilyError()
 
       const targets = await transaction
         .select({
           commercialUnit: nfePackageBoxes.commercialUnit,
           description: nfePackageBoxes.description,
+          emitterTaxId: nfePackageBoxes.emitterTaxId,
           id: nfePackageBoxes.id,
           measuredAt: nfePackageBoxes.measuredAt,
         })
@@ -329,7 +336,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       for (const targetId of input.targetIds) {
         const target = targetsById.get(targetId)
         if (target === undefined) throw new PackageBoxNotFoundError()
-        if (resolveBoxFamily(target).familyKey !== originFamily.familyKey) {
+        if (resolveEmitterFamilyKey(target) !== originFamilyKey) {
           throw new PackageBoxReplicationTargetOutsideFamilyError()
         }
         if (target.measuredAt !== null) throw new PackageBoxReplicationTargetAlreadyMeasuredError()
@@ -352,9 +359,14 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
           and(
             eq(nfePackageBoxes.companyId, input.companyId),
             inArray(nfePackageBoxes.id, [...input.targetIds]),
+            /** D4 sob concorrência: a leitura acima pode ter visto o alvo antes de alguém medi-lo. */
+            isNull(nfePackageBoxes.measuredAt),
           ),
         )
         .returning({ id: nfePackageBoxes.id })
+      if (updated.length !== input.targetIds.length) {
+        throw new PackageBoxReplicationTargetAlreadyMeasuredError()
+      }
 
       if (updated.length > 0) {
         await transaction.insert(nfePackageBoxMeasurements).values(

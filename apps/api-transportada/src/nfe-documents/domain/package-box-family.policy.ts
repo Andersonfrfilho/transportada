@@ -93,6 +93,19 @@ export function resolveBoxFamily(params: ResolveBoxFamilyParams): PackageBoxFami
   }
 }
 
+export type ResolveEmitterFamilyKeyParams = ResolveBoxFamilyParams & {
+  readonly emitterTaxId: string
+}
+
+/**
+ * D1: a família é `(emitente, prefixo, uCom)`. Dois emitentes com o mesmo prefixo não são a mesma
+ * caixa física — toda comparação entre caixas passa por aqui, nunca pelo `familyKey` cru.
+ */
+export function resolveEmitterFamilyKey(params: ResolveEmitterFamilyKeyParams): string | undefined {
+  const { familyKey } = resolveBoxFamily(params)
+  return familyKey === undefined ? undefined : `${params.emitterTaxId}|${familyKey}`
+}
+
 /** A unidade comercial carrega a contagem no sufixo (`CX36`, `FR12`) — é o que o conferente confere. */
 export function resolvePackagingUnitCount(commercialUnit: string): number | undefined {
   const digits =

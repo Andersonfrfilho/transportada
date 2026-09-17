@@ -107,12 +107,38 @@ describe('a ordem não conhece a situação da medida', () => {
  * D9: o contador de família sai de uma window function sobre TODAS as caixas da empresa, antes do
  * `LIMIT` — senão ele mente para toda família que atravessa a borda da página de 50.
  */
+const EMITTER_TAX_ID = '05868574001090'
+
 describe('o contador de família não conhece a janela da página (spec 155 D9)', () => {
+  /** D1: a família é `(emitente, prefixo, uCom)` — o mesmo texto de outro emitente é outra caixa. */
+  test('mesmo prefixo e unidade de emitentes diferentes não se contam', () => {
+    const counts = countBoxFamilies([
+      {
+        commercialUnit: 'CX180',
+        description: 'REFR TANG 18G MANGA',
+        emitterTaxId: EMITTER_TAX_ID,
+        id: 'deste-emitente',
+        measured: false,
+      },
+      {
+        commercialUnit: 'CX180',
+        description: 'REFR TANG 18G UVA',
+        emitterTaxId: '11222333000181',
+        id: 'de-outro-emitente',
+        measured: true,
+      },
+    ])
+
+    expect(counts.get('deste-emitente')?.familyMeasuredCount).toBe(0)
+    expect(counts.get('deste-emitente')?.familyPendingCount).toBe(1)
+  })
+
   test('família que atravessa a borda dos 50 primeiros mostra o contador certo', () => {
     /** 49 caixas de enchimento + 2 da família `REFR TANG 18G|CX180` — a 50ª cai fora de um `LIMIT 50`. */
     const filler = Array.from({ length: 49 }, (_unused, index) => ({
       commercialUnit: 'CX10',
       description: `PRODUTO SOLTO ${index}`,
+      emitterTaxId: EMITTER_TAX_ID,
       id: `filler-${index}`,
       measured: false,
     }))
@@ -121,12 +147,14 @@ describe('o contador de família não conhece a janela da página (spec 155 D9)'
       {
         commercialUnit: 'CX180',
         description: 'REFR TANG 18G MANGA',
+        emitterTaxId: EMITTER_TAX_ID,
         id: 'dentro-da-pagina',
         measured: false,
       },
       {
         commercialUnit: 'CX180',
         description: 'REFR TANG 18G UVA',
+        emitterTaxId: EMITTER_TAX_ID,
         id: 'fora-da-pagina',
         measured: true,
       },
@@ -135,7 +163,7 @@ describe('o contador de família não conhece a janela da página (spec 155 D9)'
     const counts = countBoxFamilies(boxes)
 
     expect(counts.get('dentro-da-pagina')).toEqual({
-      familyKey: 'REFR TANG 18G|CX180',
+      familyKey: `${EMITTER_TAX_ID}|REFR TANG 18G|CX180`,
       familyMeasuredCount: 1,
       familyPendingCount: 1,
       variantLabel: 'MANGA',
@@ -147,6 +175,7 @@ describe('o contador de família não conhece a janela da página (spec 155 D9)'
       {
         commercialUnit: 'CX1',
         description: 'AMIDO MILHO MAIZENA 200G',
+        emitterTaxId: EMITTER_TAX_ID,
         id: 'sem-rotulo',
         measured: false,
       },

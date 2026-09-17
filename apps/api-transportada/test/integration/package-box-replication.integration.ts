@@ -168,12 +168,134 @@ describe('irmãs e réplica de medida de caixa (spec 155 T2.3/T2.4)', () => {
     },
     60_000,
   )
+
+  /**
+   * Spec 155 D1: a família é `(emitente, prefixo, uCom)`. Dois emitentes que escrevem o mesmo
+   * prefixo não são a mesma caixa física — nem irmãs, nem destino de réplica.
+   */
+  testWithPostgres(
+    'caixa de outro emitente com o mesmo prefixo não é irmã nem alvo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const repository = new DrizzlePackageBoxRepository(database.db)
+
+        const siblings = await createListPackageBoxSiblings({ repository }).execute({
+          boxId: scenario.originId,
+          context: { companyId: scenario.companyId },
+        })
+        expect(siblings.family.map((item) => item.id)).not.toContain(scenario.otherEmitterBoxId)
+
+        await expect(
+          createReplicatePackageBoxMeasurement({ repository }).execute({
+            boxId: scenario.originId,
+            context: { companyId: scenario.companyId, userId: scenario.userId },
+            targetIds: [scenario.otherEmitterBoxId],
+          }),
+        ).rejects.toBeInstanceOf(PackageBoxReplicationTargetOutsideFamilyError)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'origem e alvo sem família nenhuma não viram família por coincidência de chave vazia',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+
+        await expect(
+          createReplicatePackageBoxMeasurement({
+            repository: new DrizzlePackageBoxRepository(database.db),
+          }).execute({
+            boxId: scenario.familylessMeasuredId,
+            context: { companyId: scenario.companyId, userId: scenario.userId },
+            targetIds: [scenario.familylessPendingId],
+          }),
+        ).rejects.toBeInstanceOf(PackageBoxReplicationTargetOutsideFamilyError)
+      })
+    },
+    60_000,
+  )
+
+  /**
+   * D4 sob concorrência: o conferente mede o alvo enquanto a réplica está a caminho. A leitura da
+   * réplica ainda vê o alvo vazio; a gravação dela não pode passar por cima da medida conferida.
+   */
+  testWithPostgres(
+    'medida gravada durante a réplica não é sobrescrita (D4)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const replicate = createReplicatePackageBoxMeasurement({
+          repository: new DrizzlePackageBoxRepository(database.db),
+        })
+
+        let releaseMeasurement: () => void = () => undefined
+        const measurementReleased = new Promise<void>((resolve) => {
+          releaseMeasurement = resolve
+        })
+        let markMeasurementLocked: () => void = () => undefined
+        const measurementLocked = new Promise<void>((resolve) => {
+          markMeasurementLocked = resolve
+        })
+
+        const concurrentMeasurement = database.db.transaction(async (transaction) => {
+          await transaction
+            .update(nfePackageBoxes)
+            .set({
+              heightMm: 99,
+              lengthMm: 99,
+              measuredAt: new Date(),
+              measurementSource: 'typed',
+              widthMm: 99,
+            })
+            .where(eq(nfePackageBoxes.id, scenario.familyPendingId))
+          markMeasurementLocked()
+          await measurementReleased
+        })
+        await measurementLocked
+
+        const replication = replicate.execute({
+          boxId: scenario.originId,
+          context: { companyId: scenario.companyId, userId: scenario.userId },
+          targetIds: [scenario.familyPendingId],
+        })
+        const settledReplication = replication.then(
+          () => undefined,
+          (error: unknown) => error,
+        )
+        await Bun.sleep(500)
+        releaseMeasurement()
+        await concurrentMeasurement
+
+        expect(await settledReplication).toBeInstanceOf(
+          PackageBoxReplicationTargetAlreadyMeasuredError,
+        )
+        const [target] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, scenario.familyPendingId))
+        expect(target?.lengthMm).toBe(99)
+        expect(target?.measurementSource).toBe('typed')
+        const history = await database.db
+          .select()
+          .from(nfePackageBoxMeasurements)
+          .where(eq(nfePackageBoxMeasurements.packageBoxId, scenario.familyPendingId))
+        expect(history).toHaveLength(0)
+      })
+    },
+    60_000,
+  )
 })
 
 type Scenario = {
   readonly companyId: string
   readonly familyMeasuredId: string
   readonly familyPendingId: string
+  readonly familylessMeasuredId: string
+  readonly familylessPendingId: string
+  readonly otherEmitterBoxId: string
   readonly originId: string
   readonly otherCompanyBoxId: string
   readonly otherCompanyId: string
@@ -196,6 +318,9 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
   const packagingSiblingId = crypto.randomUUID()
   const unmeasuredOriginId = crypto.randomUUID()
   const otherCompanyBoxId = crypto.randomUUID()
+  const otherEmitterBoxId = crypto.randomUUID()
+  const familylessMeasuredId = crypto.randomUUID()
+  const familylessPendingId = crypto.randomUUID()
 
   await database.db.insert(companies).values([
     { id: companyId, status: 'active' },
@@ -266,6 +391,33 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
       id: unmeasuredOriginId,
       productCode: '9001',
     },
+    // Mesmo texto e unidade da família, emitente diferente: outra caixa física (D1).
+    {
+      commercialUnit: 'CX36',
+      companyId,
+      description: 'SAB FARNESE 180G ERVA DOCE HORTE',
+      emitterTaxId: '11222333000181',
+      id: otherEmitterBoxId,
+      productCode: '6961',
+    },
+    // Sem família (prefixo genérico): nenhuma das duas tem com quem replicar.
+    {
+      commercialUnit: 'CX12',
+      companyId,
+      description: 'ALCOOL FLOPS 1L 46.2',
+      emitterTaxId,
+      id: familylessMeasuredId,
+      productCode: '8001',
+      ...measured,
+    },
+    {
+      commercialUnit: 'CX12',
+      companyId,
+      description: '3M ESPONJA MULTI USO',
+      emitterTaxId,
+      id: familylessPendingId,
+      productCode: '8002',
+    },
     {
       commercialUnit: 'CX36',
       companyId: otherCompanyId,
@@ -280,9 +432,12 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
     companyId,
     familyMeasuredId,
     familyPendingId,
+    familylessMeasuredId,
+    familylessPendingId,
     originId,
     otherCompanyBoxId,
     otherCompanyId,
+    otherEmitterBoxId,
     outsideFamilyId,
     packagingSiblingId,
     unmeasuredOriginId,

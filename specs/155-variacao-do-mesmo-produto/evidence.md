@@ -384,6 +384,27 @@ para caixa de outra empresa; (2) replicar grava dimensões/peso/`unitsPerBox`/
 no histórico (D4, critério de aceite 3 da spec); (3) os três caminhos de recusa (origem sem medida,
 alvo fora da família, alvo de outra empresa) não gravam nada.
 
+### Correção após revisão do coordenador (T2.3/T2.4)
+
+Três defeitos lidos no código entregue, cada um com teste vermelho antes da correção em
+`test/integration/package-box-replication.integration.ts`:
+
+1. **Emitente fora da chave (D1).** `familyKey` era `prefixo|uCom`, e a família é
+   `(emitente, prefixo, uCom)`. Outro emitente com o mesmo texto aparecia nas irmãs e aceitava
+   réplica. Correção: `resolveEmitterFamilyKey` na policy, usada pela contagem, pelas irmãs e pela
+   réplica. O `familyKey` da listagem passou a vir prefixado pelo CNPJ do emitente.
+2. **Chave vazia virava parentesco.** Origem e alvo sem família davam `undefined === undefined` e a
+   réplica passava. Agora origem sem família → 422 `TargetOutsideFamily`.
+3. **Corrida contra a D4.** A checagem "já medido" era leitura seguida de `UPDATE` sem condição: uma
+   medida gravada entre as duas era sobrescrita. Agora o `UPDATE` exige `measured_at is null` e, se
+   atualizar menos alvos que o pedido, lança 409, desfazendo a transação inteira. O teste segura a
+   linha numa transação concorrente, dispara a réplica e solta: a medida digitada (99 mm) sobrevive
+   e o histórico fica vazio.
+
+Vermelho: `2 pass · 4 fail` (os três novos e o teste de irmãs, que passou a ver a caixa do outro
+emitente). Depois: integração `6 pass · 0 fail · 0 skip` com `--env-file=../../.env.test`;
+`bun run typecheck` exit 0; `apps/api-transportada test` **6319 pass · 23 skip · 0 fail**.
+
 ## T2.5 — Regressão da G007
 
 ⚠️ **Desvio do `tasks.md`, decidido pelo coordenador em conversa:** os três caminhos de escrita
