@@ -4191,3 +4191,127 @@ instrução).
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T708 — H4: aceite multi-veículo retomável ✅ 2026-09-17
+
+### Cenário, medido contra o código de antes desta task (pós-T703)
+
+A T703 trocou `planTripRoute` pelo congelador tolerante **só para o pedágio** de uma viagem já
+planejada — não muda `checkPlanRoute` (`trip-state.policy.ts` ~299-312), que continua bloqueando
+`planRoute` com `TRIP_TRANSITION_BLOCK.tripHasNoRoute` quando a viagem não tem nenhuma parada
+(`hasRoute` falso). O laço do H4 sobrevive integralmente à T703:
+
+1. Um veículo já tem viagem viva e as notas dele já vinculadas (de uma tentativa anterior do mesmo
+   aceite, interrompida por falha noutro veículo). O `catch` de `accept` (linha ~296 de
+   `multi-vehicle-suggestion.use-case.ts`) devolve a sugestão para `ready` e relança **sem desfazer**
+   as viagens já criadas — comportamento correto, documentado no próprio comentário do código.
+2. No reaceite, o laço `for (const group of groups)` chama `createTrip` incondicionalmente para
+   **todo** veículo da proposta, inclusive o que já tem viagem pronta. `linkDocument` devolve
+   `false` para as notas já vivas (spec 107 D1) — a viagem nova nasce sem nota.
+3. `orderedAddressKeys.length > 0` da proposta ainda é verdade (é a proposta, não o estado real), e
+   `reorderStops` é chamado; o adaptador (`trip-composer.adapter.ts`) lista as paradas **reais** da
+   viagem nova (zero) e `complete.length === 0` faz o método retornar cedo, sem escrever nada.
+4. `planRoute` lê `hasRoute: false` (zero paradas) e lança `TripStateTransitionNotAllowedError`
+   (`tripHasNoRoute`). O `catch` externo devolve a sugestão a `ready` de novo e relança.
+
+Cada reaceite cria mais uma viagem vazia em rascunho para o veículo já composto, e nunca chega aos
+veículos que de fato faltam — confirmado reproduzindo a sequência em
+`test/routing-application/multi-vehicle-suggestion.contract.ts` contra o código anterior a esta
+correção: sem o `findComposedTrip`, a segunda chamada de `accept` gerava `trip-3` (nova, vazia,
+para o veículo 1) em vez de `trip-3` (nova, correta, para o veículo 3), e nunca reexecutava o
+veículo 2.
+
+### Correção escolhida: retomável, não compensação
+
+Cogitada a compensação (apagar/cancelar na falha as viagens já criadas nesta chamada), ela foi
+descartada: `hasLiveLink`/`trip_documents.released_at` não distingue viagem cancelada de viva —
+cancelar a viagem sem **liberar** as notas deixaria o reaceite preso do mesmo jeito (nota
+"já vinculada" a uma viagem cancelada continua bloqueando `linkDocument`), e liberar as notas exigiria
+uma operação nova de desvínculo em lote sem equivalente hoje. A escolha foi tornar o aceite
+**retomável**: perguntar, antes de criar, se o veículo já tem uma viagem viva com todas as notas da
+proposta — e, se tiver, reaproveitá-la em vez de criar outra. Cabe sem migration porque a resposta já
+está em `trip_documents` (mesma tabela e mesma coluna `released_at` que `hasLiveLink` já consulta,
+`trip-document-review-link.support.ts:23-39`) — não foi preciso nenhuma coluna nova de estado.
+
+- `src/trips/application/trip.port.ts`: `TripRepositoryPort.findLiveTripIdForDocuments` — dado um
+  conjunto de notas, devolve o id da viagem só quando **todas** estão vivas na mesma viagem; `null`
+  em qualquer outro caso, inclusive vínculo parcial (arriscar reaproveitar uma composição incompleta
+  é pior que recomeçar).
+- `src/trips/infrastructure/drizzle-trip.repository.ts`: implementação — uma consulta a
+  `trip_documents` com `released_at is null`, comparando a contagem de linhas com a de notas pedidas
+  e conferindo que sobra um único `tripId`.
+- `src/routing/application/multi-vehicle-suggestion.use-case.ts`: `TripComposer.findComposedTrip`
+  (novo, obrigatório). No `accept`, antes de `createTrip`, pergunta `findComposedTrip` com as notas
+  do grupo; achando, reaproveita o `tripId` em vez de criar. O laço de vínculo por nota passa a
+  distinguir três desfechos — vinculada agora, liberada para a fila de revisão, ou já estava lá por
+  uma composição anterior (`composed !== null`) — só o quarto caso (nota já viva **sem** ser a
+  composição que este `tripId` está reaproveitando) continua indo para `skippedDocuments`. Sem essa
+  distinção, `documentCount` da resposta ficaria zerado para o veículo reaproveitado.
+- `src/routing/infrastructure/trip-composer.adapter.ts`: `findComposedTrip` chama
+  `findLiveTripIdForDocuments` e traduz `string | null` para `{tripId} | null`.
+- `src/main.ts`: a fábrica de `TripComposer` da sugestão multi-veículo recebe
+  `findLiveTripIdForDocuments: (input) => tripRepository.findLiveTripIdForDocuments(input)` — direto
+  no repositório, como a leitura de parada logo acima já fazia.
+- `test/integration/multi-vehicle-suggestion.integration.ts`: mesma fiação de produção.
+
+Por que isso resolve o laço: `reorderStops` e `planRoute` continuam rodando para o veículo
+reaproveitado, mas agora contra a viagem que **já tem parada** — são idempotentes (o próprio
+docstring de `planTripRoute` diz isso), então não lançam. O laço só cria viagem nova para o veículo
+que ainda não tinha uma, e por isso o reaceite avança em vez de travar sempre no primeiro.
+
+### Contratos vermelhos → verdes
+
+Novo `describe('spec 153 T708 (H4): o aceite multi-veículo é retomável', ...)` em
+`test/routing-application/multi-vehicle-suggestion.contract.ts`, com um `TripComposer` fake que
+guarda o vínculo nota→viagem num `Map` **vivo entre as duas chamadas de `accept`** dentro do mesmo
+teste — o mesmo papel de `trip_documents` real:
+
+- `'falha no veículo do meio não deixa o primeiro órfão, e o reaceite conclui os dois que faltam'`
+  (contratos a+b): três veículos; o segundo lança `ROUTING_TRANSIENT_FAILURE` na primeira
+  `planRoute` (falha transitória, resolvida na tentativa seguinte). Primeira chamada:
+  `createTripCalls === ['trip-1', 'trip-2']`, sugestão liberada 1 vez. Reaceite:
+  `createTripCalls === ['trip-1', 'trip-2', 'trip-3']` — **nenhuma viagem nova** para os veículos 1
+  e 2, só `trip-3` para o que ainda faltava; os três aparecem em `accepted.trips` com
+  `documentCount: 1`; `released` continua em 1 (não houve segunda falha). Confirmado vermelho antes
+  da correção: com `composed` forçado a `null` no `accept` (o `TripComposer` sempre cria viagem
+  nova, como antes desta task), a suíte reproduz o laço na hora — `1 fail`, `TRIP_HAS_NO_ROUTE`
+  lançado dentro de `accept` na segunda chamada, mesma pilha do defeito relatado.
+- `'sem falha, cada veículo ganha viagem própria — nada a reaproveitar'` (contrato c): sem nenhum
+  veículo falhando, `createTripCalls === ['trip-1', 'trip-2', 'trip-3']`, uma viagem por veículo,
+  `released === 0` — o caminho feliz multi-veículo não muda.
+
+Suíte inteira do arquivo (`test/routing-application.contract.test.ts`, que importa o contrato):
+**75 pass, 0 fail** (73 antes desta task + 2 novos). O `test/integration/multi-vehicle-suggestion.
+integration.ts` (Postgres real, com `findLiveTripIdForDocuments` de produção) roda os mesmos 7 testes
+de sempre, verde — a mudança não altera o caminho feliz que ele já cobre.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style! (2 arquivos precisaram de --write antes: main.ts e o
+contrato novo — comentário longo demais para a largura configurada).
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6267 pass / 23 skip / 0 fail — 21943 expect() calls em 177 arquivos (suíte inteira, +2 testes novos
+do H4 sobre a contagem anterior). Suíte isolada `test/routing-application.contract.test.ts`: 75
+pass, 0 fail. Integração isolada `test/integration/multi-vehicle-suggestion.integration.ts`: 7 pass,
+0 fail.
+```
+
+### O que não fez
+
+Não desfez nem cancelou nenhuma viagem — a compensação foi descartada por deixar rastro pior (viagem
+cancelada com notas presas). Não toca a resposta do `accept` para o caso comum (sem falha, sem
+retomada): `documentCount`, `stopCount`, `estimatedFinishAt` idênticos a antes. Não mexeu em
+`apps/frontend-transportada` nem em qualquer arquivo fora de `apps/api-transportada` e `specs/`.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

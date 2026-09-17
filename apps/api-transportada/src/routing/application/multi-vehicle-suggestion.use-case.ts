@@ -50,6 +50,17 @@ export type TripComposer = Readonly<{
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
   /**
+   * Spec 153 T708 (H4): devolve a viagem já composta para estas notas — o sinal de que uma
+   * composição anterior deste mesmo aceite (interrompida por uma falha noutro veículo) já a criou.
+   * `null` faz o aceite criar viagem nova, como sempre criou; encontrada, o aceite **reaproveita**
+   * em vez de criar outra vazia — sem isso, cada reaceite deixava mais um rascunho órfão e nunca
+   * chegava aos veículos seguintes (laço).
+   */
+  findComposedTrip: (input: {
+    readonly context: MultiVehicleScope
+    readonly nfeDocumentIds: readonly string[]
+  }) => Promise<{ readonly tripId: string } | null>
+  /**
    * Spec 107 D1: devolve `false` quando a nota **já está viva em outra viagem**, em vez de lançar.
    * Um vínculo recusado não pode derrubar um aceite que já criou cinco viagens corretas — foi o que
    * aconteceu em 2026-09-09, e o operador leu um código de suporte no lugar do roteiro pronto.
@@ -253,13 +264,26 @@ export function createMultiVehicleSuggestionUseCase(
           const arrivals = group.isManualOrder
             ? new Map<string, string>()
             : group.estimatedArrivalByAddressKey
-          const { tripId } = await dependencies.trips.createTrip({
-            context,
-            driverId: group.driverId,
-            /** Spec 149 (ADR-0065 D12): a tripulação editada da linha, não a do pedido de criação. */
-            helperIds: group.helperIds ?? [],
-            vehicleId: group.vehicleId,
-          })
+          /**
+           * Spec 153 T708 (H4): pergunta antes de criar. Achou, é a viagem de uma composição
+           * anterior deste mesmo aceite — reaproveita em vez de nascer outra vazia.
+           */
+          const composed =
+            group.documentIds.length === 0
+              ? null
+              : await dependencies.trips.findComposedTrip({
+                  context,
+                  nfeDocumentIds: group.documentIds,
+                })
+          const { tripId } =
+            composed ??
+            (await dependencies.trips.createTrip({
+              context,
+              driverId: group.driverId,
+              /** Spec 149 (ADR-0065 D12): a tripulação editada da linha, não a do pedido de criação. */
+              helperIds: group.helperIds ?? [],
+              vehicleId: group.vehicleId,
+            }))
 
           let linkedCount = 0
           for (const nfeDocumentId of group.documentIds) {
@@ -269,7 +293,12 @@ export function createMultiVehicleSuggestionUseCase(
               tripId,
             })
             if (outcome.linked) linkedCount += 1
-            else if (!outcome.released) {
+            else if (outcome.released) {
+              // Liberada para a fila de revisão: não é erro, e não conta como vinculada.
+            } else if (composed !== null) {
+              /** Já estava vinculada pela composição anterior que este `tripId` reaproveita. */
+              linkedCount += 1
+            } else {
               skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
             }
           }

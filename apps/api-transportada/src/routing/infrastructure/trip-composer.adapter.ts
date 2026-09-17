@@ -21,6 +21,11 @@ export type TripComposerDependencies = Readonly<{
     readonly helperIds?: readonly string[]
     readonly vehicleId: string
   }) => Promise<{ readonly id: string }>
+  /** Spec 153 T708 (H4): o sinal de "esta viagem já existe" para reaproveitar no reaceite. */
+  findLiveTripIdForDocuments: (input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }) => Promise<string | null>
   link: (input: {
     readonly context: MultiVehicleScope
     readonly freightCalculationId: string | null
@@ -88,6 +93,14 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       })
 
       return { tripId: created.id }
+    },
+
+    async findComposedTrip({ context, nfeDocumentIds }) {
+      const tripId = await dependencies.findLiveTripIdForDocuments({
+        companyId: context.companyId,
+        nfeDocumentIds,
+      })
+      return tripId === null ? null : { tripId }
     },
 
     /**

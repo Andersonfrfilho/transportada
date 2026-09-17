@@ -169,6 +169,9 @@ function createFixture(params: FixtureParams = {}) {
     async findDocumentById() {
       return params.documentResult === undefined ? document() : params.documentResult
     },
+    async findLiveTripIdForDocuments() {
+      return null
+    },
     async findVehicle() {
       return params.vehicle === undefined ? VEHICLE : params.vehicle
     },

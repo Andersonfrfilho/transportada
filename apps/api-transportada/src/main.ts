@@ -2836,6 +2836,12 @@ function createApplicationRoutes({
             suggestions: createDrizzleRouteSuggestionRepository(database),
             trips: createTripComposer({
               create: (input) => trips.create(input),
+              /**
+               * Spec 153 T708 (H4): reaproveita a viagem já composta em vez de criar outra vazia a
+               * cada reaceite — direto no repositório, como a leitura de parada logo abaixo.
+               */
+              findLiveTripIdForDocuments: (input) =>
+                tripRepository.findLiveTripIdForDocuments(input),
               link: (input) => trips.linkDocument(input),
               /**
                * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um

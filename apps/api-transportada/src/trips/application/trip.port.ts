@@ -351,6 +351,16 @@ export type TripRepositoryPort = {
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null>
+  /**
+   * Spec 153 T708 (H4): devolve o id da viagem **só quando todas** as notas já estão vivas nela —
+   * é o sinal de que uma composição anterior deste mesmo aceite (interrompida por uma falha em
+   * outro veículo) já criou esta viagem. `null` em qualquer outro caso, inclusive vínculo parcial:
+   * arriscar reaproveitar uma viagem incompleta é pior do que criar uma nova.
+   */
+  findLiveTripIdForDocuments(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<string | null>
   findVehicle(input: {
     readonly companyId: string
     readonly vehicleId: string

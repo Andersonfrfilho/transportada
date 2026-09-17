@@ -114,7 +114,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       prova que a troca regrava e que a busca não se repete nem após o `invalidate`.
 - [x] T707 **H3** `GET /trips` redige `amounts` sem `trip.financials` (D10) + registro em
       `docs/SECURITY.md`. Anterior à 153.
-- [ ] T708 **H4** Aceite multi-veículo retomável: falha num veículo não deixa viagem órfã nem entra
+- [x] T708 **H4** Aceite multi-veículo retomável: falha num veículo não deixa viagem órfã nem entra
       em laço no reaceite. Anterior à 153.
 - [x] T709a **L1–L2** (frontend) Opção marcada por assinatura em `TripRouteChoiceSwitch` (D2) —
       `resolveSelectedOptionIndex` casa `selectedSignature` entre as `options` antes de cair no

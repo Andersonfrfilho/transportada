@@ -333,6 +333,8 @@ function buildUseCase(database: TestDatabase, options: { readonly freezesEta?: b
     suggestions: createDrizzleRouteSuggestionRepository(database.db),
     trips: createTripComposer({
       create: (input) => tripUseCase.create(input),
+      /** Spec 153 T708 (H4): a integração exercita o mesmo caminho de reaproveitamento da produção. */
+      findLiveTripIdForDocuments: (input) => tripRepository.findLiveTripIdForDocuments(input),
       link: (input) => tripUseCase.linkDocument(input),
       listStops: async (input) =>
         (await listTripStops({ ...input, repository: stopRepository })).stops,

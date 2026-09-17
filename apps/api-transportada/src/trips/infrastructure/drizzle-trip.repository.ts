@@ -491,6 +491,34 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return record === undefined ? null : mapTripDocument(record)
   }
 
+  /**
+   * Spec 153 T708 (H4): as notas de um veículo já estão todas vivas numa viagem só é o sinal de
+   * que ela nasceu numa composição anterior do mesmo aceite — o aceite reaproveita em vez de criar
+   * outra vazia. Vínculo parcial (algumas notas em uma viagem, outras em outra ou soltas) devolve
+   * `null`: reaproveitar uma composição incompleta é pior do que recomeçar.
+   */
+  public async findLiveTripIdForDocuments(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<string | null> {
+    if (input.nfeDocumentIds.length === 0) return null
+
+    const live = await this.database
+      .select({ nfeDocumentId: tripDocuments.nfeDocumentId, tripId: tripDocuments.tripId })
+      .from(tripDocuments)
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+          isNull(tripDocuments.releasedAt),
+        ),
+      )
+    if (live.length !== input.nfeDocumentIds.length) return null
+
+    const tripIds = new Set(live.map((row) => row.tripId))
+    return tripIds.size === 1 ? [...tripIds][0]! : null
+  }
+
   public async findVehicle(input: {
     readonly companyId: string
     readonly vehicleId: string

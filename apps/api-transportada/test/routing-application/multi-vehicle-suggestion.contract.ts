@@ -189,6 +189,10 @@ function buildFixture(
       calls.release?.push(record)
       return true
     },
+    /** Spec 153 T708: sem estado prévio, o aceite sempre cria viagem nova — como sempre criou. */
+    async findComposedTrip() {
+      return null
+    },
   }
 
   const useCase = createMultiVehicleSuggestionUseCase({
@@ -693,6 +697,169 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         }),
       ).rejects.toBeInstanceOf(TripCargoLayoutOutdatedError)
       expect(fixture.calls.decide).toEqual([])
+    })
+  })
+
+  /**
+   * Spec 153 T708 (H4): antes desta task, uma falha dura num veículo devolvia a sugestão a `ready`
+   * **sem desfazer** a viagem dos veículos anteriores — correto — mas o reaceite não sabia disso: ele
+   * recriava viagem para todo mundo, inclusive quem já tinha uma pronta. A nota já vinculada fazia a
+   * viagem nova nascer sem parada, e `planRoute` bloqueava com `tripHasNoRoute` — de novo, a cada
+   * tentativa, sem nunca alcançar os veículos que de fato faltavam.
+   *
+   * O fixture abaixo modela o vínculo de nota como **estado vivo entre chamadas** (um `Map`, como a
+   * tabela `trip_documents` real): é o que deixa a segunda chamada de `accept` enxergar o que a
+   * primeira já tinha composto.
+   */
+  describe('spec 153 T708 (H4): o aceite multi-veículo é retomável', () => {
+    const THIRD_VEHICLE = '00000000-0000-4000-8000-000000000012'
+    const THIRD_DOCUMENT = '00000000-0000-4000-8000-000000000022'
+
+    function groupFor(vehicleId: string, documentId: string): MultiVehicleSuggestionGroup {
+      return {
+        documentIds: [documentId],
+        documentIdsByAddressKey: new Map(),
+        driverId: null,
+        estimatedArrivalByAddressKey: new Map(),
+        orderedAddressKeys: [`chave-${documentId}`],
+        vehicleId,
+      }
+    }
+
+    /**
+     * `failTripOnFirstPlan` é o veículo cuja **primeira** chamada de `planRoute` lança — a causa
+     * real (rota impossível, OSRM fora do ar) não importa aqui, só que ela desaparece na segunda
+     * tentativa, como uma falha transitória resolvida.
+     */
+    function buildResumableFixture(input: { readonly failTripOnFirstPlan: string }) {
+      /** Nota → viagem viva, sobrevivendo entre chamadas — como `trip_documents.released_at is null`. */
+      const liveLinkByDocument = new Map<string, string>()
+      const linkedCountByTrip = new Map<string, number>()
+      const planAttemptsByTrip = new Map<string, number>()
+      let tripCounter = 0
+      const createTripCalls: string[] = []
+      const planRouteCalls: string[] = []
+
+      const trips: TripComposer = {
+        async createTrip() {
+          tripCounter += 1
+          const tripId = `trip-${tripCounter}`
+          createTripCalls.push(tripId)
+          linkedCountByTrip.set(tripId, 0)
+          return { tripId }
+        },
+        async findComposedTrip({ nfeDocumentIds }) {
+          const tripIds = new Set(nfeDocumentIds.map((id) => liveLinkByDocument.get(id)))
+          if (tripIds.size !== 1) return null
+          const [tripId] = [...tripIds]
+          return tripId === undefined ? null : { tripId }
+        },
+        async linkDocument({ nfeDocumentId, tripId }) {
+          if (liveLinkByDocument.has(nfeDocumentId)) return false
+          liveLinkByDocument.set(nfeDocumentId, tripId)
+          linkedCountByTrip.set(tripId, (linkedCountByTrip.get(tripId) ?? 0) + 1)
+          return true
+        },
+        async applyEstimatedArrivals() {},
+        async planRoute({ tripId }) {
+          planRouteCalls.push(tripId)
+          /** Sem nota vinculada não há parada — é o `tripHasNoRoute` que a revisão mediu. */
+          if ((linkedCountByTrip.get(tripId) ?? 0) === 0) {
+            throw new Error('TRIP_HAS_NO_ROUTE')
+          }
+          const attempt = (planAttemptsByTrip.get(tripId) ?? 0) + 1
+          planAttemptsByTrip.set(tripId, attempt)
+          if (tripId === input.failTripOnFirstPlan && attempt === 1) {
+            throw new Error('ROUTING_TRANSIENT_FAILURE')
+          }
+        },
+        async reorderStops() {},
+      }
+
+      const releaseCalls: unknown[] = []
+      const suggestions: RouteSuggestionRepository = {
+        create: async () => suggestion(),
+        release: async () => {
+          releaseCalls.push(undefined)
+        },
+        decide: async (record) =>
+          suggestion({ decidedAt: '2026-08-27T11:00:00.000Z', status: record.status }),
+        find: async () => suggestion(),
+        readSettings: async () => SETTINGS,
+      }
+
+      const multiVehicle: MultiVehicleSuggestionRepository = {
+        create: async () => suggestion({ status: 'queued' }),
+        findUnavailableDocumentIds: async () => [],
+        findUnavailableDriverIds: async () => [],
+        findUnavailableVehicleIds: async () => [],
+        readGroups: async () => [
+          groupFor(FIRST_VEHICLE, FIRST_DOCUMENT),
+          groupFor(SECOND_VEHICLE, SECOND_DOCUMENT),
+          groupFor(THIRD_VEHICLE, THIRD_DOCUMENT),
+        ],
+        readSuggestionStatus: async () => 'ready',
+        readVehicleRoads: async () => [],
+      }
+
+      const useCase = createMultiVehicleSuggestionUseCase({
+        createSeed: () => 42,
+        multiVehicle,
+        queue: { async publish() {} },
+        suggestions,
+        trips,
+      })
+
+      return {
+        createTripCalls,
+        planRouteCalls,
+        get released() {
+          return releaseCalls.length
+        },
+        useCase,
+      }
+    }
+
+    test('falha no veículo do meio não deixa o primeiro órfão, e o reaceite conclui os dois que faltam', async () => {
+      const fixture = buildResumableFixture({ failTripOnFirstPlan: 'trip-2' })
+
+      // Primeira tentativa: veículo 1 compõe inteiro; veículo 2 lança na primeira `planRoute` e a
+      // sugestão volta para `ready`. Veículo 3 nunca é tentado.
+      await expect(
+        fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID }),
+      ).rejects.toThrow('ROUTING_TRANSIENT_FAILURE')
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2'])
+      expect(fixture.released).toBe(1)
+
+      // Reaceite: acha a viagem do veículo 1 pronta (reaproveita, não cria outra), a do veículo 2
+      // também já tinha a nota vinculada (reaproveita), e o veículo 3 finalmente nasce.
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+      })
+
+      /**
+       * ⚠️ Contrato (a) + (b): nenhuma viagem nova para os veículos 1 e 2 — só `trip-3`, do veículo
+       * que ainda não tinha nascido. Sem a T708, cada reaceite criava mais uma viagem vazia aqui.
+       */
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips.map((trip) => trip.tripId)).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips.map((trip) => trip.documentCount)).toEqual([1, 1, 1])
+      expect(fixture.released).toBe(1)
+    })
+
+    /** Contrato (c): sem falha nenhuma, o caminho feliz continua criando uma viagem por veículo. */
+    test('sem falha, cada veículo ganha viagem própria — nada a reaproveitar', async () => {
+      const fixture = buildResumableFixture({ failTripOnFirstPlan: 'nenhuma' })
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(fixture.createTripCalls).toEqual(['trip-1', 'trip-2', 'trip-3'])
+      expect(accepted.trips).toHaveLength(3)
+      expect(fixture.released).toBe(0)
     })
   })
 
