@@ -1,14 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { isLowConfidenceFamily } from '../domain/package-box-family.policy.js'
 import { PackageBoxNotFoundError } from '../domain/package-box-measurement.error.js'
-import type { PackageBoxRepositoryPort, PackageBoxSiblings } from './package-box.port.js'
+import type { ListPackageBoxSiblingsResult, PackageBoxRepositoryPort } from './package-box.port.js'
 
 export type ListPackageBoxSiblings = {
   execute(input: {
     readonly boxId: string
     readonly context: { readonly companyId: string }
-  }): Promise<PackageBoxSiblings>
+  }): Promise<ListPackageBoxSiblingsResult>
 }
 
 /**
@@ -19,14 +20,22 @@ export function createListPackageBoxSiblings(dependencies: {
   readonly repository: PackageBoxRepositoryPort
 }): ListPackageBoxSiblings {
   return {
-    async execute(input): Promise<PackageBoxSiblings> {
+    async execute(input): Promise<ListPackageBoxSiblingsResult> {
       const siblings = await dependencies.repository.getSiblings({
         boxId: input.boxId,
         companyId: input.context.companyId,
       })
       if (siblings === null) throw new PackageBoxNotFoundError()
 
-      return siblings
+      return {
+        ...siblings,
+        isLowConfidenceFamily:
+          siblings.family.length > 0 &&
+          isLowConfidenceFamily([
+            siblings.originVariantLabel,
+            ...siblings.family.map((sibling) => sibling.variantLabel),
+          ]),
+      }
     },
   }
 }

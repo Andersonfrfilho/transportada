@@ -43,7 +43,11 @@ describe('GET /nfe-package-boxes/:id/siblings (spec 155 G003)', () => {
       ...unusedRepository(),
       getSiblings: (input) => {
         expect(input).toEqual({ boxId: 'box-1', companyId: 'company-1' })
-        return Promise.resolve({ family: [SIBLING_ITEM], packaging: [] })
+        return Promise.resolve({
+          family: [SIBLING_ITEM],
+          originVariantLabel: 'PURO E HIDRATAN',
+          packaging: [],
+        })
       },
     }
 
@@ -52,7 +56,35 @@ describe('GET /nfe-package-boxes/:id/siblings (spec 155 G003)', () => {
       context: { companyId: 'company-1' },
     })
 
-    expect(result).toEqual({ family: [SIBLING_ITEM], packaging: [] })
+    expect(result).toEqual({
+      family: [SIBLING_ITEM],
+      isLowConfidenceFamily: false,
+      originVariantLabel: 'PURO E HIDRATAN',
+      packaging: [],
+    })
+  })
+
+  /**
+   * D11/G011: a tela só abre o diálogo desmarcado se a API disser que a família é assimétrica — o
+   * rótulo da origem entra na conta, senão `VACUO TRADICION` sozinho contra `EXTRA FORTE TRA` some.
+   */
+  test('família de formato assimétrico chega marcada, contando o rótulo da origem', async () => {
+    const repository: PackageBoxRepositoryPort = {
+      ...unusedRepository(),
+      getSiblings: () =>
+        Promise.resolve({
+          family: [{ ...SIBLING_ITEM, variantLabel: 'EXTRA FORTE TRA' }],
+          originVariantLabel: 'VACUO TRADICION',
+          packaging: [],
+        }),
+    }
+
+    const result = await createListPackageBoxSiblings({ repository }).execute({
+      boxId: 'box-1',
+      context: { companyId: 'company-1' },
+    })
+
+    expect(result.isLowConfidenceFamily).toBe(true)
   })
 
   /** Caixa de outra empresa (ou inexistente) é a mesma coisa para quem procurou: 404. */

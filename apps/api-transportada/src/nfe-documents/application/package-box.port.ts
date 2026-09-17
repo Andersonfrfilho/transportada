@@ -107,7 +107,14 @@ export type PackageBoxSiblingView = {
 
 export type PackageBoxSiblings = {
   readonly family: readonly PackageBoxSiblingView[]
+  /** O rótulo da própria caixa: entra na conta da D11 e no cabeçalho do diálogo de replicar. */
+  readonly originVariantLabel: string
   readonly packaging: readonly PackageBoxSiblingView[]
+}
+
+export type ListPackageBoxSiblingsResult = PackageBoxSiblings & {
+  /** D11/G011: a tela abre o diálogo com os alvos desmarcados e diz por quê. */
+  readonly isLowConfidenceFamily: boolean
 }
 
 export type PackageBoxRepositoryPort = {

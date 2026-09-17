@@ -405,6 +405,14 @@ Vermelho: `2 pass · 4 fail` (os três novos e o teste de irmãs, que passou a v
 emitente). Depois: integração `6 pass · 0 fail · 0 skip` com `--env-file=../../.env.test`;
 `bun run typecheck` exit 0; `apps/api-transportada test` **6319 pass · 23 skip · 0 fail**.
 
+### O sinal da D11 chega à tela (G011)
+
+`isLowConfidenceFamily` existia na policy e nenhuma rota o expunha: sem ele, a T3.4 não tinha como
+abrir o diálogo desmarcado. `GET /siblings` agora devolve `originVariantLabel` e
+`isLowConfidenceFamily`, calculado no use case com o rótulo da origem **mais** os das irmãs. Sem a
+origem, `VACUO TRADICION` contra `EXTRA FORTE TRA` deixaria de marcar.
+Vermelho: `11 pass · 2 fail` em `replicate.contract.ts`. Depois: `13 pass · 0 fail`, typecheck exit 0.
+
 ## T2.5 — Regressão da G007
 
 ⚠️ **Desvio do `tasks.md`, decidido pelo coordenador em conversa:** os três caminhos de escrita

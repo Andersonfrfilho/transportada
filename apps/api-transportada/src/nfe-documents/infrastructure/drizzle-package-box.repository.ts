@@ -79,7 +79,11 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         box.emitterTaxId === origin.emitterTaxId,
     )
 
-    return { family: family.map(toSiblingView), packaging: packaging.map(toSiblingView) }
+    return {
+      family: family.map(toSiblingView),
+      originVariantLabel: resolveBoxFamily(origin).variantLabel,
+      packaging: packaging.map(toSiblingView),
+    }
   }
 
   /**
