@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon'
 import type { BoxDimensionMeasuredResult } from '@/components/ui/boxDimensionProposal.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { usePackageBoxSiblings } from '../hooks/usePackageBoxQueue.hook'
 import { CAMERA_MEASUREMENT_IS_EXPERIMENTAL } from '../shared/packageBoxMeasurement.constant'
 import {
   dimensionReliability,
@@ -23,7 +24,11 @@ import {
   buildPackageBoxMeasurementSubmission,
   type PackageBoxMeasurementFormSubmission,
 } from '../shared/packageBoxMeasurementSubmission.service'
-import { MAX_CENTIMETRES, toMillimetres } from '../shared/packageBoxMeasurementUnits.service'
+import {
+  MAX_CENTIMETRES,
+  toCentimetres,
+  toMillimetres,
+} from '../shared/packageBoxMeasurementUnits.service'
 import styles from '../styles/packageBoxes.module.css'
 
 export type { PackageBoxMeasurementFormSubmission }
@@ -40,6 +45,8 @@ const DIMENSION_FIELD: Readonly<Record<DimensionKey, keyof typeof MAX_CENTIMETRE
 
 type PackageBoxMeasurementFormProps = Readonly<{
   boxId: string
+  /** Spec 155 (D7, G009): a família tem irmã medida — vale buscar as irmãs para o botão rápido. */
+  canQuickFillFromFamily: boolean
   grossWeightGrams: null | number
   /** Ausente: formulário digitado comum (D11). Presente: proposta da câmera (D6, D13, D17). */
   proposal: BoxDimensionMeasuredResult | undefined
@@ -66,6 +73,7 @@ type PackageBoxMeasurementFormProps = Readonly<{
  */
 export function PackageBoxMeasurementForm({
   boxId,
+  canQuickFillFromFamily,
   grossWeightGrams,
   heightMm,
   lengthMm,
@@ -77,6 +85,11 @@ export function PackageBoxMeasurementForm({
   widthMm,
 }: PackageBoxMeasurementFormProps) {
   const { t } = useTranslation('nfeWorkspace')
+  /** D9: sob demanda — só busca quando a família tem irmã medida, nunca junto da fila. */
+  const { siblings } = usePackageBoxSiblings({
+    boxId: canQuickFillFromFamily ? boxId : null,
+  })
+  const measuredSibling = siblings?.family.find((sibling) => sibling.measuredAt !== null)
   const [length, setLength] = useState(() =>
     initialDimensionCentimetres({ dimension: 'length', proposal, storedMm: lengthMm }),
   )
@@ -193,6 +206,28 @@ export function PackageBoxMeasurementForm({
             </ul>
           )}
         </div>
+      )}
+
+      {/*
+        ⚠️ D7/G009: só PREENCHE os campos — nunca grava sozinho. O conferente confere contra a caixa
+        na mão e salva pelo botão de sempre; por isso fica fora do fluxo de submit (`type="button"`).
+      */}
+      {measuredSibling === undefined ? null : (
+        <Button
+          onClick={() => {
+            setLength(toCentimetres(measuredSibling.lengthMm))
+            setWidth(toCentimetres(measuredSibling.widthMm))
+            setHeight(toCentimetres(measuredSibling.heightMm))
+            setUnits(String(measuredSibling.unitsPerBox))
+            setEdited({ height: true, length: true, width: true })
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="copy" size="sm" />
+          {t('packageBoxes.quickFill.useMeasurementOf', { label: measuredSibling.variantLabel })}
+        </Button>
       )}
 
       <div className={styles.dimensions}>

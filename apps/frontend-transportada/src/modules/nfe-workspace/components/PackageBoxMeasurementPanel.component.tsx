@@ -622,6 +622,8 @@ function PackageBoxRow({
       {isEditing ? (
         <PackageBoxMeasurementForm
           boxId={box.id}
+          /** D7/G009: só pendente e com irmã já medida ganha o botão — os contadores vêm da API (D9). */
+          canQuickFillFromFamily={box.measuredAt === null && box.familyMeasuredCount > 0}
           grossWeightGrams={box.grossWeightGrams}
           heightMm={box.heightMm}
           lengthMm={box.lengthMm}

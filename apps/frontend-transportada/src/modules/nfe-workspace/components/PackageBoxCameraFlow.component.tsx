@@ -419,6 +419,7 @@ export function PackageBoxCameraFlow({
             )}
             <PackageBoxMeasurementForm
               boxId={box.id}
+              canQuickFillFromFamily={box.measuredAt === null && box.familyMeasuredCount > 0}
               grossWeightGrams={box.grossWeightGrams}
               heightMm={box.heightMm}
               lengthMm={box.lengthMm}

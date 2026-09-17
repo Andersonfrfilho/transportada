@@ -646,6 +646,9 @@
     "family": {
       "counter": "{{measured}} de {{total}} medidas nesta família"
     },
+    "quickFill": {
+      "useMeasurementOf": "Usar a medida de {{label}}"
+    },
     "statusLabel": "Situação",
     "status": {
       "pending": "Faltam medir",

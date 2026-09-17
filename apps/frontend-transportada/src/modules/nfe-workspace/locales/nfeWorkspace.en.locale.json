@@ -472,6 +472,9 @@
     "family": {
       "counter": "{{measured}} of {{total}} measured in this family"
     },
+    "quickFill": {
+      "useMeasurementOf": "Use the measurement from {{label}}"
+    },
     "experimentalBadge": "Experimental",
     "experimentalHint": "The camera measurement is an estimate. Check it with the tape measure before saving; when in doubt, type it in.",
     "margin": "±{{margin}} cm",

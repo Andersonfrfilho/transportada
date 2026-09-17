@@ -584,7 +584,42 @@ bun run --cwd apps/frontend-transportada lint                                   
 
 ## T3.3 — Botão rápido
 
-_(pendente)_
+Vermelho primeiro, em `test/nfe-workspace/package-box-quick-fill.contract.ts` (novo, importado em
+`test/nfe-workspace.contract.test.ts`):
+
+```
+expect(form).toContain('usePackageBoxSiblings')  →  ausente do código-fonte
+ 0 pass · 1 fail
+```
+
+### O que mudou
+
+- `PackageBoxMeasurementForm.component.tsx` ganhou a prop `canQuickFillFromFamily` e chama
+  `usePackageBoxSiblings({ boxId: canQuickFillFromFamily ? boxId : null })` — sob demanda (D9): só
+  busca quando a caixa é elegível, nunca junto da fila. Acha a primeira irmã da família com
+  `measuredAt !== null` e, se existir, mostra o botão "Usar a medida de {rótulo}"
+  (`packageBoxes.quickFill.useMeasurementOf`) **fora do fluxo de submit** (`type="button"`) — o
+  clique só chama os `set*` de estado local (comprimento/largura/altura/unidades), nunca `onSubmit`
+  (D7). O operador confere contra a caixa na mão e grava pelo botão de sempre.
+- `PackageBoxMeasurementPanel.component.tsx` e `PackageBoxCameraFlow.component.tsx` (as duas telas
+  que renderizam o formulário) passam `canQuickFillFromFamily={box.measuredAt === null &&
+box.familyMeasuredCount > 0}` — o contador já vem pronto da API (D9), a tela só decide "vale a
+  pena buscar as irmãs", nunca soma de novo.
+- Locales pt/en: `quickFill.useMeasurementOf`.
+
+⚠️ **Decisão registrada:** o botão preenche comprimento, largura, altura e unidades por caixa — os
+únicos campos editáveis neste formulário. `grossWeightGrams` não tem input aqui (só é gravado pela
+câmera hoje, fora de escopo desta spec — "Fora de escopo" do `spec.md`), então o quick-fill não o
+toca; ele segue com o valor que a caixa já tinha, como sempre.
+
+### Gates
+
+```
+bun test ./test/nfe-workspace/package-box-quick-fill.contract.ts + package-box-measurement.contract.ts   66 pass · 0 fail
+bun run typecheck (as seis apps)                                                                           exit 0
+bun run --cwd apps/frontend-transportada test                                                              4176 pass · 0 fail (29 arquivos)
+bun run --cwd apps/frontend-transportada lint                                                              sem erros
+```
 
 ## T3.4 — Diálogo de replicar
 
