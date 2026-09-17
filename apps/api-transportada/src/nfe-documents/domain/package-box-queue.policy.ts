@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveBoxFamily, resolvePackagingUnitCount } from './package-box-family.policy.js'
 
 /** Cobre 80% do que roda: o resto da cauda custa o mesmo tempo do conferente por fatia irrelevante. */
 const DEFAULT_COVERAGE_TARGET = 0.8
@@ -87,6 +88,99 @@ function computeCheckDigit(base: string): number {
     sum += (base.length - index) % 2 === 1 ? digit * 3 : digit
   }
   return (10 - (sum % 10)) % 10
+}
+
+export type FamilyCountableBox = {
+  readonly commercialUnit: string
+  readonly description: string
+  readonly id: string
+  readonly measured: boolean
+}
+
+export type FamilyCounts = {
+  readonly familyKey: string | undefined
+  readonly familyMeasuredCount: number
+  readonly familyPendingCount: number
+  readonly variantLabel: string
+}
+
+/**
+ * O contador de família da fila (spec 155 D9, G002). ⚠️ Recebe **todas** as caixas da empresa, nunca
+ * a janela paginada — senão o contador mente para toda família que atravessa a borda dos 50
+ * primeiros. Conta em TypeScript com `resolveBoxFamily`, não numa CTE (spec 155 tasks.md T2.2): a
+ * regex diverge entre Postgres e JS (`\s`, `.`, `upper()`), e duas implementações da mesma regra
+ * exigiriam um contrato de paridade só para vigiá-las.
+ */
+export function countBoxFamilies(
+  boxes: readonly FamilyCountableBox[],
+): ReadonlyMap<string, FamilyCounts> {
+  const resolved = boxes.map((box) => ({
+    ...resolveBoxFamily(box),
+    id: box.id,
+    measured: box.measured,
+  }))
+
+  const totals = new Map<string, { measured: number; pending: number }>()
+  for (const box of resolved) {
+    if (box.familyKey === undefined) continue
+    const current = totals.get(box.familyKey) ?? { measured: 0, pending: 0 }
+    totals.set(box.familyKey, {
+      measured: current.measured + (box.measured ? 1 : 0),
+      pending: current.pending + (box.measured ? 0 : 1),
+    })
+  }
+
+  return new Map(
+    resolved.map((box) => [
+      box.id,
+      {
+        familyKey: box.familyKey,
+        familyMeasuredCount:
+          box.familyKey === undefined ? 0 : (totals.get(box.familyKey)?.measured ?? 0),
+        familyPendingCount:
+          box.familyKey === undefined ? 0 : (totals.get(box.familyKey)?.pending ?? 0),
+        variantLabel: box.variantLabel,
+      },
+    ]),
+  )
+}
+
+export type PackagingCountableBox = {
+  readonly commercialUnit: string
+  readonly emitterTaxId: string
+  readonly id: string
+  readonly productCode: string
+}
+
+export type PackagingCounts = {
+  readonly packagingSiblingCount: number
+  readonly packagingUnitCount: number | undefined
+}
+
+/**
+ * O grupo de embalagem (spec 155 D3, G002): `(emitente, cProd)`, nunca a família — CX36 e FR12 do
+ * mesmo produto são caixas diferentes, e a contagem aqui só agrupa a tela, nunca replica dimensão.
+ */
+export function countPackagingSiblings(
+  boxes: readonly PackagingCountableBox[],
+): ReadonlyMap<string, PackagingCounts> {
+  const keyOf = (box: PackagingCountableBox): string => `${box.emitterTaxId}|${box.productCode}`
+
+  const totals = new Map<string, number>()
+  for (const box of boxes) {
+    const key = keyOf(box)
+    totals.set(key, (totals.get(key) ?? 0) + 1)
+  }
+
+  return new Map(
+    boxes.map((box) => [
+      box.id,
+      {
+        packagingSiblingCount: (totals.get(keyOf(box)) ?? 1) - 1,
+        packagingUnitCount: resolvePackagingUnitCount(box.commercialUnit),
+      },
+    ]),
+  )
 }
 
 /**

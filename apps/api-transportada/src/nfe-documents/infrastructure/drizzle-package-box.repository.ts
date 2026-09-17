@@ -17,6 +17,7 @@ import type {
   PackageBoxRepositoryPort,
   PackageBoxView,
 } from '../application/package-box.port.js'
+import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -115,11 +116,45 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       .orderBy(sql`coalesce(${transported.volumes}, 0) desc`)
       .limit(input.limit)
 
-    return rows.map((row) => ({
-      ...row,
-      measuredAt: row.measuredAt?.toISOString() ?? null,
-      transportedVolumes: Number(row.transportedVolumes ?? 0),
-    }))
+    /**
+     * ⚠️ D9: o contador de família e de embalagem tem de ver a empresa inteira, não a janela do
+     * `LIMIT` acima — senão ele mente para toda família que atravessa a borda dos 50 primeiros.
+     * 663 linhas de texto curto em produção; carregar todas é mais barato que reescrever a regex
+     * da D2 em SQL (tasks.md T2.2).
+     */
+    const companyBoxes = await this.#database
+      .select({
+        commercialUnit: nfePackageBoxes.commercialUnit,
+        description: nfePackageBoxes.description,
+        emitterTaxId: nfePackageBoxes.emitterTaxId,
+        id: nfePackageBoxes.id,
+        measuredAt: nfePackageBoxes.measuredAt,
+        productCode: nfePackageBoxes.productCode,
+      })
+      .from(nfePackageBoxes)
+      .where(eq(nfePackageBoxes.companyId, input.companyId))
+
+    const familyCounts = countBoxFamilies(
+      companyBoxes.map((box) => ({ ...box, measured: box.measuredAt !== null })),
+    )
+    const packagingCounts = countPackagingSiblings(companyBoxes)
+
+    return rows.map((row) => {
+      const family = familyCounts.get(row.id)
+      const packaging = packagingCounts.get(row.id)
+
+      return {
+        ...row,
+        familyKey: family?.familyKey,
+        familyMeasuredCount: family?.familyMeasuredCount ?? 0,
+        familyPendingCount: family?.familyPendingCount ?? 0,
+        measuredAt: row.measuredAt?.toISOString() ?? null,
+        packagingSiblingCount: packaging?.packagingSiblingCount ?? 0,
+        packagingUnitCount: packaging?.packagingUnitCount,
+        transportedVolumes: Number(row.transportedVolumes ?? 0),
+        variantLabel: family?.variantLabel ?? '',
+      }
+    })
   }
 
   /**

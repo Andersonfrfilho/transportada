@@ -11,6 +11,10 @@ export type PackageBoxView = {
   readonly commercialUnit: string
   readonly description: string
   readonly emitterTaxId: string
+  /** Spec 155 (D2, D9, G002): `undefined` quando a caixa não tem família — sem rótulo ou prefixo curto. */
+  readonly familyKey: string | undefined
+  readonly familyMeasuredCount: number
+  readonly familyPendingCount: number
   readonly grossWeightGrams: number | null
   readonly heightMm: number | null
   readonly id: string
@@ -19,10 +23,16 @@ export type PackageBoxView = {
   /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
   readonly measurementMarginMm: number | null
   readonly measurementSource: PackageBoxMeasurementSource | null
+  /** Spec 155 (D3, D8, G002): quantas outras embalagens o mesmo `cProd` tem — nunca conta como família. */
+  readonly packagingSiblingCount: number
+  /** O sufixo numérico da unidade (`CX36` → 36); `undefined` quando a unidade não termina em número. */
+  readonly packagingUnitCount: number | undefined
   readonly productCode: string
   readonly unitsPerBox: number
   /** Volumes já transportados desta caixa — é o que ordena a fila do conferente. */
   readonly transportedVolumes: number
+  /** Spec 155 (D2): o que resta da descrição depois do prefixo — string vazia sem família. */
+  readonly variantLabel: string
   readonly widthMm: number | null
 }
 

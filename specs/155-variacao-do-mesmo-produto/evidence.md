@@ -256,7 +256,49 @@ primeira réplica gravada quebraria a leitura da fila se a tela não for atualiz
 
 ## T2.2 — Contadores de família na listagem
 
-_(pendente)_
+Vermelho primeiro, em `test/nfe-package-box/measurement-queue.contract.ts`:
+
+```
+SyntaxError: Export named 'countPackagingSiblings' not found in module
+  .../src/nfe-documents/domain/package-box-queue.policy.ts
+ 0 pass · 1 fail · 1 error
+```
+
+### O que mudou
+
+- `countBoxFamilies` e `countPackagingSiblings`, puras, em `package-box-queue.policy.ts` (não em
+  `package-box-family.policy.ts`, para o teste do contador de família ficar ao lado do resto da fila
+  em `measurement-queue.contract.ts`, como o `tasks.md` pede). A primeira conta pendentes/medidas por
+  `familyKey` sobre a lista inteira que recebe; a segunda conta irmãs de embalagem por
+  `(emitterTaxId, productCode)` e devolve também `packagingUnitCount` (via `resolvePackagingUnitCount`
+  já existente). Nenhuma reimplementa a regex da D2 — as duas chamam `resolveBoxFamily`.
+- `PackageBoxView` (`package-box.port.ts`) ganhou `familyKey`, `familyPendingCount`,
+  `familyMeasuredCount`, `packagingSiblingCount`, `packagingUnitCount`, `variantLabel`.
+- `DrizzlePackageBoxRepository.list` carrega `(id, description, commercialUnit, emitterTaxId,
+productCode, measuredAt)` da empresa **inteira** (663 linhas em produção, fora do `LIMIT`) e conta
+  em memória antes de montar a página — é a garantia da D9 (família que atravessa a borda dos 50
+  primeiros conta certo, testado com 49 caixas de enchimento + 2 de uma mesma família, uma dentro e
+  outra fora de um `LIMIT 50` simulado).
+- `list-candidates.contract.ts`: `buildBox` (helper de teste) ganhou os campos novos com default
+  neutro (`familyKey: undefined`, contadores em `0`, `variantLabel: ''`) — só esse arquivo construía
+  `PackageBoxView` por fora do repositório.
+
+`packagingSiblingCount` conta **irmãs**, não a própria caixa: `FERMENTO ROYAL` em `CX6`+`UN1` dá `1`
+para cada uma, não `2`. `familyPendingCount`/`familyMeasuredCount` contam a família inteira,
+**incluindo** a própria caixa (decisão: é o total que a tela mostra como badge, não "quantas além de
+mim").
+
+### Gates
+
+```
+bun run typecheck (as seis apps)                        exit 0
+bun test ./test/nfe-package-box.contract.test.ts         109 pass · 0 fail
+bun run --cwd apps/api-transportada test                 6306 pass · 23 skip · 0 fail (177 arquivos)
+```
+
+Sem integração de banco nesta task — a contagem é pura (`countBoxFamilies`/`countPackagingSiblings`)
+e o repositório só monta duas seleções já cobertas pelos contratos de listagem existentes; o
+`.env.test` foi reservado para T2.4/T2.5, que são as tasks com regra nova de escrita.
 
 ## T2.3 — `GET /nfe-package-boxes/:id/siblings`
 
