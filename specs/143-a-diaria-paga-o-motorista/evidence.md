@@ -13,7 +13,7 @@ Registro por task: comando, saída relevante, commit.
 - `trips.daily_allowance_days integer NULL` + `trips_daily_allowance_days_check`
   (`is null or >= 1`).
 - Tabela `company_driver_allowance_settings` + `company_driver_allowance_settings_amount_check` (`> 0`).
-- Migration `apps/api-transportada/drizzle/20260916120000_driver_daily_allowance/`
+- Migration `apps/api-transportada/drizzle/20260917034547_driver_daily_allowance/`
   (`migration.sql` e `snapshot.json` gerados por `db:generate`, diretório renomeado; `rollback.sql` à mão).
 
 ### Decisões de desenho registradas
@@ -1987,7 +1987,7 @@ mais, nenhum a menos, nenhuma falha. `make migration-test` rodou de verdade cont
 ### Fora do escopo desta task, por instrução explícita
 
 Não fiz rebase, não fiz push, não toquei a pasta de migration
-(`apps/api-transportada/drizzle/20260916120000_driver_daily_allowance/`), não editei o `CLAUDE.md`
+(`apps/api-transportada/drizzle/20260917034547_driver_daily_allowance/`), não editei o `CLAUDE.md`
 raiz e não abri `specs/1XX/` para o ajuste negativo. A revisão final com `code-reviewer` `opus` (T14,
 "revisão final com `code-reviewer` `opus`") não faz parte deste passe do executor — é um passe
 separado, pedido pelo próprio `tasks.md` como item distinto do `make check`.

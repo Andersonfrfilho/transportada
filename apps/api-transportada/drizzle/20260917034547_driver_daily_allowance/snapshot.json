@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "84053a1d-203b-4e31-9a9b-bc0cbbc20bb2",
+  "id": "819cd900-881a-4ec2-822e-f80d777433b8",
   "prevIds": [
-    "30356fad-d5a9-432b-87f1-87941e7c83de"
+    "43673b3f-de54-4eee-8c66-d7ef8e19e88d"
   ],
   "ddl": [
     {
@@ -28345,6 +28345,71 @@
       "table": "trips"
     },
     {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_route",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_distance_meters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_return_distance_meters",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_duration_seconds",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_route_frozen_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -50829,6 +50894,20 @@
     {
       "value": "(\"planned_toll\" is null) = (\"planned_toll_frozen_at\" is null)",
       "name": "trips_planned_toll_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "value": "(\"planned_route\" is null) = (\"planned_route_frozen_at\" is null)\n        and (\"planned_distance_meters\" is null) = (\"planned_route_frozen_at\" is null)\n        and (\"planned_return_distance_meters\" is null) = (\"planned_route_frozen_at\" is null)\n        and (\"planned_duration_seconds\" is null) = (\"planned_route_frozen_at\" is null)",
+      "name": "trips_planned_route_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "value": "(\"planned_distance_meters\" is null or \"planned_distance_meters\" >= 0)\n        and (\"planned_return_distance_meters\" is null or \"planned_return_distance_meters\" >= 0)\n        and (\"planned_duration_seconds\" is null or \"planned_duration_seconds\" >= 0)",
+      "name": "trips_planned_route_metrics_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trips"

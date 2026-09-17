@@ -159,6 +159,8 @@ export async function assertTripConstraints(
     `,
     '23514',
     'trips_planned_route_metrics_check',
+  )
+
   // Spec 143 D4: meia diária está fora do escopo, e viagem de zero dia não existe — o piso é 1.
   await database`
     insert into trips (company_id, vehicle_id, daily_allowance_days)

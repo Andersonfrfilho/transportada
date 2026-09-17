@@ -259,7 +259,7 @@ describe('Drizzle migrations', () => {
       '20260915233000_rate_limit_windows',
       '20260916000000_nfe_package_box_measurement_source',
       '20260916174951_trip_planned_route',
-      '20260916120000_driver_daily_allowance',
+      '20260917034547_driver_daily_allowance',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
