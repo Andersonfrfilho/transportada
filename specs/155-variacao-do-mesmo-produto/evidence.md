@@ -386,7 +386,79 @@ alvo fora da família, alvo de outra empresa) não gravam nada.
 
 ## T2.5 — Regressão da G007
 
-_(pendente)_
+⚠️ **Desvio do `tasks.md`, decidido pelo coordenador em conversa:** os três caminhos de escrita
+citados no `spec.md`/`evidence.md` T0 (`writePackageBoxes`,
+`DrizzleNfePackageBoxBackfillRepository.insertPackageBoxes`,
+`DrizzleNfePackageBoxGtinBackfillRepository.fillCartonGtin`) vivem em `apps/worker-transportada`,
+não em `apps/api-transportada` — confirmado por `grep`, nenhum deles existe na API. A API só produz
+mensagem para o worker processar a importação pesada (regra do `CLAUDE.md`). O teste de regressão da
+T2.5 foi para `apps/worker-transportada/test/nfe-package-box-measurement-regression.integration.test.ts`,
+seguindo o padrão de `test/nfe-package-box-gtin-backfill.integration.test.ts` (já existente) e
+registrado em `test:integration` do `package.json` do worker. Nenhum código de produção do worker foi
+alterado — os três caminhos já preservavam a medida por construção, e a suíte só prova isso.
+
+### Cenário
+
+Duas caixas medidas antes da spec, seedadas por SQL cru (o schema tipado do worker é cópia por valor
+do da API e nunca ganhou `units_per_box`/`measurement_source`/`measurement_margin_mm` — T2.1
+registrou isso; ler e comparar essas colunas exige `db.execute(sql\`select ...\`)`, não o
+`nfePackageBoxes` tipado):
+
+- `typedBox`: `measurement_source = 'typed'`, dimensões e peso preenchidos, `carton_gtin` nulo.
+- `replicatedBox`: `measurement_source = 'replicated'`, `measurement_margin_mm = null` (D6 — réplica
+  nunca carrega margem), `carton_gtin` nulo. É o caso que o coordenador pediu para cobrir.
+
+### Os três caminhos, um teste cada
+
+1. `writePackageBoxes` (consumer da importação) com um `cartonGtin` novo para o mesmo
+   `(emitente, cProd, uCom)` do `typedBox` → só `carton_gtin` muda; as outras oito colunas
+   (dimensões, peso, `units_per_box`, `measured_at`, `measurement_source`, `measurement_margin_mm`)
+   batem exatamente com o valor antes da chamada.
+2. `insertPackageBoxes` (backfill de caixas, `onConflictDoNothing`) com a mesma identidade →
+   `inserted = 0`, e a linha não muda em **nenhuma** coluna, nem `carton_gtin` (o `ON CONFLICT` nem
+   tenta escrever).
+3. `fillCartonGtin` (backfill de GTIN) no `replicatedBox` → preenche o `carton_gtin` nulo sem tocar
+   `measurement_source`/`measurement_margin_mm`/dimensões; rodar de novo é no-op (`filled = 0`,
+   `carton_gtin` já não é nulo).
+
+### Vermelho antes da correção
+
+A primeira tentativa de seed usava `measurement_margin_mm = 4` em `typed`, e o Postgres recusou com
+`nfe_package_boxes_measurement_margin_pairing_check` — a própria constraint pegou meu erro de
+cenário (não um bug de produção): `typed`/`replicated` nunca carregam margem. Corrigido para `null`,
+o seed passou a existir e os três testes ficaram verdes.
+
+### Gates
+
+```
+bun run typecheck (as seis apps)                                              exit 0
+bun run --cwd apps/worker-transportada test                                   1381 pass · 0 fail
+bun run --cwd apps/api-transportada test                                      6318 pass · 23 skip · 0 fail
+```
+
+### Integração de verdade (`.env.test`)
+
+```
+cd apps/worker-transportada
+bun --env-file=../../.env.test test --timeout 120000 \
+  ./test/nfe-package-box-gtin-backfill.integration.test.ts \
+  ./test/nfe-package-box-measurement-regression.integration.test.ts
+
+bun test v1.3.14 (0d9b296a)
+ 7 pass
+ 0 fail
+ 21 expect() calls
+Ran 7 tests across 2 files. [318.00ms]
+```
+
+Os 3 testes do arquivo novo (dentro dos 7) rodaram de verdade, não pularam — a asserção final de
+cada um lê a linha do banco por SQL cru depois da chamada e compara contra o valor gravado no seed.
+⚠️ O banco do `.env.test` local (`postgresql://.../transportada` em `localhost:65432`) estava com a
+migration da T2.1 pendente (coluna `measurement_source` ainda não existia); rodei
+`DATABASE_URL=postgresql://transportada:transportada@localhost:65432/transportada bun run
+--cwd apps/api-transportada db:migrate` antes de conseguir o vermelho de verdade — sem isso o erro
+era `column "measurement_source" of relation "nfe_package_boxes" does not exist`, não o teste falhar
+por regra de negócio.
 
 ## T3.1 — Cliente e hook
 
