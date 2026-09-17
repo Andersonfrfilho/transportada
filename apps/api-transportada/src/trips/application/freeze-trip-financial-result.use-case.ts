@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
-import { formatFiscalMoney } from '../../shared/decimal.service.js'
 import type { DailyAllowanceRateOrigin } from '../domain/daily-allowance.policy.js'
 import type { TripCostParcelBasis, TripValuation } from '../domain/trip-valuation.policy.js'
 import type {
@@ -139,7 +138,7 @@ function composeAllowanceLine({
   rateOrigin,
 }: ComposeAllowanceLineParams): string {
   const dayLabel = days === 1 ? 'dia' : 'dias'
-  return `R$ ${formatCurrencyText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`
+  return `R$${CURRENCY_SPACE}${formatRateText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`
 }
 
 /** D3: de onde veio o valor, por extenso — a mesma leitura que `daily-allowance.policy.ts` descreve. */
@@ -152,14 +151,35 @@ const DAILY_ALLOWANCE_RATE_ORIGIN_LABEL: Record<DailyAllowanceRateOrigin, string
 /** Entre condutores, nunca entre frase e valor: `·` já separa o valor da origem dentro da linha. */
 const ALLOWANCE_NOTE_SEPARATOR = '; '
 
-/** `formatFiscalMoney` arredonda `numeric(19,4)` para duas casas; o resto é só vírgula e milhar. */
-function formatCurrencyText(value: string): string {
-  const [integerPart, fractionalPart] = formatFiscalMoney(value).split('.')
-  const grouped = (integerPart ?? '0').replace(THOUSANDS_SEPARATOR_PATTERN, '.')
-  return `${grouped},${fractionalPart ?? '00'}`
+/**
+ * ⚠️ O fator sai com as casas que **tem**, nunca com as duas do total. A diária mora em
+ * `numeric(19,4)`, e arredondá-la antes da multiplicação faz a frase desmentir o número que ela
+ * explica: "R$ 200,34 × 3 dias" para uma parcela de R$ 601,0050. Quem confere a margem multiplica o
+ * que lê. O total continua arredondando na exibição; o fator, não.
+ */
+function formatRateText(value: string): string {
+  const [integerPart = '0', fractionalPart = ''] = value.split('.')
+  const grouped = integerPart.replace(THOUSANDS_SEPARATOR_PATTERN, '.')
+
+  return `${grouped},${significantFraction(fractionalPart)}`
 }
 
+/** Duas casas é o mínimo que dinheiro mostra; o zero além delas é ruído, o dígito não é. */
+function significantFraction(fractionalPart: string): string {
+  const padded = fractionalPart.padEnd(MINIMUM_FRACTION_DIGITS, '0')
+  const trimmed = padded.replace(TRAILING_ZERO_PATTERN, '')
+
+  return trimmed.length < MINIMUM_FRACTION_DIGITS
+    ? padded.slice(0, MINIMUM_FRACTION_DIGITS)
+    : trimmed
+}
+
+const MINIMUM_FRACTION_DIGITS = 2
+const TRAILING_ZERO_PATTERN = /0+$/
 const THOUSANDS_SEPARATOR_PATTERN = /\B(?=(\d{3})+(?!\d))/g
+
+/** O mesmo `\u00A0` que o `Intl` do navegador escreve na viagem aberta — o texto é o contrato. */
+const CURRENCY_SPACE = '\u00A0'
 
 /**
  * Dinheiro em texto do começo ao fim: as somas do congelamento passam por inteiro escalado, nunca

@@ -69,6 +69,16 @@ function buildRepository(current: TripFinancialResult | null = null) {
   return { repository, written }
 }
 
+/** A linha como o repositório a recebe — o teste lê `note` e `amount` da mesma parcela. */
+type TripFinancialParcelRow = {
+  readonly amount: string
+  readonly kind: string
+  readonly note: string
+}
+
+/** O mesmo `\u00A0` que o `Intl` do navegador escreve: o `R$` nunca se separa do número. */
+const NON_BREAKING_SPACE = '\u00A0'
+
 describe('o congelamento do resultado (spec 061 T005)', () => {
   /** Imposto desce da receita; custo sai do bolso. A separação é o que a tela mostra. */
   test('separa imposto de custo, e o líquido é receita menos os dois', async () => {
@@ -184,10 +194,62 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
       }),
     })
 
-    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
     expect(parcels).toContainEqual(
-      expect.objectContaining({ kind: 'driver', note: 'R$ 200,00 × 3 dias · valor geral' }),
+      expect.objectContaining({
+        kind: 'driver',
+        note: `R$${NON_BREAKING_SPACE}200,00 × 3 dias · valor geral`,
+      }),
     )
+  })
+
+  /**
+   * ⚠️ O fator não arredonda. Cortar a diária de `numeric(19,4)` para as duas casas da exibição
+   * **antes** da multiplicação faz a frase desmentir o próprio total: "R$ 200,34 × 3 dias" para uma
+   * parcela de R$ 601,0050. Quem confere a margem multiplica o que lê — 200,335 × 3 = 601,005.
+   */
+  test('a diária de quatro casas é escrita inteira, e os fatores da frase fecham o total', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '601.0050',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '200.3350',
+                  driverId: '00000000-0000-4000-8000-000000000010',
+                  driverName: 'Motorista Um',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'company',
+                  subtotal: '601.0050',
+                },
+              ],
+              days: 3,
+              daysOrigin: 'informed',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'measured',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
+    const driver = parcels.find((parcel) => parcel.kind === 'driver')
+
+    expect(driver?.note).toBe(`R$${NON_BREAKING_SPACE}200,335 × 3 dias · valor geral`)
+    expect(driver?.amount).toBe('601.0050')
   })
 
   /**
@@ -218,7 +280,7 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
       }),
     })
 
-    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
     expect(parcels).toContainEqual(
       expect.objectContaining({ kind: 'driver', note: 'NO_TRIP_DRIVER' }),
     )
@@ -270,11 +332,11 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
       }),
     })
 
-    const parcels = (written[0] as { parcels: readonly { kind: string; note: string }[] }).parcels
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
     expect(parcels).toContainEqual(
       expect.objectContaining({
         kind: 'driver',
-        note: 'R$ 250,00 × 2 dias · valor do motorista; R$ 200,00 × 2 dias · valor padrão',
+        note: `R$${NON_BREAKING_SPACE}250,00 × 2 dias · valor do motorista; R$${NON_BREAKING_SPACE}200,00 × 2 dias · valor padrão`,
       }),
     )
   })

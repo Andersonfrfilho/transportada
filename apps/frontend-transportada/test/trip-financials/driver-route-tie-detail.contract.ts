@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { formatAmount, formatRateAmount } from '@/modules/shared/decimalAmount.service'
 import { composeCostParcelDetail } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 import type {
   TripDriverCostCrewLine,
@@ -128,6 +128,27 @@ describe('the driver allowance sentence is composed on the screen (spec 143)', (
     expect(detail).toContain('1.234,56')
   })
 
+  /**
+   * ⚠️ O fator não arredonda. `formatAmount` corta para as duas casas da exibição, e "R$ 200,34 ×
+   * 3 dias" não chega aos R$ 601,0050 que a parcela soma. O total arredonda; a diária que o leitor
+   * multiplica, não.
+   */
+  test('a four-decimal rate is printed whole, not rounded to the display scale', () => {
+    const detail = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ dailyAmount: '200.3350', subtotal: '601.0050' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(detail).toBe(`${formatRateAmount('200.3350')} × 3 dias · valor do motorista`)
+    expect(detail).toContain('200,335')
+  })
+
+  /** O `R$` nunca se separa do número: é o `\u00A0` do `Intl`, e a API congela o mesmo caractere. */
+  test('the currency symbol is glued to the number by a non-breaking space', () => {
+    expect(formatRateAmount('250.0000')).toContain('R$\u00A0250,00')
+  })
+
   test('two drivers become two sentences, separated by "; ", in crew order', () => {
     const detail = composeCostParcelDetail({
       basis: driverBasis([
@@ -169,8 +190,11 @@ describe('the driver allowance sentence is composed on the screen (spec 143)', (
 
     expect(source).toContain("const dayLabel = days === 1 ? 'dia' : 'dias'")
     expect(source).toContain(
-      '`R$ ${formatCurrencyText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`',
+      '`R$${CURRENCY_SPACE}${formatRateText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`',
     )
+    /** O mesmo espaço e o mesmo fator inteiro dos dois lados — é isso que faz o texto ser igual. */
+    expect(source).toContain("const CURRENCY_SPACE = '\\u00A0'")
+    expect(source).not.toContain('formatFiscalMoney')
     expect(source).toContain("company: 'valor geral'")
     expect(source).toContain("default: 'valor padrão'")
     expect(source).toContain("driver: 'valor do motorista'")

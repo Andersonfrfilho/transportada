@@ -2438,3 +2438,71 @@ mesmo silêncio com outro nome.
 | `bun run test` (frontend) | ✅ 4151 pass · 0 fail                      |
 | `bun run lint`            | ✅                                         |
 | `bun run format:check`    | ✅                                         |
+
+## Revisão final — achados 11 e 12: a frase congelada e o fator arredondado
+
+### Achado 12 — corrigido: o fator da conta não fecha a conta
+
+`freeze-trip-financial-result.use-case.ts` compunha a linha da diária com
+`formatCurrencyText(dailyAmount)`, que passava o valor por `formatFiscalMoney` — **duas casas**.
+A diária mora em `numeric(19,4)`. Com uma diária de `200.3350` e três dias, a parcela guardava
+`amount = 601.0050` e a frase dizia **"R$ 200,34 × 3 dias"**. Multiplicando o que está escrito:
+601,02. A frase existe para explicar o número e desmentia o número — e o defeito é só de texto, o
+`amount` sempre esteve exato, o que o torna mais silencioso, não menos.
+
+O fator agora sai com as casas que **tem**: mínimo de duas, máximo de quatro, sem zero à toa —
+`200.0000` → `200,00`, `200.3350` → `200,335`, `1234.5600` → `1.234,56`. O total continua
+arredondando na exibição; o fator, não. `formatCurrencyText` virou `formatRateText` justamente para
+que o próximo leitor não o confunda com o formatador de exibição, e o import de `formatFiscalMoney`
+saiu do arquivo.
+
+O frontend tinha o mesmo corte: `formatAmount` é `Intl` com duas casas fixas. Nasceu
+`formatRateAmount` em `decimalAmount.service.ts` (`minimumFractionDigits: 2`,
+`maximumFractionDigits: 4`), e `tripCostParcelDetail.service.ts` passou a usá-lo. As duas apps
+continuam sem compartilhar código — é o texto que é o contrato.
+
+**De brinde, medido:** o texto **não era** idêntico. O `Intl` do navegador cola o `R$` ao número com
+` ` (espaço inquebrável, código 160); a API escrevia espaço comum (32). Invisível na tela, mas
+o teste que afirma "word for word" não estava afirmando nada. A API passou a escrever o mesmo
+caractere, com o nome `CURRENCY_SPACE`, e as três expectativas de `freeze.contract.ts` o nomeiam em
+vez de embutir um caractere invisível no fonte.
+
+| Diária      | Dias | `amount`   | Antes            | Agora             |
+| ----------- | ---- | ---------- | ---------------- | ----------------- |
+| `200.3350`  | 3    | `601.0050` | R$ 200,34 × 3 ❌ | R$ 200,335 × 3 ✅ |
+| `200.0000`  | 3    | `600.0000` | R$ 200,00 × 3 ✅ | R$ 200,00 × 3 ✅  |
+| `1234.5600` | 3    | —          | R$ 1.234,56 ✅   | R$ 1.234,56 ✅    |
+
+Testes escritos antes: um caso novo em `test/trip-financial/freeze.contract.ts` (diária de quatro
+casas, `note` e `amount` na mesma asserção) e dois em
+`test/trip-financials/driver-route-tie-detail.contract.ts` (fator inteiro; o espaço inquebrável).
+A suíte cruzada por texto de fonte passou a exigir `CURRENCY_SPACE`, `formatRateText` e a **ausência**
+de `formatFiscalMoney` no fonte da API.
+
+### Achado 11 — fora do escopo desta revisão, com motivo
+
+O achado está certo no fato: a frase congelada nasce em português puro
+(`'dia'`/`'dias'`, `valor geral`/`valor padrão`/`valor do motorista`), enquanto a viagem aberta é
+composta por locale no frontend. Numa instalação em inglês, a viagem aberta lê "R$ 200,00 × 3 days ·
+company rate" e a mesma viagem, depois de congelada, lê "× 3 dias · valor geral".
+
+Corrigir de verdade **não é traduzir a API**: congelar a frase no idioma de quem congelou só troca
+qual usuário vê o idioma errado. A correção é congelar os **ingredientes** — valor, dias, origem —
+e compor no momento da leitura, como já se faz com a lacuna (`note` guarda o código e o painel
+imprime `t('gap.' + note)`). Isso é uma coluna nova em `trip_financial_parcels` (aditiva, não
+destrutiva), um caminho de compatibilidade para toda parcela já congelada, e a reversão de uma
+decisão que a própria 143 tomou na D5/T6. É trabalho de spec, não de correção de revisão — e é
+**o mesmo par** que o buraco do valor negativo, já acordado para spec própria.
+
+Registrado aqui para não se perder: enquanto não houver essa spec, a frase congelada é pt-BR em
+qualquer instalação.
+
+### Gates
+
+| Gate                      | Resultado                                 |
+| ------------------------- | ----------------------------------------- |
+| `bun run typecheck`       | ✅ seis apps                              |
+| `bun test` (API)          | ✅ 6249 pass · 23 skip · 0 fail (+1 caso) |
+| `bun run test` (frontend) | ✅ 4153 pass · 0 fail (+2 casos)          |
+| `bun run lint`            | ✅                                        |
+| `bun run format:check`    | ✅                                        |

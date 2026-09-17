@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { formatRateAmount } from '@/modules/shared/decimalAmount.service'
 
 import type {
   DailyAllowanceRateOrigin,
@@ -61,7 +61,7 @@ function composeDriverAllowanceLine({
   t,
 }: ComposeDriverAllowanceLineInput): string {
   return t('ledger.driverBasis', {
-    amount: formatAmount(dailyAmount),
+    amount: formatRateAmount(dailyAmount),
     count: days,
     days,
     origin: t(`ledger.driverRateOrigin.${rateOrigin}`),
