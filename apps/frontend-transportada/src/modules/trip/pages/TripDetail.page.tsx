@@ -9,6 +9,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
+import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostEntries.hook'
 import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
 
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
@@ -46,6 +47,12 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   })
 
   const financials = useTripFinancials({ permissions, tripId })
+  /**
+   * ⚠️ A lista de lançamentos entra **dentro** do painel, junto com a permissão que o abre. Quem tem
+   * `trip.manage` e não tem `trip.financials` não vê nem o que ele mesmo lançou — é a assimetria
+   * proposital da rota, e expor a lista ao lado do painel vazaria o valor que ela protege.
+   */
+  const costEntries = useTripCostEntries({ permissions, tripId })
 
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())
@@ -91,6 +98,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
           */}
           {financials.canReadFinancials ? (
             <TripFinancialPanel
+              costEntries={costEntries}
               isError={financials.isError}
               isLoading={financials.isLoading}
               onRecalculate={financials.recalculate}

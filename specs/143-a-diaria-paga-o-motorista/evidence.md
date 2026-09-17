@@ -1556,3 +1556,200 @@ novas desta task). Os cinco gates foram re-executados inteiros depois da correç
 ⚠️ **`make smoke` não roda nesta evidência** — precisa da stack em Docker, indisponível nesta
 máquina; a correção do Playwright ficou provada por leitura (tipo, soma, locale, saída real de
 `formatAmount`), não por execução.
+
+## T12 — Painel com todos os gastos, lançamentos e input (API + FE)
+
+### Contrato antes da implementação — o vermelho literal
+
+Duas suítes novas, escritas e rodadas **antes** de qualquer linha de produção. Nenhuma delas entrou
+no `package.json`: suíte dentro de diretório que já existe se registra por `import` no entrypoint
+(`test/trip-financial.contract.test.ts` na API, `test/trip-financials.contract.test.ts` no FE) —
+mexer no `package.json` quebraria `test-registry.contract.ts`.
+
+**API — `test/trip-financial/cost-amount.contract.ts`** (`bun --env-file=../../.env.test test
+test/trip-financial.contract.test.ts --timeout 120000`):
+
+```
+36 |     test(`${amount} devolve 400 em vez de morrer no CHECK do banco`, async () => {
+37 |       expect(await statusOf(amount)).toBe(400)
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 400
+Received: 201
+
+      at <anonymous> (.../test/trip-financial/cost-amount.contract.ts:37:38)
+(fail) o lançamento de valor zero é recusado na fronteira, não no banco > 0 devolve 400 em vez de morrer no CHECK do banco [6.63ms]
+(fail) o lançamento de valor zero é recusado na fronteira, não no banco > 0.0000 devolve 400 em vez de morrer no CHECK do banco [0.26ms]
+(fail) o lançamento de valor zero é recusado na fronteira, não no banco > 0.00 devolve 400 em vez de morrer no CHECK do banco [0.09ms]
+(fail) o lançamento de valor zero é recusado na fronteira, não no banco > 000 devolve 400 em vez de morrer no CHECK do banco [0.08ms]
+
+ 57 pass
+ 4 fail
+ 111 expect() calls
+Ran 61 tests across 1 file. [287.00ms]
+```
+
+Vermelho de **asserção**, não de import quebrado: os 57 restantes da mesma entrada passam, e os
+quatro que falham falham pelo valor (`201` onde o contrato promete `400`). O caso negativo
+(`-80.0000`) já nasce verde — ele nunca passou do `AMOUNT_PATTERN`.
+
+**FE — `test/trip-financials/cost-entries.contract.ts`** (`bun test
+test/trip-financials.contract.test.ts`):
+
+```
+ 54 pass
+ 25 fail
+ 207 expect() calls
+Ran 79 tests across 1 file. [51.00ms]
+```
+
+Os 25:
+
+```
+(fail) o valor digitado vira o decimal que a API aceita (spec 143 D6) > o milhar sai e a vírgula vira ponto, na escala fiscal
+(fail) o valor digitado vira o decimal que a API aceita (spec 143 D6) > o corpo leva a espécie e a descrição escolhidas
+(fail) as regras do formulário, contra o serviço puro > campo de valor em branco não sai do formulário
+(fail) as regras do formulário, contra o serviço puro > zero não é custo, e nem sai do formulário
+(fail) as regras do formulário, contra o serviço puro > a descrição respeita o teto que o servidor cobra
+(fail) as regras do formulário, contra o serviço puro > lançamento completo não tem nada a corrigir
+(fail) as regras do formulário, contra o serviço puro > valor acima do que a API aceita é barrado antes do envio
+(fail) a resposta da API é entrada não confiável > o lançamento chega com autor, valor em texto e momento
+(fail) a resposta da API é entrada não confiável > valor numérico na resposta é resposta inválida
+(fail) a resposta da API é entrada não confiável > autor sem nome chega vazio, para o locale decidir a palavra
+(fail) as chaves de consulta do módulo moram num lugar só > a constante publica as três chaves, e o hook antigo passa a lê-las de lá
+(fail) o hook dos lançamentos > não pergunta a quem não tem trip.financials
+(fail) o hook dos lançamentos > o sucesso derruba a lista e a conta prevista, e não o congelado
+(fail) o hook dos lançamentos > a revalidação não segura o botão
+(fail) o hook dos lançamentos > o nome de quem lançou não vai para o console
+(fail) a lista de lançamentos na tela > a falha da lista tem erro e nova tentativa só dela
+(fail) a lista de lançamentos na tela > a lista vazia se explica com palavra própria
+(fail) a lista de lançamentos na tela > o carregamento tem a forma da lista
+(fail) a lista de lançamentos na tela > a lista não reordena o que a API ordenou
+(fail) o formulário, que é a metade trip.manage > o formulário só é montado por quem pode lançar
+(fail) o formulário, que é a metade trip.manage > a falha da mutação preserva o que foi digitado
+(fail) o formulário, que é a metade trip.manage > o campo de valor usa o par de máscara e parser do repositório
+(fail) o painel monta a lista nas duas situações da viagem > os dois ramos do painel montam a lista
+(fail) o painel monta a lista nas duas situações da viagem > o painel cabe no teto do repositório
+(fail) as duas direções da permissão, pela página > lista e formulário vivem dentro do painel, nunca ao lado dele
+```
+
+Dois vermelhos com formas diferentes, de propósito, e vale registrar o porquê:
+
+- Asserções contra arquivo **que já existe** falham pelo conteúdo, que é o vermelho que o processo
+  pede. Ex.: `os dois ramos do painel montam a lista` → `Expected: 2 / Received: undefined`;
+  `o painel cabe no teto do repositório` → `Expected: <= 200 / Received: 213`; `lista e formulário
+vivem dentro do painel` imprime o `TripDetail.page.tsx` inteiro sem `useTripCostEntries`.
+- Asserções contra arquivo **que ainda não existe** falham por `ENOENT` do `Bun.file(...).text()`.
+  Isso é conteúdo também — o arquivo ausente é a divergência —, e a suíte **inteira roda** porque
+  os módulos novos entram por `await import(...)` dentro de cada teste, nunca por `import` estático
+  no topo: um `import` estático derrubaria a resolução do arquivo e nada correria. Foi decisão
+  explícita, para não trocar 25 falhas de asserção por uma pilha de "module not found".
+
+### O que entrou
+
+**API — a fronteira passa a recusar o zero, e é só isso.**
+
+- `apps/api-transportada/src/trips/presentation/trip-financial.schema.ts`: `AMOUNT_PATTERN` segue
+  idêntico e ganha um `.refine` — string sem dígito de 1 a 9 vale zero, e zero não é custo. O
+  `CHECK ("amount" > 0)` do banco **não foi tocado**: a constraint já estava certa, frouxa estava a
+  fronteira, que aceitava `'0'` e deixava o erro do banco vazar como 500. A checagem é sobre a
+  **string** (`/[1-9]/u`), nunca sobre `Number(value)` — dinheiro não vira float binário nem para
+  validar.
+- `apps/api-transportada/test/trip-financial/cost-amount.contract.ts` (novo, 55 linhas): dirige
+  `parseTripCostRequest` com `Request` real e mapeia `ApiError.status`. Recusa `'0'`, `'0.0000'`,
+  `'0.00'` e `'000'` com 400; mantém válidos `'0.5000'` (zero à esquerda é legítimo), `'0.0001'`,
+  `'1'` e `'9999999999999.9999'`; e fixa que `'-80.0000'` **continua** recusado.
+- `apps/api-transportada/test/trip-financial.contract.test.ts`: uma linha de `import`. ⚠️ Suíte nova
+  dentro de diretório que já existe entra pelo **entrypoint**, nunca no `package.json` — a lista de
+  lá é de entrypoints, e `test-registry.contract.ts` reprova arquivo de suíte metido ali.
+
+⚠️ **Valor negativo continua fora, por decisão do usuário.** O estorno é spec própria: precisa
+resolver permissão, efeito sobre resultado já congelado e trilha de auditoria. Nesta task não se
+abriu sinal negativo nem se inventou espécie de lançamento — a premissa da spec (`spec.md:119`,
+"Errou, lança um ajuste") fica registrada e sem implementação.
+
+**Frontend — o painel ganha a lista de lançamentos e o formulário.**
+
+| Arquivo                                               | Linhas | Papel                                                                               |
+| ----------------------------------------------------- | -----: | ----------------------------------------------------------------------------------- |
+| `test/trip-financials/cost-entries.contract.ts`       |    374 | a suíte de contrato (novo)                                                          |
+| `src/.../shared/tripFinancialsQueryKey.constant.ts`   |     13 | as três chaves de consulta e as duas permissões, num lugar só (novo)                |
+| `src/.../shared/tripCostEntryForm.service.ts`         |     74 | regra pura do formulário: `toTripCostEntryBody`, `validateTripCostEntryForm` (novo) |
+| `src/.../shared/tripCostEntryResponse.validation.ts`  |     54 | fronteira de leitura: `toTripCostEntries` + `TripCostEntryResponseError` (novo)     |
+| `src/.../hooks/useTripCostEntries.hook.ts`            |     86 | consulta, mutação e permissões do bloco (novo)                                      |
+| `src/.../components/TripCostEntries.component.tsx`    |     91 | a lista, com carregamento, erro, nova tentativa e vazio próprios (novo)             |
+| `src/.../components/TripCostEntryForm.component.tsx`  |     93 | a metade `trip.manage`: valor mascarado, espécie e descrição (novo)                 |
+| `src/.../components/FrozenResultTable.component.tsx`  |     89 | o bloco do congelado, extraído do painel (novo)                                     |
+| `src/.../components/TripFinancialPanel.component.tsx` |    168 | monta a lista nos dois ramos da viagem                                              |
+| `src/modules/trip/pages/TripDetail.page.tsx`          |      — | chama o hook e passa o controlador ao painel                                        |
+| `src/.../hooks/useTripFinancials.hook.ts`             |      — | passa a **importar** as chaves da constante nova                                    |
+| `src/.../shared/tripFinancials.types.ts`              |      — | `TripCostEntry`, `TripCostEntryKind`, `TripCostEntryActor`                          |
+| `src/.../shared/tripFinancialsClient.service.ts`      |      — | `readCosts` e o `kind` tipado                                                       |
+| `src/.../locales/tripFinancials{,.en}.locale.json`    |      — | um bloco `costEntries` em cada, 20 linhas                                           |
+| `src/.../styles/tripFinancials.module.css`            |      — | `.costEntries`, `.costEntryList`, `.costEntryDescription`, `.costEntryForm`         |
+
+As decisões que valem registro:
+
+- **O painel estava em 213 linhas e o teto do repositório é 200.** O bloco do congelado (totais,
+  os dois avisos e a tabela de parcelas) saiu inteiro para `FrozenResultTable`, que recebe só
+  `result` e recalcula o que precisa. Saiu pelo teto, não por reuso — tem um consumidor só, e o
+  comentário do arquivo diz isso. `ValuationLedger` e `summarizeTripValuation` não foram tocados.
+- **A lista vive dentro do painel, nos dois ramos** (viagem aberta e resultado congelado): gasto
+  lançado depois do congelamento continua sendo gasto daquela viagem, e escondê-lo no congelado
+  faria a tela mentir por omissão. A página não monta `TripCostEntries` nem `TripCostEntryForm` —
+  ela só passa o controlador; o teste cobra as duas coisas.
+- **Lançar derruba a lista e a conta prevista (`trip-valuation`), não o congelado
+  (`trip-financials`).** O congelado é foto tirada, e revalidá-lo a cada lançamento daria a
+  impressão de que o número muda sozinho — recalcular continua sendo ato explícito, com motivo.
+- **`record` devolve `boolean`, não relança.** A recusa já é estado da mutação; o formulário só
+  precisa saber se pode limpar os campos, e **preserva o que foi digitado quando a API recusa**.
+- **§16:** as chaves de consulta e as permissões viraram constante única, e `useTripFinancials`
+  passou a importá-las em vez de redeclarar as três que já tinha localmente.
+- **PII:** o nome de quem lançou aparece na resposta da API e na tela, e **em lugar nenhum** vai
+  para log — a suíte afirma que nenhum dos arquivos novos contém `console.`.
+
+### Divergências registradas, não corrigidas
+
+- **`useTripFinancials.hook.ts` invalida só `trip-financials` no `recalculate`, nunca
+  `trip-valuation`.** É anterior à T12 e fora do escopo dela; corrigir aqui aumentaria o diff sem
+  teste que cobrasse. Fica anotado para quem pegar a próxima task do módulo.
+- **Os dois buracos herdados da 061:** o zero fechou aqui (regra + teste); o negativo continua
+  aberto de propósito, virando spec própria por decisão do usuário.
+
+### Gates
+
+| Gate               | Comando                                                | Resultado                                                                     |
+| ------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Typecheck          | `bun run typecheck` (raiz, 6 apps)                     | ✅ limpo — inclui frontend-transportada, frontend-client, frontend-landing    |
+| Testes da API      | `bun --env-file=../../.env.test test --timeout 120000` | ✅ **6143 pass · 23 skip · 0 fail** · 21552 expect() · 177 arquivos · 14,22 s |
+| Testes do frontend | `bun run --cwd apps/frontend-transportada test`        | ✅ **4112 pass · 0 fail** · 35936 expect() · 29 arquivos · 5,86 s             |
+| Lint               | `bun run lint`                                         | ✅ limpo — 6 apps                                                             |
+| Formatação         | `bun run format:check`                                 | ✅ limpo                                                                      |
+
+Baseline da T11 batido: API 6134 → **6143** (as 9 da suíte nova do valor) e FE 4086 → **4112** (as
+26 da suíte nova dos lançamentos), com **0 fail** dos dois lados e nenhum teste a menos. Isoladas:
+`bun --env-file=../../.env.test test test/trip-financial.contract.test.ts` dá **61 pass · 0 fail ·
+111 expect()**, e `bun test test/trip-financials.contract.test.ts` dá **79 pass · 0 fail · 256
+expect()**.
+
+⚠️ **`make smoke` não foi executado** — precisa da stack em Docker, fora do ar nesta máquina. A
+verificação de que nada do smoke quebra foi **estática, por leitura**, e é esta: dos seis cenários
+do `responsive.smoke.spec.ts` que abrem "Detalhe da viagem", **nenhum** concede `trip.financials`
+(a permissão só aparece nas linhas 1491 e 1499, no cenário do diálogo de montar roteiro, que não
+navega para o detalhe). Sem `trip.financials` o `useTripCostEntries` nasce desabilitado e não emite
+`GET /trips/:id/costs`, então nenhum mock precisou ganhar rota e nenhum arquivo de smoke foi
+alterado. Isso é leitura, não execução — não se afirma verde que não se viu.
+
+⚠️ **O comando de teste da API cobre os 177 entrypoints `*.test.ts`; os 83 arquivos
+`test/integration/*.integration.ts` não entram na descoberta padrão do `bun test`** (o padrão casa
+`*.test.*`, `*.spec.*`, `*_test.*`) e continuam sendo o script `test:integration`, que precisa de
+Docker. A flag `--env-file` foi usada como manda o processo, e o número acima é comparável ao
+baseline porque foi medido do mesmo jeito — mas vale dizer sem rodeio que esta execução **não
+exercitou banco**.
+
+⚠️ **Uma asserção da suíte do FE foi refinada depois do vermelho colado acima.** O teste cobrava o
+literal `'trip.financials'` dentro de `useTripCostEntries.hook.ts`, o que obrigaria a redeclarar uma
+string que já existe — exatamente o que o §16 proíbe. A asserção passou a cobrar a constante
+(`export const FINANCIALS_PERMISSION = 'trip.financials'`) mais o uso do identificador no hook. O
+alvo do teste não mudou; o caminho para satisfazê-lo, sim.

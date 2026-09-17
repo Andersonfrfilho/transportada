@@ -7,10 +7,15 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { TRIP_COST_ENTRY_KINDS } from '../../database/trip-financial.schema.js'
 
 const AMOUNT_PATTERN = /^[0-9]{1,13}(\.[0-9]{1,4})?$/u
+/** Lançamento é dinheiro que saiu: zero não é custo, e o CHECK do banco devolveria 500. */
+const NON_ZERO_DIGIT = /[1-9]/u
 
 const costSchema = z
   .object({
-    amount: z.string().regex(AMOUNT_PATTERN),
+    amount: z
+      .string()
+      .regex(AMOUNT_PATTERN)
+      .refine((value) => NON_ZERO_DIGIT.test(value)),
     description: z.string().trim().max(200).default(''),
     kind: z.enum(TRIP_COST_ENTRY_KINDS),
   })

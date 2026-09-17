@@ -1,4 +1,24 @@
 {
+  "costEntries": {
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "by": "{{actor}} · {{moment}}",
+    "description": "Description",
+    "descriptionPlaceholder": "BR-101 toll, locksmith, washing…",
+    "empty": "No expense recorded on this trip yet.",
+    "error": "The expenses of this trip could not be loaded.",
+    "kind": "Kind",
+    "kinds": {
+      "other": "Other",
+      "toll": "Toll"
+    },
+    "loading": "Loading the expenses…",
+    "record": "Record",
+    "recording": "Recording…",
+    "retry": "Try again",
+    "title": "Recorded expenses",
+    "unknownActor": "removed user"
+  },
   "gap": {
     "CITY_WITHOUT_REGION": "destination without a registered freight zone",
     "DRIVER_RATE_MISSING_FOR_CLASS": "the zone has no price for this vehicle class — check the Regions tab",

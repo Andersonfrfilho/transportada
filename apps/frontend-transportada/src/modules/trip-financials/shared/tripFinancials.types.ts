@@ -68,3 +68,19 @@ export type FinancialSummary = Readonly<{
 }>
 
 export const FINANCIAL_RESULTS_PATH = '/financial-results'
+
+/** ⚠️ Cópia por valor do vocabulário da API — o bundle não carrega código de lá. */
+export const TRIP_COST_ENTRY_KINDS = ['toll', 'other'] as const
+export type TripCostEntryKind = (typeof TRIP_COST_ENTRY_KINDS)[number]
+
+/** Quem lançou. O nome é PII: vai para a tela, nunca para log nem telemetria. */
+export type TripCostEntryActor = Readonly<{ name: string; userId: string }>
+
+export type TripCostEntry = Readonly<{
+  actor: TripCostEntryActor
+  amount: string
+  createdAt: string
+  description: string
+  id: string
+  kind: TripCostEntryKind
+}>

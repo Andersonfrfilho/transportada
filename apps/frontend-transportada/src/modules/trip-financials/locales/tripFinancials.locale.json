@@ -1,4 +1,24 @@
 {
+  "costEntries": {
+    "amount": "Valor",
+    "amountPlaceholder": "0,00",
+    "by": "{{actor}} · {{moment}}",
+    "description": "Descrição",
+    "descriptionPlaceholder": "Pedágio da BR-101, chaveiro, lavagem…",
+    "empty": "Nenhum gasto lançado nesta viagem até agora.",
+    "error": "Não foi possível carregar os lançamentos desta viagem.",
+    "kind": "Espécie",
+    "kinds": {
+      "other": "Avulso",
+      "toll": "Pedágio"
+    },
+    "loading": "Carregando os lançamentos…",
+    "record": "Lançar",
+    "recording": "Lançando…",
+    "retry": "Tentar novamente",
+    "title": "Gastos lançados",
+    "unknownActor": "usuário removido"
+  },
   "gap": {
     "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
     "DRIVER_RATE_MISSING_FOR_CLASS": "zona sem preço para a classe do veículo — confira a aba Regiões",
