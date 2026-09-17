@@ -2921,3 +2921,127 @@ T501 é frontend puro (RF11).
 ### Commit
 
 `ede9d598`
+
+## T502 — Remoção do mapa antigo (RF11) e contrato de fonte (aceite 4)
+
+### Confirmado por `grep`, um por um, antes de apagar
+
+Todos os cinco candidatos que a T501 já tinha levantado (evidence acima, seção "O que ainda
+referencia o mapa antigo") foram reconferidos nesta task, agora sem chamador nenhum fora do
+próprio arquivo e sem teste que sobrevivesse à remoção sem ajuste:
+
+- `VectorMap` (`src/components/ui/vector-map.tsx`, 90 linhas) e seu CSS
+  (`vector-map.module.css`, 47 linhas) — zero consumidor de produção; `AssemblyVectorMap` e
+  `FreightRegionVectorMap` são componentes **diferentes** (o motor MapLibre), o `\bVectorMap\b`
+  com fronteira de palavra nos dois lados não bate neles.
+- `tripRouteMap.service.ts` (113 linhas, `resolveTripRouteMap`) — já estava órfão antes da T501.
+- `tripBasemap.service.ts` (52 linhas, `buildTripBasemapPaths`) — já estava órfão antes da T501.
+- `tileMap.service.ts` (182 linhas) — o único ponto de contato era `import {} from
+'../shared/tileMap.service'` em `TripAssemblyMap.component.tsx:48`, um import vazio (side-effect)
+  sem nenhuma binding usada. **O que era**: um motor de mapa de telha (_slippy map_) em Web
+  Mercator escrito à mão (`resolveTileMap`, `probeTileUrl`, `resolveTileAvailability`) que reverte
+  em parte a ADR-0037 para servir telha própria via `/map-tiles`, conforme a ADR-0044 §6 — foi a
+  fase intermediária do mapa da viagem antes do MapLibre assumir; a T501 já registrava que nada
+  além do próprio arquivo o exercitava. Remover a linha de import não muda comportamento nenhum —
+  era efeito zero, só carregava o módulo para nunca usar as bindings.
+- `resolveRouteTraceSegments` (`routeGeometry.service.ts`) — sem chamador; a função irmã
+  `resolveRouteLegs` (que ela só envolvia, convertendo `points` em `path` de SVG com `toPath`)
+  continua viva e é o que `TripRouteMap`/`AssemblyVectorMap` usam hoje. `toPath` continua (ainda
+  usada por `resolveRouteTrace`), só o tipo `RouteTraceSegment` (só usado pela função removida)
+  saiu junto.
+
+**Achado novo nesta task**, fora da lista original mas dentro do RF11 ("CSS/locale órfãos"): a
+família de projeção SVG em `ibgeMesh.service.ts` que a T501 já tinha marcado como órfã —
+`loadStateMesh`, `projectStateMesh`, `StateMesh`, `MeshShape`, `EMPTY_STATE_MESH` — confirmada sem
+consumidor de produção (`readFreightRegionMap.hook.ts` usa `loadStateMeshFeatures`, a variante sem
+projeção, desde a T501). Removidos junto com os helpers privados que só serviam a eles
+(`toPath`/`toExtent`/`toViewBox`/`Extent`, e por tabela `round`, que só `toPath` chamava).
+
+Não havia CSS nem chave de locale exclusiva de nenhum dos arquivos removidos: `VectorMap` não
+tinha locale próprio, e `fleet.module.css` já tinha perdido `.mapDrawing` na T501. O único texto
+remanescente foi um comentário em `scale-plan.tsx` citando `VectorMap` como exemplo de biblioteca
+de ícones — trocado por uma frase sem o nome, porque o aceite 4 pede "nenhuma referência", inclusive
+em prosa.
+
+### Dependências npm
+
+Nenhuma: o `package.json` não tem `d3-geo`, `topojson`, `leaflet` nem equivalente — a única lib de
+mapa no projeto sempre foi `maplibre-gl`/`@maplibre/maplibre-gl-style-spec`, que é o motor atual.
+Não houve `bun install` nem mudança em `bun.lock` por esta task.
+
+### Testes
+
+Removidos por inteiro (testavam só código apagado):
+
+- `test/design-system/vector-map.contract.ts` (3 testes) — CSS do `VectorMap`.
+- `test/trip/route-map.contract.ts` (6 testes) — `resolveTripRouteMap`.
+- `test/trip/route-basemap.contract.ts` (3 testes) — `buildTripBasemapPaths`.
+
+Editados, tirando só a parte do código morto:
+
+- `test/trip/route-trace-colors.contract.ts`: saiu o teste "a cor do traço entra inline..." (lia o
+  código-fonte de `vector-map.tsx`) e a constante `VECTOR_MAP`; os outros 8 testes do describe
+  (`resolveRouteLegs`, `stopColorOf`, e os dois que leem `AssemblyVectorMap.component.tsx`) cobrem
+  código vivo e ficaram como estavam.
+- `test/fleet/freight-region-map.contract.ts`, describe `ibge mesh contract`: das 9 asserções,
+  1 (`a projeção estreita a longitude...`) testava só a matemática de `toPath`/`toViewBox`
+  (SVG, morta) e saiu sem substituto; as outras 8 foram **adaptadas**, não apagadas — trocando
+  `projectStateMesh`/`loadStateMesh`/`EMPTY_STATE_MESH` (mortos) pelos irmãos vivos
+  `readStateMeshFeatures`/`loadStateMeshFeatures` que já faziam a mesma leitura e falha, só sem
+  projetar. Sem essa troca, o comportamento vivo de `readStateMeshFeatures` (descarta feição
+  ilegível, lança `FLEET_IBGE_MESH_MALFORMED`) e de `loadStateMeshFeatures` (propaga falha do
+  provedor, não sai à rede por UF desconhecida) ficaria sem contrato nenhum — o describe antigo só
+  os exercitava por tabela, através do wrapper de projeção que este task remove.
+- `test/trip.contract.test.ts` e `test/design-system.contract.test.ts`: tiraram os `import` dos
+  três arquivos de teste apagados (lista explícita do `package.json`/entrypoints, CLAUDE.md).
+
+Novo, cobrindo o aceite 4 (**contrato de fonte**, não lista fechada — varre `src/` inteiro em vez
+de nomear arquivo por arquivo, para reintrodução por qualquer caminho quebrar o build):
+`test/design-system/legacy-map-removed.contract.ts` — 2 testes: nenhum arquivo `.ts`/`.tsx`/`.css`
+de `src/` contém `VectorMap`, `tripRouteMap.service`, `tripBasemap.service`, `tileMap.service` ou
+`resolveRouteTraceSegments` (com fronteira de palavra, para não acusar `AssemblyVectorMap`/
+`FreightRegionVectorMap`); e os próprios arquivos do desenho antigo não existem mais em `src/`.
+
+**Contagem líquida**: 14 testes de código morto saíram (3+6+3+1+1), 2 novos entraram (aceite 4) →
+4208 (baseline T501) → 4196 pass. A queda é inteira de cobertura de código apagado; nenhum teste de
+comportamento vivo foi removido — os que cobriam comportamento vivo dentro dos describes mistos
+foram adaptados, não descartados.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4196 pass / 0 fail — baseline T501 (4208 pass) − 14 (código morto) + 2 (aceite 4) = 4196.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 10.13s — PWA precache 130 entries (4484.23 KiB), idêntico ao baseline T501 (130
+entries, 4484.23 KiB): os arquivos removidos já eram código morto sem consumidor de produção, e o
+tree-shaking já os excluía do bundle antes desta task — a remoção não muda o que é servido, só a
+árvore de fonte.
+`index-DX-Ux_U8.js` (pacote principal): 953.45 kB — mesmo hash e tamanho do baseline T501.
+`vectorBasemap.service-QvV4NZCb.js`: 1 004.90 kB — inalterado, segue abaixo do teto de 2 MiB.
+```
+
+Gate de API não foi executado: nenhum arquivo de `apps/api-transportada` foi tocado — T502 é
+frontend puro (RF11).
+
+### O que não fiz
+
+- Não toquei `resolveRouteLegs`, `resolveRouteTrace`, `RouteTrace`/`RouteTraceKind` nem `toPath`
+  em `routeGeometry.service.ts` — vivos, usados por `TripRouteMap`/`AssemblyVectorMap`.
+- Não toquei `src/modules/routing/shared/routeMapTiles.service.ts` nem
+  `src/modules/routing/hooks/useRouteMap.hook.ts` — nomes parecidos, módulo `routing` diferente
+  (não é o mapa da viagem/frota desta spec), fora do escopo do RF11.
+- Não mexi em dependências do `package.json` nem rodei `bun install` — não havia nenhuma exclusiva
+  do mapa antigo.
+
+### Commit

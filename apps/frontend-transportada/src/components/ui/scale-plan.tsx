@@ -57,7 +57,7 @@ export function buildScalePlanViewBox(
 /**
  * Uma planta em escala, vista de cima: um contorno em metros, faixas dentro dele e uma régua na
  * borda. A geometria chega como **dado** — é por isso que este `<svg>` mora aqui e não na
- * biblioteca de ícones, como o `VectorMap`.
+ * biblioteca de ícones.
  *
  * ⚠️ **A proporção na tela é a proporção real.** É o ponto inteiro do desenho: quem olha mede com
  * a fita o que a tela mostra, e um desenho que se ajusta ao espaço disponível mentiria em metro. O

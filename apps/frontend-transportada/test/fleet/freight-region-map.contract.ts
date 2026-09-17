@@ -4,10 +4,8 @@ import { describe, expect, test } from 'bun:test'
 import { EXTERNAL_CONNECT_ORIGIN } from '../../src/modules/shared/contentSecurityPolicy.service'
 import type { FreightRegion } from '../../src/modules/fleet/shared/freightRegion.types'
 import {
-  EMPTY_STATE_MESH,
   buildStateMeshUrl,
-  loadStateMesh,
-  projectStateMesh,
+  loadStateMeshFeatures,
   readStateMeshFeatures,
 } from '../../src/modules/shared/ibgeMesh.service'
 import {
@@ -88,28 +86,25 @@ describe('ibge mesh contract', () => {
     expect(url).toContain('geo%2Bjson')
   })
 
-  test('cada município vira um caminho fechado, com o código da malha', () => {
-    const mesh = projectStateMesh(meshPayload())
+  test('cada feição vira código e anéis crus, sem projeção', () => {
+    const features = readStateMeshFeatures(meshPayload())
 
-    expect(mesh.shapes).toHaveLength(2)
-    const [first] = mesh.shapes
+    expect(features).toHaveLength(2)
+    const [first] = features
     expect(first?.code).toBe('3530607')
-    expect(first?.path.startsWith('M')).toBe(true)
-    expect(first?.path.endsWith('Z')).toBe(true)
-    expect(mesh.viewBox.split(' ')).toHaveLength(4)
-    for (const part of mesh.viewBox.split(' ')) expect(Number.isFinite(Number(part))).toBe(true)
+    expect(first?.rings.length).toBeGreaterThan(0)
   })
 
   /** `codarea` chega como número em parte da malha; município não pode sumir por causa do tipo. */
   test('o código numérico da malha vira o mesmo texto do código do IBGE', () => {
-    const mesh = projectStateMesh(meshPayload())
+    const features = readStateMeshFeatures(meshPayload())
 
-    expect(mesh.shapes.map((shape) => shape.code)).toEqual(['3530607', '3531100'])
+    expect(features.map((feature) => feature.code)).toEqual(['3530607', '3531100'])
   })
 
-  /** Ilha e continente do mesmo município são um caminho com dois traços, não dois municípios. */
+  /** Ilha e continente do mesmo município continuam sendo um só, com um anel por pedaço. */
   test('o município com mais de um anel continua sendo um só', () => {
-    const mesh = projectStateMesh({
+    const features = readStateMeshFeatures({
       features: [
         {
           geometry: {
@@ -126,35 +121,13 @@ describe('ibge mesh contract', () => {
       type: 'FeatureCollection',
     })
 
-    expect(mesh.shapes).toHaveLength(1)
-    expect(mesh.shapes[0]?.path.split('M')).toHaveLength(3)
-  })
-
-  /**
-   * Grau de longitude é mais curto que grau de latitude fora do equador. Sem o fator do cosseno o
-   * estado sai esticado na horizontal, e o operador não reconhece o desenho que ele conhece de mapa.
-   */
-  test('a projeção estreita a longitude na latitude do estado', () => {
-    const [, , width, height] = projectStateMesh({
-      features: [
-        {
-          geometry: { coordinates: square({ latitude: -22.5, longitude: -47 }), type: 'Polygon' },
-          properties: { codarea: '3530607' },
-          type: 'Feature',
-        },
-      ],
-      type: 'FeatureCollection',
-    })
-      .viewBox.split(' ')
-      .map(Number)
-
-    expect(width).toBeLessThan(height ?? 0)
-    expect(width).toBeGreaterThan(0)
+    expect(features).toHaveLength(1)
+    expect(features[0]?.rings).toHaveLength(2)
   })
 
   /** Um município ilegível não apaga o estado: o que não dá para desenhar sai do desenho, só ele. */
   test('feição sem código ou sem geometria é descartada sozinha', () => {
-    const mesh = projectStateMesh({
+    const features = readStateMeshFeatures({
       features: [
         { geometry: null, properties: { codarea: '3500105' }, type: 'Feature' },
         { geometry: { coordinates: [], type: 'Polygon' }, properties: {}, type: 'Feature' },
@@ -167,12 +140,12 @@ describe('ibge mesh contract', () => {
       type: 'FeatureCollection',
     })
 
-    expect(mesh.shapes.map((shape) => shape.code)).toEqual(['3530607'])
+    expect(features.map((feature) => feature.code)).toEqual(['3530607'])
   })
 
   /** Corpo que não é malha é falha visível, não mapa em branco: caixa vazia sem aviso é pior. */
   test('corpo que não é malha vira falha', () => {
-    expect(() => projectStateMesh({ hello: 'world' })).toThrow('FLEET_IBGE_MESH_MALFORMED')
+    expect(() => readStateMeshFeatures({ hello: 'world' })).toThrow('FLEET_IBGE_MESH_MALFORMED')
   })
 
   test('provedor fora do ar propaga a falha', () => {
@@ -182,7 +155,7 @@ describe('ibge mesh contract', () => {
       )) as unknown as typeof globalThis.fetch
 
     expect(
-      loadStateMesh({ fetch: failing, signal: new AbortController().signal, state: 'SP' }),
+      loadStateMeshFeatures({ fetch: failing, signal: new AbortController().signal, state: 'SP' }),
     ).rejects.toThrow('FLEET_IBGE_MESH_REQUEST_FAILED')
   })
 
@@ -194,13 +167,13 @@ describe('ibge mesh contract', () => {
       return Promise.resolve(new Response('{}'))
     }) as unknown as typeof globalThis.fetch
 
-    const mesh = await loadStateMesh({
+    const features = await loadStateMeshFeatures({
       fetch: counting,
       signal: new AbortController().signal,
       state: 'ZZ',
     })
 
-    expect(mesh).toEqual(EMPTY_STATE_MESH)
+    expect(features).toEqual([])
     expect(calls).toBe(0)
   })
 })

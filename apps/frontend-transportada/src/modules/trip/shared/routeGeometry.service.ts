@@ -321,8 +321,6 @@ export function resolveRouteTrace(input: {
  * o roteiro se confundia com o fundo. Pintar cada trecho com a cor da parada a que ele leva casa o
  * mapa com a listagem, e é a listagem que a pessoa está lendo ao lado.
  */
-export type RouteTraceSegment = RouteTrace & Readonly<{ toSequence: number }>
-
 /** O mesmo trecho antes de virar `path`: o MapLibre quer coordenada, não `d` de SVG. */
 export type RouteLeg = Readonly<{
   dashed: boolean
@@ -426,19 +424,6 @@ export function resolveRouteLegs(input: {
       { dashed: false, kind: 'road' as const, points: slice, toSequence: boundary.toSequence },
     ]
   })
-}
-
-export function resolveRouteTraceSegments(input: {
-  readonly geometry: RouteGeometry | null
-  readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
-  readonly stops: readonly ProjectedPoint[]
-}): readonly RouteTraceSegment[] {
-  return resolveRouteLegs(input).map((leg) => ({
-    dashed: leg.dashed,
-    kind: leg.kind,
-    path: toPath(leg.points),
-    toSequence: leg.toSequence,
-  }))
 }
 
 function cutIndexes(input: {
