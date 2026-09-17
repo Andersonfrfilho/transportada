@@ -159,11 +159,24 @@ describe('botão "aplicar medida a todos os sabores" na linha da fila (D12, G012
       ),
     ).text()
 
-    /** D9/T2.2: as irmãs nunca acompanham a fila de 50 — só o clique liga a consulta. */
-    expect(button).toContain('usePackageBoxSiblings({ boxId: requested ? box.id : null })')
+    /** D9/T2.2: as irmãs nunca acompanham a fila de 50 — só o clique busca (M1/M2, re-revisão). */
+    expect(button).toContain('usePackageBoxSiblingsFetcher')
     expect(button).toContain('resolveFamilyReplicationSource')
     expect(button).toContain('packageBoxes.family.applyToAll')
     expect(button).toContain('packageBoxes.family.applyUnresolved')
+    expect(button).toContain('packageBoxes.family.applyFailed')
+    /** M1: nenhum `useEffect` resolvendo a oferta — a busca e a decisão vivem no `onClick`. */
+    expect(button).not.toContain('useEffect')
+    expect(button).not.toContain('resolvedForRef')
+  })
+
+  it('a busca do clique pede staleTime 0 — nunca reaproveita cache obsoleto (M2)', async () => {
+    const hook = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+
+    expect(hook).toContain('usePackageBoxSiblingsFetcher')
+    expect(hook).toContain('staleTime: 0')
   })
 
   it('a fila deriva a elegibilidade do botão pronto da API, sem somar de novo (D9)', async () => {

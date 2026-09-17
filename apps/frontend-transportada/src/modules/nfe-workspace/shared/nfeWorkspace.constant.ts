@@ -21,3 +21,9 @@ export const PACKAGE_BOX_REPLICATE_FAILED_CODE = 'PACKAGE_BOX_REPLICATE_FAILED'
 
 /** T14 (revisão final, BAIXO, §16): corpo das irmãs que não bate o formato esperado, duas vezes no mesmo arquivo. */
 export const PACKAGE_BOX_SIBLINGS_MALFORMED_CODE = 'PACKAGE_BOX_SIBLINGS_MALFORMED'
+
+/**
+ * Re-revisão (M1, spec 155 T3.5): último recurso quando a busca de irmãs do "aplicar a todos"
+ * falha sem código vindo da API — mesmo padrão de `PACKAGE_BOX_REPLICATE_FAILED_CODE`.
+ */
+export const PACKAGE_BOX_FAMILY_APPLY_FAILED_CODE = 'PACKAGE_BOX_FAMILY_APPLY_FAILED'

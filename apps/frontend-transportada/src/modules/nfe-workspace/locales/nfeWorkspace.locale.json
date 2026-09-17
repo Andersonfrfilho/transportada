@@ -646,7 +646,8 @@
     "family": {
       "counter": "{{measured}} de {{total}} medidas nesta família",
       "applyToAll": "Aplicar medida do sabor a todos os sabores",
-      "applyUnresolved": "Nenhuma medida conferida disponível para aplicar nesta família."
+      "applyUnresolved": "Nenhuma medida conferida disponível para aplicar nesta família.",
+      "applyFailed": "Não foi possível buscar as irmãs desta família ({{code}}). Tente de novo."
     },
     "quickFill": {
       "useMeasurementOf": "Usar a medida de {{label}}"

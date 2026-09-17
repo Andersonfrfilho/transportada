@@ -267,7 +267,9 @@ describe('o hook expõe a réplica e as irmãs sob demanda (T3.1)', () => {
     expect(source).toContain('queryKey: [PACKAGE_BOX_QUERY_KEY]')
     /** D9: as irmãs nunca vêm junto da fila de 50 linhas — hook próprio, não campo do retorno principal. */
     expect(source).toContain('export function usePackageBoxSiblings')
-    expect(source).toContain("queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', input.boxId]")
+    expect(source).toContain("queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', boxId]")
+    /** M1/M2 (re-revisão): a mesma chave/função serve a busca sob demanda do "aplicar a todos". */
+    expect(source).toContain('export function usePackageBoxSiblingsFetcher')
   })
 })
 

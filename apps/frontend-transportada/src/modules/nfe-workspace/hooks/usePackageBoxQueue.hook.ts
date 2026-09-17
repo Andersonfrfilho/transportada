@@ -195,16 +195,28 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
 }
 
 /**
+ * Chave e função da consulta de irmãs, num só lugar — `usePackageBoxSiblings` (a fila de 50 nunca
+ * usa isto) e `usePackageBoxSiblingsFetcher` (o botão da D12/G012, que busca só no clique) precisam
+ * da MESMA definição: duas versões da mesma consulta abririam espaço para uma delas ficar com
+ * `staleTime` diferente do que a outra espera, ou responder de uma chave que a outra não invalida.
+ */
+function packageBoxSiblingsQuery(boxId: string) {
+  const client = createClient()
+  return {
+    queryFn: () => client.listSiblings({ boxId }),
+    queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', boxId] as const,
+  }
+}
+
+/**
  * Spec 155 (D9, G003): as irmãs de família/embalagem de UMA caixa, sob demanda — nunca junto da
  * fila de 50 linhas. `boxId: null` desliga a consulta (o botão rápido e o diálogo de replicar
  * pedem exatamente a caixa que estão mostrando, nunca a fila inteira).
  */
 export function usePackageBoxSiblings(input: Readonly<{ boxId: null | string }>) {
-  const client = createClient()
   const query = useQuery<PackageBoxSiblings>({
     enabled: input.boxId !== null,
-    queryFn: () => client.listSiblings({ boxId: input.boxId as string }),
-    queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', input.boxId],
+    ...packageBoxSiblingsQuery(input.boxId ?? ''),
   })
 
   return {
@@ -212,4 +224,15 @@ export function usePackageBoxSiblings(input: Readonly<{ boxId: null | string }>)
     loading: query.isLoading,
     siblings: query.data ?? null,
   }
+}
+
+/**
+ * Spec 155 (D12, G012), re-revisão M1/M2: busca as irmãs de uma caixa **sob demanda**, sempre com
+ * dado fresco (`staleTime: 0`) — o clique de "aplicar a todos" precisa da medida que está no banco
+ * agora, nunca de um `isLoading=false` com dado obsoleto que o React Query ainda não trocou.
+ */
+export function usePackageBoxSiblingsFetcher(): (boxId: string) => Promise<PackageBoxSiblings> {
+  const queryClient = useQueryClient()
+  return (boxId: string) =>
+    queryClient.fetchQuery({ ...packageBoxSiblingsQuery(boxId), staleTime: 0 })
 }
