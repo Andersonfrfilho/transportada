@@ -38,6 +38,24 @@ Aceite: suíte vermelha, `bun run --cwd apps/api-transportada test` reprovando p
 
 Aceite: T1.1 verde; `bun run typecheck`; nenhum outro teste quebra.
 
+### T1.3 🧠 — `isLowConfidenceFamily` e a normalização da unidade
+
+Contrato vermelho primeiro, em `test/nfe-package-box/family.contract.ts`.
+
+`isLowConfidenceFamily(labels)` marca a família cuja **palavra de formato** aparece em alguns rótulos
+e não em todos (D11). Casos obrigatórios, todos de produção: marca
+`['EXTRA FORTE TRA', 'VACUO TRADICION']` e `['CHURRASCO', 'CREME E CEBOLA', 'TUBO QUEIJO']`; **não**
+marca as quatro simétricas (`CAFE CABOCLO 500G`, `LAVA ROUPA PO TIXAN 800G|FD20`,
+`LEITE PO ITAMBE 400G`, `MOLHO QUERO 240G`) nem família de um só rótulo. Caso negativo explícito
+contra o critério recusado: `['M FRAMBOESA', 'MEL', 'MORANGO']` não marca — `M` é inicial de
+abreviação, não grau de tamanho.
+
+No mesmo passo, `resolveBoxFamily` passa a colapsar também o espaço **interno** da unidade comercial,
+para `CX 36` e `CX36` caírem na mesma chave. Produção não tem esse caso hoje; a normalização é defesa,
+e o custo é uma linha.
+
+Aceite: suíte vermelha antes; depois verde; `bun run typecheck`; nenhum outro teste quebra.
+
 ---
 
 ## Fase 2 — API
@@ -60,17 +78,23 @@ Aceite: `make migration-test`; `test/database-migration/schema-snapshot.contract
 
 ### T2.2 — Contadores de família na listagem
 
-CTE com as janelas da D9 em `DrizzlePackageBoxRepository.list`, **antes** do `LIMIT`:
-`familyPendingCount`, `familyMeasuredCount`, `packagingSiblingCount`, mais `familyKey`,
-`variantLabel`, `packagingUnitCount`. Propagar por `PackageBoxRepositoryPort`, `PackageBoxView` e
+`familyPendingCount`, `familyMeasuredCount`, `packagingSiblingCount`, `familyKey`, `variantLabel` e
+`packagingUnitCount` na listagem, propagados por `PackageBoxRepositoryPort`, `PackageBoxView` e
 `buildMeasurementQueue`.
 
-Contrato: `test/nfe-package-box/family.contract.ts` ganha o caso de paridade — a mesma descrição
-resolvida em SQL e em TypeScript dá a mesma chave, senão a tela conta uma coisa e a rota de irmãs
-devolve outra. Integração em `test/integration/` (roda com `bun --env-file=../../.env.test test
+⚠️ **A contagem é feita em TypeScript, não numa CTE.** Duplicar a regex da D2 em SQL cria duas
+implementações da mesma regra e um contrato de paridade para vigiá-las — e as duas divergem de
+verdade: `\s` POSIX não inclui NBSP e o do JS inclui; `.` casa `\n` no Postgres e não casa no JS;
+`upper()` depende de collation. O repositório carrega `(id, description, commercialUnit,
+measuredAt)` de **todas** as caixas da empresa (663 em produção, uma coluna de texto curta) e
+`resolveBoxFamily` conta em memória. A D9 continua satisfeita — a contagem é sobre a empresa inteira,
+não sobre a janela — e a regra existe num lugar só.
+
+Contrato: `test/nfe-package-box/measurement-queue.contract.ts` ganha o caso do contador que atravessa
+a borda dos 50 (D9). Integração em `test/integration/` (roda com `bun --env-file=../../.env.test test
 --timeout 120000` de dentro de `apps/api-transportada`; sem a flag ela **pula em silêncio**).
 
-Aceite: contrato de paridade verde contra Postgres; `test/nfe-package-box/measurement-queue.contract.ts`
+Aceite: contador certo para família que cruza a borda da página; `measurement-queue.contract.ts`
 continua verde.
 
 ### T2.3 — `GET /nfe-package-boxes/:id/siblings`
@@ -133,9 +157,13 @@ e **não** salva (D7). O operador confere e clica em salvar como sempre.
 
 ### T3.4 — Diálogo de replicar (G010)
 
-Depois do salvar, lista das variações sem medida pré-marcada, com o rótulo de cada uma. Confirmar
-chama `replicate`; cancelar não escreve nada (D5). Reaproveita o padrão do `ImpreciseConfirmDialog`
-que já existe no formulário.
+Depois do salvar, lista das variações sem medida, pré-marcada. Confirmar chama `replicate`; cancelar
+não escreve nada (D5). Reaproveita o padrão do `ImpreciseConfirmDialog` que já existe no formulário.
+
+Cada alvo da lista mostra **descrição completa + `cProd`**, nunca só o rótulo (D11): 16 rótulos de
+família têm três caracteres ou menos, e `UVA` é prefixo de `UVA INTENSA`. O cabeçalho mostra as
+dimensões que serão gravadas — quem confirma precisa ver o que vai escrever. Família marcada pela D11
+abre com tudo **desmarcado** e o motivo à vista (G011).
 
 ---
 
@@ -174,7 +202,7 @@ Worktree próprio antes de começar: `make worktree NAME=box-variants`.
 /oh-my-claudecode:autopilot Execute a spec specs/155-variacao-do-mesmo-produto/ (leia spec.md,
 plan.md e tasks.md antes de tocar em código). Crie o worktree primeiro: make worktree
 NAME=box-variants. Uma task por vez, na ordem do tasks.md, contrato vermelho antes da implementação.
-Modelos: Fase 1 (T1.1, T1.2 🧠) → opus, validar a heurística com architect antes de implementar ·
+Modelos: Fase 1 (T1.1, T1.2, T1.3 🧠) → opus, validar a heurística com architect antes de implementar ·
 Fase 2 → executor model=sonnet, com T2.1 🧠 → opus (o check de measurement_source tem de aceitar as
 linhas já gravadas) · Fase 3 → executor model=sonnet · Fase 4 → executor model=haiku ·
 revisão final → code-reviewer model=opus.

@@ -39,11 +39,12 @@ a D5 é a rede, não a prevenção.
    cobre o rollback.
 
 2. **Listagem.** `infrastructure/drizzle-package-box.repository.ts` → o `list` hoje ordena por
-   `coalesce(volumes,0) desc` e corta em `LIMIT`. Os contadores da D9 entram numa CTE **antes** do
-   corte: `count(*) filter (where measured_at is null) over (partition by familyKey)` e o par medido,
-   mais `count(*) over (partition by emitter_tax_id, product_code)`. O `familyKey` é calculado em SQL
-   pela mesma regex da fase 1 — e o contrato de paridade (T6) prova que SQL e TypeScript concordam,
-   senão a tela conta uma coisa e a rota de irmãs devolve outra.
+   `coalesce(volumes,0) desc` e corta em `LIMIT`. Os contadores da D9 precisam sair de **todas** as
+   caixas da empresa, não da janela — mas calculá-los numa CTE exigiria reescrever a regex da fase 1
+   em SQL, e as duas linguagens divergem de fato (`\s` POSIX sem NBSP, `.` casando `\n` no Postgres,
+   `upper()` por collation). Então o repositório carrega `(id, description, commercialUnit,
+measuredAt)` da empresa inteira — 663 linhas de texto curto em produção — e conta em TypeScript
+   com `resolveBoxFamily`. Uma implementação da regra, nenhum contrato de paridade para manter.
    `application/package-box.port.ts` e `domain/package-box-queue.policy.ts` (`buildMeasurementQueue`)
    propagam os campos novos até o `PackageBoxView`.
 

@@ -76,12 +76,21 @@ SAB FARNESE 180G ERVA DOCE HORTE  → "SAB FARNESE 180G"           "ERVA DOCE HO
 AMIDO MILHO MAIZENA 200G       → "AMIDO MILHO MAIZENA 200G"      (sem rótulo, família de 1)
 ```
 
-O `uCom` entra na chave porque `CX180` e `DP18` do mesmo Tang são caixas diferentes. A marca e o
-tamanho já estão dentro do prefixo, então `SAB FLOR YPE SV 85G` e `SAB PROTEX 85G` não se misturam.
+O `uCom` entra na chave porque `CX180` e `DP18` do mesmo Tang são caixas diferentes.
 
-Por que esta regra e não outra: o tamanho é sempre o último número da descrição neste cadastro, e o
-sabor é sempre o que vem depois. Rodada nas 655 linhas de produção, ela produz 374 famílias e nenhum
-agrupamento entre marcas distintas na amostra inspecionada.
+Por que o corte no **último** dígito e não no primeiro: os dois erram, mas erram para lados
+diferentes. O guloso deixa `CR TRAT SKALA 1KG 12 EM 1` órfão dos outros cinco cremes da linha — custa
+uma medição manual. O corte no primeiro dígito juntaria `REFR TANG 18G PACK 15` com o sachê avulso —
+custa uma medida errada gravada. Errar para menos é reversível; errar para mais não é.
+
+⚠️ **O prefixo sozinho não garante marca única.** `AZEITE 500ML` é categoria + volume, com a marca na
+cauda (`PET EXT VIRG COCINERO` e `VD TRAD ANDORINHA`): ele agruparia garrafa PET com garrafa de vidro,
+de fabricantes diferentes. Daí o piso: **prefixo com menos de três tokens não abre família**
+(`MINIMUM_FAMILY_PREFIX_TOKENS = 3`). Medido sobre as caixas de produção, esse piso derruba
+exatamente uma família — a falsa — e nenhuma verdadeira.
+
+Rodada nas 655 linhas de produção, a regra com o piso produz **121 famílias com dois ou mais membros,
+cobrindo 401 caixas**.
 
 ### D3 — O grupo de embalagem agrupa na tela e **nunca** replica dimensão
 
@@ -140,8 +149,9 @@ própria, sob demanda.
 
 ### D10 — Fora de escopo, e vira spec própria: o `carton_gtin` não é o GTIN da caixa
 
-Achado enquanto se investigava o código `05868574001090` que o operador tentou bipar — ele **não
-existe em produção** (nem como `carton_gtin`, nem como `cProd`, nem em `nfe_products`).
+Achado enquanto se investigava o código `05868574001090` que o operador tentou bipar. Ele não é
+código de produto nenhum: é o **CNPJ do emitente** (`nfe_package_boxes.emitter_tax_id`) das 663
+caixas — por isso a busca por `carton_gtin`, `cProd` e `nfe_products` não devolveu nada.
 
 Medido: **650 das 655 linhas (99,2%) têm `carton_gtin`** — muito acima dos 11% que o comentário do
 schema registra. E o mesmo valor aparece em unidades comerciais diferentes:
@@ -158,6 +168,35 @@ bipar o ITF-14 impresso no papelão não casa com nada, e o filtro `scanned` vol
 
 Isto não bloqueia esta spec — o agrupamento não usa GTIN. Mas invalida a premissa do bipe da spec 151
 e precisa de spec própria. **Não corrigir aqui.**
+
+### D11 — A família com formato assimétrico nasce marcada, e o rótulo nunca decide sozinho
+
+Duas famílias de produção passam pelo piso da D2 e ainda assim misturam embalagens: uma **palavra de
+formato** (`VACUO`, `TUBO`, `SACHE`, `PCT`, `REFIL`, `VD`, `PET`, `LATA`, `POTE`…) aparece em alguns
+rótulos da família e não em todos.
+
+```
+CAFE MELITTA 500G|CX20     EXTRA FORTE TRA · VACUO TRADICION
+BATATA PRINGLES 109G|CX18  CHURRASCO · CREME E CEBOLA · TUBO QUEIJO
+```
+
+O café a vácuo é tijolo, o tradicional é almofada. São **exatamente essas duas** em 121 famílias — o
+predicado não marca nenhuma das quatro simétricas (`CAFE CABOCLO 500G`, `LAVA ROUPA PO TIXAN
+800G|FD20`, `LEITE PO ITAMBE 400G`, `MOLHO QUERO 240G`), onde a palavra de formato ou está em todos os
+rótulos ou em nenhum.
+
+Recusado o critério alternativo de "grau de tamanho" (`PP|P|M|G|GG|XG|XXG|RN`): marcaria 7 das 121 por
+engano, porque `M FRAMBOESA`, `F FRESH`, `B AMENDOAS` e `A M XTRA COOL` são iniciais de abreviação,
+não tamanhos.
+
+A família marcada **não deixa de existir** — replicar continua permitido. O que muda é que ela chega
+ao conferente sem pré-marcação: a tela desmarca os alvos por padrão e diz por quê. Errar para menos
+custa cliques; errar para mais grava medida errada.
+
+⚠️ **Corolário, e vale para toda a Fase 3:** o rótulo da variação **não** é identificação suficiente
+na hora de confirmar. Dos rótulos das famílias com dois ou mais membros, 16 têm três caracteres ou
+menos, e há pares onde um é prefixo do outro (`UVA` ⊂ `UVA INTENSA`, `LAKA` ⊂ `LAKA OREO`). Toda tela
+que peça confirmação para escrever mostra **descrição completa + `cProd`**, nunca só o rótulo.
 
 ## Requisitos
 
@@ -181,6 +220,8 @@ e precisa de spec própria. **Não corrigir aqui.**
   formulário sem gravar (D7).
 - **G010** — Depois de salvar uma medida, havendo irmã pendente na família, a tela oferece replicar
   com a lista pré-marcada (D5).
+- **G011** — Família de formato assimétrico (D11) chega ao diálogo de replicar **sem** pré-marcação,
+  com o motivo visível; a lista de alvos mostra descrição completa e `cProd` de cada caixa.
 
 ## Critério de aceite
 
@@ -191,7 +232,8 @@ e precisa de spec própria. **Não corrigir aqui.**
 4. Caixa medida antes da spec não muda de `measurement_source` nem perde medida.
 5. Reimportar NF-e dos produtos medidos não altera dimensão nenhuma (G007).
 6. Família que atravessa a borda dos 50 primeiros mostra o contador certo (D9).
-7. `05868574001090` continua sem resultado no bipe — e isso é a D10, não regressão desta spec.
+7. `05868574001090` continua sem resultado no bipe — é o CNPJ do emitente, não um código de
+   produto, e o que o bipe não acha é a D10. Nenhum dos dois é regressão desta spec.
 
 ## Fora de escopo
 
