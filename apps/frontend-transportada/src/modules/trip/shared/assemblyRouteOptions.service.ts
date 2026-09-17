@@ -10,6 +10,7 @@
 import type {
   RouteChoice,
   RouteChoiceCriterion,
+  RouteGeometry,
   RouteGeometryOption,
 } from './routeGeometry.service'
 
@@ -152,6 +153,52 @@ export function resolveRouteChoiceFromIndex(input: {
   if (input.fastestIndex === input.index) return { criterion: 'fastest', signature }
   if (option?.isNoToll === true) return { criterion: 'no_toll', signature }
   return { criterion: 'alternative', signature }
+}
+
+export type RouteGeometryForEmission = Pick<
+  RouteGeometry,
+  'cheapestIndex' | 'fastestIndex' | 'options' | 'selectedIndex'
+>
+
+export type RouteChoiceEmission = Readonly<{
+  routeChoice: RouteChoice
+  selectedIndex: number
+}>
+
+/**
+ * O que a montagem emite assim que a geometria chega (spec 153 H1/M7) — índice de abertura e a
+ * escolha resolvida a partir dele, juntos, porque os dois sempre nascem da mesma resposta.
+ */
+export function resolveRouteChoiceEmission(data: RouteGeometryForEmission): RouteChoiceEmission {
+  const selectedIndex = data.selectedIndex ?? 0
+  return {
+    routeChoice: resolveRouteChoiceFromIndex({
+      cheapestIndex: data.cheapestIndex ?? null,
+      fastestIndex: data.fastestIndex ?? null,
+      index: selectedIndex,
+      options: data.options ?? [],
+    }),
+    selectedIndex,
+  }
+}
+
+/**
+ * Segunda revisão da spec 153, N4 (regressão da T702): a identidade de `geometryQuery.data` muda a
+ * cada resposta do TanStack Query, mesmo quando o conteúdo é o mesmo — um refetch de foco com
+ * `staleTime` vencido bastava para reemitir a escolha e apagar a do operador (RF13 ao contrário).
+ * Esta chave é **conteúdo**, não referência: duas respostas com os mesmos índices e as mesmas
+ * assinaturas de opção produzem a mesma string, e o efeito que depende dela não dispara à toa.
+ */
+export function buildRouteChoiceSignatureKey(
+  data: RouteGeometryForEmission | undefined,
+): null | string {
+  if (data === undefined) return null
+  return [
+    data.selectedIndex ?? '',
+    data.cheapestIndex ?? '',
+    data.fastestIndex ?? '',
+    (data.options ?? []).map((option) => option.signature ?? '').join(','),
+  ].join('|')
 }
 
 /**

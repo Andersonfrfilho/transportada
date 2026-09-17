@@ -4824,3 +4824,136 @@ congelamento delas funciona normalmente (a leitura de `revision` e a escrita usa
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T804 — N4 + N11: refetch da geometria apaga a escolha do operador (regressão do RF13)
+
+Sessão em `apps/frontend-transportada` (só este diretório e `specs/`, por instrução).
+
+### N4 — a dependência do efeito virou identidade de objeto
+
+`apps/frontend-transportada/src/modules/trip/components/TripAssemblyMap.component.tsx`, o efeito
+que reage à resposta de `/route-geometry` e reemite `onRouteChoiceChange` (T702/H1/M7) tinha
+`[routeKey, tollVehicleId, geometryQuery.data]` como array de dependências. `geometryQuery.data` é
+um objeto **novo a cada resposta** do TanStack Query — inclusive um refetch de foco depois do
+`staleTime` (5 min) vencer, mesmo sem nada relevante ter mudado (ex.: a data de observação da
+tarifa, calculada sobre `now()` no servidor). Cada refetch assim rodava o efeito de novo, resetava
+`selectedOptionIndex` para o `selectedIndex ?? 0` da resposta nova e reemitia `cheapest` — apagando
+a rota que o operador já tinha escolhido manualmente. É o RF13 ao contrário: a regressão apareceu
+na T702, que introduziu o efeito, e a segunda revisão a pegou.
+
+Fix, em duas peças:
+
+1. `apps/frontend-transportada/src/modules/trip/shared/assemblyRouteOptions.service.ts` ganhou duas
+   funções puras novas:
+   - `buildRouteChoiceSignatureKey(data)`: uma chave por **conteúdo** — `selectedIndex`,
+     `cheapestIndex`, `fastestIndex` e as assinaturas de cada opção, concatenados numa string.
+     Duas respostas com o mesmo conteúdo e referências diferentes produzem a mesma chave.
+   - `resolveRouteChoiceEmission(data)`: junta o índice de abertura e a escolha resolvida a partir
+     dele (antes duplicado dentro do efeito).
+2. O efeito passou a depender de `[routeKey, tollVehicleId, routeSignatureKey]` — três primitivos,
+   nenhum objeto. Como o efeito ainda precisa da resposta mais recente para montar a emissão, e ela
+   não pode entrar no array de dependências (é exatamente o que causava o defeito), a resposta é
+   lida de uma `geometryDataRef` atualizada a cada render (`geometryDataRef.current =
+geometryQuery.data`) — o padrão usual de "ler o valor mais novo sem depender dele".
+
+A consulta em si (`useQuery`) foi extraída para `createTripAssemblyRouteGeometryQueryOptions`,
+exportada do próprio componente — mesmo molde de `createTripRouteChoiceQueryOptions` em
+`TripRouteChoiceSwitch.component.tsx` (T706). Não é refactor cosmético: é o que deixa o teste de
+comportamento abrir um `QueryObserver` real sobre a mesma consulta que a tela usa, em vez de ter
+que montar o componente inteiro (MapLibre, `useSolverCityOrder`, etc.).
+
+### Experimento vermelho (feito e desfeito)
+
+Troquei temporariamente `buildRouteChoiceSignatureKey` para devolver `String(Math.random())` a cada
+chamada com dado presente — simula o defeito N4 (a "chave" muda a cada resposta, como a referência
+mudava antes). Rodei `bun test test/trip.contract.test.ts`:
+
+```
+981 pass / 2 fail
+(fail) buildRouteChoiceSignatureKey ... > duas respostas com o mesmo conteúdo e referências
+diferentes produzem a mesma chave
+(fail) TripAssemblyMap: consulta de geometria via QueryObserver real ... > duas buscas reais com o
+mesmo conteúdo produzem referências diferentes, mas a mesma chave de escolha
+```
+
+As duas provas novas (a pura em `assembly-route-options.contract.ts` e a com `QueryObserver` real
+em `route-choice-switch.contract.ts`) caem exatamente como esperado quando a chave volta a se
+comportar como identidade. Restaurei o arquivo (`git diff` limpo depois) e reexecutei — `983 pass /
+0 fail`.
+
+### N11 — provas por contagem de string/literal de dependência trocadas por comportamento
+
+`test/trip/route-choice-switch.contract.ts` tinha duas provas exatamente do tipo que a revisão
+apontou:
+
+- `'emite a escolha assim que a resposta chega...'` comparava um trecho da fonte contra o literal
+  `'}, [routeKey, tollVehicleId, geometryQuery.data])'` — passaria com o índice de reset errado
+  (bastava o efeito existir com esse array exato) e quebraria com qualquer reformatação.
+- `'reemite a escolha ao trocar veículo/ordem...'` fazia a mesma comparação literal isolada.
+
+Troquei as duas por:
+
+- Um teste de fumaça sobre a fonte, mais preciso (`buildRouteChoiceSignatureKey`,
+  `geometryDataRef.current = geometryQuery.data`, e a ausência do literal antigo) — mantém alguma
+  leitura de fonte, mas não mais uma comparação de array por igualdade de texto.
+- Um novo `describe` com **comportamento real**: `QueryObserver` sobre
+  `createTripAssemblyRouteGeometryQueryOptions`, no molde de
+  `test/trip/route-choice-detail.contract.ts` (T706) e `test/identity/user-picture.contract.ts`.
+  Dois testes: busca única (dedupe, mesmo padrão do T402), e o experimento central do N4 — duas
+  buscas reais devolvem objetos diferentes (`first !== second`, provado com `toBe`), mas
+  `buildRouteChoiceSignatureKey`/`resolveRouteChoiceEmission` concordam nas duas.
+
+Além dos dois arquivos citados no achado, o refactor de N4 quebrou três provas por texto de fonte
+que dependiam da forma antiga do efeito/consulta (nenhuma delas estava na lista do achado, mas
+`bun test` as pegou):
+
+- `test/trip/assembly-route-selector.contract.ts`: verificava `'geometryQuery.data?.selectedIndex'`
+  direto no corpo do efeito (agora dentro de `resolveRouteChoiceEmission`) e a ausência de
+  `'setSelectedOptionIndex(0)'` (agora legítimo no ramo sem resposta). Reescrita para checar
+  `resolveRouteChoiceEmission(data)` e `setSelectedOptionIndex(emission.selectedIndex)`.
+- `test/trip/route-choice-switch.contract.ts`, duas provas mais (fora das citadas no achado):
+  contagem de `'readPointsRouteGeometry'` (virou 2 ocorrências — uma é o `Pick<TripClient,
+'readPointsRouteGeometry'>` do tipo da nova factory — trocada por contar `'.readPointsRouteGeometry('`,
+  a chamada de verdade); e a mesma checagem de `'setSelectedOptionIndex(0)'` do parágrafo anterior.
+- `test/trip/proposal-manual-order.contract.ts`: esperava o literal `'points: measuredPoints.map('`
+  no corpo do componente — o `.map` das coordenadas migrou para dentro da factory extraída. Trocada
+  para `'points: measuredPoints,'`, que continua provando o mesmo invariante (a consulta usa a
+  ordem **medida**, não `map.points`).
+
+Não mexi em `test/trip/amount-columns.contract.ts` (achado N11 também cita esse arquivo, junto com
+`route-choice-switch.contract.ts`). Reli a linha ~137 hoje: é `expect(source).toContain('amounts.revenueTotal
+=== undefined')`, um teste da célula de receita redigida em `TripTable.component.tsx` — sem
+relação com o efeito de rota da T804/N4. Registrado também na evidência do T803.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun test test/trip.contract.test.ts   (apps/frontend-transportada)
+983 pass / 0 fail / 17845 expect() calls.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira listada no package.json)
+4240 pass / 0 fail / 36302 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, sem erro novo (mesmo aviso preexistente de chunk > 500kB).
+```
+
+### O que não fez
+
+Não tocou `apps/api-transportada`/`apps/worker-transportada`/`apps/cron-transportada`. Não mudou o
+comportamento de `resolveRouteChoiceFromIndex`/`resolveSelectedOptionIndex` (T709a) — só extraiu
+`resolveRouteChoiceEmission` por cima deles. Não mexeu em `handleSelectRouteOptionIndex` (o clique
+manual do switch, T402) — ele já emitia corretamente e não tinha a dependência problemática.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

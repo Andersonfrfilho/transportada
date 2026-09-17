@@ -8,8 +8,11 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   resolveAssemblyRouteChoice,
+  buildRouteChoiceSignatureKey,
+  resolveRouteChoiceEmission,
   resolveRouteOptionSummaries,
   resolveSelectedOptionIndex,
+  type RouteGeometryForEmission,
 } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
 import type { RouteGeometryOption } from '../../src/modules/trip/shared/routeGeometry.service'
 
@@ -478,5 +481,103 @@ describe('resolveSelectedOptionIndex (spec 153 T709a/D2/L1): a assinatura gravad
     })
 
     expect(index).toBe(0)
+  })
+})
+
+/**
+ * Segunda revisão da spec 153, N4 (regressão da T702): o efeito de `TripAssemblyMap` que reemite
+ * `onRouteChoiceChange` não pode depender da *identidade* de `geometryQuery.data` — o TanStack
+ * Query devolve um objeto novo a cada resposta, inclusive um refetch de foco sem nada relevante
+ * mudado, e depender da referência resetava o índice e apagava a escolha do operador (RF13 ao
+ * contrário). `buildRouteChoiceSignatureKey` é a chave por **conteúdo** que substitui a referência
+ * no array de dependências do efeito.
+ */
+const EMISSION_OPTIONS: readonly RouteGeometryOption[] = [
+  opcaoComAssinatura({ signature: 'aaaa' }),
+  opcaoComAssinatura({ isNoToll: true, signature: 'bbbb' }),
+  opcaoComAssinatura({ signature: 'cccc' }),
+]
+
+describe('buildRouteChoiceSignatureKey (spec 153, segunda revisão N4): chave por conteúdo, não por referência', () => {
+  function geometria(overrides: Partial<RouteGeometryForEmission> = {}): RouteGeometryForEmission {
+    return {
+      cheapestIndex: 0,
+      fastestIndex: 1,
+      options: EMISSION_OPTIONS,
+      selectedIndex: 0,
+      ...overrides,
+    }
+  }
+
+  it('ausência de resposta (undefined) tem chave null', () => {
+    expect(buildRouteChoiceSignatureKey(undefined)).toBeNull()
+  })
+
+  /**
+   * ⚠️ O experimento vermelho do achado: duas respostas **diferentes objetos**, mesmo conteúdo.
+   * Antes da correção, o efeito dependia diretamente do objeto (`geometryQuery.data`) — e
+   * `first === second` já prova que a referência muda a cada resposta, mesmo sem nada relevante
+   * ter mudado. `buildRouteChoiceSignatureKey` existe para o efeito parar de reagir a isso.
+   */
+  it('duas respostas com o mesmo conteúdo e referências diferentes produzem a mesma chave', () => {
+    const first = geometria()
+    const second = { ...geometria() }
+
+    expect(first).not.toBe(second)
+    expect(buildRouteChoiceSignatureKey(first)).toBe(buildRouteChoiceSignatureKey(second))
+  })
+
+  it('muda quando o índice selecionado muda', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ selectedIndex: 0 }))
+    const chave2 = buildRouteChoiceSignatureKey(geometria({ selectedIndex: 1 }))
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('muda quando cheapestIndex/fastestIndex mudam', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ cheapestIndex: 0 }))
+    const chave2 = buildRouteChoiceSignatureKey(geometria({ cheapestIndex: 1 }))
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('muda quando a assinatura de uma opção muda, mesmo com os índices iguais', () => {
+    const chave1 = buildRouteChoiceSignatureKey(geometria({ options: EMISSION_OPTIONS }))
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [
+          opcaoComAssinatura({ signature: 'diferente' }),
+          EMISSION_OPTIONS[1] as RouteGeometryOption,
+        ],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
+})
+
+describe('resolveRouteChoiceEmission (spec 153 H1/M7): índice de abertura e escolha, da mesma resposta', () => {
+  it('abre no selectedIndex que a API resolveu, e a escolha bate com resolveRouteChoiceFromIndex', () => {
+    const emissao = resolveRouteChoiceEmission({
+      cheapestIndex: 0,
+      fastestIndex: 2,
+      options: EMISSION_OPTIONS,
+      selectedIndex: 1,
+    })
+
+    expect(emissao.selectedIndex).toBe(1)
+    expect(emissao.routeChoice).toEqual({ criterion: 'no_toll', signature: 'bbbb' })
+  })
+
+  /** Sem `selectedIndex` na resposta, abre em 0 — nunca fixo nem inventado por conta própria. */
+  it('sem selectedIndex na resposta, abre no índice 0', () => {
+    const emissao = resolveRouteChoiceEmission({
+      cheapestIndex: 0,
+      fastestIndex: 2,
+      options: EMISSION_OPTIONS,
+    })
+
+    expect(emissao.selectedIndex).toBe(0)
+    expect(emissao.routeChoice.criterion).toBe('cheapest')
   })
 })

@@ -50,7 +50,7 @@ describe('ordem escolhida à mão na proposta', () => {
     const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
     expect(map).toContain('measuredOrder?: AssemblyCityOrder | undefined')
     expect(map).toContain('const routeKey = measuredPoints.map(')
-    expect(map).toContain('points: measuredPoints.map(')
+    expect(map).toContain('points: measuredPoints,')
     expect(map).toContain('const activeGeometry = isDraft ? null : measuredGeometry')
     expect(map).toContain('const routeOptions = isDraft ? [] :')
     /** A chave nunca mais sai da ordem desenhada. */

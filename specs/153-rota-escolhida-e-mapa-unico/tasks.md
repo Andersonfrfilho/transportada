@@ -145,7 +145,7 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 - [x] T803 **N2 + N5** Filtro avançado de NF-e transforma valor ausente em `0` (`?? ''` → `Number`),
       e a ordenação por valor embaralha a lista com `NaN`. Ausente nunca casa condição numérica, e a
       ordenação joga a ausência para o fim.
-- [ ] T804 **N4 + N11** Refetch da geometria apaga a escolha do operador (regressão do RF13): separar
+- [x] T804 **N4 + N11** Refetch da geometria apaga a escolha do operador (regressão do RF13): separar
       reset de emissão, dependências corretas; e trocar as provas por regex do frontend por teste de
       comportamento, no molde da T706.
 - [ ] T805 **N6 + N8 + N9 + N10** Classificação exaustiva nos tipos que vazaram (NF-e, documento,

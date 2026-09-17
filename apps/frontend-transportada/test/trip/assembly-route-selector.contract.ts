@@ -50,9 +50,18 @@ describe('seletor de rota alternativa (spec 096 T3)', () => {
     expect(source).toInclude('activeOption')
   })
 
-  /** Spec 153 D1: abre sempre na mais barata que a API indicou — nunca fixo no índice 0. */
+  /**
+   * Spec 153 D1: abre sempre na mais barata que a API indicou — nunca fixo no índice 0.
+   *
+   * ⚠️ Segunda revisão N4: `selectedIndex` passou a sair de `resolveRouteChoiceEmission` (função
+   * pura testada por comportamento em `assembly-route-options.contract.ts`), não mais lido direto
+   * de `geometryQuery.data?.selectedIndex` no corpo do efeito — a leitura direta da resposta é o
+   * que fazia o efeito depender da *identidade* do objeto e reemitir a escolha a cada refetch.
+   * `setSelectedOptionIndex(0)` continua existindo, mas só no ramo sem resposta nenhuma ainda —
+   * nunca sobrepõe o índice que a API já resolveu.
+   */
   it('abre a escolha na rota que a API indicou, não sempre a primeira', () => {
-    expect(source).toInclude('geometryQuery.data?.selectedIndex')
-    expect(source).not.toInclude('setSelectedOptionIndex(0)')
+    expect(source).toInclude('resolveRouteChoiceEmission(data)')
+    expect(source).toInclude('setSelectedOptionIndex(emission.selectedIndex)')
   })
 })

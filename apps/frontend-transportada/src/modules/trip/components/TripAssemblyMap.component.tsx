@@ -34,9 +34,14 @@ import {
   type AssemblyRevenueLine,
 } from '../shared/assemblyNoteFigures.service'
 
-import { resolveRouteChoiceFromIndex } from '../shared/assemblyRouteOptions.service'
-import type { RouteChoice } from '../shared/routeGeometry.service'
+import {
+  buildRouteChoiceSignatureKey,
+  resolveRouteChoiceEmission,
+  resolveRouteChoiceFromIndex,
+} from '../shared/assemblyRouteOptions.service'
+import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import { stopColorOf } from '../shared/stopColor.service'
+import type { TripClient } from '../shared/tripClient.service'
 import { RouteChoiceOptions } from './RouteChoiceOptions.component'
 import { RouteTollSummary } from './RouteTollSummary.component'
 import {
@@ -167,6 +172,45 @@ function formatFinishTime(iso: string): string {
     minute: '2-digit',
     month: '2-digit',
   })
+}
+
+const ASSEMBLY_ROUTE_GEOMETRY_STALE_TIME_MS = 5 * 60 * 1000
+
+export type CreateTripAssemblyRouteGeometryQueryOptionsParams = Readonly<{
+  client: Pick<TripClient, 'readPointsRouteGeometry'>
+  enabled: boolean
+  points: readonly Readonly<{ latitude: number; longitude: number }>[]
+  routeKey: string
+  vehicleId: null | string
+}>
+
+/**
+ * Extraída para o contrato poder abrir um `QueryObserver` real sobre a mesma consulta que o
+ * componente usa (spec 153, segunda revisão N11 — mesmo molde de `createTripRouteChoiceQueryOptions`
+ * em `TripRouteChoiceSwitch.component.tsx`, e de `test/trip/route-choice-detail.contract.ts`).
+ */
+export function createTripAssemblyRouteGeometryQueryOptions(
+  params: CreateTripAssemblyRouteGeometryQueryOptionsParams,
+): Readonly<{
+  enabled: boolean
+  queryFn: () => Promise<RouteGeometry>
+  queryKey: readonly [string, string, null | string]
+  staleTime: number
+}> {
+  return {
+    enabled: params.enabled,
+    queryFn: () =>
+      params.client.readPointsRouteGeometry({
+        points: params.points.map((point) => ({
+          latitude: point.latitude,
+          longitude: point.longitude,
+        })),
+        vehicleId: params.vehicleId,
+      }),
+    queryKey: ['trip-assembly-route-geometry', params.routeKey, params.vehicleId] as const,
+    /** A estrada entre dois pontos não muda a cada minuto; o mapa não precisa repetir a pergunta. */
+    staleTime: ASSEMBLY_ROUTE_GEOMETRY_STALE_TIME_MS,
+  }
 }
 
 /**
@@ -308,49 +352,51 @@ export function TripAssemblyMap({
   const routeKey = measuredPoints.map((point) => `${point.latitude},${point.longitude}`).join(';')
   /** Sem veículo escolhido não há eixo a contar (spec 090 D2) — a chave muda junto do pedágio. */
   const tollVehicleId = vehicleId === '' ? null : vehicleId
-  const geometryQuery = useQuery({
-    enabled: measuredPoints.length >= 2 && !isDraft,
-    queryFn: () =>
-      getTripClient().readPointsRouteGeometry({
-        points: measuredPoints.map((point) => ({
-          latitude: point.latitude,
-          longitude: point.longitude,
-        })),
-        vehicleId: tollVehicleId,
-      }),
-    queryKey: ['trip-assembly-route-geometry', routeKey, tollVehicleId] as const,
-    /** A estrada entre dois pontos não muda a cada minuto; o mapa não precisa repetir a pergunta. */
-    staleTime: 5 * 60 * 1000,
-  })
+  const geometryQuery = useQuery(
+    createTripAssemblyRouteGeometryQueryOptions({
+      client: getTripClient(),
+      enabled: measuredPoints.length >= 2 && !isDraft,
+      points: measuredPoints,
+      routeKey,
+      vehicleId: tollVehicleId,
+    }),
+  )
 
   /**
-   * ⚠️ Trocar de rota/veículo esquece a escolha anterior — o índice de uma resposta não tem
-   * relação nenhuma com o índice da próxima. Sem isto, escolher a alternativa e depois trocar o
-   * veículo poderia manter selecionada uma posição que agora aponta para outro caminho, ou para
-   * nenhum (spec 096 T3). A nova resposta abre na mais barata que a própria API resolveu
-   * (`selectedIndex`, spec 153 D1) — nunca fixo, e nunca recalculado aqui.
+   * ⚠️ **spec 153, segunda revisão N4 (regressão da T702): a dependência não pode ser
+   * `geometryQuery.data`.** O TanStack Query devolve um objeto novo a cada resposta — inclusive um
+   * refetch de foco depois do `staleTime` vencer sem nada relevante ter mudado (a data de
+   * observação da tarifa, por exemplo, que a API calcula sobre `now()`) —, e depender da
+   * *referência* reexecutava o efeito a cada uma delas: resetava o índice e reemitia `cheapest`,
+   * **apagando a rota que o operador já tinha escolhido** (RF13 ao contrário). A chave abaixo é
+   * conteúdo — índices e assinaturas das opções —, não identidade: duas respostas iguais produzem
+   * a mesma string, e o efeito só roda de novo quando a rota de verdade mudou, ou quando
+   * `routeKey`/`tollVehicleId` trocam (troca de ordem/veículo, spec 096 T3).
+   *
+   * `geometryDataRef` existe porque o efeito precisa da resposta mais recente sem *depender* dela
+   * — é a mesma resposta que gerou a chave, lida por referência em vez de reentrar no array de
+   * dependências como identidade de objeto.
    *
    * ⚠️ **spec 153 H1/M7: emite a escolha aqui também.** Sem isto o pai (criação manual e
    * proposta) nunca ouve falar da rota que a API abriu — `onRouteChoiceChange` só disparava no
    * clique do seletor, e quem nunca tocou o seletor congelava sempre `{ criterion: 'cheapest',
    * signature: null }`, o default do congelador, mesmo quando a resposta trazia uma assinatura
-   * concreta para reproduzir. Dispara de novo a cada troca de veículo/ordem (as duas mudam
-   * `routeKey`/`tollVehicleId`, e portanto `geometryQuery.data`), nunca deixando uma assinatura
-   * velha pendurada no estado do pai.
+   * concreta para reproduzir.
    */
+  const geometryDataRef = useRef(geometryQuery.data)
+  geometryDataRef.current = geometryQuery.data
+  const routeSignatureKey = buildRouteChoiceSignatureKey(geometryQuery.data)
+
   useEffect(() => {
-    const nextIndex = geometryQuery.data?.selectedIndex ?? 0
-    setSelectedOptionIndex(nextIndex)
-    if (geometryQuery.data === undefined) return
-    onRouteChoiceChange?.(
-      resolveRouteChoiceFromIndex({
-        cheapestIndex: geometryQuery.data.cheapestIndex ?? null,
-        fastestIndex: geometryQuery.data.fastestIndex ?? null,
-        index: nextIndex,
-        options: geometryQuery.data.options ?? [],
-      }),
-    )
-  }, [routeKey, tollVehicleId, geometryQuery.data])
+    const data = geometryDataRef.current
+    if (data === undefined) {
+      setSelectedOptionIndex(0)
+      return
+    }
+    const emission = resolveRouteChoiceEmission(data)
+    setSelectedOptionIndex(emission.selectedIndex)
+    onRouteChoiceChange?.(emission.routeChoice)
+  }, [routeKey, tollVehicleId, routeSignatureKey])
 
   /**
    * ⚠️ Depois do efeito acima, e só quando a resposta muda: a escolha publicada volta como

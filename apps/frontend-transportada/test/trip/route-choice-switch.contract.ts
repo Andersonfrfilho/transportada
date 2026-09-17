@@ -8,10 +8,20 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, test } from 'bun:test'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 
-import { resolveRouteChoiceFromIndex } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
-import type { RouteGeometryOption } from '../../src/modules/trip/shared/routeGeometry.service'
+import { createTripAssemblyRouteGeometryQueryOptions } from '../../src/modules/trip/components/TripAssemblyMap.component'
+import {
+  buildRouteChoiceSignatureKey,
+  resolveRouteChoiceEmission,
+  resolveRouteChoiceFromIndex,
+} from '../../src/modules/trip/shared/assemblyRouteOptions.service'
+import type {
+  RouteGeometry,
+  RouteGeometryOption,
+} from '../../src/modules/trip/shared/routeGeometry.service'
+import type { TripClient } from '../../src/modules/trip/shared/tripClient.service'
 
 const ASSEMBLY_MAP = new URL(
   '../../src/modules/trip/components/TripAssemblyMap.component.tsx',
@@ -127,10 +137,12 @@ describe('TripAssemblyMap: switch mais rápida ↔ mais barata sem novo OSRM (sp
 
   /**
    * ⚠️ Só pode existir **uma** chamada ao roteirizador nesta tela — trocar de critério não é
-   * motivo para ida nova ao OSRM (RF13). Duas ocorrências da chamada provariam um segundo fetch.
+   * motivo para ida nova ao OSRM (RF13). Duas ocorrências da *chamada* (não do nome do método, que
+   * também aparece no tipo de `createTripAssemblyRouteGeometryQueryOptions`) provariam um segundo
+   * fetch.
    */
   it('chama a geometria uma única vez — trocar de critério não refaz a chamada', () => {
-    const chamadas = source.split('readPointsRouteGeometry').length - 1
+    const chamadas = source.split('.readPointsRouteGeometry(').length - 1
     expect(chamadas).toBe(1)
   })
 
@@ -147,10 +159,14 @@ describe('TripAssemblyMap: switch mais rápida ↔ mais barata sem novo OSRM (sp
     expect(queryKeyBlock).not.toInclude('routeChoiceCriterion')
   })
 
-  /** D1: a tela abre na mais barata — o `selectedIndex` que a API já resolveu, nunca `0` fixo. */
+  /**
+   * D1: a tela abre na mais barata — o `selectedIndex` que a API já resolveu, nunca `0` fixo.
+   * `setSelectedOptionIndex(0)` só é legítimo no ramo sem resposta nenhuma ainda (ver o teste de
+   * `resolveRouteChoiceEmission` acima, que prova o `0` correto quando a API não manda o índice).
+   */
   it('abre a escolha na rota que a API já resolveu como mais barata', () => {
-    expect(source).toInclude('selectedIndex')
-    expect(source).not.toInclude('setSelectedOptionIndex(0)')
+    expect(source).toInclude('resolveRouteChoiceEmission')
+    expect(source).toInclude('emission.selectedIndex')
   })
 
   it('monta o switch abaixo do bloco de pedágio, e propaga canReadFinancials', () => {
@@ -178,23 +194,114 @@ describe('TripAssemblyMap: switch mais rápida ↔ mais barata sem novo OSRM (sp
   it('emite a escolha assim que a resposta chega, não só no clique do seletor', () => {
     const callCount = source.split('onRouteChoiceChange?.(').length - 1
     expect(callCount).toBe(2)
-
-    const effectBlock = source.slice(
-      source.indexOf('useEffect(() => {'),
-      source.indexOf('}, [routeKey, tollVehicleId, geometryQuery.data])') + 1,
-    )
-    expect(effectBlock).toInclude('setSelectedOptionIndex(nextIndex)')
-    expect(effectBlock).toInclude('onRouteChoiceChange?.(')
-    expect(effectBlock).toInclude('resolveRouteChoiceFromIndex')
   })
 
   /**
-   * A escolha precisa ser refeita a cada troca de veículo/ordem — nunca deixar uma assinatura
-   * velha no estado do pai. As duas mudam `routeKey`/`tollVehicleId`, e são elas que disparam o
-   * efeito de novo (junto com a resposta nova da consulta).
+   * ⚠️ Segunda revisão da spec 153, N4/N11: a versão anterior desta prova comparava o texto do
+   * array de dependências do efeito por igualdade literal (`}, [routeKey, tollVehicleId,
+   * geometryQuery.data])`) — passava mesmo com o índice de reset errado, e quebrava com qualquer
+   * reformatação inofensiva. O comportamento de verdade — o efeito não pode reemitir a escolha só
+   * porque o TanStack Query devolveu um objeto novo com o **mesmo conteúdo** — está provado por
+   * comportamento em `test/trip/assembly-route-options.contract.ts`
+   * (`buildRouteChoiceSignatureKey`: duas respostas com referências diferentes e conteúdo igual
+   * produzem a mesma chave) e aqui embaixo, sobre a consulta real via `QueryObserver`.
    */
-  it('reemite a escolha ao trocar veículo/ordem — o efeito depende de routeKey e tollVehicleId', () => {
-    expect(source).toInclude('}, [routeKey, tollVehicleId, geometryQuery.data])')
+  it('a montagem não referencia mais geometryQuery.data como dependência bruta do efeito', () => {
+    expect(source).toInclude('buildRouteChoiceSignatureKey')
+    expect(source).toInclude('geometryDataRef.current = geometryQuery.data')
+    expect(source).not.toInclude('[routeKey, tollVehicleId, geometryQuery.data]')
+  })
+})
+
+/**
+ * Segunda revisão da spec 153, N4/N11: comportamento real sobre a consulta que `TripAssemblyMap`
+ * usa — `createTripAssemblyRouteGeometryQueryOptions`, extraída para o teste poder abrir um
+ * `QueryObserver` de verdade, no molde de `test/trip/route-choice-detail.contract.ts`
+ * (T706) e `test/identity/user-picture.contract.ts`. Nenhuma leitura de fonte: quem decide se o
+ * `queryFn` dispara é o próprio `QueryObserver`, como no navegador.
+ */
+describe('TripAssemblyMap: consulta de geometria via QueryObserver real (spec 153, segunda revisão N4/N11)', () => {
+  const POINTS = [
+    { latitude: -23.55, longitude: -46.63 },
+    { latitude: -22.9, longitude: -43.2 },
+  ] as const
+
+  function respostaComOpcoes(): RouteGeometry {
+    return {
+      cheapestIndex: 1,
+      costGap: null,
+      fastestIndex: 0,
+      legs: [],
+      options: [opcao({ signature: 'rota-mais-rapida' }), opcao({ signature: 'rota-mais-barata' })],
+      points: [],
+      selectedIndex: 1,
+      source: 'road',
+      toll: null,
+    }
+  }
+
+  /** Busca uma única vez sobre a consulta real — o mesmo comportamento que T402 já exige em tela. */
+  test('busca a geometria uma única vez através do QueryObserver', async () => {
+    let requests = 0
+    const client = {
+      readPointsRouteGeometry: () => {
+        requests += 1
+        return Promise.resolve(respostaComOpcoes())
+      },
+    } as unknown as TripClient
+    const queryClient = new QueryClient()
+    const observer = new QueryObserver<RouteGeometry>(
+      queryClient,
+      createTripAssemblyRouteGeometryQueryOptions({
+        client,
+        enabled: true,
+        points: POINTS,
+        routeKey: POINTS.map((point) => `${point.latitude},${point.longitude}`).join(';'),
+        vehicleId: null,
+      }),
+    )
+    const unsubscribe = observer.subscribe(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    unsubscribe()
+
+    expect(requests).toBe(1)
+    expect(observer.getCurrentResult().data?.selectedIndex).toBe(1)
+  })
+
+  /**
+   * ⚠️ **O experimento vermelho do achado N4.** Duas respostas da mesma consulta (simulando um
+   * refetch de foco depois do `staleTime` vencer) chegam como objetos **diferentes** — é assim que
+   * o TanStack Query sempre se comportou, e é exatamente essa diferença de referência que o efeito
+   * antigo usava como dependência. Quando o conteúdo é o mesmo, `buildRouteChoiceSignatureKey`
+   * produz a mesma chave para as duas respostas, mesmo vindas de fetches separados de verdade — a
+   * prova de que o efeito corrigido não teria motivo para reemitir a escolha entre elas. Revertendo
+   * `buildRouteChoiceSignatureKey` para devolver a própria referência (`data`) faz este teste
+   * falhar, porque `data !== data` nunca é verdade e as duas "chaves" (os dois objetos) deixam de
+   * ser iguais por `toBe`.
+   */
+  test('duas buscas reais com o mesmo conteúdo produzem referências diferentes, mas a mesma chave de escolha', async () => {
+    let requests = 0
+    const client = {
+      readPointsRouteGeometry: () => {
+        requests += 1
+        return Promise.resolve(respostaComOpcoes())
+      },
+    } as unknown as TripClient
+    const queryOptions = createTripAssemblyRouteGeometryQueryOptions({
+      client,
+      enabled: true,
+      points: POINTS,
+      routeKey: POINTS.map((point) => `${point.latitude},${point.longitude}`).join(';'),
+      vehicleId: null,
+    })
+
+    const first = await queryOptions.queryFn()
+    const second = await queryOptions.queryFn()
+
+    expect(requests).toBe(2)
+    expect(first).not.toBe(second)
+    expect(buildRouteChoiceSignatureKey(first)).toBe(buildRouteChoiceSignatureKey(second))
+    expect(resolveRouteChoiceEmission(first)).toEqual(resolveRouteChoiceEmission(second))
   })
 })
 
