@@ -4,6 +4,8 @@
  * Spec 154, T302: o caso de uso real de recarga sobre portas dubladas que registram a ordem das
  * chamadas em `events` — é o que permite ao contrato afirmar "baixa antes de travar".
  */
+import { ObjectStorageError } from '@adatechnology/object-storage-provider'
+
 import { createReloadTollBoothCatalogUseCase } from '../../src/toll-booths/application/reload-toll-booth-catalog.use-case.js'
 import type { TollBoothSeedRecord } from '../../src/toll-booths/application/toll-booth.port.js'
 import type { TollBoothCatalogReloadAuditInput } from '../../src/toll-booths/application/toll-booth-catalog-reload.port.js'
@@ -18,6 +20,8 @@ export type ReloadPortParams = {
   readonly isLocked?: boolean
   readonly objectBytes?: Uint8Array | undefined
   readonly objectContentLength?: number
+  /** Storage indisponível na hora do `head` (spec 154 T402 item 3). */
+  readonly storageUnavailable?: boolean
 }
 
 export function createReloadPorts(params: ReloadPortParams) {
@@ -79,6 +83,12 @@ export function createReloadPorts(params: ReloadPortParams) {
     storage: {
       async head() {
         events.push('head')
+        if (params.storageUnavailable === true) {
+          throw new ObjectStorageError(
+            'OBJECT_STORAGE_UNAVAILABLE',
+            'Object storage is unavailable',
+          )
+        }
         if (params.objectBytes === undefined) return undefined
         return { contentLength: params.objectContentLength ?? params.objectBytes.byteLength }
       },

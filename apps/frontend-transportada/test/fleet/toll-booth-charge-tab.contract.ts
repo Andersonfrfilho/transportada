@@ -306,12 +306,18 @@ describe('fleet toll booth charge tab contract (spec 095 item 4, spec 154 T204)'
 })
 
 describe('fleet toll booth catalog reload contract (spec 154 T303)', () => {
-  // Aceite 4: sem settings.manage a API recusa a ação de qualquer forma, e a tela nem oferece.
-  test('o bloco de recarga só renderiza e só consulta extratos com settings.manage', async () => {
+  /**
+   * Aceite 4: sem settings.manage a API recusa a ação de qualquer forma, e a tela nem oferece.
+   * "O bloco não renderiza sem a permissão" é provado sobre o **renderizado**, não sobre este
+   * texto-fonte — `test/fleet/toll-booth-catalog-reload-gate.contract.tsx` (T402 item 6). Aqui só
+   * a fiação que texto consegue provar de verdade: a página delega ao gate, e a consulta de
+   * extratos só liga com a mesma permissão.
+   */
+  test('a página delega ao gate e só consulta extratos com settings.manage', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
-    expect(page).toContain('canManageSettings && (')
-    expect(page).toContain('<TollBoothCatalogReloadPanel')
+    expect(page).toContain('<TollBoothCatalogReloadGate')
+    expect(page).toContain('canManageSettings={canManageSettings}')
     expect(page).toContain('enabled: canManageSettings && settingsScope.tollBoothCharges,')
     expect(page).toContain('useTollBoothCatalogReload({')
   })

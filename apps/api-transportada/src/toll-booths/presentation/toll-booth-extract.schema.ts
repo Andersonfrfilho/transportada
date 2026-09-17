@@ -17,12 +17,19 @@ import { APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES, HTTP_ERROR } from '../../share
 import { ApiError } from '../../shared/api.error.js'
 import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 import { invalidRequest } from '../../http/request-parsing.service.js'
-import type { TollBoothExtractRowInput } from '../domain/toll-booth-extract.policy.js'
+import {
+  hasRepeatedOsmNodeId,
+  type TollBoothExtractRowInput,
+} from '../domain/toll-booth-extract.policy.js'
 
 const DATASET_PATTERN = /^[a-z0-9][a-z0-9-]*$/
 const DATASET_MAX_LENGTH = 64
 const OSM_NODE_ID_PATTERN = /^[1-9][0-9]*$/
 const COORDINATE_PATTERN = /^-?[0-9]{1,3}\.[0-9]{1,7}$/
+/** Mesma faixa que `seed-toll-booths.use-case.ts` (`assertCoordinate`) recusa — nunca deixar o Zod
+ * aceitar o que o seed rejeitaria dentro da transação de recarga. */
+const LATITUDE_BOUND = 90
+const LONGITUDE_BOUND = 180
 
 const tollBoothExtractQuerySchema = z.object({
   dataset: z.string().trim().min(1).max(DATASET_MAX_LENGTH).regex(DATASET_PATTERN),
@@ -51,19 +58,33 @@ export function parseTollBoothExtractQuery(url: URL): TollBoothExtractQuery {
   return result.data
 }
 
+function coordinateSchema(bound: number): z.ZodType<string> {
+  return z
+    .string()
+    .regex(COORDINATE_PATTERN)
+    .refine((value) => Math.abs(Number(value)) <= bound, {
+      message: `coordinate out of range: must be within ±${bound}`,
+    })
+}
+
 const tollBoothExtractRowSchema = z
   .object({
     chargeCar: z.string().regex(MONEY_DECIMAL).nullable(),
     chargePerAxle: z.string().regex(MONEY_DECIMAL).nullable(),
-    latitude: z.string().regex(COORDINATE_PATTERN),
-    longitude: z.string().regex(COORDINATE_PATTERN),
+    latitude: coordinateSchema(LATITUDE_BOUND),
+    longitude: coordinateSchema(LONGITUDE_BOUND),
     name: z.string().min(1).nullable(),
     operator: z.string().min(1).nullable(),
     osmNodeId: z.string().regex(OSM_NODE_ID_PATTERN),
   })
   .strict() satisfies z.ZodType<TollBoothExtractRowInput>
 
-export const tollBoothExtractBodySchema = z.array(tollBoothExtractRowSchema).min(1)
+export const tollBoothExtractBodySchema = z
+  .array(tollBoothExtractRowSchema)
+  .min(1)
+  .refine((rows) => !hasRepeatedOsmNodeId(rows), {
+    message: 'osmNodeId repeated in the same extract',
+  })
 
 export async function parseTollBoothExtractBody(request: Request): Promise<{
   readonly booths: readonly TollBoothExtractRowInput[]

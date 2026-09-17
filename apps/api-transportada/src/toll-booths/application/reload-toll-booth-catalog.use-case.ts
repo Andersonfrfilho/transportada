@@ -15,7 +15,6 @@ import {
 } from '../domain/toll-booth-extract.error.js'
 import {
   buildTollBoothExtractAuditEntityId,
-  hasRepeatedOsmNodeId,
   toTollBoothSeedRecords,
   type TollBoothExtractRow,
   type TollBoothExtractRowInput,
@@ -116,9 +115,7 @@ function parseBooths(bytes: Uint8Array): readonly TollBoothExtractRowInput[] {
     throw new TollBoothExtractIntegrityError()
   }
   const result = tollBoothExtractBodySchema.safeParse(json)
-  if (!result.success || hasRepeatedOsmNodeId(result.data)) {
-    throw new TollBoothExtractIntegrityError()
-  }
+  if (!result.success) throw new TollBoothExtractIntegrityError()
   return result.data
 }
 

@@ -905,8 +905,12 @@ na mesma linha (`chargeCar` com duas casas, `osmNodeId` não numérico) numa res
    `ObjectStorageError(objectConflict)` para bytes diferentes — confirmado lendo
    `node_modules/.../object-storage-provider/dist/index.js:198-230` antes de escrever o gateway.
    `toll-booth-extract-storage.gateway.ts` traduz esse `objectConflict` para
-   `TollBoothExtractObjectConflictError`; qualquer outro erro do provider sobe cru (503 do handler
-   central, nunca escondido).
+   `TollBoothExtractObjectConflictError`; qualquer outro erro do provider sobe cru. **Correção
+   (T402, item 3):** esta frase estava errada — na época desta task o handler central
+   (`http/response.service.ts`) não mapeava `ObjectStorageError` nenhum, e o `unavailable` cru
+   virava **500 genérico**, não 503. A T302 mediu e registrou a divergência corretamente; a T402
+   fechou-a mapeando `ObjectStorageError(unavailable)` para 503 `STORAGE_UNAVAILABLE` no handler
+   central, valendo para esta rota e para qualquer outra que use storage.
 4. **Nunca sobrescreve**: nenhum caminho do código chama `put` com outro `mode` — `create-only` é
    literal no `NfeStorageGateway.storeObject` que o módulo reaproveita, e a integração (abaixo)
    prova isso lendo o objeto de volta depois de cada tentativa.
@@ -1484,3 +1488,272 @@ asserção ao novo texto-fonte real, não relaxando o que eles conferem.)
 
 **Divergência de escopo, não bloqueio:** nenhuma. T501 (runbook) e T502 (revisão final) continuam
 fora desta task.
+
+### T402 — pendentes de T301/T302/T303 fechados
+
+Seis pendências registradas pelos executores de T301/T302/T303, cada uma fechada com o vermelho
+antes da correção. Nenhuma exigiu decisão de produto — todas eram técnicas.
+
+#### 1. Extrato com `osmNodeId` repetido era aceito no upload
+
+`toll-booth-extract.schema.ts`: `hasRepeatedOsmNodeId` (já existia, só era chamada na recarga) virou
+`.refine()` de `tollBoothExtractBodySchema`, então o upload recusa junto dos outros erros de
+validação Zod. `reload-toll-booth-catalog.use-case.ts` (`parseBooths`) parou de chamar o helper à
+parte — `!result.success` já cobre o caso, porque o schema agora recusa sozinho.
+
+Vermelho (`test/toll-booths/toll-booth-extract-routes.contract.ts`, teste novo):
+
+```
+$ bun test ./test/toll-booths/toll-booth-extract-routes.contract.ts
+(fail) answers 400 when the same osmNodeId repeats in the extract
+Expected: 400
+Received: 201
+```
+
+Verde depois da correção — ver gates ao fim da seção.
+
+#### 2. Coordenada fora da faixa passava pela validação e derrubava a recarga com 500
+
+`COORDINATE_PATTERN` aceitava `-999.9999999` a `999.9999999`; só o `assertValid`/`assertCoordinate`
+do seed (`seed-toll-booths.use-case.ts`) recusava, com `Error` comum dentro da transação de recarga
+— sem `try/catch` no caminho, isso subia cru até o handler central e virava 500 genérico.
+`toll-booth-extract.schema.ts` ganhou `coordinateSchema(bound)`: mesma faixa que `assertCoordinate`
+já usa (`±90` latitude, `±180` longitude, inclusive nas duas pontas — `Math.abs(parsed) > bound`),
+via `.refine()` sobre o `COORDINATE_PATTERN` existente. `assertValid` do seed **não foi tocado** —
+continua a última rede, agora redundante para este caso específico mas ainda a única defesa para
+quem grava `toll_booths` por outro caminho (a CLI de seed, spec 090).
+
+No upload (`toll-booth-extract-routes.contract.ts`), a linha fora da faixa agora é 400, junto dos
+outros erros Zod. Na recarga (`toll-booth-reload.contract.ts`), o mesmo objeto no bucket — que só a
+recarga lê de volta e reprocessa pelo mesmo schema — vira 409 `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH`
+(o mesmo código do sha256 divergente e do nó repetido), nunca mais 500.
+
+Vermelho, upload:
+
+```
+$ bun test ./test/toll-booths/toll-booth-extract-routes.contract.ts
+(fail) answers 400 when latitude or longitude is out of range
+Expected: 400
+Received: 201
+```
+
+Vermelho, recarga (capturado revertendo temporariamente só `toll-booth-extract.schema.ts` para a
+versão anterior, rodando o teste novo, e restaurando — o arquivo de produção nunca ficou na versão
+antiga fora dessa checagem pontual):
+
+```
+$ bun test ./test/toll-booths/toll-booth-reload.contract.ts -t "coordinate out of range"
+(fail) answers 409, never 500, when a stored booth has a coordinate out of range
+Expected: 409
+Received: 500
+```
+
+#### 3. Storage indisponível na recarga respondia 500 genérico
+
+A evidência da T301 (linha "qualquer outro erro do provider sobe cru (503 do handler central...)")
+estava errada — corrigida no lugar (ver nota inserida ali). Na época da T301/T302, o handler central
+(`http/response.service.ts`) não mapeava `ObjectStorageError` nenhum; qualquer erro do provider,
+`unavailable` incluso, caía no branco genérico e virava 500. A T302 já tinha medido e registrado essa
+divergência corretamente — só a frase da T301 estava errada.
+
+**Decisão:** mapear `ObjectStorageError(unavailable)` para 503 em `http/response.service.ts`, no
+mesmo molde do `DatabaseUnavailableError` (log + `captureError` + código estável), em vez de a
+recarga converter o erro sozinha. Central porque `unavailable` é uma falha de infraestrutura, não de
+domínio de nenhuma rota — a recarga não é a única rota que fala com o bucket (`nfe-imports`, billing,
+`cte-archive` também usam `NfeStorageGateway`/`object-storage-provider`), e mapear ali cobre todas
+elas de uma vez, sem repetir a conversão em cada gateway. Não afrouxa nada: o mapeamento só troca
+500 por 503 quando o **código** é exatamente `unavailable` — qualquer outro `ObjectStorageError`
+(`objectConflict`, etc.) continua subindo pelo caminho de sempre (a maioria já é traduzida para erro
+de domínio na camada de gateway antes de chegar aqui). Novo código `STORAGE_UNAVAILABLE` em
+`HTTP_ERROR` (`shared/api.constant.ts`), ao lado de `databaseUnavailable`.
+
+Vermelho (revertendo temporariamente só `response.service.ts`, mesmo processo do item 2):
+
+```
+$ bun test ./test/toll-booths/toll-booth-reload.contract.ts -t "storage is unavailable"
+(fail) answers 503, never 500, when object storage is unavailable
+Expected: 503
+Received: 500
+```
+
+`test/fixtures/toll-booth-reload-ports.fixture.ts` ganhou o parâmetro `storageUnavailable` (o `head`
+dublado lança `ObjectStorageError('OBJECT_STORAGE_UNAVAILABLE', …)`) para o contrato poder simular o
+caso sem MinIO de verdade.
+
+#### 4. Comentário desatualizado sobre auditoria em `toll-booth-extract.schema.ts`
+
+A frase errada ("a API não tem tabela de auditoria de uso geral") está em
+`src/database/toll-booth-extract.schema.ts` — o schema Drizzle da tabela (há um segundo arquivo com
+o mesmo nome em `presentation/`, o Zod de validação da rota; a correção é no schema do banco).
+Corrigido: o comentário agora nomeia `audit_logs` (`fiscal-operation.schema.ts`) e o consumidor
+existente (`drizzle-contractor-mail.repository.ts`), igual à premissa já corrigida em `spec.md` pela
+T302.
+
+#### 5. Arquivos acima do teto de 200 linhas
+
+- `list-toll-booth-catalog.use-case.ts` (226 → 146 linhas): a ordenação pura das vistas
+  (`toEntryView`, `orderSeenRowsByChargeKnown`, `seenPriorityOf`, o tipo `TollBoothCatalogEntryView`)
+  saiu para `domain/toll-booth-catalog-entry.policy.ts` (40 linhas, sem porta nenhuma — pura, então
+  domínio, não aplicação). A resolução das linhas vistas (`resolveSeenRows`, que chama portas) saiu
+  para `application/list-toll-booth-catalog-seen-rows.service.ts` (69 linhas). O use case ficou só
+  com a orquestração (paginação, concatenação `[vistas] ++ [resto]`, resumo).
+- `drizzle-toll-booth-catalog.repository.ts` (219 → 162 linhas): o mapeamento da linha crua do join
+  (`combineConditions`, `CatalogJoinRow`, `toRow`, `toAdjustment`) saiu para
+  `infrastructure/toll-booth-catalog-row.mapper.ts` (68 linhas), no molde de `osm-toll-booth.mapper.ts`
+  (já existente no módulo).
+
+**Nenhum contrato mudou.** `TollBoothCatalogEntryView` continua exportado do use case (re-export de
+`toll-booth-catalog-entry.policy.js`) porque `presentation/toll-booth.routes.ts` importa esse nome de
+lá — conferido antes de mover. As duas divisões são extrações puras (mesmas funções, mesmas
+assinaturas, só de arquivo); os 110 testes de `test/toll-booths.contract.test.ts` (nenhum alterado
+para isto) continuam verdes sem tocar em asserção alguma, prova de que o comportamento não mudou.
+
+Conferidos os demais arquivos tocados pela spec 154 (T201–T303): nenhum outro passa de 200 linhas —
+`toll-booth.routes.ts` (76), `toll-booth-extract.routes.ts` (144), `reload-toll-booth-catalog.use-case.ts`
+(160, T402 item 1 tirou uma linha), `toll-booth-extract.schema.ts` (128, T402 itens 1/2 acrescentaram
+`coordinateSchema`), e todos os componentes/hooks do frontend listados na T303.
+
+#### 6. Teste fraco na T303: asserção sobre texto-fonte em vez de renderizado
+
+O teste `'o bloco de recarga só renderiza e só consulta extratos com settings.manage'`
+(`test/fleet/toll-booth-charge-tab.contract.ts`) conferia `page.toContain('canManageSettings && (')`
+e `page.toContain('<TollBoothCatalogReloadPanel')` — prova só que a string existe no arquivo-fonte,
+nunca o que a tela produz (uma condicional escrita diferente, mas com o mesmo efeito, quebraria o
+teste sem quebrar o comportamento; e uma condicional quebrada com o texto preservado passaria).
+
+**Correção:** extraído `TollBoothCatalogReloadGate.component.tsx` de `FleetWorkspace.page.tsx` — o
+mesmo `{canManageSettings && <TollBoothCatalogReloadPanel .../>}` que estava inline na página, agora
+um componente próprio (`if (!canManageSettings) return null`). A página passou a usar
+`<TollBoothCatalogReloadGate canManageSettings={canManageSettings} .../>` no lugar da condicional
+inline — mesmo efeito visual, comportamento idêntico (confirmado pelos 542 testes de
+`fleet.contract.test.ts`, nenhum alterado além dos dois desta seção, continuando verdes).
+
+Novo contrato `test/fleet/toll-booth-catalog-reload-gate.contract.tsx`, no molde exato de
+`test/trip/route-toll-adjustment.contract.tsx` (T401): `renderToStaticMarkup` sobre o componente
+real, i18n real (`@/modules/shared/i18n/i18n.service`, dicionário `fleet.locale.json` de produção,
+nunca uma cópia de texto). Sem `settings.manage`, o HTML renderizado é `''` (nada, nem sequer um nó
+vazio); com a permissão, o HTML contém o título traduzido do painel
+(`tollBoothCharges.reload.title`).
+
+Vermelho, confirmando que o teste novo pega o defeito de verdade (não só documenta o comportamento
+já correto) — alterando `TollBoothCatalogReloadGate` para devolver `<div>debug</div>` em vez de
+`null` sem permissão, rodando o teste, e revertendo:
+
+```
+$ bun test ./test/fleet/toll-booth-catalog-reload-gate.contract.tsx
+(fail) sem settings.manage, nada é renderizado
+Expected: ""
+Received: "<div>debug</div>"
+```
+
+O teste antigo em `toll-booth-charge-tab.contract.ts` foi reescrito para o que texto-fonte ainda
+prova de verdade — a página delega ao gate (`<TollBoothCatalogReloadGate`,
+`canManageSettings={canManageSettings}`) e a consulta de extratos só liga com a mesma permissão
+(`enabled: canManageSettings && settingsScope.tollBoothCharges,`) — sem afrouxar nem apagar nenhuma
+das outras asserções da `describe`.
+
+#### Gates (T402)
+
+```
+$ bun run typecheck     # 6 apps — exit 0
+$ bun run lint          # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check  # exit 0 (5 arquivos reformatados por --write antes do check final:
+                         # list-toll-booth-catalog-seen-rows.service.ts, list-toll-booth-catalog.use-case.ts,
+                         # drizzle-toll-booth-catalog.repository.ts, toll-booth-extract.schema.ts,
+                         # test/fixtures/toll-booth-reload-ports.fixture.ts)
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6314 pass
+ 23 skip
+ 0 fail
+ 22059 expect() calls
+Ran 6337 tests across 177 files. [31.49s]
+```
+
+(Eram 6310 pass na T302: +4 desta task — os dois vermelhos do upload [item 1, item 2] e os dois da
+recarga [item 2, item 3]; nenhum teste antigo quebrou ou foi afrouxado.)
+
+Integração de storage (MinIO/Postgres reais, `STORAGE_SECRET_KEY` como override de ambiente —
+mesma divergência do `.env.test` compartilhado registrada na T301/T302, arquivo não editado nem
+exibido):
+
+```
+$ cd apps/api-transportada && STORAGE_SECRET_KEY=<compose.yaml> bun --env-file=../../.env.test test \
+    ./test/integration/toll-booth-extract-storage.integration.ts ./test/integration/toll-booth-reload.integration.ts --timeout 120000
+ 6 pass
+ 0 fail
+ 28 expect() calls
+Ran 6 tests across 2 files. [7.60s]
+```
+
+Suíte de integração completa (`test:integration`, mesma credencial de override; rodada em segundo
+plano por exceder o teto interativo de 120s):
+
+```
+$ STORAGE_SECRET_KEY=minio-local-password bun --env-file=../../.env.test test:integration
+ 375 pass
+ 4 skip
+ 3 fail
+ 2540 expect() calls
+Ran 382 tests across 74 files. [311.61s]
+```
+
+Os três "fail" são timeout de 5s sob carga (o script `test:integration` do `package.json` não passa
+`--timeout`, diferente do gate documentado em `CLAUDE.md`), nada ligado a esta task —
+`cte-item-list-repository.integration.ts`, `freight-region-repository.integration.ts` (nenhum dos
+dois tocado aqui) e `toll-booth-reload.integration.ts` num caso **diferente** do que esta task mexeu
+("bytes divergem da linha", não coordenada fora da faixa). Confirmado isolando os quatro arquivos com
+`--timeout 120000` explícito:
+
+```
+$ STORAGE_SECRET_KEY=minio-local-password bun --env-file=../../.env.test test \
+    ./test/integration/toll-booth-reload.integration.ts ./test/integration/toll-booth-extract-storage.integration.ts \
+    ./test/integration/cte-item-list-repository.integration.ts ./test/integration/freight-region-repository.integration.ts \
+    --timeout 120000
+ 21 pass
+ 0 fail
+ 141 expect() calls
+Ran 21 tests across 4 files. [27.27s]
+```
+
+Mesmo defeito de forma que o `CLAUDE.md` já registra para outro alvo — "pular não é passar" vale
+também para "falhar por teto de tempo baixo demais não é falhar de verdade"; corrigir o script em si
+é fora do escopo desta task.
+
+```
+$ cd apps/frontend-transportada && bun run test
+ 4184 pass
+ 0 fail
+ 36678 expect() calls
+Ran 4184 tests across 29 files. [5.38s]
+$ cd apps/frontend-transportada && bun run build
+✓ built in 10.01s   # PWA gerado, mesmo aviso pré-existente de chunk >500kB (vectorBasemap/index)
+```
+
+(Eram 4182 pass na T401: +2 desta task, o `describe` novo de
+`toll-booth-catalog-reload-gate.contract.tsx`; nenhum teste antigo quebrou.)
+
+**Arquivos por caminho explícito (commit isolado, `fix(toll): ...`):**
+
+- `apps/api-transportada/src/toll-booths/presentation/toll-booth-extract.schema.ts` (itens 1, 2)
+- `apps/api-transportada/src/toll-booths/application/reload-toll-booth-catalog.use-case.ts` (item 1)
+- `apps/api-transportada/src/http/response.service.ts` (item 3)
+- `apps/api-transportada/src/shared/api.constant.ts` (item 3)
+- `apps/api-transportada/src/database/toll-booth-extract.schema.ts` (item 4)
+- `apps/api-transportada/src/toll-booths/application/list-toll-booth-catalog.use-case.ts` (item 5)
+- `apps/api-transportada/src/toll-booths/application/list-toll-booth-catalog-seen-rows.service.ts` (novo, item 5)
+- `apps/api-transportada/src/toll-booths/domain/toll-booth-catalog-entry.policy.ts` (novo, item 5)
+- `apps/api-transportada/src/toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.ts` (item 5)
+- `apps/api-transportada/src/toll-booths/infrastructure/toll-booth-catalog-row.mapper.ts` (novo, item 5)
+- `apps/frontend-transportada/src/modules/fleet/components/TollBoothCatalogReloadGate.component.tsx` (novo, item 6)
+- `apps/frontend-transportada/src/modules/fleet/pages/FleetWorkspace.page.tsx` (item 6)
+- `apps/api-transportada/test/toll-booths/toll-booth-extract-routes.contract.ts` (itens 1, 2)
+- `apps/api-transportada/test/toll-booths/toll-booth-reload.contract.ts` (itens 2, 3)
+- `apps/api-transportada/test/fixtures/toll-booth-reload-ports.fixture.ts` (item 3)
+- `apps/frontend-transportada/test/fleet/toll-booth-charge-tab.contract.ts` (item 6)
+- `apps/frontend-transportada/test/fleet/toll-booth-catalog-reload-gate.contract.tsx` (novo, item 6)
+- `apps/frontend-transportada/test/fleet.contract.test.ts` (item 6, registro do novo arquivo)
+- `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (correção da frase errada da T301, esta seção)
+
+**Divergência de escopo, não bloqueio:** nenhuma das seis pendências exigiu decisão de produto —
+todas eram técnicas, decididas e justificadas nesta seção. T502 (revisão final) continua fora desta
+task.

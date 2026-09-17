@@ -20,8 +20,10 @@ const DATASET_MAX_LENGTH = 64
  * O extrato do catálogo de praças. Ele existe como linha porque o `@adatechnology/object-storage-provider`
  * expõe `put`, `get`, `head`, `delete` e URL assinada — **não tem `list`** —, então descobrir quais
  * extratos foram subidos varrendo o bucket exigiria um índice guardado em objeto, que é estado sem
- * transação. Esta tabela é esse índice, e é também a única trilha de auditoria da recarga: a API não
- * tem tabela de auditoria de uso geral.
+ * transação. Esta tabela é esse índice, e também a fonte da recarga registrada em `audit_logs`
+ * (`fiscal-operation.schema.ts`, tabela de auditoria de uso geral que a API já tem e usa —
+ * `drizzle-contractor-mail.repository.ts` é outro consumidor dela; spec 154 T302 confirmou isso e
+ * corrigiu a mesma premissa errada em `spec.md`).
  *
  * ⚠️ **Sem `company_id`, de propósito — é a quinta tabela do produto nessa condição**, ao lado de
  * `fuel_price_references`, `energy_tariff_references`, `vehicle_volume_references` e `toll_booths`.

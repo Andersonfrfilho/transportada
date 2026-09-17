@@ -111,6 +111,26 @@ describe('POST /toll-booths/reload http contract (spec 154, T302)', () => {
     expect(fixture.events).not.toContain('runExclusive')
   })
 
+  test('answers 409, never 500, when a stored booth has a coordinate out of range', async () => {
+    const outOfRange = encodeExtract([{ ...RELOAD_BOOTH_ROW, latitude: '-99.0000000' }])
+    const fixture = validFixture({ extract: buildExtractRow(outOfRange), objectBytes: outOfRange })
+
+    const response = await fixture.handle(QUERY)
+
+    expect(response.status).toBe(409)
+    expect(await readErrorCode(response)).toBe('TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH')
+    expect(fixture.events).not.toContain('runExclusive')
+  })
+
+  test('answers 503, never 500, when object storage is unavailable', async () => {
+    const fixture = validFixture({ storageUnavailable: true })
+
+    const response = await fixture.handle(QUERY)
+
+    expect(response.status).toBe(503)
+    expect(await readErrorCode(response)).toBe('STORAGE_UNAVAILABLE')
+  })
+
   test('answers 409 when another reload holds the catalog lock', async () => {
     const fixture = validFixture({ isLocked: true })
 

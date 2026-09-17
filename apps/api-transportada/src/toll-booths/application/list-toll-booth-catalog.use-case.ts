@@ -15,12 +15,13 @@
  * inteiro) e `charges.loadAdjustments` (ajustes da empresa) entram crus, e
  * `countBoothsWithoutKnownAxleCharge` resolve em memória, nunca em SQL.
  */
-import {
-  resolveEffectiveTollBoothCharge,
-  type EffectiveTollBoothCharge,
-} from '../../companies/domain/toll-booth-charge.policy.js'
 import type { TollBoothChargePort } from '../../companies/application/toll-booth-charge.port.js'
 import { countBoothsWithoutKnownAxleCharge } from '../domain/toll-booth-axle-charge-gap.policy.js'
+import {
+  orderSeenRowsByChargeKnown,
+  toEntryView,
+  type TollBoothCatalogEntryView,
+} from '../domain/toll-booth-catalog-entry.policy.js'
 import {
   resolveTollCatalogStatus,
   type TollCatalogStatus,
@@ -31,9 +32,10 @@ import {
   TOLL_BOOTH_CATALOG_MAX_PER_PAGE,
 } from './toll-booth-catalog.constant.js'
 import type { TollBoothCatalogPort } from './toll-booth-catalog.port.js'
+import { resolveSeenRows } from './list-toll-booth-catalog-seen-rows.service.js'
 import type { TollBoothSightingPort } from './toll-booth-sighting.port.js'
 
-export type TollBoothCatalogEntryView = EffectiveTollBoothCharge & Readonly<{ seen: boolean }>
+export type { TollBoothCatalogEntryView } from '../domain/toll-booth-catalog-entry.policy.js'
 
 export type TollBoothCatalogSummaryView = Readonly<{
   boothCount: number
@@ -140,87 +142,4 @@ export function createListTollBoothCatalogUseCase(dependencies: {
       }
     },
   }
-}
-
-async function resolveSeenRows(dependencies: {
-  readonly catalog: TollBoothCatalogPort
-  readonly charges: TollBoothChargePort
-  readonly companyId: string
-  readonly search: string | undefined
-  readonly seenOsmNodeIds: readonly number[]
-}): Promise<readonly TollBoothCatalogEntryView[]> {
-  if (dependencies.seenOsmNodeIds.length === 0) return []
-
-  const [seenCatalogPage, seenAdjustments] = await Promise.all([
-    dependencies.catalog.listCatalog({
-      companyId: dependencies.companyId,
-      seenFilter: 'only',
-      seenOsmNodeIds: dependencies.seenOsmNodeIds,
-      ...(dependencies.search === undefined ? {} : { search: dependencies.search }),
-    }),
-    dependencies.charges.loadAdjustmentsByNodeIds({
-      companyId: dependencies.companyId,
-      osmNodeIds: dependencies.seenOsmNodeIds,
-    }),
-  ])
-
-  const seenCatalogRows = seenCatalogPage.rows.map((row) =>
-    toEntryView({ adjustment: row.adjustment, catalog: row.catalog, seen: true }),
-  )
-
-  /**
-   * ⚠️ Ajuste de praça vista que o catálogo não conhece mais (`catalogKnown: false`, spec 154 D1)
-   * não tem nome nem operador — uma busca por texto nunca o alcançaria de qualquer forma, e por
-   * isso ele só entra quando não há termo de busca (`list-toll-booth-charges.use-case.ts` tem a
-   * mesma lacuna, resolvida do mesmo jeito).
-   */
-  if (dependencies.search !== undefined) return seenCatalogRows
-
-  const catalogKnownIds = new Set(seenCatalogRows.map((row) => row.osmNodeId))
-  const orphanRows = seenAdjustments
-    .filter((adjustment) => !catalogKnownIds.has(adjustment.osmNodeId))
-    .map((adjustment) => ({
-      ...resolveEffectiveTollBoothCharge({
-        adjustment,
-        catalog: {
-          chargeCar: null,
-          chargePerAxle: null,
-          chargePerAxleAutomatic: null,
-          name: null,
-          observedOn: adjustment.observedOn,
-          operator: null,
-          osmNodeId: adjustment.osmNodeId,
-        },
-      }),
-      catalogKnown: false,
-      seen: true,
-    }))
-
-  return [...seenCatalogRows, ...orphanRows]
-}
-
-function toEntryView(input: {
-  readonly adjustment: Parameters<typeof resolveEffectiveTollBoothCharge>[0]['adjustment']
-  readonly catalog: Parameters<typeof resolveEffectiveTollBoothCharge>[0]['catalog']
-  readonly seen: boolean
-}): TollBoothCatalogEntryView {
-  return {
-    ...resolveEffectiveTollBoothCharge({ adjustment: input.adjustment, catalog: input.catalog }),
-    seen: input.seen,
-  }
-}
-
-/** Vistas sem tarifa por eixo primeiro, depois vistas com tarifa; desempate por `osmNodeId` (D1). */
-function orderSeenRowsByChargeKnown(
-  rows: readonly TollBoothCatalogEntryView[],
-): readonly TollBoothCatalogEntryView[] {
-  return [...rows].sort((left, right) => {
-    const priorityDelta = seenPriorityOf(left) - seenPriorityOf(right)
-    if (priorityDelta !== 0) return priorityDelta
-    return left.osmNodeId - right.osmNodeId
-  })
-}
-
-function seenPriorityOf(row: TollBoothCatalogEntryView): number {
-  return row.effectiveChargePerAxle === null ? 0 : 1
 }

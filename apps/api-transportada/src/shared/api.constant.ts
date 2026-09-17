@@ -246,4 +246,10 @@ export const HTTP_ERROR = {
     message: 'Database unavailable',
     status: 503,
   },
+  /** Spec 154 T402: o `ObjectStorageError(unavailable)` do provider vale para toda rota de storage. */
+  storageUnavailable: {
+    code: 'STORAGE_UNAVAILABLE',
+    message: 'Object storage unavailable',
+    status: 503,
+  },
 } as const

@@ -17,11 +17,10 @@
  * `page`), porque o use case concatena [vistas] ++ [resto] e o corte de página pode cair no meio.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, ilike, inArray, notInArray, or, sql, type SQL } from 'drizzle-orm'
+import { asc, eq, ilike, inArray, notInArray, or, sql } from 'drizzle-orm'
 
 import { companyTollBoothCharges } from '../../database/company-toll-booth-charge.schema.js'
 import { tollBooths } from '../../database/toll-booth.schema.js'
-import type { TollBoothChargeAdjustmentRow } from '../../companies/domain/toll-booth-charge.policy.js'
 import {
   TOLL_BOOTH_CATALOG_DEFAULT_PAGE,
   TOLL_BOOTH_CATALOG_DEFAULT_PER_PAGE,
@@ -32,8 +31,8 @@ import type {
   TollBoothCatalogAxleChargeRow,
   TollBoothCatalogPage,
   TollBoothCatalogPort,
-  TollBoothCatalogRow,
 } from '../application/toll-booth-catalog.port.js'
+import { combineConditions, toRow } from './toll-booth-catalog-row.mapper.js'
 
 export type TollBoothCatalogDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -158,62 +157,5 @@ export function createDrizzleTollBoothCatalogRepository(
         osmNodeId: Number(row.osmNodeId),
       }))
     },
-  }
-}
-
-function combineConditions(conditions: readonly (SQL | undefined)[]): SQL | undefined {
-  const defined = conditions.filter((condition): condition is SQL => condition !== undefined)
-  if (defined.length === 0) return undefined
-  if (defined.length === 1) return defined[0]
-  return and(...defined)
-}
-
-type CatalogJoinRow = Readonly<{
-  adjustmentActorUserId: string | null
-  adjustmentChargeCar: string | null
-  adjustmentChargePerAxle: string | null
-  adjustmentChargePerAxleAutomatic: string | null
-  adjustmentObservedOn: string | null
-  adjustmentUpdatedAt: Date | null
-  catalogChargeCar: string | null
-  catalogChargePerAxle: string | null
-  catalogChargePerAxleAutomatic: string | null
-  catalogName: string | null
-  catalogObservedOn: string
-  catalogOperator: string | null
-  osmNodeId: bigint
-}>
-
-function toRow(row: CatalogJoinRow, seenIds: ReadonlySet<number>): TollBoothCatalogRow {
-  const osmNodeId = Number(row.osmNodeId)
-
-  return {
-    adjustment: toAdjustment(row, osmNodeId),
-    catalog: {
-      chargeCar: row.catalogChargeCar,
-      chargePerAxle: row.catalogChargePerAxle,
-      chargePerAxleAutomatic: row.catalogChargePerAxleAutomatic,
-      name: row.catalogName,
-      observedOn: row.catalogObservedOn,
-      operator: row.catalogOperator,
-      osmNodeId,
-    },
-    osmNodeId,
-    seen: seenIds.has(osmNodeId),
-  }
-}
-
-/** `actorUserId` nunca é nulo numa linha de ajuste de verdade — é o marcador de "sem ajuste aqui". */
-function toAdjustment(row: CatalogJoinRow, osmNodeId: number): TollBoothChargeAdjustmentRow | null {
-  if (row.adjustmentActorUserId === null || row.adjustmentObservedOn === null) return null
-
-  return {
-    actorUserId: row.adjustmentActorUserId,
-    chargeCar: row.adjustmentChargeCar,
-    chargePerAxle: row.adjustmentChargePerAxle,
-    chargePerAxleAutomatic: row.adjustmentChargePerAxleAutomatic,
-    observedOn: row.adjustmentObservedOn,
-    osmNodeId,
-    updatedAt: row.adjustmentUpdatedAt as Date,
   }
 }

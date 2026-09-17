@@ -14,7 +14,7 @@ import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
 import { FreightRegionPanel } from '../components/FreightRegionPanel.component'
 import { FuelPricePanel } from '../components/FuelPricePanel.component'
-import { TollBoothCatalogReloadPanel } from '../components/TollBoothCatalogReloadPanel.component'
+import { TollBoothCatalogReloadGate } from '../components/TollBoothCatalogReloadGate.component'
 import { TollBoothChargePanel } from '../components/TollBoothChargePanel.component'
 import { VehicleForm } from '../components/VehicleForm.component'
 import { VehiclePanel } from '../components/VehiclePanel.component'
@@ -327,20 +327,19 @@ export function FleetWorkspacePage() {
           onPageChange={tollBoothCatalog.setPage}
           onSearchChange={tollBoothCatalog.setSearch}
         />
-        {/* Spec 154 T303: só quem tem settings.manage vê e dispara a recarga (RF6, aceite 4). */}
-        {canManageSettings && (
-          <TollBoothCatalogReloadPanel
-            catalogStatus={tollBoothCatalog.query.data?.summary.status}
-            {...(tollBoothReloadErrorCode === undefined
-              ? {}
-              : { errorCode: tollBoothReloadErrorCode })}
-            extracts={tollBoothCatalogReload.extractsQuery.data}
-            isPending={tollBoothCatalogReload.reloadMutation.isPending}
-            loading={tollBoothCatalogReload.extractsQuery.isLoading}
-            result={tollBoothCatalogReload.reloadMutation.data}
-            onReload={(input) => tollBoothCatalogReload.reloadMutation.mutate(input)}
-          />
-        )}
+        {/* Spec 154 T303/T402: só quem tem settings.manage vê e dispara a recarga (RF6, aceite 4). */}
+        <TollBoothCatalogReloadGate
+          canManageSettings={canManageSettings}
+          catalogStatus={tollBoothCatalog.query.data?.summary.status}
+          {...(tollBoothReloadErrorCode === undefined
+            ? {}
+            : { errorCode: tollBoothReloadErrorCode })}
+          extracts={tollBoothCatalogReload.extractsQuery.data}
+          isPending={tollBoothCatalogReload.reloadMutation.isPending}
+          loading={tollBoothCatalogReload.extractsQuery.isLoading}
+          result={tollBoothCatalogReload.reloadMutation.data}
+          onReload={(input) => tollBoothCatalogReload.reloadMutation.mutate(input)}
+        />
       </>
     ),
   }

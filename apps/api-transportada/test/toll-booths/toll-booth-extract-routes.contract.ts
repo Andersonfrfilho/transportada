@@ -245,6 +245,31 @@ describe('POST /toll-booths/extracts http contract (spec 154, T301)', () => {
     expect(body.error.details.length).toBeGreaterThanOrEqual(2)
   })
 
+  test('answers 400 when the same osmNodeId repeats in the extract', async () => {
+    const fixture = await createFixture()
+
+    const response = await fixture.handle(
+      postRequest('?dataset=sudeste&observedOn=2026-09-14', [
+        BOOTH_ROW,
+        { ...BOOTH_ROW, name: 'Barueri - 3' },
+      ]),
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  test('answers 400 when latitude or longitude is out of range', async () => {
+    const fixture = await createFixture()
+
+    const response = await fixture.handle(
+      postRequest('?dataset=sudeste&observedOn=2026-09-14', [
+        { ...BOOTH_ROW, latitude: '-99.0000000' },
+      ]),
+    )
+
+    expect(response.status).toBe(400)
+  })
+
   test('answers 400 on an invalid dataset in the query string', async () => {
     const fixture = await createFixture()
 
