@@ -124,7 +124,37 @@ primeiro, e o piso de três tokens no prefixo.
 
 ## T1.2 — `package-box-family.policy.ts`
 
-_(pendente)_
+`apps/api-transportada/src/nfe-documents/domain/package-box-family.policy.ts` — pura, sem I/O,
+tipos no próprio arquivo (convenção de `package-box-queue.policy.ts`).
+
+A suíte da T1.1 ficou verde sem alterar um único caso:
+
+```
+bun test v1.3.14 (0d9b296a)
+ 90 pass · 0 fail · 150 expect() calls
+Ran 90 tests across 1 file. [58.00ms]
+```
+
+Gate completo da task:
+
+| Gate          | Comando                                    | Resultado                                   |
+| ------------- | ------------------------------------------ | ------------------------------------------- |
+| Typecheck     | `bun run typecheck` (as seis apps)         | exit 0                                      |
+| Testes da app | `bun run --cwd apps/api-transportada test` | 6287 pass · 23 skip · 0 fail · 177 arquivos |
+
+Os 23 `skip` são os de integração, que só rodam com `--env-file=../../.env.test`; nenhum deles toca
+família de variação. A T1.2 é domínio puro e não tem caminho de banco para exercitar.
+
+### O que a implementação decide, e o que ela recusa decidir
+
+`resolveBoxFamily` devolve sempre `prefix` e `variantLabel` — mesmo quando não há família. `familyKey`
+é `undefined` em dois casos, e só nesses dois: rótulo vazio (a caixa não tem irmão possível) e prefixo
+com menos de `MINIMUM_FAMILY_PREFIX_TOKENS` tokens. Quem consome não precisa repetir a regra: chave
+ausente significa "esta caixa não replica", e é a única leitura possível.
+
+`resolvePackagingUnitCount` lê o sufixo numérico da unidade comercial e devolve `undefined` quando não
+há dígito — não inventa `1`. Contagem ausente e contagem igual a um são coisas diferentes na tela da
+D8, e as 663 caixas de produção têm `units_per_box = 1` justamente porque ninguém preencheu.
 
 ## T2.1 — Schema e migration de `replicated`
 
