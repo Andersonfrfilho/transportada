@@ -4487,3 +4487,98 @@ devolver** o que já era calculado.
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T801 (N1) — `findLiveTripIdForDocuments` reaproveita viagem sem olhar veículo/motorista/status
+
+### O que a revisão achou
+
+`findLiveTripIdForDocuments` (T708, H4) só olhava o conjunto de notas vivas: `companyId` +
+`nfeDocumentId in (...)` + `releasedAt IS NULL`. Não filtrava `trips.vehicleId`, `trips.driverId`
+nem `trips.status`. Em `multi-vehicle-suggestion.use-case.ts` (`accept`), quando `findComposedTrip`
+achava uma viagem, `group.vehicleId`/`group.driverId` eram descartados em silêncio — a viagem
+reaproveitada podia ser de outro veículo, ou já despachada.
+
+Cenário real: aceite cria a viagem do veículo A com as notas {1,2,3}; falha no veículo B; a frota
+muda e a nova sugestão agrupa {1,2,3} no veículo C; o reaceite achava a viagem de A (mesmo conjunto
+de notas) e pendurava a carga de C nela — eixo, multiplicador de pedágio e baseline de combustível
+do caminhão errado alimentando congelamento e valoração. Para viagem já despachada, as notas seguem
+vivas e ela seria devolvida — o congelamento seguinte seria descartado pela guarda de status (T704)
+sem avisar, e o operador não teria pista do porquê.
+
+### Correção
+
+`apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`
+(`findLiveTripIdForDocuments`): a consulta ganhou `innerJoin` em `trips` e passou a exigir
+`trips.vehicleId = input.vehicleId` e `trips.status in TRIP_STATUSES_BEFORE_DISPATCH` (a mesma
+lista que `checkTripAcceptsLinkage`/T704 já usam como "ainda é rascunho"). Quando `input.driverId`
+não é nulo, uma segunda leitura em `trip_drivers` confirma que o motorista compõe a tripulação
+daquela viagem — só então o id volta; senão, `null`, como qualquer outro descasamento.
+
+A assinatura do método ganhou `vehicleId: string` e `driverId: string | null`, obrigatórios. Isso
+se propagou por toda a cadeia que carrega a "pergunta antes de criar" da T708:
+
+- `apps/api-transportada/src/trips/application/trip.port.ts` — `TripRepositoryPort.
+findLiveTripIdForDocuments`.
+- `apps/api-transportada/src/routing/application/multi-vehicle-suggestion.use-case.ts` —
+  `TripComposer.findComposedTrip` ganhou `vehicleId`/`driverId`; o `accept` agora passa
+  `group.vehicleId`/`group.driverId` em vez de descartá-los.
+- `apps/api-transportada/src/routing/infrastructure/trip-composer.adapter.ts` —
+  `TripComposerDependencies.findLiveTripIdForDocuments` e `findComposedTrip` repassam os dois campos.
+- `apps/api-transportada/src/main.ts` e o _wiring_ de teste de integração: já encaminhavam o
+  `input` inteiro para o repositório, então continuam corretos sem alteração de código.
+
+Nenhuma migration: `trips.vehicle_id`, `trips.status` e `trip_drivers` já existiam.
+
+### Testes novos
+
+`test/integration/multi-vehicle-suggestion.integration.ts`, novo describe `findLiveTripIdForDocuments
+filtra por veículo e status (spec 153 T801)`, contra Postgres (é o `join`/filtro que está sob prova,
+não o contrato de aplicação):
+
+- `'mesmo conjunto de notas em veículo diferente não reaproveita'` — cria a viagem no primeiro
+  veículo, vincula as três notas, confirma que o **mesmo** veículo reaproveita (T708 sem regressão)
+  e que o **segundo** veículo, com o mesmo conjunto de notas, recebe `null`.
+- `'viagem já despachada não é reaproveitada'` — mesma composição, `UPDATE trips SET status =
+'dispatched'` direto no banco (simula despacho concorrente), e `findLiveTripIdForDocuments`
+  devolve `null`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+1 arquivo fora do padrão: apps/frontend-transportada/src/modules/nfe-workspace/hooks/
+useNfeDocumentTable.hook.ts — modificado por outra sessão trabalhando em paralelo em
+apps/frontend-transportada (fora do escopo desta task; `git status` confirma que não foi tocado
+aqui). `bunx prettier --check apps/api-transportada` isolado: "All matched files use Prettier code
+style!".
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6275 pass / 23 skip / 0 fail — não varre `test/integration/*.integration.ts` (mesmo achado da T709b).
+
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts --timeout 120000
+9 pass / 0 fail (7 preexistentes + 2 novos da T801).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts \
+  ./test/integration/me-trip.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts \
+  ./test/integration/trip-cargo-layout-read.integration.ts ./test/integration/trip-cargo-preview-layout.integration.ts \
+  ./test/integration/trip-detail-query-count.integration.ts ./test/integration/trip-document-review.integration.ts \
+  ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/trip-fiscal-readiness.integration.ts \
+  ./test/integration/trip-lifecycle.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+74 pass / 0 fail — todo o raio de alcance de `drizzle-trip.repository.ts` sem regressão.
+```
+
+### O que não fez
+
+Não tocou `apps/frontend-transportada` (fora do escopo desta sessão — outra sessão mexe nela em
+paralelo). Não mudou o comportamento de `checkTripAcceptsLinkage`/`TRIP_STATUSES_BEFORE_DISPATCH` —
+só passou a **usá-los** também aqui. Não criou migration.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

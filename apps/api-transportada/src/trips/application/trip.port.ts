@@ -356,10 +356,17 @@ export type TripRepositoryPort = {
    * é o sinal de que uma composição anterior deste mesmo aceite (interrompida por uma falha em
    * outro veículo) já criou esta viagem. `null` em qualquer outro caso, inclusive vínculo parcial:
    * arriscar reaproveitar uma viagem incompleta é pior do que criar uma nova.
+   *
+   * Spec 153 T801 (N1): o conjunto de notas sozinho não basta — só reaproveita a viagem que a
+   * composição anterior criou para **este** veículo (e este motorista, quando informado), e só
+   * enquanto ela ainda não foi despachada. Sem isso, uma frota que muda entre tentativas pendura a
+   * carga no caminhão errado, ou numa viagem já na rua.
    */
   findLiveTripIdForDocuments(input: {
     readonly companyId: string
+    readonly driverId: string | null
     readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
   }): Promise<string | null>
   findVehicle(input: {
     readonly companyId: string

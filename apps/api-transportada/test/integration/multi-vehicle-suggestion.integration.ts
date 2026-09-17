@@ -298,6 +298,97 @@ describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
   })
 })
 
+/**
+ * Spec 153 T801 (N1): o conjunto de notas vivas sozinho não identifica a composição anterior — a
+ * frota pode mudar entre tentativas, e a viagem pode já ter sido despachada. Contra Postgres porque
+ * é o `join`/filtro em `trips` que está sob teste, não o contrato de aplicação.
+ */
+describe('findLiveTripIdForDocuments filtra por veículo e status (spec 153 T801)', () => {
+  testWithPostgres('mesmo conjunto de notas em veículo diferente não reaproveita', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const tripUseCase = createTripUseCase({
+        locations: { purgeByTrip: async () => {} },
+        repository: tripRepository,
+      })
+      const firstVehicleId = world.vehicles[0]?.vehicleId ?? ''
+      const secondVehicleId = world.vehicles[1]?.vehicleId ?? ''
+
+      const created = await tripUseCase.create({
+        context: world.context,
+        driverIds: [],
+        vehicleId: firstVehicleId,
+      })
+      for (const nfeDocumentId of world.documentIds) {
+        await tripUseCase.linkDocument({
+          context: world.context,
+          freightCalculationId: null,
+          nfeDocumentId,
+          tripId: created.id,
+        })
+      }
+
+      /** T708 não regride: o mesmo veículo continua reaproveitando a viagem. */
+      const reusedSameVehicle = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId: firstVehicleId,
+      })
+      expect(reusedSameVehicle).toBe(created.id)
+
+      /** A frota mudou entre tentativas: o mesmo conjunto de notas, veículo diferente, não reaproveita. */
+      const reusedOtherVehicle = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId: secondVehicleId,
+      })
+      expect(reusedOtherVehicle).toBeNull()
+    })
+  })
+
+  testWithPostgres('viagem já despachada não é reaproveitada', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const tripUseCase = createTripUseCase({
+        locations: { purgeByTrip: async () => {} },
+        repository: tripRepository,
+      })
+      const vehicleId = world.vehicles[0]?.vehicleId ?? ''
+
+      const created = await tripUseCase.create({
+        context: world.context,
+        driverIds: [],
+        vehicleId,
+      })
+      for (const nfeDocumentId of world.documentIds) {
+        await tripUseCase.linkDocument({
+          context: world.context,
+          freightCalculationId: null,
+          nfeDocumentId,
+          tripId: created.id,
+        })
+      }
+
+      await database.db
+        .update(trips)
+        .set({ status: 'dispatched' })
+        .where(and(eq(trips.companyId, world.companyId), eq(trips.id, created.id)))
+
+      const reused = await tripRepository.findLiveTripIdForDocuments({
+        companyId: world.companyId,
+        driverId: null,
+        nfeDocumentIds: world.documentIds,
+        vehicleId,
+      })
+      expect(reused).toBeNull()
+    })
+  })
+})
+
 async function countTrips(database: TestDatabase, companyId: string): Promise<number> {
   const rows = await database.db
     .select({ id: trips.id })

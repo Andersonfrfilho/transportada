@@ -58,7 +58,10 @@ export type TripComposer = Readonly<{
    */
   findComposedTrip: (input: {
     readonly context: MultiVehicleScope
+    /** Spec 153 T801 (N1): só reaproveita a viagem que a composição anterior criou para ESTE par. */
+    readonly driverId: string | null
     readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
   }) => Promise<{ readonly tripId: string } | null>
   /**
    * Spec 107 D1: devolve `false` quando a nota **já está viva em outra viagem**, em vez de lançar.
@@ -273,7 +276,9 @@ export function createMultiVehicleSuggestionUseCase(
               ? null
               : await dependencies.trips.findComposedTrip({
                   context,
+                  driverId: group.driverId,
                   nfeDocumentIds: group.documentIds,
+                  vehicleId: group.vehicleId,
                 })
           const { tripId } =
             composed ??

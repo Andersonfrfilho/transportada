@@ -136,7 +136,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
 
 A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 na mesma tela do C1).
 
-- [ ] T801 **N1** `findLiveTripIdForDocuments` reaproveita viagem por conjunto de notas, ignorando
+- [x] T801 **N1** `findLiveTripIdForDocuments` reaproveita viagem por conjunto de notas, ignorando
       veículo, motorista e status: o reaceite pode pendurar a carga na viagem do veículo errado, ou
       numa já despachada. Filtrar por `vehicleId` e por status antes do despacho.
 - [ ] T802 **N3** O compare-and-set por `updated_at` descarta congelamento legítimo em silêncio

@@ -51,6 +51,7 @@ import type {
 import {
   TRIP_ACTION,
   TRIP_DISPATCHED_STATUSES,
+  TRIP_STATUSES_BEFORE_DISPATCH,
   checkTripAcceptsLinkage,
   checkTripTransition,
   resolveCrewStatus,
@@ -496,27 +497,59 @@ export class DrizzleTripRepository implements TripRepositoryPort {
    * que ela nasceu numa composição anterior do mesmo aceite — o aceite reaproveita em vez de criar
    * outra vazia. Vínculo parcial (algumas notas em uma viagem, outras em outra ou soltas) devolve
    * `null`: reaproveitar uma composição incompleta é pior do que recomeçar.
+   *
+   * Spec 153 T801 (N1): o conjunto de notas por si só não identifica a composição — duas viagens
+   * diferentes podem ter passado pelo mesmo conjunto se a frota mudou entre tentativas. O `join` em
+   * `trips` exige o **mesmo veículo** (e o mesmo motorista, quando a composição atual tem um) e uma
+   * viagem que ainda não foi despachada: reaproveitar a viagem do veículo/motorista errado, ou uma
+   * já na rua, pendura frete, eixo e baseline de combustível de quem não vai carregar a nota.
    */
   public async findLiveTripIdForDocuments(input: {
     readonly companyId: string
+    readonly driverId: string | null
     readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
   }): Promise<string | null> {
     if (input.nfeDocumentIds.length === 0) return null
 
     const live = await this.database
       .select({ nfeDocumentId: tripDocuments.nfeDocumentId, tripId: tripDocuments.tripId })
       .from(tripDocuments)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
       .where(
         and(
           eq(tripDocuments.companyId, input.companyId),
           inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
           isNull(tripDocuments.releasedAt),
+          eq(trips.vehicleId, input.vehicleId),
+          inArray(trips.status, [...TRIP_STATUSES_BEFORE_DISPATCH]),
         ),
       )
     if (live.length !== input.nfeDocumentIds.length) return null
 
     const tripIds = new Set(live.map((row) => row.tripId))
-    return tripIds.size === 1 ? [...tripIds][0]! : null
+    if (tripIds.size !== 1) return null
+    const tripId = [...tripIds][0]!
+
+    if (input.driverId !== null) {
+      const [driverRow] = await this.database
+        .select({ id: tripDrivers.id })
+        .from(tripDrivers)
+        .where(
+          and(
+            eq(tripDrivers.companyId, input.companyId),
+            eq(tripDrivers.tripId, tripId),
+            eq(tripDrivers.driverId, input.driverId),
+          ),
+        )
+        .limit(1)
+      if (driverRow === undefined) return null
+    }
+
+    return tripId
   }
 
   public async findVehicle(input: {
