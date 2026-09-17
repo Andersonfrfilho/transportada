@@ -14,10 +14,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
 import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
-import {
-  PackageBoxReplicateDialog,
-  type ReplicateDimensions,
-} from './PackageBoxReplicateDialog.component'
+import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
 import {
   PACKAGE_BOX_STATUS_FILTERS,
   type PackageBox,
@@ -31,6 +28,10 @@ import {
 } from '../shared/packageBoxMeasurementLabel.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
+import {
+  resolveReplicateOffer,
+  type ReplicateOffer,
+} from '../shared/packageBoxReplicateOffer.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurementPanelProps = Readonly<{
@@ -41,16 +42,29 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   loading: boolean
   /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
   matching: boolean
-  onMeasure: (input: PackageBoxMeasurementInput) => void
+  /**
+   * T14 (revisão final, ALTO-2): `onSuccess` é por chamada, nunca um efeito que reage ao estado
+   * global da mutação — sem isso, uma gravação que falha ou uma segunda caixa gravada no meio do
+   * caminho não tinham como saber a diferença entre "esta chamada" e "a última chamada".
+   */
+  onMeasure: (input: PackageBoxMeasurementInput, onSuccess: () => void) => void
   /** M-a: zera o desfecho da gravação anterior — o fluxo abre sem a recusa da caixa passada. */
   onResetSaveError: () => void
+  /** T14 (revisão final, ALTO-2): zera a recusa e o estado da réplica anterior ao abrir/fechar. */
+  onResetReplicate: () => void
   /** T14 item A1 (4ª revisão): refaz a consulta que falhou, sem fechar o fluxo nem perder a captura. */
   onRetryLookup: () => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
-  /** Spec 155 (G004, D5): quem grava a réplica confirmada pelo diálogo. */
-  onReplicate: (input: Readonly<{ boxId: string; targetIds: readonly string[] }>) => void
+  /**
+   * Spec 155 (G004, D5): quem grava a réplica confirmada pelo diálogo. `onSuccess` fecha o diálogo
+   * desta chamada — nunca um efeito que reage ao `replicateSaving` global (T14 ALTO-2/MÉDIO-4).
+   */
+  onReplicate: (
+    input: Readonly<{ boxId: string; targetIds: readonly string[] }>,
+    onSuccess: () => void,
+  ) => void
   queue: PackageBoxQueue | null
   /** A1: o código da recusa do último `PUT` de medida — `undefined` enquanto nada falhou. */
   saveErrorCode: string | undefined
@@ -117,6 +131,7 @@ export function PackageBoxMeasurementPanel({
   matching,
   onMeasure,
   onReplicate,
+  onResetReplicate,
   onResetSaveError,
   onRetryLookup,
   onScan,
@@ -178,51 +193,28 @@ export function PackageBoxMeasurementPanel({
   const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
 
   /**
-   * Spec 155 (D5, G010): a oferta de replicar só vira diálogo depois que o `PUT` confirma sucesso —
-   * nunca no clique de gravar. `pendingReplicateOfferRef` guarda a dimensão que acabou de ser
-   * digitada para a caixa que tem família pendente; o efeito abaixo consome a oferta quando
-   * `saveStatus` chega a `success` e a transforma no diálogo (G010, G011, D6, D11).
+   * Spec 155 (D5, G010), T14 (revisão final, ALTO-2/MÉDIO-4): a oferta de replicar abre no
+   * `onSuccess` **desta** gravação (amarrada à caixa/dimensões da própria chamada), nunca num
+   * efeito que reage a `saveStatus`/`replicateSaving` globais — um `PUT` que falha para outra caixa
+   * não tinha como sujar a oferta anterior, mas o efeito reagia ao estado da mutação inteira, não
+   * a "esta chamada terminou".
    */
-  const pendingReplicateOfferRef = useRef<
-    { boxId: string; dimensions: ReplicateDimensions } | undefined
-  >(undefined)
-  const [replicateDialog, setReplicateDialog] = useState<
-    { boxId: string; dimensions: ReplicateDimensions } | undefined
-  >(undefined)
-  const wasReplicatingRef = useRef(false)
+  const [replicateDialog, setReplicateDialog] = useState<ReplicateOffer | undefined>(undefined)
 
-  function offerReplicateIfEligible(
+  function openReplicateDialogIfEligible(
     box: PackageBox,
-    measurement: PackageBoxMeasurementInput,
+    dimensions: ReplicateOffer['dimensions'],
   ): void {
-    /** D9: o contador já veio pronto da API — >1 quer dizer que existe pendente além desta caixa. */
-    if (box.familyPendingCount <= 1) return
-    pendingReplicateOfferRef.current = {
-      boxId: box.id,
-      dimensions: {
-        heightMm: measurement.heightMm,
-        lengthMm: measurement.lengthMm,
-        unitsPerBox: measurement.unitsPerBox,
-        widthMm: measurement.widthMm,
-      },
-    }
+    const offer = resolveReplicateOffer({ box, dimensions })
+    if (offer === undefined) return
+    onResetReplicate()
+    setReplicateDialog(offer)
   }
 
-  useEffect(() => {
-    if (saveStatus !== 'success') return
-    const offer = pendingReplicateOfferRef.current
-    if (offer === undefined) return
-    pendingReplicateOfferRef.current = undefined
-    setReplicateDialog(offer)
-  }, [saveStatus])
-
-  /** Fecha o diálogo sozinho quando a réplica termina sem erro — sem exigir um segundo clique. */
-  useEffect(() => {
-    if (wasReplicatingRef.current && !replicateSaving && replicateErrorCode === undefined) {
-      setReplicateDialog(undefined)
-    }
-    wasReplicatingRef.current = replicateSaving
-  }, [replicateSaving, replicateErrorCode])
+  function closeReplicateDialog(): void {
+    setReplicateDialog(undefined)
+    onResetReplicate()
+  }
 
   useEffect(() => {
     return () => window.clearTimeout(closeScanTimer.current)
@@ -440,8 +432,9 @@ export function PackageBoxMeasurementPanel({
                         key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
                         onCancel={() => setEditingId(null)}
                         onMeasure={(measurement) => {
-                          offerReplicateIfEligible(box, { ...measurement, id: box.id })
-                          onMeasure({ ...measurement, id: box.id })
+                          onMeasure({ ...measurement, id: box.id }, () =>
+                            openReplicateDialogIfEligible(box, measurement),
+                          )
                           setEditingId(null)
                           if (cameFromScan) setIsScannerOpen(true)
                           if (cameFromKeyboardScan) {
@@ -487,8 +480,9 @@ export function PackageBoxMeasurementPanel({
         onLookup={(text) => onScan(text)}
         onSave={(id, submission) => {
           const box = items.find((item) => item.id === id)
-          if (box !== undefined) offerReplicateIfEligible(box, { ...submission, id })
-          onMeasure({ ...submission, id })
+          onMeasure({ ...submission, id }, () => {
+            if (box !== undefined) openReplicateDialogIfEligible(box, submission)
+          })
         }}
         preselectedBox={cameraFlowBox}
         saveErrorCode={saveErrorCode}
@@ -502,8 +496,10 @@ export function PackageBoxMeasurementPanel({
           boxId={replicateDialog.boxId}
           dimensions={replicateDialog.dimensions}
           errorCode={replicateErrorCode}
-          onClose={() => setReplicateDialog(undefined)}
-          onConfirm={(targetIds) => onReplicate({ boxId: replicateDialog.boxId, targetIds })}
+          onClose={closeReplicateDialog}
+          onConfirm={(targetIds) =>
+            onReplicate({ boxId: replicateDialog.boxId, targetIds }, closeReplicateDialog)
+          }
           saving={replicateSaving}
         />
       )}

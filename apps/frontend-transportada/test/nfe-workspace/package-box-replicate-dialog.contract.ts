@@ -94,7 +94,13 @@ describe('diálogo de replicar depois de salvar (spec 155 D5, D6, D11, G010, G01
     expect(cancelButton).toContain('onClick={onClose}')
   })
 
-  it('o painel abre o diálogo só depois de salvar, nunca antes (G010)', async () => {
+  /**
+   * T14 (revisão final, ALTO-2/MÉDIO-4): a oferta e o fechamento viraram `onSuccess` por chamada
+   * (`resolveReplicateOffer` no painel), não mais efeitos que reagiam a `saveStatus`/
+   * `replicateSaving` globais — um `PUT` que falhava para outra caixa não tinha como sujar a oferta
+   * pendente, mas o efeito antigo reagia ao estado inteiro da mutação, não a "esta chamada terminou".
+   */
+  it('o painel abre o diálogo no onSuccess da gravação, nunca por um efeito de saveStatus (G010)', async () => {
     const panel = await Bun.file(
       new URL(
         '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
@@ -103,8 +109,23 @@ describe('diálogo de replicar depois de salvar (spec 155 D5, D6, D11, G010, G01
     ).text()
 
     expect(panel).toContain('PackageBoxReplicateDialog')
-    expect(panel).toContain('familyPendingCount <= 1')
-    /** A oferta só vira diálogo quando o `PUT` confirma sucesso — nunca no clique de gravar. */
-    expect(panel).toContain("saveStatus !== 'success'")
+    expect(panel).toContain('resolveReplicateOffer')
+    expect(panel).not.toContain("saveStatus !== 'success'")
+    expect(panel).not.toContain('wasReplicatingRef')
+    expect(panel).not.toContain('pendingReplicateOfferRef')
+  })
+
+  it('fecha o diálogo no onSuccess da própria réplica, nunca por um efeito de replicateSaving', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('closeReplicateDialog')
+    expect(panel).toContain(
+      'onReplicate({ boxId: replicateDialog.boxId, targetIds }, closeReplicateDialog)',
+    )
   })
 })

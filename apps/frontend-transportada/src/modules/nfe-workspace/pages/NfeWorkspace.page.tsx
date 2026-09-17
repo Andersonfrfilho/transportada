@@ -717,8 +717,13 @@ export function NfeWorkspacePage() {
                       failed={packageBoxes.failed}
                       loading={packageBoxes.isLoading}
                       matching={packageBoxes.isMatching}
-                      onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
-                      onReplicate={(input) => packageBoxes.replicate.mutate(input)}
+                      onMeasure={(measurement, onSuccess) =>
+                        packageBoxes.measure.mutate(measurement, { onSuccess })
+                      }
+                      onReplicate={(input, onSuccess) =>
+                        packageBoxes.replicate.mutate(input, { onSuccess })
+                      }
+                      onResetReplicate={packageBoxes.resetReplicate}
                       onResetSaveError={packageBoxes.resetMeasure}
                       onRetryLookup={packageBoxes.retryLookup}
                       onScan={packageBoxes.setScanned}

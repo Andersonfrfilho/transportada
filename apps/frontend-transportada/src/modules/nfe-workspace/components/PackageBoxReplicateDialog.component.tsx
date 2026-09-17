@@ -11,18 +11,14 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { usePackageBoxSiblings } from '../hooks/usePackageBoxQueue.hook'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
+import type { ReplicateDimensions } from '../shared/packageBoxReplicateOffer.service'
 import {
   initialReplicateSelection,
   resolveReplicateTargets,
 } from '../shared/packageBoxReplicateSelection.service'
 import styles from '../styles/packageBoxes.module.css'
 
-export type ReplicateDimensions = Readonly<{
-  heightMm: number
-  lengthMm: number
-  unitsPerBox: number
-  widthMm: number
-}>
+export type { ReplicateDimensions } from '../shared/packageBoxReplicateOffer.service'
 
 type PackageBoxReplicateDialogProps = Readonly<{
   boxId: string
@@ -47,7 +43,15 @@ export function PackageBoxReplicateDialog({
   saving,
 }: PackageBoxReplicateDialogProps) {
   const { t } = useTranslation('nfeWorkspace')
-  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
+  /**
+   * T14 (revisão final, ALTO-2): fechar durante a gravação abriria espaço para um sucesso tardio
+   * desta réplica atingir outro diálogo já aberto — o `onSuccess` por chamada (painel) já cobre a
+   * maioria dos casos, mas aqui a tela nem deixa o conferente tentar trocar de caixa no meio.
+   */
+  const { dialogRef, handleKeyDown } = useModalDialog({
+    isOpen: true,
+    onClose: saving ? () => undefined : onClose,
+  })
   /** D9: sob demanda — as irmãs só existem para este diálogo, nunca junto da fila de 50 linhas. */
   const { loading, siblings } = usePackageBoxSiblings({ boxId })
   const targets = siblings === null ? [] : resolveReplicateTargets(siblings.family)
@@ -145,7 +149,7 @@ export function PackageBoxReplicateDialog({
             <Icon name="check" />
             {t('packageBoxes.replicateDialog.confirm', { count: selected.size })}
           </Button>
-          <Button onClick={onClose} size="sm" type="button" variant="ghost">
+          <Button disabled={saving} onClick={onClose} size="sm" type="button" variant="ghost">
             {t('packageBoxes.replicateDialog.cancel')}
           </Button>
         </div>

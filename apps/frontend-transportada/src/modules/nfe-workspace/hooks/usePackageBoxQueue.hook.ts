@@ -162,6 +162,14 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
       measure.reset()
       setMeasureErrorCode(undefined)
     },
+    /**
+     * T14 (revisão final, ALTO-2): o painel chama isto ao abrir e ao fechar o diálogo de replicar —
+     * sem isso, a recusa (ou o `isPending`) da réplica anterior sobrevivia para o próximo diálogo.
+     */
+    resetReplicate: () => {
+      replicate.reset()
+      setReplicateErrorCode(undefined)
+    },
     /** Refaz a consulta da etiqueta atual — a saída para a falha que não muda a chave. */
     retryLookup,
     scanned,
