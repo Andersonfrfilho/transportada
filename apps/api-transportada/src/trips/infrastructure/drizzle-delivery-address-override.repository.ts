@@ -27,6 +27,7 @@ import {
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import { resolveNfeDocumentId } from './nfe-destination-address.support.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
 type OverrideRecord = typeof deliveryAddressOverrides.$inferSelect
@@ -193,6 +194,15 @@ export class DrizzleDeliveryAddressOverrideRepository
             eq(tripDocuments.id, input.tripDocumentId),
           ),
         )
+
+      /**
+       * T704 M1/M2: a coordenada de entrega mudou — a rota gravada passa pelo endereço antigo.
+       * Ela morre nesta transação; o recálculo pela mais barata roda depois, best-effort.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
 
       const [created] = await transaction
         .insert(deliveryAddressOverrides)

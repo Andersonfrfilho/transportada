@@ -30,8 +30,12 @@ const STOPS: readonly RouteGeometryPoint[] = [
 const ESTRADA = STOPS
 const TRECHOS = [{ distanceMetres: 89_400, durationSeconds: 4_200 }] as const
 
+/** T704 M3: a revisão da viagem lida no disparo — o compare-and-set da escrita do congelamento. */
+const REVISION = '2026-09-17 12:00:00.123456+00'
+
 const VEHICLE: FreezeTripPlannedRouteVehicleContext = {
   axles: { count: 2, source: 'declared' },
+  revision: REVISION,
   /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
   multiplier: { denominator: 1, numerator: 2 },
   /** Sem consumo/preço declarados — o congelador não sabe comparar custo (H1/`NO_FUEL_BASELINE`). */
@@ -109,7 +113,8 @@ const TOLL_BOOTHS_BY_NODE = {
 }
 
 function createFakeRepository(input: {
-  readonly stops?: readonly RouteGeometryPoint[]
+  /** `null` é T704 M4: alguma parada sem coordenada — nada a traçar, nunca um subconjunto. */
+  readonly stops?: readonly RouteGeometryPoint[] | null
   readonly vehicle: FreezeTripPlannedRouteVehicleContext | null
 }): FreezeTripPlannedRoutePort & { readonly writeCalls: readonly WritePlannedRouteInput[] } {
   const writeCalls: WritePlannedRouteInput[] = []
@@ -119,7 +124,7 @@ function createFakeRepository(input: {
       return writeCalls
     },
     async readStopCoordinates() {
-      return input.stops ?? STOPS
+      return input.stops === undefined ? STOPS : input.stops
     },
     async readVehicleContext() {
       return input.vehicle
@@ -258,7 +263,43 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     })
 
     expect(repository.writeCalls).toEqual([
-      { companyId: COMPANY_ID, route: null, toll: null, tripId: TRIP_ID },
+      {
+        companyId: COMPANY_ID,
+        expectedRevision: REVISION,
+        route: null,
+        toll: null,
+        tripId: TRIP_ID,
+      },
+    ])
+  })
+
+  /**
+   * T704 M4 (caso extremo da spec): parada sem coordenada é **sem rota**, nunca rota parcial. O
+   * subconjunto geocodificado gravaria uma distância menor do que a viagem de verdade, e essa
+   * distância alimenta combustível e valoração — erro que não se anuncia.
+   */
+  test('M4: alguma parada sem coordenada grava rota e pedágio null — nunca o subconjunto', async () => {
+    const repository = createFakeRepository({ stops: null, vehicle: VEHICLE })
+
+    await freezeTripPlannedRoute({
+      companyId: COMPANY_ID,
+      geometry: createGeometryPort([1, 2, 3]),
+      repository,
+      tollBooths: {
+        readByNodeIds: async () => TRES_PRACAS,
+        readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(repository.writeCalls).toEqual([
+      {
+        companyId: COMPANY_ID,
+        expectedRevision: REVISION,
+        route: null,
+        toll: null,
+        tripId: TRIP_ID,
+      },
     ])
     expect(result).toEqual({ routeFrozen: false })
   })

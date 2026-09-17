@@ -55,7 +55,6 @@ import {
   checkTripTransition,
   resolveCrewStatus,
 } from '../domain/trip-state.policy.js'
-import { DrizzleTripPlannedRouteRepository } from './drizzle-trip-planned-route.repository.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
@@ -108,6 +107,7 @@ import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Spec 156 T8c: encerrar não é em nome de ninguém — o alvo da auditoria é a própria viagem. */
@@ -376,12 +376,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
        * antigo, e o operador replaneja pelo caminho da 178. Trocar só o motorista não mexe em nada
        * disso (097 D1/D3/D4), e trocar pelo mesmo veículo é idempotente.
        *
-       * ⚠️ `clearPlannedRoute` recebe **esta** transação, não abre outra: a troca e a limpeza são uma
-       * escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio velho.
-       * ⚠️ O ETA fica de fora por decisão (D3-bis) — ver o comentário de `clearPlannedRoute`.
+       * ⚠️ `clearPlannedRoute` (spec 153 T704 M1) recebe **esta** transação, não abre outra: a troca e
+       * a limpeza são uma escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio
+       * velho. Não toca em ETA (`eta_departure_at`, `estimated_arrival_frozen_at`,
+       * `trip_stops.estimated_arrival_at`), por decisão explícita da D3-bis: a hora que vale é a
+       * ancorada na partida real do motorista, e zerar a âncora desligaria o deslocamento do despacho
+       * em silêncio.
        */
       if (vehicleChanged) {
-        await DrizzleTripPlannedRouteRepository.clearPlannedRoute(transaction, {
+        await clearPlannedRoute(transaction, {
           companyId: input.companyId,
           tripId: input.tripId,
         })
@@ -556,6 +559,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         linked = mapTripDocument(withStop ?? record)
       }
 
+      /**
+       * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
+       * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
+       * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+
       /** Spec 148 D12: a nota que estava na fila de revisão entrou numa viagem — a entrada fecha. */
       await closePendingReviewsOnLink(transaction, {
         companyId: input.companyId,
@@ -659,6 +672,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
       if (created.length > 0) {
+        /**
+         * T704 M1: o maço entrou e o conjunto de paradas mudou — a rota gravada descreve a viagem
+         * de antes. Morre nesta transação; o recongelamento roda depois do commit, best-effort.
+         * Lote que não vinculou nada não mexeu em parada nenhuma, e a rota boa continua valendo.
+         */
+        await clearPlannedRoute(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
         await closePendingReviewsOnLink(transaction, {
           companyId: input.companyId,
           tripId: input.tripId,
@@ -837,6 +859,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
       }
 
+      /**
+       * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
+       * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
+       * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,

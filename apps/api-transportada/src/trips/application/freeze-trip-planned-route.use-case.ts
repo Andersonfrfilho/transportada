@@ -47,6 +47,17 @@ export type FreezeTripPlannedRouteVehicleContext = {
    * pricePerLiter: null }` — nunca um consumo inventado.
    */
   readonly fuelBaseline: RouteOptionVehicle
+  /**
+   * Spec 153 T704 (M3): a revisão da viagem no instante em que o congelamento foi disparado —
+   * `trips.updated_at`. A escrita final só acontece se ela ainda for essa, de forma que um
+   * congelamento nascido de um conjunto de paradas já obsoleto não escreva nada em vez de
+   * sobrescrever a rota que o reordenamento seguinte acabou de calcular ("last write wins").
+   *
+   * ⚠️ É **texto**, não `Date`: `timestamptz` guarda microssegundo e o `Date` do JavaScript só vai
+   * até o milissegundo. Comparar o valor lido de volta como `Date` nunca reencontrava a linha, e o
+   * congelamento deixava de escrever sempre — a guarda vira apagador silencioso da rota inteira.
+   */
+  readonly revision: string
 }
 
 /**
@@ -68,6 +79,8 @@ export type FrozenPlannedRoute = Readonly<{
 
 export type WritePlannedRouteInput = {
   readonly companyId: string
+  /** T704 M3: a revisão lida no disparo — compare-and-set, nunca escrita incondicional. */
+  readonly expectedRevision: string
   /** `null` é D5: a estrada não veio, e nada se afirma sobre a rota — nunca zero. */
   readonly route: FrozenPlannedRoute | null
   readonly toll: null | TollRouteCost
@@ -80,10 +93,11 @@ export type FreezeTripPlannedRoutePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<FreezeTripPlannedRouteVehicleContext | null>
+  /** `null` é T704 M4: alguma parada sem coordenada — sem rota, nunca a rota das outras. */
   readStopCoordinates(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<readonly RouteGeometryPoint[]>
+  }): Promise<readonly RouteGeometryPoint[] | null>
   /**
    * Uma escrita só (D4): rota, métricas e pedágio, com um `frozen_at` compartilhado por grupo —
    * nunca duas chamadas que poderiam deixar a viagem com metade nova e metade velha.
@@ -115,6 +129,21 @@ export async function freezeTripPlannedRoute(
   if (vehicle === null) return { routeFrozen: false }
 
   const stops = await input.repository.readStopCoordinates(input)
+  /**
+   * T704 M4 (caso extremo da spec): parada sem coordenada é o mesmo desfecho de estrada
+   * indisponível — rota e pedágio nulos juntos (D5). Traçar com o subconjunto geocodificado
+   * gravaria uma distância parcial, e ela alimenta combustível e valoração sem se anunciar.
+   */
+  if (stops === null) {
+    await input.repository.writePlannedRoute({
+      companyId: input.companyId,
+      expectedRevision: vehicle.revision,
+      route: null,
+      toll: null,
+      tripId: input.tripId,
+    })
+    return
+  }
 
   const road = await readRouteGeometry({
     axles: vehicle.axles,
@@ -135,6 +164,7 @@ export async function freezeTripPlannedRoute(
 
   await input.repository.writePlannedRoute({
     companyId: input.companyId,
+    expectedRevision: vehicle.revision,
     route,
     toll: toFrozenToll(road.toll),
     tripId: input.tripId,

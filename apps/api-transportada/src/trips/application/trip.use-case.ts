@@ -16,6 +16,10 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
@@ -110,10 +114,12 @@ export function createTripUseCase(dependencies: {
     }): Promise<ReadonlyMap<string, TripAmounts>>
   }
   readonly repository: TripRepositoryPort
+  /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
+  readonly logger?: TripRouteFreezeLogger
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
 }): TripUseCase {
-  const { repository, routeFreezer } = dependencies
+  const { logger, repository, routeFreezer } = dependencies
 
   return {
     async close({ context, correlationId, ipAddress, reason, tripId }) {
@@ -198,7 +204,7 @@ export function createTripUseCase(dependencies: {
         nfeDocumentId,
         tripId,
       })
-      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
+      await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return linked
     },
 
@@ -237,7 +243,7 @@ export function createTripUseCase(dependencies: {
       const released = await repository.releaseDocument({ companyId, documentId, tripId })
       // Corrida rara: a nota foi entregue/liberada entre a leitura acima e este update.
       if (released === null) throw new TripDocumentAlreadyDeliveredError()
-      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
+      await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return released
     },
 
@@ -296,20 +302,21 @@ export function createTripUseCase(dependencies: {
 
 /**
  * D6/D5: vincular ou desvincular muda o conjunto de paradas — a rota gravada descreve uma
- * sequência que não existe mais. O congelamento roda **depois** da escrita principal e nunca a
- * derruba, mesmo `catch` de fallback gracioso do `plan-trip-route`.
+ * sequência que não existe mais, e a transação do vínculo já a apagou (T704 M1). O congelamento
+ * roda **depois** da escrita principal e nunca a derruba.
  */
 async function freezeRouteGracefully(input: {
   readonly companyId: string
+  readonly logger: TripRouteFreezeLogger | undefined
   readonly routeFreezer: PlanTripRouteTollFreezer | undefined
   readonly tripId: string
 }): Promise<void> {
-  if (input.routeFreezer === undefined) return
-  try {
-    await input.routeFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
-  } catch {
-    /* o vínculo já está gravado; o pedágio congela no próximo replanejamento */
-  }
+  await freezeTripRouteGracefully({
+    companyId: input.companyId,
+    freezer: input.routeFreezer,
+    ...(input.logger === undefined ? {} : { logger: input.logger }),
+    tripId: input.tripId,
+  })
 }
 
 async function findTripOrThrow(input: {

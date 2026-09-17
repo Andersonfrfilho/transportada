@@ -2,6 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
@@ -45,6 +49,8 @@ export type LinkTripDocumentsBatchUseCase = {
 }
 
 export function createLinkTripDocumentsBatchUseCase(dependencies: {
+  /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
+  readonly logger?: TripRouteFreezeLogger
   readonly repository: LinkTripDocumentsBatchPort
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
@@ -65,18 +71,16 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
 
       /**
        * D6/D5: nenhuma nota vinculada não muda o conjunto de paradas — recalcular seria trabalho à
-       * toa. O congelamento roda **depois** da escrita principal e nunca a derruba, mesmo `catch` de
-       * fallback gracioso do `plan-trip-route`.
+       * toa, e a rota gravada continua descrevendo a viagem. Vinculou alguma, a transação do lote
+       * já apagou a rota velha (T704 M1) e o congelamento roda depois, sem poder derrubá-la.
        */
-      if (dependencies.routeFreezer !== undefined && result.linked.length > 0) {
-        try {
-          await dependencies.routeFreezer.freeze({
-            companyId: input.context.companyId,
-            tripId: input.tripId,
-          })
-        } catch {
-          /* o lote já está gravado; o pedágio congela no próximo replanejamento */
-        }
+      if (result.linked.length > 0) {
+        await freezeTripRouteGracefully({
+          companyId: input.context.companyId,
+          freezer: dependencies.routeFreezer,
+          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+          tripId: input.tripId,
+        })
       }
 
       return result

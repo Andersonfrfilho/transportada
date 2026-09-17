@@ -3656,3 +3656,251 @@ para outra sessão em paralelo.
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T704 — M1–M4 + L7: a rota velha não sobrevive à mudança de parada ✅ 2026-09-17
+
+### M1 — a rota velha sobrevivia à mudança de parada
+
+O congelamento rodava **depois** do commit da escrita principal, dentro de um `catch` mudo, e nada
+limpava `planned_*` antes dele. A janela era transitória no caminho feliz e **permanente** em toda
+falha fora do roteirizador — catálogo de praças, barracão, veículo, um SIGTERM no meio: a viagem
+ficava com `frozen: true` sobre uma sequência de paradas que não existe mais, indistinguível de uma
+rota boa, e essa distância alimenta combustível e valoração.
+
+A limpeza passou a acontecer **na mesma transação** da escrita principal, num só lugar —
+`trip-planned-route-clear.support.ts`. As sete colunas caem juntas porque
+`trips_planned_route_check`/`trips_planned_toll_check` são tudo-ou-nada; campo solto faria o
+Postgres recusar a transação inteira. Pontos de chamada, todos dentro da transação que já existia:
+
+| Operação             | Arquivo                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| reorder de paradas   | `drizzle-trip-route.repository.ts` `reorderStops`                         |
+| link unitário        | `drizzle-trip.repository.ts` `linkDocument`                               |
+| link em lote         | `drizzle-trip.repository.ts` `linkDocumentsBatch` (só quando vinculou ≥1) |
+| release de nota      | `drizzle-trip.repository.ts` `releaseDocument`                            |
+| release (unplaced)   | `trip-document-review-release.support.ts` (só quando soltou ≥1)           |
+| move / swap da fila  | `drizzle-trip-document-review.repository.ts` (as duas viagens do move)    |
+| override de endereço | `drizzle-delivery-address-override.repository.ts` `applyOverride`         |
+
+O congelamento continua best-effort, fora da transação. Falhar agora deixa a viagem com rota
+**nula** — que é o estado correto de "rota não calculada" (D5), não a rota errada passando por boa.
+
+A limpeza não alcança viagem despachada: dali em diante o congelado é o roteiro que está na rua.
+
+### M2 — mudanças de parada que não recalculavam
+
+- `releaseUnplaced` (`DrizzleTripDocumentReviewRepository`): passou a disparar
+  `freezeRoutesGracefully` depois do commit, como `move`/`swap` já faziam.
+- `overrideDeliveryAddress`: ganhou `routeFreezer` opcional, injetado em `trip-lifecycle` a partir do
+  mesmo `tollFreezer` que as outras operações usam. Sobrescrever endereço move a coordenada da
+  parada — a rota gravada passa a descrever um endereço que ninguém vai visitar.
+
+### M3 — escrita do congelamento sem guarda (e o defeito que o Postgres revelou)
+
+O `UPDATE` filtrava só por `company_id` + `id`. Duas consequências: congelamento lento sobrescrevia
+a rota de uma viagem **já despachada**, e dois congelamentos concorrentes terminavam em "last write
+wins", podendo gravar a rota das paradas obsoletas.
+
+**Mecanismo escolhido: `trips.updated_at`, sem coluna nova e sem migration.** Ela já existe, já é
+tocada por toda escrita principal — inclusive pela limpeza do M1, que é exatamente o instante que
+invalida um congelamento em voo. `readVehicleContext` (já chamado no início do congelamento) passou
+a devolver essa revisão, e o `UPDATE` final a reconfere, somado a `status in
+(draft, route_planned, separating, loading)` (`TRIP_STATUSES_BEFORE_DISPATCH`, derivado de
+`checkTripAcceptsLinkage` — uma lista só, não uma cópia). Estado obsoleto afeta **0 linhas** em vez
+de sobrescrever. `planned_route_frozen_at` foi descartado como referência: é nulo na maior parte do
+tempo, e `null = null` não casa.
+
+⚠️ **A revisão trafega como texto, não como `Date`.** A primeira versão comparava `Date` e os dois
+testes de integração novos falharam: `timestamptz` guarda microssegundo e o `Date` do JavaScript
+para no milissegundo, então o valor lido de volta nunca reencontrava a linha — a guarda teria virado
+um apagador silencioso de **toda** rota congelada, em produção, sem erro nenhum. É o defeito que só
+Postgres de verdade mostra; os contratos com fake passavam.
+
+### M4 — rota parcial quando falta coordenada
+
+`listTripStopCoordinates` filtrava (`innerJoin` + `isNotNull`) a parada sem coordenada, e o
+resultado era uma rota **parcial** silenciosa, com distância menor do que a viagem de verdade. Virou
+`leftJoin` sem filtro: qualquer parada sem coordenada devolve `null`, e o congelamento grava
+`planned_*` nulo pelo mesmo caminho do "OSRM fora do ar" (D5). A prévia do mapa (`main.ts`,
+`readTripRouteGeometry`) segue a mesma regra — `?? []`, que `readRouteGeometry` já trata como
+estrada indisponível. Viagem sem parada nenhuma continua devolvendo lista vazia: é "nada a traçar",
+não "coordenada faltando".
+
+### L7 — catch mudo
+
+Os cinco `catch` do congelamento viraram um lugar só, `freeze-trip-route-gracefully.ts`, com
+`logger.warn(TRIP_ROUTE_FREEZE_FAILED_MESSAGE, { companyId, reason, tripId })` no formato de
+`occurrence-notifier.gateway.ts`/`suggest-delivery-charges.use-case.ts`. **Só identificadores** —
+coordenada, endereço, rótulo de parada e o motivo digitado pelo operador são dado pessoal de
+destinatário e não entram em log em nível nenhum (`security.md` §1); há contrato provando a ausência
+dos três no payload.
+
+### Contrato vermelho, antes de implementar
+
+```
+$ bun test ./test/trip-application.contract.test.ts ./test/trip-infrastructure.contract.test.ts
+error: Cannot find module '.../freeze-trip-route-gracefully.js'
+error: Cannot find module '.../trip-planned-route-clear.support.js'
+ 0 pass / 2 fail
+```
+
+Arquivos novos (declarados nos entrypoints `trip-application.contract.test.ts` e
+`trip-infrastructure.contract.test.ts` — a lista do `package.json` já os cobre pelos entrypoints):
+
+- `test/trip-application/planned-route-invalidation.contract.ts` (8 testes): reorder dispara o
+  congelamento; falha vira aviso com os ids e não derruba a operação (reorder, lote, planejamento);
+  M2 no override — dispara, falha vira aviso, e o aviso não carrega rótulo, CEP nem o nome de quem
+  pediu.
+- `test/trip-infrastructure/planned-route-invalidation.contract.ts` (7 testes): as sete colunas da
+  limpeza; guarda de status e recorte por empresa; `status in` e compare-and-set por `updated_at` no
+  `UPDATE` do congelamento (SQL renderizado com `PgDialect`); `null` com parada sem coordenada,
+  sequência inteira com todas geocodificadas, lista vazia sem parada.
+- `test/trip-application/freeze-trip-planned-route.contract.ts`: M4 no caso de uso — `null` de
+  `readStopCoordinates` grava rota e pedágio nulos juntos.
+- `test/integration/freeze-trip-planned-route.integration.ts`: revisão obsoleta não sobrescreve;
+  despachada fora de alcance; limpeza zera o grupo e o CHECK aceita, mas não toca em despachada.
+
+### Gates
+
+```
+$ bun run typecheck                                  (raiz)  0 erros
+$ bun run lint                                       (raiz)  0 erros
+$ bun run format:check                               (raiz)  limpo em apps/api-transportada e specs/
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+  6263 pass / 23 skip / 0 fail — 21927 expect() calls em 177 arquivos
+  (baseline antes da task: 6248 pass / 23 skip; +15 = 8 + 7 dos contratos novos; os 23 skips são
+  pré-existentes e nenhum está nos arquivos desta task)
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts
+  8 pass / 0 fail  (5 pré-existentes + 3 novos de M1/M3)
+$ bun --env-file=../../.env.test test ./test/integration/{trip-repository,trip-document-review,trip-lifecycle,me-trip}.integration.ts
+  28 pass / 0 fail — as transações que ganharam a limpeza, contra Postgres de verdade
+```
+
+Nenhuma migration: o M3 se resolveu com `updated_at`, que já existe. `make migration-test` não era
+necessário.
+
+`apps/frontend-transportada` ficou intocado (outra sessão trabalha ali em paralelo); as duas
+pendências de `format:check` na raiz são arquivos daquela sessão, fora desta task.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
+
+## T706 — M6: teste de comportamento do switch do detalhe (T405) ✅ 2026-09-17
+
+### O achado
+
+`test/trip/route-choice-detail.contract.ts` provava a regravação (`plan-route` leva o corpo certo)
+e a ausência de nova ida ao roteirizador **na mesma asserção**, mas chamando `client.planTripRoute`
+direto — sem nenhuma leitura viva envolvida, então a "prova" de não-refazer-a-busca era vácua. A
+garantia de verdade morava em dois testes de fonte: contar `readPointsRouteGeometry` no arquivo
+(deveria ser 1) e checar que o bloco de `queryKey: ` não contém `selectedIndex`/`criterion`. Nenhum
+dos dois pega o defeito real do RF13 — a `queryKey` sendo prefixada por `'trips'` (o mesmo prefixo
+que `invalidate()` de `useTripWorkspace.hook.ts` usa pós `plan-route`) passaria os dois testes de
+fonte de cabeça erguida, porque nenhum deles executa o `QueryClient`/`invalidateQueries` de verdade.
+
+### Extração: `createTripRouteChoiceQueryOptions`
+
+`TripRouteChoiceSwitch.component.tsx`: extraída a função pura `createTripRouteChoiceQueryOptions({
+client, enabled, points, vehicleId })`, que devolve `{ enabled, queryFn, queryKey, staleTime }` —
+mesmo molde de `createCompanyUserPictureQueryOptions` (`useCompanyUserPicture.hook.ts`), o
+precedente que `test/identity/user-picture.contract.ts` já usa com `QueryObserver` real. O
+componente passou a chamar `useQuery(createTripRouteChoiceQueryOptions({ client: getTripClient(),
+enabled: canSwitch && points.length >= 2, points, vehicleId: tollVehicleId }))` — mesmo
+comportamento de antes (mesma `queryKey`, `queryFn`, `staleTime`, `enabled`), só que agora testável
+fora de um componente montado. `client` recebe o `TripClient` inteiro (não um `Pick`, para não
+introduzir uma segunda ocorrência textual de `'readPointsRouteGeometry'` no arquivo-fonte, que
+quebraria o teste de fonte remanescente do T405 que conta essa string — achado durante o próprio
+experimento vermelho, ver abaixo).
+
+### Teste novo: `QueryObserver` real sobre a query real
+
+`test/trip/route-choice-detail.contract.ts`, novo describe `TripRouteChoiceSwitch: comportamento
+real da query — busca uma vez, sobrevive ao invalidate do plan-route (spec 153 T706/RF13/M6)`:
+
+- `createGeometryObserver`: monta um `QueryObserver<RouteGeometry>` real sobre
+  `createTripRouteChoiceQueryOptions(...)`, com um `client` fake que só conta chamadas a
+  `readPointsRouteGeometry`. Assina (`observer.subscribe`), espera um tick, lê a contagem — quem
+  decide se o `queryFn` dispara é o próprio observer do TanStack, não uma leitura de fonte.
+- Teste 1 (a garantia que faltava): busca uma vez (`requestCount() === 1`); em seguida chama
+  `queryClient.invalidateQueries` com as **chaves reais** que `invalidate()` de
+  `useTripWorkspace.hook.ts` dispara pós `plan-route` — `[TRIP_QUERY_KEY, companyId, tripId]` e
+  `[TRIP_QUERY_KEY]` (`TRIP_QUERY_KEY = 'trips'`, importado de `trip.constant.ts`, não
+  reinventado) — e afirma que a contagem continua `1`. Prova a metade que os testes de fonte nunca
+  provavam: o `invalidate()` de verdade não alcança a query de geometria porque o prefixo da chave
+  (`'trip-detail-route-choice'`) é outro.
+- Teste 2 (a outra metade, no mesmo cenário): lê `observer.getCurrentResult().data` — as opções que
+  a mesma busca trouxe —, monta a escolha com `resolveRouteChoiceFromIndex({ index: 1, ... })`
+  (exatamente o que `handleSelect` do componente faz ao trocar para "mais barata"), dispara
+  `client.planTripRoute({ routeChoice, tripId })` num client de regravação isolado e afirma o corpo
+  (`{ criterion: 'cheapest', signature: 'rota-mais-barata' }`) **e** que a busca de geometria segue
+  em `1` — a troca não disparou uma segunda leitura viva para montar a escolha.
+- O describe anterior (`regravação no detalhe: plan-route serializa a escolha nova`) foi mantido,
+  com o comentário corrigido para não afirmar mais a garantia de não-refazer-a-busca — hoje ele só
+  prova a serialização do corpo, que continua útil como complemento, não como prova única.
+- Os dois testes de fonte de T405 (contagem de `readPointsRouteGeometry`, bloco de `queryKey`)
+  foram mantidos como estão — continuam verdes, agora como complemento redundante, não a única
+  garantia.
+
+### Contrato vermelho → verde (experimento real, revertido)
+
+Troquei manualmente a linha de `createTripRouteChoiceQueryOptions` para `queryKey:
+['trips', routeKey, params.vehicleId] as const` (prefixo `'trips'`, o defeito que o M6 descreve) e
+rodei `bun test ./test/trip.contract.test.ts`:
+
+```
+error: expect(received).toBe(expected)
+Expected: 1
+Received: 2
+(fail) TripRouteChoiceSwitch: comportamento real da query — busca uma vez, sobrevive ao invalidate
+do plan-route (spec 153 T706/RF13/M6) > busca a geometria uma única vez, e o invalidate pós
+plan-route não refaz a busca
+959 pass / 1 fail
+```
+
+Só o teste novo falhou — o `invalidateQueries({ queryKey: ['trips'] })` alcançou a query de
+geometria por prefixo (`['trips', ...]` bate com `['trips']`) e o observer refez a busca, exatamente
+o defeito que o achado M6 descreveu. Desfeita a alteração (`queryKey:
+['trip-detail-route-choice', ...]` restaurado) e reconfirmado verde: `960 pass / 0 fail`.
+
+Numa primeira tentativa do experimento, com `client: Pick<TripClient, 'readPointsRouteGeometry'>`
+no tipo da função extraída, o teste de fonte que conta `readPointsRouteGeometry` no arquivo também
+quebrava (2 ocorrências: a chamada real + a menção no tipo) — não por causa do prefixo `'trips'`,
+mas por um efeito colateral da extração em si. Corrigido trocando o parâmetro para `client:
+TripClient` (tipo inteiro, sem `Pick`), o que devolveu a contagem para 1 e isolou o teste de fonte
+do teste de comportamento — cada falha aponta para um defeito diferente, sem ruído cruzado.
+
+### Gates
+
+```
+$ bunx tsc --noEmit   (apps/frontend-transportada)
+0 erros.
+
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — todas as 6 apps, incluindo apps/api-transportada.
+
+$ bun run format:check   (raiz)
+2 arquivos (`TripRouteChoiceSwitch.component.tsx`, `route-choice-detail.contract.ts`) precisaram de
+`prettier --write` antes; limpo depois.
+
+$ bun test ./test/trip.contract.test.ts   (apps/frontend-transportada)
+960 pass / 0 fail — 17807 expect() calls (baseline antes desta task: 958; +2 testes novos).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4213 pass / 0 fail — 36258 expect() calls em 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 9.03s — PWA precache 130 entries (4485.22 KiB); mesmos avisos pré-existentes de chunk
+grande (`index`, `vectorBasemap.service`), nenhum novo.
+```
+
+Gate de API (`bun --env-file=../../.env.test test`) não executado — T706 é frontend puro (módulo
+`trip`, RF13/T405), e a instrução desta sessão reserva `apps/api-transportada` para outra sessão em
+paralelo (T704, em curso ao mesmo tempo).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

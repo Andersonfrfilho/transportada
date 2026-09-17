@@ -13,6 +13,10 @@ import {
 } from '../../database/trip-document-review.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import {
+  freezeTripRouteGracefully,
+  type TripRouteFreezeLogger,
+} from '../application/freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from '../application/plan-trip-route.use-case.js'
 import type {
   ListTripDocumentReviewsParams,
@@ -73,6 +77,7 @@ import {
 } from './trip-document-review.query.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
 function toNumber(value: string | null | undefined): number | null {
@@ -92,6 +97,8 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
     private readonly routeFreezer?: PlanTripRouteTollFreezer,
+    /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
+    private readonly logger?: TripRouteFreezeLogger,
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.leaseMs = options.cargoLayoutLeaseMs
@@ -102,26 +109,32 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
     companyId: string,
     tripIds: readonly string[],
   ): Promise<void> {
-    if (this.routeFreezer === undefined) return
-    const freezer = this.routeFreezer
     await Promise.all(
-      [...new Set(tripIds)].map(async (tripId) => {
-        try {
-          await freezer.freeze({ companyId, tripId })
-        } catch {
-          /* a mudança já está gravada; a rota recalcula no próximo replanejamento (D5) */
-        }
-      }),
+      [...new Set(tripIds)].map((tripId) =>
+        freezeTripRouteGracefully({
+          companyId,
+          freezer: this.routeFreezer,
+          ...(this.logger === undefined ? {} : { logger: this.logger }),
+          tripId,
+        }),
+      ),
     )
   }
 
+  /**
+   * T704 M2: tirar do caminhão as notas que não couberam muda o conjunto de paradas como qualquer
+   * desvínculo. A limpeza de `planned_*` acontece dentro de `releaseUnplacedFromLayout` (M1); o
+   * recálculo pela mais barata é este, depois do commit e sem poder derrubar a liberação.
+   */
   public async releaseUnplaced(params: ReleaseUnplacedParams): Promise<ReleaseUnplacedResult> {
-    return this.database.transaction((transaction) =>
+    const result = await this.database.transaction((transaction) =>
       releaseUnplacedFromLayout(transaction, {
         ...params,
         requestCargoLayoutForTrip: this.requestCargoLayoutForTrip,
       }),
     )
+    await this.freezeRoutesGracefully(params.companyId, [params.tripId])
+    return result
   }
 
   public async list(
@@ -295,6 +308,10 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
         tripId: applied.tripId,
       })
       changedTripIds.push(review.sourceTripId, applied.tripId)
+      /** T704 M1: as duas viagens mudaram de paradas — nenhuma rota velha sobrevive ao commit. */
+      for (const tripId of new Set(changedTripIds)) {
+        await clearPlannedRoute(transaction, { companyId: params.companyId, tripId })
+      }
       return toReviewView(await requireReviewRecord(transaction, params))
     })
     await this.freezeRoutesGracefully(params.companyId, changedTripIds)
@@ -368,6 +385,10 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
         tripId: applied.tripId,
       })
       changedTripIds.push(applied.tripId)
+      /** T704 M1: a viagem que recebeu a troca mudou de paradas — a rota velha morre no commit. */
+      for (const tripId of new Set(changedTripIds)) {
+        await clearPlannedRoute(transaction, { companyId: params.companyId, tripId })
+      }
       return this.readSwap(transaction, { companyId: params.companyId, reviewId: review.id })
     })
     await this.freezeRoutesGracefully(params.companyId, changedTripIds)

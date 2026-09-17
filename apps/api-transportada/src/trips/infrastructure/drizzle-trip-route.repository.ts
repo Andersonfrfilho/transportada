@@ -53,6 +53,7 @@ import {
   timestampPatchFor,
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -377,6 +378,16 @@ export class DrizzleTripRouteRepository
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await writeStopOrder(transaction, input)
+
+      /**
+       * T704 M1: a ordem mudou, então a rota gravada descreve uma sequência que não existe mais.
+       * Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e, quando falha,
+       * o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+       */
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,

@@ -5,7 +5,7 @@
  * com tag e quanto o combustível custa, e grava a rota planejada inteira — traçado, métricas e
  * pedágio — numa única escrita.
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { trips } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
@@ -22,11 +22,19 @@ import type {
   FreezeTripPlannedRouteVehicleContext,
   WritePlannedRouteInput,
 } from '../application/freeze-trip-planned-route.use-case.js'
+import { TRIP_STATUSES_BEFORE_DISPATCH } from '../domain/trip-state.policy.js'
 import { parsePlannedRoute } from '../domain/parse-planned-route.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import { resolveVehicleFuelBaseline } from './effective-fuel-price.query.js'
 import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
-import type { TripDatabase, TripQueryable } from './trip-queryable.type.js'
+import type { TripDatabase } from './trip-queryable.type.js'
+
+/**
+ * T704 M3: a revisão da viagem como **texto**, porque `timestamptz` guarda microssegundo e o
+ * `Date` do JavaScript para no milissegundo — ler como `Date` e comparar de volta não reencontra a
+ * linha nunca, e o compare-and-set viraria um apagador silencioso de toda rota congelada.
+ */
+const TRIP_REVISION = sql<string>`${trips.updatedAt}::text`
 
 export class DrizzleTripPlannedRouteRepository
   implements FreezeTripPlannedRoutePort, ReadTripRouteGeometryRoutePort
@@ -44,6 +52,8 @@ export class DrizzleTripPlannedRouteRepository
         fuelType: fleetVehicles.fuelType,
         hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
         kilometersPerLiter: fleetVehicles.averageConsumption,
+        /** T704 M3: a revisão da viagem neste instante, que a escrita final vai reconferir. */
+        revision: TRIP_REVISION,
         vehicleType: fleetVehicles.vehicleType,
       })
       .from(trips)
@@ -69,48 +79,47 @@ export class DrizzleTripPlannedRouteRepository
       /** A categoria sai do mesmo `row` que os eixos: as duas descrevem o mesmo veículo. */
       multiplier: resolveDeclaredTollMultiplier(row),
       hasAutomaticTollPayment: row.hasAutomaticTollPayment,
+      revision: row.revision,
     }
   }
 
   public async readStopCoordinates(input: {
     readonly companyId: string
     readonly tripId: string
-  }): Promise<readonly RouteGeometryPoint[]> {
+  }): Promise<readonly RouteGeometryPoint[] | null> {
     return listTripStopCoordinates(this.database, input)
   }
 
   /**
    * Rota, métricas e pedágio na mesma chamada (D4) — nunca duas escritas que poderiam deixar a
    * viagem com um traçado novo e um pedágio velho, ou vice-versa.
+   *
+   * ⚠️ Spec 153 T704 (M3): a escrita é **condicional**, por duas razões que o filtro por empresa e
+   * id não cobria.
+   *
+   * - Status: o congelamento é lento (roteirizador, catálogo de praças) e roda fora da transação.
+   *   Um despacho no meio do caminho deixava a escrita atrasada sobrescrever o roteiro que já
+   *   estava na rua.
+   * - Revisão: dois recálculos concorrentes — reordenar parada e reordenar de novo logo em seguida
+   *   — terminavam em "last write wins", e o vencedor podia ser o que traçou a sequência antiga.
+   *   Comparando `updated_at` com o valor lido no disparo, o obsoleto afeta zero linhas e a viagem
+   *   fica com a rota do recálculo mais novo (ou nula, que é o estado honesto da D5).
+   *
+   * A escolha é `updated_at` porque ela já existe e já é tocada por toda escrita principal,
+   * inclusive pela limpeza de `planned_*` (M1) — nenhuma coluna de versão nova foi inventada.
    */
   public async writePlannedRoute(input: WritePlannedRouteInput): Promise<void> {
     await this.database
       .update(trips)
       .set(plannedRouteColumns({ route: input.route, toll: input.toll }))
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-  }
-
-  /**
-   * Spec 217 D3: **o congelamento pelo avesso.** Zera as sete colunas que `writePlannedRoute` grava,
-   * e recebe a transação de quem chama para acontecer na **mesma escrita** — hoje quem chama é a troca
-   * de veículo em `DrizzleTripRepository.updateCrew`, que precisa de tudo numa transação só.
-   *
-   * ⚠️ A lista de colunas mora em `plannedRouteColumns`, uma função para as duas operações. Duplicá-la
-   * aqui criaria o segundo lugar que um dia discorda do primeiro — e a forma desse defeito é a pior
-   * possível: pedágio velho sobrevivendo a uma troca de caminhão, lido como se valesse.
-   *
-   * ⚠️ **Não toca em ETA** (`eta_departure_at`, `estimated_arrival_frozen_at`,
-   * `trip_stops.estimated_arrival_at`), por decisão explícita da D3-bis: a hora que vale é a ancorada
-   * na partida real do motorista, e zerar a âncora desligaria o deslocamento do despacho em silêncio.
-   */
-  public static async clearPlannedRoute(
-    queryable: TripQueryable,
-    input: { readonly companyId: string; readonly tripId: string },
-  ): Promise<void> {
-    await queryable
-      .update(trips)
-      .set(plannedRouteColumns({ route: null, toll: null }))
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.id, input.tripId),
+          eq(TRIP_REVISION, input.expectedRevision),
+          inArray(trips.status, [...TRIP_STATUSES_BEFORE_DISPATCH]),
+        ),
+      )
   }
 
   /**

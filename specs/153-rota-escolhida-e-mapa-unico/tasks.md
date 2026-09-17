@@ -104,7 +104,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       `false`).
 - [x] T703 **H2** Aceite por viagem não pode lançar por nota sem parada nem promover status: usar o
       congelador tolerante no lugar de `planTripRoute`. Contrato com nota sem endereço.
-- [ ] T704 **M1–M4 + L7** Limpeza de `planned_*` dentro da transação de reorder/link/release/
+- [x] T704 **M1–M4 + L7** Limpeza de `planned_*` dentro da transação de reorder/link/release/
       move/swap; `releaseUnplaced` e `overrideDeliveryAddress` recalculam (M2); guarda de status e
       concorrência na escrita da rota (M3); parada sem coordenada grava rota nula, nunca parcial
       (M4); `logger.warn` nos `catch` do congelamento (L7).

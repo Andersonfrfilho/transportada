@@ -2139,6 +2139,7 @@ function createApplicationRoutes({
     database,
     cargoLayoutLeaseOptions,
     tripRouteTollFreezer,
+    logger,
   )
   /** Spec 164 T5/T7: as ações internas da tratativa da ocorrência. */
   const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(database)
@@ -2347,6 +2348,7 @@ function createApplicationRoutes({
         }),
     },
     locations: tripLocationRepository,
+    logger,
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })
@@ -4012,10 +4014,16 @@ function createApplicationRoutes({
                     ? { readRouteGeometry: async () => null }
                     : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
                 now: () => new Date(),
-                stops: await listTripStopCoordinates(database, {
-                  companyId: input.context.companyId,
-                  tripId: input.tripId,
-                }),
+                /**
+                 * T704 M4: parada sem coordenada devolve `null`, e a prévia do mapa segue a mesma
+                 * regra do congelamento — sem rota, nunca a rota das paradas que sobraram. Lista
+                 * vazia é o que `readRouteGeometry` já trata como estrada indisponível (D5).
+                 */
+                stops:
+                  (await listTripStopCoordinates(database, {
+                    companyId: input.context.companyId,
+                    tripId: input.tripId,
+                  })) ?? [],
                 tollBooths: createCompanyScopedTollBoothGateway({
                   catalog: tollBoothRepository,
                   charges: tollBoothChargeRepository,
@@ -4200,6 +4208,7 @@ function createApplicationRoutes({
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
       linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({
+        logger,
         repository: tripRepository,
         routeFreezer: tripRouteTollFreezer,
       }),

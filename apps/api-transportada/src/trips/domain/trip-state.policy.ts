@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import {
+  TRIP_STATUSES,
+  type TripDocumentSeparationStatus,
+  type TripStatus,
+} from '../../database/trip.schema.js'
 
 /**
  * ADR-0043 §1: dois eixos. A nota anda por conta própria (`pending → separated → loaded →
@@ -148,6 +152,15 @@ export function checkTripAcceptsLinkage(tripStatus: TripStatus): TripTransitionB
 
   return null
 }
+
+/**
+ * Spec 153 T704 (M1/M3): os estados em que a rota planejada ainda é rascunho — os mesmos que
+ * `checkTripAcceptsLinkage` libera. A partir do despacho o roteiro congelado é o que vale na rua, e
+ * nem a limpeza da rota velha nem uma escrita atrasada do congelamento podem alcançá-lo.
+ */
+export const TRIP_STATUSES_BEFORE_DISPATCH = TRIP_STATUSES.filter(
+  (status) => checkTripAcceptsLinkage(status) === null,
+)
 
 /** Entregue e devolvida são terminais: a nota saiu do fluxo de separação para sempre. */
 export function isTripDocumentClosed(status: TripDocumentSeparationStatus): boolean {

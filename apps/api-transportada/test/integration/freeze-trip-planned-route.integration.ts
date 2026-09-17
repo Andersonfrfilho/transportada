@@ -9,7 +9,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -22,6 +22,7 @@ import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
 import type { FuelProduct } from '../../src/shared/fuel.constant.js'
 import type { WritePlannedRouteInput } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
+import { clearPlannedRoute } from '../../src/trips/infrastructure/trip-planned-route-clear.support.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -72,13 +73,15 @@ describe('freeze trip planned route repository integration', () => {
 
         const vehicle = await repository.readVehicleContext({ companyId, tripId })
 
-        expect(vehicle).toEqual({
+        expect(vehicle).toMatchObject({
           axles: { count: 3, source: 'declared' },
           hasAutomaticTollPayment: true,
           multiplier: { denominator: 1, numerator: 3 },
           /** spec 153 H1: sem `averageConsumption`/`fuelType` cadastrados, não há o que comparar. */
           fuelBaseline: { kilometersPerLiter: null, pricePerLiter: null },
         })
+        /** T704 M3: a revisão da viagem viaja junto — é o compare-and-set da escrita final. */
+        expect(typeof vehicle?.revision).toBe('string')
       })
     },
   )
@@ -148,7 +151,13 @@ describe('freeze trip planned route repository integration', () => {
         })
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
 
-        await repository.writePlannedRoute({ companyId, route: null, toll: null, tripId })
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(database, tripId),
+          route: null,
+          toll: null,
+          tripId,
+        })
 
         const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
         expect(row).toMatchObject({
@@ -177,6 +186,7 @@ describe('freeze trip planned route repository integration', () => {
 
         await repository.writePlannedRoute({
           companyId,
+          expectedRevision: await readTripRevision(database, tripId),
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -226,7 +236,120 @@ describe('freeze trip planned route repository integration', () => {
       })
     },
   )
+
+  testWithPostgres(
+    'T704 M3: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const staleRevision = await readTripRevision(database, tripId)
+
+        /** Alguém mudou a parada no meio do caminho: a revisão do disparo ficou para trás. */
+        await database.db.update(trips).set({ updatedAt: new Date() }).where(eq(trips.id, tripId))
+
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: staleRevision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+        expect(row?.plannedRouteFrozenAt).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres('T704 M3: congelamento atrasado não alcança viagem já despachada', async () => {
+    await withDisposableDatabase(async ({ database }) => {
+      const { companyId, tripId } = await seedTripWithVehicle(database, {
+        axleCount: 2,
+        hasAutomaticTollPayment: false,
+        vehicleType: 'toco',
+      })
+      const repository = new DrizzleTripPlannedRouteRepository(database.db)
+      await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
+      const revision = await readTripRevision(database, tripId)
+
+      await repository.writePlannedRoute({
+        companyId,
+        expectedRevision: revision,
+        route: FULL_ROUTE,
+        toll: FULL_TOLL,
+        tripId,
+      })
+
+      const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+      expect(row?.plannedRoute).toBeNull()
+    })
+  })
+
+  testWithPostgres(
+    'T704 M1: a limpeza zera o grupo inteiro e o CHECK aceita — mas não toca em despachada',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(database, tripId),
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        await clearPlannedRoute(database.db, { companyId, tripId })
+
+        const [cleared] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(cleared).toMatchObject({
+          plannedDistanceMeters: null,
+          plannedDurationSeconds: null,
+          plannedReturnDistanceMeters: null,
+          plannedRoute: null,
+          plannedRouteFrozenAt: null,
+          plannedToll: null,
+          plannedTollFrozenAt: null,
+        })
+
+        /** Despachada: o congelado é o roteiro que está na rua, e a limpeza não o alcança. */
+        await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: await readTripRevision(database, tripId),
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+        await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
+
+        await clearPlannedRoute(database.db, { companyId, tripId })
+
+        const [kept] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(kept?.plannedRoute).not.toBeNull()
+      })
+    },
+  )
 })
+
+/** T704 M3: a revisão da viagem — `updated_at` — é o valor que o compare-and-set reconfere. */
+async function readTripRevision(database: TestDatabase, tripId: string): Promise<string> {
+  const [row] = await database.db
+    .select({ revision: sql<string>`${trips.updatedAt}::text` })
+    .from(trips)
+    .where(eq(trips.id, tripId))
+  if (row === undefined) throw new Error('viagem semeada sumiu')
+  return row.revision
+}
 
 async function expectQueryToFail(
   query: PromiseLike<unknown>,

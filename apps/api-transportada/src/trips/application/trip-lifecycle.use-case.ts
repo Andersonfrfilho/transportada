@@ -20,6 +20,7 @@ import {
   overrideDeliveryAddress,
   type OverrideDeliveryAddressPort,
 } from './override-delivery-address.use-case.js'
+import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
 import {
   planTripRoute,
   type PlanTripRoutePort,
@@ -53,6 +54,8 @@ export type TripLifecycleDependencies = {
     DispatchTripPort &
     PlanTripRoutePort &
     ReorderTripStopsPort
+  /** T704 L7: a falha do recongelamento vira aviso com os ids, nunca silêncio. */
+  readonly logger?: TripRouteFreezeLogger
   readonly stopRepository: ListTripStopsPort
   /** Spec 060 D4b: a entrega concluída propõe a taxa recorrente. Ausente, nada muda na entrega. */
   readonly suggestCharges?: SuggestDeliveryChargesPort
@@ -214,11 +217,16 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return overrideDeliveryAddress({
           actorUserId: input.context.userId,
           companyId: input.context.companyId,
+          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
           newAddress: input.newAddress,
           newLabel: input.newLabel,
           reason: input.reason,
           repository: dependencies.deliveryAddressOverrideRepository,
           requestedBy: input.requestedBy,
+          /** T704 M2: a coordenada da parada mudou — a rota tem de renascer pela mais barata. */
+          ...(dependencies.tollFreezer === undefined
+            ? {}
+            : { routeFreezer: dependencies.tollFreezer }),
           tripDocumentId: input.documentId,
         })
       },
@@ -242,6 +250,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           actorUserId: input.context.userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
+          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
           repository: dependencies.routeRepository,
           ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
           tripId: input.tripId,
@@ -259,6 +268,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       }) {
         return reorderTripStops({
           companyId: input.context.companyId,
+          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
           orderedStopIds: input.stopIds,
           repository: dependencies.routeRepository,
           ...(dependencies.tollFreezer === undefined
