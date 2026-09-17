@@ -324,7 +324,7 @@
   margin: 0;
 }
 
-.vehicleValuationGap dd {
+.vehicleValuationParcel dd {
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   text-align: right;
 }

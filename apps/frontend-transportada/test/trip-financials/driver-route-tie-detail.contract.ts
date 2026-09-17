@@ -187,9 +187,10 @@ describe('the domain stays raw for the frontend to translate (spec 143)', () => 
       ),
       'utf8',
     )
+    /** Spec 143: a proposta compõe pela lista que o serviço de rotas monta — mesmo compositor. */
     const suggestion = readFileSync(
       new URL(
-        '../../src/modules/routing/components/SuggestionVehicleValuation.component.tsx',
+        '../../src/modules/routing/shared/suggestionCostParcelLine.service.ts',
         import.meta.url,
       ),
       'utf8',

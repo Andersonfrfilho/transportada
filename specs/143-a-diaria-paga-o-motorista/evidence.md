@@ -2278,3 +2278,47 @@ campo não é `type="number"` nem carrega `min={1}`.
 | Formatação            | `bun run format:check`                          | ✅ limpo                                                 |
 
 Nenhum arquivo novo em `scripts.test`: o serviço novo entra por `import` na suíte que já existia.
+
+## Revisão final — achado 5: a frase da diária que sumiu da tela da proposta
+
+O próprio componente já confessava o defeito num comentário: `SuggestionVehicleValuation` listava
+`costParcels.filter((parcel) => parcel.gap !== null)`, e a parcela do motorista **deixou de ter
+lacuna** nesta spec — a diária sempre responde. A tela onde se aceita ou recusa a carga passou a
+mostrar quatro totais e nada da conta do motorista. É regressão introduzida aqui, não dívida herdada.
+
+### A regra que já existia, estendida
+
+O comentário do componente diz, desde a 101, que _a parcela com lacuna não some — ela aparece com o
+motivo no lugar do número_. O que faltava era a outra metade: **a parcela derivada também não some**.
+A lista passa a ser "a parcela fala quando tem o que dizer":
+
+| Parcela              | Lacuna | Derivação                           | Aparece | O que o `<dd>` imprime                         |
+| -------------------- | ------ | ----------------------------------- | ------- | ---------------------------------------------- |
+| motorista (spec 143) | não    | sim                                 | **sim** | `R$ 600,00 — R$ 200,00 × 3 dias · valor geral` |
+| pedágio parcial      | sim    | `detail` cru                        | sim     | motivo da lacuna — `2`                         |
+| combustível          | não    | base `fuel` (não compõe frase aqui) | não     | o total acima já o contou                      |
+| ICMS sem documento   | sim    | —                                   | sim     | motivo da lacuna                               |
+
+Combustível e ICMS têm base, mas `composeCostParcelDetail` só compõe frase para `basis.of ===
+'driver'` — nas outras devolve o `detail` cru da API. Repetir o número numa lista embaixo do total
+não informaria nada; a conta inteira continua sendo o razão da viagem.
+
+### Por que um serviço puro e não um filtro na tela
+
+Os testes do frontend não têm DOM. A escolha de quais parcelas falam virou
+`buildSuggestionCostParcelLines` (`src/modules/routing/shared/suggestionCostParcelLine.service.ts`),
+função pura provada por contrato — e é ela que chama o compositor compartilhado, de modo que o razão
+e a proposta continuam com **uma** implementação da frase da diária.
+`driver-route-tie-detail.contract.ts` foi reapontado para o serviço, sem perder o que afirmava.
+
+A classe CSS `vehicleValuationGap` virou `vehicleValuationParcel`: a linha não é mais só de lacuna.
+
+### Gates
+
+| Gate                   | Resultado                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| contrato antes         | `test/routing/suggestion-cost-parcels.contract.ts` — falhou por ausência do serviço |
+| `bun run typecheck`    | limpo nas 6 apps                                                                    |
+| testes do frontend     | **4151 pass / 0 fail** · 36104 expect() · 29 arquivos                               |
+| `bun run lint`         | limpo                                                                               |
+| `bun run format:check` | limpo                                                                               |
