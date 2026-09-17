@@ -132,6 +132,19 @@ criterion } }`; o aceite multi-veículo aceita `routeChoice` por veículo; o ace
   `tripBasemap.service`, `tileMap.service`, `resolveRouteTraceSegments`, CSS/locale órfãos e testes
   deles.
 
+- **RF12** — A fila de revisão (`move`/`swap`, spec 148) desvincula a nota e chama
+  `reconcileStopOnUnlink` dentro da própria transação: muda o conjunto de paradas das **duas**
+  viagens antes do despacho. Origem e destino recalculam com `cheapest` (D6), pela mesma escrita
+  atômica da RF1, e o OSRM fora do ar não derruba a movimentação (D5).
+- **RF13** — Trocar a rota escolhida numa viagem não despachada **recalcula e regrava**, não é só
+  redesenho: a escolha nova volta por `plan-route` e a viagem ganha `frozen_at` novo. O mapa oferece
+  um switch explícito entre **mais rápida** e **mais barata** — a D1 já oferece as duas opções e
+  `fastest` já é critério da D2, o que falta é a afordância em tela e o disparo do recálculo.
+
+> RF12 e RF13 entraram em 2026-09-16, durante a execução, a pedido do usuário. Não reabrem D1–D11:
+> a D6 já fala de mudança de parada em geral, e a D1/D2 já preveem os critérios. RF12 é a T206;
+> RF13 é da Fase 4.
+
 ## Requisitos não funcionais
 
 - Tenant: toda leitura e escrita nova filtra `company_id`.

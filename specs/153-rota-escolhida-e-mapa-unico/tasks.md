@@ -36,6 +36,8 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 - [x] T204 Aceite multi-veículo com `routeChoice` por veículo; aceite por viagem grava rota.
 - [x] T205 Reorder, link (unitário e lote) e release recalculam com `cheapest` antes do despacho —
       contratos nos caminhos, OSRM falhando sem derrubar.
+- [ ] T206 Fila de revisão (`move`/`swap`, spec 148) recalcula origem e destino com `cheapest`
+      (RF12) — contratos nos dois lados, OSRM falhando sem derrubar a movimentação.
 
 ## Fase 3 — Dinheiro só para o financeiro (API)
 
@@ -49,8 +51,9 @@ Cada task: contrato vermelho → implementação → typecheck + lint + testes d
 > 🤖 Modelo: `sonnet`
 
 - [ ] T401 Validação de respostas com campos novos e monetários opcionais.
-- [ ] T402 `TripAssemblyMap`: seletor com "Sem pedágio", abre na mais barata, `onRouteChoiceChange`,
-      `canReadFinancials` no mapa e no `RouteTollSummary`.
+- [ ] T402 `TripAssemblyMap`: seletor com "Sem pedágio", switch **mais rápida ↔ mais barata**, abre
+      na mais barata, `onRouteChoiceChange`, `canReadFinancials` no mapa e no `RouteTollSummary`.
+      Trocar de rota **recalcula e regrava** (RF13), não só redesenha.
 - [ ] T403 Criação manual envia a escolha; ordem reorder → plan corrigida.
 - [ ] T404 Proposta: escolha por veículo no aceite e na prévia da conta.
 - [ ] T405 Detalhe: rota gravada, km/volta/tempo, critério, avisos, custos e valor da NF só com
