@@ -8,6 +8,7 @@ import {
   isDriverAllowanceSettings,
 } from '../../src/modules/company-settings/shared/driverAllowance.validation'
 import {
+  DRIVER_ALLOWANCE_MAX_LENGTH,
   buildDriverAllowanceSubmission,
   startDriverAllowanceDraft,
   typeDriverAllowanceAmount,
@@ -26,6 +27,7 @@ const API_MONEY = '../../../api-transportada/src/shared/money.constant.ts'
 const PANEL = '../../src/modules/company-settings/components/DriverAllowancePanel.component.tsx'
 const CLIENT = '../../src/modules/company-settings/shared/driverAllowanceClient.service.ts'
 const PAGE = '../../src/modules/company-settings/pages/CompanySettings.page.tsx'
+const STYLES = '../../src/modules/company-settings/styles/companySettings.module.css'
 
 /** O que o operador realmente digita num campo de dinheiro, incluindo o passo intermediário. */
 const TYPED_ENTRIES = ['200,', '200.', 'R$ 200,00', '1,2,3', 'abc', '0', '200', '  ', '1.250,00']
@@ -218,5 +220,43 @@ describe('driver allowance panel (spec 143 D7)', () => {
       expect(typeof locale.driverAllowance.origin.company).toBe('string')
       expect(typeof locale.driverAllowance.origin.default).toBe('string')
     }
+  })
+})
+
+/**
+ * ⚠️ Três defeitos de painel que nenhum teste de serviço alcança: a classe emprestada some junto com
+ * o painel que a batizou, o aviso de salvo descreve uma tela que o operador já mudou, e o teto do
+ * campo é medido no número cru enquanto a máscara escreve o pontuado.
+ */
+describe('the panel wears its own layout, clears its banner and does not cut the amount', () => {
+  test('no class is borrowed from the federal tax panel, and the shared one has a neutral name', () => {
+    const panel = readFileSync(new URL(PANEL, import.meta.url), 'utf8')
+    const stylesheet = readFileSync(new URL(STYLES, import.meta.url), 'utf8')
+
+    expect(panel).not.toContain('styles.federalTax')
+    expect(panel).toContain('styles.settingsFormFields')
+    expect(stylesheet).toContain('.settingsFormFields {')
+    expect(stylesheet).not.toContain('.federalTaxFields {')
+  })
+
+  test('typing again takes the saved banner off the screen', () => {
+    const panel = readFileSync(new URL(PANEL, import.meta.url), 'utf8')
+    const page = readFileSync(new URL(PAGE, import.meta.url), 'utf8')
+
+    expect(panel).toContain('onEdit: () => void')
+    expect(panel).toContain('props.onEdit()')
+    expect(page).toContain('saveMutation.reset()')
+  })
+
+  test('the field fits every masked amount the API accepts, and the ceiling is measured on the mask', () => {
+    const panel = readFileSync(new URL(PANEL, import.meta.url), 'utf8')
+
+    for (const digits of ['20000', '99999999', '999999999999999']) {
+      expect(typeDriverAllowanceAmount(digits).length).toBeLessThanOrEqual(
+        DRIVER_ALLOWANCE_MAX_LENGTH,
+      )
+    }
+    expect(DRIVER_ALLOWANCE_MAX_LENGTH).toBeGreaterThanOrEqual('999.999.999,99'.length)
+    expect(panel).toContain('maxLength={DRIVER_ALLOWANCE_MAX_LENGTH}')
   })
 })

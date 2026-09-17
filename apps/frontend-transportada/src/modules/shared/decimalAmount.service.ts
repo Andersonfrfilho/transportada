@@ -19,7 +19,7 @@ const LEADING_ZERO_PATTERN = /^0+/
 const TRAILING_SEPARATOR_PATTERN = /\.$/
 const GROUP_POSITION_PATTERN = /\B(?=(?:\d{3})+(?!\d))/g
 /** Teto de dígitos da digitação: acima disso o campo deixa de ser dinheiro e vira erro de colagem. */
-const TYPED_AMOUNT_MAX_DIGITS = 15
+export const TYPED_AMOUNT_MAX_DIGITS = 15
 /** Parte inteira de `numeric(12, 2)`: peso e volume de veículo não passam de dez dígitos. */
 const TYPED_MEASURE_MAX_INTEGER_DIGITS = 10
 const MEASURE_DECIMAL_SEPARATOR = ','

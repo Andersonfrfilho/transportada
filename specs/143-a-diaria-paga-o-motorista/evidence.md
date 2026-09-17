@@ -2637,3 +2637,66 @@ texto — mas comentário que aponta para a decisão errada custa mais caro que 
 | `bun run --cwd apps/frontend-transportada test` | 4159 pass · 0 fail — 29 arquivos (+6 casos)                |
 | `bun run lint`                                  | limpo                                                      |
 | `bun run format:check`                          | `All matched files use Prettier code style!`               |
+
+## Revisão final — achado 17: três defeitos do painel da diária
+
+Um achado, três defeitos independentes, todos invisíveis para os testes de serviço porque moram no
+painel.
+
+### A classe emprestada
+
+`DriverAllowancePanel` vestia `styles.federalTaxFields`, `federalTaxOrigin`, `federalTaxActions` e
+`federalTaxNote` — classes batizadas pelo painel do regime federal (spec 126). Enquanto o nome mente,
+mexer no painel de tributos muda a diária sem que nada no arquivo diga isso. As quatro passam a se
+chamar `settingsForm*`, com a mesma declaração única no `companySettings.module.css`; os **dois**
+painéis vestem a mesma classe, e agora o nome admite. Nenhuma regra de estilo mudou.
+
+### O aviso que não saía da tela
+
+`saved` vinha de `saveMutation.isSuccess`, que fica `true` para sempre. "Diária da empresa salva."
+permanecia na tela enquanto o operador digitava o valor seguinte — um aviso descrevendo uma tela que
+já mudou. O painel ganhou `onEdit`, chamado no `onChange` do campo, e a página o liga a
+`saveMutation.reset()` (curto-circuitado por `isIdle`, para não redisparar a cada tecla).
+
+⚠️ Guardar isso como estado local do formulário **não** funciona: `DriverAllowanceForm` é remontado
+por `key={props.stored?.updatedAt ?? 'default'}` a cada gravação bem-sucedida, e o estado local
+morreria junto com o aviso. O dono do resultado é quem dona a mutação — a página.
+
+O mesmo formato existe em `FederalTaxPanel` (`saved: federalTaxPanel.saveMutation.isSuccess`). É
+anterior a esta spec e fica registrado aqui; consertá-lo não é escopo da 143.
+
+### O teto medido no lugar errado
+
+`maxLength={12}` conta o texto **exibido**, e a máscara põe um ponto a cada três dígitos: o campo
+parava de aceitar tecla em `9.999.999,99`, e `999.999.999,99` (14 caracteres) era impossível de
+digitar — sem mensagem nenhuma, a tecla simplesmente não entrava. Quem já sabe o teto é a máscara,
+que corta em `TYPED_AMOUNT_MAX_DIGITS = 15` dígitos; o número do campo passa a sair dela:
+
+```ts
+export const DRIVER_ALLOWANCE_MAX_LENGTH = maskTypedAmount({
+  scale: AMOUNT_DISPLAY_SCALE,
+  value: '9'.repeat(TYPED_AMOUNT_MAX_DIGITS),
+}).length
+```
+
+É o mesmo idioma que `CompanyProfileFields.component.tsx:94` já usava para a inscrição estadual — o
+repositório tinha a resposta, o painel novo é que não a importou.
+
+### Vermelho antes
+
+```
+SyntaxError: Export named 'DRIVER_ALLOWANCE_MAX_LENGTH' not found in module
+  '.../company-settings/shared/driverAllowanceForm.service.ts'
+```
+
+Depois de criar a constante, os outros dois casos falharam pelo que deviam:
+`expect(panel).not.toContain('styles.federalTax')` e `expect(panel).toContain('onEdit: () => void')`.
+
+### Gates
+
+| Gate                                                 | Resultado                                    |
+| ---------------------------------------------------- | -------------------------------------------- |
+| `bun run --cwd apps/frontend-transportada typecheck` | exit 0                                       |
+| `bun run --cwd apps/frontend-transportada test`      | 4162 pass · 0 fail (+3 casos)                |
+| `bun run lint`                                       | limpo                                        |
+| `bun run format:check`                               | `All matched files use Prettier code style!` |

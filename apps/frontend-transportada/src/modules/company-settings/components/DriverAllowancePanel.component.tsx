@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import type { DriverAllowanceSettings } from '../shared/driverAllowance.validation'
 import {
+  DRIVER_ALLOWANCE_MAX_LENGTH,
   buildDriverAllowanceSubmission,
   startDriverAllowanceDraft,
   typeDriverAllowanceAmount,
@@ -17,6 +18,8 @@ export type DriverAllowancePanelProps = Readonly<{
   errorCode: string | undefined
   loading: boolean
   onClear: () => void
+  /** O resultado da última gravação deixa de descrever a tela no instante em que ela muda. */
+  onEdit: () => void
   onSave: (amount: string) => void
   saved: boolean
   stored: DriverAllowanceSettings | undefined
@@ -42,25 +45,30 @@ function DriverAllowanceForm(props: DriverAllowancePanelProps) {
     props.onSave(submission)
   }
 
+  function handleAmountChange(typed: string) {
+    props.onEdit()
+    setAmount(typeDriverAllowanceAmount(typed))
+  }
+
   return (
-    <div className={styles.federalTaxFields}>
+    <div className={styles.settingsFormFields}>
       <label htmlFor="driver-allowance-amount">
         {t('driverAllowance.amountLabel')}
         <input
           disabled={props.disabled}
           id="driver-allowance-amount"
           inputMode="numeric"
-          maxLength={12}
+          maxLength={DRIVER_ALLOWANCE_MAX_LENGTH}
           value={amount}
-          onChange={(event) => setAmount(typeDriverAllowanceAmount(event.target.value))}
+          onChange={(event) => handleAmountChange(event.target.value)}
         />
       </label>
       {props.stored === undefined ? null : (
-        <span className={styles.federalTaxOrigin}>
+        <span className={styles.settingsFormOrigin}>
           {t(`driverAllowance.origin.${props.stored.rateOrigin}`)}
         </span>
       )}
-      <div className={styles.federalTaxActions}>
+      <div className={styles.settingsFormActions}>
         <button disabled={props.disabled || submission === null} type="button" onClick={handleSave}>
           <Icon name="save" />
           {t('driverAllowance.save')}
@@ -88,7 +96,7 @@ export function DriverAllowancePanel(props: DriverAllowancePanelProps) {
         <p className={styles.sectionKicker}>{t('driverAllowance.kicker')}</p>
         <h2 id="driver-allowance-title">{t('driverAllowance.title')}</h2>
       </div>
-      <p className={styles.federalTaxNote}>{t('driverAllowance.hint')}</p>
+      <p className={styles.settingsFormNote}>{t('driverAllowance.hint')}</p>
       {props.loading ? (
         <DriverAllowanceSkeleton />
       ) : (

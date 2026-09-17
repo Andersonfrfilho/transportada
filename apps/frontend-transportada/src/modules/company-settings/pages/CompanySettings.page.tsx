@@ -409,6 +409,10 @@ export function CompanySettingsPage() {
                 : undefined,
           loading: driverAllowancePanel.query.isLoading,
           onClear: () => driverAllowancePanel.clearMutation.mutate(),
+          onEdit: () => {
+            if (driverAllowancePanel.saveMutation.isIdle) return
+            driverAllowancePanel.saveMutation.reset()
+          },
           onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
