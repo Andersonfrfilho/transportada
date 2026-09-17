@@ -134,6 +134,25 @@
   white-space: nowrap;
 }
 
+/* Spec 155 (D3, G008): moldura do grupo de embalagem — a lista interna já tem o gap de `.list`. */
+.packagingGroup {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.packagingGroupTitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* D8: a unidade em destaque — a correção direta do que foi lido como produto duplicado. */
+.unitBadge {
+  white-space: nowrap;
+}
+
 .tail {
   color: var(--color-copper);
 }

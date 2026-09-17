@@ -550,7 +550,37 @@ bun run --cwd apps/frontend-transportada lint                        sem erros
 
 ## T3.2 — Unidade visível e agrupamento
 
-_(pendente)_
+Vermelho primeiro, em `test/nfe-workspace/package-box-family.contract.ts` (novo, importado em
+`test/nfe-workspace.contract.test.ts`):
+
+```
+error: Cannot find module '@/modules/nfe-workspace/shared/packageBoxPackagingGroup.service'
+ 0 pass · 1 fail · 1 error
+```
+
+### O que mudou
+
+- `packageBoxPackagingGroup.service.ts` (novo, puro): `groupPackageBoxesByPackaging` agrupa a página
+  da fila por `(emitente, cProd)`, preservando a ordem de primeira aparição — o mesmo `cProd` de
+  emitentes diferentes nunca cai no mesmo grupo (D1/D3). Testado direto, sem DOM.
+- `PackageBoxMeasurementPanel.component.tsx`: a lista passou a renderizar por grupo de embalagem —
+  grupo com 2+ linhas ganha um cabeçalho (`packageBoxes.packagingGroup.title`, descrição + `cProd`)
+  acima das linhas; grupo de 1 segue exatamente como antes (nenhuma linha some, D3). O `<span>` de
+  unidade virou `Badge` com a contagem por extenso quando a API resolveu o sufixo numérico
+  (`packageBoxes.packagingUnitBadge`, `CX36 · 36 un`) — em **toda** linha, agrupada ou não (D8),
+  porque é isso que resolve a queixa de "produto duplicado" relatada em produção. Contador de família
+  (`packageBoxes.family.counter`, "X de Y medidas nesta família") aparece quando `familyKey` existe e
+  a família tem mais de um membro — os números vêm prontos da API (D9), a tela não soma de novo.
+- Locales pt/en: `packagingUnitBadge`, `packagingGroup.title`, `family.counter`.
+
+### Gates
+
+```
+bun test ./test/nfe-workspace/package-box-family.contract.ts + package-box-measurement.contract.ts   68 pass · 0 fail
+bun run typecheck (as seis apps)                                                                       exit 0
+bun run --cwd apps/frontend-transportada test                                                          4174 pass · 0 fail (29 arquivos)
+bun run --cwd apps/frontend-transportada lint                                                          sem erros
+```
 
 ## T3.3 — Botão rápido
 

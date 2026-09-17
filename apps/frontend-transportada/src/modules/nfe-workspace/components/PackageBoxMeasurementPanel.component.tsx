@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { BarcodeScanner, type BarcodeScannerFeedback } from '@/components/ui/barcode-scanner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
@@ -25,6 +26,7 @@ import {
   type Translate,
 } from '../shared/packageBoxMeasurementLabel.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
+import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurementPanelProps = Readonly<{
@@ -356,27 +358,46 @@ export function PackageBoxMeasurementPanel({
             <p className={styles.notice}>{t('packageBoxes.empty')}</p>
           ) : (
             <ul className={styles.list}>
-              {items.map((box) => (
-                <PackageBoxRow
-                  box={box}
-                  isEditing={editingId === box.id}
-                  key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
-                  onCancel={() => setEditingId(null)}
-                  onMeasure={(measurement) => {
-                    onMeasure({ ...measurement, id: box.id })
-                    setEditingId(null)
-                    if (cameFromScan) setIsScannerOpen(true)
-                    if (cameFromKeyboardScan) {
-                      setCameFromKeyboardScan(false)
-                      searchInputRef.current?.focus()
-                    }
-                  }}
-                  onMeasureWithCamera={
-                    cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
-                  }
-                  onOpen={() => setEditingId(box.id)}
-                  saving={saving}
-                />
+              {groupPackageBoxesByPackaging(items).map((group) => (
+                <li className={styles.packagingGroup} key={group.key}>
+                  {/*
+                    ⚠️ D3/G008: o cabeçalho só aparece quando há mais de uma embalagem NESTA página —
+                    é o que resolve a queixa de "produto duplicado" sem apagar nenhuma linha.
+                  */}
+                  {group.items.length < 2 ? null : (
+                    <p className={styles.packagingGroupTitle}>
+                      {t('packageBoxes.packagingGroup.title', {
+                        description:
+                          group.items[0]?.description ?? group.items[0]?.productCode ?? '',
+                        productCode: group.items[0]?.productCode ?? '',
+                      })}
+                    </p>
+                  )}
+                  <ul className={styles.list}>
+                    {group.items.map((box) => (
+                      <PackageBoxRow
+                        box={box}
+                        isEditing={editingId === box.id}
+                        key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
+                        onCancel={() => setEditingId(null)}
+                        onMeasure={(measurement) => {
+                          onMeasure({ ...measurement, id: box.id })
+                          setEditingId(null)
+                          if (cameFromScan) setIsScannerOpen(true)
+                          if (cameFromKeyboardScan) {
+                            setCameFromKeyboardScan(false)
+                            searchInputRef.current?.focus()
+                          }
+                        }}
+                        onMeasureWithCamera={
+                          cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
+                        }
+                        onOpen={() => setEditingId(box.id)}
+                        saving={saving}
+                      />
+                    ))}
+                  </ul>
+                </li>
               ))}
             </ul>
           )}
@@ -529,12 +550,39 @@ function PackageBoxRow({
 }: PackageBoxRowProps) {
   const { t } = useTranslation('nfeWorkspace')
 
+  /**
+   * ⚠️ D8/G008: a unidade sai do texto discreto e vira selo em destaque, com a contagem por extenso
+   * quando a API resolveu o sufixo numérico (`CX36` → 36) — é a correção direta do que foi
+   * reportado como produto duplicado: `CX36` e `FR12` do mesmo sabão eram indistinguíveis na tela.
+   */
+  const unitBadgeLabel =
+    box.packagingUnitCount === undefined
+      ? box.commercialUnit
+      : t('packageBoxes.packagingUnitBadge', {
+          count: box.packagingUnitCount,
+          unit: box.commercialUnit,
+        })
+
+  /** D9: os contadores já chegam prontos da API — a tela nunca soma de novo por conta própria. */
+  const familySize = box.familyPendingCount + box.familyMeasuredCount
+  const showFamilyCounter = box.familyKey !== undefined && familySize > 1
+
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
       <div className={styles.itemHeader}>
         <strong>{box.description || box.productCode}</strong>
-        <span className={styles.unit}>{box.commercialUnit}</span>
+        <Badge className={styles.unitBadge} variant="secondary">
+          {unitBadgeLabel}
+        </Badge>
       </div>
+      {showFamilyCounter ? (
+        <p className={styles.hint}>
+          {t('packageBoxes.family.counter', {
+            measured: box.familyMeasuredCount,
+            total: familySize,
+          })}
+        </p>
+      ) : null}
       {/*
         ⚠️ O acumulado e a marca de cobertura só valem para o que **falta** medir: eles respondem
         "até onde vale descer a fila". Na caixa já medida eles anunciariam uma decisão que não

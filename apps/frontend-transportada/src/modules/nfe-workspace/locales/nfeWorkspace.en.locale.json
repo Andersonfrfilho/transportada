@@ -465,6 +465,13 @@
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box",
+    "packagingUnitBadge": "{{unit}} · {{count}} units",
+    "packagingGroup": {
+      "title": "{{description}} · product code {{productCode}}"
+    },
+    "family": {
+      "counter": "{{measured}} of {{total}} measured in this family"
+    },
     "experimentalBadge": "Experimental",
     "experimentalHint": "The camera measurement is an estimate. Check it with the tape measure before saving; when in doubt, type it in.",
     "margin": "±{{margin}} cm",

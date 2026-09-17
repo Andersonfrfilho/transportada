@@ -639,6 +639,13 @@
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa",
+    "packagingUnitBadge": "{{unit}} · {{count}} un",
+    "packagingGroup": {
+      "title": "{{description}} · cProd {{productCode}}"
+    },
+    "family": {
+      "counter": "{{measured}} de {{total}} medidas nesta família"
+    },
     "statusLabel": "Situação",
     "status": {
       "pending": "Faltam medir",
