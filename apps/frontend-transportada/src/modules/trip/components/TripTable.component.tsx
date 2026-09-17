@@ -108,6 +108,10 @@ export function TripTable({
     if (amounts.revenueSource === 'missing') {
       return <span className={styles.amountUnknown}>{t('table.revenueMissing')}</span>
     }
+    /** Spec 153 T710: sem `trip.financials` a API redige `revenueTotal` — a chave some, nunca zero. */
+    if (amounts.revenueTotal === undefined) {
+      return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+    }
 
     return (
       <span className={styles.amount}>

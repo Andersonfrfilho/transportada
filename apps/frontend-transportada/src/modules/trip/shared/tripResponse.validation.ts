@@ -69,6 +69,7 @@ import {
   FIELD_REPORT_ID_RESULT_KEYS,
   FIELD_TRIP_STEP_RESULT_KEYS,
   TRIP_AMOUNTS_KEYS,
+  TRIP_AMOUNTS_OPTIONAL_KEYS,
   TRIP_KEYS,
   TRIP_OPTIONAL_KEYS,
   TRIP_REVENUE_SOURCES,
@@ -258,17 +259,28 @@ function isTrip(value: unknown): value is Trip {
 
 /**
  * Opcional não é "qualquer coisa" (spec 078 D2): ausente e `null` passam — a API só calcula na
- * listagem —, mas presente com forma errada continua reprovando. `revenueTotal` é obrigatório
- * quando o objeto existe: total de receita ausente seria a coluna imprimindo vazio sem dizer por quê.
+ * listagem —, mas presente com forma errada continua reprovando.
+ *
+ * ⚠️ Spec 153 T710: `documentsTotal`/`revenueTotal` também podem faltar **dentro** do objeto —
+ * sem `trip.financials` a API redige as duas chaves e mantém `revenueSource` (que não é dinheiro,
+ * é a origem do número). `hasExactKeys` reprovava a resposta inteira por causa da redação, o mesmo
+ * defeito do C1/T701 na nota fiscal.
  */
 function isAbsentOrTripAmounts(value: unknown): boolean {
   if (value === undefined || value === null) return true
-  if (!hasExactKeys(value, TRIP_AMOUNTS_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_AMOUNTS_KEYS, ...TRIP_AMOUNTS_OPTIONAL_KEYS],
+      required: TRIP_AMOUNTS_KEYS,
+    })
+  ) {
+    return false
+  }
 
   return (
-    isNullableString(value.documentsTotal) &&
+    isOptionalNullableString(value.documentsTotal) &&
     isOneOf(value.revenueSource, TRIP_REVENUE_SOURCES) &&
-    isString(value.revenueTotal)
+    isOptionalString(value.revenueTotal)
   )
 }
 

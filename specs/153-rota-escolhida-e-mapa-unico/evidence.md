@@ -4095,3 +4095,99 @@ $ bun --env-file=../../.env.test test test/trip-http.contract.test.ts --timeout 
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T710 — Ponta solta da T707: `isAbsentOrTripAmounts` exigia as três chaves (D10) ✅ 2026-09-17
+
+### O achado
+
+A T707 (commit f780f3af) fez `GET /trips` redigir dinheiro: sem `trip.financials`,
+`amounts.documentsTotal` e `amounts.revenueTotal` somem do corpo — chave ausente, nunca `null`/zero;
+`revenueSource` continua (não é dinheiro, é a origem do número). O frontend não acompanhou:
+`isAbsentOrTripAmounts` (`modules/trip/shared/tripResponse.validation.ts`) usava `hasExactKeys`
+contra `TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal']`
+(`modules/trip/shared/trip.constant.ts`), que reprova qualquer chave faltando. Contra o corpo
+redigido, a viagem inteira reprovava e a listagem quebrava — mesmo padrão do achado C1/T701 na nota
+fiscal.
+
+Varredura por todo consumidor de `trip.amounts`/`TripAmounts` no frontend (não só o validador, que
+foi o que faltou no C1): `grep` por `documentsTotal`/`revenueTotal`/`revenueSource`/`.amounts` fora
+de `test/`. Dois consumidores reais fora do próprio tipo/validador — os dois no módulo `trip`,
+nenhum em `cte-batch`/`billing` (que têm `Amounts` homônimos de outro domínio, sem relação):
+
+- `modules/trip/shared/tripTable.service.ts` (`moneyValue`, ordenação das colunas `cargoValue`/
+  `revenue`): já lia com encadeamento opcional (`row.amounts?.documentsTotal ?? null`) — chave
+  ausente e `null` caem no mesmo `null`, sem mudança necessária.
+- `modules/trip/components/TripTable.component.tsx`: `renderCargoValue` também já usava
+  `trip.amounts?.documentsTotal ?? null` — sem mudança. `renderRevenue` **não** protegia
+  `revenueTotal`: lia `amounts.revenueTotal` direto depois de descartar só `amounts === null` e
+  `revenueSource === 'missing'`, e formatava `undefined` como dinheiro (violaria D10 — nunca traço,
+  nunca zero, aqui viraria `NaN`/quebra de `formatAmount`).
+
+Nenhum outro consumidor de `amounts` encontrado (detalhe da viagem não exibe `amounts` na tela hoje,
+mesmo aceitando a chave no validador).
+
+### Correção
+
+- `trip.constant.ts`: `TRIP_AMOUNTS_KEYS` virou só `['revenueSource']` (obrigatória); nova
+  `TRIP_AMOUNTS_OPTIONAL_KEYS = ['documentsTotal', 'revenueTotal']`, no molde de
+  `TRIP_OPTIONAL_KEYS`/`TRIP_DETAIL_OPTIONAL_KEYS`.
+- `tripResponse.validation.ts`: `isAbsentOrTripAmounts` troca `hasExactKeys` por `hasKeys({ allowed:
+[...TRIP_AMOUNTS_KEYS, ...TRIP_AMOUNTS_OPTIONAL_KEYS], required: TRIP_AMOUNTS_KEYS })`, e
+  `documentsTotal`/`revenueTotal` passam por `isOptionalNullableString`/`isOptionalString` em vez de
+  `isNullableString`/`isString` — chave presente com forma errada continua reprovando.
+- `trip.types.ts`: `TripAmounts.documentsTotal?: null | string` e `revenueTotal?: string`.
+- `TripTable.component.tsx`: `renderRevenue` ganha checagem explícita — `revenueTotal === undefined`
+  cai na mesma célula "sem valor" (`table.noAmount`) que a ausência de `documentsTotal` já usava.
+  Nunca traço, nunca zero (D10).
+
+### Teste (contrato vermelho → verde)
+
+Contrato vermelho confirmado por leitura: contra o código de antes desta task, `hasExactKeys(value,
+['documentsTotal', 'revenueSource', 'revenueTotal'])` reprova um objeto com só `revenueSource`, e
+`tripFromApi`/`tripListFromApi` lançariam `TRIP_RESPONSE_INVALID` para toda a resposta — o mesmo
+efeito documentado na T707 e provado na API (`test/trip-http/list.contract.ts`, outra sessão).
+
+`test/trip/trip-amounts-money-optional.contract.ts` (novo, registrado em `test/trip.contract.test.ts`):
+
+- Viagem com `amounts` só `{ revenueSource: 'estimated' }` passa em `tripFromApi`; as duas chaves de
+  dinheiro seguem ausentes (`Object.hasOwn` `false`), nunca `null`/zero.
+- Com as três chaves, comportamento idêntico a antes.
+- Forma errada continua reprovando: `revenueSource` fora do vocabulário, ou `documentsTotal` que não
+  é string/null.
+- `tripListFromApi` (o que `GET /trips` realmente devolve) aceita a mesma forma redigida.
+
+`test/trip/amount-columns.contract.ts` (existente, ampliado):
+
+- Ordenação trata a ausência das chaves por redação igual a `null` — não promove a linha redigida ao
+  topo nem no `asc` nem no `desc`.
+- Inspeção de fonte confirma que `TripTable.component.tsx` guarda `amounts.revenueTotal ===
+undefined` antes de formatar (a mesma técnica de inspeção que o arquivo já usa para as outras
+  regras de D10).
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo (saída silenciosa do tsc nas 6 apps).
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4227 pass / 0 fail — 36281 expect() calls em 29 arquivos (baseline antes desta task: 4221; +6 testes
+novos: 4 no contrato novo, 2 ampliando `amount-columns.contract.ts`).
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 12.47s — PWA precache 130 entries (4485.72 KiB); mesmos avisos pré-existentes de chunk
+grande, nenhum novo.
+```
+
+Não tocado: `apps/api-transportada` (outra sessão mexendo em paralelo, fora do escopo desta task por
+instrução).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

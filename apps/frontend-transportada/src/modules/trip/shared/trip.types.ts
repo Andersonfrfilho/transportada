@@ -64,10 +64,15 @@ export type TripDriverLine = Readonly<{
 export type TripRevenueSource = 'estimated' | 'measured' | 'missing' | 'period'
 
 export type TripAmounts = Readonly<{
-  /** `null` quando nenhuma nota tem valor conhecido — e **nunca zero**, que diria carga sem valor. */
-  documentsTotal: null | string
+  /**
+   * `null` quando nenhuma nota tem valor conhecido — e **nunca zero**, que diria carga sem valor.
+   * Ausente (spec 153 T710) quando a API redige por falta de `trip.financials`: chave que some do
+   * corpo, distinta de `null` calculado.
+   */
+  documentsTotal?: null | string
   revenueSource: TripRevenueSource
-  revenueTotal: string
+  /** Ausente pelo mesmo motivo de `documentsTotal` (spec 153 T710) — nunca vira zero. */
+  revenueTotal?: string
 }>
 
 export type Trip = Readonly<{

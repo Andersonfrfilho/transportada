@@ -266,7 +266,15 @@ export const TRIP_OPTIONAL_KEYS = [
   'estimatedFinishAt',
 ] as const
 
-export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal'] as const
+export const TRIP_AMOUNTS_KEYS = ['revenueSource'] as const
+
+/**
+ * Spec 153 T710: sem `trip.financials` a API redige `documentsTotal`/`revenueTotal` do corpo — a
+ * chave **some**, nunca vira `null`/zero (D10). `hasExactKeys` sobre as três chaves reprovava a
+ * resposta inteira, derrubando a listagem inteira do mesmo jeito que o C1/T701 derrubou a nota
+ * fiscal. `revenueSource` continua obrigatória: ela não é dinheiro, é a origem do número.
+ */
+export const TRIP_AMOUNTS_OPTIONAL_KEYS = ['documentsTotal', 'revenueTotal'] as const
 
 /**
  * ⚠️ **Cópia por valor da API**, como `FUEL_TYPES`: o bundle não carrega código do servidor. Fonte:
