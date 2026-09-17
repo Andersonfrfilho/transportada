@@ -15,6 +15,7 @@ import type { ReplicateDimensions } from '../shared/packageBoxReplicateOffer.ser
 import {
   initialReplicateSelection,
   resolveReplicateTargets,
+  resolveSelectedTargetIds,
 } from '../shared/packageBoxReplicateSelection.service'
 import styles from '../styles/packageBoxes.module.css'
 
@@ -65,6 +66,13 @@ export function PackageBoxReplicateDialog({
     initializedForRef.current = boxId
     setSelected(initialReplicateSelection({ isLowConfidenceFamily, targets }))
   }, [siblings, boxId, isLowConfidenceFamily, targets])
+
+  /**
+   * T14 (revisão final, MÉDIO-1): `selected` pode ter sobrevivido a um refetch que tirou uma irmã
+   * de `targets` (medida por outra pessoa nesse meio-tempo) — contar e enviar o `selected` cru
+   * gravaria esse id junto, e a API recusaria (409) o lote inteiro por causa dele.
+   */
+  const selectedTargetIds = resolveSelectedTargetIds({ selected, targets })
 
   function toggleTarget(id: string): void {
     setSelected((current) => {
@@ -141,13 +149,13 @@ export function PackageBoxReplicateDialog({
 
         <div className={styles.actions}>
           <Button
-            disabled={saving || selected.size === 0}
-            onClick={() => onConfirm(Array.from(selected))}
+            disabled={saving || selectedTargetIds.length === 0}
+            onClick={() => onConfirm(selectedTargetIds)}
             size="sm"
             type="button"
           >
             <Icon name="check" />
-            {t('packageBoxes.replicateDialog.confirm', { count: selected.size })}
+            {t('packageBoxes.replicateDialog.confirm', { count: selectedTargetIds.length })}
           </Button>
           <Button disabled={saving} onClick={onClose} size="sm" type="button" variant="ghost">
             {t('packageBoxes.replicateDialog.cancel')}

@@ -23,3 +23,17 @@ export function initialReplicateSelection(input: {
   if (input.isLowConfidenceFamily) return new Set()
   return new Set(input.targets.map((target) => target.id))
 }
+
+/**
+ * T14 (revisão final, MÉDIO-1): `selected` pode conter um id que não está mais entre `targets`
+ * depois de um refetch — a irmã foi medida por outra pessoa nesse meio-tempo, e a leitura anterior
+ * ficou obsoleta. Contar e enviar o `selected` cru grava esse id junto, e a rota recusa (409) o
+ * lote inteiro por causa de um alvo que a tela nem devia mais oferecer (D4). Cruzar contra os
+ * `targets` atuais é o que descarta o obsoleto antes de contar ou confirmar.
+ */
+export function resolveSelectedTargetIds(input: {
+  readonly selected: ReadonlySet<string>
+  readonly targets: readonly PackageBoxSibling[]
+}): readonly string[] {
+  return input.targets.filter((target) => input.selected.has(target.id)).map((target) => target.id)
+}

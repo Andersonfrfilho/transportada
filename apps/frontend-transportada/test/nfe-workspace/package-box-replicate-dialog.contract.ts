@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   initialReplicateSelection,
   resolveReplicateTargets,
+  resolveSelectedTargetIds,
 } from '@/modules/nfe-workspace/shared/packageBoxReplicateSelection.service'
 import type { PackageBoxSibling } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
 
@@ -33,6 +34,28 @@ describe('alvos de replicação: só quem ainda não tem medida (D4)', () => {
     const pending = buildSibling({ id: 'pending' })
 
     expect(resolveReplicateTargets([measured, pending])).toEqual([pending])
+  })
+})
+
+/**
+ * T14 (revisão final, MÉDIO-1): `selected` guarda ids escolhidos numa leitura anterior das irmãs —
+ * um refetch pode devolver `targets` sem um desses ids (a irmã foi medida por outra pessoa nesse
+ * meio-tempo). Contar/enviar o `selected` cru grava um alvo que a API vai recusar (409) para o lote
+ * inteiro; o correto é sempre cruzar contra os `targets` da leitura atual.
+ */
+describe('ids selecionados: só os que ainda estão entre os alvos atuais (MÉDIO-1)', () => {
+  it('descarta id selecionado que não está mais entre os alvos depois de um refetch', () => {
+    const targets = [buildSibling({ id: 'a' }), buildSibling({ id: 'b' })]
+    const selected = new Set(['a', 'stale-id-de-antes-do-refetch'])
+
+    expect(resolveSelectedTargetIds({ selected, targets })).toEqual(['a'])
+  })
+
+  it('mantém a ordem e todos quando nada ficou obsoleto', () => {
+    const targets = [buildSibling({ id: 'a' }), buildSibling({ id: 'b' })]
+    const selected = new Set(['b', 'a'])
+
+    expect(resolveSelectedTargetIds({ selected, targets })).toEqual(['a', 'b'])
   })
 })
 
@@ -75,6 +98,9 @@ describe('diálogo de replicar depois de salvar (spec 155 D5, D6, D11, G010, G01
     expect(dialog).toContain('target.productCode')
     expect(dialog).toContain('resolveReplicateTargets')
     expect(dialog).toContain('initialReplicateSelection')
+    /** MÉDIO-1: conta e envia só o que sobrou de `selected` depois de cruzar com `targets`. */
+    expect(dialog).toContain('resolveSelectedTargetIds')
+    expect(dialog).not.toContain('Array.from(selected)')
     /** D11/G011: o motivo da família assimétrica fica à vista, não só o estado desmarcado. */
     expect(dialog).toContain('isLowConfidenceFamily')
     expect(dialog).toContain('packageBoxes.replicateDialog.lowConfidence')
