@@ -2300,3 +2300,120 @@ alterar comportamento fora do pedido em T402.
 ### Commit
 
 `<preenchido após o commit>`
+
+## T403
+
+### Escopo
+
+Criação manual (`TripQuickCreateDialog`/`useTripQuickCreate`) precisa (a) mandar a escolha do
+operador — critério e assinatura, D2 — ao planejar a rota, inclusive o default (mais barata) quando
+ele nunca toca o seletor, e (b) corrigir a ordem `reorder` → `plan`, hoje invertida, que descarta essa
+escolha em silêncio. Fora do escopo: proposta (T404), detalhe da viagem (T405), Fase 5.
+
+### A causa raiz confirmada em código
+
+`reorder-trip-stops.use-case.ts` (linhas ~60-90) chama o congelador **sem** `routeChoice`:
+
+```ts
+await repository.reorderStops({ companyId, orderedStopIds, tripId })
+if (routeFreezer !== undefined) {
+  try {
+    await routeFreezer.freeze({ companyId, tripId })
+  } catch {
+    /* a ordem já está gravada; o pedágio congela no próximo replanejamento */
+  }
+}
+```
+
+`freeze-trip-planned-route.use-case.ts` resolve o critério com
+`input.choice?.criterion ?? DEFAULT_ROUTE_CHOICE_CRITERION`, e `DEFAULT_ROUTE_CHOICE_CRITERION` é
+`'cheapest'`. Logo: **toda reordenação recalcula a rota congelada para a mais barata**, sem exceção —
+o congelador não tem como saber, nessa chamada, que critério o operador escolheu.
+
+Consequência observável na criação manual: se o hook planeja a rota com a escolha do operador e só
+depois reordena as paradas (ordem antiga do código), a chamada de reordenação sobrescreve a rota
+recém-gravada de volta para `cheapest` — o operador pediu "sem pedágio" e a viagem nasce com pedágio,
+sem erro nenhum na tela. A correção é inverter a ordem: reordenar primeiro, planejar com a escolha do
+operador por último, para que a última escrita seja a que vale.
+
+### Como a escolha viaja hoje (ponta a ponta)
+
+1. `useTripQuickCreate` inicializa `routeChoice` com `DEFAULT_ROUTE_CHOICE = { criterion: 'cheapest',
+signature: null }` (D1: a mais barata é o default de tela) e atualiza via `setRouteChoice`, ligado
+   a `onRouteChoiceChange` no `TripAssemblyMap` dentro de `TripQuickCreateDialog.component.tsx`.
+2. Ao criar a viagem, `useTripQuickCreate.hook.ts` chama `finalizeQuickCreateRoute` (novo,
+   `shared/finalizeQuickCreateRoute.service.ts`), que primeiro reordena (`client.reorderTripStops`,
+   se houver mais de uma parada) e só depois planeja a rota (`client.planTripRoute({ routeChoice,
+tripId })`) — `routeChoice` sempre enviado, nunca omitido, mesmo no default.
+3. `tripClient.service.ts`.`planTripRoute` agora aceita `routeChoice` opcional e, quando presente,
+   inclui `{ routeChoice }` no corpo JSON do `POST /trips/:id/plan-route`.
+4. No servidor, `routeChoiceRequestSchema` (já validado desde T201) aceita o corpo, e
+   `plan-trip-route.use-case.ts` encaminha a escolha ao `tollFreezer.freeze(...)` dentro de um
+   `try {} catch {}` que absorve falha do OSRM/congelamento sem derrubar a criação da viagem (D5) —
+   comportamento confirmado por leitura de código nesta sessão e nas anteriores (T201/T402), sem
+   alteração nesta task.
+5. Se o OSRM cair: a viagem, o vínculo de notas e a reordenação já estão gravados antes da chamada de
+   planejamento; o `catch` silencioso do `plan-trip-route.use-case.ts` garante que a falha de
+   congelamento não impede o retorno da viagem criada ao operador — o pedágio/rota recongelam no
+   próximo replanejamento, como já documentado nas tasks anteriores.
+
+### Dois reds genuínos (antes da implementação)
+
+Arquivo novo `apps/frontend-transportada/test/trip/route-choice-manual-creation.contract.ts`, saída
+completa em `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t403-red.txt`:
+
+- **Teste 1** (`sends the operators chosen criterion and signature when planning the route`): antes
+  da implementação, `planTripRoute` não mandava corpo nenhum — `Object.hasOwn(body, 'routeChoice')`
+  falhava (`false` ao invés do `true` esperado), prova de que a escolha não chegava ao servidor.
+- **Teste 2** (`sends the default cheapest criterion even when the operator never touches the
+selector`): mesma causa — `body.routeChoice` vinha `undefined` em vez de
+  `{ criterion: 'cheapest', signature: null }`, prova de que o default também não era enviado.
+- **Teste 3** (`planning after reordering keeps the operators criterion; reordering after planning
+would discard it`): antes da implementação, `finalizeQuickCreateRoute.service.ts` não existia —
+  `Cannot find module '../../src/modules/trip/shared/finalizeQuickCreateRoute.service'` — vermelho
+  genuíno por ausência do orquestrador que impõe a ordem `reorder` → `plan`. (O arquivo com a ordem
+  correta foi criado antes por engano, movido para fora da árvore, os testes rerrodados para capturar
+  este red genuíno, e só então restaurado — para não passar sem intenção.)
+
+### Implementação
+
+- `tripClient.service.ts`: `planTripRoute` passa a aceitar `routeChoice?: RouteChoice` e inclui
+  `{ routeChoice }` no corpo quando presente.
+- `useTripQuickCreate.hook.ts`: novo estado `routeChoice` (default `{ criterion: 'cheapest', signature:
+null }`, resetado em `reset()`), exposto no controller (`routeChoice`/`setRouteChoice`); a
+  `mutationFn` de criação passa a chamar `finalizeQuickCreateRoute({ planRoute, reorderStops,
+shouldReorder })` no lugar da sequência antiga.
+- `finalizeQuickCreateRoute.service.ts` (novo, `shared/`): orquestrador puro e injetável — reordena
+  primeiro (se `shouldReorder`), planeja com a escolha do operador por último. Criado em arquivo
+  próprio porque `tripQuickCreate.service.ts` já estava em 198 das 200 linhas do padrão de arquivo.
+- `TripQuickCreateDialog.component.tsx`: liga `onRouteChoiceChange={quickCreate.setRouteChoice}` no
+  `TripAssemblyMap`, entre `onOrderChange` e `onStopRemove`.
+- `test/trip.contract.test.ts`: barrel ganha `import './trip/route-choice-manual-creation.contract.js'`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — nenhum arquivo fora do padrão.
+
+$ bun run test   (apps/frontend-transportada)
+4167 pass / 0 fail (baseline T402) → 4170 pass / 0 fail
+Delta de +3 é exatamente a suíte nova `route-choice-manual-creation.contract.ts` (3 `it`) — nenhum
+teste pré-existente mudou de contagem ou de asserção.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.07s — PWA precache 129 entries (4468.59 KiB), mesma contagem de entradas do baseline
+T402 (129). Nenhum asset novo precacheado; maior chunk (`vectorBasemap.service`, 997.94 kB) segue
+abaixo do teto de 2 MiB por asset, e `vectorBasemap.service`/`index` continuam chunks separados —
+MapLibre não voltou ao bundle principal.
+```
+
+### Commit
+
+`<preenchido após o commit>`
