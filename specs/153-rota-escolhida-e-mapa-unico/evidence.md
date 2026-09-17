@@ -5255,3 +5255,134 @@ disparo de efeito do React sobre dados de uma busca real, mas não é uma render
 ### Commit
 
 `81bd0b36`
+
+## Fase 9 — Ressalvas da terceira revisão (T901 + T902)
+
+Um commit só para as duas: mexem na mesma peça (`DrizzleTripPlannedRouteRepository` /
+`trips.planned_route_stops_revision`), e a solução escolhida para T901 remove o gatilho que T902
+queria trocar por um por comando — não sobra gatilho nenhum para trocar.
+
+### O achado
+
+T901 (P1): a coordenada da parada **não mora em `trip_stops`** — vem de `geocoded_addresses` por
+`address_key` (`trip-stop-coordinates.support.ts`, comentário de topo). O gatilho que T802 criou
+(`bump_trip_planned_route_stops_revision`, migration `20260917202034_trip_planned_route_stops_
+revision`) só disparava em INSERT/UPDATE/DELETE de `trip_stops`. Cenário: o congelamento lê as
+paradas, uma ainda sem coordenada, decide gravar rota nula (D5); enquanto termina, o geocodificador
+preenche `geocoded_addresses` — nenhuma linha de `trip_stops` mudou, a revisão não bumpa, o
+compare-and-set deixa passar, e a viagem fica com rota nula mesmo já havendo coordenada para todas
+as paradas. Mesma classe de escrita obsoleta que a T802 dizia ter fechado.
+
+T902 (P2 + P3): dado que o gatilho existia, ele era `FOR EACH ROW` com um `UPDATE trips` por linha —
+`reorderStops` (~2N escritas em `trip_stops`) geraria 2N versões mortas em `trips`, o ramo de
+INSERT/UPDATE só bumpava `NEW.trip_id` (trocar a viagem de uma parada não bumparia a origem), e
+`TRUNCATE` não é coberto.
+
+### A decisão: hash da junção, sem coluna e sem gatilho
+
+Confirmado antes de mexer: a coluna `trips.planned_route_stops_revision` e a migration
+`20260917202034_trip_planned_route_stops_revision` nasceram **nesta mesma spec** (commit `a73c43bd`,
+T802) e nunca chegaram a `origin/staging` —
+
+```
+$ git merge-base --is-ancestor a73c43bd origin/staging && echo "IN STAGING" || echo "NOT IN STAGING"
+NOT IN STAGING
+```
+
+— então não há ambiente real que já tenha essa coluna ou esse gatilho para migrar. Em vez de uma
+segunda migration que os removesse, a migration de T802 foi apagada do `drizzle/` (era a última da
+pasta, nada depende dela) e o schema/repositório voltaram a não conhecê-la — não existiu produção
+para descontar disso.
+
+A revisão comparada em `writePlannedRoute` deixou de ser um contador incrementado por trigger e virou
+o **hash do que de fato entra na rota**: `md5(string_agg(id || ':' || sequência || ':' || latitude
+|| ':' || longitude, ',' order by sequência, id))` sobre a mesma junção `trip_stops` LEFT JOIN
+`geocoded_addresses` que `readStopCoordinates` usa — uma subconsulta correlacionada
+(`TRIP_STOPS_REVISION` em `drizzle-trip-planned-route.repository.ts`), recalculada tanto em
+`readVehicleContext` (leitura no disparo) quanto no `WHERE` do `UPDATE` de `writePlannedRoute`
+(reconferência na escrita). `md5('')` é o valor de "viagem sem parada nenhuma" — determinístico,
+nunca `NULL` do `string_agg` vazio.
+
+Por que hash e não manter a coluna com a geocodificação somada ao gatilho: a coluna exigiria um
+SEGUNDO gatilho em `geocoded_addresses` (ou um `UPDATE trips` disparado pelo job de geocodificação),
+e ainda ficaria vulnerável à mesma classe de "esqueceram de instrumentar um caminho" que T902 já
+apontava no primeiro gatilho — cada tabela nova que a rota passasse a depender exigiria lembrar de
+mais um gatilho. A subconsulta lê a junção de verdade toda vez; não há caminho de escrita para
+esquecer. Isso também resolve T902 por completo: sem gatilho, não há `FOR EACH ROW` para trocar por
+`FOR EACH STATEMENT`, não há 2N escritas em `trips` por reordenação (a reordenação não toca `trips`
+nenhuma vez a mais — o hash é computado sob demanda, não mantido), e não há ramo de `trip_id`/
+`TRUNCATE` para esquecer, porque não há ramo nenhum: qualquer forma de a junção mudar já entra no
+hash.
+
+### O que prova
+
+- **(a) geocodificação durante o congelamento não deixa rota nula, sem instrumentar mais nada**:
+  novo teste `T901: geocodificação que preenche a coordenada durante o congelamento descarta a
+escrita, e não só mudança em trip_stops` (`freeze-trip-planned-route.integration.ts`) — insere a
+  parada sem coordenada, lê a revisão, geocodifica o endereço (só `geocoded_addresses`, `trip_stops`
+  intocada), e a escrita subsequente com a revisão antiga sai `'stale_revision'`, `plannedRoute`
+  continua `null`. O desfecho escolhido é o descarte-e-log (não um retry automático — fora de
+  escopo desta task); o disparo seguinte, com a revisão nova, já veria a coordenada e gravaria a
+  rota.
+- **(b) escrita alheia em `trips` que não mexe em parada continua não descartando**: teste já
+  existente `T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento`
+  segue verde — a hash não muda porque nem `trip_stops` nem `geocoded_addresses` mudaram.
+- **(c) paradas mudadas no meio descartam e o descarte é logado com o motivo certo**: teste já
+  existente `T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e
+o outcome diz por quê` segue verde — inserir uma `trip_stop` muda o hash, `outcome` sai
+  `'stale_revision'`, e `freeze-trip-planned-route.use-case.ts` (`throwIfDiscarded`) continua
+  lançando o erro nomeado que `freezeTripRouteGracefully` converte em `logger.warn`.
+- **(d) reordenação de N paradas não gera 2N escritas em `trips`**: sem gatilho, `reorderTripStops`
+  (`reorder-trip-stops.use-case.ts`) não toca `trips` nenhuma vez pelas escritas em `trip_stops` —
+  zero, não um bump por comando. `test/trip-infrastructure/planned-route-invalidation.contract.ts`
+  (mock-based, T704 M3) foi ajustado para provar que o `WHERE` do `UPDATE` referencia
+  `trip_stops`/`geocoded_addresses` (não mais `planned_route_stops_revision`), confirmando que a
+  comparação é a subconsulta nova.
+
+### Migration
+
+Removida por inteiro (não editada): `drizzle/20260917202034_trip_planned_route_stops_revision/`
+(migration.sql, rollback.sql, snapshot.json) — `git rm`. `src/database/trip.schema.ts` perdeu a
+coluna `plannedRouteStopsRevision`. `test/database-migration/static-migration.contract.ts` perdeu a
+entrada correspondente na lista fixa de diretórios de migration.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (raiz)
+All matched files use Prettier code style!
+
+$ make migration-test
+97 pass / 0 fail, 1321 expect() calls, 8 arquivos.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (apps/api-transportada)
+6278 pass / 23 skip / 0 fail, 21966 expect() calls, 177 arquivos.
+(⚠️ este comando não varre `test/integration/*.integration.ts` — confirmado lendo
+apps/api-transportada/package.json: o script "test" é uma lista explícita de arquivos, e nenhum
+`.integration.ts` está nela. As entradas cobertas aqui são os entrypoints finos
+`test/database-migration.contract.test.ts` e `test/trip-infrastructure.contract.test.ts`, que
+importam `static-migration.contract.ts` e `planned-route-invalidation.contract.ts`.)
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts ./test/integration/route-depot-query.integration.ts --timeout 120000
+25 pass / 0 fail, 97 expect() calls.
+(9 pré-existentes + 1 novo teste do T901, em freeze-trip-planned-route.integration.ts — 10 pass ali
+sozinho.)
+```
+
+### O que não fez
+
+Não implementou um retry automático do congelamento depois que a geocodificação termina — o cenário
+(a) prova o descarte correto (a rota fica `null` e o `outcome` sai `'stale_revision'`, logado), não
+um novo disparo espontâneo; a task pedia provar o desfecho correto, "seja qual for", e o escolhido
+foi o descarte. Um agendador que reagisse a `geocoded_addresses` preenchida re-disparando o
+congelamento está fora do escopo de T901/T902.
+
+### Commit
+
+`<hash desta mudança — ver git log>`

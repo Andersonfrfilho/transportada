@@ -244,18 +244,6 @@ export const trips = pgTable(
     plannedDurationSeconds: bigint('planned_duration_seconds', { mode: 'number' }),
     plannedRouteFrozenAt: timestamp('planned_route_frozen_at', { withTimezone: true }),
     /**
-     * Spec 153 T802 (N3): a versão do **conjunto de paradas**, não da linha inteira. Um trigger em
-     * `trip_stops` (INSERT/UPDATE/DELETE) é o único escritor — nenhum caso de uso a incrementa à
-     * mão, porque a lista de quem mexe em parada (reconciliação, reordenação, relato de campo,
-     * override de MDF-e) cresce, e um contador espalhado por código esquece um lugar. O congelamento
-     * da rota (`writePlannedRoute`) lê e reconfere esta coluna, não `updated_at`: escrita alheia em
-     * `trips` (relato do motorista, override fiscal) não a toca, e só troca de valor quando a forma
-     * das paradas muda de verdade.
-     */
-    plannedRouteStopsRevision: bigint('planned_route_stops_revision', { mode: 'bigint' })
-      .notNull()
-      .default(0n),
-    /**
      * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
      * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.

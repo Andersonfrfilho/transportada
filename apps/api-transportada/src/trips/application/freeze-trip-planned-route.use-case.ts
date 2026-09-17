@@ -42,14 +42,14 @@ export type FreezeTripPlannedRouteVehicleContext = {
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
   /**
-   * Spec 153 T704 (M3): a revisão da viagem no instante em que o congelamento foi disparado —
-   * `trips.updated_at`. A escrita final só acontece se ela ainda for essa, de forma que um
-   * congelamento nascido de um conjunto de paradas já obsoleto não escreva nada em vez de
-   * sobrescrever a rota que o reordenamento seguinte acabou de calcular ("last write wins").
-   *
-   * ⚠️ É **texto**, não `Date`: `timestamptz` guarda microssegundo e o `Date` do JavaScript só vai
-   * até o milissegundo. Comparar o valor lido de volta como `Date` nunca reencontrava a linha, e o
-   * congelamento deixava de escrever sempre — a guarda vira apagador silencioso da rota inteira.
+   * Spec 153 T704 (M3) / T802 (N3) / T901: o hash do conjunto de paradas — `(id, sequência,
+   * latitude, longitude)` de cada uma, coordenada incluída — no instante em que o congelamento foi
+   * disparado. A escrita final só acontece se a mesma junção, recalculada ali, ainda produzir esse
+   * hash — de forma que um congelamento nascido de um conjunto já obsoleto (parada mudada, ou só
+   * geocodificada nesse meio-tempo) não escreva nada em vez de sobrescrever a rota que o
+   * recálculo seguinte já traçou ("last write wins"). Não é mais `trips.updated_at`: essa coluna
+   * também muda com escrita alheia à rota (relato de campo, override de MDF-e), e descartava
+   * congelamento legítimo sem motivo.
    */
   readonly revision: string
 }

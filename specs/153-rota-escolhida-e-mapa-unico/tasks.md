@@ -162,11 +162,11 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 
 Terceira revisão: APROVADA COM RESSALVAS, sem achado crítico ou alto e sem regressão nova.
 
-- [ ] T901 **P1** A revisão de paradas não cobre a coordenada: ela vem de `geocoded_addresses` por
+- [x] T901 **P1** A revisão de paradas não cobre a coordenada: ela vem de `geocoded_addresses` por
       `address_key`, e o gatilho só conta mudança em `trip_stops`. Geocodificação que preenche a
       coordenada durante o congelamento deixa a viagem com rota nula sem motivo — a mesma janela que
       a T802 dizia ter fechado.
-- [ ] T902 **P2 + P3** Gatilho por comando (transition tables) no lugar do por linha: hoje são 2N
+- [x] T902 **P2 + P3** Gatilho por comando (transition tables) no lugar do por linha: hoje são 2N
       escritas em `trips` por reordenação, e o ramo de `UPDATE` não cobre troca de `trip_id` nem
       `TRUNCATE`. Um gatilho por comando resolve os três.
 - [x] T903 **P4** `buildRouteChoiceSignatureKey` é cega quando o roteirizador não devolve assinatura

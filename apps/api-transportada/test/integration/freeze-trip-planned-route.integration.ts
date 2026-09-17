@@ -9,7 +9,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -18,6 +18,7 @@ import {
   fleetVehicles,
   trips,
 } from '../../src/database/database.schema.js'
+import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import { tripStops } from '../../src/database/trip.schema.js'
 import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
 import type { FuelProduct } from '../../src/shared/fuel.constant.js'
@@ -161,7 +162,7 @@ describe('freeze trip planned route repository integration', () => {
 
         await repository.writePlannedRoute({
           companyId,
-          expectedRevision: await readTripRevision(database, tripId),
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
           route: null,
           toll: null,
           tripId,
@@ -194,7 +195,7 @@ describe('freeze trip planned route repository integration', () => {
 
         await repository.writePlannedRoute({
           companyId,
-          expectedRevision: await readTripRevision(database, tripId),
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -256,9 +257,9 @@ describe('freeze trip planned route repository integration', () => {
           vehicleType: 'toco',
         })
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
-        const staleRevision = await readTripRevision(database, tripId)
+        const staleRevision = await readTripRevision(repository, companyId, tripId)
 
-        /** T802: uma parada mudou no meio do caminho — o trigger em trip_stops bumpa a revisão. */
+        /** T802: uma parada mudou no meio do caminho — o hash da junção passa a ser outro. */
         await database.db
           .insert(tripStops)
           .values({ addressKey: 'x', companyId, label: 'Parada', sequence: 1n, tripId })
@@ -266,6 +267,56 @@ describe('freeze trip planned route repository integration', () => {
         const outcome = await repository.writePlannedRoute({
           companyId,
           expectedRevision: staleRevision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('stale_revision')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+        expect(row?.plannedRouteFrozenAt).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T901: geocodificação que preenche a coordenada durante o congelamento descarta a escrita, e não só mudança em trip_stops',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        /** A parada existe desde o disparo — só a coordenada dela ainda não tinha chegado. */
+        await database.db.insert(tripStops).values({
+          addressKey: 'endereco-sem-coordenada',
+          companyId,
+          label: 'Parada',
+          sequence: 1n,
+          tripId,
+        })
+        const revisionBeforeGeocoding = await readTripRevision(repository, companyId, tripId)
+
+        /**
+         * O geocodificador preenche `geocoded_addresses` enquanto o congelamento ainda calculava a
+         * rota — nenhuma linha de `trip_stops` mudou, então um contador que só ouvisse `trip_stops`
+         * (a guarda original da T802) deixaria isso passar, e a viagem ficaria com rota nula mesmo
+         * já havendo coordenada para todas as paradas.
+         */
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: 'endereco-sem-coordenada',
+          latitude: '-21.1775000',
+          longitude: '-47.8103000',
+          precision: 'city',
+          source: 'city',
+        })
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revisionBeforeGeocoding,
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -289,13 +340,14 @@ describe('freeze trip planned route repository integration', () => {
           vehicleType: 'toco',
         })
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
-        const revision = await readTripRevision(database, tripId)
+        const revision = await readTripRevision(repository, companyId, tripId)
 
         /**
          * O relato de campo do motorista e o override de MDF-e escrevem direto em `trips` sem
-         * tocar em parada nenhuma — é exatamente essa escrita que `updated_at` não distinguia de
-         * uma mudança de parada (T802 defeito a). `daily_allowance_days` é uma coluna qualquer de
-         * `trips` fora do grupo da rota, só para simular "algo mais mexeu na linha".
+         * tocar em parada nenhuma nem em `geocoded_addresses` — é exatamente essa escrita que
+         * `updated_at` não distinguia de uma mudança de parada (T802 defeito a). `daily_allowance_
+         * days` é uma coluna qualquer de `trips` fora do grupo da rota, só para simular "algo mais
+         * mexeu na linha".
          */
         await database.db
           .update(trips)
@@ -329,7 +381,7 @@ describe('freeze trip planned route repository integration', () => {
         })
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
         await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
-        const revision = await readTripRevision(database, tripId)
+        const revision = await readTripRevision(repository, companyId, tripId)
 
         const outcome = await repository.writePlannedRoute({
           companyId,
@@ -358,7 +410,7 @@ describe('freeze trip planned route repository integration', () => {
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
         await repository.writePlannedRoute({
           companyId,
-          expectedRevision: await readTripRevision(database, tripId),
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -380,7 +432,7 @@ describe('freeze trip planned route repository integration', () => {
         /** Despachada: o congelado é o roteiro que está na rua, e a limpeza não o alcança. */
         await repository.writePlannedRoute({
           companyId,
-          expectedRevision: await readTripRevision(database, tripId),
+          expectedRevision: await readTripRevision(repository, companyId, tripId),
           route: FULL_ROUTE,
           toll: FULL_TOLL,
           tripId,
@@ -397,16 +449,18 @@ describe('freeze trip planned route repository integration', () => {
 })
 
 /**
- * T704 M3 / T802: a revisão do **conjunto de paradas** — `planned_route_stops_revision`, que só o
- * trigger de `trip_stops` incrementa — é o valor que o compare-and-set reconfere.
+ * T704 M3 / T802 / T901: a revisão é o hash da junção `trip_stops` × `geocoded_addresses` que
+ * `readVehicleContext` já expõe — nenhuma coluna nem trigger por trás, então ler pelo próprio
+ * caminho de produção é o único jeito de não divergir do que `writePlannedRoute` reconfere.
  */
-async function readTripRevision(database: TestDatabase, tripId: string): Promise<string> {
-  const [row] = await database.db
-    .select({ revision: sql<string>`${trips.plannedRouteStopsRevision}::text` })
-    .from(trips)
-    .where(eq(trips.id, tripId))
-  if (row === undefined) throw new Error('viagem semeada sumiu')
-  return row.revision
+async function readTripRevision(
+  repository: DrizzleTripPlannedRouteRepository,
+  companyId: string,
+  tripId: string,
+): Promise<string> {
+  const vehicle = await repository.readVehicleContext({ companyId, tripId })
+  if (vehicle === null) throw new Error('viagem semeada sumiu')
+  return vehicle.revision
 }
 
 async function expectQueryToFail(

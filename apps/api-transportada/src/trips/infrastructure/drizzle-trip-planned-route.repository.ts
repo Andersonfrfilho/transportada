@@ -7,8 +7,9 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import { trips } from '../../database/trip.schema.js'
+import { trips, tripStops } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import {
   parseFrozenBoothLegIndexes,
   parseTollRouteCost,
@@ -34,15 +35,43 @@ import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
 /**
- * Spec 153 T802 (N3): a revisão do **conjunto de paradas**, não da linha `trips` inteira.
+ * Spec 153 T802 (N3) / T901: a revisão do **conjunto de paradas com a coordenada que ele enxerga**,
+ * não da linha `trips` inteira e não só de `trip_stops`.
+ *
  * `trips.updated_at` (T704 M3) parecia servir, mas qualquer escrita alheia em `trips` — relato de
  * campo do motorista, override de MDF-e, o próprio despacho — também a tocava, e o compare-and-set
- * descartava um congelamento legítimo por uma mudança que nunca mexeu em parada. `planned_route_
- * stops_revision` só muda pelo trigger de `trip_stops` (migration
- * `20260917202034_trip_planned_route_stops_revision`); é `bigint`, então nunca esbarra na
- * imprecisão de `timestamptz`-como-texto que o `updated_at` tinha.
+ * descartava um congelamento legítimo por uma mudança que nunca mexeu em parada. Uma coluna
+ * `trips.planned_route_stops_revision` bumpada por trigger em `trip_stops` (T802) resolvia isso,
+ * mas a coordenada da parada **não mora em `trip_stops`** — vem de `geocoded_addresses` por
+ * `address_key` (`trip-stop-coordinates.support.ts`). O trigger só via `trip_stops` mudar, então a
+ * geocodificação que preenche a coordenada *durante* o congelamento passava despercebida: nenhuma
+ * linha de `trip_stops` mudou, a revisão ficava a mesma, e o compare-and-set deixava passar uma
+ * escrita que já estava obsoleta — a mesma classe de janela que a T802 dizia ter fechado.
+ *
+ * A revisão vira, em vez de contador, o hash do que de fato entra na rota: `(id, sequência,
+ * latitude, longitude)` de cada parada, lido na **mesma junção** que `readStopCoordinates` usa.
+ * Sem coluna e sem trigger — é uma subconsulta correlacionada, recalculada tanto na leitura
+ * (`readVehicleContext`) quanto na reconferência do `WHERE` do `UPDATE` (`writePlannedRoute`), então
+ * qualquer mudança real na junção — parada nova, parada removida, reordenada, ou só geocodificada —
+ * produz um hash diferente, e nenhuma delas exige lembrar de instrumentar mais um caminho de escrita
+ * (o problema que T902 apontava no trigger por linha: reordenar N paradas bumpava a coluna 2N vezes,
+ * e trocar a viagem de uma parada ou um `TRUNCATE` em `trip_stops` não bumpava nada). `md5('')` é o
+ * valor de "viagem sem parada nenhuma" — determinístico, nunca `NULL`.
  */
-const TRIP_REVISION = sql<string>`${trips.plannedRouteStopsRevision}::text`
+const TRIP_STOPS_REVISION = sql<string>`(
+  select coalesce(
+    md5(string_agg(
+      ${tripStops.id}::text || ':' || ${tripStops.sequence}::text || ':' ||
+        coalesce(${geocodedAddresses.latitude}::text, '') || ':' ||
+        coalesce(${geocodedAddresses.longitude}::text, ''),
+      ',' order by ${tripStops.sequence}, ${tripStops.id}
+    )),
+    md5('')
+  )
+  from ${tripStops}
+  left join ${geocodedAddresses} on ${geocodedAddresses.addressKey} = ${tripStops.addressKey}
+  where ${tripStops.companyId} = ${trips.companyId} and ${tripStops.tripId} = ${trips.id}
+)`
 
 export class DrizzleTripPlannedRouteRepository
   implements FreezeTripPlannedRoutePort, ReadTripRouteGeometryRoutePort
@@ -61,7 +90,7 @@ export class DrizzleTripPlannedRouteRepository
         hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         /** T704 M3 / T802: a revisão das paradas neste instante, que a escrita final reconfere. */
-        revision: TRIP_REVISION,
+        revision: TRIP_STOPS_REVISION,
         vehicleType: fleetVehicles.vehicleType,
       })
       .from(trips)
@@ -125,7 +154,7 @@ export class DrizzleTripPlannedRouteRepository
         and(
           eq(trips.companyId, input.companyId),
           eq(trips.id, input.tripId),
-          eq(TRIP_REVISION, input.expectedRevision),
+          eq(TRIP_STOPS_REVISION, input.expectedRevision),
           inArray(trips.status, [...TRIP_STATUSES_BEFORE_DISPATCH]),
         ),
       )

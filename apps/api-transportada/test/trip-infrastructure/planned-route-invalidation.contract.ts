@@ -142,8 +142,13 @@ describe('T704 M3: a escrita do congelamento não atropela estado mais novo', ()
     await repository.writePlannedRoute(WRITE)
 
     const query = dialect.sqlToQuery(recorded.condition as SQL)
-    /** T802: a revisão comparada é `planned_route_stops_revision`, não mais `updated_at`. */
-    expect(query.sql).toContain('planned_route_stops_revision')
+    /**
+     * T802 / T901: a revisão comparada não é mais `updated_at`, nem uma coluna bumpada por
+     * trigger — é o hash da junção `trip_stops` × `geocoded_addresses`, recalculada aqui mesmo,
+     * então a coordenada geocodificada entra na comparação, não só a existência da parada.
+     */
+    expect(query.sql).toContain('trip_stops')
+    expect(query.sql).toContain('geocoded_addresses')
     expect(query.params).toContain(WRITE.expectedRevision)
   })
 })
