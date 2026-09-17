@@ -155,3 +155,31 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 - [x] T806 **N7 + N13 + N12 + N14** Ajustes finos: `?? []` que apaga a diferença entre "uma parada" e
       "parada sem coordenada"; `fuelBaseline` calculado em três lugares sem guarda de paridade;
       `expect(true).toBe(true)`; `toMatchObject` que não reprova campo a mais.
+
+## Fase 9 — Ressalvas da terceira revisão
+
+> 🤖 Modelo: `sonnet`
+
+Terceira revisão: APROVADA COM RESSALVAS, sem achado crítico ou alto e sem regressão nova.
+
+- [ ] T901 **P1** A revisão de paradas não cobre a coordenada: ela vem de `geocoded_addresses` por
+      `address_key`, e o gatilho só conta mudança em `trip_stops`. Geocodificação que preenche a
+      coordenada durante o congelamento deixa a viagem com rota nula sem motivo — a mesma janela que
+      a T802 dizia ter fechado.
+- [ ] T902 **P2 + P3** Gatilho por comando (transition tables) no lugar do por linha: hoje são 2N
+      escritas em `trips` por reordenação, e o ramo de `UPDATE` não cobre troca de `trip_id` nem
+      `TRUNCATE`. Um gatilho por comando resolve os três.
+- [ ] T903 **P4** `buildRouteChoiceSignatureKey` é cega quando o roteirizador não devolve assinatura
+      (todas viram `''`): duas respostas de estradas diferentes colapsam na mesma chave e o efeito
+      deixa de reemitir. Incluir a quantidade de opções e um discriminante por opção.
+- [ ] T904 **P5** A garantia do RF13 no `TripAssemblyMap` ainda é `toInclude` sobre o texto-fonte:
+      renderizar o componente, escolher a opção 2, refazer a busca com o mesmo conteúdo e provar que
+      a escolha não foi reemitida nem perdida.
+- [ ] T905 **P6 + P8 + P9 + P10 + P11 + P12** Ajustes: literal da NF-e ancorado no tipo vigiado;
+      viagem inexistente não vira "paradas mudaram" no log; `warn` no gap de paradas; a prova do N12
+      aponta o campo; teste para o filtro simples e a busca livre sem valor; `exhaustive-deps` no
+      ESLint do frontend.
+
+**Dívida declarada, fora de escopo:** P7 (o que é servido por espalhamento segue sem classificação
+monetária — entra na `FieldPolicy` quando o tipo ganhar dinheiro) e N7 (a resposta ainda colapsa
+"sem parada" e "parada sem coordenada"; só o log distingue).
