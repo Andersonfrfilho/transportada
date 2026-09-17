@@ -2506,3 +2506,51 @@ qualquer instalação.
 | `bun run test` (frontend) | ✅ 4153 pass · 0 fail (+2 casos)          |
 | `bun run lint`            | ✅                                        |
 | `bun run format:check`    | ✅                                        |
+
+## Revisão final — achados 9 e 10: o órfão que já estava registrado e o que faltava
+
+**Achado 9 — falso positivo, nenhuma mudança de código.** O revisor escreveu: _"**Órfão novo, fora da
+ADR-0066:** `trip-valuation.policy.ts:56` declara `salariedCrewMember: 'SALARIED_CREW_MEMBER'` e nada
+em `src/` emite mais esse gap"_. Os fatos conferem — a declaração está lá, não há produtor em `src/`,
+e os quatro locales traduzem o código (`tripFinancials.locale.json:42`, `.en.:42`,
+`trip.locale.json:1004`, `trip.en.locale.json:811`). O que não confere é o "fora da ADR-0066": o
+código é o **primeiro** dos seis da seção "Vocabulário de lacuna", escrita na T14 e commitada em
+`41ec7e0f`, antes da revisão rodar. A leitura errada tem explicação, e ela foi corrigida no
+documento: a lista mora sob um título sobre vocabulário de zona, e `SALARIED_CREW_MEMBER` não é
+código de zona — é modelo de pagamento. A ADR agora diz isso em voz alta, logo abaixo da lista.
+
+**Achado 10 — fechado estendendo a exceção, não apagando código.** `resolveVehicleFreightClass`
+(`src/shared/vehicle-type.constant.ts:73`) perdeu o último consumidor de produção quando a T4 tirou
+`readVehicleFreightClass` da consulta. Medido hoje:
+
+| Referência | Onde                                         | O que é                                     |
+| ---------- | -------------------------------------------- | ------------------------------------------- |
+| declaração | `src/shared/vehicle-type.constant.ts:73`     | a função                                    |
+| comentário | `src/shared/freight-class.constant.ts:10`    | nomeia a função como a origem da classe     |
+| suíte      | `test/fleet-domain/vehicle-type.contract.ts` | 5 referências, as seis colunas precificadas |
+
+Apagá-la deixaria `vehicle-type.contract.ts` sem objeto — e nenhuma suíte é apagada nesta spec
+(decisão do usuário). Mais: a tabela de zona precifica **por classe de veículo**, e a classe sai do
+tipo cadastrado por essa função. Religar a zona sem ela não compila, o que faz dela a companheira
+obrigatória das duas políticas que a ADR-0066 já decidiu manter. A exceção foi estendida em vez de
+aberta de novo.
+
+**O que impede o próximo revisor de reencontrar os mesmos "órfãos novos".** A ADR sozinha não
+protege: quem varre código morto apaga primeiro e lê depois. `kept-without-consumer.contract.ts`
+(novo, na área `trip-valuation`) prende os quatro nomes ao documento, nos dois sentidos:
+
+| Teste                                                                    | Quebra quando                                                                                                  |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `the archive decision names every symbol that survives without a caller` | alguém apaga o parágrafo da ADR                                                                                |
+| `every symbol the archive decision keeps is still where it says it is`   | alguém apaga `resolveTripDriverZone`, `chooseTiedZone`, `resolveVehicleFreightClass` ou `SALARIED_CREW_MEMBER` |
+
+Escrito antes da edição do documento e visto vermelho: `Expected to contain: "chooseTiedZone"` —
+a ADR nomeava os **arquivos** das políticas, nunca os símbolos, que é o que uma varredura procura.
+
+| Gate                                            | Resultado                         |
+| ----------------------------------------------- | --------------------------------- |
+| `bun run typecheck`                             | exit 0 (seis apps)                |
+| `bun run --cwd apps/api-transportada test`      | 6274 testes, 23 skip, 0 fail (+2) |
+| `bun run --cwd apps/frontend-transportada test` | 4153 pass, 0 fail                 |
+| `bun run lint`                                  | limpo                             |
+| `bun run format:check`                          | limpo                             |

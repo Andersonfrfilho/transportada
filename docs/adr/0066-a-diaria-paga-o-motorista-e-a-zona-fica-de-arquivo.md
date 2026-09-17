@@ -33,6 +33,19 @@ continuam funcionando (`driver-zone.contract.ts`, `driver-route-vote.contract.ts
 pelo domínio de viagens para formar custo, mas a tabela e o cadastro continuam existindo — é dado de
 região de frete, não exclusivo do motorista.
 
+Os símbolos que ficam sem chamador têm nome, e é por nome que uma varredura de código morto os
+encontra: `resolveTripDriverZone` (a política de zona), `chooseTiedZone` (a de empate) e
+`resolveVehicleFreightClass` (`src/shared/vehicle-type.constant.ts`), que perdeu o último consumidor
+de produção quando a T4 tirou `readVehicleFreightClass` da consulta de valoração. O terceiro é o
+companheiro obrigatório dos dois primeiros: a tabela de zona precifica por **classe de veículo**, e a
+classe sai do tipo cadastrado por essa função — religar a zona sem ela não compila. O que ainda o
+descreve é `test/fleet-domain/vehicle-type.contract.ts` (as seis colunas precificadas, os tipos sem
+coluna, o vazio) e o comentário de `freight-class.constant.ts`, que nomeia a função como a origem da
+classe.
+
+`test/trip-valuation/kept-without-consumer.contract.ts` prende os quatro nomes a este documento: o
+símbolo e o parágrafo caem juntos, ou nenhum dos dois cai.
+
 Razão prática, não sentimental: a diária é a regra hoje, mas zona/rota/empate foi regra viva por
 cinco specs (123 a 128), com nuance testada (célula vazia vs. veículo sem coluna, empate por número
 de cidades, maior preço entre faixas). Se o produto voltar atrás — ou se uma transportadora precisar
@@ -51,6 +64,12 @@ Seis códigos de `VALUATION_GAPS` **deixam de ser produzidos** por `buildTripDri
 - `DRIVER_RATE_MISSING_FOR_CLASS`
 - `DRIVER_ZONE_PRICED_FROM_TABLE`
 - `DRIVER_ROUTE_TIE_HIGHEST_RATE`
+
+⚠️ O primeiro da lista não é código de zona, e é por isso que ele engana quem lê a lista de corrido:
+`SALARIED_CREW_MEMBER` é sobre o **modelo de pagamento** do tripulante, não sobre faixa
+geográfica. Ele para de ser produzido porque a diária paga o motorista da casa e o agregado pela
+mesma conta — a informação "há motorista da casa" passa a viver em `basis.crew[].paymentModel`, e
+emiti-lo marcaria `hasGaps: true` numa conta agora completa.
 
 Resultado de viagem **já congelado antes desta spec** carrega esses códigos em
 `trip_financial_parcels`, e a tela de resultado congelado lê o rótulo pelo código gravado, não
@@ -90,6 +109,8 @@ onde ela reaparece se for religada, e o _namespace_ certo continua sendo `trips/
 - Os seis códigos de lacuna continuam nos quatro dicionários de locale e em `VALUATION_GAPS` para
   sempre, ou até que se prove que nenhuma linha congelada os carrega mais (auditoria que esta spec
   não fez).
+- `resolveVehicleFreightClass` fica sem chamador de produção pelo mesmo motivo e com a mesma
+  condição de volta: ela é a classe de veículo que a tabela de zona cobra.
 - Um item de limpeza aparentemente óbvio ("essa política não tem chamador, posso apagar?") passa a
   exigir ler este ADR antes — é o próprio propósito do documento.
 
