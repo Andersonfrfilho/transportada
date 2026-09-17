@@ -16,6 +16,7 @@ import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
+import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
 import {
   FISCAL_TABLES,
@@ -134,6 +135,10 @@ describe('Drizzle migration integration', () => {
           fixture: identityFixture,
         })
         await assertDriverAllowanceRollbackRefusesRecordedMoney({
+          database,
+          directories: migrationDirectories,
+        })
+        await assertTollBoothExtractConstraints({
           database,
           directories: migrationDirectories,
         })

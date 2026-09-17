@@ -124,3 +124,110 @@ mesmo extrato duas vezes.
 
 Nenhuma condição de "parar e perguntar" foi atingida: o extrato de staging existe (T001), nenhuma
 migration destrutiva está em jogo, nenhuma suíte foi tocada.
+
+## Fase 1
+
+### T101 — `toll_booth_extracts`
+
+Task 🧠: o desenho foi validado com o `architect` em `opus` **antes** de escrever qualquer coisa.
+O que a validação mudou em relação ao `plan.md` está registrado abaixo — quatro correções, e uma
+delas é de segurança de dado.
+
+Migration: `apps/api-transportada/drizzle/20260917143608_toll_booth_extracts/`
+(`migration.sql` + `snapshot.json` gerados pelo `drizzle-kit generate`, `rollback.sql` escrito à mão).
+Schema: `apps/api-transportada/src/database/toll-booth-extract.schema.ts`, exportado em
+`database.schema.ts` (é de lá que a suíte de tenant-safety importa).
+
+#### O que mudou em relação ao `plan.md`, e por quê
+
+| `plan.md` dizia                                  | Ficou                                                          | Por quê                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PK `bigserial`                                   | PK natural `(dataset, observed_on)`                            | Não existe **uma** coluna `serial` em todo o schema da app; é por esse par que a recarga endereça a linha, e é o conflito dele que produz o 409 do duplicado. Um id opaco só acrescentaria um passo entre a rota e a linha — o mesmo raciocínio de `job_schedules.job`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `varchar` nos textos                             | `text` em `object_key`/`sha256`, `varchar(64)` só em `dataset` | A proibição de ENUM nativo é sobre conjunto fechado de valores, e aqui não há nenhum. `text` é a convenção medida do repo; `dataset` é `varchar` por ser limitado e entrar numa chave de objeto.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `SELECT … FOR UPDATE` na linha do extrato (RNF3) | **Não basta** — vira advisory lock na T302                     | O recurso disputado não é a linha, é `toll_booths`. Duas recargas de extratos **diferentes** travam linhas diferentes, não se excluem, e fazem upsert intercalado por `osm_node_id`: o catálogo fica metade de um extrato e metade do outro, e `readCatalogSummary` usa `max(observed_on)` — imprimiria a data nova sobre catálogo velho, que é o defeito que a feature existe para matar. **Contrato para a T302:** `pg_try_advisory_xact_lock` com id constante do catálogo (não derivado do extrato) envolvendo a transação inteira; `false` ⇒ erro de domínio ⇒ 409 "recarga em andamento". Coluna de estado está reprovada: processo que morre deixa a coluna travada para sempre. O `saveMany` do seed tem de rodar **dentro** dessa transação — hoje `SeedTollBoothsDependencies` recebe o repositório sem transação. |
+| "de três para quatro tabelas sem `company_id`"   | São **cinco**                                                  | Já eram quatro antes desta migration. Ver T102.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+#### Procedência: duas colunas, nada de `jsonb`
+
+Do manifesto medido na Fase 0 ficaram `source_url` e `extracted_at`. `source.lastModified` **saiu**:
+a sua data já é `observed_on`, e a hora do arquivo do Geofabrik ninguém lê. `source_url` fica porque
+é a única coluna que revela, depois, que alguém recortou outra região reusando o mesmo `dataset` —
+a falha em que o id de nó deixa de casar com o do OSRM e a rota subestima o total **em silêncio**.
+`extracted_at` fica porque a distância entre extrair e subir é real e não é derivável (extraído em
+15/09, registrado só agora). `jsonb` reprovado: neste repo ele guarda payload opaco ao SQL, e aqui
+são dois escalares que gente lê — num blob perderiam CHECK.
+
+#### Ator sem FK, e a asserção que impede a leitura errada
+
+`uploaded_by_user_id` / `reloaded_by_user_id` são `uuid` **sem `references`**. Três razões que se
+somam: `removeMembership` (spec 149) faz DELETE físico, então `RESTRICT` travaria a remoção do
+usuário e `SET NULL`/`CASCADE` apagaria o ator; ator que some com o usuário deixa de ser auditoria
+(security.md §10), e esta linha é a única trilha desta ação em toda a API; e a propriedade que a
+suíte de tenant-safety protege nas tabelas sem tenant é `foreignKeys(X).toEqual([])` sob o nome
+_"unable to reach a company"_ — uma FK aqui abriria a primeira aresta de saída para o grafo da
+identidade. Para que "sem FK" não seja lido como "esqueceram a FK", a T102 assevera três coisas no
+mesmo teste: zero FK, coluna de ator obrigatória, e tipo `uuid` nas duas.
+
+#### "Objeto sumiu do bucket": observação datada, não estado
+
+`missing_object_observed_at timestamptz NULL`. Derivar exigiria um `head` por linha a cada listagem
+(N+1 de rede numa tela, reprovado pelo §15). Um `unavailable boolean` seria pior: o `put` é
+`create-only` e a ressubida dos mesmos bytes responde `replayed`, então o objeto pode voltar sem que
+ninguém limpe o sinalizador e a lista mentiria para sempre. A coluna diz o que é verdade — _nesta
+data, a recarga não achou o objeto_ —, **zera no primeiro download que funcionar**, e o botão nunca
+se recusa a tentar.
+
+#### `rollback.sql` recusa com qualquer linha dentro
+
+Não só com recarga feita: subir o extrato já é ato auditado (quem pôs aquele objeto no bucket), e
+nenhum histórico reconstrói isso. O rollback **não toca `toll_booths`** — a D7 proíbe apagar praça e
+esta migration não criou nenhuma.
+
+#### Teste antes
+
+`test/database-migration/toll-booth-extract-constraints.assertion.ts` (novo), ligado em
+`database-migration.integration.ts`; a pasta nova registrada na lista explícita de
+`static-migration.contract.ts`. **Nenhum arquivo novo no `package.json`** — o entrypoint
+`database-migration.contract.test.ts` já está na lista, e a asserção entra por ele.
+
+Vermelho antes da implementação:
+
+```
+(fail) Drizzle migrations > preserves baseline and identity bytes while versioning additive fiscal migrations
+ 56 pass  1 fail
+```
+
+Verde depois:
+
+```
+$ make migration-test
+ 97 pass
+ 0 fail
+ 1349 expect() calls      # eram 1321 na linha de base: 28 asserções novas
+Ran 97 tests across 8 files. [34.83s]
+```
+
+O que a asserção prova, contra o Postgres descartável: nenhuma FK sai da tabela e não há
+`company_id`; o par `(dataset, observed_on)` repetido devolve `23505` em `toll_booth_extracts_pkey`
+(o 409 do aceite 8 é desta chave, não do `put`); os seis CHECKs recusam `dataset` com `..`, chave de
+objeto fora da forma, sha256 maiúsculo, extrato de zero praça, mais praças com tarifa por eixo do
+que com tarifa, e `source_url` em `http://`; meia trilha de recarga (`reloaded_at` sozinho) é
+recusada; e o `rollback.sql` recusa com a linha dentro.
+
+Demais gates: `bun run typecheck` (6 apps) verde · `bun run lint` (6 apps, `--max-warnings=0`) verde ·
+`bun run format` sem reescrever nada fora do que a task criou.
+
+Suíte completa da API, com o `.env.test` explícito (sem a flag a integração pula em silêncio):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6263 pass
+ 23 skip
+ 0 fail
+ 21931 expect() calls
+Ran 6286 tests across 177 files. [10.80s]
+```
+
+`toll_booth_extracts` **não** entra nos grupos de `readBusinessTables` do
+`test/database-migration/support.ts`: `toll_booths` também não está em nenhum deles, e a tabela nova
+segue o catálogo, não o negócio. É decisão, não esquecimento.

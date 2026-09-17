@@ -8,17 +8,17 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T001 Confirmar a **P1**: o objeto `toll-booths/osm/sudeste/2026-09-14/toll-booths.json` existe
+- [x] T001 Confirmar a **P1**: o objeto `toll-booths/osm/sudeste/2026-09-14/toll-booths.json` existe
       no bucket de staging, e com que forma. Resultado em `evidence.md`. Não existindo, parar e
       perguntar — a Fase 3 depende disso.
-- [ ] T002 Medir o catálogo de staging (`count(*)`, `max(observed_on)`) para conferir o registro de
+- [x] T002 Medir o catálogo de staging (`count(*)`, `max(observed_on)`) para conferir o registro de
       15/09 do runbook (592 / 571 / 2026-09-14). Só leitura.
 
 ## Fase 1 — Dados
 
 > 🤖 Modelo: `sonnet` (T101 é 🧠 — validar com `architect` antes)
 
-- [ ] T101 🧠 Migration aditiva `toll_booth_extracts` + schema Drizzle + `rollback.sql` —
+- [x] T101 🧠 Migration aditiva `toll_booth_extracts` + schema Drizzle + `rollback.sql` —
       `make migration-test`. Decidir com o `architect` a chave e os índices antes de escrever.
 - [ ] T102 `tenant-safety.contract.ts` atualizado para quatro tabelas sem `company_id`, com a
       justificativa escrita no contrato. **Não afrouxar a asserção, não apagar a suíte.**

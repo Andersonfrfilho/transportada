@@ -76,6 +76,7 @@ import {
   fleetVehicles,
 } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
+import { tollBoothExtracts } from './toll-booth-extract.schema.js'
 import { tollBooths } from './toll-booth.schema.js'
 import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
@@ -189,6 +190,7 @@ export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fleet-vehicle-axle.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './toll-booth-extract.schema.js'
 export * from './toll-booth.schema.js'
 export * from './vehicle-volume-reference.schema.js'
 export * from './freight-region.schema.js'
@@ -273,6 +275,7 @@ export const databaseSchema = {
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,
+  tollBoothExtracts,
   tollBooths,
   vehicleVolumeReferences,
   identityUserProfiles,
