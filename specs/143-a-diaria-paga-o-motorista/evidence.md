@@ -2394,3 +2394,47 @@ Nenhum caso provava mais de um dia estimado. Passam a existir:
 | `bun run test` (frontend) | ✅ 4151 pass · 0 fail           |
 | `bun run lint`            | ✅                              |
 | `bun run format:check`    | ✅                              |
+
+## Revisão final — achados 8 e 20: a ordem da tripulação e o motorista que sumia calado
+
+### Achado 8 — `SELECT` sem `ORDER BY` não tem ordem, tem sorte
+
+`readCrew` e `readPreviewCrew` devolviam a tripulação na ordem que o Postgres quisesse. A lista não
+é detalhe interno: ela vira `basis.crew[]`, que a tela imprime linha a linha e que o congelamento
+guarda. Duas leituras da mesma viagem podiam trocar os motoristas de lugar — e a ordem que um plano
+de consulta devolve é estável o bastante para passar em todo teste e mudar no dia em que a tabela
+cresce.
+
+- **Viagem**: `ORDER BY trip_drivers.position` — a ordem que a própria viagem gravou, o mesmo molde
+  de `drizzle-trip-cost.repository.ts`.
+- **Prévia**: não existe `position` ainda, então a ordem é a do **formulário**. Não é escolha
+  arbitrária: `position` nasce dessa mesma ordem quando a viagem é criada, então a prévia e a viagem
+  passam a contar a mesma história em vez de duas parecidas.
+
+A ordenação da prévia virou política pura, `trip-crew-order.policy.ts`, porque tem decisão dentro
+(ordem, id repetido, id sem resposta) e porque decisão dentro de SQL não tem teste sem banco.
+De brinde, o id repetido no formulário deixa de duplicar a diária.
+
+### Achado 20 — o filtro de tenant estava certo; o silêncio é que não
+
+`readPreviewCrew` casa `IN (driverIds)` com `company_id`, e é **assim que tem de ser**: sem isso uma
+empresa precificaria motorista de outra. O problema é o que acontece depois — o id descartado
+simplesmente não voltava, a prévia saía com um motorista a menos, a margem saía maior, e nada em
+lugar nenhum registrava o sumiço.
+
+A política devolve `missingDriverIds`, e a consulta emite
+`trip.valuation.preview_crew_driver_not_found` com `companyId` e os ids. **Id opaco, nunca nome** —
+§1 da segurança —, afirmado por um teste que recorta o corpo do aviso e exige a ausência de
+`driverName`. O `ApiLogger` passou a ser dependência de construtor da `DrizzleTripValuationQuery`
+(quatro call-sites), em vez de opcional: dependência opcional que não faz nada quando falta é o
+mesmo silêncio com outro nome.
+
+### Gates
+
+| Gate                      | Resultado                                  |
+| ------------------------- | ------------------------------------------ |
+| `bun run typecheck`       | ✅ seis apps                               |
+| `bun test` (API)          | ✅ 6248 pass · 23 skip · 0 fail (+9 casos) |
+| `bun run test` (frontend) | ✅ 4151 pass · 0 fail                      |
+| `bun run lint`            | ✅                                         |
+| `bun run format:check`    | ✅                                         |

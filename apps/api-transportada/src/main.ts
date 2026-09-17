@@ -1469,7 +1469,7 @@ function createApplicationRoutes({
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
-  const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
   /**
    * Spec 097: de onde a viagem parte. A porta é montada por empresa nos três chamadores abaixo,

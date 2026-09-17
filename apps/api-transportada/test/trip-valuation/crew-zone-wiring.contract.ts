@@ -68,6 +68,32 @@ describe('crew wiring is one join, not a policy call per driver (spec 143 T4)', 
   })
 })
 
+/**
+ * Spec 143 — revisão final, achados 8 e 20. Por texto de fonte pela mesma razão do bloco acima: a
+ * ordem que o Postgres devolve sem `ORDER BY` é estável o bastante para passar em todo teste e
+ * mudar em produção quando o plano muda.
+ */
+describe('a ordem da tripulação é declarada, nunca herdada do plano de consulta (spec 143)', () => {
+  test('the trip crew is ordered by the position the trip recorded', () => {
+    expect(methodBody('private async readCrew(')).toInclude('orderBy(asc(tripDrivers.position))')
+  })
+
+  test('the preview crew is ordered by the request, and says what it dropped', () => {
+    const body = methodBody('private async readPreviewCrew(')
+
+    expect(body).toInclude('orderCrewByRequest(')
+    expect(body).toInclude('this.logger.warn(')
+  })
+
+  /** §1 da segurança: id opaco rastreia, nome de motorista é PII e não entra em log. */
+  test('the dropped driver warning carries ids, never names', () => {
+    const body = methodBody('private async readPreviewCrew(')
+    const warning = body.slice(body.indexOf('this.logger.warn('))
+
+    expect(warning.slice(0, warning.indexOf('})'))).not.toInclude('driverName')
+  })
+})
+
 describe('crew wiring tenant safety (spec 143 T4)', () => {
   test('every join in the crew paths carries the company', () => {
     for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { aliasedTable, and, eq, inArray, sql, sum } from 'drizzle-orm'
+import { aliasedTable, and, asc, eq, inArray, sql, sum } from 'drizzle-orm'
 
 import type { FuelProduct } from '../../shared/fuel.constant.js'
 import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
@@ -21,6 +21,8 @@ import { companyTaxSettings, tripCostEntries } from '../../database/trip-financi
 import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+import { orderCrewByRequest } from '../domain/trip-crew-order.policy.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
@@ -42,8 +44,17 @@ const recipientParticipant = aliasedTable(nfeParticipants, 'valuation_recipient_
 const recipientAddress = aliasedTable(nfeAddresses, 'valuation_recipient_address')
 const emitterParticipant = aliasedTable(nfeParticipants, 'valuation_emitter_participant')
 
+/**
+ * O id de motorista que a prévia pediu e o banco não respondeu. Id opaco, nunca o nome: o aviso
+ * serve para rastrear a diferença de margem, não para publicar quem dirige.
+ */
+const PREVIEW_CREW_DRIVER_NOT_FOUND = 'trip.valuation.preview_crew_driver_not_found'
+
 export class DrizzleTripValuationQuery {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly logger: ApiLogger,
+  ) {}
 
   /**
    * A avaliação **antes de a viagem existir**: mesma conta, ancorada nas notas escolhidas e no
@@ -277,7 +288,7 @@ export class DrizzleTripValuationQuery {
   }): Promise<readonly TripCrewMember[]> {
     if (input.driverIds.length === 0) return []
 
-    return this.database
+    const rows = await this.database
       .select({
         driverAmount: fleetDrivers.dailyAllowanceAmount,
         driverId: fleetDrivers.id,
@@ -291,6 +302,22 @@ export class DrizzleTripValuationQuery {
           inArray(fleetDrivers.id, [...input.driverIds]),
         ),
       )
+
+    const ordered = orderCrewByRequest({ crew: rows, driverIds: input.driverIds })
+
+    /**
+     * ⚠️ O filtro por empresa descartando um id é a defesa de tenant funcionando — e é justamente
+     * por isso que o descarte precisa aparecer: a prévia devolve margem maior com um motorista a
+     * menos, e sem este aviso o sumiço não deixa rastro em lugar nenhum.
+     */
+    if (ordered.missingDriverIds.length > 0) {
+      this.logger.warn(PREVIEW_CREW_DRIVER_NOT_FOUND, {
+        companyId: input.companyId,
+        driverIds: ordered.missingDriverIds,
+      })
+    }
+
+    return ordered.crew
   }
 
   /**
@@ -367,22 +394,28 @@ export class DrizzleTripValuationQuery {
     readonly companyId: string
     readonly tripId: string
   }): Promise<readonly TripCrewMember[]> {
-    return this.database
-      .select({
-        driverAmount: fleetDrivers.dailyAllowanceAmount,
-        driverId: fleetDrivers.id,
-        driverName: fleetDrivers.name,
-        paymentModel: fleetDrivers.paymentModel,
-      })
-      .from(tripDrivers)
-      .innerJoin(
-        fleetDrivers,
-        and(
-          eq(fleetDrivers.companyId, tripDrivers.companyId),
-          eq(fleetDrivers.id, tripDrivers.driverId),
-        ),
-      )
-      .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
+    return (
+      this.database
+        .select({
+          driverAmount: fleetDrivers.dailyAllowanceAmount,
+          driverId: fleetDrivers.id,
+          driverName: fleetDrivers.name,
+          paymentModel: fleetDrivers.paymentModel,
+        })
+        .from(tripDrivers)
+        .innerJoin(
+          fleetDrivers,
+          and(
+            eq(fleetDrivers.companyId, tripDrivers.companyId),
+            eq(fleetDrivers.id, tripDrivers.driverId),
+          ),
+        )
+        .where(
+          and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)),
+        )
+        /** `position` é a ordem que a viagem gravou; sem ela o `SELECT` devolve o que quiser. */
+        .orderBy(asc(tripDrivers.position))
+    )
   }
 
   /** `null` quando ninguém lançou pedágio — ausência de lançamento, não gratuidade. */

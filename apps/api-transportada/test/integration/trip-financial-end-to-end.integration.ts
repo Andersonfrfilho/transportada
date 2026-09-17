@@ -49,6 +49,9 @@ import { DrizzleFinancialSummaryQuery } from '../../src/trips/infrastructure/fin
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 import { DrizzleApplicableFreightRuleQuery } from '../../src/freight/infrastructure/drizzle-freight.repository.js'
 
+/** A valoração avisa por log quando um id de motorista não responde; aqui o aviso não interessa. */
+const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
+
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
   process.env.API_TEST_DATABASE_URL ??
@@ -68,7 +71,7 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
             query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
           ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
           readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
-            new DrizzleTripValuationQuery(database.db).readContext(query),
+            new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readContext(query),
         }
 
         const valuation = await readTripValuation({
@@ -198,7 +201,7 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
               query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
             ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
             readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
-              new DrizzleTripValuationQuery(database.db).readContext(query),
+              new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readContext(query),
           },
           tripId: world.tripId,
         })
