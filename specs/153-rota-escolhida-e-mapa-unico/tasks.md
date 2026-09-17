@@ -129,3 +129,29 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       `TRIP_AMOUNTS_KEYS`): a listagem redigida reprova e a tela quebra, como no C1. Tornar
       `documentsTotal` e `revenueTotal` opcionais em `tripResponse.validation.ts`, `trip.types.ts` e
       `trip.constant.ts`, com a linha sumindo na tela.
+
+## Fase 8 — Correções da segunda revisão
+
+> 🤖 Modelo: `sonnet`
+
+A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 na mesma tela do C1).
+
+- [ ] T801 **N1** `findLiveTripIdForDocuments` reaproveita viagem por conjunto de notas, ignorando
+      veículo, motorista e status: o reaceite pode pendurar a carga na viagem do veículo errado, ou
+      numa já despachada. Filtrar por `vehicleId` e por status antes do despacho.
+- [ ] T802 **N3** O compare-and-set por `updated_at` descarta congelamento legítimo em silêncio
+      (qualquer escrita em `trips` na janela, inclusive relato do motorista). Revisão própria do
+      conjunto de paradas, comparação como `timestamptz` e log quando o UPDATE não pega linha.
+- [ ] T803 **N2 + N5** Filtro avançado de NF-e transforma valor ausente em `0` (`?? ''` → `Number`),
+      e a ordenação por valor embaralha a lista com `NaN`. Ausente nunca casa condição numérica, e a
+      ordenação joga a ausência para o fim.
+- [ ] T804 **N4 + N11** Refetch da geometria apaga a escolha do operador (regressão do RF13): separar
+      reset de emissão, dependências corretas; e trocar as provas por regex do frontend por teste de
+      comportamento, no molde da T706.
+- [ ] T805 **N6 + N8 + N9 + N10** Classificação exaustiva nos tipos que vazaram (NF-e, documento,
+      amounts); `isNoToll` ausente tolerado no parser, como o parser irmão; `docs/SECURITY.md`
+      atualizado (a parte do frontend já foi feita na T710); aceite de sugestão usa o
+      `freezeTripRouteGracefully` com log, sem helper duplicado.
+- [ ] T806 **N7 + N13 + N12 + N14** Ajustes finos: `?? []` que apaga a diferença entre "uma parada" e
+      "parada sem coordenada"; `fuelBaseline` calculado em três lugares sem guarda de paridade;
+      `expect(true).toBe(true)`; `toMatchObject` que não reprova campo a mais.
