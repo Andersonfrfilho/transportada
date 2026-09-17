@@ -16,6 +16,7 @@ const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
+const PACKAGE_BOX_REPLICATE_FAILED_CODE = 'PACKAGE_BOX_REPLICATE_FAILED'
 
 /** BAIXO-5 (T14, 5ª revisão): reexportada para não quebrar quem já importa a partir do hook. */
 export { isRepeatedScan } from '../shared/packageBoxScan.js'
@@ -120,6 +121,9 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     },
   })
 
+  /** ⚠️ Mesmo padrão de `measureErrorCode` (A1): recusa de replicar precisa aparecer no diálogo. */
+  const [replicateErrorCode, setReplicateErrorCode] = useState<string | undefined>(undefined)
+
   /**
    * Spec 155 (G004, D5): replicar é sempre confirmado pelo conferente — a mutação só existe, quem
    * decide chamar é o diálogo. Invalida a mesma chave da medida: a família inteira precisa reler os
@@ -128,7 +132,12 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
   const replicate = useMutation({
     mutationFn: (input: Readonly<{ boxId: string; targetIds: readonly string[] }>) =>
       client.replicate(input),
+    onError: (error: unknown) => {
+      setReplicateErrorCode(packageBoxErrorCode(error) ?? PACKAGE_BOX_REPLICATE_FAILED_CODE)
+    },
+    onMutate: () => setReplicateErrorCode(undefined),
     onSuccess: () => {
+      setReplicateErrorCode(undefined)
       void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
     },
   })
@@ -146,6 +155,8 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     measureErrorCode,
     queue: query.data ?? null,
     replicate,
+    /** O código da recusa da última réplica — `undefined` enquanto nada falhou. */
+    replicateErrorCode,
     /** Zera o desfecho da gravação anterior — quem abre o fluxo chama antes de começar do zero. */
     resetMeasure: () => {
       measure.reset()

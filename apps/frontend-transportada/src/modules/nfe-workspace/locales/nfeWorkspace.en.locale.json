@@ -475,6 +475,17 @@
     "quickFill": {
       "useMeasurementOf": "Use the measurement from {{label}}"
     },
+    "replicateDialog": {
+      "title": "Replicate this measurement to the other variations?",
+      "dimensions": "This will save {{length}} × {{width}} × {{height}} cm, {{units}} unit(s) per box",
+      "lowConfidence": "This family mixes different formats (e.g. vacuum-packed and sachet) — check each target before selecting it.",
+      "noTargets": "No other variation is pending in this family right now.",
+      "targetAriaLabel": "{{description}} · product code {{productCode}}",
+      "targetCode": "product code {{productCode}}",
+      "failed": "Could not replicate ({{code}}). Check and try again.",
+      "confirm": "Replicate ({{count}})",
+      "cancel": "Do not replicate"
+    },
     "experimentalBadge": "Experimental",
     "experimentalHint": "The camera measurement is an estimate. Check it with the tape measure before saving; when in doubt, type it in.",
     "margin": "±{{margin}} cm",

@@ -718,12 +718,15 @@ export function NfeWorkspacePage() {
                       loading={packageBoxes.isLoading}
                       matching={packageBoxes.isMatching}
                       onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
+                      onReplicate={(input) => packageBoxes.replicate.mutate(input)}
                       onResetSaveError={packageBoxes.resetMeasure}
                       onRetryLookup={packageBoxes.retryLookup}
                       onScan={packageBoxes.setScanned}
                       onSearchChange={packageBoxes.setSearch}
                       onStatusChange={packageBoxes.setStatus}
                       queue={packageBoxes.queue}
+                      replicateErrorCode={packageBoxes.replicateErrorCode}
+                      replicateSaving={packageBoxes.replicate.isPending}
                       saveErrorCode={packageBoxes.measureErrorCode}
                       saveStatus={packageBoxes.measure.status}
                       saving={packageBoxes.measure.isPending}

@@ -623,7 +623,47 @@ bun run --cwd apps/frontend-transportada lint                                   
 
 ## T3.4 — Diálogo de replicar
 
-_(pendente)_
+Vermelho primeiro, em `test/nfe-workspace/package-box-replicate-dialog.contract.ts` (novo, importado
+em `test/nfe-workspace.contract.test.ts`):
+
+```
+error: Cannot find module '@/modules/nfe-workspace/shared/packageBoxReplicateSelection.service'
+ 0 pass · 1 fail · 1 error
+```
+
+### O que mudou
+
+- `packageBoxReplicateSelection.service.ts` (novo, puro): `resolveReplicateTargets` filtra as irmãs
+  já medidas (D4 — a rota recusa sobrescrever, a tela nunca oferece o que ela vai recusar);
+  `initialReplicateSelection` decide a pré-marcação — tudo marcado quando a família é confiável (D5),
+  tudo desmarcado quando `isLowConfidenceFamily` (D11/G011). Testado direto, sem DOM.
+- `PackageBoxReplicateDialog.component.tsx` (novo): reaproveita o molde do `ImpreciseConfirmDialog`
+  (portal + `useModalDialog`, mesmas classes de `packageBoxes.module.css`). Busca as irmãs sob
+  demanda (`usePackageBoxSiblings`, D9), mostra no cabeçalho as dimensões que serão gravadas
+  (`packageBoxes.replicateDialog.dimensions`), o aviso de família assimétrica quando aplicável
+  (`replicateDialog.lowConfidence`, D11/G011), e cada alvo com **descrição completa + `cProd`**
+  (`Checkbox` do design system, nunca só o rótulo — D11 corolário). Cancelar chama só `onClose`,
+  nunca `onConfirm`: nada é gravado (D5).
+- `PackageBoxMeasurementPanel.component.tsx`: `offerReplicateIfEligible` guarda a dimensão recém
+  digitada quando `box.familyPendingCount > 1` (D9 — o contador já vem pronto da API, incluindo a
+  própria caixa, então >1 quer dizer que sobra pendente na família). Um efeito abre o diálogo só
+  quando `saveStatus` chega a `'success'` — nunca no clique de gravar, e nunca se o `PUT` falhar
+  (G010). Outro efeito fecha o diálogo sozinho quando a réplica termina sem erro. As duas telas que
+  gravam medida (linha digitada e `PackageBoxCameraFlow`) alimentam a mesma oferta.
+- `usePackageBoxQueue.hook.ts`: `replicateErrorCode`, mesmo padrão de `measureErrorCode` (A1) — a
+  recusa de replicar (por exemplo, 409 de medida concorrente, D4) aparece no diálogo em vez de sumir.
+- Locales pt/en: `replicateDialog.*` (title, dimensions, lowConfidence, noTargets, targetAriaLabel,
+  targetCode, failed, confirm, cancel).
+
+### Gates
+
+```
+bun test ./test/nfe-workspace/package-box-replicate-dialog.contract.ts   6 pass · 0 fail
+bun run typecheck (as seis apps)                                          exit 0
+bun run --cwd apps/frontend-transportada test                            4182 pass · 0 fail (29 arquivos)
+bun run --cwd apps/frontend-transportada lint                             sem erros
+bun run --cwd apps/frontend-transportada build                           ✓ built in 9.39s
+```
 
 ## T4.1 — Locales
 

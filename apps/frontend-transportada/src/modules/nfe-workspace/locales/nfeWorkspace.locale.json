@@ -649,6 +649,17 @@
     "quickFill": {
       "useMeasurementOf": "Usar a medida de {{label}}"
     },
+    "replicateDialog": {
+      "title": "Replicar esta medida para as outras variações?",
+      "dimensions": "Vai gravar {{length}} × {{width}} × {{height}} cm, {{units}} un. por caixa",
+      "lowConfidence": "Esta família mistura formatos diferentes (ex.: vácuo e sachê) — confira cada alvo antes de marcar.",
+      "noTargets": "Não há outra variação pendente nesta família agora.",
+      "targetAriaLabel": "{{description}} · cProd {{productCode}}",
+      "targetCode": "cProd {{productCode}}",
+      "failed": "Não foi possível replicar ({{code}}). Confira e tente de novo.",
+      "confirm": "Replicar ({{count}})",
+      "cancel": "Não replicar"
+    },
     "statusLabel": "Situação",
     "status": {
       "pending": "Faltam medir",
