@@ -7,6 +7,7 @@ import {
   createPackageBoxClient,
   packageBoxErrorCode,
   type PackageBoxMeasurementInput,
+  type PackageBoxSiblings,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
 import { isRepeatedScan } from '../shared/packageBoxScan.js'
@@ -119,6 +120,19 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     },
   })
 
+  /**
+   * Spec 155 (G004, D5): replicar é sempre confirmado pelo conferente — a mutação só existe, quem
+   * decide chamar é o diálogo. Invalida a mesma chave da medida: a família inteira precisa reler os
+   * contadores e o `measuredAt` dos alvos gravados.
+   */
+  const replicate = useMutation({
+    mutationFn: (input: Readonly<{ boxId: string; targetIds: readonly string[] }>) =>
+      client.replicate(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
+    },
+  })
+
   return {
     failed: query.isError,
     isLoading: query.isLoading,
@@ -131,6 +145,7 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     /** O código da recusa da última gravação — `undefined` enquanto nada falhou (A1). */
     measureErrorCode,
     queue: query.data ?? null,
+    replicate,
     /** Zera o desfecho da gravação anterior — quem abre o fluxo chama antes de começar do zero. */
     resetMeasure: () => {
       measure.reset()
@@ -157,5 +172,25 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
       setScanned(null)
     },
     status,
+  }
+}
+
+/**
+ * Spec 155 (D9, G003): as irmãs de família/embalagem de UMA caixa, sob demanda — nunca junto da
+ * fila de 50 linhas. `boxId: null` desliga a consulta (o botão rápido e o diálogo de replicar
+ * pedem exatamente a caixa que estão mostrando, nunca a fila inteira).
+ */
+export function usePackageBoxSiblings(input: Readonly<{ boxId: null | string }>) {
+  const client = createClient()
+  const query = useQuery<PackageBoxSiblings>({
+    enabled: input.boxId !== null,
+    queryFn: () => client.listSiblings({ boxId: input.boxId as string }),
+    queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', input.boxId],
+  })
+
+  return {
+    failed: query.isError,
+    loading: query.isLoading,
+    siblings: query.data ?? null,
   }
 }

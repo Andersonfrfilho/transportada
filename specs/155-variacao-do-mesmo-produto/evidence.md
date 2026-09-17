@@ -491,7 +491,62 @@ por regra de negócio.
 
 ## T3.1 — Cliente e hook
 
-_(pendente)_
+⚠️ **Desvio do `tasks.md`, registrado por escrito:** `test/nfe-workspace/client-and-queries.contract.ts`
+é o contrato de `nfeWorkspaceClient.service` (upload/distribuição/documentos NF-e/CT-e) desde a spec
+013 — nunca testou `packageBoxClient`. O contrato real do cliente de caixas sempre viveu em
+`test/nfe-workspace/package-box-measurement.contract.ts` (fixture `BOX`, `buildClient`), e é lá que
+as tasks 152 anteriores (T10, T14, T15) adicionaram os testes de `listBoxes`/`measureBox`. Segui o
+contrato existente em vez do nome do `tasks.md`, para não abrir um segundo lugar testando o mesmo
+cliente.
+
+Vermelho primeiro, em `package-box-measurement.contract.ts` (novo describe "família de variação e
+réplica de medida" + "o hook expõe a réplica e as irmãs sob demanda"):
+
+```
+59 pass · 5 fail
+- listSiblings/replicate: "is not a function" (métodos não existiam)
+- measurementSource: 'replicated' na leitura da fila: PackageBoxRequestError PACKAGE_BOX_MALFORMED
+- hook: "replicate"/"usePackageBoxSiblings" ausentes do código-fonte
+```
+
+### O que mudou
+
+- `PACKAGE_BOX_MEASUREMENT_SOURCES` (`packageBoxClient.service.ts`) ganhou `replicated` — sem isso o
+  guard `isNullableMeasurementSource` recusava a leitura da fila inteira assim que a primeira réplica
+  fosse gravada (o corpo de MEDIR continua sem poder mandar `replicated`: nada no formulário digitado
+  ou da câmera produz esse valor, só a rota de replicar grava).
+- `PackageBox` ganhou `familyKey` (`string | undefined`), `familyPendingCount`, `familyMeasuredCount`,
+  `packagingSiblingCount`, `packagingUnitCount` (`number | undefined`), `variantLabel` — espelhando
+  `PackageBoxView` da API. `isPackageBox` ganhou os guards `isOptionalString`/`isOptionalNumber` para
+  os campos que a API pode omitir do JSON (nunca manda `null` para eles, D9/G002).
+- `PackageBoxSibling`/`PackageBoxSiblings`, cópia por valor de `PackageBoxSiblingView`/
+  `ListPackageBoxSiblingsResult` (API), com `isLowConfidenceFamily` (D11/G011).
+- `packageBoxClient.service.ts`: `listSiblings` (`GET .../:id/siblings`) e `replicate`
+  (`POST .../:id/replicate`, corpo `{ targetIds }`), com os mesmos guards de "corpo que não é o
+  esperado lança" das outras leituras.
+- `usePackageBoxQueue.hook.ts`: mutação `replicate` invalidando `[PACKAGE_BOX_QUERY_KEY]` (mesma
+  chave da medida — a família inteira precisa reler contadores e `measuredAt` dos alvos). Hook novo
+  `usePackageBoxSiblings({ boxId })`, exportado à parte, com `enabled: boxId !== null` — sob demanda,
+  nunca junto da consulta de 50 linhas (D9).
+- `packageBoxMeasurementLabel.service.ts`: `measurementSourceLabel` ganhou o ramo `replicated` →
+  `packageBoxes.source.replicated` ("Replicada — não conferida" / "Replicated — not checked"), nos
+  dois locales. `cameraMeasurementValidation.service.ts` não precisou de mudança — não faz switch
+  exaustivo sobre a origem, só `!== 'camera_adjusted'`, e `replicated` já cai no ramo "sem leitura".
+
+⚠️ **Risco fora de escopo, não corrigido aqui:** `cameraMeasurementExportClient.service.ts`
+(`EXPORT_SOURCES = ['camera', 'camera_adjusted', 'typed']`, spec 152 T5) vai recusar a resposta
+inteira do histórico assim que uma linha `replicated` existir em `nfe_package_box_measurements` — o
+guard é `.includes`, não um switch. É o painel de validação/exportação da câmera
+(`settings.manage`), não a fila de medição desta spec. Reportado como sugestão separada ao final.
+
+### Gates
+
+```
+bun test ./test/nfe-workspace/package-box-measurement.contract.ts   64 pass · 0 fail
+bun run typecheck (as seis apps)                                     exit 0
+bun run --cwd apps/frontend-transportada test                        4170 pass · 0 fail (29 arquivos)
+bun run --cwd apps/frontend-transportada lint                        sem erros
+```
 
 ## T3.2 — Unidade visível e agrupamento
 
