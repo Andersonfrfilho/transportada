@@ -4677,3 +4677,150 @@ achado N4/N11 do T804 foi resolvido só nos dois arquivos de fato ligados à reg
 ### Commit
 
 `<hash desta mudança — ver git log>`
+
+## T802 (N3) — compare-and-set do congelamento descartava rota em silêncio
+
+### O que a revisão achou
+
+`drizzle-trip-planned-route.repository.ts` (`writePlannedRoute`, T704 M3) comparava
+`trips.updated_at` para decidir se a escrita do congelamento ainda valia. Três defeitos:
+
+(a) `updated_at` não é versão do **conjunto de paradas** — é versão da linha inteira. Qualquer
+escrita alheia em `trips` na janela entre o disparo e a escrita (relato de campo do motorista em
+`drizzle-driver-field-report.repository.ts`, override de MDF-e em `trip-fiscal-readiness.query.ts`,
+`drizzle-current-driver-trip.repository.ts`) tocava `updated_at` e fazia o UPDATE do congelamento
+afetar zero linhas — um congelamento **legítimo** descartado por uma mudança que nunca mexeu em
+parada.
+(b) `writePlannedRoute` devolvia `Promise<void>` sem olhar quantas linhas mudaram — a falha era
+muda: `planned_*` ficava nulo, sem log, sem retentativa, indistinguível de "ainda não calculado".
+(c) comparar `timestamptz` como texto depende de GUCs de sessão (fuso, `SET TIME ZONE`) — um dia
+divergente faria todo congelamento escrever zero linhas, também em silêncio.
+
+### Correção escolhida: revisão própria do conjunto de paradas (primeira opção da revisão)
+
+Preferi a **revisão dedicada** (`planned_route_stops_revision`) à alternativa mais barata de só
+trocar a comparação de `updated_at` para `timestamptz`, porque a segunda resolve (c) mas não toca
+em (a) — o contrato vermelho da task exige que "escrita alheia em `trips` que não mexe em parada
+NÃO descarte o congelamento", e isso só é verdade se a revisão for de outra coluna, não de
+`updated_at` sob outra máscara.
+
+A revisão não é incrementada por código de aplicação — é um **trigger em `trip_stops`**
+(`AFTER INSERT OR UPDATE OR DELETE`, migration `20260917202034_trip_planned_route_stops_revision`)
+que soma 1 em `trips.planned_route_stops_revision` toda vez que uma linha daquela viagem muda. A
+alternativa (bumpar a coluna à mão em cada caso de uso que mexe em parada) foi descartada: a lista
+de quem mexe em parada já inclui reconciliação de vínculo, reordenação, e cresce — um contador
+mantido em código esquece um lugar mais cedo ou mais tarde, e o trigger cobre todo caminho
+presente e futuro sem precisar ser lembrado.
+
+Efeito colateral aceito: `applyEstimatedArrivals` (spec 107 D3) também escreve em `trip_stops`
+(carimba o ETA) e por isso também bumpa a revisão — mas, no fluxo real do aceite
+(`multi-vehicle-suggestion.use-case.ts`), essa escrita acontece **depois** de `planRoute`
+(congelamento), nunca antes, então não há corrida dentro do mesmo aceite. Um recálculo futuro só
+veria a revisão mais nova, o que é o comportamento correto.
+
+Como bônus, a revisão como `bigint` elimina (c) por completo — não há mais comparação de
+`timestamptz`.
+
+### Migration
+
+`20260917202034_trip_planned_route_stops_revision` (aditiva): `trips.planned_route_stops_revision`
+(`bigint not null default 0`) + função `bump_trip_planned_route_stops_revision()` + trigger
+`trip_stops_bump_planned_route_revision_trigger`. `rollback.sql` remove os três (só contador, sem
+dado de negócio irrecuperável). `make migration-test`: 97 pass / 0 fail (aplica todas as migrations
+
+- roda todos os rollbacks em cascata + reaplica — inclui esta).
+
+`src/database/trip.schema.ts` ganhou a coluna; `test/database-migration/static-migration.contract.ts`
+ganhou a entrada na lista exaustiva de diretórios de migration.
+
+### (b) — o descarte vira aviso nomeado, nunca mais mudo
+
+`FreezeTripPlannedRoutePort.writePlannedRoute` (`freeze-trip-planned-route.use-case.ts`) passou de
+`Promise<void>` para `Promise<PlannedRouteWriteOutcome>` (`'written' | 'stale_revision' |
+'status_not_before_dispatch'`). O repositório faz `.returning({ id: trips.id })` no UPDATE; zero
+linhas dispara `diagnosePlannedRouteWriteDiscard` (uma segunda leitura, só no caminho frio) que
+decide entre as duas causas olhando o `status` atual da viagem.
+
+`freezeTripPlannedRoute` (o caso de uso) chama `throwIfDiscarded(outcome)`: `'written'` retorna
+normal, qualquer outro valor lança `Error('trip_planned_route_write_discarded:' + outcome)`. Não
+criei uma classe de erro de domínio nova para isso — o único consumidor de
+`freezeTripPlannedRoute` é `freezeTripRouteGracefully` (T704 L7), que **já** captura qualquer
+exceção e chama `logger.warn(TRIP_ROUTE_FREEZE_FAILED_MESSAGE, { reason: error.message, ... })`.
+Lançar aqui reaproveita esse fallback gracioso sem duplicar lógica de log: o motivo nomeado
+(`stale_revision` / `status_not_before_dispatch`) chega ao `logger.warn` através de
+`reason`, distinguindo as duas causas como a task pediu, e nunca vira falha visível ao operador —
+a mesma garantia que a T704 L7 já dava para erro de rede/roteirizador.
+
+### Testes novos
+
+`test/trip-application/freeze-trip-planned-route.contract.ts` (sem Postgres, dublê decide o
+`outcome`), novo describe `T802: o descarte do compare-and-set vira aviso nomeado, nunca silêncio`:
+
+- `'revisão obsoleta faz freezeTripPlannedRoute rejeitar com o motivo no nome'`.
+- `'viagem fora da janela faz freezeTripPlannedRoute rejeitar com o motivo no nome'`.
+- `'o descarte chega como logger.warn com o motivo, e não derruba quem planejou a rota'` — passa
+  pela `freezeTripRouteGracefully` de verdade com um logger fake; prova que o `warn` dispara com
+  `reason: 'trip_planned_route_write_discarded:stale_revision'` e que a chamada não lança.
+
+`test/integration/freeze-trip-planned-route.integration.ts` (contra Postgres — é o trigger e o
+`::text` de `bigint` que precisam do banco real):
+
+- `'T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e o
+outcome diz por quê'` — reescrita: em vez de tocar `updated_at` à mão, insere uma linha em
+  `trip_stops` (o trigger bumpa a revisão de verdade) e confere `outcome === 'stale_revision'`.
+- `'T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento'` — nova:
+  atualiza `daily_allowance_days`/`updated_at` direto em `trips` (simula relato de campo/override,
+  que não tocam `trip_stops`) e confere `outcome === 'written'` com a rota gravada.
+- `'T704 M3 / T802: congelamento atrasado não alcança viagem já despachada, e o outcome diz por
+quê'` — reescrita para conferir `outcome === 'status_not_before_dispatch'`.
+- `readTripRevision` (helper do arquivo) passou a ler `planned_route_stops_revision::text`.
+
+`test/trip-infrastructure/planned-route-invalidation.contract.ts` (forma do SQL, sem banco):
+dublê de `database` ganhou `.returning()` (zero linhas) e `.select()` (para o caminho de
+diagnóstico não quebrar); o teste que conferia `'updated_at'` na condição agora confere
+`'planned_route_stops_revision'`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros — eslint --max-warnings=0 em todas.
+
+$ bun run format:check   (apps/api-transportada isolado)
+All matched files use Prettier code style! (o `format:check` da raiz aponta 1 arquivo em
+apps/frontend-transportada modificado por outra sessão em paralelo — fora do escopo aqui, mesma
+observação já registrada na evidência do T801).
+
+$ make migration-test
+97 pass / 0 fail — aplica + rola de volta + reaplica todas as migrations, incluindo a nova.
+
+$ bun --env-file=../../.env.test test --timeout 120000   (de dentro de apps/api-transportada)
+6278 pass / 23 skip / 0 fail — não varre `test/integration/*.integration.ts` (mesmo achado da T709b).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts --timeout 120000
+9 pass / 0 fail (6 preexistentes reescritos + 3 novos da T802).
+
+$ bun --env-file=../../.env.test test ./test/integration/freeze-trip-planned-route.integration.ts \
+  ./test/integration/me-trip.integration.ts ./test/integration/multi-vehicle-suggestion.integration.ts \
+  ./test/integration/trip-cargo-layout-read.integration.ts ./test/integration/trip-cargo-preview-layout.integration.ts \
+  ./test/integration/trip-detail-query-count.integration.ts ./test/integration/trip-document-review.integration.ts \
+  ./test/integration/trip-financial-end-to-end.integration.ts ./test/integration/trip-fiscal-readiness.integration.ts \
+  ./test/integration/trip-lifecycle.integration.ts ./test/integration/trip-repository.integration.ts --timeout 120000
+75 pass / 0 fail — todo o raio de alcance de `trips`/paradas sem regressão.
+```
+
+### O que não fez
+
+Não tocou `apps/frontend-transportada` (outra sessão trabalha nela em paralelo). Não bumpa a
+revisão em código de aplicação — de propósito, é o trigger que garante isso para todo caminho,
+presente e futuro. Não criou uma classe de erro de domínio nova para o descarte — reaproveitou o
+fallback gracioso já existente (T704 L7), que já tinha o `logger.warn` certo. Não migrou dado
+histórico: viagens existentes nascem com `planned_route_stops_revision = 0`, e o primeiro
+congelamento delas funciona normalmente (a leitura de `revision` e a escrita usam a mesma coluna).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

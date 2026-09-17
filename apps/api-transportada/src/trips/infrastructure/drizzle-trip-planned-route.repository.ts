@@ -23,6 +23,7 @@ import type { RouteGeometryView } from '../application/read-route-geometry.use-c
 import type {
   FreezeTripPlannedRoutePort,
   FreezeTripPlannedRouteVehicleContext,
+  PlannedRouteWriteOutcome,
   WritePlannedRouteInput,
 } from '../application/freeze-trip-planned-route.use-case.js'
 import { TRIP_STATUSES_BEFORE_DISPATCH } from '../domain/trip-state.policy.js'
@@ -33,11 +34,15 @@ import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
 /**
- * T704 M3: a revisão da viagem como **texto**, porque `timestamptz` guarda microssegundo e o
- * `Date` do JavaScript para no milissegundo — ler como `Date` e comparar de volta não reencontra a
- * linha nunca, e o compare-and-set viraria um apagador silencioso de toda rota congelada.
+ * Spec 153 T802 (N3): a revisão do **conjunto de paradas**, não da linha `trips` inteira.
+ * `trips.updated_at` (T704 M3) parecia servir, mas qualquer escrita alheia em `trips` — relato de
+ * campo do motorista, override de MDF-e, o próprio despacho — também a tocava, e o compare-and-set
+ * descartava um congelamento legítimo por uma mudança que nunca mexeu em parada. `planned_route_
+ * stops_revision` só muda pelo trigger de `trip_stops` (migration
+ * `20260917202034_trip_planned_route_stops_revision`); é `bigint`, então nunca esbarra na
+ * imprecisão de `timestamptz`-como-texto que o `updated_at` tinha.
  */
-const TRIP_REVISION = sql<string>`${trips.updatedAt}::text`
+const TRIP_REVISION = sql<string>`${trips.plannedRouteStopsRevision}::text`
 
 export class DrizzleTripPlannedRouteRepository
   implements FreezeTripPlannedRoutePort, ReadTripRouteGeometryRoutePort
@@ -55,7 +60,7 @@ export class DrizzleTripPlannedRouteRepository
         fuelType: fleetVehicles.fuelType,
         hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
         kilometersPerLiter: fleetVehicles.averageConsumption,
-        /** T704 M3: a revisão da viagem neste instante, que a escrita final vai reconferir. */
+        /** T704 M3 / T802: a revisão das paradas neste instante, que a escrita final reconfere. */
         revision: TRIP_REVISION,
         vehicleType: fleetVehicles.vehicleType,
       })
@@ -97,22 +102,23 @@ export class DrizzleTripPlannedRouteRepository
    * Rota, métricas e pedágio na mesma chamada (D4) — nunca duas escritas que poderiam deixar a
    * viagem com um traçado novo e um pedágio velho, ou vice-versa.
    *
-   * ⚠️ Spec 153 T704 (M3): a escrita é **condicional**, por duas razões que o filtro por empresa e
-   * id não cobria.
+   * ⚠️ Spec 153 T704 (M3) / T802 (N3): a escrita é **condicional**, por duas razões que o filtro
+   * por empresa e id não cobria.
    *
    * - Status: o congelamento é lento (roteirizador, catálogo de praças) e roda fora da transação.
    *   Um despacho no meio do caminho deixava a escrita atrasada sobrescrever o roteiro que já
    *   estava na rua.
    * - Revisão: dois recálculos concorrentes — reordenar parada e reordenar de novo logo em seguida
    *   — terminavam em "last write wins", e o vencedor podia ser o que traçou a sequência antiga.
-   *   Comparando `updated_at` com o valor lido no disparo, o obsoleto afeta zero linhas e a viagem
-   *   fica com a rota do recálculo mais novo (ou nula, que é o estado honesto da D5).
+   *   Comparando a revisão das paradas com o valor lido no disparo, o obsoleto afeta zero linhas e
+   *   a viagem fica com a rota do recálculo mais novo (ou nula, que é o estado honesto da D5).
    *
-   * A escolha é `updated_at` porque ela já existe e já é tocada por toda escrita principal,
-   * inclusive pela limpeza de `planned_*` (M1) — nenhuma coluna de versão nova foi inventada.
+   * T802: o UPDATE afetar zero linhas **não é mais mudo**. `freeze-trip-planned-route.use-case.ts`
+   * olha o retorno e lança quando ele não é `'written'` — sempre dentro de `freezeTripRouteGracefully`
+   * (T704 L7), que converte em `logger.warn` com o motivo, nunca em falha visível ao operador.
    */
-  public async writePlannedRoute(input: WritePlannedRouteInput): Promise<void> {
-    await this.database
+  public async writePlannedRoute(input: WritePlannedRouteInput): Promise<PlannedRouteWriteOutcome> {
+    const written = await this.database
       .update(trips)
       .set(plannedRouteColumns({ route: input.route, toll: input.toll }))
       .where(
@@ -123,6 +129,30 @@ export class DrizzleTripPlannedRouteRepository
           inArray(trips.status, [...TRIP_STATUSES_BEFORE_DISPATCH]),
         ),
       )
+      .returning({ id: trips.id })
+    if (written.length > 0) return 'written'
+
+    return this.diagnosePlannedRouteWriteDiscard(input)
+  }
+
+  /**
+   * T802: só roda no caminho frio (o UPDATE já falhou) — decide entre as duas causas que o filtro
+   * misturava numa linha só, para o log distinguir "a rota mudou enquanto congelava" de "a viagem
+   * já tinha saído para a rua".
+   */
+  private async diagnosePlannedRouteWriteDiscard(
+    input: WritePlannedRouteInput,
+  ): Promise<PlannedRouteWriteOutcome> {
+    const [current] = await this.database
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+    if (current === undefined) return 'stale_revision'
+
+    return (TRIP_STATUSES_BEFORE_DISPATCH as readonly string[]).includes(current.status)
+      ? 'stale_revision'
+      : 'status_not_before_dispatch'
   }
 
   /**

@@ -12,9 +12,11 @@ import {
   freezeTripPlannedRoute,
   type FreezeTripPlannedRoutePort,
   type FreezeTripPlannedRouteVehicleContext,
+  type PlannedRouteWriteOutcome,
   type WritePlannedRouteInput,
 } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
 import { buildRouteSignature } from '../../src/trips/domain/route-choice.policy.js'
+import { freezeTripRouteGracefully } from '../../src/trips/application/freeze-trip-route-gracefully.js'
 import type { RouteGeometryPoint } from '../../src/trips/domain/route-geometry.policy.js'
 import type { RouteGeometryRoad } from '../../src/trips/application/route-geometry.port.js'
 import type { TollBoothRouteRecord } from '../../src/toll-booths/application/toll-booth.port.js'
@@ -112,11 +114,15 @@ const TOLL_BOOTHS_BY_NODE = {
   readCatalogSummary: async () => ({ boothCount: 3, latestObservedOn: '2026-07-01' }),
 }
 
-function createFakeRepository(input: {
-  /** `null` é T704 M4: alguma parada sem coordenada — nada a traçar, nunca um subconjunto. */
-  readonly stops?: readonly RouteGeometryPoint[] | null
-  readonly vehicle: FreezeTripPlannedRouteVehicleContext | null
-}): FreezeTripPlannedRoutePort & { readonly writeCalls: readonly WritePlannedRouteInput[] } {
+function createFakeRepository(
+  input: {
+    /** `null` é T704 M4: alguma parada sem coordenada — nada a traçar, nunca um subconjunto. */
+    readonly stops?: readonly RouteGeometryPoint[] | null
+    readonly vehicle: FreezeTripPlannedRouteVehicleContext | null
+  },
+  /** T802: o que `writePlannedRoute` devolve — só os testes do descarte passam algo diferente de `'written'`. */
+  options: { readonly outcome?: PlannedRouteWriteOutcome } = {},
+): FreezeTripPlannedRoutePort & { readonly writeCalls: readonly WritePlannedRouteInput[] } {
   const writeCalls: WritePlannedRouteInput[] = []
 
   return {
@@ -131,6 +137,7 @@ function createFakeRepository(input: {
     },
     async writePlannedRoute(writeInput) {
       writeCalls.push(writeInput)
+      return options.outcome ?? 'written'
     },
   }
 }
@@ -527,6 +534,80 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
       const [written] = repository.writeCalls
       expect(written?.route?.distanceMeters).toBe(240_000)
       expect(written?.route?.choiceReproduced).toBe(false)
+    })
+  })
+
+  /**
+   * Spec 153 T802 (N3): o UPDATE afetar zero linhas parava aqui, mudo. `freezeTripPlannedRoute`
+   * trata qualquer descarte do compare-and-set (revisão obsoleta, viagem fora da janela) como
+   * `routeFrozen: false` — o mesmo sinal de D5 (OSRM fora do ar) — em vez de lançar: quem bloqueia
+   * a transição (`plan-trip-route.use-case.ts`) já sabe avisar antes de recusar, e o fallback
+   * gracioso (`freezeTripRouteGracefully`, T704 L7) segue adiante sem exceção para capturar.
+   * Estes contratos provam a cadeia inteira sem precisar de Postgres: o repositório é dublê, e é
+   * ele quem decide o `outcome`.
+   */
+  describe('T802: o descarte do compare-and-set vira routeFrozen: false, nunca falha visível', () => {
+    test('revisão obsoleta não escreve rota nova e devolve routeFrozen: false', async () => {
+      const repository = createFakeRepository({ vehicle: VEHICLE }, { outcome: 'stale_revision' })
+
+      const result = await freezeTripPlannedRoute({
+        companyId: COMPANY_ID,
+        geometry: createGeometryPort([10, 1, 2, 3]),
+        repository,
+        tollBooths: {
+          readByNodeIds: async () => TRES_PRACAS,
+          readCatalogSummary: async () => ({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+        },
+        tripId: TRIP_ID,
+      })
+
+      expect(result).toEqual({ routeFrozen: false })
+    })
+
+    test('viagem fora da janela não escreve rota nova e devolve routeFrozen: false', async () => {
+      const repository = createFakeRepository(
+        { vehicle: VEHICLE },
+        { outcome: 'status_not_before_dispatch' },
+      )
+
+      const result = await freezeTripPlannedRoute({
+        companyId: COMPANY_ID,
+        geometry: createGeometryPort([10, 1, 2, 3]),
+        repository,
+        tollBooths: {
+          readByNodeIds: async () => TRES_PRACAS,
+          readCatalogSummary: async () => ({ boothCount: 1, latestObservedOn: '2026-07-01' }),
+        },
+        tripId: TRIP_ID,
+      })
+
+      expect(result).toEqual({ routeFrozen: false })
+    })
+
+    test('o descarte não derruba quem chama pelo caminho gracioso (T704 L7)', async () => {
+      const repository = createFakeRepository({ vehicle: VEHICLE }, { outcome: 'stale_revision' })
+
+      await expect(
+        freezeTripRouteGracefully({
+          companyId: COMPANY_ID,
+          freezer: {
+            freeze: (input) =>
+              freezeTripPlannedRoute({
+                ...input,
+                geometry: createGeometryPort([10, 1, 2, 3]),
+                repository,
+                tollBooths: {
+                  readByNodeIds: async () => TRES_PRACAS,
+                  readCatalogSummary: async () => ({
+                    boothCount: 1,
+                    latestObservedOn: '2026-07-01',
+                  }),
+                },
+              }),
+          },
+          tripId: TRIP_ID,
+        }),
+      ).resolves.toBeUndefined()
     })
   })
 })

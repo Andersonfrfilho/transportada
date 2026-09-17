@@ -139,7 +139,7 @@ A segunda revisão reprovou com 3 HIGH novos (N1 e N3 em código da Fase 7, N2 n
 - [x] T801 **N1** `findLiveTripIdForDocuments` reaproveita viagem por conjunto de notas, ignorando
       veículo, motorista e status: o reaceite pode pendurar a carga na viagem do veículo errado, ou
       numa já despachada. Filtrar por `vehicleId` e por status antes do despacho.
-- [ ] T802 **N3** O compare-and-set por `updated_at` descarta congelamento legítimo em silêncio
+- [x] T802 **N3** O compare-and-set por `updated_at` descarta congelamento legítimo em silêncio
       (qualquer escrita em `trips` na janela, inclusive relato do motorista). Revisão própria do
       conjunto de paradas, comparação como `timestamptz` e log quando o UPDATE não pega linha.
 - [x] T803 **N2 + N5** Filtro avançado de NF-e transforma valor ausente em `0` (`?? ''` → `Number`),

@@ -18,6 +18,7 @@ import {
   fleetVehicles,
   trips,
 } from '../../src/database/database.schema.js'
+import { tripStops } from '../../src/database/trip.schema.js'
 import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
 import type { FuelProduct } from '../../src/shared/fuel.constant.js'
 import type { WritePlannedRouteInput } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
@@ -240,7 +241,7 @@ describe('freeze trip planned route repository integration', () => {
   )
 
   testWithPostgres(
-    'T704 M3: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova',
+    'T704 M3 / T802: escrita nascida de revisão obsoleta não sobrescreve a rota mais nova, e o outcome diz por quê',
     async () => {
       await withDisposableDatabase(async ({ database }) => {
         const { companyId, tripId } = await seedTripWithVehicle(database, {
@@ -251,10 +252,12 @@ describe('freeze trip planned route repository integration', () => {
         const repository = new DrizzleTripPlannedRouteRepository(database.db)
         const staleRevision = await readTripRevision(database, tripId)
 
-        /** Alguém mudou a parada no meio do caminho: a revisão do disparo ficou para trás. */
-        await database.db.update(trips).set({ updatedAt: new Date() }).where(eq(trips.id, tripId))
+        /** T802: uma parada mudou no meio do caminho — o trigger em trip_stops bumpa a revisão. */
+        await database.db
+          .insert(tripStops)
+          .values({ addressKey: 'x', companyId, label: 'Parada', sequence: 1n, tripId })
 
-        await repository.writePlannedRoute({
+        const outcome = await repository.writePlannedRoute({
           companyId,
           expectedRevision: staleRevision,
           route: FULL_ROUTE,
@@ -262,6 +265,7 @@ describe('freeze trip planned route repository integration', () => {
           tripId,
         })
 
+        expect(outcome).toBe('stale_revision')
         const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
         expect(row?.plannedRoute).toBeNull()
         expect(row?.plannedRouteFrozenAt).toBeNull()
@@ -269,29 +273,72 @@ describe('freeze trip planned route repository integration', () => {
     },
   )
 
-  testWithPostgres('T704 M3: congelamento atrasado não alcança viagem já despachada', async () => {
-    await withDisposableDatabase(async ({ database }) => {
-      const { companyId, tripId } = await seedTripWithVehicle(database, {
-        axleCount: 2,
-        hasAutomaticTollPayment: false,
-        vehicleType: 'toco',
-      })
-      const repository = new DrizzleTripPlannedRouteRepository(database.db)
-      await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
-      const revision = await readTripRevision(database, tripId)
+  testWithPostgres(
+    'T802: escrita alheia em trips que não mexe em parada NÃO descarta o congelamento',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        const revision = await readTripRevision(database, tripId)
 
-      await repository.writePlannedRoute({
-        companyId,
-        expectedRevision: revision,
-        route: FULL_ROUTE,
-        toll: FULL_TOLL,
-        tripId,
-      })
+        /**
+         * O relato de campo do motorista e o override de MDF-e escrevem direto em `trips` sem
+         * tocar em parada nenhuma — é exatamente essa escrita que `updated_at` não distinguia de
+         * uma mudança de parada (T802 defeito a). `daily_allowance_days` é uma coluna qualquer de
+         * `trips` fora do grupo da rota, só para simular "algo mais mexeu na linha".
+         */
+        await database.db
+          .update(trips)
+          .set({ dailyAllowanceDays: 3, updatedAt: new Date() })
+          .where(eq(trips.id, tripId))
 
-      const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
-      expect(row?.plannedRoute).toBeNull()
-    })
-  })
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('written')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).not.toBeNull()
+        expect(row?.dailyAllowanceDays).toBe(3)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T704 M3 / T802: congelamento atrasado não alcança viagem já despachada, e o outcome diz por quê',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          axleCount: 2,
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+        await database.db.update(trips).set({ status: 'dispatched' }).where(eq(trips.id, tripId))
+        const revision = await readTripRevision(database, tripId)
+
+        const outcome = await repository.writePlannedRoute({
+          companyId,
+          expectedRevision: revision,
+          route: FULL_ROUTE,
+          toll: FULL_TOLL,
+          tripId,
+        })
+
+        expect(outcome).toBe('status_not_before_dispatch')
+        const [row] = await database.db.select().from(trips).where(eq(trips.id, tripId))
+        expect(row?.plannedRoute).toBeNull()
+      })
+    },
+  )
 
   testWithPostgres(
     'T704 M1: a limpeza zera o grupo inteiro e o CHECK aceita — mas não toca em despachada',
@@ -343,10 +390,13 @@ describe('freeze trip planned route repository integration', () => {
   )
 })
 
-/** T704 M3: a revisão da viagem — `updated_at` — é o valor que o compare-and-set reconfere. */
+/**
+ * T704 M3 / T802: a revisão do **conjunto de paradas** — `planned_route_stops_revision`, que só o
+ * trigger de `trip_stops` incrementa — é o valor que o compare-and-set reconfere.
+ */
 async function readTripRevision(database: TestDatabase, tripId: string): Promise<string> {
   const [row] = await database.db
-    .select({ revision: sql<string>`${trips.updatedAt}::text` })
+    .select({ revision: sql<string>`${trips.plannedRouteStopsRevision}::text` })
     .from(trips)
     .where(eq(trips.id, tripId))
   if (row === undefined) throw new Error('viagem semeada sumiu')

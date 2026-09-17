@@ -91,12 +91,26 @@ describe('T704 M3: a escrita do congelamento não atropela estado mais novo', ()
   } {
     const recorded: RecordedUpdate = {}
     const database = {
+      /**
+       * T802: quando o UPDATE afeta zero linhas (o caso aqui — o mock nunca "acha" a linha), o
+       * repositório faz uma segunda leitura para distinguir o motivo do descarte. Este `select`
+       * devolve nenhuma linha, então `diagnosePlannedRouteWriteDiscard` cai no fallback
+       * `'stale_revision'` — irrelevante para o que estes dois testes provam (a forma do UPDATE).
+       */
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [],
+          }),
+        }),
+      }),
       update: () => ({
         set: (values: Record<string, unknown>) => {
           recorded.values = values
           return {
-            where: async (condition: SQL) => {
+            where: (condition: SQL) => {
               recorded.condition = condition
+              return { returning: async () => [] }
             },
           }
         },
@@ -122,13 +136,14 @@ describe('T704 M3: a escrita do congelamento não atropela estado mais novo', ()
     expect(renderCondition(recorded.condition)).toContain('"status" in')
   })
 
-  test('compare-and-set pela revisão lida no disparo — estado obsoleto não escreve nada', async () => {
+  test('compare-and-set pela revisão das paradas lida no disparo — estado obsoleto não escreve nada', async () => {
     const { recorded, repository } = createRepositoryRecorder()
 
     await repository.writePlannedRoute(WRITE)
 
     const query = dialect.sqlToQuery(recorded.condition as SQL)
-    expect(query.sql).toContain('updated_at')
+    /** T802: a revisão comparada é `planned_route_stops_revision`, não mais `updated_at`. */
+    expect(query.sql).toContain('planned_route_stops_revision')
     expect(query.params).toContain(WRITE.expectedRevision)
   })
 })

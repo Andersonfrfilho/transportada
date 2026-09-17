@@ -24,21 +24,12 @@ import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
-import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 
 /** Sem escolha declarada, RF3 default é o mesmo da leitura: mais barata conhecida, sem assinatura. */
 const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'cheapest'
 
 export type FreezeTripPlannedRouteVehicleContext = {
   readonly axles: AxleCount | null
-  /**
-   * Consumo e preço do combustível do veículo da viagem — a mesma fonte da leitura ao vivo. Sem
-   * eles nenhuma opção tem custo, e o critério `cheapest` cai na principal com `reproduced: false`.
-   */
-  readonly fuelBaseline: RouteOptionVehicle
-  /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
-  readonly multiplier: TollMultiplier | null
-  readonly hasAutomaticTollPayment: boolean
   /**
    * spec 153 H1: o consumo e o preço do combustível do veículo — sem isto `readRouteGeometry`
    * não sabe comparar `totalCost` entre as opções, `applyCriterion('cheapest')` não acha
@@ -47,6 +38,9 @@ export type FreezeTripPlannedRouteVehicleContext = {
    * pricePerLiter: null }` — nunca um consumo inventado.
    */
   readonly fuelBaseline: RouteOptionVehicle
+  /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
+  readonly multiplier: TollMultiplier | null
+  readonly hasAutomaticTollPayment: boolean
   /**
    * Spec 153 T704 (M3): a revisão da viagem no instante em que o congelamento foi disparado —
    * `trips.updated_at`. A escrita final só acontece se ela ainda for essa, de forma que um
@@ -85,13 +79,27 @@ export type FrozenPlannedRoute = Readonly<{
 
 export type WritePlannedRouteInput = {
   readonly companyId: string
-  /** T704 M3: a revisão lida no disparo — compare-and-set, nunca escrita incondicional. */
+  /** T704 M3 / T802: a revisão das paradas lida no disparo — compare-and-set, nunca escrita incondicional. */
   readonly expectedRevision: string
   /** `null` é D5: a estrada não veio, e nada se afirma sobre a rota — nunca zero. */
   readonly route: FrozenPlannedRoute | null
   readonly toll: null | TollRouteCost
   readonly tripId: string
 }
+
+/**
+ * Spec 153 T802 (N3): o que o compare-and-set descobriu. `'written'` é o caminho feliz de sempre;
+ * os outros dois **eram o mesmo silêncio** — o UPDATE afetava zero linhas e ninguém sabia por quê.
+ * `freezeTripPlannedRoute` trata qualquer um deles como `routeFrozen: false` (mesmo sinal de D5),
+ * e quem chama já sabe avisar: o bloqueio de `plan-trip-route.use-case.ts` loga antes de recusar a
+ * transição, e o fallback gracioso de `freezeTripRouteGracefully` (T704 L7) loga e segue.
+ */
+export type PlannedRouteWriteOutcome =
+  | 'written'
+  /** As paradas mudaram entre o disparo e esta escrita — a rota que se calculou já é velha. */
+  | 'stale_revision'
+  /** A viagem saiu para a rua no meio do caminho — o roteiro congelado no despacho é o que vale. */
+  | 'status_not_before_dispatch'
 
 export type FreezeTripPlannedRoutePort = {
   /** `null` quando a viagem sumiu entre o gate do planejamento e aqui — não há o que congelar. */
@@ -108,7 +116,7 @@ export type FreezeTripPlannedRoutePort = {
    * Uma escrita só (D4): rota, métricas e pedágio, com um `frozen_at` compartilhado por grupo —
    * nunca duas chamadas que poderiam deixar a viagem com metade nova e metade velha.
    */
-  writePlannedRoute(input: WritePlannedRouteInput): Promise<void>
+  writePlannedRoute(input: WritePlannedRouteInput): Promise<PlannedRouteWriteOutcome>
 }
 
 export type FreezeTripPlannedRouteInput = {
@@ -148,7 +156,7 @@ export async function freezeTripPlannedRoute(
       toll: null,
       tripId: input.tripId,
     })
-    return
+    return { routeFrozen: false }
   }
 
   const road = await readRouteGeometry({
@@ -168,7 +176,14 @@ export async function freezeTripPlannedRoute(
     road,
   })
 
-  await input.repository.writePlannedRoute({
+  /**
+   * Spec 153 T802 (N3): o compare-and-set pode descartar a escrita — paradas mudaram entre o
+   * disparo e esta chamada (`stale_revision`), ou a viagem já saiu para a rua no meio do caminho
+   * (`status_not_before_dispatch`). Nos dois casos não há rota nova para afirmar: `routeFrozen:
+   * false` é o mesmo sinal de D5, e quem chama já sabe registrar o aviso (T704 L7, ou o bloqueio
+   * de `plan-trip-route.use-case.ts`).
+   */
+  const outcome = await input.repository.writePlannedRoute({
     companyId: input.companyId,
     expectedRevision: vehicle.revision,
     route,
@@ -176,7 +191,7 @@ export async function freezeTripPlannedRoute(
     tripId: input.tripId,
   })
 
-  return { routeFrozen: route !== null }
+  return { routeFrozen: outcome === 'written' && route !== null }
 }
 
 /**
