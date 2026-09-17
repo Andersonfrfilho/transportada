@@ -8,9 +8,12 @@ import {
   loadStateMeshFeatures,
   readStateMeshFeatures,
 } from '../../src/modules/shared/ibgeMesh.service'
+import { RADAR_SOURCE } from '../../src/modules/shared/vectorBasemap.service'
 import {
   FREIGHT_REGION_ZONE_FILL,
+  FREIGHT_REGION_ZONE_SOURCE,
   buildFreightRegionMap,
+  isFatalBasemapError,
   resolveDefaultMapState,
   resolveFreightRegionBounds,
   resolveZoneFill,
@@ -498,6 +501,42 @@ describe('freight region default state contract', () => {
 
     expect(hook).toContain('resolveDefaultMapState')
     expect(hook).not.toContain("useState(() => cities?.[0]?.state ?? '')")
+  })
+})
+
+/**
+ * M5 (revisão final da T501) — um erro do MapLibre antes do `load` só é "sem basemap" quando é
+ * mesmo o arquivo do basemap que falhou. Telha isolada e a própria fonte de zona do componente não
+ * podem apagar o desenho — comportamento, não regex sobre o código-fonte.
+ */
+describe('classificação do erro de basemap (M5)', () => {
+  test('erro sem tile, sem sourceId, antes do load: é a ausência real do basemap', () => {
+    expect(isFatalBasemapError({ basemapLoaded: false })).toBe(true)
+  })
+
+  test('erro de telha isolada (carrega `tile`) não apaga o mapa, mesmo antes do load', () => {
+    expect(
+      isFatalBasemapError({
+        basemapLoaded: false,
+        sourceId: 'basemap',
+        tile: { x: 3, y: 5, z: 8 },
+      }),
+    ).toBe(false)
+  })
+
+  test('erro da própria fonte de zona do componente não é "sem basemap"', () => {
+    expect(
+      isFatalBasemapError({ basemapLoaded: false, sourceId: FREIGHT_REGION_ZONE_SOURCE }),
+    ).toBe(false)
+  })
+
+  test('overlay de radar ausente (404 comum em instalação sem o arquivo) não apaga as zonas', () => {
+    expect(isFatalBasemapError({ basemapLoaded: false, sourceId: RADAR_SOURCE })).toBe(false)
+  })
+
+  test('depois do load qualquer erro é ruído de rede, nunca ausência de basemap', () => {
+    expect(isFatalBasemapError({ basemapLoaded: true })).toBe(false)
+    expect(isFatalBasemapError({ basemapLoaded: true, sourceId: 'basemap' })).toBe(false)
   })
 })
 

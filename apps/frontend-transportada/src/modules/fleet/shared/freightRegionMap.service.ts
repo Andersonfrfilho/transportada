@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FreightRegion, FreightRegionCity } from './freightRegion.types'
 import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
+import { RADAR_SOURCE } from '@/modules/shared/vectorBasemap.service'
 import type { MunicipalityIdentity } from './municipality.service'
 import { cityKeyOf, foldRegionCityName } from './regionCityName.service'
 
@@ -227,6 +228,38 @@ export function resolveFreightRegionBounds(
 
   if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return null
   return [minLng, minLat, maxLng, maxLat]
+}
+
+/** O id da fonte GeoJSON de zonas no MapLibre — compartilhado entre o motor e a classificação de erro. */
+export const FREIGHT_REGION_ZONE_SOURCE = 'zona-de-frete'
+
+export type FreightRegionBasemapErrorContext = Readonly<{
+  basemapLoaded: boolean
+  sourceId?: string | undefined
+  tile?: unknown
+}>
+
+/**
+ * M5 (revisão final da T501) — nem todo `error` do MapLibre é "sem basemap". Confirmado contra o
+ * código-fonte do `maplibre-gl` (`_loadTile`, em `dist/maplibre-gl-dev.mjs`): erro de **telha
+ * isolada** (uma requisição que falhou, não um 404 esperado) chega com `tile` no próprio evento —
+ * `this._source.fire(new ErrorEvent(err, { tile }))` — e não pode apagar o mapa inteiro por um
+ * retângulo que falhou enquanto o resto carrega. Erro de **glifo** nem chega aqui: o
+ * `GlyphManager._downloadAndCacheRangePromise` captura a falha, desenha local e só avisa no
+ * console (`_warnOnMissingGlyphRange`), sem disparar `error` de mapa nenhum — o SVG antigo nunca
+ * tinha esse risco porque não dependia de fonte nenhuma para desenhar polígono.
+ *
+ * O que sobra antes do `load` — sem `tile`, de uma fonte que não é a própria zona que este
+ * componente desenha (`FREIGHT_REGION_ZONE_SOURCE`) nem o radar opcional (`RADAR_SOURCE`, ausente
+ * por padrão em toda instalação sem o arquivo gerado) — é a ausência real do basemap, e só ela
+ * conta como fatal.
+ */
+export function isFatalBasemapError(context: FreightRegionBasemapErrorContext): boolean {
+  if (context.basemapLoaded) return false
+  if (context.tile !== undefined) return false
+  if (context.sourceId === FREIGHT_REGION_ZONE_SOURCE) return false
+  if (context.sourceId === RADAR_SOURCE) return false
+  return true
 }
 
 /** Clicar no mapa é a entrada de cidade pelo desenho: o mesmo clique acrescenta e devolve. */

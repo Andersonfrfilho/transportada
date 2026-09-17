@@ -3491,3 +3491,168 @@ declarado nem preço configurado.
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T705 — M5 + L6: erro de basemap não pode apagar as zonas; copyright e `useMemo` ✅ 2026-09-17
+
+### L6 — copyright
+
+`FreightRegionVectorMap.component.tsx` **já tinha** o cabeçalho (`/* Copyright (c) 2026 Ada
+Technology. MIT License. */`, linha 1) — conferido por leitura direta e por `git log --all` no
+arquivo: um único commit o tocou (`864069f4`, T501), e o cabeçalho já nasceu com ele, no mesmo
+formato de linha única dos outros arquivos do módulo `fleet` (`FleetField.component.tsx`,
+`VehicleList.component.tsx` etc. — nenhum usa o formato de bloco `/** ... */` de três linhas que
+`AssemblyVectorMap.component.tsx`, de outro módulo, usa). O achado L6 não se confirmou nesta
+parte; não havia nada para corrigir.
+
+### L6 — `useMemo` em `selectedCodes`
+
+Confirmado: `FreightRegionMap.component.tsx` (antiga linha ~41-46, hoje ~39-44) criava
+`selectedKeys` e `selectedCodes` como `new Set(...)` **a cada render**, sem memoização. O `Set` é
+passado como prop `selectedCodes` para `FreightRegionVectorMap`, que tem dois `useEffect`
+dependentes dele (`[selectedCodes]`) — um só grava a ref, mas o outro chama `applySelection`, que
+roda `map.setFeatureState` **para toda shape do estado** (`shapesRef.current`, dezenas a centenas
+de municípios). Toda renderização do formulário de zona (por exemplo, digitar num campo qualquer
+do form pai) recriava o `Set` por identidade, mesmo com o mesmo conteúdo, e disparava o efeito —
+`setFeatureState` em cada forma, a cada tecla.
+
+Corrigido com `useMemo` (`FreightRegionMap.component.tsx`), dependências reais: `cities` (a prop,
+antes lida direto de `props.cities` dentro do corpo — extraída para variável para caber na lista de
+dependências sem alterar comportamento), `entry.model.shapes` e `entry.state`. Só refaz quando um
+desses três muda de verdade.
+
+### M5 — erro de basemap apagando as zonas
+
+Confirmado por leitura: `FreightRegionVectorMap.component.tsx`, `map.on('error', ...)` (então
+~251-255, dentro do efeito de montagem) tratava **qualquer** evento `error` do MapLibre antes do
+`load` como basemap ausente:
+
+```ts
+map.on('error', (event) => {
+  if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
+  if (basemapLoaded.current) return
+  onBasemapMissing()
+})
+```
+
+`onBasemapMissing` faz `FreightRegionMap.component.tsx` desmontar o `<Suspense>` do mapa
+(`hasBasemap` vira `false`) e mostrar só `regionMap.withoutBasemap` — o SVG antigo (`VectorMap`)
+nunca tinha esse risco porque desenhava sem depender de telha, glifo nem arquivo nenhum.
+
+**O que investiguei antes de decidir, direto no código-fonte do `maplibre-gl` instalado**
+(`node_modules/maplibre-gl/dist/maplibre-gl-dev.mjs`, a mesma técnica de "confirmado contra o
+código-fonte" que `AssemblyVectorMap.component.tsx` já usa para `sourceId`):
+
+- **Telha isolada não é erro, na maioria dos casos.** `_loadTile` (linha ~6020): `if (err.status
+!== 404) this._source.fire(new ErrorEvent(ensureError(err), { tile }))` — telha 404 (a mais comum,
+  uma vez que a malha vetorial tem vazio esperado em boa parte do território) nem dispara `error`
+  nenhum. O que dispara é telha com falha **diferente** de 404 (rede instável, 5xx), e o evento
+  carrega `tile` — que não está no tipo declarado (`ErrorEvent` do `.d.ts` só tem `error`), mas
+  chega em runtime pela mesma injeção de `data` que já sustenta o `sourceId` usado em
+  `AssemblyVectorMap`.
+- **Glifo isolado nunca vira `error` de mapa.** `GlyphManager._downloadAndCacheRangePromise`
+  (linha ~1585) captura a falha de `_loadGlyphRange` num `try/catch` local, desenha o glifo
+  localmente e só chama `_warnOnMissingGlyphRange` — um `warnOnce` de console, nunca
+  `this.fire(new ErrorEvent(...))`. Não havia como um glifo isolado alcançar o tratador do
+  componente — a preocupação do achado existia, mas o sintoma nesta versão do `maplibre-gl` só
+  vinha de telha.
+- **A fonte-metadado inteira (`VectorTileSource#load`, linha ~2856) é quem dispara o erro fatal de
+  verdade**, sem `tile`: `catch (err) { ...; if (!isAbortError(err)) this.fire(new
+ErrorEvent(ensureError(err))) }` — é o caso do arquivo `.pmtiles` genuinamente inalcançável (o
+  cabeçalho nunca resolve). Esse é o único caso que a spec 153/ADR-0044 §6 pede para degradar.
+- O basemap da aba Regiões usa o **mesmo** `buildBasemapStyle`, que sempre declara a fonte
+  `RADAR_SOURCE` (`radar-overlay`) mesmo aqui, onde nenhuma camada de radar é usada pela aba — e
+  `AssemblyVectorMap` já precisou excluir essa fonte do tratamento fatal porque o arquivo do radar
+  é opcional (404 é o normal em instalação sem o arquivo gerado). `FreightRegionVectorMap` não
+  tinha essa exclusão: um overlay de radar ausente (situação comum, nada a ver com o basemap de
+  rua) já bastava para apagar a aba inteira antes desta correção.
+
+**Correção** (`freightRegionMap.service.ts` + `FreightRegionVectorMap.component.tsx`):
+
+- Nova função pura `isFatalBasemapError({ basemapLoaded, sourceId?, tile? })` em
+  `freightRegionMap.service.ts`, ao lado da nova constante exportada `FREIGHT_REGION_ZONE_SOURCE`
+  (antes um `const` só do componente — movida para o serviço para a classificação e o motor
+  compartilharem o mesmo id, sem duplicar o literal). Fatal só quando: ainda não carregou
+  (`!basemapLoaded`) **e** não tem `tile` (não é telha isolada) **e** a fonte não é a própria zona
+  do componente (`FREIGHT_REGION_ZONE_SOURCE`) nem o radar opcional (`RADAR_SOURCE`, importado de
+  `@/modules/shared/vectorBasemap.service` — já exportado, usado só em leitura, nenhuma mudança no
+  arquivo compartilhado).
+- O tratador de `error` do componente monta o contexto a partir do evento (`sourceId`/`tile`
+  injetados em runtime, mesmo comentário de `AssemblyVectorMap` reaproveitado aqui) e só age quando
+  `isFatalBasemapError` devolve `true`.
+- **A parte "melhor ainda" do achado, implementada**: em vez de chamar `onBasemapMissing()` e
+  deixar `FreightRegionMap.component.tsx` desmontar o mapa, o tratador fatal agora troca o estilo
+  do próprio `MapLibreMap` por `buildEmptyBasemapStyle()` — um estilo sem fonte nenhuma (logo,
+  incapaz de gerar novo `error`), só uma camada `background` na cor do token de "sem zona"
+  (`--color-asphalt`, o mesmo já usado para município sem rota). O `map.on('styledata', ...)` já
+  existente (o mesmo que reaplica fonte/camadas de zona a cada troca de tema) reaplica a fonte
+  GeoJSON e as camadas de zona sobre o novo estilo, de forma idempotente — sem código novo para
+  isso. `fitBounds` é refeito uma vez, via `map.once('styledata', ...)`, porque o `load` original
+  (que faria isso) nunca chega a disparar quando a fonte do basemap trava. Resultado: zonas
+  continuam desenhadas, clicáveis (a camada de clique é a própria `ZONE_FILL_LAYER`, que sobrevive
+  à troca de estilo) e com a legenda de sempre (que nunca dependeu do MapLibre) — sem o texto
+  `regionMap.withoutBasemap`, porque o mapa continua de pé.
+- `onBasemapMissing`/`regionMap.withoutBasemap` continuam existindo para o único caso que não tem
+  como se recuperar: o `try/catch` em torno de `new MapLibreMap(...)` (linha ~182-195) — ambiente
+  sem WebGL2, onde nem o `canvas` existe. Aí sim não há como desenhar zona nenhuma, e a queda para a
+  legenda/lista continua sendo a única saída (ADR-0044 §6).
+
+### O que não fiz
+
+Não toquei `AssemblyVectorMap.component.tsx`, `DriverHomeMap.component.tsx` nem
+`vectorBasemap.service.ts` — só li os três (o primeiro já pelo trabalho da T501) como referência do
+padrão de `sourceId` e para confirmar que `RADAR_SOURCE` já é exportado, sem precisar tocar no
+arquivo compartilhado. Não mexi em `apps/api-transportada` (frontend puro, RF11, mesma nota da
+T501) nem nos módulos `trip`/`nfe-workspace` (fora do escopo desta sessão).
+
+### Contrato vermelho → verde
+
+Comportamento, não regex sobre código-fonte (`test/fleet/freight-region-map.contract.ts`, describe
+`classificação do erro de basemap (M5)`, 5 testes novos sobre `isFatalBasemapError`):
+
+- erro sem `tile` nem `sourceId`, antes do `load` → fatal (`true`) — é o caso da fonte-metadado
+  travada, a ausência real do basemap.
+- erro com `tile` (telha isolada, mesmo com `sourceId: 'basemap'`) → não fatal (`false`).
+- erro com `sourceId` igual à própria fonte de zona do componente → não fatal.
+- erro com `sourceId` igual ao overlay de radar (`RADAR_SOURCE`) → não fatal.
+- depois do `load` (`basemapLoaded: true`), qualquer erro, mesmo com a forma de um fatal → não
+  fatal (rede se resolve sozinha, mesmo raciocínio já documentado em `AssemblyVectorMap`).
+
+Sem a correção, o primeiro teste passaria mas os outros quatro falhariam (a versão anterior não
+lia `tile` nem excluía `sourceId` nenhum, então qualquer erro antes do `load` virava `true`).
+
+### Gates
+
+```
+$ bun run typecheck   (apps/frontend-transportada)
+0 erros. (a raiz tem 5 erros pré-existentes em apps/api-transportada, de outra sessão trabalhando
+em paralelo ali — fora do escopo desta task, confirmado que não vêm de nenhum arquivo tocado aqui)
+
+$ bun run lint   (apps/frontend-transportada)
+0 erros.
+
+$ bun run format:check   (raiz)
+Limpo — 1 arquivo (o teste novo) precisou de `prettier --write` antes.
+
+$ bun test ./test/fleet.contract.test.ts   (apps/frontend-transportada)
+534 pass / 0 fail — 6604 expect() calls (baseline T501/T502: 530 pass; +4 do describe novo).
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4211 pass / 0 fail — 36253 expect() calls em 29 arquivos (baseline T501/T502: 4208 pass; +3 líquido
+— +4 do describe novo, -1 nenhum: os 4 testes entraram limpos, sem remover teste existente).
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 8.80s — PWA precache 130 entries (4485.10 KiB); baseline T501 130 entries (4484.23 KiB):
+mesma contagem, +0.87 KiB do código novo (função de classificação + estilo vazio).
+`FreightRegionVectorMap.component-zb9vFmF0.js`: 4.82 kB — chunk próprio, cresceu de 4.48 kB
+(baseline T501) com o `buildEmptyBasemapStyle`/tratador de erro maiores; continua fora do `index`.
+`vectorBasemap.service-DqvH9M-S.js`: 1 004.90 kB — inalterado (o arquivo não foi tocado).
+`index-D1kYI-IO.js` (pacote principal): 953.45 kB — MapLibre segue fora dele.
+```
+
+Gate de API não executado: nenhum arquivo de `apps/api-transportada` foi tocado — T705 é frontend
+puro (RF11, mesma nota de escopo da T501), e a instrução desta sessão reserva `apps/api-transportada`
+para outra sessão em paralelo.
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`

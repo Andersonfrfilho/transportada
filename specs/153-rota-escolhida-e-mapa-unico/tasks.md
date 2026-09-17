@@ -108,7 +108,7 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       move/swap; `releaseUnplaced` e `overrideDeliveryAddress` recalculam (M2); guarda de status e
       concorrência na escrita da rota (M3); parada sem coordenada grava rota nula, nunca parcial
       (M4); `logger.warn` nos `catch` do congelamento (L7).
-- [ ] T705 **M5 + L6** Aba Regiões: erro de basemap não pode apagar as zonas; copyright e `useMemo`
+- [x] T705 **M5 + L6** Aba Regiões: erro de basemap não pode apagar as zonas; copyright e `useMemo`
       no `selectedCodes`.
 - [ ] T706 **M6** Teste de comportamento do switch do detalhe (T405): observer sobre a query real
       prova que a troca regrava e que a busca não se repete nem após o `invalidate`.

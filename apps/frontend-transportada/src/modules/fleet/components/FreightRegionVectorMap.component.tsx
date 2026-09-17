@@ -1,5 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { Map as MapLibreMap, Popup, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl'
+import {
+  Map as MapLibreMap,
+  Popup,
+  type GeoJSONSource,
+  type MapLayerMouseEvent,
+  type StyleSpecification,
+} from 'maplibre-gl'
 import { useEffect, useRef } from 'react'
 
 import {
@@ -10,6 +16,8 @@ import {
 
 import {
   FREIGHT_REGION_ZONE_FILL,
+  FREIGHT_REGION_ZONE_SOURCE,
+  isFatalBasemapError,
   resolveFreightRegionBounds,
   toFreightRegionFeatureCollection,
   type FreightRegionFeatureCollection,
@@ -17,7 +25,7 @@ import {
 } from '../shared/freightRegionMap.service'
 import styles from '../styles/fleet.module.css'
 
-const ZONE_SOURCE = 'zona-de-frete'
+const ZONE_SOURCE = FREIGHT_REGION_ZONE_SOURCE
 const ZONE_FILL_LAYER = 'zona-de-frete-preenchimento'
 const ZONE_LINE_LAYER = 'zona-de-frete-linha'
 
@@ -39,6 +47,25 @@ const UNASSIGNED_FILL_TOKEN = '--color-asphalt'
 /** `var(--color-zone-0)` → `--color-zone-0`, para `readToken` resolver o valor de verdade. */
 function tokenNameOf(cssVarExpression: string): string {
   return cssVarExpression.slice(4, -1)
+}
+
+/**
+ * M5 — quando o basemap não sobe (arquivo ausente ou inalcançável), as zonas não dependem dele
+ * para existir: este estilo não declara fonte nenhuma (logo não gera erro nenhum) e vira o novo
+ * chão do mapa, mantendo `applyZones`/clique/legenda de pé em vez de apagar a aba inteira.
+ */
+function buildEmptyBasemapStyle(): StyleSpecification {
+  return {
+    layers: [
+      {
+        id: 'fundo-sem-basemap',
+        paint: { 'background-color': readToken(UNASSIGNED_FILL_TOKEN) },
+        type: 'background',
+      },
+    ],
+    sources: {},
+    version: 8,
+  }
 }
 
 /**
@@ -250,8 +277,38 @@ export function FreightRegionVectorMap({
 
     map.on('error', (event) => {
       if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
-      if (basemapLoaded.current) return
-      onBasemapMissing()
+
+      /**
+       * ⚠️ M5 — `sourceId` e `tile` não estão no tipo do evento: o MapLibre os injeta em runtime
+       * (mesma constatação já registrada em `AssemblyVectorMap.component.tsx` para `sourceId`).
+       */
+      const context = {
+        basemapLoaded: basemapLoaded.current,
+        sourceId: (event as unknown as { sourceId?: string }).sourceId,
+        tile: (event as unknown as { tile?: unknown }).tile,
+      }
+      if (!isFatalBasemapError(context)) return
+
+      /**
+       * O basemap não sobe, mas as zonas não dependem dele: troca para um estilo sem fonte nenhuma
+       * (não gera novo erro) em vez de chamar `onBasemapMissing` e apagar o desenho inteiro. O
+       * `styledata` já ouvido abaixo reaplica fonte e camadas de zona de forma idempotente — o
+       * mesmo mecanismo que já lida com a troca de tema.
+       */
+      basemapLoaded.current = true
+      map.setStyle(buildEmptyBasemapStyle())
+      const bounds = resolveFreightRegionBounds(shapesRef.current)
+      if (bounds !== null) {
+        map.once('styledata', () =>
+          map.fitBounds(
+            [
+              [bounds[0], bounds[1]],
+              [bounds[2], bounds[3]],
+            ],
+            { duration: 0, padding: 24 },
+          ),
+        )
+      }
     })
 
     return () => {

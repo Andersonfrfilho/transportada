@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { lazy, Suspense, useState, type JSX } from 'react'
+import { lazy, Suspense, useMemo, useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -36,12 +36,20 @@ export function FreightRegionMap(props: FreightRegionMapProps): JSX.Element {
   const { t } = useTranslation('fleet')
   const entry = useFreightRegionMap(props)
   const [hasBasemap, setHasBasemap] = useState(true)
-  const selectedKeys = new Set((props.cities ?? []).map(cityKeyOf))
-  const selectedCodes = new Set(
-    entry.model.shapes
-      .filter((shape) => selectedKeys.has(cityKeyOf({ city: shape.city, state: entry.state })))
-      .map((shape) => shape.code),
-  )
+  const cities = props.cities
+  /**
+   * L6 — `Set` novo a cada render dispara `setFeatureState` em toda forma dentro do motor MapLibre
+   * (efeito por identidade de referência, não de conteúdo). `useMemo` só refaz quando a cidade
+   * selecionada, o desenho ou o estado mudam de verdade.
+   */
+  const selectedCodes = useMemo(() => {
+    const selectedKeys = new Set((cities ?? []).map(cityKeyOf))
+    return new Set(
+      entry.model.shapes
+        .filter((shape) => selectedKeys.has(cityKeyOf({ city: shape.city, state: entry.state })))
+        .map((shape) => shape.code),
+    )
+  }, [cities, entry.model.shapes, entry.state])
 
   return (
     <section className={styles.mapPanel}>
