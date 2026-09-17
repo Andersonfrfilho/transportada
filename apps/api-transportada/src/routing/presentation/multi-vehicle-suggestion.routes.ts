@@ -14,6 +14,7 @@ import {
   parseJson,
   readBoundedRequestBody,
 } from '../../shared/request-body.service.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type {
   AcceptedMultiVehicleSuggestion,
   MultiVehicleSuggestionUseCase,
@@ -106,6 +107,10 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
     defineRoute<{
       readonly correlationId?: string
       readonly releaseUnplacedFromLayoutIds?: readonly string[]
+      readonly routeChoiceByVehicle?: readonly Readonly<{
+        routeChoice: RouteChoice
+        vehicleId: string
+      }>[]
       readonly stopOrderByVehicle?: readonly Readonly<{
         orderedAddressKeys: readonly string[]
         vehicleId: string
@@ -125,6 +130,9 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
                   ? {}
                   : { correlationId: input.correlationId }),
               }),
+          ...(input.routeChoiceByVehicle === undefined
+            ? {}
+            : { routeChoiceByVehicle: input.routeChoiceByVehicle }),
           ...(input.stopOrderByVehicle === undefined
             ? {}
             : { stopOrderByVehicle: input.stopOrderByVehicle }),
@@ -146,6 +154,9 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
           ...(body.releaseUnplacedFromLayoutIds === undefined
             ? {}
             : { correlationId, releaseUnplacedFromLayoutIds: body.releaseUnplacedFromLayoutIds }),
+          ...(body.routeChoiceByVehicle === undefined
+            ? {}
+            : { routeChoiceByVehicle: body.routeChoiceByVehicle }),
           ...(body.stopOrderByVehicle === undefined
             ? {}
             : { stopOrderByVehicle: body.stopOrderByVehicle }),

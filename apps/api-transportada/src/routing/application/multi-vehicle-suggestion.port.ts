@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type { RouteSuggestion } from './route-suggestion.port.js'
 
 /**
@@ -97,6 +98,14 @@ export type AcceptMultiVehicleSuggestionInput = ReadMultiVehicleSuggestionInput 
      * casa com o caminhão cujas notas ela desenhou. Ausente é o aceite de sempre.
      */
     releaseUnplacedFromLayoutIds?: readonly string[]
+    /**
+     * Spec 153 RF3: a escolha de rota, por veículo. Ausente por veículo é `cheapest` — o default do
+     * congelamento.
+     */
+    routeChoiceByVehicle?: readonly Readonly<{
+      routeChoice: RouteChoice
+      vehicleId: string
+    }>[]
   }>
 
 export type MultiVehicleSuggestionUseCase = Readonly<{

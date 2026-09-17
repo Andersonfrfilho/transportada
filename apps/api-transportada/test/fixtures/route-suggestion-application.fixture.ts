@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 import type {
   CreateRouteSuggestionRecord,
   DecideRouteSuggestionRecord,
@@ -82,6 +83,8 @@ type FixtureParams = Readonly<{
   decideReturnsNull?: boolean
   onCreate?: () => void
   onPublish?: () => void
+  /** Spec 153 D5: o congelamento falha (ex.: OSRM fora do ar) sem derrubar o aceite. */
+  planRouteError?: Error
   reorderError?: Error
   seed?: number
   suggestion?: RouteSuggestionRecord
@@ -93,6 +96,11 @@ export type RouteSuggestionFixture = RouteSuggestionDependencies &
   Readonly<{
     created: CreateRouteSuggestionRecord[]
     decided: DecideRouteSuggestionRecord[]
+    plannedRoutes: Readonly<{
+      companyId: string
+      routeChoice?: RouteChoice
+      tripId: string
+    }>[]
     published: { readonly suggestionId: string }[]
     reordered: { readonly orderedStopIds: readonly string[] }[]
   }>
@@ -100,6 +108,7 @@ export type RouteSuggestionFixture = RouteSuggestionDependencies &
 export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFixture {
   const created: CreateRouteSuggestionRecord[] = []
   const decided: DecideRouteSuggestionRecord[] = []
+  const plannedRoutes: RouteSuggestionFixture['plannedRoutes'] = []
   const published: { readonly suggestionId: string }[] = []
   const reordered: { readonly orderedStopIds: readonly string[] }[] = []
 
@@ -107,6 +116,7 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
     created,
     createSeed: () => params.seed ?? 1,
     decided,
+    plannedRoutes,
     published,
     queue: {
       async publish(job) {
@@ -147,6 +157,12 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
           serviceTimeMinimumSamples: 5,
           solverTimeBudgetSeconds: 30,
         }
+      },
+    },
+    routePlanner: {
+      async planRoute(input) {
+        if (params.planRouteError !== undefined) throw params.planRouteError
+        plannedRoutes.push(input)
       },
     },
     stopOrder: {

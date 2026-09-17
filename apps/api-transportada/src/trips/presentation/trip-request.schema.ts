@@ -17,7 +17,7 @@ const MAX_TRIP_DRIVERS = 10
  * spec 153 D2/D3: qual rota o operador escolheu, na prévia e no congelamento. Um critério fora de
  * `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
  */
-const routeChoiceRequestSchema = z
+export const routeChoiceRequestSchema = z
   .object({
     criterion: z.enum(ROUTE_CHOICE_CRITERIA),
     signature: z.string().nullable(),

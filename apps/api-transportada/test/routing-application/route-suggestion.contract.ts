@@ -9,6 +9,7 @@ import {
   RouteSuggestionTripDispatchedError,
 } from '../../src/routing/domain/routing.error.js'
 import { createRouteSuggestionUseCase } from '../../src/routing/application/route-suggestion.use-case.js'
+import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 import {
   COMPANY_SCOPE,
   READY_RECORD,
@@ -192,6 +193,54 @@ describe('accepting a route suggestion (ADR-0044 §5)', () => {
       .catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(RouteSuggestionNotFoundError)
+  })
+
+  /**
+   * Spec 153 D7/RF3: o aceite por viagem também congela a rota, pela mesma porta da T201 — depois da
+   * ordem, para a mesma sugestão poder ser refeita se a viagem não virar `accepted`.
+   */
+  test('freezes the route through the T201 seam, after the order and before deciding', async () => {
+    const dependencies = buildDependencies({ suggestion: READY_RECORD })
+    const routeChoice: RouteChoice = { criterion: 'fastest', signature: 'abc123' }
+
+    await createRouteSuggestionUseCase(dependencies).accept({
+      context: COMPANY_SCOPE,
+      routeChoice,
+      suggestionId: SUGGESTION_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(dependencies.plannedRoutes).toEqual([
+      { companyId: COMPANY_SCOPE.companyId, routeChoice, tripId: TRIP_ID },
+    ])
+  })
+
+  test('without a routeChoice, freezes without one — cheapest stays the seam default', async () => {
+    const dependencies = buildDependencies({ suggestion: READY_RECORD })
+
+    await createRouteSuggestionUseCase(dependencies).accept({
+      context: COMPANY_SCOPE,
+      suggestionId: SUGGESTION_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(dependencies.plannedRoutes).toEqual([
+      { companyId: COMPANY_SCOPE.companyId, tripId: TRIP_ID },
+    ])
+  })
+
+  /** A sugestão só vira `accepted` se a rota que ela promete de fato foi gravada. */
+  test('leaves the suggestion ready when freezing the route fails', async () => {
+    const dependencies = buildDependencies({
+      planRouteError: new Error('osrm unavailable'),
+      suggestion: READY_RECORD,
+    })
+
+    await createRouteSuggestionUseCase(dependencies)
+      .accept({ context: COMPANY_SCOPE, suggestionId: SUGGESTION_ID, tripId: TRIP_ID })
+      .catch(() => undefined)
+
+    expect(dependencies.decided).toHaveLength(0)
   })
 })
 

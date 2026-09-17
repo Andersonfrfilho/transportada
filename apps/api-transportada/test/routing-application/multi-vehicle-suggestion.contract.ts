@@ -28,6 +28,7 @@ import {
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
 } from '../../src/routing/domain/routing.error.js'
+import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 import { TripCargoLayoutOutdatedError } from '../../src/trips/domain/trip-document-review.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -1139,6 +1140,85 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         estimatedArrivalByAddressKey: ReadonlyMap<string, string>
       }[]
       expect(arrivals[0]?.estimatedArrivalByAddressKey.size).toBe(3)
+    })
+  })
+
+  /**
+   * Spec 153 RF3: a escolha de rota, por veículo. Ausente por veículo é `cheapest` — o default do
+   * congelamento (T201), não algo que este caso de uso decide.
+   */
+  describe('escolha de rota por veículo (spec 153 T204)', () => {
+    function fixtureWithTwoVehicles() {
+      return buildFixture({
+        groups: [
+          {
+            documentIds: [FIRST_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map(),
+            orderedAddressKeys: ['3543402|14020000|100'],
+            vehicleId: FIRST_VEHICLE,
+          },
+          {
+            documentIds: [SECOND_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map(),
+            orderedAddressKeys: ['3543402|14020000|200'],
+            vehicleId: SECOND_VEHICLE,
+          },
+        ],
+      })
+    }
+
+    function planOf(fixture: ReturnType<typeof fixtureWithTwoVehicles>, index: number) {
+      return fixture.calls.plan?.[index] as { routeChoice?: RouteChoice; tripId: string }
+    }
+
+    test('leva a escolha de rota ao planejamento, só para o veículo que a escolheu', async () => {
+      const fixture = fixtureWithTwoVehicles()
+      const routeChoice: RouteChoice = { criterion: 'fastest', signature: 'abc123' }
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        routeChoiceByVehicle: [{ routeChoice, vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(planOf(fixture, 0).routeChoice).toEqual(routeChoice)
+      /** O caminhão sem escolha própria planeja sem `routeChoice` — o congelador decide o default. */
+      expect(planOf(fixture, 1).routeChoice).toBeUndefined()
+    })
+
+    test('sem routeChoiceByVehicle, planeja todos sem escolha — o default segue sendo cheapest', async () => {
+      const fixture = fixtureWithTwoVehicles()
+
+      await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+      expect(planOf(fixture, 0).routeChoice).toBeUndefined()
+      expect(planOf(fixture, 1).routeChoice).toBeUndefined()
+    })
+
+    test('veículo de rota fora da proposta é recusado antes de qualquer viagem nascer', async () => {
+      const fixture = fixtureWithTwoVehicles()
+      const routeChoice: RouteChoice = { criterion: 'cheapest', signature: null }
+
+      const error = await fixture.useCase
+        .accept({
+          context: CONTEXT,
+          routeChoiceByVehicle: [
+            { routeChoice, vehicleId: '00000000-0000-4000-8000-00000000dead' },
+          ],
+          suggestionId: SUGGESTION_ID,
+        })
+        .catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(MultiVehicleSuggestionVehicleNotInProposalError)
+      expect((error as MultiVehicleSuggestionVehicleNotInProposalError).details?.[0]?.field).toBe(
+        'routeChoiceByVehicle',
+      )
+      expect(fixture.calls.decide).toEqual([])
+      expect(fixture.calls.link).toEqual([])
     })
   })
 })

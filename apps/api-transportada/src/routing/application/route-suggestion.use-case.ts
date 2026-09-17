@@ -6,6 +6,7 @@ import {
   RouteSuggestionNotFoundError,
   RouteSuggestionTripDispatchedError,
 } from '../domain/routing.error.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type {
   RouteSuggestion,
   RouteSuggestionAssumptions,
@@ -49,9 +50,24 @@ export type StopOrderWriter = Readonly<{
   }) => Promise<void>
 }>
 
+/**
+ * Spec 153 D7: o aceite por viagem também passa a congelar a rota, pela mesma porta da T201
+ * (`freeze-trip-planned-route`). O caso de uso não conhece OSRM nem pedágio — só "congele esta
+ * rota" —, e é isso que mantém D5 (OSRM fora do ar não derruba o aceite) fora daqui, dentro do
+ * congelador.
+ */
+export type TripRoutePlanner = Readonly<{
+  planRoute: (input: {
+    readonly companyId: string
+    readonly routeChoice?: RouteChoice
+    readonly tripId: string
+  }) => Promise<void>
+}>
+
 export type RouteSuggestionDependencies = Readonly<{
   queue: RouteOptimizationQueue
   repository: RouteSuggestionRepository
+  routePlanner: TripRoutePlanner
   stopOrder: StopOrderWriter
   trips: TripRouteGate
   /** Injetado para o determinismo ser testável: semente sorteada não se verifica. */
@@ -151,6 +167,17 @@ export function createRouteSuggestionUseCase(
           tripId: input.tripId,
         })
       }
+
+      /**
+       * Spec 153 D7: o aceite por viagem também congela a rota — depois da ordem, pela mesma razão
+       * da reordenação: se a viagem não virar `accepted`, o conferente tenta de novo, e replanejar
+       * de novo é idempotente (T201).
+       */
+      await dependencies.routePlanner.planRoute({
+        companyId: input.context.companyId,
+        ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
+        tripId: input.tripId,
+      })
 
       const decided = await dependencies.repository.decide({
         companyId: input.context.companyId,

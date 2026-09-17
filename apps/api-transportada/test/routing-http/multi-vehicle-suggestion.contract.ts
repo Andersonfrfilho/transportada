@@ -129,6 +129,47 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
     })
   })
 
+  /** Spec 153 RF3: a escolha de rota por veículo atravessa a rota inteira até o caso de uso. */
+  test('o aceite leva a escolha de rota por veículo', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+    const routeChoiceByVehicle = [
+      { routeChoice: { criterion: 'fastest', signature: 'abc123' }, vehicleId: VEHICLE_ID },
+    ]
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoiceByVehicle },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.acceptCalls[0]).toMatchObject({
+      routeChoiceByVehicle,
+      suggestionId: SUGGESTION_ID,
+    })
+  })
+
+  test('recusa critério de rota desconhecido antes de chegar ao caso de uso', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          routeChoiceByVehicle: [
+            { routeChoice: { criterion: 'shortest', signature: null }, vehicleId: VEHICLE_ID },
+          ],
+        },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.acceptCalls).toEqual([])
+  })
+
   /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam, com o rastro do pedido. */
   test('o aceite leva as plantas de onde soltar as notas que não couberam', async () => {
     const fixture = await createMultiVehicleHttpFixture()

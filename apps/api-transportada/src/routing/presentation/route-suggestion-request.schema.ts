@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import { GEOCODING_PRECISIONS } from '../../database/geocoding.schema.js'
+import { routeChoiceRequestSchema } from '../../trips/presentation/trip-request.schema.js'
 
 /** Teto do que uma sugestão aceita otimizar. Acima disso o orçamento de tempo não salva ninguém. */
 const MAX_STOPS_PER_SUGGESTION = 500
@@ -52,6 +53,16 @@ export const rejectRouteSuggestionSchema = z
   .object({
     /** Por que foi rejeitada: é o que transforma "a sugestão está boa?" em número, não em opinião. */
     reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+
+/**
+ * Spec 153 D7/RF3: o aceite por viagem também passa a gravar a rota. Corpo ausente é `cheapest` —
+ * a mesma leitura de `routeChoiceRequestSchema` ausente no resto da spec 153.
+ */
+export const acceptRouteSuggestionSchema = z
+  .object({
+    routeChoice: routeChoiceRequestSchema.optional(),
   })
   .strict()
 
@@ -123,6 +134,27 @@ export const acceptMultiVehicleSuggestionSchema = z
       .array(z.uuid())
       .min(1)
       .max(MAX_VEHICLES_PER_SUGGESTION)
+      .optional(),
+    /**
+     * Spec 153 RF3: a escolha de rota, por veículo. Ausente por veículo é `cheapest` — o mesmo
+     * default do aceite por viagem. Veículo repetido é recusado pela mesma razão de
+     * `stopOrderByVehicle`: qual das duas escolhas vale seria um palpite do servidor.
+     */
+    routeChoiceByVehicle: z
+      .array(
+        z
+          .object({
+            routeChoice: routeChoiceRequestSchema,
+            vehicleId: z.uuid(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_VEHICLES_PER_SUGGESTION)
+      .refine(
+        (entries) => new Set(entries.map((entry) => entry.vehicleId)).size === entries.length,
+        { message: 'Each vehicle may appear only once' },
+      )
       .optional(),
   })
   .strict()

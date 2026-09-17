@@ -7,6 +7,7 @@ import type {
   RouteSuggestionStatus,
   ServiceTimeSource,
 } from '../../database/route-suggestion.schema.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type { RouteViolation } from '../domain/route-solver.types.js'
 
 export type CompanyScope = Readonly<{ companyId: string; userId: string }>
@@ -92,6 +93,8 @@ export type CreateRouteSuggestionInput = Readonly<{
 export type DecideRouteSuggestionInput = Readonly<{
   context: CompanyScope
   reason?: string | undefined
+  /** Spec 153 D7/RF3: só o aceite grava a rota. Ausente é `cheapest` — o default do congelamento. */
+  routeChoice?: RouteChoice | undefined
   suggestionId: string
   tripId: string
 }>

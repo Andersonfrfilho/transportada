@@ -26,6 +26,7 @@ import type { RouteOptimizationQueue } from './route-suggestion.use-case.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionRepository } from './route-suggestion.repository.js'
 import type { TripDocumentReviewReason } from '../../database/trip-document-review.schema.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import {
   resolveAcceptReleasePlans,
   type AcceptReleaseEntry,
@@ -54,6 +55,7 @@ export type TripComposer = Readonly<{
   }) => Promise<boolean>
   planRoute: (input: {
     readonly context: MultiVehicleScope
+    readonly routeChoice?: RouteChoice
     readonly tripId: string
   }) => Promise<void>
   /** As paradas nascem da reconciliação; aqui só se diz em que ordem elas ficam. */
@@ -144,6 +146,7 @@ export function createMultiVehicleSuggestionUseCase(
       context,
       correlationId,
       releaseUnplacedFromLayoutIds,
+      routeChoiceByVehicle,
       stopOrderByVehicle,
       suggestionId,
       vehicleIds,
@@ -159,7 +162,15 @@ export function createMultiVehicleSuggestionUseCase(
        * nunca propôs é pedido malformado, e consumir a sugestão por causa dele queimaria uma
        * proposta boa — o operador perderia as quatro viagens por causa de um id errado.
        */
-      const groups = resolveAcceptedGroups({ proposed, stopOrderByVehicle, vehicleIds })
+      const groups = resolveAcceptedGroups({
+        proposed,
+        routeChoiceByVehicle,
+        stopOrderByVehicle,
+        vehicleIds,
+      })
+      const routeChoiceByVehicleMap = new Map(
+        (routeChoiceByVehicle ?? []).map((entry) => [entry.vehicleId, entry.routeChoice]),
+      )
       const releasePlans = await resolveAcceptReleasePlans({
         context,
         groups,
@@ -248,7 +259,12 @@ export function createMultiVehicleSuggestionUseCase(
           }
 
           /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
-          await dependencies.trips.planRoute({ context, tripId })
+          const routeChoice = routeChoiceByVehicleMap.get(group.vehicleId)
+          await dependencies.trips.planRoute({
+            context,
+            ...(routeChoice === undefined ? {} : { routeChoice }),
+            tripId,
+          })
 
           /**
            * ⚠️ **Depois de `reorderStops`**: a parada só existe pela reconciliação do vínculo, e o
@@ -396,6 +412,9 @@ export function createMultiVehicleSuggestionUseCase(
  */
 type StopOrderEntry = Readonly<{ orderedAddressKeys: readonly string[]; vehicleId: string }>
 
+/** Spec 153 RF3: a escolha de rota proposta para um veículo — mesma leitura de `StopOrderEntry`. */
+type RouteChoiceEntry = Readonly<{ routeChoice: RouteChoice; vehicleId: string }>
+
 /** O grupo como o aceite o cria: as paradas finais, e se a ordem deixou de ser a do solver. */
 type AcceptedGroup = MultiVehicleSuggestionGroup & Readonly<{ isManualOrder: boolean }>
 
@@ -409,6 +428,7 @@ type AcceptedGroup = MultiVehicleSuggestionGroup & Readonly<{ isManualOrder: boo
 function resolveAcceptedGroups(
   input: Readonly<{
     proposed: readonly MultiVehicleSuggestionGroup[]
+    routeChoiceByVehicle: readonly RouteChoiceEntry[] | undefined
     stopOrderByVehicle: readonly StopOrderEntry[] | undefined
     vehicleIds: readonly string[] | undefined
   }>,
@@ -420,6 +440,25 @@ function resolveAcceptedGroups(
   ]
   const unknown = [...new Set(named.filter((vehicleId) => !proposedIds.has(vehicleId)))]
   if (unknown.length > 0) throw new MultiVehicleSuggestionVehicleNotInProposalError(unknown)
+
+  /**
+   * Spec 153 T204: checagem separada de `routeChoiceByVehicle` — o rótulo do campo é diferente do
+   * de `vehicleIds`/`stopOrderByVehicle`, e um detalhe genérico faria o cliente procurar no corpo
+   * errado.
+   */
+  const unknownRouteChoiceVehicles = [
+    ...new Set(
+      (input.routeChoiceByVehicle ?? [])
+        .map((entry) => entry.vehicleId)
+        .filter((vehicleId) => !proposedIds.has(vehicleId)),
+    ),
+  ]
+  if (unknownRouteChoiceVehicles.length > 0) {
+    throw new MultiVehicleSuggestionVehicleNotInProposalError(
+      unknownRouteChoiceVehicles,
+      'routeChoiceByVehicle',
+    )
+  }
 
   const accepted = input.vehicleIds === undefined ? proposedIds : new Set(input.vehicleIds)
   const chosenByVehicle = new Map(

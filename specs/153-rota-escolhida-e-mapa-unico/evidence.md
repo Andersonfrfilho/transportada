@@ -1236,3 +1236,178 @@ nenhum arquivo novo de teste precisou ser adicionado).**
 - `parsePlannedRoute` (domínio) é o único lugar que sabe validar o jsonb de `trips.planned_route` —
   qualquer novo leitor desse jsonb (T204/T205 inclusive) deve importar essa função, nunca duplicar a
   validação campo a campo.
+
+## T204
+
+Aceite multi-veículo passa a aceitar `routeChoice` **por veículo** (`routeChoiceByVehicle`), e o
+aceite por viagem única (`POST /trips/:id/route-suggestions/:suggestionId/accept`) passa a **gravar
+a rota**, além da ordem — que já era o único efeito de aceitar antes desta task. Confirmado no
+início da task que `POST /trips/:id/plan-route` é rota separada, já entregue por T104/T201/T202, e
+fora do escopo de T204: o escopo real é só os dois endpoints de _aceite de sugestão_.
+
+### Evidência RED
+
+Como a implementação de produção já existia no worktree ao retomar a sessão (checkpoint de sessão
+anterior interrompido por um crash — trabalho perdido antes, evidência RED incluída), o RED foi
+obtido revertendo **só os arquivos de produção** de volta ao estado anterior a esta task, mantendo
+os arquivos de teste com as asserções novas, rodando a suíte, e restaurando a implementação depois
+(`git stash push` dos arquivos `src/*` listados, teste, `git stash pop` — nenhum arquivo de teste
+entrou no stash). É RED genuíno contra o comportamento anterior a T204, capturado com `tee`
+**antes** de qualquer gate rodar sobre o código restaurado:
+
+```bash
+cd apps/api-transportada && bun --env-file=../../.env.test test test/routing-application.contract.test.ts --timeout 120000
+```
+
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/e08e5c2d-e62d-4a98-9f99-fad68c8e8cc3/scratchpad/t204-red.txt`:
+
+```
+ 68 pass
+ 5 fail
+ 131 expect() calls
+Ran 73 tests across 1 file. [50.00ms]
+```
+
+As 5 falhas, todas nos testes novos desta task:
+
+- `accepting a route suggestion (ADR-0044 §5) > freezes the route through the T201 seam, after the
+order and before deciding` — `dependencies.plannedRoutes` vazio (o aceite não chamava
+  `routePlanner.planRoute` antes desta task).
+- `accepting a route suggestion (ADR-0044 §5) > without a routeChoice, freezes without one —
+cheapest stays the seam default` — idem.
+- `accepting a route suggestion (ADR-0044 §5) > leaves the suggestion ready when freezing the route
+fails` — `dependencies.decided` tinha 1 registro (o aceite decidia mesmo sem nunca ter tentado
+  congelar rota nenhuma, porque a chamada não existia).
+- `a sugestão multi-veículo (spec 058 P2) > escolha de rota por veículo (spec 153 T204) > leva a
+escolha de rota ao planejamento, só para o veículo que a escolheu` — `routeChoice` chegava
+  `undefined` em ambos os veículos (o campo era ignorado).
+- `a sugestão multi-veículo (spec 058 P2) > escolha de rota por veículo (spec 153 T204) > veículo de
+rota fora da proposta é recusado antes de qualquer viagem nascer` — o aceite criava as duas
+  viagens normalmente em vez de recusar (nenhuma checagem de `routeChoiceByVehicle` existia).
+
+### Implementação
+
+- **`src/trips/presentation/trip-request.schema.ts`**: `routeChoiceRequestSchema` passou a ser
+  exportado — é o único schema Zod de `routeChoice` do repositório, reusado pelos dois endpoints de
+  aceite em vez de duplicar a validação de `criterion`/`signature`.
+- **`src/routing/domain/routing.error.ts`**: `MultiVehicleSuggestionVehicleNotInProposalError`
+  ganhou um segundo parâmetro, `field: string = 'vehicleIds'` (default preserva os lançamentos
+  existentes) — `routeChoiceByVehicle` erra com um veículo fora da proposta pela mesma razão que
+  `vehicleIds`/`stopOrderByVehicle` erram, mas um detalhe genérico faria o cliente procurar no corpo
+  errado.
+- **`src/routing/presentation/route-suggestion-request.schema.ts`**: novo
+  `acceptRouteSuggestionSchema` (corpo opcional, `{ routeChoice? }`) para o aceite por viagem; e
+  `routeChoiceByVehicle` adicionado a `acceptMultiVehicleSuggestionSchema`.
+- **`src/routing/application/route-suggestion.port.ts`** /
+  **`route-suggestion.use-case.ts`**: `DecideRouteSuggestionInput`/`accept()` ganharam
+  `routeChoice?`; nova dependência `routePlanner: TripRoutePlanner` (`planRoute(input): Promise<void>`
+  com `{ companyId, routeChoice?, tripId }`); a chamada roda **depois** da reordenação e **antes**
+  de `repository.decide(...)` — mesma ordem e mesmo motivo de reordenar antes de decidir (T201): se
+  a sugestão não virar `accepted`, o conferente tenta de novo, e replanejar de novo é idempotente.
+- **`src/routing/application/multi-vehicle-suggestion.port.ts`** /
+  **`multi-vehicle-suggestion.use-case.ts`**: `AcceptMultiVehicleSuggestionInput` ganhou
+  `routeChoiceByVehicle?: readonly { routeChoice, vehicleId }[]`; `TripComposer.planRoute` ganhou
+  `routeChoice?`; dentro do `for (const group of groups)`, um `Map` (`routeChoiceByVehicleMap`)
+  resolve a escolha do veículo do grupo antes de chamar `trips.planRoute`. Checagem de veículo fora
+  da proposta para `routeChoiceByVehicle` é **separada** da checagem existente de
+  `vehicleIds`/`stopOrderByVehicle` — mesmo raciocínio do `field` acima.
+- **`src/routing/infrastructure/trip-composer.adapter.ts`**: `TripComposerDependencies.planRoute`
+  ganhou `routeChoice?`, repassado ao `dependencies.planRoute` sem alteração de lógica (passthrough).
+- **`src/routing/presentation/route-suggestion.routes.ts`** /
+  **`multi-vehicle-suggestion.routes.ts`**: `parse()`/`handle()` dos dois endpoints de aceite
+  passam a ler e repassar `routeChoice`/`routeChoiceByVehicle` do corpo.
+- **`src/main.ts`**: `routeSuggestions: createRouteSuggestionUseCase({...})` ganhou `routePlanner`,
+  implementado chamando o **próprio** `planTripRoute` (a função exportada de
+  `plan-trip-route.use-case.ts`, a mesma que T201 introduziu) com `tripRouteRepository` (já
+  `DrizzleTripRouteRepository`, que **já implementa** `PlanTripRoutePort` — confirmado lendo a
+  classe, sem adaptação nenhuma) e `tripRouteTollFreezer` (já existente, mesmo formato de
+  `PlanTripRouteTollFreezer`). É a mesma porta de escrita de T201, chamada de um segundo lugar —
+  nunca um segundo caminho de escrita. A wiring do `TripComposer` multi-veículo não precisou de
+  nenhuma mudança: `planRoute: (input) => tripLifecycle.planRoute.execute(input)` já era um
+  passthrough puro, e passou a aceitar `routeChoice` assim que o tipo de `TripComposerDependencies`
+  ganhou o campo.
+- **Por que o aceite por viagem única chama `planTripRoute` (a função) e não
+  `dependencies.trips.planRoute` (via porta)**: `route-suggestion.use-case.ts` usa `CompanyScope`
+  (`{companyId, userId}`), e `PlanTripRouteInput` só exige `companyId: string` — a interseção já
+  cabe sem adaptação. O caminho multi-veículo usa `MultiVehicleScope`/`CompanyContext`, que é
+  **estruturalmente diferente** e mantido separado de propósito (comentário already existente em
+  `multi-vehicle-suggestion.port.ts`: estreitar o tipo ali obrigaria alargá-lo de volta com um `as`,
+  que é mentir sobre a diferença). Por isso o aceite por viagem tem uma dependência própria
+  (`routePlanner`), montada em `main.ts` chamando a função crua, em vez de reusar a porta do
+  `TripComposer` do outro fluxo.
+- **`test/fixtures/route-suggestion-application.fixture.ts`**: novo campo `plannedRoutes` (array de
+  `{companyId, routeChoice?, tripId}`) e `planRouteError?: Error` em `FixtureParams`, seguindo o
+  mesmo idioma de `reorderError`. `routePlanner` inserido no objeto retornado na posição alfabética
+  correta (`repository` < `routePlanner` < `stopOrder`).
+- **Testes novos** (nenhum arquivo novo — todos em arquivos já listados no `package.json`):
+  `test/routing-application/route-suggestion.contract.ts` (+3), `multi-vehicle-suggestion.contract.ts`
+  (+3), `test/routing-http/route-suggestions.contract.ts` (+2),
+  `test/routing-http/multi-vehicle-suggestion.contract.ts` (+2).
+
+### Persistência
+
+**Nenhuma persistência nova.** `routeChoice`/`routeChoiceByVehicle` são pass-through puro: o aceite
+só os repassa ao seam de congelamento de T201 (`planTripRoute`/`tollFreezer.freeze`), que já grava
+em `trips.planned_route`/`trips.planned_route_frozen_at` desde T201. Nenhuma coluna, nenhuma
+migration — confirmado que `test/routing-schema/route-suggestions.contract.ts` não precisou de
+nenhuma alteração.
+
+### Falha parcial de OSRM (D5)
+
+Não foi necessário nenhum tratamento novo. No aceite multi-veículo, cada `trips.planRoute(...)`
+dentro do `for (const group of groups)` já era uma chamada independente por veículo antes desta
+task — uma falha no congelamento de um veículo não impede os demais grupos de continuar (o loop não
+teria como saber, porque cada iteração já criava/vinculava/ordenava/planejava sua própria viagem
+isoladamente). E dentro do próprio `planTripRoute` (T201), a falha do `tollFreezer.freeze(...)` (que
+é onde uma falha de OSRM apareceria) já é um catch de fallback gracioso documentado — não deriva do
+planejamento da rota em si, que já rodou antes com sucesso (`markRoutePlanned`). D3
+(`choiceReproduced: false` quando a assinatura não é reproduzida) segue implementado a jusante, em
+`read-route-geometry.use-case.ts`/`read-trip-route-geometry.use-case.ts` (T104/T203) — nada aqui
+precisou mudar para isso continuar valendo.
+
+### Gates
+
+```bash
+# typecheck (raiz, 6 apps)
+bun run typecheck
+# 0 erros
+
+# lint (raiz, todas as apps)
+bun run lint
+# 6 eslint --max-warnings=0, todos limpos
+
+# format:check (raiz) — 1ª rodada acusou 1 arquivo (quebra de linha do bloco de teste novo);
+# corrigido com `prettier --write` no mesmo arquivo, sem mudança de lógica, e revalidado:
+bun run format:check
+# All matched files use Prettier code style!
+
+# suíte completa da API
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6164 pass
+ 23 skip
+ 0 fail
+Ran 6187 tests across 177 files. [13.86s]
+```
+
+**Baseline (fim de T203): 6154 pass, 23 skip, 0 fail, 177 arquivos. Depois de T204: 6164 pass
+(+10, exatamente os 10 testes novos: 3+3 nas suítes de aplicação, 2+2 nas suítes HTTP), 23 skip
+(inalterado), 0 fail, 177 arquivos (inalterado — nenhum arquivo novo de teste, todos já estavam na
+lista explícita do `package.json`).**
+
+### O payload exato que T404 (proposta multi-veículo) e T205 recebem/enviam
+
+- **Aceite por viagem única** (`POST /trips/:id/route-suggestions/:suggestionId/accept`): corpo
+  opcional `{ routeChoice?: { criterion, signature } }`. Sem corpo, `cheapest` (default do
+  congelador T201).
+- **Aceite multi-veículo** (`POST /route-suggestions/:suggestionId/accept`): corpo ganha o campo
+  opcional `routeChoiceByVehicle?: [{ vehicleId, routeChoice: { criterion, signature } }]`. Veículo
+  ausente dessa lista planeja com `cheapest`; veículo presente nela mas fora da proposta aceita é
+  `400 ROUTE_SUGGESTION_VEHICLE_NOT_IN_PROPOSAL` com `details: [{ field: 'routeChoiceByVehicle',
+message: <vehicleId> }]`.
+- T205 (reorder/link/release recalculando com `cheapest`) não depende de nada novo desta task: ele
+  já tinha o seam de T201 disponível, e T204 não alterou a assinatura de `planTripRoute` nem do
+  `PlanTripRoutePort`.
+
+### Commit
+
+`<preenchido após o commit>`
