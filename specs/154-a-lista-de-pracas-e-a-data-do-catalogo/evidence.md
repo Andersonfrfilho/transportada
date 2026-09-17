@@ -299,3 +299,132 @@ importado por `test/fleet-schema/tenant-safety.contract.js` dentro de
 `package.json` da API (`grep fleet-schema apps/api-transportada/package.json` devolve a linha do
 script, com `./test/fleet-schema.contract.test.ts` nela) — o teste novo entra pelo mesmo arquivo, sem
 registro adicional.
+
+## Fase 2 — O catálogo em leitura
+
+### T201 — a consulta do catálogo
+
+Contrato novo em `src/toll-booths/application/toll-booth-catalog.port.ts`
+(`TollBoothCatalogPort.listCatalog`) e implementação em
+`src/toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.ts`
+(`createDrizzleTollBoothCatalogRepository`) — par próprio, sem tocar o
+`TollBoothRepository`/`drizzle-toll-booth.repository.ts` existente nem
+`list-toll-booth-charges.use-case.ts` (T203 mexe nele depois). Constantes de paginação em
+`toll-booth-catalog.constant.ts`: página e `perPage` padrão (1/20) e o teto de 100 — teto, não
+default, porque `perPage: 500` vira `100`, nunca erro.
+
+Vermelho, antes de existir o repositório (o teste já importava o módulo que não existia):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts --timeout 120000
+
+bun test v1.3.14 (0d9b296a)
+
+test/toll-booths.contract.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '../../src/toll-booths/infrastructure/drizzle-toll-booth-catalog.repository.js' from '/Users/anderson.filho/Documents/personal/transportada-wt/spec-154/apps/api-transportada/test/toll-booths/toll-booth-catalog-repository.integration.ts'
+-------------------------------
+
+0 pass
+1 fail
+1 error
+Ran 1 test across 1 file. [246.00ms]
+```
+
+Verde, depois da implementação (mesmo arquivo, agora com as 10 suítes de pedágio + as 8 novas):
+
+```
+$ cd apps/api-transportada && bun --env-file=../../.env.test test ./test/toll-booths.contract.test.ts --timeout 120000
+
+bun test v1.3.14 (0d9b296a)
+
+ 79 pass
+ 0 fail
+ 162 expect() calls
+Ran 79 tests across 1 file. [9.27s]
+```
+
+`test/toll-booths/toll-booth-catalog-repository.integration.ts` roda contra Postgres de verdade
+(`withDisposableDatabase`, copiado de `test/integration/toll-booth-sighting-repository.integration.ts`:
+cria banco descartável, roda as migrations reais, `drop database ... with (force)` no `finally`) —
+um fake de repositório não provaria a forma do `LEFT JOIN`, da busca `ilike` nem do isolamento de
+tenant. Entra pelo `test/toll-booths.contract.test.ts` (que já está na lista `"test"` do
+`package.json`) por um import a mais, sem editar o `package.json` — o mesmo padrão que
+`database-migration.contract.test.ts` já usa para importar `.integration.ts` guardado por
+`testWithPostgres = databaseUrl === undefined ? test.skip : test`.
+
+O que cada uma das 8 suítes prova:
+
+- **busca por nome** e **busca por operador**: o `ilike` do `WHERE` alcança as duas colunas do
+  catálogo (`or(ilike(name), ilike(operator))`) — nunca o ajuste, que não guarda nome nem operador.
+- **teto de 100**: `perPage: 500` na chamada devolve `page.perPage === 100`, nunca `500` — o teto é
+  aplicado no repositório, não confiado ao chamador.
+- **paginação por offset**: página 2 de 3 registros com `perPage: 2` devolve 1 linha e `total: 3` —
+  `total` vem de uma segunda consulta paralela (`Promise.all`), não de `count(*) over()`, porque o
+  par fixo de duas consultas não é o N+1 que o §15 proíbe (esse é por linha, não por página).
+- **`seen`**: com `seenOsmNodeIds: [111]`, a praça 111 volta `seen: true` e a 222 `seen: false` —
+  calculado em memória via `Set.has()`, nunca uma consulta jsonb aqui; `seenOsmNodeIds` já vem
+  pronto do chamador (mesmo formato que `DrizzleTollBoothSightingRepository.readSeenOsmNodeIds`
+  produz, que por sua vez extrai de `trips.plannedToll` fora do SQL).
+- **ajuste separado do catálogo — a política compõe, nunca o repositório**: praça com
+  `chargePerAxle: '10.0000'` no catálogo e ajuste da empresa em `'8.5000'` devolve as duas colunas
+  cruas (`row.catalog.chargePerAxle === '10.0000'`, `row.adjustment.chargePerAxle === '8.5000'`); só
+  então o teste chama `resolveEffectiveTollBoothCharge` (spec 086) diretamente, fora do
+  repositório, para provar que o valor efetivo (`'8.5000'`, `source: 'manual'`) nasce ali — nunca de
+  uma expressão SQL tipo `COALESCE`.
+- **isolamento de tenant**: duas empresas, cada uma com ajuste na própria praça; a consulta da
+  primeira empresa nunca enxerga o ajuste da segunda na praça 2 (`adjustment: null`), mesmo as duas
+  praças existindo no mesmo catálogo compartilhado.
+- **catálogo vazio**: sem nenhuma praça semeada, a página volta `{ page: 1, perPage: 20, rows: [],
+total: 0 }` — nunca erro por tabela vazia.
+
+**Decisão que a spec não previu, descoberta lendo o schema, não a spec**: o plano (item 4) e a leitura
+inicial da D1 ("o ajuste de praça que o catálogo não conhece mais continua aparecendo") sugeriam um
+`FULL OUTER JOIN` — cobrir tanto a praça sem ajuste quanto o ajuste "órfão" sem praça
+(`catalogKnown: false`). Lendo `company-toll-booth-charge.schema.ts`, porém,
+`company_toll_booth_charges.osm_node_id` tem `references(() => tollBooths.osmNodeId, { onDelete:
+'restrict' })`, e a D7 do próprio spec 154 proíbe apagar praça no recarregamento
+("apagar seria migration destrutiva de dado que ajuste manual referencia"). As duas juntas fazem do
+ajuste órfão um estado **estruturalmente inalcançável** neste banco hoje — não existe, e não pode
+passar a existir sem uma migration destrutiva que a própria spec já veta. Por isso o `JOIN` virou
+**`LEFT JOIN`** de `toll_booths` (lado esquerdo) para o ajuste pré-filtrado por `companyId` — que é
+exatamente o que `plan.md` item 4 já dizia, ao pé da letra — e `TollBoothCatalogPort` não tem
+`catalogKnown` nem `catalog` anulável: o code-standard proíbe tratar estado que não pode acontecer, e
+fingir um `catalogKnown: false` que o schema torna impossível seria exatamente isso. Se essa garantia
+mudar (praça passar a ser removível), quem mexer na FK/D7 encontra este comentário no `.port.ts` e no
+`.repository.ts` apontando de volta para a decisão.
+
+A subconsulta que pré-filtra `company_toll_booth_charges` por `companyId` antes do `leftJoin`
+(`.as('scoped_charges')`) é defensiva: com `toll_booths` como lado esquerdo de um `LEFT JOIN`, vazar
+ajuste de outra empresa como praça "órfã" já não é possível por construção (isso só seria risco real
+num `FULL JOIN` filtrado só no `ON`). Mantida mesmo assim, para nunca ler a tabela de ajuste sem o
+filtro de tenant já embutido na forma da consulta — não porque o risco exista hoje, mas porque é o
+único jeito de ler aquela tabela neste repositório.
+
+**Ordenação (D1) deliberadamente fora do escopo**: a página vem ordenada só por
+`asc(tollBooths.osmNodeId)`, determinística e estável — nunca a ordenação "não vista e desconhecida
+primeiro" que a D1 pede. Essa regra já existe pronta e testada em
+`orderTollBoothChargesByUnknownFirst` (`toll-booth-charge.policy.ts`); aplicá-la aqui duplicaria
+regra de negócio em SQL ou exigiria compor o valor efetivo dentro do repositório — as duas coisas que
+este contrato existe para não fazer. Fica para a camada que compõe a resposta HTTP (T202/T203)
+chamar essa função sobre as linhas cruas que este repositório devolve.
+
+Suíte completa da API, antes e depois — oito testes a mais (as 8 novas), catorze `expect()` a mais,
+zero falha:
+
+```
+antes: 6264 pass · 23 skip · 0 fail · 21936 expect() calls · Ran 6287 tests across 177 files
+depois:
+$ cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+ 6272 pass
+ 23 skip
+ 0 fail
+ 21950 expect() calls
+Ran 6295 tests across 177 files. [25.25s]
+```
+
+Demais gates: `bun run typecheck` (6 apps) exit 0 · `bun run lint` (6 apps, `--max-warnings=0`)
+exit 0 · `bun run format` exit 0 (sem reescrita fora do próprio arquivo novo, que o `prettier
+--write` só reformatou a quebra de linha do `or(ilike(...), ilike(...))`).
