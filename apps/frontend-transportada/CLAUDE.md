@@ -125,3 +125,27 @@ Segurança: `Permissions-Policy: camera=(self), geolocation=(self), microphone=(
 **própria** origem, e a API falha antes de qualquer diálogo do navegador. `geolocation=(self)` entrou
 com a spec 057 (a entrega do motorista carimba onde aconteceu, ADR-0045 §3); o microfone segue
 fechado para todo mundo. Contrato: `test/shared/security-headers.contract.ts`.
+
+## Fleet — pedágio (spec 154)
+
+A aba de pedágio em Frota (Fleet Workspace) deixou de listar só as praças que a operação já cruzou
+(spec 095) — agora lista o **catálogo inteiro** paginado do servidor, com busca por nome e operador.
+O cabeçalho mostra contagem total, data do catálogo (`observed_on`), estado (`empty | stale | current`)
+e quantas praças estão sem tarifa por eixo conhecida para aquela empresa (inclui o efeito do ajuste
+manual). Abaixo da lista, um segundo bloco (só com `settings.manage`) oferece **recarregar catálogo**:
+seletor de extratos (do mais novo para o mais antigo), botão que abre diálogo de confirmação (informa
+"afeta todas as empresas da instalação"), e resultado com praças salvas, data do extrato e praças que
+ficaram fora deste extrato. Dois casos extremos:
+
+- Catálogo vazio: frase "nenhum extrato registrado ainda — não há o que recarregar".
+- Catálogo populado sem extrato registrado: frase com link ao runbook (`docs/runbooks/osrm-extract.md`).
+
+**Deep link vindo da viagem:** praça sem tarifa no extrato da rota (Trip) tem botão que abre
+`/fleet?tollBoothSearch=<nome ou operador da praça>` — a aba de pedágio lê `initialSearch` na query
+e filtra o catálogo de primeira, deixando a praça pronta para ajuste. Sem nome nem operador (raro),
+abre a aba sem termo. Navegação compartilhada com driver/vehicle (mesmo padrão de `fleetRoute.service.ts`),
+parâmetro dedicado `FLEET_TOLL_BOOTH_PARAMETER = 'tollBoothSearch'`.
+
+Histórico completo (contratos de catálogo/recarregamento/navegação, caso extremo de catálogo vazio,
+validação do deep link):
+`docs/ai-context/frontend-transportada.md` (spec 154 T204–T303, T401).

@@ -60,7 +60,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 > 🤖 Modelo: `haiku` para T501, `opus` para T502
 
-- [ ] T501 `docs/runbooks/osrm-extract.md` (subida e recarga pelo produto), `apps/api-transportada/CLAUDE.md`
+- [x] T501 `docs/runbooks/osrm-extract.md` (subida e recarga pelo produto), `apps/api-transportada/CLAUDE.md`
       e `docs/ai-context/` — §14 do code-standart.
 - [ ] T502 Revisão final com `code-reviewer` em `opus`: auditoria do §15 (N+1 na lista paginada,
       logs sem PII — nome de operador de praça não é PII, ator é id opaco, sanitização das rotas

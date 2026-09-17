@@ -1689,3 +1689,106 @@ requisição (M1)".
 
 Detalhe completo (contratos vermelho→verde, arquivos tocados, decisões de encaixe do `item_text` e
 singular/plural de `{clientes}`): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).
+
+## Catálogo de praças e recarregamento (spec 154)
+
+A aba de pedágio em Frota deixou de listar só as praças que a operação já cruzou (spec 095) e passou
+a ler o **catálogo inteiro** com busca e paginação do servidor. O catálogo nasce da extração de um
+`.pbf` (mesmo arquivo do OSRM, spec 090) e é recarregado pelo operador (permissão `settings.manage`)
+quando um novo `.pbf` é processado — a recarga é idempotente e não apaga praça nenhuma.
+
+**T101–T102: dados.** Migration aditiva `toll_booth_extracts` (chave natural `(dataset, observed_on)`):
+quem subiu, quando, contagens, sha256, URI do objeto no bucket, procedência do `.pbf` (URL e data do
+Geofabrik). `toll_booths` continua sem `company_id` — catálogo é da instalação, uma transportadora por
+deploy (ADR-0021). Duas colunas de ator (`uploaded_by_user_id` para a subida original,
+`reloaded_by_user_id` para cada recarga) **sem FK** — `removeMembership` (spec 149) apaga o usuário
+e uma FK `RESTRICT` travaria a remoção, `SET NULL`/`CASCADE` apagaria o ator histórico. Coluna
+`missing_object_observed_at` observa quando um `head()` falha (objeto sumiu do bucket após a linha ser
+gravada) — é booleano dinâmico, não estado estável, porque o objeto pode voltar sem que alguém
+intervenha e a coluna meramente registra "nesta data tentamos e foi embora"; zera no primeiro
+`get()` que funciona.
+
+**T201–T204: catálogo em leitura.** `TollBoothCatalogPort.listCatalog` (novo repositório
+`drizzle-toll-booth-catalog.repository.ts`) entrega o catálogo paginado com busca (`ilike` por nome
+e operador), mostrando para a empresa do contexto o ajuste manual de cada praça (especialmente o
+ajuste "órfão" — praça sem catálogo porque sumiu de um `.pbf` novo, marcada `catalogKnown: false`).
+O valor efetivo (ajuste manual vence catálogo) sai da política `resolveEffectiveTollBoothCharge`
+(spec 086), nunca do SQL. `GET /v1/toll-booths` (RF1, `fleet.read`) devolve o catálogo com resumo
+(RF2): contagem total, data `observed_on`, estado `empty | stale | current` (da política
+`resolveTollCatalogStatus`, reutilizada do mapa da viagem spec 090), e contagem de praças que
+resolverão `null` em `chargePerAxle` após aplicar ajuste da empresa — essa contagem exigiu leitura
+separada do catálogo inteiro (~600 linhas em staging), mapeada em memória contra os ajustes reais
+(`countBoothsWithoutKnownAxleCharge` na policy), para respeitar RNF2 (nunca ler a tabela inteira no
+`SELECT` paginado, só em agregados pontuais). T203 reaproveitou `listCatalog` com filtro
+`seenFilter: 'only'` para alimentar a rota existente `GET /company-settings/toll-booth-charges` (spec
+095), deixando-a intacta enquanto a fonte de dados mudou — as duas concordam praça a praça (contrato
+novo de paridade). **Divergência registrada na T402 item 5:** `list-toll-booth-catalog.use-case.ts`
+(226 linhas) passou de 200 — a ordenação pura (vistas sem tarifa primeiro, depois com tarifa) saiu
+para `domain/toll-booth-catalog-entry.policy.ts` e a resolução de vistas (que chama portas) para
+`application/list-toll-booth-catalog-seen-rows.service.ts`, deixando o use case com só orquestração.
+
+**T301–T302: extrato e recarga.** `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>`
+(RF3b, `settings.manage`) recebe o JSON do extrator como corpo (array puro, sem envelope), valida
+forma com Zod (todas as colunas obrigatórias, `osmNodeId` único, coordenadas na faixa de latitude/longitude,
+dinheiro em padrão de quatro casas), calcula sha256 dos **bytes crus** (não do JSON reserializado, que
+diverge por espaço/ordem), e sobe para o bucket em modo `create-only` — resubida de bytes idênticos
+responde `replayed` (não é conflito), objeto diferente responde `objectConflict` (409 mapeado
+`TollBoothExtractObjectConflictError`). Linha duplicada `(dataset, observedOn)` responde `409` da
+chave natural. O objeto é gravado **antes** da linha, evitando estado órfão. `GET /v1/toll-booths/extracts`
+(RF3, `settings.manage`) lista do mais novo para o mais antigo, com contagens de praças por tarifa e
+quem/quando recarregou. `POST /v1/toll-booths/reload` (RF4, `settings.manage`) — _forma idempotente
+de transação global mais interessante desta feature_ — roda com advisory lock sobre id constante
+`TOLL_BOOTH_CATALOG_RELOAD_LOCK_ID = 14_154`, false responde `409 TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS`;
+lê a linha por `(dataset, observedOn)` ou 404, `head()` o objeto (ausente: marca
+`missing_object_observed_at` fora da transação, responde 409) ou baixa cuidado com teto
+(`contentLength` > `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` = 500 KiB é 409 sem `get()`), valida
+sha256 (divergente: 409 com log de dataset, data e dois hashes em texto — **sem revelar os bytes**),
+reprocessa o JSON pelo mesmo Zod (nó repetido: 409 `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH`), executa
+o seed existente (`createSeedTollBoothsUseCase`) **dentro da transação** (seed que antes recebia
+repositório sem transação ganhou a transação no `TollBoothCatalogReloadPort.runExclusive`), grava
+ator/data/contagens em `reloaded_*`, zera `missing_object_observed_at`, registra ação em `audit_logs`
+com `action: 'toll_booth_catalog.reloaded'`. **Idempotência:** o upsert do seed ganhou `setWhere`
+(nenhuma das sete colunas observáveis mudou desde a anterior) — rodar de novo com o mesmo extrato
+deixa `toll_booths` idêntico, nem `updated_at` muda. Resposta `200 { data: { dataset, observedOn,
+savedBoothCount, catalogBoothCount, boothsMissingFromExtract, reloadedAt, reloadedByUserId } }` —
+`boothsMissingFromExtract` é o catálogo que ficou de fora deste extrato (praça que o banco conhece
+mas o extrato novo não trouxe), a reação esperada é "escolher extrato maior ou trazer de arquivo
+antigo se você quiser preenchê-la com tarifa manual".
+
+**T303: interface no frontend.** A aba de pedágio (Frota) ganhou um segundo bloco abaixo da lista de
+praças — seletor de extratos (lista do mais novo), botão "Recarregar catálogo", diálogo de
+confirmação (informa "a recarga afeta o catálogo de todas as empresas desta instalação", mesmo deploy
+= uma transportadora) e resultado (praças salvas, data do extrato recarregado, praças do catálogo que
+ficaram de fora). Dois casos extremos:
+
+- Catálogo vazio (nunca carregado): frase "nenhum extrato registrado ainda — não há o que recarregar".
+- Catálogo populado mas sem extrato registrado (staging 15/09): frase com link ao runbook (caso de
+  "manual para este ambiente, quero começar a usar pelo botão daqui para frente").
+
+**T401: navegação de rota para ajuste.** Praça sem tarifa conhecida no extrato da viagem (RouteTollSummary)
+ganhou botão `>` (ícone `edit`) que abre `/fleet?tollBoothSearch=<nome ou operador da praça>` — a aba
+de pedágio (T204) já lê `initialSearch` e filtra o catálogo de primeira, deixando a praça pronta para
+o operador ajustar valor e data. O botão só aparece com `settings.manage`. Sem nome nem operador (caso
+raro), abre a aba mesmo assim só sem termo.
+
+**T402: pendências e testes fracos corrigidos.** Seis itens:
+
+1. Upload de extrato com `osmNodeId` repetido é rejeitado (antes passava no upload e só falhava na
+   recarga com 500). `hasRepeatedOsmNodeId` virou `.refine()` do schema.
+2. Coordenada fora da faixa (`±90` latitude, `±180` longitude) era rejeitada só no seed com 500.
+   `coordinateSchema(bound)` virou `.refine()` do schema — upload e recarga agora recusam com 409
+   (integridade, mesmo código do sha256 divergente).
+3. Storage indisponível (`ObjectStorageError('OBJECT_STORAGE_UNAVAILABLE')`) respondia 500 genérico.
+   Mapeado em `http/response.service.ts` para 503 `STORAGE_UNAVAILABLE` (nova constante em
+   `HTTP_ERROR`), operando para todos os consumidores de storage (`nfe-imports`, billing, etc.).
+4. Comentário desatualizado em `toll-booth-extract.schema.ts` sobre "API não ter auditoria" — corrigido
+   (auditoria existe em `audit_logs`, consumida por `contractor-mail`).
+5. Arquivos acima de 200 linhas: `list-toll-booth-catalog.use-case.ts` (ordenação pura extraída),
+   `drizzle-toll-booth-catalog.repository.ts` (mapeamento extraído).
+6. Contrato fraco em `toll-booth-charge-tab.contract.ts` (T303) verificava só "string existe no
+   arquivo" — extraído `TollBoothCatalogReloadGate` componente próprio, novo contrato usa
+   `renderToStaticMarkup` com i18n real (padrão de `route-toll-adjustment.contract.tsx` da T401).
+
+Detalhe completo (vermelho→verde, contratos de repositório/use-case/HTTP, integração MinIO/Postgres,
+decisão da contagem de praças sem tarifa estar vinculada à empresa): `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md`
+(T001, T101–T102, T201–T204, T301–T303, T401, T402).

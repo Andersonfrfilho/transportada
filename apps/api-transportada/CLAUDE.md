@@ -66,6 +66,33 @@ PATCH gravaria (ambiente do perfil, série 1, número 1, versão 1). Falha de pe
 configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), então a mensagem sai no
 `http_request_failed`. ⚠️ `new Error` cru no caminho de uma rota perde o motivo no log.
 
+## Pedágio — o catálogo e o extrato (specs 090, 154)
+
+**Catálogo de praças (spec 090, spec 154 RF1/RF2):** `GET /v1/toll-booths` devolve o catálogo
+paginado (padrão 20, teto 100 por página) com busca por nome e operador da praça, mostrando para a
+empresa do contexto o valor efetivo e a origem de cada campo (`catalog | manual`) — precedência é
+ajuste manual do operador vence catálogo público. Permissão: `fleet.read`. Resumo: total de praças,
+data do catálogo (`observed_on`), estado (`empty | stale | current`), e contagem de praças sem tarifa
+por eixo conhecida para a empresa (inclui o efeito do ajuste manual). **Nenhuma praça do catálogo é
+apagada por operação do produto** — só o recarregamento marca `catalogKnown: false` para a que sumiu
+de um extrato novo.
+
+**Extrato registrado e recarga (spec 154 RF3/RF3b/RF4):**
+
+- `GET /v1/toll-booths/extracts` lista os extratos (dataset, data, contagens, quem subiu e quando foi
+  recarregado). Do mais novo para o mais antigo. Permissão: `settings.manage`.
+- `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>` recebe o JSON do
+  extrator (array puro de praças), grava no bucket em modo `create-only` (resubida de bytes idênticos
+  responde 409 na linha, não do objeto), registra a linha em `toll_booth_extracts`, sha256 e
+  contagens. Responde `409` se o par `(dataset, observedOn)` já existe. Permissão: `settings.manage`.
+- `POST /v1/toll-booths/reload?dataset=<dataset>&observedOn=<...>` recarrega a partir de um extrato
+  registrado — lê o objeto do bucket, valida sha256, executa o seed existente em transação global
+  (uma recarga por vez, responde `409` se outra está em andamento), grava ator e data da recarga na
+  linha, registra ação em `audit_logs`. Responde `404` se o extrato não existe, `409` se o objeto
+  sumiu do bucket (marca `missing_object_observed_at`), `409` se sha256 diverge, `409` se há nó
+  repetido. Permissão: `settings.manage`. **Idempotente**: rodar de novo com o mesmo extrato deixa
+  `toll_booths` inalterada (nem `updated_at` muda).
+
 ## Identidade e permissões
 
 - **Recuperação de senha** (`POST /password-resets`, `.../confirm`) são as únicas rotas anônimas;
