@@ -472,6 +472,7 @@
     "family": {
       "counter": "{{measured}} of {{total}} measured in this family",
       "applyToAll": "Apply this flavor's measurement to all flavors",
+      "applyToAllAriaLabel": "Apply this flavor's measurement to all flavors — {{description}}",
       "applyUnresolved": "No confirmed measurement available to apply in this family.",
       "applyFailed": "Could not fetch this family's siblings ({{code}}). Try again."
     },

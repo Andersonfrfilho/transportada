@@ -37,6 +37,8 @@ export function PackageBoxFamilyApplyButton({ box, onResolved }: PackageBoxFamil
   const [message, setMessage] = useState<'error' | 'unresolved' | undefined>(undefined)
   const fetchSiblings = usePackageBoxSiblingsFetcher()
   const [errorCode, setErrorCode] = useState<string | undefined>(undefined)
+  /** B4: os rótulos "aplicar a todos" se repetem por toda a fila — o leitor de tela precisa da linha. */
+  const rowLabel = box.description || box.productCode
 
   async function handleClick(): Promise<void> {
     setIsFetching(true)
@@ -60,6 +62,8 @@ export function PackageBoxFamilyApplyButton({ box, onResolved }: PackageBoxFamil
   return (
     <>
       <Button
+        aria-busy={isFetching}
+        aria-label={t('packageBoxes.family.applyToAllAriaLabel', { description: rowLabel })}
         disabled={isFetching}
         onClick={() => void handleClick()}
         size="sm"
@@ -70,10 +74,14 @@ export function PackageBoxFamilyApplyButton({ box, onResolved }: PackageBoxFamil
         {t('packageBoxes.family.applyToAll')}
       </Button>
       {message !== 'unresolved' ? null : (
-        <p className={styles.hint}>{t('packageBoxes.family.applyUnresolved')}</p>
+        <p className={styles.hint} role="status">
+          {t('packageBoxes.family.applyUnresolved')}
+        </p>
       )}
       {message !== 'error' ? null : (
-        <p className={styles.notice}>{t('packageBoxes.family.applyFailed', { code: errorCode })}</p>
+        <p className={styles.notice} role="status">
+          {t('packageBoxes.family.applyFailed', { code: errorCode })}
+        </p>
       )}
     </>
   )

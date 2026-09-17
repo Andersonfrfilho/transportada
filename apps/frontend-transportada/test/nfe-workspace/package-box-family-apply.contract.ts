@@ -179,6 +179,27 @@ describe('botão "aplicar medida a todos os sabores" na linha da fila (D12, G012
     expect(hook).toContain('staleTime: 0')
   })
 
+  /**
+   * Re-revisão (B4): quem usa leitor de tela precisa saber QUAL linha o botão pertence (rótulos
+   * "aplicar a todos" se repetem por toda a fila), quando ele está buscando, e ouvir a dica/erro
+   * sem precisar navegar até lá.
+   */
+  it('tem aria-label com o rótulo da linha, aria-busy e role=status na dica e no erro (B4)', async () => {
+    const button = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxFamilyApplyButton.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(button).toContain('packageBoxes.family.applyToAllAriaLabel')
+    expect(button).toContain('aria-busy={isFetching}')
+    const unresolvedHint = button.slice(button.indexOf('packageBoxes.family.applyUnresolved') - 80)
+    expect(unresolvedHint).toContain('role="status"')
+    const failedHint = button.slice(button.indexOf('packageBoxes.family.applyFailed') - 80)
+    expect(failedHint).toContain('role="status"')
+  })
+
   it('a fila deriva a elegibilidade do botão pronto da API, sem somar de novo (D9)', async () => {
     const panel = await Bun.file(
       new URL(
