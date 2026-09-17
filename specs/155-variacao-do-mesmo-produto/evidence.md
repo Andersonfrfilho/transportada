@@ -908,4 +908,73 @@ make check                                            exit 0 (format:check + lin
 
 ## T3.5 — Aplicar a medida de um sabor a todos (D12/G012)
 
-Pendente.
+Pedido do usuário depois da revisão final: o botão rápido (D7/T3.3) só preenche uma caixa por vez —
+esta task adiciona "aplicar a todos os sabores" direto da linha da fila, reaproveitando o diálogo de
+replicar (D5/D6) já existente. De quebra, resolve o MÉDIO-3 que ficara pendente da revisão final
+(evidence.md, "Item não corrigido"): réplica passa a contar como medida e pode ser origem de nova
+réplica — decisão do usuário registrada em D12.
+
+**Vermelho → verde, API.** `PackageBoxSiblingView` não trazia `measurementSource` — sem ele a tela
+não tinha como preferir uma irmã conferida a uma `replicated` como origem sem uma segunda ida ao
+banco. Adicionado o campo em `package-box.port.ts:97`, preenchido em `SIBLING_COLUMNS`/`toSiblingView`
+de `DrizzlePackageBoxRepository` (`drizzle-package-box.repository.ts`). Sem migration: a coluna já
+existe desde a T2.1. Contrato (`replicate.contract.ts`) e integração
+(`package-box-replication.integration.ts`) atualizados para exigir o campo — sem ele o `SIBLING_ITEM`
+do contrato e o `toEqual` da integração já reprovavam por campo ausente/`undefined`.
+
+```
+bun run --cwd apps/api-transportada test                                          6320 pass · 23 skip · 0 fail
+bun --env-file=../../.env.test test --timeout 120000
+  ./test/integration/package-box-replication.integration.ts                        8 pass · 0 fail
+```
+
+**Vermelho → verde, frontend.** `resolveFamilyReplicationSource` (nova, pura,
+`shared/packageBoxFamilySource.service.ts`): entre a própria caixa (se medida) e as irmãs medidas,
+prefere `measurementSource` diferente de `replicated`; só quando a única medida da família é
+`replicated` é que ela vira origem (D12); `undefined` sem medido ou sem pendente na família.
+`PackageBoxSibling` (cliente) ganhou o mesmo campo, com o guard `isPackageBoxSibling` exigindo-o —
+por isso os fixtures de `package-box-measurement.contract.ts` e `package-box-replicate-dialog.contract.ts`
+precisaram do campo novo (sem ele o guard recusava a resposta simulada, mesmo padrão do resto da
+suíte "corpo que não bate o formato esperado lança, nunca vira silêncio").
+
+Botão novo `PackageBoxFamilyApplyButton` (componente próprio — `PackageBoxMeasurementPanel` já
+passava de 700 linhas): aparece na linha quando `familyKey` existe, `familyMeasuredCount >= 1` e
+`familyPendingCount >= 1` (os contadores prontos da API, D9 — a tela nunca soma de novo). As irmãs só
+são buscadas no clique (`usePackageBoxSiblings({ boxId: requested ? box.id : null })`), nunca junto
+da fila de 50 linhas. Resolvida a origem, abre o `PackageBoxReplicateDialog` já existente por
+`openReplicateDialogFromFamilyApply` no painel — reaproveita o `onResetReplicate`/`onReplicate` já
+existentes, sem novo efeito de abrir/fechar (D5). Sem origem resolvida, mensagem
+`packageBoxes.family.applyUnresolved` no lugar do diálogo.
+
+Contrato novo `test/nfe-workspace/package-box-family-apply.contract.ts` (importado em
+`nfe-workspace.contract.test.ts`): cinco casos da função pura (prefere conferida, replicada como
+única origem disponível, nenhuma medida, nenhuma pendente, a própria caixa medida como origem) + dois
+de fonte (o botão busca só no clique e usa a função pura; o painel deriva a elegibilidade dos
+contadores prontos, sem somar de novo).
+
+```
+bun run --cwd apps/frontend-transportada test    4197 pass · 0 fail   (era 4190; +7 desta task)
+bun run --cwd apps/frontend-transportada lint    sem erros
+bun run typecheck (as seis apps)                 exit 0
+```
+
+**Gates finais desta task:**
+
+```
+bun run typecheck                                              exit 0
+bun run --cwd apps/api-transportada test                       6320 pass · 23 skip · 0 fail
+bun --env-file=../../.env.test test --timeout 120000
+  ./test/integration/package-box-replication.integration.ts    8 pass · 0 fail
+bun run --cwd apps/frontend-transportada test                  4197 pass · 0 fail
+bun run --cwd apps/frontend-transportada lint                  sem erros
+make check                                                     exit 0 (format:check + lint + typecheck + test + build, todas as apps, 0 fail)
+```
+
+Commits:
+
+- `5b9a188d` — docs(spec): 155 D12 aplica medida de um sabor a todos, sem remedir
+- `abb61590` — feat(nfe-package-box): as irmãs de família devolvem a origem da medida
+- `9ebc56d9` — feat(nfe-workspace): botão aplica a medida de um sabor a todos os sabores
+
+Desvio: nenhum. Documentação (`docs/ai-context/*.md`) atualizada num commit próprio, ao final desta
+seção.

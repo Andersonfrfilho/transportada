@@ -570,6 +570,11 @@ e formato se misturam — ex.: vácuo e sachê). Status 409 se alvo já medido �
 negocia**: replicar nunca sobrescreve medida existente, nem por concorrência. Respostas com código
 específico permitem a tela oferecer diálogo pré-marcado só em família confiável (D5).
 
+**"Aplicar a todos" (spec 155 D12/G012):** `PackageBoxSiblingView` traz `measurementSource` de cada
+irmã — a tela usa isso para preferir uma origem conferida (`typed`/`camera*`) a uma `replicated` na
+hora de copiar de novo; réplica conta como medida e pode ser origem de outra réplica quando é a
+única da família (decisão do usuário 2026-09-17).
+
 ⚠️ **Etiqueta que não vira código nenhum é busca vazia, nunca busca sem filtro** — tratá-la como
 ausência de filtro mostrava as cinquenta primeiras caixas como se a leitura tivesse achado algo, e o
 conferente media a primeira da lista. E a fila ordena por `coalesce(volumes, 0) desc`: em Postgres

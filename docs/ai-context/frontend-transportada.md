@@ -129,6 +129,12 @@ cliente em `test/nfe-workspace/package-box-measurement.contract.ts`, diálogo em
 `test/nfe-workspace/package-box-replicate-dialog.contract.ts`, agrupamento em
 `test/nfe-workspace/package-box-family.contract.ts`.
 
+**"Aplicar a todos" (spec 155 D12/G012):** linha com sabor medido e sabor pendente na família ganha
+"Aplicar medida do sabor a todos os sabores" (`PackageBoxFamilyApplyButton`) — busca as irmãs só no
+clique (nunca junto da fila de 50), `resolveFamilyReplicationSource` escolhe a origem preferindo
+medida conferida a `replicated`, e abre o mesmo `PackageBoxReplicateDialog` da D5/D6. Contrato em
+`test/nfe-workspace/package-box-family-apply.contract.ts`.
+
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.
