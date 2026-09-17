@@ -1,14 +1,31 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import { formatTariffMonth } from '../shared/assemblyToll.service'
-import type { RouteGeometryToll } from '../shared/routeGeometry.service'
+import type { RouteGeometryToll, RouteGeometryTollBooth } from '../shared/routeGeometry.service'
+import {
+  createBrowserWorkspaceNavigator,
+  navigateToFleetTollBoothAdjustment,
+  resolveTollBoothAdjustmentSearch,
+} from '../shared/tripNavigation.service'
 import styles from '../styles/trip.module.css'
 
-type RouteTollSummaryProps = Readonly<{ toll: null | RouteGeometryToll }>
+type RouteTollSummaryProps = Readonly<{
+  /** RF7 (spec 154): só quem tem `settings.manage` vê o caminho até o ajuste da praça. */
+  canAdjustTollBooth: boolean
+  toll: null | RouteGeometryToll
+}>
+
+function handleAdjustBooth(booth: RouteGeometryTollBooth): void {
+  navigateToFleetTollBoothAdjustment({
+    navigator: createBrowserWorkspaceNavigator(),
+    search: resolveTollBoothAdjustmentSearch(booth),
+  })
+}
 
 /**
  * O pedágio do trajeto, praça a praça — o **mesmo** bloco na montagem e no detalhe da viagem. Duas
@@ -16,8 +33,12 @@ type RouteTollSummaryProps = Readonly<{ toll: null | RouteGeometryToll }>
  *
  * Spec 090 T7/T8: `toll === null` é "não calculei" — sem veículo escolhido, ou o roteirizador não
  * anotou os nós — e o bloco inteiro fica de fora, nunca um zero inventado.
+ *
+ * Spec 154 RF7 (aceite 6): a praça sem tarifa conhecida (`effectiveChargePerAxle === null`) ganha
+ * o botão que abre a aba de pedágio em Frota, com a busca já na praça — só quando `canAdjustTollBooth`
+ * (`settings.manage`) é verdadeiro; sem a permissão o botão nem entra no DOM.
  */
-export function RouteTollSummary({ toll }: RouteTollSummaryProps) {
+export function RouteTollSummary({ canAdjustTollBooth, toll }: RouteTollSummaryProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -119,6 +140,17 @@ export function RouteTollSummary({ toll }: RouteTollSummaryProps) {
                         {t('assemblyMap.toll.statementFellBack')}
                       </span>
                     ) : null}
+                    {booth.effectiveChargePerAxle !== null || !canAdjustTollBooth ? null : (
+                      <Button
+                        onClick={() => handleAdjustBooth(booth)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Icon name="edit" />
+                        {t('assemblyMap.toll.adjustBooth')}
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>

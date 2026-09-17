@@ -67,6 +67,8 @@ const AssemblyVectorMap = lazy(async () => ({
 const MAP_HEIGHT = '18rem'
 
 type TripAssemblyMapProps = Readonly<{
+  /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
+  canAdjustTollBooth: boolean
   /** As notas que o filtro alcança e a seleção deixou de fora — o que faltou, em cinza claro. */
   nearby: readonly AssemblyMapNote[]
   /**
@@ -157,6 +159,7 @@ function formatFinishTime(iso: string): string {
  * ao lado dela diz isso.
  */
 export function TripAssemblyMap({
+  canAdjustTollBooth,
   isMeasurementPaused,
   measuredOrder,
   nearby,
@@ -571,7 +574,7 @@ export function TripAssemblyMap({
         </p>
       )}
       {/* Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4). */}
-      <RouteTollSummary toll={toll} />
+      <RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={toll} />
       {/*
         Spec 096 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
         logo abaixo do bloco de pedágio da T7. `hasChoice` vem pronto da API: rota única (três de

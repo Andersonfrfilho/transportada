@@ -58,6 +58,8 @@ import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.h
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
+  /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
+  canAdjustTollBooth: boolean
   linkForm: TripDocumentLinkFormController
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
@@ -150,7 +152,7 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
   )
 }
 
-export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
+export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
   const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
@@ -439,6 +441,7 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
       />
 
       <TripRouteMap
+        canAdjustTollBooth={canAdjustTollBooth}
         canCorrect={canManage}
         geometry={workspace.routeGeometryQuery.data ?? null}
         stops={trip.stops}

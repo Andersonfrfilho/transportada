@@ -59,7 +59,9 @@ describe('pedágio na montagem (spec 090 T7)', () => {
   it('está montado logo abaixo do tempo do roteiro', () => {
     const assembly = readFileSync(ASSEMBLY, 'utf8')
     const totalTimeIndex = assembly.indexOf('assemblyMap.totalTime')
-    const tollIndex = assembly.indexOf('<RouteTollSummary toll={toll} />')
+    const tollIndex = assembly.indexOf(
+      '<RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={toll} />',
+    )
 
     expect(totalTimeIndex).toBeGreaterThan(-1)
     expect(tollIndex).toBeGreaterThan(totalTimeIndex)

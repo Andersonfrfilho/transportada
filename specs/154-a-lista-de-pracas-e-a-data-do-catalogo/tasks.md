@@ -53,7 +53,7 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T401 `RouteTollSummary`: ação de ajuste na praça sem tarifa conhecida, ausente sem
+- [x] T401 `RouteTollSummary`: ação de ajuste na praça sem tarifa conhecida, ausente sem
       `settings.manage` — contrato de componente. **Aceite 6 fecha aqui.**
 
 ## Fase 5 — Documentação e revisão

@@ -83,6 +83,7 @@
     },
     "title": "Mapa da montagem",
     "toll": {
+      "adjustBooth": "Ajustar tarifa desta praça",
       "axleSource": {
         "declared": "declarados na ficha do veículo",
         "estimated": "estimados pelo tipo do veículo"

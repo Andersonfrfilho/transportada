@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { SelectOption } from '@/components/ui/select'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import {
@@ -297,6 +298,7 @@ export function TripProposalDetail({
       )}
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
+          canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
           isMeasurementPaused={isMeasurementPaused}
           measuredOrder={stopOrder}
           nearby={[]}

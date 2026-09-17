@@ -30,6 +30,8 @@ const NO_NEARBY: readonly AssemblyMapPoint[] = []
 
 type TripRouteMapProps = Readonly<{
   geometry: RouteGeometry | null
+  /** RF7 (spec 154): sem `settings.manage` o extrato não oferece o botão de ajustar a praça. */
+  canAdjustTollBooth: boolean
   /** Corrigir é escrita: sem `trip.manage` a tela mostra o mapa e não oferece o pino. */
   canCorrect: boolean
   isCorrecting: boolean
@@ -83,6 +85,7 @@ function locateStops(stops: readonly TripStopDetail[]): LocatedStops {
  * ruas a reabria num mapa que não reconhecia.
  */
 export function TripRouteMap({
+  canAdjustTollBooth,
   canCorrect,
   geometry,
   isCorrecting,
@@ -188,7 +191,7 @@ export function TripRouteMap({
       geometry.costGap === null ? null : (
         <p className={styles.hint}>{t(`assemblyMap.routeOptions.gap.${geometry.costGap}`)}</p>
       )}
-      <RouteTollSummary toll={geometry?.toll ?? null} />
+      <RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={geometry?.toll ?? null} />
       {canCorrect ? (
         <TripStopPointCorrection isCorrecting={isCorrecting} onCorrect={onCorrect} stops={stops} />
       ) : null}

@@ -51,7 +51,12 @@ import {
   toVehicleFormState,
 } from '../shared/fleetForm.service'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
-import { parseFleetDriverParameter, parseFleetVehicleParameter } from '../shared/fleetRoute.service'
+import {
+  hasFleetTollBoothParameter,
+  parseFleetDriverParameter,
+  parseFleetTollBoothSearchParameter,
+  parseFleetVehicleParameter,
+} from '../shared/fleetRoute.service'
 import styles from '../styles/fleet.module.css'
 
 type FleetEditor =
@@ -171,6 +176,8 @@ export function FleetWorkspacePage() {
   const tollBoothCatalog = useTollBoothCatalog({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.tollBoothCharges,
+    /** RF7 (spec 154): a ação de ajuste do extrato da rota chega com o nome da praça pronto. */
+    initialSearch: parseFleetTollBoothSearchParameter(window.location.search) ?? '',
   })
   /**
    * Spec 154 T303: só consulta os extratos com `settings.manage` — sem a permissão, nem a lista
@@ -474,5 +481,6 @@ function resolveInitialTab(): FleetTabId {
   const search = window.location.search
   if (parseFleetDriverParameter(search) !== null) return 'drivers'
   if (parseFleetVehicleParameter(search) !== null) return 'vehicles'
+  if (hasFleetTollBoothParameter(search)) return 'tolls'
   return 'vehicles'
 }

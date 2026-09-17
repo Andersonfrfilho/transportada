@@ -1314,3 +1314,173 @@ observedOn})`) e o resultado mostra `savedBoothCount`/`observedOn`/`boothsMissin
 **Divergência de escopo, não bloqueio:** a subida do extrato (RF3b, `POST /extracts`) não tem tela
 — o enunciado da task exclui isso explicitamente. `RouteTollSummary` (T401, aceite 6) e o runbook
 (T501) continuam fora desta task.
+
+### T401 — `RouteTollSummary`: ação de ajuste na praça sem tarifa conhecida (RF7, `apps/frontend-transportada`)
+
+`apps/frontend-transportada`: `RouteTollSummary.component.tsx` — o extrato de pedágio da rota
+(montagem e detalhe da viagem, um componente só, spec 090) — já marcava a praça sem tarifa
+(`statementWithoutCharge`) e a que caiu para a manual (`statementFellBack`). A praça sem tarifa
+conhecida ganha um botão que leva ao ajuste dela em Frota → Pedágio, só quando quem olha tem
+`settings.manage`.
+
+**Navegação escolhida:** a aba de pedágio (T204/T303) já lê `search` de estado local
+(`useTollBoothCatalog.hook.ts`), e o shell já resolve a aba inicial e parâmetros de deep link pela
+query string (`fleetRoute.service.ts`, usada por `driverId`/`vehicleId` — spec anterior). RF7 segue
+o mesmo molde em vez de inventar um terceiro, com um parâmetro dedicado
+(`FLEET_TOLL_BOOTH_PARAMETER = 'tollBoothSearch'`) porque o valor é **texto livre pré-preenchido**,
+não um id como os outros dois:
+
+- `fleetRoute.service.ts` (53 linhas): `buildFleetTollBoothRoute(search)`,
+  `parseFleetTollBoothSearchParameter(search)` (o termo, `null` quando vazio — mesma semântica de
+  `parseFleetDriverParameter`) e `hasFleetTollBoothParameter(search)`, uma função **nova** e
+  deliberadamente distinta do parse: a praça pode não ter nome nem operador (`booth.name` e
+  `booth.operator` os dois `null`), e mesmo assim a ação precisa abrir a aba certa — só sem termo
+  para pré-preencher. Usar só `parseFleetTollBoothSearchParameter(...) !== null` erraria esse caso
+  (string vazia também vira `null` no parse), por isso a presença do parâmetro na URL é uma
+  pergunta separada da leitura do valor.
+- `FleetWorkspace.page.tsx`: `resolveInitialTab` ganha o terceiro `if` (`tolls` quando
+  `hasFleetTollBoothParameter`), e `useTollBoothCatalog` recebe `initialSearch` a partir de
+  `parseFleetTollBoothSearchParameter(window.location.search) ?? ''` — mesmo padrão de leitura de
+  `window.location.search` que `resolveInitialTab` já fazia para driver/vehicle.
+- `useTollBoothCatalog.hook.ts`: `useState('')` vira `useState(input.initialSearch ?? '')` — a
+  única mudança nesse hook; debounce, paginação e o resto do contrato de T204 continuam intactos
+  (nada no `test/fleet/toll-booth-charge-tab.contract.ts` da T204 lê `initialSearch`, que é opcional
+  e retrocompatível).
+- `tripNavigation.service.ts` (68 linhas), no molde de `navigateToPackageBoxQueue` (spec 144) e
+  `navigateToFleetDriver`/`navigateToFleetVehicle` (`identity/shared/fleetNavigation.service.ts`,
+  que a spec 154 não toca): `resolveTollBoothAdjustmentSearch(booth)` (o termo — `name` quando
+  existe, `operator` no resto, `''` quando nenhum dos dois) e
+  `navigateToFleetTollBoothAdjustment({ navigator, search })` (`pushPath` +
+  `rememberWorkspace('fleet')` + `dispatchPopState()`, a navegação manual do shell — spec 154 não
+  usa `<a href>`: cliques na feature inteira já passam por esse molde).
+- `RouteTollSummary.component.tsx` (163 linhas): prop nova `canAdjustTollBooth: boolean` — quem
+  hospeda decide a permissão, o componente só obedece (mesmo desenho de `canCorrect` em
+  `TripRouteMap.component.tsx`). Por praça com `effectiveChargePerAxle === null` **e**
+  `canAdjustTollBooth`, um `<Button size="sm" variant="ghost">` com `<Icon name="edit" />` (o
+  `test/trip/action-icons.contract.ts` da própria app exige ícone em todo botão da viagem — pego no
+  vermelho, ver abaixo) chama `handleAdjustBooth(booth)`, que compõe as duas funções acima.
+
+**Threading da permissão até o componente:** `RouteTollSummary` é renderizado em três lugares, e os
+três precisam de `canAdjustTollBooth`:
+
+1. `TripRouteMap.component.tsx` (detalhe da viagem) → prop nova `canAdjustTollBooth`, repassada de
+   `TripDetail.component.tsx` (prop nova de mesmo nome) → `TripDetail.page.tsx`, que já tem
+   `permissions` do `useAuthMeQuery()` e agora computa
+   `canAdjustTollBooth = permissions.includes(SETTINGS_MANAGE_PERMISSION)` — a mesma constante que
+   `TripWorkspace.page.tsx` já importa de `@/modules/company-settings/shared/companySettings.constant`
+   para o mesmo fim (cadastro de tipo de ocorrência). `TripDetail` não carregava `settings.manage`
+   antes: a viagem só conhecia `trip.manage` (`canManage`, de `workspace.controller.canManageTrips`)
+   — as duas permissões são independentes, e usar `canManage` aqui teria misturado a permissão
+   errada.
+2. `TripAssemblyMap.component.tsx` (montagem, usada na proposta e na criação rápida) → prop nova
+   `canAdjustTollBooth`, repassada por `TripProposalDetail.component.tsx` e
+   `TripQuickCreateDialog.component.tsx` — as duas já recebem `permissions: readonly string[]` e já
+   computam `canManage={permissions.includes(TRIP_MANAGE_PERMISSION)}` para `TripReviewQueue`; o
+   ajuste de pedágio é `settings.manage`, uma permissão de empresa que existe independente de a
+   viagem já estar salva — o catálogo de praças não é por viagem.
+
+**Vermelho visto, corrigido antes do verde:**
+
+```
+$ cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts
+(fail) pedágio na montagem (spec 090 T7) > está montado logo abaixo do tempo do roteiro
+  Expected: > 25006   Received: -1
+(fail) ícone em toda ação da viagem > nenhum botão da viagem fica sem ícone
+  + ["src/modules/trip/components/RouteTollSummary.component.tsx: assemblyMap.toll.adjustBooth"]
+ 902 pass / 2 fail
+```
+
+O primeiro é o contrato de spec 090 (`assembly-toll.contract.ts`) que lia o JSX exato
+`<RouteTollSummary toll={toll} />` por texto-fonte — corrigido para a linha nova
+(`canAdjustTollBooth={canAdjustTollBooth} toll={toll} />`), a mesma verificação ("o bloco de pedágio
+vem logo abaixo do tempo do roteiro"), não uma que afrouxa nada. O segundo é o contrato "nenhum
+botão da viagem fica sem ícone" (`action-icons.contract.ts`, varredura por glob — pega botão novo
+sozinho): o botão de ajuste ganhou `<Icon name="edit" />` para seguir a mesma convenção do resto da
+tela, em vez de a suíte relaxar a regra para o botão novo.
+
+**Contrato novo — por que renderizado, não texto-fonte:** os outros contratos de
+`RouteTollSummary` (`assembly-toll.contract.ts`, `assembly-toll-booths.contract.ts`) leem o
+`.tsx` por `readFileSync` e conferem substring — o padrão da app inteira, que não usa jsdom nem
+`@testing-library` em teste nenhum. O enunciado desta task pediu explicitamente o oposto para os
+três casos de permissão/tarifa ("prefira asserção sobre o que é renderizado, não sobre texto-fonte
+do arquivo"). `test/trip/route-toll-adjustment.contract.tsx` (141 linhas, novo) atende isso com
+`renderToStaticMarkup` (`react-dom/server`, já dependência da app — nenhum pacote novo) mais o
+`i18n.service.ts` de produção importado por efeito colateral, para obter HTML real com o mesmo
+`t()` e os mesmos dicionários que a tela usa em produção:
+
+- praça sem `effectiveChargePerAxle` e `canAdjustTollBooth: true` → o HTML renderizado contém
+  `>{{rótulo traduzido}}<`;
+- praça com `effectiveChargePerAxle` conhecida → o rótulo não aparece no HTML, mesmo com a
+  permissão;
+- praça sem `effectiveChargePerAxle` e `canAdjustTollBooth: false` → o rótulo não aparece, mesmo
+  sem tarifa.
+
+**Limite reconhecido, não contornado:** `renderToStaticMarkup` descarta manipuladores de evento
+(é SSR) e este app não roda jsdom em teste nenhum — não há como clicar o botão e observar
+`window.history.pushState` no mesmo teste sem introduzir uma dependência nova, fora do pedido
+("dividir arquivo acima de 200 linhas", não "adicionar jsdom"). A quarta asserção do contrato prova
+"leva ao ajuste da praça certa" pela composição das mesmas funções puras que o `onClick` chama
+(`resolveTollBoothAdjustmentSearch` → `buildFleetTollBoothRoute`), incluindo o caso de praça sem
+nome e sem operador (cai em `''`, a aba ainda abre porque o parâmetro está presente, só sem termo) —
+e confere que `FleetWorkspace.page.tsx` lê de volta o mesmo valor com
+`parseFleetTollBoothSearchParameter`.
+
+**Verde depois:**
+
+```
+$ cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts -t "aceite 6"
+ 4 pass
+ 0 fail
+ 9 expect() calls
+Ran 4 tests across 1 file. [99.00ms]
+
+$ cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts
+ 904 pass
+ 0 fail
+ 17706 expect() calls
+Ran 904 tests across 1 file. [627.00ms]
+```
+
+**Locales (plano item 12, os dois dicionários que faltavam da feature):** uma chave nova,
+`assemblyMap.toll.adjustBooth`, em `trip.locale.json` ("Ajustar tarifa desta praça") e
+`trip.en.locale.json` ("Adjust this booth's tariff") — os dois dicionários do módulo trip que a
+evidência da T204 já apontava como pendentes desta task. Não há contrato de paridade de chaves
+entre os dois arquivos do módulo trip (ao contrário de `document-intake`, que tem o seu); a chave
+nova entrou nos dois de qualquer forma, e o teste de render confere a tradução pt-BR via
+`tripLocale.assemblyMap.toll.adjustBooth` real.
+
+**Gates:**
+
+```
+$ bun run typecheck   # 6 apps — exit 0
+$ bun run lint        # 6 apps, --max-warnings=0 — exit 0
+$ bun run format:check  # exit 0 (3 arquivos reformatados por --write antes do check final:
+                         # TripDetail.component.tsx, test/trip/assembly-toll.contract.ts,
+                         # test/trip/route-toll-adjustment.contract.tsx)
+$ cd apps/frontend-transportada && bun run test
+ 4182 pass
+ 0 fail
+ 36645 expect() calls
+Ran 4182 tests across 29 files. [3.65s]
+$ cd apps/frontend-transportada && bun run build
+✓ built in 8.41s   # PWA gerado, mesmo aviso pré-existente de chunk >500kB (vectorBasemap/index)
+```
+
+(Eram 4178 pass na T303: +4 desta task, o `describe` novo de `route-toll-adjustment.contract.tsx`;
+nenhum teste antigo quebrou ou foi afrouxado — os dois vermelhos acima foram corrigidos ajustando a
+asserção ao novo texto-fonte real, não relaxando o que eles conferem.)
+
+**Aceite conferido:**
+
+6. Praça marcada "sem tarifa conhecida" no extrato da rota leva ao ajuste dela: o botão (visível só
+   com `settings.manage`) abre `/fleet?tollBoothSearch=<nome ou operador da praça>`, que
+   `resolveInitialTab` resolve para a aba `tolls` e `useTollBoothCatalog` usa como
+   `initialSearch` — a mesma praça chega pré-filtrada no catálogo que T204 já lista, pronta para o
+   ajuste que `useTollBoothCharges` (spec 095) já grava. "Depois do ajuste o total da rota deixa de
+   contá-la como sem tarifa" é o comportamento existente de `resolveTollRouteCost` (spec 090 T5, não
+   tocado por esta task) recalculando `effectiveChargePerAxle` a partir do catálogo/ajustes
+   atualizados na próxima leitura da rota — esta task não altera esse cálculo, só abre o caminho até
+   o ajuste.
+
+**Divergência de escopo, não bloqueio:** nenhuma. T501 (runbook) e T502 (revisão final) continuam
+fora desta task.

@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
@@ -361,6 +362,7 @@ export function TripQuickCreateDialog({
         )}
 
         <TripAssemblyMap
+          canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
           /**

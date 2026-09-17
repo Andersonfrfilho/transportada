@@ -34,9 +34,16 @@ function createClient() {
   })
 }
 
-export function useTollBoothCatalog(input: Readonly<{ companyId?: string; enabled: boolean }>) {
+export function useTollBoothCatalog(
+  input: Readonly<{ companyId?: string; enabled: boolean; initialSearch?: string }>,
+) {
   const client = createClient()
-  const [search, setSearch] = useState('')
+  /**
+   * RF7 (spec 154): a ação de ajuste do extrato da rota chega aqui com o nome da praça já pronto
+   * (`FLEET_TOLL_BOOTH_PARAMETER`) — sem isso, quem clica "ajustar" cairia numa busca vazia e teria
+   * de digitar de novo o que a rota já sabia.
+   */
+  const [search, setSearch] = useState(input.initialSearch ?? '')
   const [page, setPage] = useState(1)
   /**
    * ⚠️ O termo entra na chave **depois** do repouso — mesmo intervalo da busca de caixa

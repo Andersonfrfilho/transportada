@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
@@ -25,6 +26,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
+  const canAdjustTollBooth = permissions.includes(SETTINGS_MANAGE_PERMISSION)
   const workspace = useTripWorkspace({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
@@ -88,6 +90,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
       {authQuery.isSuccess ? (
         <div className={styles.deck}>
           <TripDetail
+            canAdjustTollBooth={canAdjustTollBooth}
             linkForm={linkForm}
             vehicles={fleet.viewModel.vehicles ?? []}
             workspace={workspace}
