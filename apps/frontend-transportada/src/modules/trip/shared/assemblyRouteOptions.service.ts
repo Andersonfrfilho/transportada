@@ -188,16 +188,28 @@ export function resolveRouteChoiceEmission(data: RouteGeometryForEmission): Rout
  * `staleTime` vencido bastava para reemitir a escolha e apagar a do operador (RF13 ao contrário).
  * Esta chave é **conteúdo**, não referência: duas respostas com os mesmos índices e as mesmas
  * assinaturas de opção produzem a mesma string, e o efeito que depende dela não dispara à toa.
+ *
+ * ⚠️ Terceira revisão, T903 (P4): `signature` é `null` **por construção** quando o roteirizador não
+ * anota os nós OSM — não é um caso raro, é o comportamento sem `exclude=toll` anotado. Usar só a
+ * assinatura fazia toda opção sem ela colapsar no mesmo `''`, e duas respostas com o mesmo número de
+ * opções e os mesmos índices, mas estradas de verdade diferentes, produziam a chave idêntica: o
+ * efeito parava de reemitir, e o defeito vira o espelho do N4 (agora reemite de menos). O tamanho da
+ * lista entra explícito, e cada opção sem assinatura cai no par `distanceMeters:durationSeconds` —
+ * sempre presente, e já é o que distingue duas estradas na spec 096 (T3).
  */
 export function buildRouteChoiceSignatureKey(
   data: RouteGeometryForEmission | undefined,
 ): null | string {
   if (data === undefined) return null
+  const options = data.options ?? []
   return [
     data.selectedIndex ?? '',
     data.cheapestIndex ?? '',
     data.fastestIndex ?? '',
-    (data.options ?? []).map((option) => option.signature ?? '').join(','),
+    options.length,
+    options
+      .map((option) => option.signature ?? `${option.distanceMeters}:${option.durationSeconds}`)
+      .join(','),
   ].join('|')
 }
 

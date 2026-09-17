@@ -169,10 +169,10 @@ Terceira revisão: APROVADA COM RESSALVAS, sem achado crítico ou alto e sem reg
 - [ ] T902 **P2 + P3** Gatilho por comando (transition tables) no lugar do por linha: hoje são 2N
       escritas em `trips` por reordenação, e o ramo de `UPDATE` não cobre troca de `trip_id` nem
       `TRUNCATE`. Um gatilho por comando resolve os três.
-- [ ] T903 **P4** `buildRouteChoiceSignatureKey` é cega quando o roteirizador não devolve assinatura
+- [x] T903 **P4** `buildRouteChoiceSignatureKey` é cega quando o roteirizador não devolve assinatura
       (todas viram `''`): duas respostas de estradas diferentes colapsam na mesma chave e o efeito
       deixa de reemitir. Incluir a quantidade de opções e um discriminante por opção.
-- [ ] T904 **P5** A garantia do RF13 no `TripAssemblyMap` ainda é `toInclude` sobre o texto-fonte:
+- [x] T904 **P5** A garantia do RF13 no `TripAssemblyMap` ainda é `toInclude` sobre o texto-fonte:
       renderizar o componente, escolher a opção 2, refazer a busca com o mesmo conteúdo e provar que
       a escolha não foi reemitida nem perdida.
 - [ ] T905 **P6 + P8 + P9 + P10 + P11 + P12** Ajustes: literal da NF-e ancorado no tipo vigiado;

@@ -16,8 +16,10 @@ import {
   buildRouteChoiceSignatureKey,
   resolveRouteChoiceEmission,
   resolveRouteChoiceFromIndex,
+  type RouteGeometryForEmission,
 } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
 import type {
+  RouteChoice,
   RouteGeometry,
   RouteGeometryOption,
 } from '../../src/modules/trip/shared/routeGeometry.service'
@@ -302,6 +304,199 @@ describe('TripAssemblyMap: consulta de geometria via QueryObserver real (spec 15
     expect(first).not.toBe(second)
     expect(buildRouteChoiceSignatureKey(first)).toBe(buildRouteChoiceSignatureKey(second))
     expect(resolveRouteChoiceEmission(first)).toEqual(resolveRouteChoiceEmission(second))
+  })
+})
+
+/**
+ * Terceira revisão, T904 (P5): a suíte acima prova que duas buscas reais produzem a mesma
+ * `buildRouteChoiceSignatureKey` — mas não que o *efeito* do componente, que lê essa chave no
+ * array de dependências do `useEffect` para decidir se chama `onRouteChoiceChange` de novo e se
+ * `selectedOptionIndex` volta ao valor resolvido da resposta, respeita isso. É exatamente esse
+ * efeito que o achado N4 quebrou (RF13 ao contrário): reemitir e perder a escolha do operador.
+ *
+ * ⚠️ **Por que não `render(<TripAssemblyMap />)`:** esta base não tem `jsdom`/`happy-dom` nem
+ * `@testing-library/react` — nem em `package.json` (`grep -i jsdom\|testing-library`), nem
+ * instalados em `node_modules` (conferido nesta task) —, e a ausência é decisão estrutural já
+ * documentada em dois contratos deste repositório: `test/design-system/box-dimension-scanner.
+ * contract.ts` ("Sem renderer/jsdom nesta base, a garantia é estrutural") e `test/design-system/
+ * camera-stream.contract.ts`. `TripAssemblyMap` soma ainda outra barreira: carrega o MapLibre por
+ * `lazy()` (`AssemblyVectorMap`), então montá-lo de verdade também puxaria o mapa vetorial. E
+ * mesmo com DOM, `useEffect` só roda no commit de um renderer real — SSR (`react-dom/server`)
+ * não o executa, então nem uma renderização para string proyaria o comportamento. Instalar
+ * `jsdom`/`testing-library` só para esta task é decisão de dependência nova fora do escopo de
+ * P4/P5 (pede justificativa própria, `code-standart.md` §13) — reportado aqui em vez de
+ * decidido sozinho.
+ *
+ * O mais perto de "renderizar e observar o efeito" sem essas peças: uma máquina de estados que
+ * roda as MESMAS duas transições que o componente roda — a chegada da geometria (o `useEffect`,
+ * com a MESMA regra de disparo do React: o corpo só reexecuta quando algum item do array de
+ * dependências muda por `Object.is`, contrato documentado do hook, não lógica de aplicação) e a
+ * escolha manual (`handleSelectRouteOptionIndex`) — usando as MESMAS funções de produção que o
+ * componente importa (`resolveRouteChoiceFromIndex`, `resolveRouteChoiceEmission`,
+ * `buildRouteChoiceSignatureKey`) sobre respostas reais do `queryFn` acima, não fixture estática.
+ * Só a renderização é simulada; o dado e o cálculo são os de produção.
+ */
+describe('TripAssemblyMap: o efeito de emissão sobrevive a um refetch idêntico sem perder a escolha do operador (spec 153 T904/N4/RF13)', () => {
+  type EffectDependencies = readonly [string, null | string, null | string]
+
+  function dependenciesChanged(
+    previous: EffectDependencies | undefined,
+    next: EffectDependencies,
+  ): boolean {
+    return previous === undefined || next.some((value, index) => !Object.is(value, previous[index]))
+  }
+
+  /**
+   * Reproduz literalmente as duas únicas formas pelas quais `TripAssemblyMap` chama
+   * `onRouteChoiceChange` (spec 153 H1/M7/RF13): o efeito que reage à resposta da consulta, com
+   * a MESMA chave de dependências `[routeKey, tollVehicleId, routeSignatureKey]` do componente
+   * real (`TripAssemblyMap.component.tsx`), e `handleSelectRouteOptionIndex`, chamado pelo clique
+   * no seletor.
+   */
+  function createRouteChoiceEffectHarness(): Readonly<{
+    emissions: RouteChoice[]
+    receiveGeometry: (input: {
+      readonly data: RouteGeometryForEmission | undefined
+      readonly routeKey: string
+      readonly tollVehicleId: null | string
+    }) => void
+    selectOption: (input: {
+      readonly cheapestIndex: null | number
+      readonly fastestIndex: null | number
+      readonly index: number
+      readonly options: readonly RouteGeometryOption[]
+    }) => void
+    selectedOptionIndex: () => number
+  }> {
+    let selectedOptionIndex = 0
+    let previousDependencies: EffectDependencies | undefined
+    const emissions: RouteChoice[] = []
+
+    return {
+      emissions,
+      receiveGeometry(input) {
+        const routeSignatureKey = buildRouteChoiceSignatureKey(input.data)
+        const dependencies: EffectDependencies = [
+          input.routeKey,
+          input.tollVehicleId,
+          routeSignatureKey,
+        ]
+        if (!dependenciesChanged(previousDependencies, dependencies)) return
+        previousDependencies = dependencies
+
+        if (input.data === undefined) {
+          selectedOptionIndex = 0
+          return
+        }
+        const emission = resolveRouteChoiceEmission(input.data)
+        selectedOptionIndex = emission.selectedIndex
+        emissions.push(emission.routeChoice)
+      },
+      selectOption(input) {
+        selectedOptionIndex = input.index
+        emissions.push(
+          resolveRouteChoiceFromIndex({
+            cheapestIndex: input.cheapestIndex,
+            fastestIndex: input.fastestIndex,
+            index: input.index,
+            options: input.options,
+          }),
+        )
+      },
+      selectedOptionIndex: () => selectedOptionIndex,
+    }
+  }
+
+  const POINTS = [
+    { latitude: -23.55, longitude: -46.63 },
+    { latitude: -22.9, longitude: -43.2 },
+  ] as const
+  const ROUTE_KEY = POINTS.map((point) => `${point.latitude},${point.longitude}`).join(';')
+
+  function respostaComOpcoes(): RouteGeometry {
+    return {
+      cheapestIndex: 1,
+      costGap: null,
+      fastestIndex: 0,
+      legs: [],
+      options: [
+        {
+          distanceMeters: 100_000,
+          durationSeconds: 3_600,
+          fuelTotal: null,
+          isNoToll: false,
+          legs: [],
+          points: [],
+          signature: 'rota-mais-rapida',
+          toll: null,
+          totalCost: null,
+        },
+        {
+          distanceMeters: 120_000,
+          durationSeconds: 4_200,
+          fuelTotal: null,
+          isNoToll: false,
+          legs: [],
+          points: [],
+          signature: 'rota-mais-barata',
+          toll: null,
+          totalCost: null,
+        },
+      ],
+      points: [],
+      selectedIndex: 1,
+      source: 'road',
+      toll: null,
+    }
+  }
+
+  /**
+   * A prova pedida em T904: busca real → abre na mais barata (D1) → operador escolhe a opção 2
+   * (índice 0, a mais rápida) → refetch real com o MESMO conteúdo (outro objeto, RF13) → a escolha
+   * do operador nem foi reemitida (a chave de conteúdo não mudou) nem foi perdida.
+   */
+  test('escolher a opção 2 e refazer a busca com o mesmo conteúdo não reemite nem perde a escolha', async () => {
+    let requests = 0
+    const client = {
+      readPointsRouteGeometry: () => {
+        requests += 1
+        return Promise.resolve(respostaComOpcoes())
+      },
+    } as unknown as TripClient
+    const queryOptions = createTripAssemblyRouteGeometryQueryOptions({
+      client,
+      enabled: true,
+      points: POINTS,
+      routeKey: ROUTE_KEY,
+      vehicleId: null,
+    })
+    const harness = createRouteChoiceEffectHarness()
+
+    const first = await queryOptions.queryFn()
+    harness.receiveGeometry({ data: first, routeKey: ROUTE_KEY, tollVehicleId: null })
+
+    expect(harness.selectedOptionIndex()).toBe(1)
+    expect(harness.emissions).toEqual([{ criterion: 'cheapest', signature: 'rota-mais-barata' }])
+
+    harness.selectOption({
+      cheapestIndex: first.cheapestIndex ?? null,
+      fastestIndex: first.fastestIndex ?? null,
+      index: 0,
+      options: first.options ?? [],
+    })
+
+    expect(harness.selectedOptionIndex()).toBe(0)
+    expect(harness.emissions).toHaveLength(2)
+    expect(harness.emissions[1]).toEqual({ criterion: 'fastest', signature: 'rota-mais-rapida' })
+
+    const second = await queryOptions.queryFn()
+    expect(second).not.toBe(first)
+    harness.receiveGeometry({ data: second, routeKey: ROUTE_KEY, tollVehicleId: null })
+
+    expect(requests).toBe(2)
+    /** ⚠️ Sem esta linha o experimento vermelho (documentado em evidence.md) não pega o N4 de volta. */
+    expect(harness.emissions).toHaveLength(2)
+    expect(harness.selectedOptionIndex()).toBe(0)
   })
 })
 

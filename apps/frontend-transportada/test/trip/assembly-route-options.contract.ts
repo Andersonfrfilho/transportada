@@ -554,6 +554,82 @@ describe('buildRouteChoiceSignatureKey (spec 153, segunda revisão N4): chave po
 
     expect(chave1).not.toBe(chave2)
   })
+
+  /**
+   * Terceira revisão, T903 (P4): sem `exclude=toll` anotado o roteirizador não manda `signature`
+   * nenhuma — `null` em toda opção, o caso comum, não a exceção. O caso do achado: mesma contagem
+   * de opções, mesmos índices, mas `distanceMeters`/`durationSeconds` diferentes (estradas
+   * realmente distintas) — a chave tinha que distinguir isso sem depender da assinatura ausente.
+   */
+  it('sem assinatura em nenhuma opção, duas estradas diferentes produzem chaves diferentes (achado P4)', () => {
+    const semAssinatura = (
+      distanceMeters: number,
+      durationSeconds: number,
+    ): RouteGeometryOption => ({
+      distanceMeters,
+      durationSeconds,
+      fuelTotal: null,
+      legs: [],
+      points: [],
+      signature: null,
+      toll: null,
+      totalCost: null,
+    })
+
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)],
+      }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [semAssinatura(105_500, 3_900), semAssinatura(130_200, 4_500)],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
+
+  it('sem assinatura em nenhuma opção, o mesmo conteúdo produz a mesma chave', () => {
+    const semAssinatura = (
+      distanceMeters: number,
+      durationSeconds: number,
+    ): RouteGeometryOption => ({
+      distanceMeters,
+      durationSeconds,
+      fuelTotal: null,
+      legs: [],
+      points: [],
+      signature: null,
+      toll: null,
+      totalCost: null,
+    })
+
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({ options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)] }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({ options: [semAssinatura(100_000, 3_600), semAssinatura(120_000, 4_200)] }),
+    )
+
+    expect(chave1).toBe(chave2)
+  })
+
+  it('a quantidade de opções entra na chave, mesmo com as mesmas assinaturas nas primeiras posições', () => {
+    const chave1 = buildRouteChoiceSignatureKey(
+      geometria({ options: [opcaoComAssinatura({ signature: 'aaaa' })] }),
+    )
+    const chave2 = buildRouteChoiceSignatureKey(
+      geometria({
+        options: [
+          opcaoComAssinatura({ signature: 'aaaa' }),
+          opcaoComAssinatura({ signature: 'bbbb' }),
+        ],
+      }),
+    )
+
+    expect(chave1).not.toBe(chave2)
+  })
 })
 
 describe('resolveRouteChoiceEmission (spec 153 H1/M7): índice de abertura e escolha, da mesma resposta', () => {

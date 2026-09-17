@@ -5153,3 +5153,105 @@ teste desnecessário (os três lugares chamam a mesma função).
 ### Commit
 
 `<hash desta mudança — ver git log>`
+
+## Fase 9 — Ressalvas da terceira revisão (T903 + T904)
+
+Um commit só para as duas: T904 é a prova em comportamento de que o T903 resolve o achado P4 sem
+reabrir o N4 (a regressão que a segunda revisão já tinha fechado) — travá-las juntas evita um
+commit intermediário em que a chave de conteúdo já mudou mas a garantia de efeito ainda não existe.
+
+### T903 (P4) — `buildRouteChoiceSignatureKey` cega sem assinatura
+
+`assemblyRouteOptions.service.ts` (~124-142): sem `exclude=toll` anotado o roteirizador nunca manda
+`signature` — `null` em toda opção é o caso comum, não a exceção. A chave antiga só usava
+`option.signature ?? ''`; duas respostas com o mesmo número de opções e os mesmos
+`selectedIndex`/`cheapestIndex`/`fastestIndex`, mas `distanceMeters`/`durationSeconds` diferentes
+(estradas de verdade diferentes), colapsavam na mesma string — o efeito de `TripAssemblyMap` parava
+de reemitir a escolha, espelhando o N4 ao contrário (agora reemite de menos).
+
+Correção: `options.length` entra explícito na chave, e cada opção sem assinatura cai no par
+`` `${distanceMeters}:${durationSeconds}` `` — sempre presente no payload (spec 096 T3), e já é o
+discriminante que a lista de opções usa para distinguir rotas.
+
+Testes novos em `test/trip/assembly-route-options.contract.ts` (~346-421): duas estradas diferentes
+sem assinatura produzem chaves diferentes; o mesmo conteúdo sem assinatura produz a mesma chave; a
+quantidade de opções entra na chave mesmo quando as assinaturas das primeiras posições coincidem.
+
+**Experimento vermelho (P4):** revertida a correção para o `join` antigo
+(`(data.options ?? []).map((option) => option.signature ?? '').join(',')`, sem `options.length`) e
+rodado `bun test ./test/trip/assembly-route-options.contract.ts` — o teste "sem assinatura em
+nenhuma opção, duas estradas diferentes produzem chaves diferentes (achado P4)" falhou:
+`Expected: not "0|0|1|,"` (as duas estradas diferentes produziam a mesma chave `"0|0|1|,"`). Restaurada
+a correção logo em seguida — `bun test` volta a 22/22.
+
+### T904 (P5) — a garantia do RF13 ainda era `toInclude` sobre o texto-fonte
+
+**Por que não renderizou `TripAssemblyMap` de verdade:** conferido nesta task que a base não tem
+`jsdom`/`happy-dom`/`@testing-library/react` — nem em `package.json`, nem instalados em
+`node_modules` (`ls node_modules | grep -i jsdom` sem resultado). A ausência já é decisão estrutural
+documentada em dois contratos existentes (`test/design-system/box-dimension-scanner.contract.ts`,
+`test/design-system/camera-stream.contract.ts`: "Sem renderer/jsdom nesta base, a garantia é
+estrutural"). `TripAssemblyMap` soma outra barreira própria: carrega o MapLibre por `lazy()`
+(`AssemblyVectorMap`), então montá-lo de verdade também puxaria o mapa vetorial para o teste. E
+mesmo com DOM, `useEffect` só roda no commit de um renderer real — `react-dom/server` (SSR) não o
+executa, então nem uma renderização para string provaria o efeito. Instalar `jsdom`/
+`testing-library` só para esta task é decisão de dependência nova fora do escopo de P4/P5 (pede
+justificativa própria — `code-standart.md` §13) — reportado aqui, não decidido sozinho.
+
+**O que entrou no lugar** (`test/trip/route-choice-switch.contract.ts`, novo describe "TripAssemblyMap:
+o efeito de emissão sobrevive a um refetch idêntico..."): uma máquina de estados
+(`createRouteChoiceEffectHarness`) que reproduz literalmente as duas únicas formas pelas quais o
+componente chama `onRouteChoiceChange` — o efeito que reage à resposta da consulta, com a MESMA
+regra de disparo do `useEffect` do React (o corpo só roda quando algum item do array de dependências
+muda por `Object.is`, contrato documentado do hook, genérico — não lógica da aplicação), e
+`handleSelectRouteOptionIndex` (o clique manual) — usando as MESMAS funções de produção que o
+componente importa (`resolveRouteChoiceFromIndex`, `resolveRouteChoiceEmission`,
+`buildRouteChoiceSignatureKey`). O teste busca a geometria via `queryOptions.queryFn()` real (a
+mesma função de `createTripAssemblyRouteGeometryQueryOptions`, já usada pela suíte QueryObserver
+acima), seleciona a opção 2 (índice 0, a mais rápida) e refaz a busca de verdade — o segundo objeto
+é comprovadamente uma referência diferente (`expect(second).not.toBe(first)`) com o mesmo conteúdo —
+e afirma que `onRouteChoiceChange` não foi chamado de novo (`emissions` continua em 2) e que a opção
+2 continua selecionada (`selectedOptionIndex() === 0`, não voltou para a mais barata resolvida pela
+resposta).
+
+**Experimento vermelho (P5, N4 de volta):** trocada a dependência da chave de conteúdo pelo objeto
+`input.data` cru (`dependencies: [routeKey, tollVehicleId, input.data as unknown as null | string]`)
+— o defeito exato que a segunda revisão já tinha corrigido — e rodado
+`bun test ./test/trip/route-choice-switch.contract.ts`: o teste novo falhou —
+`Expected length: 2 / Received length: 3` (o refetch com o mesmo conteúdo, mas outro objeto,
+reemitiu a escolha e sobrescreveu `selectedOptionIndex` de volta para 1, perdendo a opção 2 do
+operador). Restaurada a versão com `buildRouteChoiceSignatureKey` logo em seguida — `bun test` volta
+a 23/23.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros — todos os `tsc --noEmit` limpos.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bunx prettier --check apps/frontend-transportada
+All matched files use Prettier code style!
+(apps/api-transportada/test/integration/freeze-trip-planned-route.integration.ts também aparece no
+`format:check` da raiz sem formatação — não é arquivo tocado por esta task, outra sessão mexe em
+apps/api-transportada; fora do escopo desta task.)
+
+$ bun run test   (apps/frontend-transportada)
+4244 pass / 0 fail, 36314 expect() calls, 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+build ok, PWA v1.3.0 gerado, 130 entradas no precache.
+```
+
+### O que não fez
+
+Não instalou `jsdom`/`happy-dom`/`@testing-library/react` para renderizar `TripAssemblyMap` de
+verdade — decisão de dependência fora do escopo desta task (P4/P5), reportada acima com evidência,
+não tomada sozinha. A prova entregue exercita o mesmo cálculo de produção e a mesma regra de
+disparo de efeito do React sobre dados de uma busca real, mas não é uma renderização do componente.
+
+### Commit
+
+`<hash desta mudança — ver git log>`
