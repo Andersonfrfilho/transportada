@@ -225,12 +225,73 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
         ...context(),
         companyDailyAllowanceAmount: '180.0000',
         crew: [{ driverAmount: null, driverId: 'b', driverName: null, paymentModel: 'fixed' }],
+        estimatedDurationSeconds: 8 * 3600,
       },
     }).result
     expect(withSalaried.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
       amount: '180.0000',
       gap: null,
       source: 'estimated',
+    })
+  })
+
+  /**
+   * Spec 143 D4: **a duração do roteiro é que sugere os dias**, e uma viagem de dois dias e meio
+   * paga três diárias. Sem este caso, a sugestão poderia devolver sempre um dia e nenhuma suíte
+   * notaria — o arredondamento para cima é o que separa a diária da tarifa por hora.
+   */
+  it('a duração estimada sugere mais de um dia, arredondando para cima', async () => {
+    const valuation = await run({
+      context: {
+        ...context(),
+        companyDailyAllowanceAmount: '180.0000',
+        crew: [{ driverAmount: null, driverId: 'b', driverName: null, paymentModel: 'fixed' }],
+        estimatedDurationSeconds: 50 * 3600,
+      },
+    }).result
+
+    const driver = valuation.costParcels.find((parcel) => parcel.kind === 'driver')
+    expect(driver).toMatchObject({ amount: '540.0000', gap: null, source: 'estimated' })
+    expect(driver?.basis).toMatchObject({ days: 3, daysOrigin: 'estimated', of: 'driver' })
+  })
+
+  /**
+   * ⚠️ Roteiro sem duração calculada **não é viagem de um dia**. Enquanto a conta assumia um dia
+   * calado, a viagem de três dias saía por R$ 180,00 no lugar de R$ 540,00, sem lacuna nenhuma —
+   * um terço do custo do motorista sumia de uma margem que se apresentava fechada.
+   */
+  it('sem duração calculada e sem dias informados, a diária é desconhecida, nunca um dia', async () => {
+    const valuation = await run({
+      context: {
+        ...context(),
+        companyDailyAllowanceAmount: '180.0000',
+        crew: [{ driverAmount: null, driverId: 'b', driverName: null, paymentModel: 'fixed' }],
+      },
+    }).result
+
+    expect(valuation.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
+      amount: '0.0000',
+      gap: VALUATION_GAPS.noPlannedDuration,
+      source: 'missing',
+    })
+    expect(valuation.hasGaps).toBe(true)
+  })
+
+  /** Dias informados vencem: sem roteiro calculado, é o operador que sabe quanto a viagem dura. */
+  it('os dias informados dispensam a duração do roteiro', async () => {
+    const valuation = await run({
+      context: {
+        ...context(),
+        companyDailyAllowanceAmount: '180.0000',
+        crew: [{ driverAmount: null, driverId: 'b', driverName: null, paymentModel: 'fixed' }],
+        dailyAllowanceDays: 4,
+      },
+    }).result
+
+    expect(valuation.costParcels.find((parcel) => parcel.kind === 'driver')).toMatchObject({
+      amount: '720.0000',
+      gap: null,
+      source: 'measured',
     })
   })
 

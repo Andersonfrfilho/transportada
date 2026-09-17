@@ -23,7 +23,7 @@ const SALARIED = {
   driverName: null,
   paymentModel: 'fixed' as const,
 }
-const ONE_INFORMED_DAY = { days: 1, daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed } as const
+const ONE_INFORMED_DAY = { days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 } } as const
 
 /**
  * Spec 143 D1: **a causa da lacuna sumiu junto com a tabela de região.** A 086 separou "o motorista

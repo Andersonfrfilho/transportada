@@ -42,8 +42,7 @@ function buildParcel(crew: readonly TripCrewMember[]) {
   return buildTripDriverCost({
     companyDailyAmount: '450.0000',
     crew,
-    days: 1,
-    daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+    days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
   })
 }
 

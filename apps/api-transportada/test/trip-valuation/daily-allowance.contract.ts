@@ -72,8 +72,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
       crew: [
         { driverAmount: null, driverId: DRIVER_ID, driverName: 'Ana', paymentModel: 'route_table' },
       ],
-      days: suggestAllowanceDays(50 * 3600),
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: suggestAllowanceDays(50 * 3600) },
     })
 
     expect(parcel).toEqual({
@@ -101,7 +100,10 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
   })
 
   test('the driver amount beats the company one, and the company one beats nothing (aceite 3)', () => {
-    const company = { companyDailyAmount: '180.0000', days: 1 } as const
+    const company = {
+      companyDailyAmount: '180.0000',
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
+    } as const
     const withOwnAmount = buildTripDriverCost({
       ...company,
       crew: [
@@ -112,14 +114,12 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
           paymentModel: 'route_table',
         },
       ],
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
     })
     const withoutOwnAmount = buildTripDriverCost({
       ...company,
       crew: [
         { driverAmount: null, driverId: DRIVER_ID, driverName: null, paymentModel: 'route_table' },
       ],
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
     })
 
     expect(withOwnAmount.amount).toBe('250.0000')
@@ -149,8 +149,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
           paymentModel: 'fixed',
         },
       ],
-      days: 2,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 2 },
     })
 
     expect(parcel.amount).toBe('900.0000')
@@ -183,8 +182,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
       crew: [
         { driverAmount: null, driverId: DRIVER_ID, driverName: null, paymentModel: 'route_table' },
       ],
-      days: 1,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: 1 },
     })
 
     expect(parcel.gap).toBeNull()
@@ -208,8 +206,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
           paymentModel: 'fixed',
         },
       ],
-      days: 7,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 7 },
     })
     const crew = parcel.basis?.of === 'driver' ? parcel.basis.crew : []
     const subtotalSum = crew.reduce(
@@ -230,8 +227,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
       buildTripDriverCost({
         companyDailyAmount: '180.0000',
         crew: [],
-        days: 3,
-        daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+        days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 3 },
       }),
     ).toEqual({
       amount: '0.0000',
@@ -256,8 +252,7 @@ describe('buildTripDriverCost pays the crew per diem (D1, D5)', () => {
             paymentModel: 'route_table',
           },
         ],
-        days: 0,
-        daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+        days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 0 },
       }),
     ).toThrow('TRIP_DRIVER_COST_INVALID_DAYS')
   })

@@ -31,12 +31,21 @@ export type TripCrewMember = {
   readonly paymentModel: DriverPaymentModel
 }
 
+/**
+ * Spec 143 D4: quantos dias a viagem paga, e de onde o número veio. `unknown` é o roteiro sem
+ * duração calculada e sem dias informados — e aí quantos dias a viagem dura é **pergunta sem
+ * resposta**, não um dia. Os dois estados moram no mesmo campo porque origem sem número (e número
+ * sem origem) não existe: separá-los deixaria representável um par que a conta não sabe ler.
+ */
+export type TripDriverCostDays =
+  | Readonly<{ of: 'unknown' }>
+  | Readonly<{ of: DailyAllowanceDaysOrigin; value: number }>
+
 export type BuildTripDriverCostParams = {
   /** Spec 143 D3: a configuração vale para a viagem inteira — uma vez, nunca por condutor. */
   readonly companyDailyAmount: null | string
   readonly crew: readonly TripCrewMember[]
-  readonly days: number
-  readonly daysOrigin: DailyAllowanceDaysOrigin
+  readonly days: TripDriverCostDays
 }
 
 /**
@@ -47,7 +56,8 @@ export type BuildTripDriverCostParams = {
  * - **`measured`** — os dias foram informados na viagem, então o número é o que a operação decidiu;
  * - **`estimated`** — os dias vieram da duração estimada do roteiro (D4), e a viagem ainda pode
  *   render mais ou menos do que isso;
- * - **`missing`** — não há condutor na viagem. O custo é desconhecido, e desconhecido não é zero.
+ * - **`missing`** — não há condutor na viagem, ou não se sabe quantos dias ela dura. O custo é
+ *   desconhecido, e desconhecido não é zero **nem um dia**.
  *
  * ⚠️ `measured`/`estimated` aqui falam de **dias**, não de cadastro: o valor da diária sempre existe
  * (a empresa ou o padrão do sistema respondem por quem não tem o seu), então o que resta de incerto
@@ -57,24 +67,16 @@ export function buildTripDriverCost({
   companyDailyAmount,
   crew,
   days,
-  daysOrigin,
 }: BuildTripDriverCostParams): TripCostParcel {
-  /** D4 garante o mínimo de um dia na criação e na sugestão: menos que isso não chega aqui. */
-  if (days < MINIMUM_ALLOWANCE_DAYS) throw new Error(`${ERROR_CODE_PREFIX}_INVALID_DAYS`)
+  /** Sem condutor a pergunta dos dias nem se faz: não há a quem pagar, dure a viagem o que durar. */
+  if (crew.length === 0) return missingParcel(VALUATION_GAPS.noTripDriver)
+  if (days.of === 'unknown') return missingParcel(VALUATION_GAPS.noPlannedDuration)
 
-  if (crew.length === 0) {
-    return {
-      amount: ZERO,
-      basis: null,
-      detail: null,
-      gap: VALUATION_GAPS.noTripDriver,
-      kind: 'driver',
-      source: 'missing',
-    }
-  }
+  /** D4 garante o mínimo de um dia na criação e na sugestão: menos que isso não chega aqui. */
+  if (days.value < MINIMUM_ALLOWANCE_DAYS) throw new Error(`${ERROR_CODE_PREFIX}_INVALID_DAYS`)
 
   const pricedCrew = crew.map((member) =>
-    priceCrewMember({ companyDailyAmount, days: BigInt(days), member }),
+    priceCrewMember({ companyDailyAmount, days: BigInt(days.value), member }),
   )
   const total = pricedCrew.reduce((accumulated, priced) => accumulated + priced.subtotal, 0n)
 
@@ -82,15 +84,20 @@ export function buildTripDriverCost({
     amount: formatScaledDecimal(total, MONEY_SCALE),
     basis: {
       crew: pricedCrew.map((priced) => priced.line),
-      days,
-      daysOrigin,
+      days: days.value,
+      daysOrigin: days.of,
       of: 'driver',
     },
     detail: null,
     gap: null,
     kind: 'driver',
-    source: daysOrigin === 'informed' ? 'measured' : 'estimated',
+    source: days.of === 'informed' ? 'measured' : 'estimated',
   }
+}
+
+/** O custo existe e não se sabe qual é: zero calado diria que a viagem não paga motorista. */
+function missingParcel(gap: (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]): TripCostParcel {
+  return { amount: ZERO, basis: null, detail: null, gap, kind: 'driver', source: 'missing' }
 }
 
 /**

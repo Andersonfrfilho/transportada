@@ -204,8 +204,7 @@ describe('the driver parcel no longer depends on the vote (spec 143 D1)', () => 
     const parcel = buildTripDriverCost({
       companyDailyAmount: null,
       crew: [member({})],
-      days: 1,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
     })
 
     expect(parcel.amount).toBe('570.0000')
@@ -222,8 +221,7 @@ describe('the driver parcel no longer depends on the vote (spec 143 D1)', () => 
     const parcel = buildTripDriverCost({
       companyDailyAmount: '190.0000',
       crew: [member({ driverAmount: null })],
-      days: 2,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 2 },
     })
 
     expect(parcel.source).toBe('measured')

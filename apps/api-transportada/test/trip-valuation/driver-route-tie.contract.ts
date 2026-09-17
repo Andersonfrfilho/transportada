@@ -165,8 +165,7 @@ describe('the tie no longer reaches the driver parcel (spec 143 D1)', () => {
     const parcel = buildTripDriverCost({
       companyDailyAmount: '570.0000',
       crew: [member({})],
-      days: 1,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
     })
 
     expect(parcel.amount).toBe('570.0000')
@@ -281,8 +280,7 @@ describe('a trip without a tie does not change (spec 128)', () => {
     const parcel = buildTripDriverCost({
       companyDailyAmount: null,
       crew: [member({ driverAmount: '570.0000' })],
-      days: 1,
-      daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+      days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
     })
 
     expect(parcel.gap).toBeNull()

@@ -2322,3 +2322,75 @@ A classe CSS `vehicleValuationGap` virou `vehicleValuationParcel`: a linha não 
 | testes do frontend     | **4151 pass / 0 fail** · 36104 expect() · 29 arquivos                               |
 | `bun run lint`         | limpo                                                                               |
 | `bun run format:check` | limpo                                                                               |
+
+## Revisão final — achados 6 e 7: o roteiro sem duração pagava um dia calado
+
+O `read-trip-valuation.use-case.ts` resolvia os dias assim:
+
+```ts
+days: informedDays ?? suggestAllowanceDays(context.estimatedDurationSeconds ?? 0),
+```
+
+`?? 0` não é ausência traduzida: é **um dia inventado**. `suggestAllowanceDays(0)` devolve o mínimo
+de um dia (D4), então toda viagem sem `planned_duration_seconds` e sem diárias informadas saía por
+R$ 180,00 de motorista — `gap: null`, `hasGaps: false`, `source: 'estimated'`. A viagem de três dias
+chegava ao operador por um terço do custo do motorista, numa margem com cara de fechada. O erro mais
+caro da conta era também o mais silencioso: nada na tela dizia que o número era um chute.
+
+### O conserto mora na política, não no chamador
+
+O caminho curto seria o caso de exceção no use case — montar ali a parcela de lacuna. Isso põe a
+regra "quanto custa o motorista" em dois lugares, e a ordem das respostas (viagem sem condutor
+responde antes de duração desconhecida) passaria a depender de quem chamou primeiro. Em vez disso, o
+par `days: number` + `daysOrigin` virou uma união:
+
+```ts
+export type TripDriverCostDays =
+  | Readonly<{ of: 'unknown' }>
+  | Readonly<{ of: DailyAllowanceDaysOrigin; value: number }>
+```
+
+Origem sem número, e número sem origem, deixam de ser representáveis. `buildTripDriverCost` responde
+em ordem declarada: tripulação vazia → `NO_TRIP_DRIVER` (não há a quem pagar, dure o que durar);
+`of: 'unknown'` → `NO_PLANNED_DURATION`; só então o guard de `days.value < 1`, que segue sendo estado
+impossível, e a conta normal. O use case ficou com um `resolveAllowanceDays` de três linhas.
+
+### A lacuna nova
+
+`NO_PLANNED_DURATION` segue o precedente de `NO_PLANNED_DISTANCE`: `amount: '0.0000'`,
+`source: 'missing'`, `hasGaps: true`. O rótulo manda o operador ao conserto que ele tem em mãos —
+informar as diárias, ou calcular o roteiro —, nos quatro dicionários (`tripFinancials` pt/en,
+`trip` pt/en). Palavra maiúscula entre aspas ficou acima do export, pela armadilha do
+`valuation-gap-labels.contract.ts`.
+
+### Achado 7: a cobertura multi-dia que não existia
+
+Nenhum caso provava mais de um dia estimado. Passam a existir:
+
+| Caso                 | Entrada                 | Parcela                                    |
+| -------------------- | ----------------------- | ------------------------------------------ |
+| Um dia               | 8 h de duração          | `180.0000`, `days: 1`, `estimated`         |
+| Três dias            | 50 h de duração         | `540.0000`, `days: 3`, `estimated`         |
+| Quatro informados    | `dailyAllowanceDays: 4` | `720.0000`, `measured`                     |
+| Duração desconhecida | sem duração, sem dias   | `0.0000`, `NO_PLANNED_DURATION`, `missing` |
+
+### Suítes reescritas no lugar, nenhuma apagada
+
+- `read-valuation.contract.ts` — "sem dias informados, a duração estimada sugere" passou a informar
+  a duração (`8 h`) que ela sempre assumiu ter; era ela quem documentava o defeito.
+- `preview-daily-allowance.contract.ts` — o caso "nasce prevista pela duração estimada" rodava com
+  geometria nula, isto é, provava exatamente o dia calado. Agora são três: dias informados,
+  roteiro calculado (30 h → 2 dias, prova que a duração da estrada chega à parcela pela prévia) e
+  a ausência que vira lacuna.
+- ~20 call-sites de `buildTripDriverCost` migrados para a união. Expectativas sobre `basis` seguem
+  com `days`/`daysOrigin` separados — a base é resposta, não parâmetro.
+
+### Gates
+
+| Gate                      | Resultado                       |
+| ------------------------- | ------------------------------- |
+| `bun run typecheck`       | ✅ seis apps                    |
+| `bun test` (API)          | ✅ 6239 pass · 23 skip · 0 fail |
+| `bun run test` (frontend) | ✅ 4151 pass · 0 fail           |
+| `bun run lint`            | ✅                              |
+| `bun run format:check`    | ✅                              |

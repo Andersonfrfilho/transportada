@@ -51,8 +51,7 @@ function buildParcel(crew: readonly TripCrewMember[], companyDailyAmount: null |
   return buildTripDriverCost({
     companyDailyAmount,
     crew,
-    days: 1,
-    daysOrigin: DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+    days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
   })
 }
 

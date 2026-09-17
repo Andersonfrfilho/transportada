@@ -37,6 +37,7 @@
     "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
     "NO_FUEL_PRICE": "no price for this vehicle's fuel",
     "NO_PLANNED_DISTANCE": "route not planned yet",
+    "NO_PLANNED_DURATION": "route duration unknown — inform how many daily allowances the trip pays",
     "NO_TRIP_DRIVER": "trip with no driver — nobody to pay the daily allowance to",
     "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",

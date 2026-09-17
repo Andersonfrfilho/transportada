@@ -75,6 +75,14 @@ export const VALUATION_GAPS = {
   noFuelPrice: 'NO_FUEL_PRICE',
   /** O roteiro ainda não foi calculado, então não há quilometragem para multiplicar. */
   noPlannedDistance: 'NO_PLANNED_DISTANCE',
+  /**
+   * Spec 143 D4: o roteiro não foi calculado e ninguém informou as diárias, então **não se sabe
+   * quantos dias a viagem paga**. Assumir um dia era a resposta errada mais cara da conta: a viagem
+   * de três dias saía por um terço do custo do motorista, sem lacuna, numa margem que se
+   * apresentava fechada. O conserto está na própria tela da viagem — informar as diárias, ou
+   * calcular o roteiro.
+   */
+  noPlannedDuration: 'NO_PLANNED_DURATION',
   /** Pedágio é lançamento manual e ainda não existe (061 D2). */
   notRecorded: 'NOT_RECORDED',
   /**

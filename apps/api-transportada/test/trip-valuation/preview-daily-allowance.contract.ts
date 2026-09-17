@@ -3,13 +3,28 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import type { RouteGeometryRoad } from '../../src/trips/application/route-geometry.port.js'
 import {
   previewTripValuation,
   type TripValuationContext,
 } from '../../src/trips/application/read-trip-valuation.use-case.js'
+import { VALUATION_GAPS } from '../../src/trips/domain/trip-valuation.policy.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const VEHICLE_ID = '00000000-0000-4000-8000-000000000f01'
+
+const POINTS = [
+  { latitude: -23.5505, longitude: -46.6333 },
+  { latitude: -22.9068, longitude: -43.1729 },
+] as const
+
+/** 30 h de estrada medidas pelo roteirizador: mais de um dia, menos de dois inteiros. */
+const ROAD: RouteGeometryRoad = {
+  legs: [{ distanceMetres: 500_000, durationSeconds: 30 * 3600 }],
+  nodeIds: null,
+  nodeIdsByLeg: null,
+  points: [],
+}
 
 function context(overrides: Partial<TripValuationContext> = {}): TripValuationContext {
   return {
@@ -23,18 +38,23 @@ function context(overrides: Partial<TripValuationContext> = {}): TripValuationCo
   }
 }
 
-function run(dailyAllowanceDays?: number) {
+function run(
+  input: { readonly dailyAllowanceDays?: number; readonly road?: RouteGeometryRoad } = {},
+) {
   return previewTripValuation({
     companyId: COMPANY_ID,
-    ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+    ...(input.dailyAllowanceDays === undefined
+      ? {}
+      : { dailyAllowanceDays: input.dailyAllowanceDays }),
     driverIds: [],
-    geometry: { readRouteGeometry: () => Promise.resolve(null) },
+    geometry: { readRouteGeometry: () => Promise.resolve(input.road ?? null) },
     nfeDocumentIds: ['00000000-0000-4000-8000-000000000c01'],
     repository: {
       findApplicableRule: () => Promise.resolve(null),
       readContext: () => Promise.resolve(null),
       readPreviewContext: () => Promise.resolve(context()),
-      readPreviewStopCoordinates: () => Promise.resolve([]),
+      readPreviewStopCoordinates: () =>
+        Promise.resolve(input.road === undefined ? [] : [...POINTS]),
     },
     stopOrder: [],
     tollBooths: {
@@ -51,17 +71,36 @@ function run(dailyAllowanceDays?: number) {
  */
 describe('a prévia recebe os dias informados (spec 143 T5)', () => {
   it('com dias informados, a parcela do motorista sobe medida pelos dias enviados', async () => {
-    const valuation = await run(2)
+    const valuation = await run({ dailyAllowanceDays: 2 })
     const driver = valuation.costParcels.find((parcel) => parcel.kind === 'driver')
 
     /** 200,00/dia × 2 dias = 400,00 — o mesmo número do aceite 2 da spec. */
     expect(driver).toMatchObject({ amount: '400.0000', gap: null, source: 'measured' })
   })
 
-  it('sem dias informados, a parcela nasce prevista pela duração estimada', async () => {
+  it('com o roteiro calculado, a duração da estrada vira os dias da prévia', async () => {
+    const valuation = await run({ road: ROAD })
+    const driver = valuation.costParcels.find((parcel) => parcel.kind === 'driver')
+
+    /** 30 h não cabem num dia: a diária conta o dia começado, 2 × 200,00. */
+    expect(driver).toMatchObject({ amount: '400.0000', gap: null, source: 'estimated' })
+    expect(driver?.basis).toMatchObject({ days: 2, daysOrigin: 'estimated', of: 'driver' })
+  })
+
+  /**
+   * ⚠️ Sem roteiro e sem dias informados a prévia **não sabe** quantos dias a viagem paga. Assumir
+   * um dia era a resposta errada mais cara da conta: a viagem de três dias saía por um terço do
+   * custo do motorista, sem lacuna nenhuma, e a margem chegava ao operador com cara de fechada.
+   */
+  it('sem roteiro e sem dias informados, a prévia diz que não sabe — nunca um dia calado', async () => {
     const valuation = await run()
     const driver = valuation.costParcels.find((parcel) => parcel.kind === 'driver')
 
-    expect(driver?.source).toBe('estimated')
+    expect(driver).toMatchObject({
+      amount: '0.0000',
+      gap: VALUATION_GAPS.noPlannedDuration,
+      source: 'missing',
+    })
+    expect(valuation.hasGaps).toBe(true)
   })
 })

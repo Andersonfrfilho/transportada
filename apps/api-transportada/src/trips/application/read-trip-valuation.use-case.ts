@@ -20,7 +20,11 @@ import {
   DAILY_ALLOWANCE_DAYS_ORIGIN,
   suggestAllowanceDays,
 } from '../domain/daily-allowance.policy.js'
-import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import {
+  buildTripDriverCost,
+  type TripCrewMember,
+  type TripDriverCostDays,
+} from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
@@ -538,17 +542,28 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
  * da prevista.
  */
 function buildDriverParcel(context: TripValuationContext): TripCostParcel {
-  const informedDays = context.dailyAllowanceDays ?? null
-
   return buildTripDriverCost({
     companyDailyAmount: context.companyDailyAllowanceAmount ?? null,
     crew: context.crew ?? [],
-    days: informedDays ?? suggestAllowanceDays(context.estimatedDurationSeconds ?? 0),
-    daysOrigin:
-      informedDays === null
-        ? DAILY_ALLOWANCE_DAYS_ORIGIN.estimated
-        : DAILY_ALLOWANCE_DAYS_ORIGIN.informed,
+    days: resolveAllowanceDays(context),
   })
+}
+
+/**
+ * ⚠️ Roteiro sem duração **não é viagem de um dia**: é viagem de duração desconhecida, e a política
+ * responde por ela com lacuna. Tratar a ausência como zero segundo sugeria um dia calado, e a
+ * viagem de três dias saía por um terço do custo do motorista numa margem de aparência fechada.
+ */
+function resolveAllowanceDays(context: TripValuationContext): TripDriverCostDays {
+  const informedDays = context.dailyAllowanceDays ?? null
+  if (informedDays !== null) {
+    return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: informedDays }
+  }
+
+  const durationSeconds = context.estimatedDurationSeconds ?? null
+  if (durationSeconds === null) return { of: 'unknown' }
+
+  return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: suggestAllowanceDays(durationSeconds) }
 }
 
 /**
