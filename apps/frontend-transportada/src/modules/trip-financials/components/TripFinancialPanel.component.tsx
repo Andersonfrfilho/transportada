@@ -73,13 +73,13 @@ export function TripFinancialPanel({
    * previsão e não a mostrar é o que estava lá.
    */
   if (result === null) {
-    const previsto = summarizeTripValuation(valuation)
+    const expected = summarizeTripValuation(valuation)
 
     return (
       <section className={styles.panel}>
         <h2>{t('panel.title')}</h2>
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
-        {previsto === null ? null : (
+        {expected === null ? null : (
           <>
             {/*
               A viagem aberta mostra **a mesma conta da criação**: receita em verde, cada custo com
@@ -88,10 +88,10 @@ export function TripFinancialPanel({
             */}
             <ValuationLedger valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
-            {previsto.hasGaps ? (
+            {expected.hasGaps ? (
               <p className={styles.hint}>
                 {t('panel.expectedGaps', {
-                  reasons: previsto.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
+                  reasons: expected.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
                 })}
               </p>
             ) : null}

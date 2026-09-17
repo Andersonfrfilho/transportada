@@ -2700,3 +2700,45 @@ Depois de criar a constante, os outros dois casos falharam pelo que deviam:
 | `bun run --cwd apps/frontend-transportada test`      | 4162 pass · 0 fail (+3 casos)                |
 | `bun run lint`                                       | limpo                                        |
 | `bun run format:check`                               | `All matched files use Prettier code style!` |
+
+## Revisão final — o "não verificado" e a parte barata do achado 18
+
+### `composeCostParcelDetail` com base que não é a do motorista
+
+A revisão marcou `tripCostParcelDetail.service.ts` como **não verificado**. Medido: o ramo sem teste
+era a base **existente e não-motorista** — a suíte só exercitava `basis: null` (resultado congelado
+antes da spec) e `basis.of === 'driver'`. Combustível e ICMS têm estrutura própria e caem no `detail`
+que já vem pronto.
+
+O caso novo prova que o guarda inteiro importa, não só a metade do `null`. Provado por mutação: com
+`basis === null` no lugar de `basis === null || basis.of !== 'driver'`,
+
+```
+(fail) the driver allowance sentence is composed on the screen (spec 143) > a basis that is not the
+driver one keeps its own detail, whatever it says
+ 85 pass · 1 fail
+```
+
+e a fonte foi restaurada em seguida (86 pass · 0 fail).
+
+### Achado 18 — o que entra e o que fica fora
+
+O teto de 200 linhas do `code-standart` é **dívida anterior**: `trip.routes.ts` (1589),
+`read-trip-valuation.use-case.ts` (734), `trip-valuation.query.ts` (724), `CompanySettings.page.tsx`
+(447). O saldo da 143 na query é **negativo** (+106/−418) — ela encolheu. Quebrar esses arquivos
+agora é refatoração de estrutura sem teste de aceite que a peça, no fim de uma spec de dez commits,
+e o risco não é proporcional ao ganho. **Fica fora, declarado.**
+
+A parte barata entra: `TripFinancialPanel.component.tsx:76` declarava `previsto`, identificador em
+pt-BR onde o padrão manda inglês (_"Every identifier is in English"_). Agora é `expected`, nas quatro
+ocorrências. Nenhum texto de tela mudou — `Custo previsto` continua no locale, que é o lugar do
+português.
+
+### Gates
+
+| Gate                                                 | Resultado                                    |
+| ---------------------------------------------------- | -------------------------------------------- |
+| `bun run --cwd apps/frontend-transportada typecheck` | exit 0                                       |
+| `bun run --cwd apps/frontend-transportada test`      | 4163 pass · 0 fail (+1 caso)                 |
+| `bun run lint`                                       | limpo                                        |
+| `bun run format:check`                               | `All matched files use Prettier code style!` |
