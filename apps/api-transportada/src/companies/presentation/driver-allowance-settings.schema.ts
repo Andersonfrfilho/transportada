@@ -4,9 +4,7 @@
 import { z } from 'zod'
 
 import { parseBody } from '../../http/request-parsing.service.js'
-
-/** Quatro casas, como a coluna `numeric(19,4)`. Zero não passa: o CHECK do banco exige `> 0`. */
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
 /** `.strict()`: a empresa vem do contexto, e `companyId`/`updatedByUserId` no corpo são recusados. */
 const driverAllowanceSettingsSchema = z
@@ -14,6 +12,7 @@ const driverAllowanceSettingsSchema = z
     amount: z
       .string()
       .regex(MONEY_DECIMAL)
+      /** Zero não passa: o CHECK do banco exige `> 0`, e recusar aqui evita o 500 do INSERT. */
       .refine((value) => Number.parseFloat(value) > 0, { message: 'must be positive' }),
   })
   .strict()

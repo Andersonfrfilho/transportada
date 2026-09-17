@@ -73,6 +73,11 @@ export const FINANCIAL_RESULTS_PATH = '/financial-results'
 export const TRIP_COST_ENTRY_KINDS = ['toll', 'other'] as const
 export type TripCostEntryKind = (typeof TRIP_COST_ENTRY_KINDS)[number]
 
+/** A espécie vem da API e do seletor — as duas são entrada, e nenhuma delas é o tipo por decreto. */
+export function isTripCostEntryKind(value: string): value is TripCostEntryKind {
+  return (TRIP_COST_ENTRY_KINDS as readonly string[]).includes(value)
+}
+
 /** Quem lançou. O nome é PII: vai para a tela, nunca para log nem telemetria. */
 export type TripCostEntryActor = Readonly<{ name: string; userId: string }>
 

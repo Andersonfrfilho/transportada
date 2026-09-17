@@ -22,9 +22,9 @@ import pt from '../../src/modules/company-settings/locales/companySettings.local
  * resposta `200` com o padrão do sistema, nunca `404`.
  */
 const API_POLICY = '../../../api-transportada/src/trips/domain/daily-allowance.policy.ts'
-const API_SCHEMA =
-  '../../../api-transportada/src/companies/presentation/driver-allowance-settings.schema.ts'
+const API_MONEY = '../../../api-transportada/src/shared/money.constant.ts'
 const PANEL = '../../src/modules/company-settings/components/DriverAllowancePanel.component.tsx'
+const CLIENT = '../../src/modules/company-settings/shared/driverAllowanceClient.service.ts'
 const PAGE = '../../src/modules/company-settings/pages/CompanySettings.page.tsx'
 
 /** O que o operador realmente digita num campo de dinheiro, incluindo o passo intermediário. */
@@ -38,9 +38,12 @@ function apiRateOrigins(): readonly string[] {
   return [...body.matchAll(/(\w+):\s*'(\w+)'/g)].map((match) => match[2] ?? '')
 }
 
-/** Lê o `MONEY_DECIMAL` do próprio schema da API: o que o campo envia tem de passar lá. */
+/**
+ * Lê o `MONEY_DECIMAL` da própria API: o que o campo envia tem de passar lá. Ele deixou de morar no
+ * schema da diária — sete módulos declaravam a mesma expressão, e agora ela é uma constante só.
+ */
 function apiMoneyPattern(): RegExp {
-  const source = readFileSync(new URL(API_SCHEMA, import.meta.url), 'utf8')
+  const source = readFileSync(new URL(API_MONEY, import.meta.url), 'utf8')
   const declaration = source.slice(source.indexOf('MONEY_DECIMAL = '))
   const literal = declaration.slice(declaration.indexOf('/') + 1, declaration.indexOf('\n'))
 
@@ -140,6 +143,45 @@ describe('driver allowance panel (spec 143 D7)', () => {
     })
     expect(stored).toBe('1.250,00')
     expect(buildDriverAllowanceSubmission(stored)).toBe('1250.0000')
+  })
+
+  /**
+   * ⚠️ §16: a mesma recusa redigitada em quatro saídas do cliente. Basta uma delas envelhecer e a
+   * tela passa a receber dois códigos para o mesmo caso, sem que nenhum arquivo pareça errado.
+   */
+  test('the refusal code is written once, and the API code still wins when it comes', async () => {
+    const source = readFileSync(new URL(CLIENT, import.meta.url), 'utf8')
+    expect(source.match(/'DRIVER_ALLOWANCE_REQUEST_FAILED'/gu)).toHaveLength(1)
+
+    const { createDriverAllowanceClient } = await import(
+      '../../src/modules/company-settings/shared/driverAllowanceClient.service'
+    )
+    const client = createDriverAllowanceClient({
+      apiBaseUrl: 'https://api.test',
+      fetch: () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: { code: 'DRIVER_ALLOWANCE_NOT_ALLOWED' } }), {
+            status: 403,
+          }),
+        ),
+      getAccessToken: () => Promise.resolve('token'),
+    })
+
+    expect(client.save('250.0000')).rejects.toThrow('DRIVER_ALLOWANCE_NOT_ALLOWED')
+  })
+
+  /** Corpo que não é o envelope de erro da API cai no código genérico, nunca em `undefined`. */
+  test('a body without the error envelope still names the refusal', async () => {
+    const { createDriverAllowanceClient } = await import(
+      '../../src/modules/company-settings/shared/driverAllowanceClient.service'
+    )
+    const client = createDriverAllowanceClient({
+      apiBaseUrl: 'https://api.test',
+      fetch: () => Promise.resolve(new Response('<html>502</html>', { status: 502 })),
+      getAccessToken: () => Promise.resolve('token'),
+    })
+
+    expect(client.get()).rejects.toThrow('DRIVER_ALLOWANCE_REQUEST_FAILED')
   })
 
   test('the panel is built from the design system', () => {

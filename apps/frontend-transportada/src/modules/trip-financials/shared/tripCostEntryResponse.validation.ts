@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { TripCostEntry, TripCostEntryActor } from './tripFinancials.types'
+import {
+  isTripCostEntryKind,
+  type TripCostEntry,
+  type TripCostEntryActor,
+  type TripCostEntryKind,
+} from './tripFinancials.types'
 
 /** Resposta de API é entrada não confiável — e aqui ela vira o gasto que entra na conta da viagem. */
 export class TripCostEntryResponseError extends Error {
@@ -32,6 +37,17 @@ function toActor(value: unknown): TripCostEntryActor {
   return { name: readText(value.name), userId: readText(value.userId) }
 }
 
+/**
+ * ⚠️ `as` não valida nada: espécie nova do servidor entraria na lista como conhecida e a linha
+ * imprimiria a chave crua do locale. O catálogo da tela é quem diz o que a tela sabe nomear.
+ */
+function readKind(value: unknown): TripCostEntryKind {
+  const kind = readString(value)
+  if (!isTripCostEntryKind(kind)) throw new TripCostEntryResponseError()
+
+  return kind
+}
+
 function toEntry(value: unknown): TripCostEntry {
   if (!isRecord(value)) throw new TripCostEntryResponseError()
 
@@ -42,7 +58,7 @@ function toEntry(value: unknown): TripCostEntry {
     createdAt: readString(value.createdAt),
     description: readText(value.description),
     id: readString(value.id),
-    kind: readString(value.kind) as TripCostEntry['kind'],
+    kind: readKind(value.kind),
   }
 }
 

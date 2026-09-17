@@ -2554,3 +2554,86 @@ a ADR nomeava os **arquivos** das políticas, nunca os símbolos, que é o que u
 | `bun run --cwd apps/frontend-transportada test` | 4153 pass, 0 fail                 |
 | `bun run lint`                                  | limpo                             |
 | `bun run format:check`                          | limpo                             |
+
+## Revisão final — achados 13, 14, 15, 16 e 19: cópia de constante e o `as` que não valida
+
+Cinco achados de higiene fecham juntos porque todos têm a mesma forma: **um valor escrito mais de uma
+vez**, onde divergir uma cópia não quebra nada visivelmente. Cada um ganhou teste vermelho antes da
+correção.
+
+### 13 — `MONEY_DECIMAL` em sete arquivos
+
+A expressão das quatro casas de `numeric(19,4)` estava declarada em sete schemas. Seis byte a byte
+idênticas; a sétima, textualmente diferente e semanticamente igual (`\.[0-9]{4}$` contra
+`(?:\.[0-9]{4})$`) — que é exatamente o modo como uma dessas cópias começa a divergir sem ninguém
+notar. Agora há uma só, em `src/shared/money.constant.ts`, importada pelos sete:
+
+| Arquivo que perdeu a declaração local                                  |
+| ---------------------------------------------------------------------- |
+| `src/freight/presentation/freight-rule-mutation.schema.ts`             |
+| `src/freight/presentation/freight.schema.ts`                           |
+| `src/cte-profiles/presentation/cte-emission-profile-request.schema.ts` |
+| `src/fleet/presentation/fleet-request.schema.ts`                       |
+| `src/freight-regions/presentation/freight-region-request.schema.ts`    |
+| `src/companies/presentation/driver-allowance-settings.schema.ts`       |
+| `src/companies/presentation/toll-booth-charge.schema.ts`               |
+
+`test/composition/money-decimal-pattern.contract.ts` varre `src/**/*.ts` com `Bun.Glob` e exige que
+**exatamente um** arquivo declare `const MONEY_DECIMAL =`; o segundo caso importa a constante e
+exercita o que ela aceita (`'250.0000'`, `'0.0000'`, `'999999999999999.9999'`) e o que recusa
+(`'250'`, `'250.00'`, `'-250.0000'`, `'0250.0000'`, `''`). Registrada em
+`test/composition.contract.test.ts`.
+
+⚠️ **Quebra latente apanhada antes de morder:** `apps/frontend-transportada/test/company-settings/driver-allowance-panel.contract.ts`
+lê o **fonte da API** recortando a partir de `indexOf('MONEY_DECIMAL = ')` — mover a declaração
+deixaria a suíte verde lendo o arquivo errado, ou vermelha sem motivo aparente. `apiMoneyPattern()`
+foi repontado para `src/shared/money.constant.ts` na mesma mudança, com comentário dizendo por quê.
+
+### 14 — o código da recusa sem nome, quatro vezes
+
+`driverAllowanceClient.service.ts` escrevia `'DRIVER_ALLOWANCE_REQUEST_FAILED'`,
+`'DRIVER_ALLOWANCE_NETWORK_ERROR'` e `'DRIVER_ALLOWANCE_RESPONSE_INVALID'` direto nos cinco pontos de
+saída. Viraram três constantes no topo do módulo. Comportamento idêntico — o teste novo prova que o
+literal aparece **uma vez** no fonte e que o código da API continua ganhando do genérico quando vem
+no envelope (403 `DRIVER_ALLOWANCE_NOT_ALLOWED` chega à tela; 502 com corpo HTML cai em
+`DRIVER_ALLOWANCE_REQUEST_FAILED`).
+
+### 15 — `'trip.financials'` em três lugares, não dois
+
+A revisão listou duas cópias. São três: além de `useTripValuationPreview.hook.ts`, a
+`FinancialResultsWorkspace.page.tsx:26` também comparava a permissão pelo literal. As duas agora
+importam `FINANCIALS_PERMISSION` de `shared/tripFinancialsQueryKey.constant`, e a suíte afirma que
+nenhuma das duas redeclara nem escreve a string crua.
+
+### 16 — `as` não valida nada
+
+`tripCostEntryResponse.validation.ts` fazia `readString(value.kind) as TripCostEntry['kind']`: espécie
+nova vinda do servidor entraria na lista como conhecida e a linha imprimiria a chave crua do locale
+(`costEntries.kinds.<algo>`). Pior, `TripCostEntryForm.component.tsx` tinha um `toKind` que convertia
+**qualquer** valor desconhecido em `'toll'` — um pedágio silencioso. Os dois passam agora pelo mesmo
+guardião exportado, `isTripCostEntryKind`, e espécie fora do catálogo da tela é resposta inválida
+(`TripCostEntryResponseError`), não um palpite.
+
+### 19 — comentário apontando para a decisão errada
+
+`fleet.port.ts:171` e `fleet-request.schema.ts:205` citavam "spec 143 D5/D6". As decisões que
+descrevem são a **D3** ("Valor do motorista, senão valor geral") e a **D7** ("Onde se configura"). Só
+texto — mas comentário que aponta para a decisão errada custa mais caro que comentário nenhum.
+
+### Vermelho antes
+
+| Suíte                                                      | Falha antes da correção                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `test/composition/money-decimal-pattern.contract.ts`       | `expect(declaring).toEqual(['src/shared/money.constant.ts'])` com 7 arquivos na lista                         |
+| `test/company-settings/driver-allowance-panel.contract.ts` | `expect(matches).toHaveLength(1)` recebendo 4                                                                 |
+| `test/trip-financials/cost-entries.contract.ts`            | espécie `'fuel'` aceita em vez de lançar; `toKind` presente no fonte; `'trip.financials'` cru em duas páginas |
+
+### Gates
+
+| Gate                                            | Resultado                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `bun run typecheck`                             | 6 apps, exit 0                                             |
+| `bun run --cwd apps/api-transportada test`      | 6253 pass · 23 skip · **0 fail** — 177 arquivos (+2 casos) |
+| `bun run --cwd apps/frontend-transportada test` | 4159 pass · 0 fail — 29 arquivos (+6 casos)                |
+| `bun run lint`                                  | limpo                                                      |
+| `bun run format:check`                          | `All matched files use Prettier code style!`               |

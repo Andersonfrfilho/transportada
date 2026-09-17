@@ -4,8 +4,8 @@
 import { z } from 'zod'
 
 import { invalidRequest, parseBody } from '../../http/request-parsing.service.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const OSM_NODE_ID_PATTERN = /^[1-9][0-9]*$/
 
 const adjustTollBoothChargeBodySchema = z

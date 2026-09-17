@@ -21,6 +21,7 @@ import {
 } from '../../database/cte-emission-profile.schema.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, CNPJ_ROOT_PATTERN } from '../../shared/tax-id.service.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
 /** O matcher casa pela raiz de 8 ou pelo documento inteiro — as duas alfanuméricas. */
 const MATCHER_TAX_ID = new RegExp(`${CNPJ_ROOT_PATTERN.source}|${CNPJ_PATTERN.source}`, 'u')
@@ -28,7 +29,6 @@ const MATCHER_TAX_ID = new RegExp(`${CNPJ_ROOT_PATTERN.source}|${CNPJ_PATTERN.so
 const CFOP = /^[0-9]{4}$/
 const COUNTER = /^(?:0|[1-9][0-9]{0,3})$/
 const FIXED_AMOUNT = 'fixed_amount'
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})\.[0-9]{4}$/
 const OPERATION_NATURE_MAX_LENGTH = 60
 const RECEIVER_PICKUP_AT_DESTINATION = '0'
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/

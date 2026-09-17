@@ -9,6 +9,8 @@ const FORM_SERVICE = 'src/modules/trip-financials/shared/tripCostEntryForm.servi
 const QUERY_KEY_CONSTANT = 'src/modules/trip-financials/shared/tripFinancialsQueryKey.constant.ts'
 const ENTRIES_HOOK = 'src/modules/trip-financials/hooks/useTripCostEntries.hook.ts'
 const FINANCIALS_HOOK = 'src/modules/trip-financials/hooks/useTripFinancials.hook.ts'
+const PREVIEW_HOOK = 'src/modules/trip-financials/hooks/useTripValuationPreview.hook.ts'
+const RESULTS_PAGE = 'src/modules/trip-financials/pages/FinancialResultsWorkspace.page.tsx'
 const ENTRIES_COMPONENT = 'src/modules/trip-financials/components/TripCostEntries.component.tsx'
 const FORM_COMPONENT = 'src/modules/trip-financials/components/TripCostEntryForm.component.tsx'
 const PANEL = 'src/modules/trip-financials/components/TripFinancialPanel.component.tsx'
@@ -190,6 +192,47 @@ describe('a resposta da API é entrada não confiável', () => {
     expect(entry?.actor.name).toBe('')
     expect(tripFinancials.costEntries.unknownActor).not.toBe('')
   })
+
+  /**
+   * ⚠️ O `as` não valida nada. Espécie nova do servidor entrava na lista como conhecida e caía num
+   * `t('costEntries.kinds.<espécie>')` sem chave — a tela imprimiria a chave crua na linha do gasto.
+   */
+  test('espécie que a tela não sabe nomear é resposta inválida', async () => {
+    const { toTripCostEntries, TripCostEntryResponseError } = await loadResponseValidation()
+
+    expect(() =>
+      toTripCostEntries({
+        data: [
+          {
+            actor: { name: '', userId: '' },
+            amount: '44.6000',
+            createdAt: '2026-08-05T09:00:00.000Z',
+            description: '',
+            id: '00000000-0000-4000-8000-000000000e03',
+            kind: 'fine',
+          },
+        ],
+      }),
+    ).toThrow(TripCostEntryResponseError)
+  })
+
+  test('o guardião da espécie conhece as duas do catálogo e recusa o resto', async () => {
+    const { TRIP_COST_ENTRY_KINDS, isTripCostEntryKind } = await import(
+      '@/modules/trip-financials/shared/tripFinancials.types'
+    )
+
+    for (const kind of TRIP_COST_ENTRY_KINDS) expect(isTripCostEntryKind(kind)).toBe(true)
+    for (const unknown of ['fine', 'manual', 'Toll', ''])
+      expect(isTripCostEntryKind(unknown)).toBe(false)
+  })
+
+  /** O seletor nasce do mesmo catálogo: espécie nova viraria opção na tela e pedágio no envio. */
+  test('o formulário não converte espécie desconhecida em pedágio', async () => {
+    const source = await readSource(FORM_COMPONENT)
+
+    expect(source).not.toContain("value === 'other' ? 'other' : 'toll'")
+    expect(source).toContain('isTripCostEntryKind(')
+  })
 })
 
 describe('as chaves de consulta do módulo moram num lugar só', () => {
@@ -204,6 +247,26 @@ describe('as chaves de consulta do módulo moram num lugar só', () => {
     expect(constant).toContain('TRIP_VALUATION_QUERY_KEY')
     expect(hook).toContain("from '../shared/tripFinancialsQueryKey.constant'")
     expect(hook).not.toMatch(/const TRIP_FINANCIALS_QUERY_KEY = /u)
+  })
+})
+
+describe('a permissão de leitura também mora num lugar só', () => {
+  /**
+   * ⚠️ Permissão redigitada é a pior das strings repetidas: errar uma letra não quebra nada, só
+   * fecha a tela para quem tinha direito — ou abre para quem não tinha, no sentido contrário.
+   */
+  test('nem o hook da prévia nem a página dos resultados redigitam a string', async () => {
+    const [constant, preview, page] = await Promise.all([
+      readSource(QUERY_KEY_CONSTANT),
+      readSource(PREVIEW_HOOK),
+      readSource(RESULTS_PAGE),
+    ])
+
+    expect(constant).toContain("FINANCIALS_PERMISSION = 'trip.financials'")
+    expect(preview).toContain('FINANCIALS_PERMISSION')
+    expect(preview).not.toMatch(/const FINANCIALS_PERMISSION = /u)
+    expect(page).toContain('FINANCIALS_PERMISSION')
+    expect(page).not.toContain("'trip.financials'")
   })
 })
 

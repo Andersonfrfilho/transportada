@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
+import { FINANCIALS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
 import {
   summarizeTripValuation,
   type TripValuation,
@@ -9,7 +10,6 @@ import {
 } from '../shared/tripValuation.service'
 
 const TRIP_VALUATION_PREVIEW_QUERY_KEY = 'trip-valuation-preview'
-const FINANCIALS_PERMISSION = 'trip.financials'
 
 export type TripValuationPreviewController = Readonly<{
   canRead: boolean

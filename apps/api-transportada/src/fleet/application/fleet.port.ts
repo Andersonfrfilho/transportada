@@ -168,7 +168,7 @@ export type FleetDriverInput = {
   /** UF da naturalidade; a cidade pode existir sem ela em ficha antiga. */
   readonly birthState: string
   /**
-   * A diária combinada só com este motorista (spec 143 D5/D6). `null` apaga e devolve ao valor
+   * A diária combinada só com este motorista (spec 143 D3/D7). `null` apaga e devolve ao valor
    * geral da empresa; ausente é "não mexeram nela" — a ficha não decide sozinha apagar o gravado.
    */
   readonly dailyAllowanceAmount?: string | null | undefined

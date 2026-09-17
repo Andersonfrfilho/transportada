@@ -5,9 +5,9 @@ import { z } from 'zod'
 
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,256}$/
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const PAGE_LIMIT = /^(?:[1-9]|[1-9][0-9]|100)$/
 const PERCENTAGE_DECIMAL = /^(?:0|0\.[0-9]{6}|1|1\.000000)$/
 const PRIORITY_DECIMAL = /^(?:0|[1-9][0-9]{0,18})$/

@@ -6,9 +6,9 @@ import { z } from 'zod'
 import { FREIGHT_REGION_STATUSES } from '../../database/freight-region.schema.js'
 import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
 import { REGION_CODE_PATTERN, foldRegionCity } from '../domain/region-coverage.policy.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
 const CITY_MAX_LENGTH = 60
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const NAME_MAX_LENGTH = 120
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const STATE = /^[A-Z]{2}$/

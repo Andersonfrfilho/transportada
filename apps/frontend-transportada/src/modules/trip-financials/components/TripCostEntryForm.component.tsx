@@ -14,7 +14,7 @@ import {
   validateTripCostEntryForm,
   type TripCostEntryFormFields,
 } from '../shared/tripCostEntryForm.service'
-import { TRIP_COST_ENTRY_KINDS } from '../shared/tripFinancials.types'
+import { TRIP_COST_ENTRY_KINDS, isTripCostEntryKind } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripCostEntryFormProps = Readonly<{
@@ -58,7 +58,9 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
       <label className={styles.field}>
         {t('costEntries.kind')}
         <Select
-          onChange={(value) => setFields({ ...fields, kind: toKind(value) })}
+          onChange={(value) => {
+            if (isTripCostEntryKind(value)) setFields({ ...fields, kind: value })
+          }}
           options={TRIP_COST_ENTRY_KINDS.map((kind) => ({
             label: t(`costEntries.kinds.${kind}`),
             value: kind,
@@ -86,8 +88,4 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
       </Button>
     </div>
   )
-}
-
-function toKind(value: string): TripCostEntryFormFields['kind'] {
-  return value === 'other' ? 'other' : 'toll'
 }
