@@ -4,7 +4,10 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
-import { resolveRouteChoiceFromIndex } from '../shared/assemblyRouteOptions.service'
+import {
+  resolveRouteChoiceFromIndex,
+  resolveSelectedOptionIndex,
+} from '../shared/assemblyRouteOptions.service'
 import type {
   RouteChoice,
   RouteChoiceCriterion,
@@ -60,6 +63,9 @@ type TripRouteChoiceSwitchProps = Readonly<{
   isPending: boolean
   /** Quem regrava é quem tem `tripId` (spec 153 T402, comentário de `onRouteChoiceChange`). */
   onSelect: (routeChoice: RouteChoice) => void
+  /** A assinatura **gravada hoje** (spec 153 D2/T709a) — decide a aba antes do critério, para
+   *  `no_toll`/`alternative` marcarem a rota certa, não "a mais barata". */
+  selectedSignature: null | string
   stops: readonly TripStopDetail[]
   vehicleId: string
 }>
@@ -77,6 +83,7 @@ export function TripRouteChoiceSwitch({
   criterion,
   isPending,
   onSelect,
+  selectedSignature,
   stops,
   vehicleId,
 }: TripRouteChoiceSwitchProps) {
@@ -104,8 +111,13 @@ export function TripRouteChoiceSwitch({
   const fastestIndex = geometryQuery.data?.fastestIndex ?? null
   const costGap = geometryQuery.data?.costGap ?? null
   /** A aba marcada segue o que está gravado **hoje** — nunca o índice de uma resposta anterior. */
-  const selectedIndex =
-    (criterion === 'fastest' ? fastestIndex : cheapestIndex) ?? fastestIndex ?? cheapestIndex ?? 0
+  const selectedIndex = resolveSelectedOptionIndex({
+    cheapestIndex,
+    criterion,
+    fastestIndex,
+    options,
+    selectedSignature,
+  })
 
   function handleSelect(index: number): void {
     if (isPending) return

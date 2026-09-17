@@ -178,6 +178,7 @@ export function TripRouteMap({
         criterion={geometry?.criterion ?? null}
         isPending={isRouteChoicePending}
         onSelect={onRouteChoiceSelect}
+        selectedSignature={geometry?.signature ?? null}
         stops={stops}
         vehicleId={vehicleId}
       />

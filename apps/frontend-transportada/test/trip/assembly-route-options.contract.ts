@@ -9,6 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   resolveAssemblyRouteChoice,
   resolveRouteOptionSummaries,
+  resolveSelectedOptionIndex,
 } from '../../src/modules/trip/shared/assemblyRouteOptions.service'
 import type { RouteGeometryOption } from '../../src/modules/trip/shared/routeGeometry.service'
 
@@ -387,5 +388,95 @@ describe('escolha de rota enviada ao planejar (spec 153)', () => {
         selectedIndex: 0,
       }),
     ).toEqual({ criterion: 'alternative', signature: 'principal' })
+  })
+})
+
+function opcaoComAssinatura(input: {
+  readonly isNoToll?: boolean
+  readonly signature: null | string
+}): RouteGeometryOption {
+  return {
+    distanceMeters: 100_000,
+    durationSeconds: 3_600,
+    fuelTotal: null,
+    isNoToll: input.isNoToll ?? false,
+    legs: [],
+    points: [],
+    signature: input.signature,
+    toll: null,
+    totalCost: null,
+  }
+}
+
+describe('resolveSelectedOptionIndex (spec 153 T709a/D2/L1): a assinatura gravada vence o critério', () => {
+  const OPTIONS: readonly RouteGeometryOption[] = [
+    opcaoComAssinatura({ signature: 'aaaa' }),
+    opcaoComAssinatura({ isNoToll: true, signature: 'bbbb' }),
+    opcaoComAssinatura({ signature: 'cccc' }),
+  ]
+
+  /**
+   * Caso do achado L1: viagem congelada com critério `no_toll`, cuja assinatura está entre as
+   * opções vivas. Antes, o switch caía direto no `cheapestIndex` (índice 0) e marcava uma rota
+   * diferente da gravada — aqui a assinatura tem que vencer.
+   */
+  it('critério no_toll com assinatura reproduzida marca a opção da assinatura, não a mais barata', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'no_toll',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'bbbb',
+    })
+
+    expect(index).toBe(1)
+  })
+
+  it('critério alternative com assinatura reproduzida marca a opção da assinatura', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'alternative',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'cccc',
+    })
+
+    expect(index).toBe(2)
+  })
+
+  it('assinatura ausente das opções vivas cai no critério (D3: a estrada pode ter mudado)', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'no_toll',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'nao-existe-mais',
+    })
+
+    expect(index).toBe(0)
+  })
+
+  it('sem assinatura gravada (null), cai direto no critério — mesmo comportamento de sempre', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'fastest',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: null,
+    })
+
+    expect(index).toBe(2)
+  })
+
+  it('cheapest continua marcando a mais barata quando a assinatura bate com ela mesma', () => {
+    const index = resolveSelectedOptionIndex({
+      cheapestIndex: 0,
+      criterion: 'cheapest',
+      fastestIndex: 2,
+      options: OPTIONS,
+      selectedSignature: 'aaaa',
+    })
+
+    expect(index).toBe(0)
   })
 })

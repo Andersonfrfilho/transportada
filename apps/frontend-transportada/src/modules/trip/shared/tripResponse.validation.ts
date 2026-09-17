@@ -881,9 +881,9 @@ export function createTripResponseAdapters() {
          * segunda é o aviso "escolha não reproduzida". Colapsar as duas em `=== true` apagava a
          * distinção que o detalhe (T405) precisa para decidir se mostra o aviso.
          */
-        ...(input.choiceReproduced === undefined
-          ? {}
-          : { choiceReproduced: input.choiceReproduced === true }),
+        ...(typeof input.choiceReproduced === 'boolean'
+          ? { choiceReproduced: input.choiceReproduced }
+          : {}),
         criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
         distanceMeters: isNullableNumber(input.distanceMeters) ? input.distanceMeters : null,

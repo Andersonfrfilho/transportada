@@ -270,6 +270,16 @@ describe('TripRouteChoiceSwitch: switch do detalhe reaproveita RouteChoiceOption
     const queryBlock = source.slice(source.indexOf('useQuery('), source.indexOf('useQuery(') + 400)
     expect(queryBlock).toInclude('canSwitch')
   })
+
+  /**
+   * Spec 153 T709a/D2/L1: a aba marcada casa pela assinatura gravada antes de cair no critério —
+   * nunca só `criterion === 'fastest' ? fastestIndex : cheapestIndex`, que marcava "a mais barata"
+   * mesmo quando a viagem foi congelada com `no_toll`/`alternative`.
+   */
+  it('resolve a aba marcada com resolveSelectedOptionIndex, recebendo selectedSignature', () => {
+    expect(source).toInclude('resolveSelectedOptionIndex')
+    expect(source).toInclude('selectedSignature')
+  })
 })
 
 describe('TripRouteMap: monta o resumo e o switch de regravação (spec 153 T405)', () => {
@@ -287,6 +297,11 @@ describe('TripRouteMap: monta o resumo e o switch de regravação (spec 153 T405
     const tollIndex = source.indexOf('<RouteTollSummary')
     expect(costIndex).toBeGreaterThan(-1)
     expect(tollIndex).toBeGreaterThan(costIndex)
+  })
+
+  /** T709a/L1: a assinatura da rota congelada (`geometry.signature`) chega ao switch. */
+  it('propaga a assinatura gravada da rota congelada para o switch', () => {
+    expect(source).toInclude('selectedSignature={geometry?.signature ?? null}')
   })
 })
 

@@ -7,7 +7,11 @@
  * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
-import type { RouteChoice, RouteGeometryOption } from './routeGeometry.service'
+import type {
+  RouteChoice,
+  RouteChoiceCriterion,
+  RouteGeometryOption,
+} from './routeGeometry.service'
 
 export type RouteOptionSummary = Readonly<{
   /**
@@ -148,4 +152,35 @@ export function resolveRouteChoiceFromIndex(input: {
   if (input.fastestIndex === input.index) return { criterion: 'fastest', signature }
   if (option?.isNoToll === true) return { criterion: 'no_toll', signature }
   return { criterion: 'alternative', signature }
+}
+
+/**
+ * Qual opção o switch abre marcada (spec 153 T709a/D2). A viagem congelada pode ter escolhido a
+ * rota por `no_toll`/`alternative` — critérios que não apontam um índice fixo entre `cheapestIndex`
+ * e `fastestIndex` — e nesse caso marcar "a mais barata" mostraria uma rota diferente da gravada.
+ *
+ * ⚠️ A assinatura gravada é a identidade de verdade (D2): quando ela está entre as opções que o
+ * OSRM devolveu agora, é ela que marca a aba — nunca o critério. Só cai no critério quando a
+ * assinatura está ausente ou não bate com nenhuma opção viva (estrada mudou, D3).
+ */
+export function resolveSelectedOptionIndex(input: {
+  readonly cheapestIndex: null | number
+  readonly criterion: null | RouteChoiceCriterion
+  readonly fastestIndex: null | number
+  readonly options: readonly RouteGeometryOption[]
+  readonly selectedSignature: null | string
+}): number {
+  if (input.selectedSignature !== null) {
+    const bySignature = input.options.findIndex(
+      (option) => option.signature === input.selectedSignature,
+    )
+    if (bySignature !== -1) return bySignature
+  }
+
+  return (
+    (input.criterion === 'fastest' ? input.fastestIndex : input.cheapestIndex) ??
+    input.fastestIndex ??
+    input.cheapestIndex ??
+    0
+  )
 }

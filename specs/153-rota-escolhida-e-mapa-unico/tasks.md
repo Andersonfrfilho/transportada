@@ -112,10 +112,14 @@ Cada task fecha como as demais: contrato vermelho → correção → gates → e
       no `selectedCodes`.
 - [x] T706 **M6** Teste de comportamento do switch do detalhe (T405): observer sobre a query real
       prova que a troca regrava e que a busca não se repete nem após o `invalidate`.
-- [ ] T707 **H3** `GET /trips` redige `amounts` sem `trip.financials` (D10) + registro em
+- [x] T707 **H3** `GET /trips` redige `amounts` sem `trip.financials` (D10) + registro em
       `docs/SECURITY.md`. Anterior à 153.
 - [ ] T708 **H4** Aceite multi-veículo retomável: falha num veículo não deixa viagem órfã nem entra
       em laço no reaceite. Anterior à 153.
-- [ ] T709 **L1–L5** Ajustes menores: opção marcada por assinatura, `choiceReproduced` não booleano
-      omitido, `signature` com formato no schema, redação por lista de permissão, praça da rota
-      congelada com `isNoToll`/`legIndex` reais.
+- [x] T709a **L1–L2** (frontend) Opção marcada por assinatura em `TripRouteChoiceSwitch` (D2) —
+      `resolveSelectedOptionIndex` casa `selectedSignature` entre as `options` antes de cair no
+      critério; `choiceReproduced` não booleano vira omitido, nunca `false` (D3), em
+      `routeGeometryFromApi`. Contratos em `test/trip/assembly-route-options.contract.ts`,
+      `test/trip/route-choice-detail.contract.ts` e `test/trip/route-geometry-money-optional.contract.ts`.
+- [ ] T709b **L3–L5** (API, sessão separada) `signature` com formato no schema, redação por lista de
+      permissão, praça da rota congelada com `isNoToll`/`legIndex` reais.

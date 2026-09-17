@@ -131,6 +131,33 @@ describe('rota escolhida — campos novos e dinheiro opcional (spec 153 T401)', 
     expect(ausente.choiceReproduced).not.toBe(naoReproduzida.choiceReproduced)
   })
 
+  /**
+   * Spec 153 T709a/D3: lixo (string, número, objeto) não é `false` — é ausência, igual ao campo
+   * que nunca veio. `=== true` colapsava qualquer coisa não-`true` em `false` e disparava o aviso
+   * "escolha não reproduzida" sem que a API tivesse dito isso.
+   */
+  it('choiceReproduced não booleano é omitido, como a ausência — nunca vira false', () => {
+    const lixoString = routeGeometryFromApi({
+      choiceReproduced: 'nao',
+      legs: [],
+      options: [opcaoBruta()],
+      points: [PONTO, PONTO],
+      source: 'road',
+      toll: null,
+    })
+    const lixoNumero = routeGeometryFromApi({
+      choiceReproduced: 0,
+      legs: [],
+      options: [opcaoBruta()],
+      points: [PONTO, PONTO],
+      source: 'road',
+      toll: null,
+    })
+
+    expect(lixoString.choiceReproduced).toBeUndefined()
+    expect(lixoNumero.choiceReproduced).toBeUndefined()
+  })
+
   /** D5: OSRM fora do ar na leitura ao vivo é rota ausente — número `null`, nunca zero. */
   it('OSRM fora do ar: a rota ausente publica null nos números, nunca zero', () => {
     const view = routeGeometryFromApi({

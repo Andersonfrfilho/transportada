@@ -3904,3 +3904,88 @@ paralelo (T704, em curso ao mesmo tempo).
 ### Commit
 
 `<hash desta mesma alteração — ver `git log`>`
+
+## T709a — L1/L2: opção marcada por assinatura, `choiceReproduced` não booleano omitido ✅ 2026-09-17
+
+### O achado
+
+Dois achados LOW da revisão final (D2/D3), parte frontend da T709 (a parte API — L3–L5 — fica para
+a T709b, outra sessão):
+
+- **L1** — `TripRouteChoiceSwitch.component.tsx` resolvia a aba marcada só pelo critério gravado:
+  `(criterion === 'fastest' ? fastestIndex : cheapestIndex) ?? fastestIndex ?? cheapestIndex ?? 0`.
+  Uma viagem congelada com critério `no_toll` ou `alternative` caía sempre em `cheapestIndex` —
+  "a mais barata" — que pode ser uma rota **diferente** da que está de fato gravada. D2 diz que a
+  identidade da escolha é a assinatura, nunca o índice; o switch violava isso ao reconstituir a
+  seleção.
+- **L2** — `tripResponse.validation.ts:737` fazia `input.choiceReproduced === undefined ? {} :
+{ choiceReproduced: input.choiceReproduced === true }`. Qualquer valor não indefinido —
+  inclusive lixo (string, número, objeto) — virava `false` via `=== true`, disparando o aviso
+  "escolha não reproduzida" (D3) sem que a API tivesse dito isso. D3 só define dois estados:
+  ausente (não se aplica) e `false` (tentou e não bateu); lixo não é nenhum dos dois.
+
+### A correção
+
+**L1**: nova função pura `resolveSelectedOptionIndex` em `assemblyRouteOptions.service.ts` — casa
+`selectedSignature` (a assinatura **gravada hoje**, vinda de `geometry.signature`, D2) contra
+`option.signature` de cada opção viva antes de qualquer critério; só cai no critério de sempre
+(`cheapest`/`fastest` por índice) quando a assinatura é `null` ou não está entre as opções
+retornadas pelo OSRM agora (D3: a estrada pode ter mudado). `TripRouteChoiceSwitch.component.tsx`
+ganhou a prop `selectedSignature` e usa a função nova no lugar da conta inline. `TripRouteMap.
+component.tsx` propaga `selectedSignature={geometry?.signature ?? null}` — o mesmo campo que já
+alimentava `criterion` duas linhas acima, sem chamada nova nenhuma.
+
+**L2**: trocado para `typeof input.choiceReproduced === 'boolean' ? { choiceReproduced: input.
+choiceReproduced } : {}` — só booleano grava a chave; qualquer outra coisa (inclusive lixo) fica
+omitida, exatamente como a ausência.
+
+### Como a assinatura chega ao switch
+
+`geometry` em `TripRouteMap` é a rota **congelada** da viagem (o mesmo objeto que já fornecia
+`geometry?.criterion`); `geometry.signature` é o sha256 dos nós OSM gravado ao congelar (D2). Não
+foi preciso nenhuma chamada nova — o campo já vinha na mesma resposta de `route-geometry`
+(`RouteGeometry.signature`, distinto de `RouteGeometryOption.signature` de cada opção viva) e
+apenas não estava sendo repassado ao switch.
+
+### Contratos vermelhos → verdes
+
+- `resolveSelectedOptionIndex`: critério `no_toll`/`alternative` com a assinatura reproduzida marca
+  a opção da assinatura, não a mais barata; assinatura ausente das opções vivas cai no critério;
+  sem assinatura gravada (`null`) mantém o comportamento de sempre; `cheapest` continua marcando a
+  mais barata quando a assinatura bate com ela mesma —
+  `test/trip/assembly-route-options.contract.ts`.
+- Fonte: `TripRouteChoiceSwitch.component.tsx` usa `resolveSelectedOptionIndex` e recebe
+  `selectedSignature`; `TripRouteMap.component.tsx` propaga
+  `selectedSignature={geometry?.signature ?? null}` — `test/trip/route-choice-detail.contract.ts`.
+- `routeGeometryFromApi`: `choiceReproduced` string/número vira `undefined`, igual à ausência —
+  `test/trip/route-geometry-money-optional.contract.ts`.
+
+### Gates
+
+```
+$ bun run typecheck   (raiz, 6 apps)
+0 erros em todo o monorepo.
+
+$ bun run lint   (raiz, 6 apps)
+0 erros.
+
+$ bun run format:check   (raiz)
+`assemblyRouteOptions.service.ts` precisou de `prettier --write` (quebra de linha do tipo
+importado); limpo depois. O único outro arquivo pendente (`api-transportada/trip.routes.ts`) é de
+outra sessão, fora desta task.
+
+$ bun run test   (apps/frontend-transportada, suíte inteira)
+4221 pass / 0 fail — 36268 expect() calls em 29 arquivos.
+
+$ bun run build   (apps/frontend-transportada)
+✓ built in 13.02s — PWA precache 130 entries (4485.57 KiB); mesmos avisos pré-existentes de chunk
+grande, nenhum novo.
+```
+
+L3–L5 (API: `signature` com formato no schema, redação por lista de permissão, `isNoToll`/
+`legIndex` reais da praça) não tocados — são a T709b, de outra sessão (instrução desta: só
+`apps/frontend-transportada` e `specs/`).
+
+### Commit
+
+`<hash desta mesma alteração — ver `git log`>`
