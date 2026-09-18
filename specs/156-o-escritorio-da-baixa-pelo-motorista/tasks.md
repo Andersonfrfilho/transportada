@@ -121,7 +121,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 - [x] **T13 🧠 — ADR da dependência de OCR** (code-standart §13) e o interruptor
       `canhoto_ocr_enabled` em `company_delivery_proof_settings`, desligado por padrão.
-- [ ] **T14 — OCR do número**, lendo o texto inteiro e extraindo o número depois de `Nº` e a série
+- [x] **T14 — OCR do número**, lendo o texto inteiro e extraindo o número depois de `Nº` e a série
       depois de `SÉRIE` (ADR-0069 §3 — **não** whitelist só de dígitos), casando com exatamente uma nota
       da viagem. Carrega sob demanda, mostra o selo "Experimental" e não entra no bundle inicial (medir o
       bundle antes e depois no `evidence.md`). Itens explícitos da ADR-0069:
