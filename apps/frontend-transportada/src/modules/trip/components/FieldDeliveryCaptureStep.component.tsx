@@ -14,6 +14,7 @@ import {
   shouldTriggerCaptureShortcut,
 } from '../shared/fieldDeliveryCapture.service'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
+import { FIELD_DELIVERY_FOCUS_ATTRIBUTE } from '../shared/fieldDeliveryWizardFocus.service'
 import type {
   FieldDeliveryCapturedPhoto,
   FieldDeliveryWizardDocument,
@@ -114,9 +115,11 @@ export function FieldDeliveryCaptureStep({
 
   const showCamera = cameraStatus !== 'denied' && cameraStatus !== 'unavailable'
   const showFileFallback = !showCamera
+  const focusMarker = { [FIELD_DELIVERY_FOCUS_ATTRIBUTE]: '' }
 
   return (
     <div
+      className={styles.captureStep}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || !showCamera) return
         if (!shouldTriggerCaptureShortcut(event.target)) return
@@ -140,11 +143,20 @@ export function FieldDeliveryCaptureStep({
           />
         </div>
       ) : (
-        <p className={styles.notice} role="alert">
-          {cameraStatus === 'denied'
-            ? t('fieldDelivery.cameraDenied')
-            : t('fieldDelivery.cameraUnavailable')}
-        </p>
+        <>
+          {/* Sem câmera a faixa some junto com o vídeo — a nota esperada continua à vista. */}
+          <FieldDeliveryNoteBanner
+            document={document}
+            isStatic
+            stepIndex={stepIndex}
+            totalSteps={totalSteps}
+          />
+          <p className={styles.notice} role="alert">
+            {cameraStatus === 'denied'
+              ? t('fieldDelivery.cameraDenied')
+              : t('fieldDelivery.cameraUnavailable')}
+          </p>
+        </>
       )}
 
       {captureError === undefined ? null : (
@@ -153,20 +165,20 @@ export function FieldDeliveryCaptureStep({
         </p>
       )}
 
-      <div className={styles.captureActions}>
-        {showCamera ? (
-          <Button disabled={isProcessing} onClick={handleCameraCapture} type="button">
-            <Icon name="camera" />
-            {t('fieldDelivery.capture')}
-          </Button>
-        ) : null}
-        <Button disabled={isProcessing} onClick={onSkip} type="button" variant="ghost">
-          <Icon name="close" />
-          {t('fieldDelivery.skip')}
-        </Button>
-      </div>
-
-      {showFileFallback || isFilePickerOpen ? null : (
+      {showFileFallback || isFilePickerOpen ? (
+        <div {...(showFileFallback ? focusMarker : {})}>
+          <FileField
+            accept="image/*"
+            actionLabel={t('fieldDelivery.uploadChoose')}
+            capture="environment"
+            disabled={isProcessing}
+            label={t('fieldDelivery.uploadLabel')}
+            onSelect={(file) => void handleFileSelected(file)}
+            placeholder={t('fieldDelivery.uploadEmpty')}
+            resetAfterSelect
+          />
+        </div>
+      ) : (
         <div className={styles.captureActions}>
           <Button
             onClick={() => setIsFilePickerOpen(true)}
@@ -180,18 +192,25 @@ export function FieldDeliveryCaptureStep({
         </div>
       )}
 
-      {showFileFallback || isFilePickerOpen ? (
-        <FileField
-          accept="image/*"
-          actionLabel={t('fieldDelivery.uploadChoose')}
-          capture="environment"
-          disabled={isProcessing}
-          label={t('fieldDelivery.uploadLabel')}
-          onSelect={(file) => void handleFileSelected(file)}
-          placeholder={t('fieldDelivery.uploadEmpty')}
-          resetAfterSelect
-        />
-      ) : null}
+      <div className={styles.stepActions}>
+        <Button disabled={isProcessing} onClick={onSkip} type="button" variant="ghost">
+          <Icon name="chevron-right" />
+          {t('fieldDelivery.skip')}
+        </Button>
+        {showCamera ? (
+          /* Sem `disabled` durante a leitura: o botão focado perderia o foco para o `<body>`, e o
+             Enter/Esc deixariam de chegar ao diálogo. `runCapture` já ignora o toque repetido. */
+          <Button
+            aria-busy={isProcessing}
+            onClick={handleCameraCapture}
+            type="button"
+            {...focusMarker}
+          >
+            <Icon name="camera" />
+            {isProcessing ? t('fieldDelivery.capturing') : t('fieldDelivery.capture')}
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }

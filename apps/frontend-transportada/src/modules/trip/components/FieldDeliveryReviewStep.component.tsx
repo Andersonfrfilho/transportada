@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
@@ -11,6 +12,14 @@ import {
   resolveFieldDeliveryDeliveredAtIso,
   validateFieldDeliveryDeliveredAt,
 } from '../shared/fieldDeliveryValidation.service'
+import {
+  formatCanhotoOcrNumber,
+  formatFieldDeliveryDocumentName,
+  resolveFieldDeliveryIdentificationMessage,
+  resolveFieldDeliveryReviewFocus,
+  toFieldDeliveryTargetOption,
+} from '../shared/fieldDeliveryReview.service'
+import { FIELD_DELIVERY_FOCUS_ATTRIBUTE } from '../shared/fieldDeliveryWizardFocus.service'
 import type {
   FieldDeliveryCapturedPhoto,
   FieldDeliveryDraft,
@@ -94,8 +103,24 @@ export function FieldDeliveryReviewStep({
     })
   }
 
+  const focusTarget = resolveFieldDeliveryReviewFocus(capture)
+  const focusMarker = { [FIELD_DELIVERY_FOCUS_ATTRIBUTE]: '' }
+  const suggestedDocument = documents.find(
+    (document) => document.documentId === suggestedDocumentId,
+  )
+
   return (
-    <div>
+    /**
+     * T16: `<form>` para o Enter num campo de texto confirmar a nota (o escritório digita o nome de
+     * quem recebeu e segue), sem tocar no mouse. O gatilho do `Select` é `type="button"`.
+     */
+    <form
+      className={styles.reviewStep}
+      onSubmit={(event) => {
+        event.preventDefault()
+        handleConfirm()
+      }}
+    >
       <img
         alt={t('fieldDelivery.reviewImageAlt')}
         className={styles.reviewPreview}
@@ -103,78 +128,86 @@ export function FieldDeliveryReviewStep({
       />
 
       <p className={styles.notice} role="status">
-        {t(`fieldDelivery.identification.${identification.status}`)}
+        {t(`fieldDelivery.identification.${resolveFieldDeliveryIdentificationMessage(capture)}`)}
       </p>
 
       {capture.ocrSuggestion === undefined ? null : (
-        <p className={styles.notice} role="status">
-          <Icon aria-hidden="true" name="camera" />{' '}
+        <p className={styles.noticeRow}>
+          <Icon aria-hidden="true" name="camera" />
           {t('fieldDelivery.ocrSuggestion', {
             document:
-              documents.find((document) => document.documentId === suggestedDocumentId)
-                ?.recipientName || suggestedDocumentId,
-            number: capture.ocrSuggestion.number,
-            series: capture.ocrSuggestion.series ?? '—',
-          })}{' '}
-          — {t('fieldDelivery.experimentalBadge')}
+              suggestedDocument === undefined
+                ? ''
+                : formatFieldDeliveryDocumentName(suggestedDocument),
+            number: formatCanhotoOcrNumber(capture.ocrSuggestion),
+          })}
+          <Badge variant="secondary">{t('fieldDelivery.experimentalBadge')}</Badge>
         </p>
       )}
 
-      <label>
+      <label {...(focusTarget === 'target' ? focusMarker : {})}>
         {t('fieldDelivery.targetLabel')}
         <Select
           ariaLabel={t('fieldDelivery.targetLabel')}
           onChange={setTargetDocumentId}
-          options={documents.map((document) => ({
-            label: document.recipientName === '' ? document.documentId : document.recipientName,
-            value: document.documentId,
-          }))}
+          options={documents.map(toFieldDeliveryTargetOption)}
           value={targetDocumentId}
         />
       </label>
 
-      <label>
-        {t('fieldDelivery.deliveredAtLabel')}
-        <input
-          onChange={(event) => setDeliveredAt(event.target.value)}
-          type="datetime-local"
-          value={deliveredAt}
-        />
-      </label>
+      <div className={styles.reviewFields}>
+        <label>
+          {t('fieldDelivery.deliveredAtLabel')}
+          <input
+            onChange={(event) => setDeliveredAt(event.target.value)}
+            type="datetime-local"
+            value={deliveredAt}
+          />
+        </label>
+
+        <label>
+          {t('fieldDelivery.receiverNameLabel')}
+          <input
+            autoComplete="off"
+            onChange={(event) => setReceiverName(event.target.value)}
+            value={receiverName}
+          />
+        </label>
+
+        <label>
+          {t('fieldDelivery.receiverDocumentLabel')}
+          {/* Baixos (T15): máscara de CPF/CNPJ durante a digitação (web.md §11) — nunca
+              `inputMode="numeric"`, o CNPJ alfanumérico (IN RFB 2229/2024) tem letra na base. */}
+          <input
+            autoComplete="off"
+            onChange={(event) => {
+              const normalized = normalizeTaxId(event.target.value)
+              setReceiverDocument(normalized === '' ? '' : formatTaxId(normalized))
+            }}
+            value={receiverDocument}
+          />
+        </label>
+      </div>
       {deliveredAtError === undefined ? null : (
         <p className={styles.notice} role="alert">
           {t(`fieldDelivery.deliveredAtError.${deliveredAtError}`)}
         </p>
       )}
 
-      <label>
-        {t('fieldDelivery.receiverNameLabel')}
-        <input onChange={(event) => setReceiverName(event.target.value)} value={receiverName} />
-      </label>
-
-      <label>
-        {t('fieldDelivery.receiverDocumentLabel')}
-        {/* Baixos (T15): máscara de CPF/CNPJ durante a digitação (web.md §11) — nunca
-            `inputMode="numeric"`, o CNPJ alfanumérico (IN RFB 2229/2024) tem letra na base. */}
-        <input
-          onChange={(event) => {
-            const normalized = normalizeTaxId(event.target.value)
-            setReceiverDocument(normalized === '' ? '' : formatTaxId(normalized))
-          }}
-          value={receiverDocument}
-        />
-      </label>
-
-      <div className={styles.captureActions}>
+      <div className={styles.stepActions}>
         <Button onClick={onRetake} type="button" variant="ghost">
           <Icon name="camera" />
           {t('fieldDelivery.retake')}
         </Button>
-        <Button disabled={!canConfirm} onClick={handleConfirm} type="button">
+        <Button
+          disabled={!canConfirm}
+          type="submit"
+          {...(focusTarget === 'confirm' ? focusMarker : {})}
+        >
           <Icon name="check" />
           {t('fieldDelivery.confirm')}
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

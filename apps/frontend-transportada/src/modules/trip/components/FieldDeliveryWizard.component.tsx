@@ -3,8 +3,6 @@ import { useEffect, useReducer, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { FieldDeliveryController } from '../hooks/useFieldDelivery.hook'
@@ -17,7 +15,9 @@ import {
   isFieldDeliveryWizardFinished,
   type FieldDeliveryWizardDocument,
 } from '../shared/fieldDeliveryWizard.service'
+import { focusFieldDeliveryStep } from '../shared/fieldDeliveryWizardFocus.service'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
+import { FieldDeliveryBlockedStep } from './FieldDeliveryBlockedStep.component'
 import { FieldDeliveryCaptureStep } from './FieldDeliveryCaptureStep.component'
 import { FieldDeliveryFinishedStep } from './FieldDeliveryFinishedStep.component'
 import { FieldDeliveryReviewStep } from './FieldDeliveryReviewStep.component'
@@ -107,13 +107,22 @@ export function FieldDeliveryWizard({
   }
 
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose: requestClose })
+  const isFinished = isFieldDeliveryWizardFinished(state)
+  /**
+   * T16: a cada troca de passo o foco vai para a ação do passo (`FIELD_DELIVERY_FOCUS_ATTRIBUTE`).
+   * O botão clicado desmonta com o passo; sem isto o foco caía no `<body>` e o Enter/Esc paravam.
+   */
+  const focusStepKey = `${String(state.currentIndex)}:${state.step.kind}:${String(hasSubmitted)}:${String(fieldDelivery.isSubmitting)}`
+  useEffect(() => {
+    if (!isOpen || isCloseConfirmOpen) return
+    focusFieldDeliveryStep(dialogRef.current)
+  }, [dialogRef, focusStepKey, isCloseConfirmOpen, isOpen])
 
   if (!isOpen) return null
 
   const currentDocument = currentFieldDeliveryDocument(state)
   const selectedDocumentIds = state.documents.map((document) => document.documentId)
   const driverIdInput = driverId === '' ? {} : { driverId }
-  const isFinished = isFieldDeliveryWizardFinished(state)
 
   function renderBody(): ReactNode {
     if (isFinished) {
@@ -137,23 +146,15 @@ export function FieldDeliveryWizard({
     if (currentDocument === undefined) return null
 
     if (state.step.kind === 'blocked') {
-      const { identification } = state.step
-      const message =
-        identification.status === 'notOnTrip'
-          ? t('fieldDelivery.blockedNotOnTrip', { document: identification.documentLabel })
-          : t('fieldDelivery.blockedOnTripNotSelected')
       return (
-        <>
-          <p className={styles.notice} role="alert">
-            {message}
-          </p>
-          <div className={styles.captureActions}>
-            <Button onClick={() => dispatch({ kind: 'retakeRequested' })} type="button">
-              <Icon name="camera" />
-              {t('fieldDelivery.retake')}
-            </Button>
-          </div>
-        </>
+        <FieldDeliveryBlockedStep
+          document={currentDocument}
+          onRetake={() => dispatch({ kind: 'retakeRequested' })}
+          onSkip={() => dispatch({ kind: 'skipRequested' })}
+          step={state.step}
+          stepIndex={state.currentIndex}
+          totalSteps={state.documents.length}
+        />
       )
     }
 
@@ -199,8 +200,11 @@ export function FieldDeliveryWizard({
         <FieldDeliveryWizardHeader
           driverId={driverId}
           drivers={drivers}
-          hasMultipleDrivers={hasMultipleDrivers}
-          hasPreviousStep={state.currentIndex > 0 && !isFinished}
+          /* O motorista vai em cada rascunho no "Confirmar": trocar depois do último passo não
+             mudaria nada do que já foi conferido — o seletor sai de cena no resumo. */
+          hasMultipleDrivers={hasMultipleDrivers && !isFinished}
+          /* T16: no resumo, antes de enviar, "Voltar" desfaz um "Pular" sem querer. */
+          hasPreviousStep={state.currentIndex > 0 && !hasSubmitted}
           onClose={requestClose}
           onDriverChange={setDriverId}
           onPreviousStep={() => dispatch({ kind: 'previousRequested' })}

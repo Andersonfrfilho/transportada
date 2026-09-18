@@ -9,6 +9,7 @@ import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { toTripDocumentLabelSource } from '../shared/fieldDeliveryDocument.service'
 import type { FieldDeliveryWizardDocument } from '../shared/fieldDeliveryWizard.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import { FIELD_DELIVERY_FOCUS_ATTRIBUTE } from '../shared/fieldDeliveryWizardFocus.service'
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliverySendStepProps = Readonly<{
@@ -80,7 +81,7 @@ export function FieldDeliverySendStep({
           </li>
         ) : null}
         {failedCount > 0 ? (
-          <li className={styles.notice} role="alert">
+          <li className={`${styles.notice} ${styles.summaryFailed ?? ''}`} role="alert">
             {t('fieldDelivery.sendSummaryFailed', { count: failedCount })}
           </li>
         ) : null}
@@ -92,7 +93,12 @@ export function FieldDeliverySendStep({
           const kind = status?.kind ?? 'pending'
           return (
             <li className={styles.finishedListItem} key={document.documentId}>
-              <span>{tripDocumentLabel(toTripDocumentLabelSource(document))}</span>
+              <span className={styles.finishedDocument}>
+                <span>{tripDocumentLabel(toTripDocumentLabelSource(document))}</span>
+                {document.recipientName === '' ? null : (
+                  <span className={styles.finishedRecipient}>{document.recipientName}</span>
+                )}
+              </span>
               <span className={statusStyle(kind)}>
                 <Icon name={STATUS_ICON[kind] ?? 'clock'} />
                 {statusLabel(document.documentId)}
@@ -102,17 +108,21 @@ export function FieldDeliverySendStep({
         })}
       </ul>
 
-      <div className={styles.captureActions}>
-        {retryableFailedCount > 0 && !fieldDelivery.isSubmitting ? (
-          <Button onClick={fieldDelivery.retryFailed} type="button">
-            <Icon name="refresh" />
-            {t('fieldDelivery.sendRetry', { count: retryableFailedCount })}
-          </Button>
-        ) : null}
+      <div className={styles.stepActions}>
         <Button onClick={onRequestClose} type="button" variant="secondary">
           <Icon name="close" />
           {t('fieldDelivery.close')}
         </Button>
+        {retryableFailedCount > 0 && !fieldDelivery.isSubmitting ? (
+          <Button
+            onClick={fieldDelivery.retryFailed}
+            type="button"
+            {...{ [FIELD_DELIVERY_FOCUS_ATTRIBUTE]: '' }}
+          >
+            <Icon name="refresh" />
+            {t('fieldDelivery.sendRetry', { count: retryableFailedCount })}
+          </Button>
+        ) : null}
       </div>
     </>
   )

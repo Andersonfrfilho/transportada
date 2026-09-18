@@ -8,6 +8,8 @@ import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryNoteBannerProps = Readonly<{
   document: FieldDeliveryWizardDocument
+  /** Sem câmera (negada/indisponível) a faixa não flutua sobre o vídeo — fica no fluxo. */
+  isStatic?: boolean
   stepIndex: number
   totalSteps: number
 }>
@@ -18,13 +20,14 @@ export type FieldDeliveryNoteBannerProps = Readonly<{
  */
 export function FieldDeliveryNoteBanner({
   document,
+  isStatic = false,
   stepIndex,
   totalSteps,
 }: FieldDeliveryNoteBannerProps) {
   const { t } = useTranslation('trip')
 
   return (
-    <div className={styles.banner} role="status">
+    <div className={isStatic ? styles.bannerStatic : styles.banner} role="status">
       <span className={styles.bannerProgress}>
         {t('fieldDelivery.stepProgress', { current: stepIndex + 1, total: totalSteps })}
       </span>
