@@ -95,6 +95,11 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/routing/styles/routing.module.css',
     overlay: '.multiVehicleOverlay',
   },
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/trip/styles/fieldDeliveryWizard.module.css',
+    overlay: '.overlay',
+  },
   { dialog: '.dialog', filePath: 'src/modules/trip/styles/trip.module.css', overlay: '.overlay' },
   {
     dialog: '.mdfeGateDialog',
