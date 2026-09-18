@@ -16,8 +16,7 @@ Resultado: o motorista vê os tipos de rua da empresa, e a rota do galpão só g
 
 ## Fora do escopo
 
-- Aviso visual quando a lista de tipos falha (o PWA segue degradando para lista vazia, de propósito:
-  a entrega não pode parar por um cadastro).
+- ~~Aviso visual quando a lista de tipos falha~~ — entrou como RF5/T4.
 - Abrir `GET /company-settings/occurrence-types` a outros papéis — ela carrega os modelos de e-mail.
 
 ## Histórias priorizadas
@@ -42,6 +41,11 @@ ocorrência **Then** vê os tipos ativos de etapa `delivery`, só com `id` e `na
 - RF4. `registerTripOccurrence` (rota do galpão e fluxo WhatsApp do operador) recusa tipo cuja
   etapa não é `separation` com 422 `OCCURRENCE_TYPE_NOT_SEPARATION`, antes de gravar ou avisar.
 
+- RF5. Quando a lista de tipos **falha** (rede, 4xx/5xx, corpo inválido), o painel "Registrar
+  ocorrência" diz isso e oferece tentar de novo. Lista **vazia de verdade** (empresa sem tipo de rua
+  ativo) tem texto próprio. Nos dois casos, entregar, devolver e "Deu problema" seguem funcionando —
+  a falha nunca vira erro de tela nem bloqueia a parada.
+
 ## Regra confirmada (RF4)
 
 Os dois chamadores de `registerTripOccurrence` já oferecem só `separation`: a tela do escritório
@@ -59,6 +63,11 @@ e de `occurrence.constant.ts` do frontend: a permissão sai do tipo. O servidor 
 - CA3. Contrato: tipo `delivery` no caso de uso do galpão lança `OccurrenceTypeNotSeparationError`
   (422) e não chama `saveOccurrence` nem o notificador.
 - CA4. Contrato do frontend: o cliente do motorista chama `/me/trips/current/occurrence-types`.
+
+- CA5. Contrato do frontend: o cliente distingue falha de lista vazia (hoje ambas viram `[]` e o
+  `.catch(() => undefined)` de `DriverTripWorkspace.page.tsx` engole o erro); o painel mostra o
+  aviso de falha com "Tentar de novo", e o texto de lista vazia quando não há tipo; smoke com o
+  dublê de `/me/trips/current/occurrence-types` respondendo 500 e depois 200.
 
 ## Dúvidas
 
