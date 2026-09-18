@@ -98,6 +98,7 @@ export function createFieldReportUnitOfWork(
     },
     markTripInTransit: async (input) => {
       state.calls.push(`markTripInTransit:${input.tripId}`)
+      return true
     },
     markDocumentDelivered: async (input) => {
       state.calls.push(`markDocumentDelivered:${input.documentId}`)

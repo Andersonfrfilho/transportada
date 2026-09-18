@@ -45,6 +45,7 @@ import { DrizzleTripStopScheduleRepository } from '../../src/delivery-clients/in
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
@@ -124,11 +125,18 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
         })
         expect(linked.stopId).not.toBeNull()
 
-        await planTripRoute({ companyId, repository: routeRepository, tripId: trip.id })
+        await planTripRoute({
+          actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          repository: routeRepository,
+          tripId: trip.id,
+        })
         for (const action of ['separate', 'load'] as const) {
           await transitionTripDocument({
             action,
             actorUserId: world.userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
             companyId,
             documentId: linked.id,
             repository: documentRepository,
@@ -139,6 +147,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
         // 3. O portão: a viagem não sai sem o agendamento do cliente que o exige.
         const refused = await dispatchTrip({
           actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           repository: routeRepository,
           tripId: trip.id,
@@ -159,6 +168,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
 
         const dispatched = await dispatchTrip({
           actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           repository: routeRepository,
           tripId: trip.id,
@@ -169,6 +179,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
         await transitionTripDocument({
           action: 'deliver',
           actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           documentId: linked.id,
           repository: documentRepository,

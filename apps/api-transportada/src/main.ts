@@ -774,6 +774,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
         repository: whatsappTripDocumentBatchRepository,
@@ -782,6 +783,7 @@ export function bootstrap(): Bun.Server<undefined> {
     dispatchTrip: (input) =>
       dispatchTrip({
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         repository: whatsappTripRouteRepository,
         tripId: input.tripId,
@@ -797,6 +799,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
         repository: whatsappTripDocumentRepository,
@@ -824,6 +827,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocument({
         action: 'separate',
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
         repository: whatsappTripDocumentRepository,
@@ -2145,6 +2149,8 @@ function createApplicationRoutes({
             routePlanner: {
               planRoute: (input) =>
                 planTripRoute({
+                  actorUserId: input.actorUserId,
+                  channel: TRIP_FIELD_CHANNELS.backoffice,
                   companyId: input.companyId,
                   repository: tripRouteRepository,
                   ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
@@ -2465,6 +2471,7 @@ function createApplicationRoutes({
           dispatch: (request) =>
             dispatchTrip({
               actorUserId: request.actorUserId,
+              channel: TRIP_FIELD_CHANNELS.driverApp,
               companyId: input.companyId,
               repository: tripRouteRepository,
               tripId: request.tripId,

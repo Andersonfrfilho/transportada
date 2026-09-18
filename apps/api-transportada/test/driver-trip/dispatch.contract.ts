@@ -11,6 +11,7 @@ import {
   dispatchTrip,
   type DispatchTripPort,
 } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -97,7 +98,12 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
       companyId: COMPANY_ID,
       driverId: DRIVER_ID,
       dispatch: (request: { readonly actorUserId: string; readonly tripId: string }) =>
-        dispatchTrip({ ...request, companyId: COMPANY_ID, repository }),
+        dispatchTrip({
+          ...request,
+          channel: TRIP_FIELD_CHANNELS.driverApp,
+          companyId: COMPANY_ID,
+          repository,
+        }),
       linkage: { isTripOfDriver: () => Promise.resolve(true) },
       tripId: TRIP_ID,
     }

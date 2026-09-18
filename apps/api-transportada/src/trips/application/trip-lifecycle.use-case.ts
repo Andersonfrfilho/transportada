@@ -3,6 +3,7 @@
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import { cancelTrip, type CancelTripPort } from './cancel-trip.use-case.js'
 import { dispatchTrip, type DispatchTripPort } from './dispatch-trip.use-case.js'
@@ -78,6 +79,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       return transitionTripDocument({
         action,
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         ...(dependencies.suggestCharges === undefined
           ? {}
           : { suggestCharges: dependencies.suggestCharges }),
@@ -106,6 +108,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return transitionTripDocumentsBatch({
           action: input.action,
           actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           documentIds: input.documentIds,
           repository: dependencies.batchRepository,
@@ -117,6 +120,8 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
     cancel: {
       async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
         const result = await cancelTrip({
+          actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
@@ -148,6 +153,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       }) {
         return dispatchTrip({
           actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
@@ -221,6 +227,8 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         readonly tripId: string
       }) {
         return planTripRoute({
+          actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),

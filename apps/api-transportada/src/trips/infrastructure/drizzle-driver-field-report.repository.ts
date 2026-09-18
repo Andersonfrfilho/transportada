@@ -29,6 +29,7 @@ import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip
 import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -275,10 +276,12 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   }
 
   public async markTripInTransit(input: {
+    readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
-  }): Promise<void> {
-    await this.transaction
+  }): Promise<boolean> {
+    const updated = await this.transaction
       .update(trips)
       .set({ status: 'in_transit', updatedAt: new Date() })
       .where(
@@ -288,6 +291,21 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           eq(trips.status, 'dispatched'),
         ),
       )
+      .returning({ id: trips.id })
+
+    if (updated.length === 0) return false
+
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: 'dispatched',
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: 'in_transit',
+      tripId: input.tripId,
+    })
+
+    return true
   }
 
   public async markDocumentDelivered(input: {
@@ -360,8 +378,15 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return completed.length > 0
   }
 
-  /** Spec 056 D1: a última parada fecha a viagem sozinha. Ninguém no escritório aperta nada. */
+  /**
+   * Spec 056 D1: a última parada fecha a viagem sozinha. Ninguém no escritório aperta nada.
+   *
+   * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem imediatamente antes do `UPDATE trips`, depois de
+   * `completeStopIfSettled` já ter fechado a parada nesta mesma transação — nunca no início dela.
+   */
   public async completeTripIfSettled(input: {
+    readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
   }): Promise<boolean> {
@@ -376,6 +401,15 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         ),
       )
 
+    const [tripRow] = await this.transaction
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .for('no key update')
+      .limit(1)
+    if (tripRow === undefined) return false
+    if (!(ACTIVE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status)) return false
+
     const completed = await this.transaction
       .update(trips)
       .set({ status: 'completed', updatedAt: new Date() })
@@ -383,13 +417,25 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         and(
           eq(trips.companyId, input.companyId),
           eq(trips.id, input.tripId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          eq(trips.status, tripRow.status),
           sql`not exists ${openStops}`,
         ),
       )
       .returning({ id: trips.id })
 
-    return completed.length > 0
+    if (completed.length === 0) return false
+
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: tripRow.status,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: 'completed',
+      tripId: input.tripId,
+    })
+
+    return true
   }
 
   public async recordEvent(input: Parameters<DriverFieldReportTransactionPort['recordEvent']>[0]) {

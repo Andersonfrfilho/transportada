@@ -39,6 +39,7 @@ import {
 } from '../../src/database/trip.schema.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 import {
@@ -315,6 +316,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
+          channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
           repository: routeRepository,
           tripId: input.tripId,
@@ -378,6 +380,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch: (input) =>
           dispatchTrip({
             actorUserId: input.actorUserId,
+            channel: TRIP_FIELD_CHANNELS.driverApp,
             companyId: world.companyId,
             repository: routeRepository,
             tripId: input.tripId,

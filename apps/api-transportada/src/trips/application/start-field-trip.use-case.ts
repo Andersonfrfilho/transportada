@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
-import type { FieldTripLocator } from './field-trip-target.types.js'
+import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
 
 /**
  * Os dois toques do campo (ADR-0058). O escritório os alcança pela permissão própria, em nome do
@@ -40,8 +41,10 @@ export type StartFieldTripPort = {
    */
   updateStatus(input: {
     readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
   }): Promise<boolean>
@@ -116,10 +119,13 @@ async function applyFieldStep(params: ApplyFieldStepParams): Promise<StartFieldT
     return { changed: false, tripId, tripStatus }
   }
 
+  const authorship = deriveFieldAuthorship(input)
   const isWritten = await input.repository.updateStatus({
     actorUserId: input.actorUserId,
+    channel: authorship.channel,
     companyId: input.companyId,
     expectedStatus: tripStatus,
+    onBehalfOfDriverId: authorship.onBehalfOfDriverId,
     tripId,
     tripStatus: transition.nextStatus,
   })

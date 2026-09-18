@@ -86,6 +86,8 @@ export async function reportStopArrival(
         }
         if (stop.tripStatus === DISPATCHED_STATUS) {
           await transaction.markTripInTransit({
+            actorUserId: input.actorUserId,
+            authorship,
             companyId: input.companyId,
             tripId: stop.tripId,
           })

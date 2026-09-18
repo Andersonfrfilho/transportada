@@ -11,6 +11,7 @@ import type {
   TripDocumentTransitionSnapshot,
 } from '../../src/trips/application/transition-trip-document.use-case.js'
 import type { TripDocument } from '../../src/trips/application/trip.port.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { TRIP_DOCUMENT_ACTION } from '../../src/trips/domain/trip-state.policy.js'
 import {
   TripDocumentNotFoundError,
@@ -112,6 +113,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const result = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -122,10 +124,12 @@ describe('transition trip document (spec 056 T008)', () => {
     expect(repository.applyCalls).toEqual([
       {
         actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
         documentId: DOCUMENT_ID,
         fromStatus: 'pending',
         note: null,
+        onBehalfOfDriverId: null,
         returnReason: null,
         toStatus: 'separated',
         tripId: TRIP_ID,
@@ -139,6 +143,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const result = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -155,6 +160,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const error = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.load,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -172,6 +178,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const error = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.return,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -189,6 +196,7 @@ describe('transition trip document (spec 056 T008)', () => {
     await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.return,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -205,6 +213,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const error = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -229,6 +238,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const result = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,
@@ -250,6 +260,7 @@ describe('transition trip document (spec 056 T008)', () => {
     const error = await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,

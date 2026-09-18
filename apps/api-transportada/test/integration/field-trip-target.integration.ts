@@ -21,7 +21,13 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../src/database/trip.schema.js'
+import {
+  tripDocuments,
+  tripDrivers,
+  tripStatusEvents,
+  tripStops,
+  trips,
+} from '../../src/database/trip.schema.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import type { ResolvedTripFieldTarget } from '../../src/trips/application/field-trip-target.types.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
@@ -366,6 +372,61 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
           .from(trips)
           .where(eq(trips.id, seeded.tripId))
         expect(trip?.status).toBe('completed')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'aceite 1: o motorista inicia a rota e grava driver_app com from/to certos, sem duplicar ao repetir',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database, 1)
+        const seeded = await seedTrip(database, company, {
+          driverIds: [...company.driverIds],
+          status: 'dispatched',
+        })
+        const repository = new DrizzleCurrentDriverTripRepository(database.db)
+
+        const first = await startFieldTrip({
+          actorUserId: company.userId,
+          companyId: company.companyId,
+          driverId: company.driverIds[0] ?? '',
+          repository,
+          step: 'confirmLoad',
+        })
+        expect(first).toEqual({
+          changed: true,
+          tripId: seeded.tripId,
+          tripStatus: 'in_transit',
+        })
+
+        // Repetir o toque (rede do pátio caindo e o motorista tocando de novo) converge sem gravar
+        // um segundo evento — idempotência do lado da tabela de histórico.
+        const second = await startFieldTrip({
+          actorUserId: company.userId,
+          companyId: company.companyId,
+          driverId: company.driverIds[0] ?? '',
+          repository,
+          step: 'confirmLoad',
+        })
+        expect(second).toEqual({
+          changed: false,
+          tripId: seeded.tripId,
+          tripStatus: 'in_transit',
+        })
+
+        const events = await database.db
+          .select()
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, seeded.tripId))
+        expect(events).toHaveLength(1)
+        expect(events[0]).toMatchObject({
+          actorUserId: company.userId,
+          channel: 'driver_app',
+          fromStatus: 'dispatched',
+          onBehalfOfDriverId: null,
+          toStatus: 'in_transit',
+        })
       })
     },
   )

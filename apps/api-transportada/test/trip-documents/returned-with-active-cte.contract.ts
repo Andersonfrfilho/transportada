@@ -14,6 +14,7 @@ import type {
   TripDocumentTransitionPort,
   TripDocumentTransitionSnapshot,
 } from '../../src/trips/application/transition-trip-document.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { TRIP_DOCUMENT_ACTION } from '../../src/trips/domain/trip-state.policy.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
@@ -104,6 +105,7 @@ describe('returning a document never touches the fiscal side (D8 negative test)'
     await transitionTripDocument({
       action: TRIP_DOCUMENT_ACTION.return,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       repository,

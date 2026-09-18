@@ -33,6 +33,7 @@ import {
   tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStops,
 } from '../../src/database/trip.schema.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
@@ -186,6 +187,22 @@ describe('as rotas do escritório contra o Postgres (spec 156 T5, ADR-0067)', ()
           entityId: trip.tripId,
           permission: 'trip.report-on-behalf',
           targetId: company.firstDriverId,
+        })
+
+        /**
+         * Spec 158 T3, ADR-0068 §2/§3: o escritório em nome do motorista grava `channel: 'office'`
+         * com o `on_behalf_of_driver_id` do motorista de position 1 — nunca `backoffice`.
+         */
+        const [statusEvent] = await database.db
+          .select()
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.tripId))
+        expect(statusEvent).toMatchObject({
+          actorUserId: company.userId,
+          channel: 'office',
+          fromStatus: 'in_transit',
+          onBehalfOfDriverId: company.firstDriverId,
+          toStatus: 'on_delivery_route',
         })
       })
     },

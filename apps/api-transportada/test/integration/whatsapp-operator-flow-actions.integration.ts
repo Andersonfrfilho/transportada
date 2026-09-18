@@ -36,6 +36,7 @@ import { listWarehouseTrips } from '../../src/trips/application/list-warehouse-t
 import { registerTripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
 import { transitionTripDocumentsBatch } from '../../src/trips/application/transition-trip-documents-batch.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
   findOccurrenceType,
   listDocumentProducts,
@@ -436,6 +437,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
         repository: tripDocumentBatchRepository,
@@ -444,6 +446,7 @@ async function buildScenario(db: Database, companyId: string) {
     dispatchTrip: (input) =>
       dispatchTrip({
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         repository: tripRouteRepository,
         tripId: input.tripId,
@@ -455,6 +458,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
         repository: tripDocumentRepository,
@@ -482,6 +486,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocument({
         action: 'separate',
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
         repository: tripDocumentRepository,

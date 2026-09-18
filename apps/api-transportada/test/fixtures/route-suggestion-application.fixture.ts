@@ -97,6 +97,7 @@ export type RouteSuggestionFixture = RouteSuggestionDependencies &
     created: CreateRouteSuggestionRecord[]
     decided: DecideRouteSuggestionRecord[]
     plannedRoutes: Readonly<{
+      actorUserId: string
       companyId: string
       routeChoice?: RouteChoice
       tripId: string

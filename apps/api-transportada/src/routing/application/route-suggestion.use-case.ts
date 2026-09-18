@@ -58,6 +58,7 @@ export type StopOrderWriter = Readonly<{
  */
 export type TripRoutePlanner = Readonly<{
   planRoute: (input: {
+    readonly actorUserId: string
     readonly companyId: string
     readonly routeChoice?: RouteChoice
     readonly tripId: string
@@ -174,6 +175,7 @@ export function createRouteSuggestionUseCase(
        * de novo é idempotente (T201).
        */
       await dependencies.routePlanner.planRoute({
+        actorUserId: input.context.userId,
         companyId: input.context.companyId,
         ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
         tripId: input.tripId,

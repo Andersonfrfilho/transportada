@@ -4,7 +4,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -19,10 +19,16 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { tripDispatchSnapshots, tripStops } from '../../src/database/trip.schema.js'
+import {
+  tripDispatchSnapshots,
+  tripStatusEvents,
+  tripStops,
+} from '../../src/database/trip.schema.js'
+import { cancelTrip } from '../../src/trips/application/cancel-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
@@ -153,6 +159,8 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         expect(stopRows).toHaveLength(2)
 
         const planned = await planTripRoute({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           repository: routeRepository,
           tripId: trip.id,
@@ -163,6 +171,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           const separated = await transitionTripDocument({
             action: 'separate',
             actorUserId: userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
             companyId,
             documentId,
             repository: documentRepository,
@@ -178,6 +187,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           const loaded = await transitionTripDocument({
             action: 'load',
             actorUserId: userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
             companyId,
             documentId,
             repository: documentRepository,
@@ -218,11 +228,54 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
 
         const dispatched = await dispatchTrip({
           actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           repository: routeRepository,
           tripId: trip.id,
         })
         expect(dispatched.tripStatus).toBe('dispatched')
+
+        /**
+         * ADR-0068 §2, spec 158 T3: `plan-route`, o `recalculateTripStatus` da separação (via
+         * `transitionTripDocument`) e o `dispatch` gravam `trip_status_events`, todos `backoffice`,
+         * na ordem em que aconteceram.
+         */
+        const statusEvents = await database.db
+          .select({
+            actorUserId: tripStatusEvents.actorUserId,
+            channel: tripStatusEvents.channel,
+            fromStatus: tripStatusEvents.fromStatus,
+            toStatus: tripStatusEvents.toStatus,
+          })
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.id))
+          .orderBy(asc(tripStatusEvents.occurredAt), asc(tripStatusEvents.id))
+        expect(statusEvents).toEqual([
+          {
+            actorUserId: userId,
+            channel: 'backoffice',
+            fromStatus: 'draft',
+            toStatus: 'route_planned',
+          },
+          {
+            actorUserId: userId,
+            channel: 'backoffice',
+            fromStatus: 'route_planned',
+            toStatus: 'separating',
+          },
+          {
+            actorUserId: userId,
+            channel: 'backoffice',
+            fromStatus: 'separating',
+            toStatus: 'loading',
+          },
+          {
+            actorUserId: userId,
+            channel: 'backoffice',
+            fromStatus: 'loading',
+            toStatus: 'dispatched',
+          },
+        ])
 
         const afterDispatch = new Map(
           (
@@ -285,7 +338,132 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
   )
 })
 
+/**
+ * Spec 158 T3, ADR-0068 §2: `close` e `cancelTrip` também gravam `trip_status_events`, com
+ * `channel: 'backoffice'` — as duas transições manuais que não passam pelo roteiro planejado.
+ */
+describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
+  testWithPostgres(
+    'close grava o evento de completed, com o from lido dentro da transação',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+        const tripRepository = new DrizzleTripRepository(database.db)
+
+        const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+
+        const closed = await tripRepository.close({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          onBehalfOfDriverId: null,
+          tripId: trip.id,
+        })
+        expect(closed?.status).toBe('completed')
+
+        const [event] = await database.db
+          .select()
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.id))
+        expect(event).toMatchObject({
+          actorUserId: userId,
+          channel: 'backoffice',
+          fromStatus: 'draft',
+          onBehalfOfDriverId: null,
+          toStatus: 'completed',
+        })
+
+        // Fechar de novo não regrava — idempotência do use-case (`trip.status === 'completed'`).
+        await tripRepository.close({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          onBehalfOfDriverId: null,
+          tripId: trip.id,
+        })
+        const events = await database.db
+          .select()
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.id))
+        expect(events).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres('cancel grava o evento com o from correto, e é idempotente', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+
+      const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+
+      const result = await cancelTrip({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: trip.id,
+      })
+      expect(result.tripStatus).toBe('cancelled')
+
+      const [event] = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, trip.id))
+      expect(event).toMatchObject({
+        actorUserId: userId,
+        channel: 'backoffice',
+        fromStatus: 'draft',
+        onBehalfOfDriverId: null,
+        toStatus: 'cancelled',
+      })
+
+      // Cancelar de novo é idempotente (checkTripTransition -> unchanged) e não grava de novo.
+      await cancelTrip({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: trip.id,
+      })
+      const events = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, trip.id))
+      expect(events).toHaveLength(1)
+    })
+  })
+})
+
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
+
+async function seedMinimalCompany(
+  database: TestDatabase,
+): Promise<{ readonly companyId: string; readonly userId: string; readonly vehicleId: string }> {
+  const companyId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const vehicleId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values({
+    companyId,
+    id: crypto.randomUUID(),
+    status: 'active',
+    userId,
+  })
+  await database.db.insert(fleetVehicles).values({
+    companyId,
+    id: vehicleId,
+    plate: 'ABC1D24',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'tractor_unit',
+  })
+
+  return { companyId, userId, vehicleId }
+}
 
 async function seedNfeDocumentWithRecipient(
   database: TestDatabase,

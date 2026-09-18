@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import {
   TripDocumentAlreadyDeliveredError,
@@ -105,7 +106,13 @@ export function createTripUseCase(dependencies: {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
       if (trip.status === 'completed') return trip
 
-      const closed = await repository.close({ companyId: context.companyId, tripId })
+      const closed = await repository.close({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: context.companyId,
+        onBehalfOfDriverId: null,
+        tripId,
+      })
       if (closed === null) throw new TripNotFoundError()
 
       /**

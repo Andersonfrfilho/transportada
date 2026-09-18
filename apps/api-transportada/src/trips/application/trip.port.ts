@@ -4,6 +4,7 @@
 import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
@@ -280,7 +281,13 @@ export type TripPage = {
 
 export type TripRepositoryPort = {
   /** Idempotente (ADR-0017): fechar uma viagem já fechada devolve a mesma viagem, sem erro. */
-  close(input: { readonly companyId: string; readonly tripId: string }): Promise<TripDetail | null>
+  close(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
+  }): Promise<TripDetail | null>
   create(input: CreateTripRecord): Promise<TripDetail>
   /** Idempotente: marcar como entregue um documento já entregue devolve o mesmo registro. */
   deliverDocument(input: {

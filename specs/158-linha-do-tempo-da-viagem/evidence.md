@@ -151,3 +151,143 @@ linha 136 daquele arquivo, **localmente e desfeito em seguida** (não commitado)
 e `assertTripStatusEventRollbackRefusesRecordedHistory` (`database-migration.integration.ts:111`),
 aplicar → reverter → reaplicar. A assertion alheia fica para a task separada que o executor abriu; a
 imagem do `compose.yaml` é fixada por digest e a versão dela não foi confirmada aqui.
+
+## T3
+
+Toda troca de `trips.status` grava `trip_status_events`, na mesma transação do `UPDATE trips`
+(ADR-0068 §2).
+
+### Arquivos
+
+- `apps/api-transportada/src/trips/infrastructure/trip-status-event.types.ts` (novo):
+  `RecordTripStatusChangeParams`.
+- `apps/api-transportada/src/trips/infrastructure/trip-status-event.persistence.ts` (novo):
+  `recordTripStatusChange(transaction, params)` — único escritor da tabela; no-op quando
+  `fromStatus === toStatus`.
+- `apps/api-transportada/test/trip-schema/trip-status-writers.contract.ts` (novo, registrado em
+  `test/trip-schema.contract.test.ts`): varredura textual de `src/` — todo arquivo com
+  `.update(trips)` mudando `status` no `set` tem de chamar `recordTripStatusChange`; `set` com
+  spread ou `sql` bruto sobre `trips` é proibido nesses arquivos.
+- Os 6 arquivos de infraestrutura da tabela da ADR (9 escritas, 8 métodos):
+  `drizzle-current-driver-trip.repository.ts` (`updateStatus`, agora em transação, com
+  `updatedAt`), `drizzle-driver-field-report.repository.ts` (`markTripInTransit` → `boolean`,
+  `completeTripIfSettled` → lê `FOR NO KEY UPDATE` antes do update e devolve o `from` real),
+  `drizzle-trip-route.repository.ts` (`markRoutePlanned` — agora em transação —, `markCancelled`,
+  `dispatch`), `drizzle-trip.repository.ts` (`close`), `drizzle-trip-document.repository.ts` e
+  `drizzle-trip-document-batch.repository.ts` (`recalculateTripStatus`, trava **antes** da leitura
+  do tally, invertendo a ordem das demais escritas).
+- Autoria (`actorUserId`, `channel`, `onBehalfOfDriverId`) acrescentada aos ports/inputs que não a
+  tinham: `driver-field-report.port.ts` (`markTripInTransit`, `completeTripIfSettled`),
+  `cancel-trip.use-case.ts`, `dispatch-trip.use-case.ts` (`DispatchTripWriteInput`/
+  `DispatchTripInput`), `plan-trip-route.use-case.ts` (`PlanTripRoutePort`/`PlanTripRouteInput`),
+  `trip.port.ts`/`trip.use-case.ts` (`close`), `transition-trip-document.use-case.ts` e
+  `transition-trip-documents-batch.use-case.ts` (`channel`/`onBehalfOfDriverId`; já tinham ator),
+  `route-suggestion.use-case.ts` (`TripRoutePlanner.planRoute` ganha `actorUserId`).
+- `start-field-trip.use-case.ts`: passa a chamar `deriveFieldAuthorship(input)` e repassa
+  `channel`/`onBehalfOfDriverId` ao `repository.updateStatus`.
+- `report-stop-arrival.use-case.ts` e `report-document-delivery.use-case.ts`: passam a autoria já
+  calculada (`authorship`) e `actorUserId` para `markTripInTransit`/`completeTripIfSettled`.
+- Canal decidido na composição, nunca no repositório: `trip-lifecycle.use-case.ts` (`document`,
+  `batchStatus`, `cancel`, `dispatch`, `planRoute` → `backoffice`), `trip.use-case.ts` (`close` →
+  `backoffice`), `main.ts` (rotas web/multi-veículo/route-suggestion → `backoffice`; as quatro ações
+  do operador via WhatsApp `main.ts:771-830` → `whatsapp`; `dispatchCurrentTrip` do motorista
+  `main.ts:2465` → `driver_app`).
+- Testes ajustados por assinatura nova: `test/cancel-releases-cargo/use-case.contract.ts`,
+  `test/driver-trip/dispatch.contract.ts`, `test/driver-trip/field-report.double.ts`,
+  `test/field-trip-target/use-cases.contract.ts`, `test/fixtures/route-suggestion-application.fixture.ts`,
+  `test/routing-application/route-suggestion.contract.ts`,
+  `test/trip-documents/{transition,batch-transition,returned-with-active-cte}.contract.ts`,
+  `test/trips/{plan-and-dispatch,plan-route-toll-freeze}.contract.ts`.
+- Integrações estendidas com asserção de `trip_status_events` (sem arquivo novo em
+  `test:integration`): `test/integration/field-trip-target.integration.ts` (aceite 1: motorista,
+  `driver_app`, `dispatched→in_transit`, e repetir não duplica), `test/integration/trip-field-office.integration.ts`
+  (aceite 2: escritório, `office` + `onBehalfOfDriverId` do motorista de position 1,
+  `in_transit→on_delivery_route`), `test/integration/trip-lifecycle.integration.ts` (histórico
+  completo `draft→route_planned→separating→loading→dispatched`, todos `backoffice`, na ordem; e um
+  `describe` novo com `close` e `cancelTrip`, cada um com o `from` lido dentro da transação e prova
+  de que repetir não regrava). As integrações de `delivery-charge-end-to-end`,
+  `mixed-cargo-end-to-end`, `me-trip`, `trip-repository` e `whatsapp-operator-flow-actions` só
+  precisaram da autoria nova para continuar compilando — chegada (`dispatched→in_transit`) e entrega
+  concluindo a viagem já eram exercitadas por `me-trip.integration.ts` antes desta task.
+
+### Decisões / desvios
+
+- **`markTripInTransit`/`updateStatus` seguem sem `FOR NO KEY UPDATE`** (ADR-0068 §2): já são
+  compare-and-set por `WHERE status = expected`, e o `from` é o esperado — travar de novo seria
+  redundante. Só as demais (que não faziam CAS) ganharam `SELECT … FOR NO KEY UPDATE` imediatamente
+  antes do `UPDATE trips`.
+- **`completeTripIfSettled` mudou de `inArray(status, ACTIVE)` para `eq(status, tripRow.status)`**:
+  a trava fixa o status lido, então o `WHERE` da escrita usa esse valor exato — o `inArray` original
+  virou uma checagem em memória (`ACTIVE_TRIP_STATUSES.includes(tripRow.status)`) antes do update.
+- **`markRoutePlanned` passou a abrir transação própria** (antes rodava direto em `this.database`) —
+  necessário para o `SELECT … FOR NO KEY UPDATE` e o `INSERT` em `trip_status_events` acontecerem
+  atomicamente com o `UPDATE trips`, como o ADR pede.
+- **`DrizzleTripRepository.close`** passou a fazer `SELECT … FOR NO KEY UPDATE` antes do update
+  (antes só devolvia `{ id }`); o retorno de `readTripDetail` deixou de espalhar `...input` (que
+  agora carrega `actorUserId`/`channel`/`onBehalfOfDriverId`) e passou a listar `companyId`/`tripId`
+  explicitamente — excesso de propriedade seria erro de tipo.
+- **`recalculateTripStatus` dos dois repositórios de nota inverteu a ordem interna**: a trava da
+  viagem vem **antes** da leitura do tally de `trip_documents` (ADR-0068 §2, emenda do architect na
+  T1) — o inverso do padrão "notas → viagem" das demais escritas, porque aqui a decisão de status
+  depende do tally que ainda seria lido.
+- **`dispatch` mantém o `INSERT` em `trip_dispatch_snapshots` antes da trava da viagem** — é
+  exatamente o motivo do `FOR NO KEY UPDATE` em vez de `FOR UPDATE` (ADR-0068 §2): o insert já seguraFOR
+  KEY SHARE via FK, e `FOR UPDATE` no início da transação colidiria com ele em dois despachos
+  concorrentes.
+- **Sem consulta a "transição ilegal"**: `dispatch`, `markRoutePlanned`, `markCancelled` e `close`
+  continuam escrevendo sem guarda de origem (achado registrado na ADR, T11 da spec 158) —
+  `recordTripStatusChange` grava fielmente o que o repositório escreveu, mesmo que a política um dia
+  proibisse aquela transição.
+- **Canal do `route-suggestion` (aceite da sugestão) é sempre `backoffice`**: os dois pontos de
+  composição de `planTripRoute` continuam do lado do escritório (rota web e aceite de sugestão);
+  nenhum caminho de sugestão de rota passa por WhatsApp ou app do motorista hoje.
+
+### TDD
+
+O contrato estático (`trip-status-writers.contract.ts`) foi escrito e registrado **antes** de tocar
+em qualquer repositório; rodado contra o código da T2 ele listou exatamente os 6 arquivos esperados
+(`drizzle-current-driver-trip.repository.ts`, `drizzle-driver-field-report.repository.ts`,
+`drizzle-trip-route.repository.ts`, `drizzle-trip.repository.ts`,
+`drizzle-trip-document.repository.ts`, `drizzle-trip-document-batch.repository.ts`) como
+"`.update(trips)` muda `status` mas não chama `recordTripStatusChange`" — `bun test
+./test/trip-schema.contract.test.ts`: **70 pass, 1 fail** (o `toEqual([])` recebendo os 6 caminhos).
+Depois de cada repositório ganhar a chamada, a mesma suíte foi para **71 pass, 0 fail**.
+
+### Comandos e contagens
+
+- `bun run typecheck` (raiz, 6 apps) — **sem erros** (passou por um ciclo intermediário com 70 erros
+  em arquivos de teste sem a assinatura nova; todos corrigidos — dublês, fixture de
+  `route-suggestion` e as duas expectativas de `trip_status_events`/autoria que quebraram na
+  suíte de contrato, ver abaixo).
+- `bun run lint` (raiz, 6 apps) — **sem erros/avisos** (`--max-warnings=0`).
+- `bunx prettier --write` em todos os arquivos alterados — todos conformes (só os arquivos
+  editados por `perl`/sed precisaram do `--write`; sem diff de conteúdo além da formatação).
+- De dentro de `apps/api-transportada`, `bun --env-file=../../.env.test test --timeout 120000`:
+  primeira rodada **6512 pass, 23 skip, 12 fail** — 9 falhas pré-existentes de
+  `toll-booth-catalog-repository` (mesmas da T2, `ERR_POSTGRES_CONNECTION_CLOSED`, arquivo não
+  tocado) e 3 novas: `route-suggestion.contract.ts` (`plannedRoutes` sem `actorUserId` na
+  expectativa) e `field-trip-target/use-cases.contract.ts` (`world.updates` sem `channel`/
+  `onBehalfOfDriverId`). Corrigidas as três expectativas (fixture + os dois `toEqual`), segunda
+  rodada: **6515 pass, 23 skip, 9 fail** — só as 9 pré-existentes de `toll-booth-catalog-repository`
+  restam, confirmadas fora de escopo (nenhum arquivo delas tocado nesta task).
+- Integração (Postgres 18 nativo descartável já no ar em 65434,
+  `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres`):
+  - Os 10 arquivos tocados/relevantes (`bun ... test ./test/integration/{delivery-charge-end-to-end,me-trip,mixed-cargo-end-to-end,trip-lifecycle,trip-repository,whatsapp-operator-flow-actions,field-trip-target,trip-field-authorship,trip-field-office,freeze-trip-planned-route}.integration.ts --timeout 120000`):
+    **44 pass, 0 fail** (41 antes das três asserções novas de `trip_status_events`, 44 depois —
+    confirma que rodaram e não pularam).
+  - `bun --env-file=../../.env.test run test:integration` completo: **398 pass, 18 fail**. As 18
+    são todas pré-existentes e alheias a este PR — nenhum arquivo delas foi tocado nesta task:
+    9 de `toll-booth-catalog-repository` (idem T2), 4 de `database-availability`/`Drizzle external
+identity repository`/`tenant-context`/`auth-me` (timing de pool e conexão, não schema), 2 de
+    `cte-archive-gateway` e 4 de `toll-booth-extract`/`toll-booth-reload` (`OBJECT_STORAGE_UNAVAILABLE`
+    — MinIO fora do ar neste ambiente), e 1 de `database-migration.contract.test.ts` (o mesmo
+    mismatch `23503`/`23001` do Postgres 18 documentado na T2, `cte-profile-output-constraints.assertion.ts:134`).
+    Nenhuma das 18 menciona `trips`, `trip_status_events` ou qualquer arquivo desta task.
+
+### Achados fora de escopo (não corrigidos aqui)
+
+- As mesmas transições ilegais gravadas sem guarda (`dispatch`, `markRoutePlanned`,
+  `markCancelled`, `close`) e o `cancelled → completed` do `close` seguem pendentes para a T11.
+- O `OBJECT_STORAGE_UNAVAILABLE` das integrações de `toll-booth` e `cte-archive-gateway` sugere que
+  o MinIO local não estava no ar durante esta rodada de `test:integration` — vale conferir
+  `make up` antes da próxima vez que alguém rodar a suíte completa.

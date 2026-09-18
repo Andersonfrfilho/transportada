@@ -27,6 +27,8 @@ import {
 import type { TripDatabase } from './trip-queryable.type.js'
 import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 /**
  * As fases em que a viagem aparece na tela do motorista.
@@ -138,24 +140,40 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
    */
   public async updateStatus(input: {
     readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
   }): Promise<boolean> {
-    const updated = await this.database
-      .update(trips)
-      .set({ status: input.tripStatus })
-      .where(
-        and(
-          eq(trips.companyId, input.companyId),
-          eq(trips.id, input.tripId),
-          eq(trips.status, input.expectedStatus),
-        ),
-      )
-      .returning({ id: trips.id })
+    return this.database.transaction(async (transaction) => {
+      const updated = await transaction
+        .update(trips)
+        .set({ status: input.tripStatus, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, input.expectedStatus),
+          ),
+        )
+        .returning({ id: trips.id })
 
-    return updated.length > 0
+      if (updated.length === 0) return false
+
+      await recordTripStatusChange(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        fromStatus: input.expectedStatus,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
+        toStatus: input.tripStatus,
+        tripId: input.tripId,
+      })
+
+      return true
+    })
   }
 
   public async listActiveTrips(input: {

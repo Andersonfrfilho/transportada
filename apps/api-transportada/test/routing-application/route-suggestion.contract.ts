@@ -211,7 +211,12 @@ describe('accepting a route suggestion (ADR-0044 §5)', () => {
     })
 
     expect(dependencies.plannedRoutes).toEqual([
-      { companyId: COMPANY_SCOPE.companyId, routeChoice, tripId: TRIP_ID },
+      {
+        actorUserId: COMPANY_SCOPE.userId,
+        companyId: COMPANY_SCOPE.companyId,
+        routeChoice,
+        tripId: TRIP_ID,
+      },
     ])
   })
 
@@ -225,7 +230,7 @@ describe('accepting a route suggestion (ADR-0044 §5)', () => {
     })
 
     expect(dependencies.plannedRoutes).toEqual([
-      { companyId: COMPANY_SCOPE.companyId, tripId: TRIP_ID },
+      { actorUserId: COMPANY_SCOPE.userId, companyId: COMPANY_SCOPE.companyId, tripId: TRIP_ID },
     ])
   })
 

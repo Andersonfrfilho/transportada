@@ -108,7 +108,12 @@ export type DriverFieldReportTransactionPort = {
     readonly shiftMilliseconds: number
     readonly tripId: string
   }): Promise<void>
-  markTripInTransit(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  markTripInTransit(input: {
+    readonly actorUserId: string
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean>
   markDocumentDelivered(input: {
     readonly at: Date
     readonly companyId: string
@@ -128,6 +133,8 @@ export type DriverFieldReportTransactionPort = {
   }): Promise<boolean>
   /** Fecha a viagem quando a última parada fechou (spec 056 D1). Devolve se fechou. */
   completeTripIfSettled(input: {
+    readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
   }): Promise<boolean>

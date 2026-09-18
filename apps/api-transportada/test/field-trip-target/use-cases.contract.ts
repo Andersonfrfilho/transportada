@@ -328,8 +328,10 @@ describe('os dois toques do campo pelo escritório (spec 156 T3)', () => {
     expect(world.updates).toEqual([
       {
         actorUserId: ACTOR_USER_ID,
+        channel: 'office',
         companyId: COMPANY_ID,
         expectedStatus: 'dispatched',
+        onBehalfOfDriverId: DRIVER_ID,
         tripId: TRIP_ID,
         tripStatus: 'in_transit',
       },

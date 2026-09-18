@@ -24,8 +24,10 @@ import type {
   ReturnedWithActiveCteEntry,
 } from '../application/list-returned-with-active-cte.use-case.js'
 import { deriveTripStatus, tallyTripDocuments } from '../domain/trip-state.policy.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TripActorNotAMemberError } from '../domain/trip.error.js'
 import { mapTripDocument } from './trip.mapper.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** `cte_fiscal_documents.status` — só este valor conta como CT-e "ativo" (mesmo padrão de
@@ -177,7 +179,13 @@ async function applyTransition(
 
   await insertEvent(transaction, input)
 
-  const nextTripStatus = await recalculateTripStatus(transaction, input)
+  const nextTripStatus = await recalculateTripStatus(transaction, {
+    actorUserId: input.actorUserId,
+    channel: input.channel,
+    companyId: input.companyId,
+    onBehalfOfDriverId: input.onBehalfOfDriverId,
+    tripId: input.tripId,
+  })
 
   return { document: mapTripDocument(updated), raced: false, tripStatus: nextTripStatus }
 }
@@ -207,11 +215,29 @@ async function insertEvent(
 /**
  * ADR-0043 §1: consequência aritmética do estado das notas, calculada na mesma transação da
  * escrita da nota. Um `UPDATE` só acontece quando a derivação muda algo.
+ *
+ * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem **antes** da leitura do tally de notas — o
+ * inverso da ordem "notas → viagem" das demais escritas, porque aqui a decisão depende do tally
+ * que ainda vai ser lido.
  */
 async function recalculateTripStatus(
   transaction: TripTransaction,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
+  },
 ): Promise<TripStatus> {
+  const [tripRecord] = await transaction
+    .select({ status: trips.status })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .for('no key update')
+    .limit(1)
+  if (tripRecord === undefined) throw new Error('TRIP_DOCUMENT_TRANSITION_TRIP_MISSING')
+
   const documentRows = await transaction
     .select({ status: tripDocuments.separationStatus })
     .from(tripDocuments)
@@ -220,13 +246,6 @@ async function recalculateTripStatus(
     )
   const tally = tallyTripDocuments(documentRows.map((row) => row.status))
 
-  const [tripRecord] = await transaction
-    .select({ status: trips.status })
-    .from(trips)
-    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-    .limit(1)
-  if (tripRecord === undefined) throw new Error('TRIP_DOCUMENT_TRANSITION_TRIP_MISSING')
-
   const nextStatus = deriveTripStatus({ tally, tripStatus: tripRecord.status })
   if (nextStatus === tripRecord.status) return tripRecord.status
 
@@ -234,6 +253,16 @@ async function recalculateTripStatus(
     .update(trips)
     .set({ status: nextStatus, updatedAt: sql`now()` })
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+
+  await recordTripStatusChange(transaction, {
+    actorUserId: input.actorUserId,
+    channel: input.channel,
+    companyId: input.companyId,
+    fromStatus: tripRecord.status,
+    onBehalfOfDriverId: input.onBehalfOfDriverId,
+    toStatus: nextStatus,
+    tripId: input.tripId,
+  })
 
   return nextStatus
 }

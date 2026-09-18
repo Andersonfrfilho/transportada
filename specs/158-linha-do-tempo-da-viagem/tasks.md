@@ -40,7 +40,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3 — Toda troca de `trips.status` grava o evento** (RF2, RF3, aceites 1, 2, 9).
+- [x] **T3 — Toda troca de `trips.status` grava o evento** (RF2, RF3, aceites 1, 2, 9).
       `trip-status-event.persistence.ts`; start-route do motorista e do escritório, chegada, e os
       demais escritores da lista da T1, na mesma transação e só com `changed=true`. Contrato
       estático do aceite 9 **antes**.

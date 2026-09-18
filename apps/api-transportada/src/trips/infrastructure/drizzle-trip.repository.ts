@@ -74,6 +74,8 @@ import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
 import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
@@ -100,18 +102,41 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 
   public async close(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripDetail | null> {
     return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('no key update')
+        .limit(1)
+      if (tripRow === undefined) return null
+
       const [closed] = await transaction
         .update(trips)
         .set({ status: 'completed', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
+
+      await recordTripStatusChange(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        fromStatus: tripRow.status,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
+        toStatus: 'completed',
+        tripId: input.tripId,
+      })
+
       return readTripDetail(transaction, {
-        ...input,
+        companyId: input.companyId,
+        tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
       })
     })

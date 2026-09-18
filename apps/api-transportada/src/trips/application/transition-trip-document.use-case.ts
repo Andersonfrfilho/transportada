@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
   TRIP_DOCUMENT_ACTION,
   checkTripDocumentTransition,
@@ -24,10 +25,12 @@ export type TripDocumentTransitionSnapshot = {
 
 export type ApplyTripDocumentTransitionInput = {
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentId: string
   readonly fromStatus: TripDocumentSeparationStatus
   readonly note: string | null
+  readonly onBehalfOfDriverId: string | null
   readonly returnReason: string | null
   readonly toStatus: TripDocumentSeparationStatus
   readonly tripId: string
@@ -52,9 +55,11 @@ export type TripDocumentTransitionPort = {
 export type TransitionTripDocumentInput = {
   readonly action: TripDocumentAction
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentId: string
   readonly note?: string | null
+  readonly onBehalfOfDriverId?: string | null
   readonly repository: TripDocumentTransitionPort
   readonly returnReason?: string | null
   /** Ausente é instalação sem regra de taxa recorrente — a entrega funciona igual. */
@@ -115,10 +120,12 @@ async function attempt(
 
   const outcome = await input.repository.applyTransition({
     actorUserId: input.actorUserId,
+    channel: input.channel,
     companyId: input.companyId,
     documentId: input.documentId,
     fromStatus: snapshot.documentStatus,
     note: input.note ?? null,
+    onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     returnReason:
       input.action === TRIP_DOCUMENT_ACTION.return ? (input.returnReason ?? null) : null,
     toStatus: transition.nextStatus,
