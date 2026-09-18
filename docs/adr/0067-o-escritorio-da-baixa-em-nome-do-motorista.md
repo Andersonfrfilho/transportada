@@ -5,6 +5,11 @@
 - **Decisores:** usuário (D1, D3 e D6 decididas na conversa da spec; perfis de D1 confirmados em
   2026-09-18) e revisão Opus
 - **Fecha:** a T2 da spec 156 (`specs/156-o-escritorio-da-baixa-pelo-motorista/`)
+- **Revisa:** ADR-0058 §4. A máquina de estados e o ranking anti-regressão **não mudam**. A única
+  diferença é que o escritório, com a permissão nova, também pode disparar os dois toques (conferir a
+  carga e iniciar o trajeto).
+- **Emendada:** 2026-09-18, depois da validação do architect (baixa repetida, vários motoristas,
+  idempotência, isolamento, exceção à ADR-0057 e leitura do `finance`).
 
 ## Contexto
 
@@ -32,7 +37,8 @@ cobra é quem está com ele na mão. Os perfis foram confirmados pelo usuário e
 
 Nenhum outro papel a recebe: `separator`, `driver`, `aggregate`, `viewer`, `fiscal`, `contractor` e
 `automation` ficam fora. Ela não é permissão de serviço: um grupo da empresa pode concedê-la, como
-qualquer permissão de pessoa.
+qualquer permissão de pessoa. Por isso o contrato "o separador não a tem" vale **por papel**: um
+separador que receba a permissão por grupo passa a tê-la, por decisão de quem administra os grupos.
 
 **Por que não reusar `trip.manage`.** O `separator` tem `trip.manage` para montar a viagem do celular,
 e ele **não reporta entrega**. Essa linha entre galpão e campo já está na ADR-0043, no próprio
@@ -57,11 +63,38 @@ Todo registro de campo passa a gravar o **canal**, `channel` (`driver_app | offi
 motorista da viagem. `actor_user_id` **continua sendo quem clicou**. Ele não é trocado pelo motorista
 para a linha do tempo "parecer" do campo: a trilha que mente sobre o autor é pior que nenhuma.
 
+**Qual motorista, quando a viagem tem mais de um.** Por padrão, `on_behalf_of_driver_id` é o motorista
+de `position = 1` em `trip_drivers`. O payload pode trazer um `driverId` escolhido entre os
+`trip_drivers` da viagem. Ele é validado: motorista fora da viagem responde 422 `DRIVER_NOT_ON_TRIP`.
+Viagem sem motorista vinculado responde 422 `TRIP_WITHOUT_DRIVER`. O alvo da viagem (`FieldTripTarget`,
+T3) carrega esse `driverId` opcional. A tela só mostra o seletor de motorista quando a viagem tem mais
+de um (T8, T11).
+
 A migration (T4) é aditiva nas seis tabelas de campo (`trip_document_events`, `trip_stop_events`,
 `trip_stop_occurrences`, `trip_field_reports`, `trip_delivery_proofs`,
 `trip_document_occurrences`). O default é `'driver_app'`, que já descreve o histórico, então não tem
-backfill. Um CHECK exige `on_behalf_of_driver_id` quando `channel = 'office'`. O fluxo do WhatsApp
-passa a gravar `whatsapp`.
+backfill. Um CHECK exige `on_behalf_of_driver_id` quando `channel = 'office'`. A chave estrangeira é
+**composta**, `(company_id, on_behalf_of_driver_id)`, para que o registro nunca aponte para motorista
+de outra empresa. O fluxo do WhatsApp passa a gravar `whatsapp`.
+
+**Isolamento.** A viagem é achada pela empresa do contexto. Viagem de outra empresa responde **404,
+não 403**: a resposta não pode confirmar que a viagem existe.
+
+**Idempotência.** O escritório usa a mesma tabela do motorista, `trip_field_reports`, com
+`operation` própria prefixada `office.` (por exemplo, `office.document.deliver`). A mesma chave
+enviada por **outro ator** responde 422 `IDEMPOTENCY_KEY_REUSED`, e não devolve o resultado de
+outra pessoa.
+
+**Baixa repetida.** No canal `office`, nota já `delivered` ou `returned` responde **409
+`DOCUMENT_ALREADY_SETTLED`** e não grava evento novo. Hoje `report-document-delivery.use-case.ts`
+grava `recordEvent` mesmo quando pula o `settle` (nota já baixada). O canal do motorista mantém esse
+comportamento, que é idempotente para quem repete o toque na rua. O escritório não pode herdar isso:
+dias depois, uma segunda baixa sobre a mesma nota criaria uma entrega fantasma na linha do tempo. O
+caso real, "a entrega já foi feita e falta o canhoto", tem ação própria:
+`POST /trips/:id/documents/:documentId/field-proof`. Ela anexa o comprovante ao evento `delivered`
+que já existe. Se já houver comprovante daquele tipo, ele é substituído pelo unique
+`(company, stop_event, kind)`, como manda a ADR-0057. A ação não cria evento e não muda
+`delivered_at`.
 
 A linha do tempo mostra os dois: "registrado por <usuária> (escritório) pelo motorista <nome>". Cada
 registro do escritório também grava em `audit_logs`, com ator, alvo, IP e horário (`security.md`
@@ -74,8 +107,8 @@ A baixa do escritório registra quando a entrega **aconteceu**, não quando foi 
 códigos estáveis em `shared/errors/codes.ts`:
 
 - não aceita hora no futuro (`DELIVERED_AT_IN_FUTURE`);
-- não aceita hora anterior ao despacho da viagem, `trips.dispatched_at`
-  (`DELIVERED_AT_BEFORE_DISPATCH`).
+- não aceita hora anterior ao despacho da viagem (`DELIVERED_AT_BEFORE_DISPATCH`). A fonte do
+  despacho é `trip_dispatch_snapshots.dispatched_at`, o registro congelado no momento do despacho.
 
 A hora informada vai para `trip_documents.delivered_at` e para o `occurred_at` do evento. A hora em
 que o registro foi gravado fica à parte, em `recorded_at`. Essa coluna **ainda não existe**: hoje o
@@ -102,6 +135,15 @@ passo. Se a nota lida for outra nota da seleção, o assistente oferece trocar. 
 pertencer à viagem**, o assistente bloqueia com "este canhoto é da nota X, que não está nesta
 viagem". É a mesma régua da ADR-0065: a máquina lê, a pessoa grava.
 
+### 5. Exceção à ADR-0057 §1: assinatura exigida (spec 156 D8)
+
+O comprovante segue a configuração da empresa. Se a empresa exige foto, o escritório não conclui a
+entrega sem ela. A assinatura é a exceção, e ela é **explícita**: com assinatura `required`, o
+escritório não colhe assinatura, porque quem assina é o recebedor, e ele não está no escritório. O
+escritório cumpre a exigência com a **foto do canhoto assinado** mais o **nome do recebedor**. Isso
+fica registrado como comprovante do canal `office`, nunca como assinatura digital. Se o escritório
+digitar o documento do recebedor, ele passa pelo mesmo envelope e pela mesma máscara da ADR-0057 §3.
+
 ## Alternativas rejeitadas
 
 **Dar `trip.manage` para as ações de campo.** Rejeitada: o separador a tem, e ele não reporta entrega
@@ -116,6 +158,14 @@ o ator continua sendo quem clicou.
 
 **Usar a hora da gravação como hora da entrega.** Rejeitada: a baixa do escritório chega dias depois.
 Carimbar a sexta numa entrega de terça falsearia o SLA e o relatório de pontualidade.
+
+**Dar `fleet.read` ao `finance` para ele abrir a viagem.** Rejeitada: `fleet.read` abre o cadastro
+de todos os motoristas, com CPF, CNH, PIX e endereço. Quem cobra não precisa disso (`security.md` §1,
+LGPD).
+
+**Ler a viagem por `trip.read`.** Rejeitada: `trip.read` é do motorista e do agregado, e as rotas de
+leitura da empresa não recortam pelo vínculo. Seria BOLA (API1): o motorista leria qualquer viagem
+da empresa.
 
 **Aceitar a identificação automática sem confirmação**, quando o código de barras é lido com
 certeza. Rejeitada: o código lido prova de qual nota é o DANFE fotografado, mas não prova que aquele
@@ -132,10 +182,15 @@ nota errada custa uma cobrança contestada.
   (`frontend-contract.test.ts`, `permission-matrix.contract.ts`) falham se a API mudar sozinha. Sem
   isso, o `/auth/me` de um `operator` seria recusado pela allowlist, e a tela cairia em
   "Indisponível".
-- ⚠️ **O `finance` recebe a permissão, mas hoje não abre a viagem.** A leitura da viagem é
-  `fleet.read` (`TRIP_READ_POLICY`), e o `finance` não tem `fleet.read`. A permissão sozinha não
-  resolve a tela dele. Isso tem de ser decidido antes da T8: ou o `finance` ganha a leitura da viagem,
-  ou a tela do escritório lê por outra permissão. Esta ADR não decide isso.
+- **Leitura da viagem para o `finance`.** A leitura da viagem é `fleet.read` (`TRIP_READ_POLICY`), e
+  o `finance` não a tem. A saída escolhida é restrita. Nasce uma variante de política "qualquer uma
+  de" (`anyPermission`), aplicada **só** a cinco rotas, com `['fleet.read', 'trip.report-on-behalf']`:
+  `GET /trips`, `GET /trips/:id`, `GET /trips/:id/stops`,
+  `GET /trips/:id/documents/:documentId/proof` e `GET /trips/:id/documents/:documentId/occurrences`.
+  Para quem não tem `fleet.read`, `driverTaxId`, `driverEmail` e `driverPhone` vêm nulos, e
+  `driverName` continua. `/fleet/drivers`, o feed e a geometria continuam só com `fleet.read`. Isso
+  entra na T7, que passa a ser 🧠. No frontend, a T8 troca `TRIP_READ_PERMISSION` por
+  `canReadTrip(permissions)`, e o detalhe funciona sem `useFleet`.
 - O relatório de pontualidade passa a usar `delivered_at`, não `recorded_at`. É o número certo, mas
   ele muda para as viagens com baixa retroativa, e a mudança é registrada no `evidence.md` da spec.
 - Nenhum log leva a imagem do canhoto, o documento de quem recebeu ou o nome do destinatário

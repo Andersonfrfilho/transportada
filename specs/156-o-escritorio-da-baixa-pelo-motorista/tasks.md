@@ -4,7 +4,8 @@
 | ---- | -------------------------- | -------------------------------- | ------------------- |
 | 0    | T1                         | `sonnet`                         | `opus`              |
 | 1    | T2 🧠 (ADR), T3 🧠         | `opus` (validar com `architect`) | `fable`             |
-| 2    | T4, T5, T6, T7             | `sonnet`                         | `opus`              |
+| 2    | T4, T5, T6                 | `sonnet`                         | `opus`              |
+| 2    | T7 🧠                      | `opus` (validar com `architect`) | `fable`             |
 | 3    | T8, T9                     | `sonnet`                         | `opus`              |
 | 4    | T10, T11, T12              | `sonnet`                         | `opus`              |
 | 5    | T13 🧠, T14                | `opus` / `sonnet`                | `fable` / `opus`    |
@@ -37,30 +38,44 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       `report-document-delivery`, `attach-delivery-proof`, `register-driver-occurrence` e
       `report-stop-occurrence`, junto com os repositórios, para receber o alvo. Gate: os contratos de
       `/me/trips` e do WhatsApp rodam verdes **sem edição**. Contratos novos: alvo `trip` de outra
-      empresa → `null`; viagem sem motorista → `TRIP_WITHOUT_DRIVER`.
+      empresa → `null`; viagem sem motorista → `TRIP_WITHOUT_DRIVER`; `driverId` opcional no alvo
+      `trip` (padrão: motorista de `position = 1`; fora da viagem → 422 `DRIVER_NOT_ON_TRIP`).
 
 ## Fase 2 — API do escritório
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4 — Migration de autoria** (`channel`, `on_behalf_of_driver_id` e CHECK) nas seis tabelas de
-      campo. Aditiva. `make migration-test` verde, incluindo o rollback. O WhatsApp passa a gravar
+- [ ] **T4 — Migration de autoria** (`channel`, `on_behalf_of_driver_id` com FK composta
+      `(company_id, on_behalf_of_driver_id)`, `recorded_at` e CHECK) nas seis tabelas de campo. Aditiva. `make migration-test` verde, incluindo o rollback. O WhatsApp passa a gravar
       `whatsapp`.
 - [ ] **T5 — Rotas de viagem e parada**: `confirm-load`, `start-route`, `arrive` e ocorrência de
       parada, em `trip-field-office.routes.ts`. Contratos: 403 sem permissão (aceite 1), 404 para
       outra empresa (aceite 3), autoria gravada e `audit_logs` (aceite 2).
-- [ ] **T6 — `field-delivery`, `field-return` e `deliveredAt`**: multipart com foto, entrega e
-      comprovante na mesma transação, `Idempotency-Key`, validação de `deliveredAt` (aceite 8),
-      configuração de foto obrigatória (aceite 9) e logs sem PII (aceite 11).
-- [ ] **T7 — `allowedActions` em `GET /trips/:id`** e ocorrência em massa `field-occurrences`
-      (aceite 10).
+- [ ] **T6 — `field-delivery`, `field-return`, `field-proof` e `deliveredAt`**: multipart com foto,
+      entrega e comprovante na mesma transação, `Idempotency-Key` (`operation` prefixada `office.`;
+      mesma chave de outro ator → 422 `IDEMPOTENCY_KEY_REUSED`), validação de `deliveredAt` contra
+      `trip_dispatch_snapshots.dispatched_at` (aceite 8), configuração de foto obrigatória (aceite 9),
+      assinatura `required` cumprida com foto do canhoto assinado + nome do recebedor (D8), e logs sem
+      PII (aceite 11). Baixa repetida no canal `office` → 409 `DOCUMENT_ALREADY_SETTLED` sem evento
+      novo, com o canal do motorista inalterado (aceite 12). `field-proof` anexa ao evento `delivered`
+      existente, substitui pelo unique `(company, stop_event, kind)` e não muda `delivered_at`.
+- [ ] **T7 🧠 — `allowedActions` em `GET /trips/:id`**, ocorrência em massa `field-occurrences`
+      (aceite 10) e **leitura da viagem pelo `finance`** (D11): política `anyPermission` com
+      `['fleet.read', 'trip.report-on-behalf']` só em `GET /trips`, `GET /trips/:id`,
+      `GET /trips/:id/stops`, `GET …/documents/:documentId/proof` e
+      `GET …/documents/:documentId/occurrences`. Contratos: `finance` 200 nas cinco; 403 em
+      `/fleet/drivers`, no feed e na geometria; `driverTaxId`/`driverEmail`/`driverPhone` nulos sem
+      `fleet.read`, `driverName` presente (aceite 14). `opus`, validado com `architect`.
 
 ## Fase 3 — Tela: ações de campo
 
 > 🤖 Modelo: `sonnet`
 
 - [ ] **T8 — `TripFieldActions`**: iniciar rota, chegada e ocorrência de parada, controlados por
-      `allowedActions`. `tripStatus.service.ts` deixa de decidir as ações de campo.
+      `allowedActions`. `tripStatus.service.ts` deixa de decidir as ações de campo. Seletor de
+      motorista só quando a viagem tem mais de um. `canReadTrip(permissions)` substitui
+      `TRIP_READ_PERMISSION` (`trip.constant.ts:15`, `useTripWorkspace.hook.ts:130`), e o detalhe
+      funciona sem `useFleet` (placa pelo dado da viagem, ou omitida).
 - [ ] **T9 — Linha do tempo com autoria** ("por X (escritório) pelo motorista Y") e
       `FieldOccurrenceDialog` para uma nota ou para várias.
 
@@ -72,7 +87,8 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       barras legível, de outra nota, de fora da viagem e sem código). Contrato antes (aceite 6).
 - [ ] **T11 — `FieldDeliveryWizard`**: preview da câmera com a faixa da nota, captura, envio de
       arquivo, conferência, pular e "Entregue em". Serve para **uma** nota (ação da linha) e para
-      **várias** (ação em massa em `TripStateActions`). Imagem reduzida antes do envio.
+      **várias** (ação em massa em `TripStateActions`). Imagem reduzida antes do envio. Seletor de
+      motorista só quando a viagem tem mais de um.
 - [ ] **T12 — `useFieldDelivery`**: envia com concorrência 3, mostra o resultado de cada nota e
       repete só as que falharam (aceites 5 e 7). Smoke Playwright da entrega em massa com câmera
       simulada (`--use-fake-device-for-media-stream` com a imagem da fixture).
@@ -94,7 +110,9 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [ ] **T15 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA nas rotas `/trips/:id`,
       upload, PII nos logs) e auditoria do code-standart §15. Atualizar `CLAUDE.md` da API e do
       frontend, e `docs/spec/domain-model.md` (que também está desatualizado quanto a
-      `ON_DELIVERY_ROUTE`).
+      `ON_DELIVERY_ROUTE`). Corrigir no `apps/api-transportada/CLAUDE.md` a frase de que nenhuma rota
+      usa `trip.read`, e conferir se `GET /delivery-charges` (`trip.read`) recorta por vínculo para
+      motorista e agregado.
 
 ## Fase 7 — Revisão de design e usabilidade
 
@@ -117,7 +135,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 /oh-my-claudecode:autopilot Execute a spec specs/156-o-escritorio-da-baixa-pelo-motorista/ (leia
 spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet · Fase 1 (T2, T3 🧠) → opus, validado por architect antes de
-implementar · Fases 2, 3 e 4 → executor model=sonnet · T13 🧠 → opus · T14 → executor model=sonnet ·
+implementar · Fases 2, 3 e 4 → executor model=sonnet, exceto T7 🧠 → opus validado por architect · T13 🧠 → opus · T14 → executor model=sonnet ·
 revisão final T15 → code-reviewer + security-reviewer model=opus ·
 T16 revisão de design e usabilidade → designer model=opus, com prints ao usuário.
 Cada task fecha com typecheck + lint + testes da app (integração da API com --env-file=../../.env.test)

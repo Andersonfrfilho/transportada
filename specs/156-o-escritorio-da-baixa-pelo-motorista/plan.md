@@ -27,45 +27,73 @@
    ```ts
    type FieldTripTarget =
      | { readonly kind: 'driver'; readonly driverId: string }
-     | { readonly kind: 'trip'; readonly tripId: string; readonly companyId: string }
+     | {
+         readonly kind: 'trip'
+         readonly tripId: string
+         readonly companyId: string
+         readonly driverId?: string
+       }
    ```
 
    O repositório resolve `trip` filtrando por `companyId` e, quando não encontra, devolve `null`, que
-   vira 404. O motorista da viagem sai de `trip_drivers` e vira `onBehalfOfDriverId`. Viagem sem
-   motorista vinculado responde 422 `TRIP_WITHOUT_DRIVER`.
+   vira 404 (nunca 403). O motorista da viagem sai de `trip_drivers` e vira `onBehalfOfDriverId`: sem
+   `driverId`, o de `position = 1`; com `driverId`, ele precisa estar em `trip_drivers` da viagem, ou
+   responde 422 `DRIVER_NOT_ON_TRIP`. Viagem sem motorista vinculado responde 422
+   `TRIP_WITHOUT_DRIVER`.
 
 2. **Autoria**. Migration aditiva nas seis tabelas de campo: `channel varchar(16) not null default
 'driver_app'` e `on_behalf_of_driver_id uuid null` (FK para `fleet_drivers`, composta com
-   `company_id`). CHECK: `channel = 'office'` exige `on_behalf_of_driver_id`. O fluxo do WhatsApp
+   `company_id`: `(company_id, on_behalf_of_driver_id)`) e `recorded_at timestamptz not null default
+now()`. CHECK: `channel = 'office'` exige `on_behalf_of_driver_id`. O fluxo do WhatsApp
    passa a gravar `whatsapp`. Não tem backfill: o default já descreve o histórico.
 3. **Rotas do escritório** (`trip-field-office.routes.ts`, arquivo novo, para o `trip.routes.ts` não
    crescer mais), todas com `trip.report-on-behalf`:
 
-   | Método e path                                          | Caso de uso                                                                                                         |
-   | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-   | POST `/trips/:id/confirm-load`                         | `start-field-trip` (passo `confirmLoad`)                                                                            |
-   | POST `/trips/:id/start-route`                          | `start-field-trip` (passo `startRoute`)                                                                             |
-   | POST `/trips/:id/stops/:stopId/arrive`                 | chegada                                                                                                             |
-   | POST `/trips/:id/stops/:stopId/occurrences`            | `report-stop-occurrence`                                                                                            |
-   | POST `/trips/:id/documents/:documentId/field-delivery` | `report-document-delivery` + `attach-delivery-proof` na mesma transação (multipart: foto, recebedor, `deliveredAt`) |
-   | POST `/trips/:id/documents/:documentId/field-return`   | `report-document-delivery` (devolução)                                                                              |
-   | POST `/trips/:id/documents/field-occurrences`          | ocorrência em massa: `{ documentIds[], typeCode, note, attachment? }`                                               |
+   | Método e path                                          | Caso de uso                                                                                                                                                                  |
+   | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | POST `/trips/:id/confirm-load`                         | `start-field-trip` (passo `confirmLoad`)                                                                                                                                     |
+   | POST `/trips/:id/start-route`                          | `start-field-trip` (passo `startRoute`)                                                                                                                                      |
+   | POST `/trips/:id/stops/:stopId/arrive`                 | chegada                                                                                                                                                                      |
+   | POST `/trips/:id/stops/:stopId/occurrences`            | `report-stop-occurrence`                                                                                                                                                     |
+   | POST `/trips/:id/documents/:documentId/field-delivery` | `report-document-delivery` + `attach-delivery-proof` na mesma transação (multipart: foto, recebedor, `deliveredAt`)                                                          |
+   | POST `/trips/:id/documents/:documentId/field-return`   | `report-document-delivery` (devolução)                                                                                                                                       |
+   | POST `/trips/:id/documents/:documentId/field-proof`    | `attach-delivery-proof` sobre o evento `delivered` que já existe: substitui pelo unique `(company, stop_event, kind)` (ADR-0057), sem evento novo e sem mudar `delivered_at` |
+   | POST `/trips/:id/documents/field-occurrences`          | ocorrência em massa: `{ documentIds[], typeCode, note, attachment? }`                                                                                                        |
 
    A entrega em massa **não tem rota própria**: o cliente chama `field-delivery` uma vez por nota,
    cada chamada com o seu `Idempotency-Key`. Cada nota tem sua foto, e mandar tudo num multipart só
    tornaria impossível repetir apenas a nota que falhou.
 
-4. **`deliveredAt`** (D4). Zod na borda. O caso de uso valida contra `dispatchedAt` e o relógio, e
+   **Baixa repetida** (ADR-0067 §2): no canal `office`, nota já `delivered`/`returned` responde 409
+   `DOCUMENT_ALREADY_SETTLED`, sem `recordEvent`. Hoje `report-document-delivery.use-case.ts`
+   (:147-157) grava o evento mesmo quando pula o `settle`; o canal do motorista mantém isso.
+
+   **Idempotência**: `trip_field_reports` com `operation` prefixada `office.`; a mesma chave de outro
+   ator responde 422 `IDEMPOTENCY_KEY_REUSED`.
+
+4. **`deliveredAt`** (D4). Zod na borda. O caso de uso valida contra `trip_dispatch_snapshots.dispatched_at` e o relógio, e
    os erros `DELIVERED_AT_IN_FUTURE` e `DELIVERED_AT_BEFORE_DISPATCH` ficam em
    `shared/errors/codes.ts`. O motorista continua sem mandar o campo (vale "agora").
 5. **`allowedActions` em `GET /trips/:id`** (D10). A lista é calculada pela `trip-state.policy.ts`
    **e** pelas permissões do usuário, e o frontend para de reescrever essa regra.
 6. **Auditoria**. Cada registro do escritório grava em `audit_logs`, com ator, alvo, IP e horário.
+7. **Leitura da viagem pelo `finance`** (D11) 🧠. Variante de política `anyPermission`, com
+   `['fleet.read', 'trip.report-on-behalf']`, aplicada **só** a `GET /trips`, `GET /trips/:id`,
+   `GET /trips/:id/stops`, `GET …/documents/:documentId/proof` e
+   `GET …/documents/:documentId/occurrences`. Sem `fleet.read`, `driverTaxId`, `driverEmail` e
+   `driverPhone` saem nulos (`driverName` fica). `/fleet/drivers`, feed e geometria continuam só
+   com `fleet.read`.
+8. **Comprovante com assinatura exigida** (D8, exceção à ADR-0057 §1): foto do canhoto assinado +
+   nome do recebedor, gravado como comprovante do canal `office`. Documento do recebedor, se digitado,
+   passa pelo envelope e pela máscara da ADR-0057 §3.
 
 ### Frontend
 
 - `modules/trip/components/TripFieldActions.component.tsx`: iniciar rota e registrar chegada, na
-  parada. Aparece só com `allowedActions`.
+  parada. Aparece só com `allowedActions`. Seletor de motorista só quando a viagem tem mais de um.
+- `canReadTrip(permissions)` substitui `TRIP_READ_PERMISSION` (`trip.constant.ts:15`,
+  `useTripWorkspace.hook.ts:130`), e o detalhe da viagem funciona sem `useFleet` (placa pelo dado da
+  viagem, ou omitida).
 - `modules/trip/components/FieldDeliveryWizard.component.tsx` (D5): um passo por nota, com preview
   de câmera (`getUserMedia`) e, por cima dele, a faixa da nota (`FieldDeliveryNoteBanner`). Tem
   captura, conferência e pular. Também aceita **enviar arquivo** em vez da câmera, porque no desktop

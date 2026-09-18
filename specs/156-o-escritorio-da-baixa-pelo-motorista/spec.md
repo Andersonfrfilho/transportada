@@ -50,7 +50,9 @@ motorista <nome>".
   `trip.manage`, porque o separador tem essa permissão e não reporta entrega. Também não reusa
   `trip.report`, porque ela abre as rotas `/me` do motorista. _(Decisão do usuário: "permissão nova
   para a parte gerencial".)_ Perfis confirmados pelo usuário em 2026-09-18: `admin`, `operator` e `finance` (o canhoto às
-  vezes chega junto da cobrança).
+  vezes chega junto da cobrança). A permissão também pode vir por grupo da empresa; o aceite 1 vale
+  por papel. Registrada na ADR-0067, que revisa a ADR-0058 §4 só para deixar o escritório disparar os
+  dois toques (a máquina de estados e o ranking anti-regressão não mudam).
 - **D2 — As rotas do escritório espelham as do motorista**, com o `tripId` no caminho em vez da
   "viagem atual". Os casos de uso são os mesmos. O que muda é **como a viagem é encontrada**: pelo
   motorista (rotas `/me`) ou pela viagem da empresa (rotas `/trips/:id`). Não se cria um segundo
@@ -59,10 +61,24 @@ motorista <nome>".
   `channel` (`driver_app | office | whatsapp`) e, quando o canal é `office`, o `on_behalf_of_driver_id`
   (o motorista da viagem). `actor_user_id` continua sendo quem clicou. A linha do tempo mostra os dois.
   Também grava trilha em `audit_logs` (security.md §10). _(Decisão do usuário.)_
+  - **Vários motoristas:** por padrão é o motorista de `position = 1` em `trip_drivers`. O payload
+    pode trazer um `driverId` escolhido entre os motoristas da viagem; fora da viagem responde 422
+    `DRIVER_NOT_ON_TRIP`. Viagem sem motorista responde 422 `TRIP_WITHOUT_DRIVER`. A tela só mostra
+    o seletor quando a viagem tem mais de um motorista.
+  - **Isolamento:** viagem de outra empresa responde 404, não 403. A FK é composta,
+    `(company_id, on_behalf_of_driver_id)`.
+  - **Idempotência:** a mesma tabela `trip_field_reports`, com `operation` própria prefixada
+    `office.`. A mesma chave enviada por outro ator responde 422 `IDEMPOTENCY_KEY_REUSED`.
+  - **Baixa repetida:** no canal `office`, nota já `delivered` ou `returned` responde 409
+    `DOCUMENT_ALREADY_SETTLED`, sem evento novo. O canal do motorista continua idempotente como hoje.
+    Anexar o canhoto a uma entrega já feita é ação própria (`field-proof`): anexa ao evento
+    `delivered` existente, substitui pelo unique `(company, stop_event, kind)` da ADR-0057, e não cria
+    evento nem muda `delivered_at`.
 - **D4 — A hora da entrega é informada.** A baixa do escritório registra quando a entrega
   **aconteceu**, não quando foi digitada. O campo é "Entregue em", que vem preenchido com agora e pode
-  ser mudado. Não aceita hora futura nem anterior ao despacho da viagem. O horário em que o registro
-  foi feito continua gravado à parte (`recorded_at`).
+  ser mudado. Não aceita hora futura nem anterior ao despacho da viagem
+  (`trip_dispatch_snapshots.dispatched_at`). O horário em que o registro foi feito fica gravado à
+  parte (`recorded_at`, coluna nova da T4).
 - **D5 — Entrega em massa: uma foto de canhoto por nota.** O usuário marca as notas e abre um
   assistente que passa por uma nota de cada vez. Em cada passo, o preview da câmera mostra por cima o
   número e a série da nota, o destinatário e a cidade. O usuário tira a foto, confere e segue, ou
@@ -86,11 +102,18 @@ motorista <nome>".
 - **D7 — Ocorrência em massa.** O mesmo tipo de ocorrência, com a mesma observação e a mesma foto
   opcional, pode ser aplicado a várias notas marcadas (ex.: "cliente ausente" em uma parada com três
   notas). Grava uma ocorrência por nota.
-- **D8 — O comprovante segue a configuração da empresa (ADR-0057).** Se a empresa exige foto, o
-  escritório não conclui a entrega sem ela. Assinatura **não** é colhida pelo escritório, porque quem
-  assina é o recebedor. Se a configuração exigir assinatura, o escritório pode anexar a foto do
-  canhoto assinado como `photo` e informar o nome de quem recebeu. Isso fica registrado como
-  comprovante do escritório, não como assinatura digital.
+- **D8 — O comprovante segue a configuração da empresa (ADR-0057), com uma exceção explícita à
+  ADR-0057 §1.** Se a empresa exige foto, o escritório não conclui a entrega sem ela. Assinatura
+  **não** é colhida pelo escritório, porque quem assina é o recebedor. Com assinatura `required`, o
+  escritório cumpre com a foto do canhoto assinado mais o nome de quem recebeu. Isso fica registrado
+  como comprovante do canal `office`, não como assinatura digital. O documento do recebedor digitado
+  pelo escritório passa pelo mesmo envelope e pela mesma máscara da ADR-0057 §3.
+- **D11 — O `finance` lê a viagem sem ler a frota.** Uma variante de política "qualquer uma de"
+  (`anyPermission`), com `['fleet.read', 'trip.report-on-behalf']`, vale **só** para `GET /trips`,
+  `GET /trips/:id`, `GET /trips/:id/stops`, `GET …/documents/:documentId/proof` e
+  `GET …/documents/:documentId/occurrences`. Sem `fleet.read`, `driverTaxId`, `driverEmail` e
+  `driverPhone` vêm nulos; `driverName` fica. Rejeitados: dar `fleet.read` ao `finance` (expõe CPF,
+  CNH, PIX e endereço de todos os motoristas, security.md §1) e reusar `trip.read` (BOLA).
 - **D9 — O arquivo vai pela API, como no motorista.** O envio é multipart, validado pelo mesmo
   `delivery-proof.schema.ts`. A imagem é reduzida no navegador antes de subir (lado maior ≤ 2000 px,
   JPEG). Não se cria link de upload direto nesta spec.
@@ -125,6 +148,13 @@ motorista <nome>".
 10. Ocorrência em massa em 3 notas grava 3 ocorrências, dispara a notificação configurada de cada
     uma, e cada uma aparece em `/ocorrencias`.
 11. Nenhum log contém a imagem, o documento de quem recebeu ou o nome do destinatário (security.md §1).
+12. Dar baixa pelo escritório numa nota já entregue ou devolvida responde 409
+    `DOCUMENT_ALREADY_SETTLED` e não cria evento. Anexar o canhoto depois (`field-proof`) não muda
+    `delivered_at`.
+13. Viagem com dois motoristas: sem `driverId`, a autoria vai para o de `position = 1`; com `driverId`
+    de fora da viagem, responde 422 `DRIVER_NOT_ON_TRIP`.
+14. O `finance` abre a viagem (200 nas cinco leituras do D11) com `driverTaxId` nulo, e continua com
+    403 em `/fleet/drivers`, no feed e na geometria.
 
 ## Pendências
 
