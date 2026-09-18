@@ -2297,3 +2297,62 @@ Gates: `typecheck && lint && format:check && test && build` com exit 0 — contr
 **Observação (fora de escopo, não mexido):** a aba de **combustível** continua com
 `formatFuelPricePerUnit` e quatro casas fixas ("R$ 5,8900"). Mesma decisão caberia lá, mas o
 usuário a deixou de fora desta tarefa.
+
+#### Item 2 — alvo de toque do "Abrir calendário" no campo de data da Frota (#9 da T506)
+
+O botão do `DatePicker` dentro do `FleetDateField` tinha a caixa do ícone: **18×18px**. O
+`FleetDateField` passa a marcar o próprio rótulo com `.dateField`, e `.dateField button`
+(`fleet.module.css`) sobe a caixa a `min-width/min-height: var(--touch-target)` (44px) com o ícone
+no centro — o ícone continua 18px. A margem negativa devolve exatamente o que a caixa cresceu
+(`margin-block: calc((var(--icon-size-md) - var(--touch-target)) / 2)`; na horizontal a borda
+direita da caixa para na borda interna do gatilho), então o gatilho não cresce. Vale em todas as
+larguras: é neutro para o layout e tablet também é toque. O primitivo `@/components/ui/date-picker`
+não mudou — a regra fica escopada ao campo da Frota, como pedido.
+
+**Telas que usam o campo** (grep de `FleetDateField`): **3 telas, 7 campos** — aba **Pedágio**
+("Data da tarifa", 1 por praça), **ficha do motorista** na aba Motoristas ("Primeira habilitação",
+"Validade da CNH" e o terceiro campo de data da ficha) e o **cadastro rápido de motorista** que abre
+do proprietário agregado em "Novo veículo" (os mesmos 3 campos).
+
+Medido no `vite preview` (Playwright, 1440×900 e 390×844), botão · ícone · gatilho, e
+`elementFromPoint` a 20px do centro do ícone nas quatro direções:
+
+| Tela / largura          | antes: botão | depois: botão | ícone | gatilho (altura, y) antes → depois | toque a 20px |
+| ----------------------- | ------------ | ------------- | ----- | ---------------------------------- | ------------ |
+| Pedágio 1440            | 18×18        | 44×44         | 18    | 48, 853 → 48, 853                  | ✗✗✗✗ → ✓✓✓✓  |
+| Pedágio 390             | 18×18        | 44×44         | 18    | 48, 398 → 48, 398                  | ✗✗✗✗ → ✓✓✓✓  |
+| Ficha do motorista 1440 | 18×18        | 44×44         | 18    | 48, 426 → 48, 426                  | ✗✗✗✗ → ✓✓✓✓  |
+| Ficha do motorista 390  | 18×18        | 44×44         | 18    | 48, 398 → 48, 398                  | ✗✗✗✗ → ✓✓✓✓  |
+| Cadastro rápido 1440    | 18×18        | 44×44         | 18    | 48, 426 → 48, 426                  | ✗✗✗✗ → ✓✓✓✓  |
+| Cadastro rápido 390     | 18×18        | 44×44         | 18    | 48, 398 → 48, 398                  | ✗✗✗✗ → ✓✓✓✓  |
+
+Os vizinhos não andaram: os campos da mesma coluna ficaram nas mesmas coordenadas (ex.: "Validade da
+CNH" em y 615/638/622 e "Diária" em 669/758/742 antes e depois, desktop/celular/cadastro rápido); o
+ícone deslocou 1px para a esquerda.
+
+Teste novo `test/fleet/date-field-touch-target.contract.ts`, no molde de
+`test/trip/mobile-first.contract.ts` (regra lida do CSS com o `@media` que a envolve): o rótulo do
+`FleetDateField` carrega `.dateField`; `.dateField button` tem `min-width`/`min-height` em
+`var(--touch-target)` na base; as margens neutralizam o crescimento; nenhum breakpoint desfaz o alvo.
+
+```
+$ bun test ./test/fleet/date-field-touch-target.contract.ts     # antes do conserto
+(fail) … > o FleetDateField marca o próprio rótulo com a classe que carrega o alvo
+(fail) … > o botão sobe ao alvo de toque na base (celular), sem tamanho literal
+         Expected to contain: "min-width: var(--touch-target)"  Received: []
+(fail) … > a margem negativa devolve o que a caixa cresceu — o campo não muda de altura
+ 1 pass
+ 3 fail
+$ bun test ./test/fleet/date-field-touch-target.contract.ts     # depois
+ 4 pass
+ 0 fail
+```
+
+Gates: exit 0 — contratos **4415 pass / 0 fail**, `test:hooks` **14 pass / 0 fail**, build ✓.
+
+Prints (antes/depois, recorte do campo com os vizinhos): `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/{before,after}-{desktop,mobile}-date-01-toll.png`,
+`…-date-02-driver-form.png`, `…-date-03-driver-quick-create.png`.
+
+**Observação:** o mesmo botão de 18px existe em todo `DatePicker` fora da Frota (o primitivo não foi
+tocado). Levar a regra para `date-range-picker.module.css` resolve a app inteira de uma vez; fica
+como pendência explícita, fora do escopo pedido.

@@ -1453,6 +1453,19 @@
 }
 
 /*
+ * O botão do calendário tem o tamanho do ícone (18px) e o dedo erra no celular: a caixa sobe ao alvo
+ * de toque com o ícone no centro, e a margem negativa devolve o que ela cresceu — o campo não muda de
+ * altura, e a borda direita da caixa para na borda interna do gatilho.
+ */
+.dateField button {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  margin-block: calc((var(--icon-size-md) - var(--touch-target)) / 2);
+  margin-inline: calc(var(--icon-size-md) - var(--touch-target) + var(--field-padding))
+    calc(-1 * var(--field-padding));
+}
+
+/*
  * A aba de pedágio (e o diálogo da recarga, que sai por portal) opera com o dedo no celular: o
  * controle compacto sobe ao alvo de toque, como já faz `.tripShell`.
  */
