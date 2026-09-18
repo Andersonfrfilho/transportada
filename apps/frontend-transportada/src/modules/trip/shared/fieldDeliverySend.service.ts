@@ -11,7 +11,19 @@ export const FIELD_DELIVERY_SEND_CONCURRENCY = 3
 export type FieldDeliverySendOutcome =
   | Readonly<{ kind: 'alreadySettled' }>
   | Readonly<{ kind: 'delivered' }>
-  | Readonly<{ code: string; kind: 'failed' }>
+  | Readonly<{ code: string; kind: 'failed'; retryable: boolean }>
+
+/**
+ * M13a (spec 156 T15): só erro transitório é reenviável — rede (sem status: nunca chegou a ter
+ * resposta), `429` (rate limit) e `5xx`. `400`/`422` são recusa terminal do que foi enviado
+ * (validação/regra de negócio): reenviar o mesmo corpo produz o mesmo erro, e "tentar de novo" ali
+ * só engana quem clicou.
+ */
+export function isRetryableFieldDeliveryStatus(status: number | undefined): boolean {
+  if (status === undefined) return true
+  if (status === 429) return true
+  return status >= 500
+}
 
 export type FieldDeliverySendStatus =
   | FieldDeliverySendOutcome

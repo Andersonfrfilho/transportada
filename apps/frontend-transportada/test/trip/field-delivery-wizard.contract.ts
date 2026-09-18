@@ -106,6 +106,22 @@ describe('máquina de passos do assistente de baixa (spec 156 D5)', () => {
     expect(collectFieldDeliveryDrafts(next)).toEqual([])
   })
 
+  it('M13b: pular depois de voltar para uma nota já confirmada descarta o rascunho antigo', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    const confirmed = fieldDeliveryWizardReducer(state, {
+      draft: draftFor('doc-1'),
+      kind: 'confirmRequested',
+    })
+    expect(collectFieldDeliveryDrafts(confirmed)).toEqual([draftFor('doc-1')])
+
+    const back = fieldDeliveryWizardReducer(confirmed, { kind: 'previousRequested' })
+    expect(currentFieldDeliveryDocument(back)?.documentId).toBe('doc-1')
+
+    const skipped = fieldDeliveryWizardReducer(back, { kind: 'skipRequested' })
+    expect(skipped.skippedDocumentIds).toContain('doc-1')
+    expect(collectFieldDeliveryDrafts(skipped)).toEqual([])
+  })
+
   it('voltar retorna ao passo anterior, sem apagar o que já foi decidido', () => {
     const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
     const afterSkip = fieldDeliveryWizardReducer(state, { kind: 'skipRequested' })

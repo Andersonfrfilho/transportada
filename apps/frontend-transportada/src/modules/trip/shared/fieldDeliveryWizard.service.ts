@@ -156,7 +156,14 @@ export function fieldDeliveryWizardReducer(
       const skippedDocumentIds = state.skippedDocumentIds.includes(current.documentId)
         ? state.skippedDocumentIds
         : [...state.skippedDocumentIds, current.documentId]
-      const partial = { ...state, skippedDocumentIds }
+      /**
+       * M13b (spec 156 T15): "Pular" tem de valer mesmo depois de "Voltar" para uma nota já
+       * confirmada — sem isto, o rascunho antigo sobrevivia em `drafts` e ia junto no envio, contra
+       * a decisão que a pessoa acabou de tomar na tela.
+       */
+      const drafts = { ...state.drafts }
+      delete drafts[current.documentId]
+      const partial = { ...state, drafts, skippedDocumentIds }
       const currentIndex = firstUndoneIndex(partial, state.currentIndex + 1)
       return { ...partial, currentIndex, step: stepAtIndex(state.documents, currentIndex) }
     }

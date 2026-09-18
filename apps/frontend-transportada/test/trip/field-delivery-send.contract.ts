@@ -2,10 +2,12 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  isRetryableFieldDeliveryStatus,
   runFieldDeliverySendBatch,
   type FieldDeliverySendOutcome,
 } from '../../src/modules/trip/shared/fieldDeliverySend.service'
 import type { FieldDeliveryDraft } from '../../src/modules/trip/shared/fieldDeliveryWizard.service'
+import { readTripRequestErrorStatus } from '../../src/modules/trip/shared/tripClient.service'
 
 function draftFor(documentId: string): FieldDeliveryDraft {
   return { deliveredAt: '2026-09-18T12:00:00.000Z', documentId, imageBlob: new Blob() }
@@ -66,13 +68,17 @@ describe('fila de envio da baixa em massa (spec 156 T12)', () => {
       send: (draft) =>
         Promise.resolve(
           draft.documentId === 'doc-3'
-            ? { code: 'REQUEST_FAILED', kind: 'failed' as const }
+            ? { code: 'REQUEST_FAILED', kind: 'failed' as const, retryable: true }
             : { kind: 'delivered' as const },
         ),
     })
 
     expect(Object.keys(outcomeByDocumentId)).toHaveLength(5)
-    expect(outcomeByDocumentId['doc-3']).toEqual({ code: 'REQUEST_FAILED', kind: 'failed' })
+    expect(outcomeByDocumentId['doc-3']).toEqual({
+      code: 'REQUEST_FAILED',
+      kind: 'failed',
+      retryable: true,
+    })
     expect(outcomeByDocumentId['doc-1']).toEqual({ kind: 'delivered' })
     expect(outcomeByDocumentId['doc-5']).toEqual({ kind: 'delivered' })
   })
@@ -89,5 +95,41 @@ describe('fila de envio da baixa em massa (spec 156 T12)', () => {
       },
     })
     expect(calls).toBe(0)
+  })
+})
+
+/**
+ * M13a (spec 156 T15): a falha só é reenviável quando é transitória — rede (sem status), 429 e
+ * 5xx. 400/422 é recusa terminal do corpo enviado.
+ */
+describe('isRetryableFieldDeliveryStatus (spec 156 T15, M13a)', () => {
+  it('sem status (falha de rede) é reenviável', () => {
+    expect(isRetryableFieldDeliveryStatus(undefined)).toBe(true)
+  })
+
+  it('429 (rate limit) é reenviável', () => {
+    expect(isRetryableFieldDeliveryStatus(429)).toBe(true)
+  })
+
+  it('5xx é reenviável', () => {
+    expect(isRetryableFieldDeliveryStatus(500)).toBe(true)
+    expect(isRetryableFieldDeliveryStatus(503)).toBe(true)
+  })
+
+  it('400 e 422 não são reenviáveis — recusa terminal do corpo enviado', () => {
+    expect(isRetryableFieldDeliveryStatus(400)).toBe(false)
+    expect(isRetryableFieldDeliveryStatus(422)).toBe(false)
+  })
+})
+
+describe('readTripRequestErrorStatus (spec 156 T15, M13a)', () => {
+  it('lê o status de um erro do cliente da viagem', () => {
+    const error = Object.assign(new Error('DELIVERED_AT_IN_FUTURE'), { status: 400 })
+    expect(readTripRequestErrorStatus(error)).toBe(400)
+  })
+
+  it('erro sem status (rede, ou erro de outra origem) devolve undefined', () => {
+    expect(readTripRequestErrorStatus(new Error('REQUEST_FAILED'))).toBeUndefined()
+    expect(readTripRequestErrorStatus('not-an-error')).toBeUndefined()
   })
 })

@@ -50,6 +50,11 @@ export function FieldDeliverySendStep({
   const deliveredCount = statuses.filter((status) => status.kind === 'delivered').length
   const alreadySettledCount = statuses.filter((status) => status.kind === 'alreadySettled').length
   const failedCount = statuses.filter((status) => status.kind === 'failed').length
+  /** M13a: só a falha transitória oferece "tentar de novo" — a terminal (400/422) precisa de
+   * correção no que foi enviado, não de reenvio do mesmo corpo. */
+  const retryableFailedCount = statuses.filter(
+    (status) => status.kind === 'failed' && status.retryable,
+  ).length
 
   function statusLabel(documentId: string): string {
     const status = fieldDelivery.statusByDocumentId[documentId]
@@ -98,10 +103,10 @@ export function FieldDeliverySendStep({
       </ul>
 
       <div className={styles.captureActions}>
-        {failedCount > 0 && !fieldDelivery.isSubmitting ? (
+        {retryableFailedCount > 0 && !fieldDelivery.isSubmitting ? (
           <Button onClick={fieldDelivery.retryFailed} type="button">
             <Icon name="refresh" />
-            {t('fieldDelivery.sendRetry', { count: failedCount })}
+            {t('fieldDelivery.sendRetry', { count: retryableFailedCount })}
           </Button>
         ) : null}
         <Button onClick={onRequestClose} type="button" variant="secondary">

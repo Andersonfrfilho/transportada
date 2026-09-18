@@ -2,11 +2,13 @@
 import { useRef, useState } from 'react'
 
 import {
+  isRetryableFieldDeliveryStatus,
   runFieldDeliverySendBatch,
   type FieldDeliverySendOutcome,
   type FieldDeliverySendStatus,
 } from '../shared/fieldDeliverySend.service'
 import type { FieldDeliveryDraft } from '../shared/fieldDeliveryWizard.service'
+import { readTripRequestErrorStatus } from '../shared/tripClient.service'
 import type { ReportFieldDeliveryInput, ReportFieldDeliveryResult } from '../shared/trip.types'
 
 export type { FieldDeliverySendStatus } from '../shared/fieldDeliverySend.service'
@@ -80,7 +82,10 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
       return { kind: result.alreadySettled ? 'alreadySettled' : 'delivered' }
     } catch (error) {
       const code = error instanceof Error ? error.message : 'REQUEST_FAILED'
-      return { code, kind: 'failed' }
+      /** M13a: só erro transitório (rede/5xx/429) é reenviável — 400/422 é recusa terminal do que
+       * foi enviado, e reenviar o mesmo corpo repete o mesmo erro. */
+      const retryable = isRetryableFieldDeliveryStatus(readTripRequestErrorStatus(error))
+      return { code, kind: 'failed', retryable }
     }
   }
 
@@ -119,7 +124,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
 
   function retryFailed(): void {
     const failedDrafts = Object.entries(statusByDocumentId)
-      .filter(([, status]) => status.kind === 'failed')
+      .filter(([, status]) => status.kind === 'failed' && status.retryable)
       .map(([documentId]) => draftsRef.current[documentId])
       .filter((draft): draft is FieldDeliveryDraft => draft !== undefined)
     submit(failedDrafts)

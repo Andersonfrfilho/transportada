@@ -694,7 +694,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
         isOpen={fieldOccurrenceDocumentIds !== null}
         isSubmitting={workspace.registerFieldOccurrencesMutation.isPending}
-        onClose={() => setFieldOccurrenceDocumentIds(null)}
+        onClose={() => {
+          /** M13h: fechar encerra o lote — a próxima abertura para as mesmas notas não reusa a
+           * `Idempotency-Key` de um envio que não terminou em sucesso. */
+          workspace.resetFieldOccurrenceIdempotency(fieldOccurrenceDocumentIds ?? [])
+          setFieldOccurrenceDocumentIds(null)
+        }}
         onSubmit={(input) => {
           if (fieldOccurrenceDocumentIds === null) return
           workspace.registerFieldOccurrencesMutation.mutate(

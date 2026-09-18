@@ -514,6 +514,15 @@ export function useTripWorkspace(
   function clearFieldReportKey(scope: string): void {
     delete fieldReportKeysRef.current[scope]
   }
+  /**
+   * M13h (spec 156 T15): a chave só se apaga em sucesso — fechar o diálogo depois de um erro (ou
+   * sem enviar) e reabri-lo para o mesmo maço de notas reusaria a mesma `Idempotency-Key` com um
+   * corpo talvez diferente (outro tipo, outra observação). Fechar o diálogo é o sinal de que aquele
+   * envio acabou; a próxima abertura é sempre um lote novo.
+   */
+  function resetFieldOccurrenceIdempotency(documentIds: readonly string[]): void {
+    clearFieldReportKey(`field-occurrence:${[...documentIds].toSorted().join(',')}`)
+  }
 
   const confirmLoadTripMutation = useMutation({
     mutationFn: controller.confirmLoadTrip,
@@ -692,6 +701,7 @@ export function useTripWorkspace(
     fieldOccurrenceTypesQuery,
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
+    resetFieldOccurrenceIdempotency,
     invalidateFieldDeliveryEffects,
     reportStopArrivalMutation,
     reportStopOccurrenceMutation,

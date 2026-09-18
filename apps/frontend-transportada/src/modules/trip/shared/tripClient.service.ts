@@ -303,8 +303,21 @@ export type TripClient = Readonly<{
   ) => Promise<TransitionTripDocumentResult>
 }>
 
-function requestError(code: string): Error {
-  return new Error(code)
+/** M13a (spec 156 T15): carrega o status HTTP junto com o código de negócio — sem ele, quem recebe
+ * o erro não distingue uma falha transitória (rede/5xx/429, reenviável) de uma terminal (400/422). */
+export type TripRequestError = Error & { readonly status?: number }
+
+function requestError(code: string, status?: number): TripRequestError {
+  const error = new Error(code) as TripRequestError
+  return status === undefined ? error : Object.assign(error, { status })
+}
+
+/** Lê o status HTTP de um erro lançado por este cliente — `undefined` cobre falha de rede (nunca
+ * chegou a ter resposta) e qualquer erro que não veio daqui. */
+export function readTripRequestErrorStatus(error: unknown): number | undefined {
+  if (!(error instanceof Error) || !('status' in error)) return undefined
+  const status = (error as TripRequestError).status
+  return typeof status === 'number' ? status : undefined
 }
 
 function readErrorCode(payload: unknown): string {
@@ -332,7 +345,7 @@ async function requestJson(
   } catch {
     throw requestError(response.ok ? TRIP_ERROR.RESPONSE_INVALID : TRIP_ERROR.REQUEST_FAILED)
   }
-  if (!response.ok) throw requestError(readErrorCode(payload))
+  if (!response.ok) throw requestError(readErrorCode(payload), response.status)
   return payload
 }
 
