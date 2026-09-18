@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
@@ -29,6 +30,14 @@ import {
 } from '../shared/packageBoxMeasurementLabel.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
+import {
+  PACKAGE_BOX_PENDING_EXPORT_LIMIT,
+  buildPackageBoxPendingExportCsv,
+  buildPackageBoxPendingExportSheetData,
+  PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE,
+  packageBoxPendingExportFileName,
+  type PackageBoxPendingExportLabels,
+} from '../shared/packageBoxPendingExport.service'
 import {
   resolveReplicateOffer,
   shouldOpenReplicateDialog,
@@ -59,6 +68,13 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
+  /** Export de "tudo o que falta medir" — sempre a fila inteira, independente da busca da tela. */
+  pendingExport: Readonly<{
+    boxes: readonly PackageBox[]
+    failed: boolean
+    isTruncated: boolean
+    loading: boolean
+  }>
   /**
    * Spec 155 (G004, D5): quem grava a réplica confirmada pelo diálogo. `onSuccess` fecha o diálogo
    * desta chamada — nunca um efeito que reage ao `replicateSaving` global (T14 ALTO-2/MÉDIO-4).
@@ -139,6 +155,7 @@ export function PackageBoxMeasurementPanel({
   onScan,
   onSearchChange,
   onStatusChange,
+  pendingExport,
   queue,
   replicateErrorCode,
   replicateSaving,
@@ -317,6 +334,49 @@ export function PackageBoxMeasurementPanel({
     setCameraFlowBox(undefined)
   }
 
+  function pendingExportLabels(): PackageBoxPendingExportLabels {
+    return {
+      emptyValue: '—',
+      header: {
+        cartonGtin: t('packageBoxes.pendingExport.columns.cartonGtin'),
+        commercialUnit: t('packageBoxes.pendingExport.columns.commercialUnit'),
+        description: t('packageBoxes.pendingExport.columns.description'),
+        emitterTaxId: t('packageBoxes.pendingExport.columns.emitterTaxId'),
+        familyKey: t('packageBoxes.pendingExport.columns.familyKey'),
+        productCode: t('packageBoxes.pendingExport.columns.productCode'),
+        transportedVolumes: t('packageBoxes.pendingExport.columns.transportedVolumes'),
+      },
+    }
+  }
+
+  function todayIsoDate(): string {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function handleExportPendingCsv(): void {
+    const csv = buildPackageBoxPendingExportCsv({
+      boxes: pendingExport.boxes,
+      labels: pendingExportLabels(),
+    })
+    saveArchiveFile({
+      blob: new Blob([csv], { type: PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE }),
+      fileName: packageBoxPendingExportFileName({ extension: 'csv', today: todayIsoDate() }),
+    })
+  }
+
+  async function handleExportPendingXlsx(): Promise<void> {
+    const sheetData = buildPackageBoxPendingExportSheetData({
+      boxes: pendingExport.boxes,
+      labels: pendingExportLabels(),
+    })
+    const { default: writeExcelFile } = await import('write-excel-file/browser')
+    const blob = await writeExcelFile(sheetData.map((row) => [...row])).toBlob()
+    saveArchiveFile({
+      blob,
+      fileName: packageBoxPendingExportFileName({ extension: 'xlsx', today: todayIsoDate() }),
+    })
+  }
+
   const scanner = (
     <BarcodeScanner
       closeLabel={t('packageBoxes.scanner.close')}
@@ -354,6 +414,43 @@ export function PackageBoxMeasurementPanel({
           <Icon name="download" />
           {t('packageBoxes.printCard.open')}
         </Button>
+        <div className={styles.actions}>
+          <Button
+            disabled={
+              pendingExport.loading || pendingExport.failed || pendingExport.boxes.length === 0
+            }
+            onClick={() => {
+              void handleExportPendingXlsx()
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="download" />
+            {t('packageBoxes.pendingExport.xlsx')}
+          </Button>
+          <Button
+            disabled={
+              pendingExport.loading || pendingExport.failed || pendingExport.boxes.length === 0
+            }
+            onClick={handleExportPendingCsv}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="download" />
+            {t('packageBoxes.pendingExport.csv')}
+          </Button>
+        </div>
+        {/*
+          ⚠️ O arquivo com teto não pode parecer completo: sem este aviso, a empresa com mais
+          caixas pendentes que o teto baixaria uma lista cortada achando que é a fila inteira.
+        */}
+        {pendingExport.isTruncated ? (
+          <p className={styles.hint} role="status">
+            {t('packageBoxes.pendingExport.truncated', { limit: PACKAGE_BOX_PENDING_EXPORT_LIMIT })}
+          </p>
+        ) : null}
       </header>
 
       {/*

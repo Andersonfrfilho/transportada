@@ -760,6 +760,20 @@
         "3": "Pilha ou outra caixa escondendo a base.",
         "4": "Reflexo de luz ou sombra em cima do cartão."
       }
+    },
+    "pendingExport": {
+      "csv": "Baixar CSV",
+      "xlsx": "Baixar Excel",
+      "columns": {
+        "productCode": "Código do produto",
+        "description": "Descrição",
+        "cartonGtin": "GTIN da caixa",
+        "emitterTaxId": "CNPJ emitente",
+        "familyKey": "Família",
+        "commercialUnit": "Embalagem",
+        "transportedVolumes": "Quantidade pendente"
+      },
+      "truncated": "O arquivo traz as {{limit}} caixas pendentes que mais rodam — há mais caixas por medir além delas."
     }
   },
   "addressCorrection": {

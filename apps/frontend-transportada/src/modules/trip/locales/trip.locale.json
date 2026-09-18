@@ -634,7 +634,11 @@
     },
     "goToQueue": "Ir para a fila de medição",
     "title": "O que falta medir",
-    "unknownProduct": "Produto sem identificação"
+    "unknownProduct": "Produto sem identificação",
+    "export": {
+      "csv": "Baixar CSV",
+      "xlsx": "Baixar Excel"
+    }
   },
   "pagination": {
     "next": "Próxima página",

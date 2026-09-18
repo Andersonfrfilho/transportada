@@ -137,7 +137,13 @@ type ClientDependencies = Readonly<{
 
 export type PackageBoxClient = Readonly<{
   listBoxes: (
-    input?: Readonly<{ scanned?: string; search?: string; status?: PackageBoxStatusFilter }>,
+    input?: Readonly<{
+      /** A API aceita até `MAX_LIMIT` (200, `package-box.schema.ts`); sem isto ela usa 50. */
+      limit?: number
+      scanned?: string
+      search?: string
+      status?: PackageBoxStatusFilter
+    }>,
   ) => Promise<PackageBoxQueue>
   /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
   getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
@@ -202,6 +208,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       /** A etiqueta vai crua: reduzir DUN-14 a GTIN-13 é decisão da API, não da tela. */
       if (input?.scanned) url.searchParams.set('scanned', input.scanned)
       if (input?.status !== undefined) url.searchParams.set('status', input.status)
+      if (input?.limit !== undefined) url.searchParams.set('limit', String(input.limit))
 
       const response = await dependencies.fetch(url, {
         headers: { authorization: await authorization() },

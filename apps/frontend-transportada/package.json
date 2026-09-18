@@ -42,7 +42,8 @@
     "react-dom": "19.2.0",
     "react-i18next": "16.5.0",
     "tailwind-merge": "3.4.0",
-    "workbox-window": "7.4.1"
+    "workbox-window": "7.4.1",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

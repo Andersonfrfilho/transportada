@@ -586,6 +586,20 @@
         "3": "A stack or another box hiding the base.",
         "4": "Glare or shadow over the card."
       }
+    },
+    "pendingExport": {
+      "csv": "Download CSV",
+      "xlsx": "Download Excel",
+      "columns": {
+        "productCode": "Product code",
+        "description": "Description",
+        "cartonGtin": "Carton GTIN",
+        "emitterTaxId": "Issuer tax ID",
+        "familyKey": "Family",
+        "commercialUnit": "Packaging",
+        "transportedVolumes": "Pending quantity"
+      },
+      "truncated": "The file holds the {{limit}} pending boxes that move the most — there are more boxes to measure beyond them."
     }
   },
   "addressCorrection": {

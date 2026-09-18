@@ -476,7 +476,11 @@
     },
     "goToQueue": "Go to measurement queue",
     "title": "What's left to measure",
-    "unknownProduct": "Unidentified product"
+    "unknownProduct": "Unidentified product",
+    "export": {
+      "csv": "Download CSV",
+      "xlsx": "Download Excel"
+    }
   },
   "pagination": {
     "next": "Next page",

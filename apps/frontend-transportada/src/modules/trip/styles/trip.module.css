@@ -165,6 +165,12 @@
   background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .sortButton {
   display: inline-flex;
   gap: var(--space-1);

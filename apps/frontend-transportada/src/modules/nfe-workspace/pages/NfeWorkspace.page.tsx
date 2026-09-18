@@ -32,6 +32,7 @@ import {
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
 import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
+import { usePackageBoxPendingExport } from '../hooks/usePackageBoxPendingExport.hook'
 import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
@@ -277,6 +278,11 @@ export function NfeWorkspacePage() {
     enabled: canManageSettings && activeTab === 'addresses',
   })
   const packageBoxes = usePackageBoxQueue({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canMeasureCargo && activeTab === 'boxes',
+  })
+  /** Export do que falta medir — sempre a fila inteira (teto da API), nunca a busca da fila interativa. */
+  const packageBoxPendingExport = usePackageBoxPendingExport({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canMeasureCargo && activeTab === 'boxes',
   })
@@ -729,6 +735,7 @@ export function NfeWorkspacePage() {
                       onScan={packageBoxes.setScanned}
                       onSearchChange={packageBoxes.setSearch}
                       onStatusChange={packageBoxes.setStatus}
+                      pendingExport={packageBoxPendingExport}
                       queue={packageBoxes.queue}
                       replicateErrorCode={packageBoxes.replicateErrorCode}
                       replicateSaving={packageBoxes.replicate.isPending}
