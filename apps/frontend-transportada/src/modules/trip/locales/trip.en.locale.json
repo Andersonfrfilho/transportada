@@ -374,6 +374,33 @@
   },
   "empty": "No trip found",
   "error": "Could not load trips",
+  "eventTimeline": {
+    "empty": "Nothing recorded on this trip yet",
+    "error": "Could not load the timeline",
+    "itemTitle": {
+      "dispatched": "Trip dispatched",
+      "documentDelivered": "{{document}} delivered",
+      "documentLabel": "Invoice {{invoice}}",
+      "documentOccurrence": "Occurrence on {{document}}: {{type}}",
+      "documentReturned": "{{document}} returned",
+      "documentStatusChanged": "{{document}} — {{status}}",
+      "statusChanged": "Status changed to {{status}}",
+      "stopArrived": "Arrival at stop {{sequence}}",
+      "stopArrivedUnknown": "Arrival at stop",
+      "stopOccurrence": "Occurrence: {{type}}",
+      "unknownDocument": "Invoice",
+      "unknownOccurrenceType": "unspecified",
+      "unknownStatus": "unspecified"
+    },
+    "loading": "Loading the timeline",
+    "loadingMore": "Loading more",
+    "loadMore": "Load more",
+    "onlyOpenDocument": "Only this invoice",
+    "recordedAt": "recorded at {{moment}}",
+    "retry": "Try again",
+    "returnReason": "Return reason: {{reason}}",
+    "title": "Timeline"
+  },
   "feedback": {
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",

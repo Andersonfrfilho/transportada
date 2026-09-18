@@ -1,0 +1,82 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/**
+ * Spec 158 T8: a linha do tempo de eventos da viagem — lista cronológica com autoria, no molde de
+ * `nfeWorkspace.module.css` (`.eventHistory*`) e `cteIssuance.module.css` (`.timeline*`). Não é o
+ * desenho da linha do tempo de rota (spec 110, trilho + marcas por km) — domínio visual diferente.
+ */
+.section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.head h3 {
+  margin: 0;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.itemTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.itemMeta {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.itemTime {
+  font-variant-numeric: tabular-nums;
+}
+
+.itemRecorded {
+  font-variant-numeric: tabular-nums;
+}
+
+.itemAuthorship {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+}
+
+.itemDetail {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.hint {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+}
+
+.error {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  color: var(--color-copper);
+}

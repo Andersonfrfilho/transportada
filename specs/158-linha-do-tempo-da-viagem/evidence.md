@@ -734,3 +734,136 @@ não existe" como a T5/T6 tinham, porque o contrato da API já estava fechado e 
   que também não tem contrato próprio) não têm precedente de teste direto neste módulo — a lógica
   que vale testar (`canReadTrip`, `tripTimelineFromApi`, `readTripTimeline`) já está coberta em
   `timeline.contract.ts`/`trip.constant.ts`. Registrado aqui como desvio explícito, não omitido.
+
+## T8
+
+### Arquivos
+
+- `apps/frontend-transportada/src/modules/trip/components/TripTimeline.component.tsx` (novo): a
+  seção "Linha do tempo" — `<section aria-labelledby>` com `<h3>`, `<ol>` de itens (`<li>` com
+  `<time dateTime>`), estados carregando (`SkeletonGroup`/`Skeleton`, molde de
+  `CteIssuanceStatusPanel`), vazio, erro com "tentar de novo" e "carregar mais" (`Button` do design
+  system, desabilitado durante `isFetchingNextPage`). O checkbox "Só esta nota" (`@/components/ui/checkbox`)
+  só aparece quando existe nota aberta (`openDocumentId !== null`) e filtra no cliente.
+- `apps/frontend-transportada/src/modules/trip/styles/tripTimeline.module.css` (novo): ver "Decisão
+  de CSS" abaixo.
+- `apps/frontend-transportada/src/modules/trip/shared/tripTimeline.service.ts` (novo, puro/testável):
+  `resolveTripTimelineTitle` (título por `kind`, reaproveitando `status.*`/`separationStatus.*` — não
+  inventa vocabulário novo), `removeDuplicateDispatchEvents` (o par `trip.dispatched` +
+  `trip.status_changed→dispatched` no mesmo `occurredAt`, D5/D8), `filterTripTimelineItemsByDocumentId`
+  (o filtro "Só esta nota", por `document.id`).
+- `apps/frontend-transportada/src/modules/trip/hooks/useTripTimeline.hook.ts`: **não alterado** — T7
+  já entregou a assinatura `{ permissions, tripId }` certa para ser chamada onde a página já tem as
+  duas coisas (ver "Onde a linha do tempo é montada" abaixo).
+- `apps/frontend-transportada/src/modules/trip/pages/TripDetail.page.tsx`: chama `useTripTimeline`
+  e monta `<TripTimeline>` entre `<TripDetail>` e `<TripFinancialPanel>`, atrás de
+  `workspace.controller.canReadTrips` (mesma política de leitura do D4). `openDocumentId` vem de
+  `workspace.openProofDocumentId` — a nota com o comprovante aberto no detalhe (a única noção de
+  "nota selecionada" que a tela já tinha, `TripDeliveryProofLoader`/`onToggleProof`).
+- `apps/frontend-transportada/src/modules/trip/locales/{trip,trip.en}.locale.json`: namespace novo
+  `eventTimeline.*` — **não** `timeline.*`: essa chave já existe (a linha do tempo de rota da spec
+  110, aba de montagem — `driverPayment`, `tollUnknown`, `openEnd`…), e reaproveitá-la colidiria
+  string com objeto. `eventTimeline.itemTitle.*` guarda os títulos por `kind` (títulos de item, não
+  de seção — o cabeçalho da seção é `eventTimeline.title`, e as duas chaves não podiam ter o mesmo
+  nome no JSON).
+- `apps/frontend-transportada/src/modules/trip/styles/trip.module.css`: as 18 classes `.timeline*`
+  órfãs da spec 110 (trilho, marca de parada/praça/base, pagamento) removidas — ver "Decisão de CSS".
+- `test/trip/timeline-view.contract.ts` (novo, importado por `test/trip.contract.test.ts`): as
+  funções puras de `tripTimeline.service.ts`.
+- `test/trip-timeline-smoke.helper.ts` (novo) e `test/trip-timeline.smoke.spec.ts` (novo, registrado
+  em `playwright.config.ts` `testMatch`): mock de `GET /trips/:id/timeline` com os oito `kind`s do D5
+  em duas páginas (a segunda só quando o cliente manda `cursor`), exercitando a seção e "carregar
+  mais".
+
+### Decisão de CSS: módulo próprio, não as classes órfãs de `trip.module.css`
+
+A spec pedia escolher entre as classes órfãs `.timeline*` (`trip.module.css:2403-2484`, spec 110) e
+um módulo novo — a outra saída sai no mesmo commit. Escolhido **módulo próprio**
+(`tripTimeline.module.css`), e as 18 classes órfãs (`.timeline`, `.timelineRow`, `.timelineRail`,
+`.timelineBody`, `.timelineMeta`, `.timelineDot`, `.timelineBase`, `.timelineOpenEnd`,
+`.timelineToll`/`.timelineTollUnknown`, `.timelineBooth`, `.timelineGap`, `.timelineApproximate`,
+`.timelinePayment`, `.timelinePaymentMark`, `.timelineRemoved`) foram removidas de `trip.module.css`.
+
+Motivo: confirmado por `grep` que nenhum `.tsx` do módulo `trip` referenciava `styles.timeline*` —
+eram mortas desde que a spec que as desenhou terminou. E, mais importante, é um desenho **diferente**:
+o CSS órfão é o trilho vertical com marcas geométricas por quilômetro da rota do dia (parada é
+número, praça é quadrado, base é losango, pagamento é `R$`) — a linha do tempo de _eventos_ que a
+T8 pede é uma lista cronológica de cartões com autoria, o mesmo gênero visual de
+`NfeDocumentEventHistoryDrawer.component.tsx` (`nfeWorkspace.module.css` `.eventHistory*`) e
+`CteIssuanceStatusPanel.component.tsx` (`cteIssuance.module.css` `.timeline*`, mas ali sim já é o
+mesmo gênero — cartão com título/descrição). Forçar o CSS de trilho+km sobre uma lista de eventos
+com autoria produziria uma metáfora visual errada (praça, base, pagamento não fazem sentido aqui).
+
+### Onde a linha do tempo é montada
+
+`useTripTimeline({ permissions, tripId })` é chamado em `TripDetail.page.tsx`, não dentro de
+`useTripWorkspace.hook.ts` nem dentro de `TripDetail.component.tsx`. Duas razões:
+
+1. **Evita import circular.** `useTripTimeline.hook.ts` importa `getTripClient` de
+   `useTripWorkspace.hook.ts` (T7). Se `useTripWorkspace.hook.ts` importasse `useTripTimeline` de
+   volta, os dois módulos se importariam um ao outro.
+2. **Já existe o precedente exato**: `TripFinancialPanel` (o painel "antes de custos" da instrução)
+   é montado do mesmo jeito — hook próprio (`useTripFinancials({ permissions, tripId })`) chamado em
+   `TripDetail.page.tsx`, renderizado como irmão de `<TripDetail>`, sem entrar em `useTripWorkspace`.
+   `TripTimeline` segue o mesmo molde, e por isso a posição na tela ("depois das paradas/notas, antes
+   de custos") saiu literal: `<TripTimeline>` fica entre `<TripDetail>` e `<TripFinancialPanel>`.
+
+### TDD
+
+`test/trip/timeline-view.contract.ts` foi escrito contra `tripTimeline.service.ts` antes da função
+existir (import de módulo inexistente — vermelho por módulo não encontrado), cobrindo: o par de
+despacho duplicado removido só quando `occurredAt` bate exatamente (e mantido quando não há o par —
+viagem anterior ao deploy da D1, e quando o instante diverge); o filtro por nota aberta (com e sem
+`documentId`); o título dos oito `kind`s, inclusive os dois casos "nunca id cru" (nota sem
+número/série, parada nula) caindo no rótulo genérico em vez de vazar o id.
+
+O smoke (`trip-timeline.smoke.spec.ts`) foi escrito contra o mock antes de rodar — vermelho por
+timeout de login na primeira tentativa (faltava `VITE_SMOKE_AUTH_BYPASS=true`, que o script `smoke`
+do `package.json` já exporta — rodei o `playwright test` direto para isolar o spec novo, e precisei
+repetir a mesma variável manualmente), depois vermelho de novo porque o print mobile capturava o
+topo da página (viewport, não a seção — corrigido com `section.screenshot()` +
+`scrollIntoViewIfNeeded()` em vez de `page.screenshot()`), verde depois disso.
+
+### Comandos e contagens
+
+- `bun run typecheck` (raiz, monorepo inteiro) — sem erros.
+- `bun run lint` (raiz, todas as apps) — sem erros/avisos, após adicionar `<Icon name="chevron-down">`
+  ao botão "Carregar mais": `test/trip/action-icons.contract.ts` reprova qualquer `<Button>` do
+  módulo sem ícone (web.md §9), e eu tinha deixado o botão só com texto.
+- `bunx prettier --check` nos arquivos alterados/criados — todos conformes.
+- `bun test test/trip.contract.test.ts`: **1116 pass, 0 fail** (18138 `expect()`) — 15 casos novos
+  (`timeline-view.contract.ts`).
+- `bun run test` (suíte inteira da app): **4514 pass, 0 fail** nos contratos + **19 pass, 0 fail** em
+  `test:hooks`.
+- `bun run build` — concluído sem erro; a lista de chunks > 500 kB não ganhou entrada nova
+  (`TripDetail.page` cresceu para 281 kB, mas fica abaixo do teto de aviso).
+- Smoke: `VITE_SMOKE_AUTH_BYPASS=true PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bunx playwright test
+test/trip-timeline.smoke.spec.ts` (variáveis de `.env` exportadas antes, `set -a; . ../../.env; set
++a`) — **1 passed**. Prints em
+  `specs/158-linha-do-tempo-da-viagem/prints/t8-timeline-{desktop,mobile}.png`.
+
+### Revisão de design (web.md §15)
+
+Desktop: cartões consistentes com os vizinhos da tela (mesma borda, fundo, espaçamento e tipografia
+de `TripFiscalReadinessPanel`/`TripOccurrences`), contraste ok em claro e escuro (tema único da app).
+Sem primitivo cru: `Button`, `Icon`, `Checkbox`, `Skeleton`/`SkeletonGroup` do design system.
+
+**Pendência registrada, não corrigida nesta task**: no print mobile, a barra de navegação lateral
+(`position: fixed`, ícones dos workspaces) sobrepõe a coluna de conteúdo ao rolar a página — visível
+atrás dos cartões da linha do tempo. Não é um defeito do CSS desta task (`tripTimeline.module.css`
+não usa `position: fixed` em lugar nenhum, e a faixa sobreposta tem a largura exata da barra lateral
+global) — é comportamento do shell da aplicação, que se manifestaria atrás de **qualquer** seção
+rolada para baixo da tela em mobile, não só a linha do tempo. Fica fora do escopo de T8 (RF6 é sobre
+a linha do tempo, não sobre o shell), registrado aqui para uma task própria.
+
+### Desvios do pedido
+
+- **`useTripWorkspace.hook.ts` não ganhou `timelineQuery`**: cogitado primeiro (mesmo padrão de
+  `occurrencesQuery`/`deliveryProofsQuery`), descartado pelo import circular explicado acima. A T8
+  pedia "decidir como consumir" o hook — a decisão foi replicar o molde de `useTripFinancials`, já
+  validado na mesma tela.
+- **Filtro "Só esta nota" não coberto pelo smoke**: a nota aberta (`openProofDocumentId`) exige
+  clicar em "ver comprovante" numa parada antes, o que o smoke desta task não monta (fora do
+  `mockTripWorkspaceApi` padrão sem produtos/comprovante). O filtro no cliente já está coberto, sem
+  ambiguidade, por `filterTripTimelineItemsByDocumentId` em `timeline-view.contract.ts` — decisão de
+  não duplicar em E2E o que a unidade já prova.

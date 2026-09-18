@@ -496,6 +496,33 @@
   },
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
+  "eventTimeline": {
+    "empty": "Nada registrado ainda nesta viagem",
+    "error": "Não foi possível carregar a linha do tempo",
+    "itemTitle": {
+      "dispatched": "Viagem despachada",
+      "documentDelivered": "{{document}} entregue",
+      "documentLabel": "Nota {{invoice}}",
+      "documentOccurrence": "Ocorrência em {{document}}: {{type}}",
+      "documentReturned": "{{document}} devolvida",
+      "documentStatusChanged": "{{document}} — {{status}}",
+      "statusChanged": "Situação alterada para {{status}}",
+      "stopArrived": "Chegada na parada {{sequence}}",
+      "stopArrivedUnknown": "Chegada em parada",
+      "stopOccurrence": "Ocorrência: {{type}}",
+      "unknownDocument": "Nota",
+      "unknownOccurrenceType": "não informado",
+      "unknownStatus": "não informada"
+    },
+    "loading": "Carregando a linha do tempo",
+    "loadingMore": "Carregando mais",
+    "loadMore": "Carregar mais",
+    "onlyOpenDocument": "Só esta nota",
+    "recordedAt": "registrado em {{moment}}",
+    "retry": "Tentar de novo",
+    "returnReason": "Motivo da devolução: {{reason}}",
+    "title": "Linha do tempo"
+  },
   "feedback": {
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",

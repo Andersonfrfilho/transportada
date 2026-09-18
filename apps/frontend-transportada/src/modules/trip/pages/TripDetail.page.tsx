@@ -14,7 +14,9 @@ import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostE
 import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
 
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
+import { TripTimeline } from '../components/TripTimeline.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
+import { useTripTimeline } from '../hooks/useTripTimeline.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { navigateToTrips } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
@@ -56,6 +58,14 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    */
   const costEntries = useTripCostEntries({ permissions, tripId })
 
+  /**
+   * Spec 158 T8 (RF6): a linha do tempo fica entre o detalhe (paradas/notas) e o razão financeiro —
+   * o mesmo lugar de `TripFinancialPanel`, montado ao lado dele pela mesma razão: a permissão que
+   * cada painel exige é assimétrica (D4 aqui, `trip.financials` lá), e cada um decide sozinho se
+   * aparece.
+   */
+  const timeline = useTripTimeline({ permissions, tripId })
+
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())
   }
@@ -95,6 +105,10 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
             vehicles={fleet.viewModel.vehicles ?? []}
             workspace={workspace}
           />
+          {/* Spec 158 T8 (RF6): entre o detalhe (paradas/notas) e o razão financeiro. */}
+          {workspace.controller.canReadTrips ? (
+            <TripTimeline openDocumentId={workspace.openProofDocumentId} query={timeline} />
+          ) : null}
           {/*
             Spec 061 D4: o painel da conta só existe para quem tem `trip.financials`. Quem monta a
             viagem decide pela avaliação prevista, que não mostra o que se paga ao agregado.

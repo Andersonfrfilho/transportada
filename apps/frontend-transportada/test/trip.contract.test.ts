@@ -1,5 +1,6 @@
 import './trip/client-and-controller.contract.js'
 import './trip/timeline.contract.js'
+import './trip/timeline-view.contract.js'
 import './trip/table-and-form.contract.js'
 import './trip/quick-create.contract.js'
 import './trip/driver-bound-vehicles.contract.js'

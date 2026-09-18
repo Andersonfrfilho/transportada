@@ -71,7 +71,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       `readTripTimeline`, `useTripTimeline` (cursor), `fieldAuthorship.service.ts` com `backoffice`,
       "canal não registrado", "por <nome> pelo WhatsApp" e "usuário removido"; `TripOccurrences` migrado para a
       função única.
-- [ ] **T8 — `TripTimeline` no detalhe da viagem** (RF6). Carregando, vazio, erro, "carregar mais",
+- [x] **T8 — `TripTimeline` no detalhe da viagem** (RF6). Carregando, vazio, erro, "carregar mais",
       filtro pela nota aberta; `occurredAt` e "registrado em" quando houver `recordedAt`. Decidir
       entre as classes órfãs `.timeline*` de `trip.module.css` e um módulo próprio — a outra saída é
       apagada. Smoke Playwright. Print desktop e celular.

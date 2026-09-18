@@ -25,7 +25,11 @@ const REUSE_EXISTING_FRONTEND_SERVER = shouldReuseExistingServer(
 
 export default defineConfig({
   testDir: './test',
-  testMatch: ['responsive.smoke.spec.ts', 'field-delivery.smoke.spec.ts'],
+  testMatch: [
+    'responsive.smoke.spec.ts',
+    'field-delivery.smoke.spec.ts',
+    'trip-timeline.smoke.spec.ts',
+  ],
   workers: 1,
   use: {
     baseURL: `http://localhost:${FRONTEND_PORT}`,
