@@ -37,6 +37,7 @@ function buildRoutine(input: {
     now: () => NOW,
     purgeStalePings: input.purgeStalePings,
     redact: async () => 0,
+    redactProofLocations: async () => 0,
   })
 }
 
@@ -68,7 +69,12 @@ describe('o expurgo do rastro ao vivo', () => {
     const result = await routine.run(buildContext())
 
     expect(result.outcome).toBe('succeeded')
-    expect(result.counters).toEqual({ batches: 0, purgedPings: 1120, redacted: 0 })
+    expect(result.counters).toEqual({
+      batches: 0,
+      purgedPings: 1120,
+      redacted: 0,
+      redactedProofs: 0,
+    })
     expect(asked).toHaveLength(4)
     expect(asked[0]?.before).toEqual(resolveTrackingPurgeCutoff(NOW))
   })
@@ -76,7 +82,7 @@ describe('o expurgo do rastro ao vivo', () => {
   test('base sem ping vencido termina em sucesso sem apagar nada', async () => {
     const result = await buildRoutine({ purgeStalePings: async () => 0 }).run(buildContext())
 
-    expect(result.counters).toEqual({ batches: 0, purgedPings: 0, redacted: 0 })
+    expect(result.counters).toEqual({ batches: 0, purgedPings: 0, redacted: 0, redactedProofs: 0 })
   })
 
   /**

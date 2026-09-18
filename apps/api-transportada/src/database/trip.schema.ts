@@ -1287,6 +1287,14 @@ export const tripDeliveryProofs = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     unique('trip_delivery_proofs_company_id_id_unique').on(table.companyId, table.id),
+    /**
+     * Spec 157 T11 (item 8): a posição da foto é dado de localização como a do evento de entrega, e
+     * o expurgo dos 90 dias do worker (`trip.location.purge`) a apaga pelo mesmo corte — sem este
+     * índice ele varreria todo comprovante do histórico.
+     */
+    index('trip_delivery_proofs_located_created_at_idx')
+      .on(table.createdAt)
+      .where(sql`${table.latitude} is not null`),
     /** Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. */
     unique('trip_delivery_proofs_company_event_kind_unique').on(
       table.companyId,

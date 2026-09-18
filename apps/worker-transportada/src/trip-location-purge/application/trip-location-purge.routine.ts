@@ -17,7 +17,11 @@ import {
   TRIP_LOCATION_RETENTION_DAYS,
   TRIP_TRACKING_MAX_AGE_HOURS,
 } from '../domain/trip-location-purge.constant.js'
-import type { PurgeStalePings, RedactTripLocations } from './trip-location.port.js'
+import type {
+  PurgeStalePings,
+  RedactDeliveryProofLocations,
+  RedactTripLocations,
+} from './trip-location.port.js'
 
 const COMPLETED_OUTCOME: JobOutcome = 'succeeded'
 
@@ -27,6 +31,8 @@ export type TripLocationPurgeRoutineDependencies = {
   /** ADR-0056 §2: o rastro ao vivo, com prazo próprio e muito mais curto que o da coordenada. */
   readonly purgeStalePings: PurgeStalePings
   readonly redact: RedactTripLocations
+  /** Spec 157 T11: a posição da foto do comprovante, no mesmo corte de 90 dias. */
+  readonly redactProofLocations: RedactDeliveryProofLocations
 }
 
 /**
@@ -58,6 +64,12 @@ async function runCycle(input: {
     redactedCount += redacted
     batchCount += 1
   }
+
+  const redactedProofs = await redactInBatches({
+    before,
+    context,
+    redact: dependencies.redactProofLocations,
+  })
 
   /**
    * ADR-0056 §2: o rastro ao vivo, no mesmo ciclo e com corte próprio. Ele **não** depende de a
@@ -93,13 +105,36 @@ async function runCycle(input: {
       pingBatches,
       purgedPings,
       redacted: redactedCount,
+      redactedProofs,
       retentionDays: TRIP_LOCATION_RETENTION_DAYS,
       trackingMaxAgeHours: TRIP_TRACKING_MAX_AGE_HOURS,
     },
   })
 
   return {
-    counters: { batches: batchCount, purgedPings, redacted: redactedCount },
+    counters: { batches: batchCount, purgedPings, redacted: redactedCount, redactedProofs },
     outcome: COMPLETED_OUTCOME,
   }
+}
+
+/** Mesmo teto de lotes e mesma parada no limite do lote que o laço da coordenada do evento. */
+async function redactInBatches(input: {
+  readonly before: Date
+  readonly context: JobRoutineContext
+  readonly redact: RedactDeliveryProofLocations
+}): Promise<number> {
+  let redactedCount = 0
+  let batchCount = 0
+
+  while (batchCount < TRIP_LOCATION_PURGE_MAX_BATCHES && !input.context.isStopRequested()) {
+    const redacted = await input.redact({
+      before: input.before,
+      limit: TRIP_LOCATION_PURGE_BATCH_SIZE,
+    })
+    if (redacted === 0) break
+    redactedCount += redacted
+    batchCount += 1
+  }
+
+  return redactedCount
 }

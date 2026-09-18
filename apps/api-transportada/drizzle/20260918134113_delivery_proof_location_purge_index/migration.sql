@@ -1,0 +1,1 @@
+CREATE INDEX "trip_delivery_proofs_located_created_at_idx" ON "trip_delivery_proofs" ("created_at") WHERE "latitude" is not null;
