@@ -2,18 +2,32 @@
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
-import type {
-  DriverFieldReport,
-  DriverOccurrenceType,
-  DriverOccurrenceTypesResult,
-  DriverTripSnapshot,
-  ProofPunctuality,
+import {
+  PROOF_PUNCTUALITY_VALUES,
+  type DriverFieldReport,
+  type DriverOccurrenceType,
+  type DriverOccurrenceTypesResult,
+  type DriverTripSnapshot,
+  type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 /** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
 const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
+
+/**
+ * Spec 157 (T11): a API recusa `accuracyMeters` acima de 10 km com `400` (item 4 da revisão). O
+ * cliente nunca manda um valor que a API já sabe que vai recusar — precisão fora disso vira
+ * ausência, exatamente como GPS desligado (ADR-0045 §3). Vale para a captura nova **e** para o que
+ * já estava parado na fila offline com o valor antigo, sem teto: os dois passam por aqui.
+ */
+export const MAX_PROOF_ACCURACY_METERS = 10_000
+
+export function clampProofAccuracyMeters(accuracyMeters: number | undefined): number | undefined {
+  if (accuracyMeters === undefined) return undefined
+  return accuracyMeters > MAX_PROOF_ACCURACY_METERS ? undefined : accuracyMeters
+}
 
 export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
@@ -146,9 +160,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
       if (input.latitude !== undefined) form.set('latitude', String(input.latitude))
       if (input.longitude !== undefined) form.set('longitude', String(input.longitude))
-      if (input.accuracyMeters !== undefined) {
-        form.set('accuracyMeters', String(input.accuracyMeters))
-      }
+      const accuracyMeters = clampProofAccuracyMeters(input.accuracyMeters)
+      if (accuracyMeters !== undefined) form.set('accuracyMeters', String(accuracyMeters))
       if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
 
       const payload = await request({
@@ -278,8 +291,6 @@ async function requestFile(
   }
 }
 
-const PROOF_PUNCTUALITY_VALUES = ['not_required', 'on_time', 'late', 'away', 'late_and_away']
-
 function toProofAttachResult(
   payload: unknown,
 ): Readonly<{ id: string; punctuality: ProofPunctuality }> {
@@ -293,7 +304,7 @@ function toProofAttachResult(
   if (
     typeof record.id !== 'string' ||
     typeof record.punctuality !== 'string' ||
-    !PROOF_PUNCTUALITY_VALUES.includes(record.punctuality)
+    !(PROOF_PUNCTUALITY_VALUES as readonly string[]).includes(record.punctuality)
   ) {
     throw new DriverTripResponseError()
   }
