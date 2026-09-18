@@ -27,10 +27,15 @@ const VALID_MODES = {
   signature: 'optional',
 } as const
 
+/**
+ * Spec 156 T14, ADR-0069 §6: `canhotoOcrEnabled` entra na mesma verificação — a API sempre o
+ * devolve junto dos quatro modos e dos cinco parâmetros de pontualidade.
+ */
 function validSettings(overrides: Partial<Record<string, number>> = {}) {
   return {
     ...VALID_MODES,
     ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+    canhotoOcrEnabled: false,
     ...overrides,
   }
 }
@@ -68,10 +73,12 @@ describe('os cinco parâmetros da nota do motorista no painel de comprovante (RF
     expect(isDeliveryProofPunctualityValue('proofWindowMinutes', 60.5)).toBe(false)
   })
 
-  it('a configuração da empresa exige os quatro modos e os cinco parâmetros', () => {
+  it('a configuração da empresa exige os quatro modos, os cinco parâmetros e o interruptor', () => {
     expect(isCompanyDeliveryProofSettings(validSettings())).toBe(true)
     expect(isCompanyDeliveryProofSettings({ ...VALID_MODES })).toBe(false)
     expect(isCompanyDeliveryProofSettings(validSettings({ proofWindowMinutes: 4 }))).toBe(false)
+    const { canhotoOcrEnabled: _canhotoOcrEnabled, ...withoutSwitch } = validSettings()
+    expect(isCompanyDeliveryProofSettings(withoutSwitch)).toBe(false)
   })
 
   /**

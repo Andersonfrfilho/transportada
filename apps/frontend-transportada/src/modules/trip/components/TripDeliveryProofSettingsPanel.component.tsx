@@ -110,6 +110,12 @@ export function TripDeliveryProofSettingsPanel({
     if (!isPunctualityValid) return
     onSaveSettings({
       ...effective,
+      /**
+       * Spec 156 T14, ADR-0069 §6: `saveDeliveryProofSettings` nunca manda este campo no corpo — o
+       * `PUT` o trata como opcional e "ausente não mexe". Ele só entra aqui para satisfazer o tipo
+       * `CompanyDeliveryProofSettings`; quem liga/desliga de verdade é `onToggleCanhotoOcr`.
+       */
+      canhotoOcrEnabled: canhotoOcrEnabled ?? false,
       latePenaltyPoints: punctualityFieldValue('latePenaltyPoints'),
       missingAfterHours: punctualityFieldValue('missingAfterHours'),
       missingPenaltyPoints: punctualityFieldValue('missingPenaltyPoints'),

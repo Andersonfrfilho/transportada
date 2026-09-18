@@ -158,9 +158,9 @@ export function isCompanyDeliveryProofSettings(
   value: unknown,
 ): value is CompanyDeliveryProofSettings {
   return (
-    isDeliveryProofFieldSettings(value) &&
-    isDeliveryProofPunctualitySettings(value) &&
     isRecord(value) &&
-    typeof value['canhotoOcrEnabled'] === 'boolean'
+    typeof value['canhotoOcrEnabled'] === 'boolean' &&
+    isDeliveryProofFieldSettings(value) &&
+    isDeliveryProofPunctualitySettings(value)
   )
 }
