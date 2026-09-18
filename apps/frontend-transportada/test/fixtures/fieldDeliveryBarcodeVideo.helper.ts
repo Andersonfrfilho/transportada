@@ -14,16 +14,22 @@ import { join } from 'node:path'
 
 import { buildAccessKeyBarcodeFrame } from './canhotoBarcodeFrame.fixture'
 
-const FRAME_WIDTH = 640
-const FRAME_HEIGHT = 480
+/**
+ * 640×480 corta a chave inteira (Code128-C de 44 dígitos a 3px por módulo passa de 800px): o
+ * smoke da T12 não precisa ler — confirma a conferência de qualquer jeito —, mas os prints da T16
+ * precisam de "código de barras lido", e passam um quadro maior.
+ */
+export type FieldDeliveryVideoFrameSize = Readonly<{ height: number; width: number }>
+
+const DEFAULT_FRAME_SIZE: FieldDeliveryVideoFrameSize = { height: 480, width: 640 }
 const NEUTRAL_CHROMA = 128
 const WHITE = 255
 
-function buildLumaPlane(
-  barcodeLuminance: Uint8ClampedArray,
-  barcodeWidth: number,
-  barcodeHeight: number,
-): Uint8Array {
+type BarcodeLuminance = Readonly<{ height: number; luminance: Uint8ClampedArray; width: number }>
+
+function buildLumaPlane(barcode: BarcodeLuminance, size: FieldDeliveryVideoFrameSize): Uint8Array {
+  const { height: FRAME_HEIGHT, width: FRAME_WIDTH } = size
+  const { height: barcodeHeight, luminance: barcodeLuminance, width: barcodeWidth } = barcode
   const plane = new Uint8Array(FRAME_WIDTH * FRAME_HEIGHT).fill(WHITE)
   const left = Math.max(0, Math.floor((FRAME_WIDTH - barcodeWidth) / 2))
   const top = Math.max(0, Math.floor((FRAME_HEIGHT - barcodeHeight) / 2))
@@ -38,12 +44,9 @@ function buildLumaPlane(
 }
 
 /** Y4M `C420jpeg`: um quadro I420 — luma cheia, croma pela metade em cada eixo, tudo neutro. */
-function buildY4mFile(
-  barcodeLuminance: Uint8ClampedArray,
-  barcodeWidth: number,
-  barcodeHeight: number,
-): Buffer {
-  const yPlane = buildLumaPlane(barcodeLuminance, barcodeWidth, barcodeHeight)
+function buildY4mFile(barcode: BarcodeLuminance, size: FieldDeliveryVideoFrameSize): Buffer {
+  const { height: FRAME_HEIGHT, width: FRAME_WIDTH } = size
+  const yPlane = buildLumaPlane(barcode, size)
   const chromaSize = (FRAME_WIDTH / 2) * (FRAME_HEIGHT / 2)
   const uPlane = new Uint8Array(chromaSize).fill(NEUTRAL_CHROMA)
   const vPlane = new Uint8Array(chromaSize).fill(NEUTRAL_CHROMA)
@@ -62,12 +65,15 @@ function buildY4mFile(
  * Escreve o vídeo no diretório temporário do sistema e devolve o caminho, pronto para
  * `--use-file-for-fake-video-capture=<path>` no `launchOptions.args` do Playwright.
  */
-export function writeFieldDeliveryBarcodeVideo(accessKey: string): string {
+export function writeFieldDeliveryBarcodeVideo(
+  accessKey: string,
+  size: FieldDeliveryVideoFrameSize = DEFAULT_FRAME_SIZE,
+): string {
   const frame = buildAccessKeyBarcodeFrame(accessKey)
-  const file = buildY4mFile(frame.luminance, frame.width, frame.height)
+  const file = buildY4mFile(frame, size)
   const directory = join(tmpdir(), 'transportada-field-delivery-smoke')
   mkdirSync(directory, { recursive: true })
-  const path = join(directory, `${accessKey}.y4m`)
+  const path = join(directory, `${accessKey}-${String(size.width)}x${String(size.height)}.y4m`)
   writeFileSync(path, file)
   return path
 }
