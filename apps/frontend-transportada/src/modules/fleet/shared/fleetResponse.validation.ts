@@ -29,6 +29,7 @@ import type {
   FleetCapabilities,
   FleetDriverAvailability,
   FleetDriverDetail,
+  FleetDriverListItem,
   FleetDriverPage,
   FleetDriverVehicleLink,
   FleetDriverVehiclePair,
@@ -204,6 +205,12 @@ function isDriverAddress(value: unknown): boolean {
   )
 }
 
+/** ADR-0068 §5: a nota é inteira de 0 a 100, ou `null` sem histórico. */
+function isDriverScore(value: unknown): value is number | null {
+  if (value === null) return true
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100
+}
+
 function isDriver(value: unknown): value is FleetDriverDetail {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_DETAIL_KEYS) || !hasEveryKey(value, DRIVER_DETAIL_KEYS)) {
@@ -357,6 +364,14 @@ export function createFleetResponseAdapters() {
     return input
   }
 
+  /** Spec 157 RF10: só a listagem carrega `score`; a ficha criada/editada continua sem ele. */
+  function scoredDriverFromApi(input: unknown): FleetDriverListItem {
+    if (!isRecord(input)) throw invalid()
+    const { score, ...driver } = input
+    if (!isDriverScore(score)) throw invalid()
+    return { ...driverFromApi(driver), score }
+  }
+
   return {
     capabilitiesFromApi(input: unknown): FleetCapabilities {
       if (!isCapabilities(input)) throw invalid()
@@ -376,7 +391,7 @@ export function createFleetResponseAdapters() {
     },
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
-      return readPage(input, driverFromApi)
+      return readPage(input, scoredDriverFromApi)
     },
     driverCoverageListFromApi(input: unknown): readonly FleetDriverCoverage[] {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()

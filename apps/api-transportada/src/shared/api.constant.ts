@@ -86,6 +86,8 @@ export const API_TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
 export const API_TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
+/** Spec 157 RF10: a nota do motorista e as penalidades vigentes, `fleet.read` como a listagem. */
+export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'

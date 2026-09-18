@@ -230,6 +230,13 @@ aconteceu**; quem for escrever leitor para um desses campos precisa abrir o enve
 confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
+**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0068, spec 157):
+`DrizzleDriverScoreRepository` lê numa consulta só o último `delivered` de cada nota nos 90 dias (fora
+`channel = 'office'` e nota devolvida) para a lista inteira de motoristas, e `computeDriverScore`
+decide os pontos. Sai em `GET /me/trips/current` (`score`), em `GET /fleet/drivers` (`score` por
+item, uma leitura por página) e em `GET /fleet/drivers/:id/score` (nota + penalidades, `fleet.read`,
+404 para motorista alheio). ⚠️ Posição da foto nunca sai nessas respostas — só motivo, pontos e datas.
+
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
 torna o relatório de endereços legível. CEP vem de cadastro; a busca textual ainda sai do navegador

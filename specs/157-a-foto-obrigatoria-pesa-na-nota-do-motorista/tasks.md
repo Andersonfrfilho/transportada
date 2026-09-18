@@ -48,7 +48,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 
 ## Fase 3 — frota
 
-- [ ] **T8** `score` em `GET /fleet/drivers`; `GET /fleet/drivers/:id/score`. Aceite: caso 6, rota no
+- [x] **T8** `score` em `GET /fleet/drivers`; `GET /fleet/drivers/:id/score`. Aceite: caso 6, rota no
       OpenAPI.
 
 ## Fase 4 — telas

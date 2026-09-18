@@ -35,7 +35,10 @@ import {
   type TripDeliveryProofPunctuality,
   type TripFieldChannel,
 } from '../../src/database/trip.schema.js'
+import { createFleetDriverScoresUseCase } from '../../src/fleet/application/fleet-driver-scores.use-case.js'
+import { FleetDriverNotFoundError } from '../../src/fleet/domain/fleet.error.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
+import { DrizzleFleetDriverRepository } from '../../src/fleet/infrastructure/drizzle-fleet-driver.repository.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -216,6 +219,41 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
       expect(scores.get(ownDriver.driverId)).toBe(90)
       expect(scores.get(otherDriver.driverId)).toBeNull()
       expect(crossed).toEqual({ penalties: [], score: null })
+    })
+  })
+
+  /** Spec 157 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
+  testWithPostgres('frota: a listagem traz a nota e a ficha de outra empresa é 404', async () => {
+    await withDisposableDatabase(async (database) => {
+      const own = await seedCompany(database)
+      const other = await seedCompany(database)
+      const ownDriver = await seedDriver(database, own.companyId)
+      const otherDriver = await seedDriver(database, other.companyId)
+      await seedDelivery(database, {
+        actorUserId: ownDriver.userId,
+        company: own,
+        deliveredAgo: 2 * DAY,
+      })
+      const drivers = new DrizzleFleetDriverRepository(database.db)
+      const useCase = createFleetDriverScoresUseCase({
+        clock: () => NOW,
+        drivers,
+        listDrivers: (input) =>
+          drivers.list({ companyId: input.context.companyId, cursor: null, limit: input.limit }),
+        scores: new DrizzleDriverScoreRepository(database.db),
+      })
+      const context = { companyId: own.companyId, userId: own.userId }
+
+      const page = await useCase.list({ context, cursor: null, limit: 25 })
+      const sheet = await useCase.read({ context, driverId: ownDriver.driverId })
+      const crossed = useCase.read({ context, driverId: otherDriver.driverId })
+
+      expect(page.items.map((driver) => [driver.id, driver.score])).toEqual([
+        [ownDriver.driverId, 90],
+      ])
+      expect(sheet.score).toBe(90)
+      expect(sheet.penalties.map((penalty) => penalty.reason)).toEqual(['missing_proof'])
+      await expect(crossed).rejects.toBeInstanceOf(FleetDriverNotFoundError)
     })
   })
 })

@@ -380,3 +380,58 @@ Desvios: nenhum na regra. Decisão registrada: o recorte dos 90 dias fica **dent
 (para o índice servir); se uma correção de entrega fosse gravada depois com `captured_at` de mais de
 90 dias atrás, o evento anterior da mesma nota seria o eleito — caso só teórico, porque o
 `captured_at` do motorista é o relógio do aparelho no momento da entrega.
+
+## T8 — nota na frota: `score` em `GET /fleet/drivers` e `GET /fleet/drivers/:id/score`
+
+Arquivos:
+
+- `apps/api-transportada/src/fleet/application/fleet-driver-scores.use-case.ts` (novo) —
+  `list` embrulha a listagem existente e faz **uma** `readScores` com os ids da página (nunca uma por
+  motorista); `read` confere o motorista na empresa do contexto (`findById`) e só então lê
+  `readPenalties` — inexistente ou de outra empresa é `FleetDriverNotFoundError` (404
+  `FLEET_DRIVER_NOT_FOUND`, o erro da frota que já existia), sem consultar nota nenhuma. Relógio
+  injetado.
+- `apps/api-transportada/src/fleet/presentation/fleet.routes.ts` — a listagem serializa `score` por
+  item; rota nova `GET /fleet/drivers/:id/score` → `{ data: { score, penalties: [{ tripDocumentId,
+documentNumber, deliveredAt, expiresAt, reason, points }] } }`, `fleet.read` (a mesma da
+  listagem), `cache-control: no-store`. Nenhuma coordenada na resposta.
+- `apps/api-transportada/src/shared/api.constant.ts` — `API_FLEET_DRIVER_SCORE_PATH`.
+- `apps/api-transportada/src/main.ts` — `createFleetDriverScoresUseCase` com o
+  `DrizzleDriverScoreRepository` da T7; `listDrivers` passa por ele.
+- `apps/api-transportada/CLAUDE.md` — parágrafo da nota (onde sai, permissão, sem posição).
+- Frontend (compatibilidade, UI é T9/T10): `fleetResponse.validation.ts` valida a ficha com
+  `hasOnlyKeys`, então o `score` novo derrubaria a listagem. `driverListFromApi` passa a ler
+  `score` (inteiro 0–100 ou `null`) por item e valida o resto como antes; tipo
+  `FleetDriverListItem` em `fleet.types.ts` (`FleetDriverPage.items`), `useFleet.hook.ts` ajustado.
+  A ficha de criar/editar continua sem `score`. O snapshot do motorista
+  (`driverTripResponse.validation.ts`) não é estrito na raiz — `score` é ignorado até a T9.
+- Testes: `test/fleet-application/driver-scores.contract.ts` (novo, no entrypoint
+  `fleet-application.contract.test.ts`) — uma leitura por página com todos os ids, ficha com
+  penalidades, 404 sem ler nota; `test/fleet-http/driver-scores.contract.ts` (novo, no entrypoint
+  `fleet-http.contract.test.ts`) — listagem com `score`, rota com `fleet.read` só, 404 de motorista
+  alheio, 404 do roteador para id que não é UUID (o `:id` canônico é exigido antes do `parse`), 403
+  sem `fleet.read`; `drivers.contract.ts` e as fixtures com `score`;
+  `test/separator-role.contract.test.ts` — decisão por escrito: o separador alcança
+  `GET /fleet/drivers/:id/score` (a nota já chega na listagem que ele lê para montar a viagem e ordena
+  o seletor; a ficha só explica o número). Integração: caso novo em
+  `driver-score.integration.ts` — use case com os repositórios reais: listagem com a nota e ficha de
+  outra empresa → `FleetDriverNotFoundError` (aceite 6). Frontend: fixtures de listagem com `score`.
+
+Comandos e resultado:
+
+```
+$ bun run typecheck                                        # raiz — 0 erros
+$ bun run lint                                              # raiz — 0 erros
+$ DRIZZLE_TEST_DATABASE_URL=… bun --env-file=../../.env.test test --timeout 120000   # API, contrato
+ 6579 pass / 1 fail — 180 arquivos   # a única falha é a do Postgres 18 (23001 × 23503), igual à T7
+$ … test --timeout 120000 ./test/integration/driver-score.integration.ts ./test/integration/company-user-fleet-link.integration.ts
+ 11 pass / 0 fail / 0 skip
+$ bun run test                                              # apps/frontend-transportada
+ 4338 pass / 0 fail (+ 2 pass test:hooks)
+```
+
+Desvio: o aceite pedia "rota no OpenAPI", mas esta API **não gera OpenAPI** — não há documento,
+Scalar nem teste que valide rota contra ele (`grep -ri openapi` em `src/` e `test/` volta vazio; o
+`docs/spec/architecture.md` só cita OpenAPI na tabela de stack). O registro exaustivo de rotas que
+existe hoje é o `separator-role.contract.test.ts`, e a rota nova entrou nele com a decisão escrita.
+Gerar OpenAPI das rotas é trabalho próprio, fora desta spec.

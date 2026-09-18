@@ -16,6 +16,7 @@ import {
   DRIVER,
   DRIVER_AVAILABILITY,
   DRIVER_PAGE,
+  DRIVER_SCORE,
   DRIVER_VEHICLE_ASSIGNMENTS,
   DRIVER_VEHICLE_PAIRS,
   FRONTEND_ORIGIN,
@@ -33,7 +34,8 @@ type RouteDependencies = {
     execute(input: ExecuteCall): Promise<typeof DRIVER_AVAILABILITY>
   }
   readonly createVehicle: { execute(input: ExecuteCall): Promise<typeof VEHICLE> }
-  readonly listDrivers: { execute(input: ExecuteCall): Promise<typeof DRIVER_PAGE> }
+  readonly driverScore: { execute(input: ExecuteCall): Promise<typeof DRIVER_SCORE> }
+  readonly listDrivers: { execute(input: ExecuteCall): Promise<typeof SCORED_DRIVER_PAGE> }
   readonly listVehicles: { execute(input: ExecuteCall): Promise<typeof VEHICLE_PAGE> }
   readonly updateDriver: { execute(input: ExecuteCall): Promise<typeof DRIVER> }
   readonly updateVehicle: { execute(input: ExecuteCall): Promise<typeof VEHICLE> }
@@ -47,8 +49,15 @@ type RouteDependencies = {
   }
 }
 
+/** Spec 157 T8: a listagem já chega com a nota ao lado de cada motorista. */
+export const SCORED_DRIVER_PAGE = {
+  ...DRIVER_PAGE,
+  items: DRIVER_PAGE.items.map((driver) => ({ ...driver, score: 85 })),
+}
+
 type CreateFixtureParams = {
   readonly createDriverError?: Error
+  readonly driverScoreError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly replaceDriverVehiclesError?: Error
   readonly updateVehicleError?: Error
@@ -67,6 +76,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   readonly createDriverCalls: ExecuteCall[]
   readonly createVehicleCalls: ExecuteCall[]
   readonly driverAvailabilityCalls: ExecuteCall[]
+  readonly driverScoreCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly listDriverCalls: ExecuteCall[]
   readonly listDriverVehicleCalls: ExecuteCall[]
@@ -79,6 +89,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   const createDriverCalls: ExecuteCall[] = []
   const createVehicleCalls: ExecuteCall[] = []
   const driverAvailabilityCalls: ExecuteCall[] = []
+  const driverScoreCalls: ExecuteCall[] = []
   const listDriverCalls: ExecuteCall[] = []
   const listDriverVehicleCalls: ExecuteCall[] = []
   const listDriverVehicleLinkCalls: ExecuteCall[] = []
@@ -108,6 +119,13 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
         return DRIVER_AVAILABILITY
       },
     },
+    driverScore: {
+      async execute(input) {
+        driverScoreCalls.push(structuredClone(input))
+        if (params.driverScoreError) throw params.driverScoreError
+        return DRIVER_SCORE
+      },
+    },
     driverVehicles: {
       async list(input) {
         listDriverVehicleCalls.push(structuredClone(input))
@@ -126,7 +144,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     listDrivers: {
       async execute(input) {
         listDriverCalls.push(structuredClone(input))
-        return DRIVER_PAGE
+        return SCORED_DRIVER_PAGE
       },
     },
     listVehicles: {
@@ -169,6 +187,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     createDriverCalls,
     createVehicleCalls,
     driverAvailabilityCalls,
+    driverScoreCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     listDriverCalls,
     listDriverVehicleCalls,

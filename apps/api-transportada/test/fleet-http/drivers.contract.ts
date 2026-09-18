@@ -32,7 +32,10 @@ describe('fleet drivers http contract', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [{ ...DRIVER }], page: { nextCursor: null } })
+    expect(await response.json()).toEqual({
+      data: [{ ...DRIVER, score: 85 }],
+      page: { nextCursor: null },
+    })
     expect(fixture.listDriverCalls).toEqual([
       {
         context: COMPANY_CONTEXT,

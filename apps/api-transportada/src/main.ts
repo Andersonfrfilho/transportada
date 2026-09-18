@@ -267,6 +267,7 @@ import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driv
 import { createDriverHomeGeocoder } from './fleet/application/driver-home-geocoder.port.js'
 import { createPhotonDriverHomeGateway } from './fleet/infrastructure/photon-driver-home.gateway.js'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
+import { createFleetDriverScoresUseCase } from './fleet/application/fleet-driver-scores.use-case'
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
 import { createCachedVehicleCatalogGateway } from './fleet/infrastructure/cached-vehicle-catalog.gateway'
@@ -1961,6 +1962,12 @@ function createApplicationRoutes({
     logger,
     repository: fleetDriverRepository,
   })
+  const fleetDriverScores = createFleetDriverScoresUseCase({
+    clock: () => new Date(),
+    drivers: fleetDriverRepository,
+    listDrivers: (input) => fleetDrivers.list(input),
+    scores: driverScoreRepository,
+  })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
   const backfillIdentityDocuments = createBackfillIdentityDocumentsUseCase({
     gateway: identityAccessGateway,
@@ -2284,7 +2291,8 @@ function createApplicationRoutes({
         listPairs: (input) => fleetDriverVehicles.listPairs(input),
         replace: (input) => fleetDriverVehicles.replace(input),
       },
-      listDrivers: { execute: (input) => fleetDrivers.list(input) },
+      driverScore: { execute: (input) => fleetDriverScores.read(input) },
+      listDrivers: { execute: (input) => fleetDriverScores.list(input) },
       listVehicles: { execute: (input) => fleetVehicles.list(input) },
       updateDriver: { execute: (input) => fleetDrivers.update(input) },
       updateVehicle: { execute: (input) => fleetVehicles.update(input) },

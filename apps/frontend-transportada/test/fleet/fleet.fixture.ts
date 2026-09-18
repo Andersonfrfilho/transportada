@@ -184,7 +184,7 @@ export type FleetVehiclePageContract = Readonly<{
 }>
 
 export type FleetDriverPageContract = Readonly<{
-  items: readonly FleetDriverDetailContract[]
+  items: readonly (FleetDriverDetailContract & Readonly<{ score: number | null }>)[]
   nextCursor: null | string
 }>
 
@@ -470,7 +470,7 @@ export const VEHICLE_PAGE = {
 } as const satisfies FleetVehiclePageContract
 
 export const DRIVER_PAGE = {
-  items: [DRIVER_DETAIL],
+  items: [{ ...DRIVER_DETAIL, score: 85 }],
   nextCursor: null,
 } as const satisfies FleetDriverPageContract
 

@@ -447,8 +447,11 @@ export type FleetDriverFilters = Readonly<{
   statusEq?: FleetDriverStatus
 }>
 
+/** Spec 157 RF10: a listagem traz a nota ao lado de cada motorista — `null` sem histórico. */
+export type FleetDriverListItem = FleetDriverDetail & Readonly<{ score: number | null }>
+
 export type FleetDriverPage = Readonly<{
-  items: readonly FleetDriverDetail[]
+  items: readonly FleetDriverListItem[]
   nextCursor: null | string
 }>
 

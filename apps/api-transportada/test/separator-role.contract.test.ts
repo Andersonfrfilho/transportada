@@ -107,6 +107,12 @@ describe('separator role contract', () => {
       // nada além dos dois ids, então não abre ficha de pessoa a quem só monta carga.
       'GET /fleet/driver-vehicles',
       'GET /fleet/drivers',
+      /**
+       * Spec 157 T8 (RF10/RF11): a nota já chega na listagem que o separador lê para montar a
+       * viagem, e é ela que ordena o seletor; a ficha da nota só explica o número (NF-e, data,
+       * motivo, pontos) — sem posição da foto nem dado pessoal do motorista.
+       */
+      'GET /fleet/drivers/:id/score',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',
       'GET /nfe-documents',
