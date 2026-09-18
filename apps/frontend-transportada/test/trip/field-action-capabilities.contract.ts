@@ -5,6 +5,7 @@ import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
   resolveFieldActionCapabilities,
+  selectFieldReturnableDocumentIds,
 } from '../../src/modules/trip/shared/tripFieldActions.service'
 import type { TripAllowedActions } from '../../src/modules/trip/shared/tripAllowedActions.validation'
 
@@ -66,5 +67,40 @@ describe('resolveDefaultOnBehalfDriverId / hasMultipleDrivers (spec 156 D3)', ()
     expect(hasMultipleDrivers([])).toBe(false)
     expect(hasMultipleDrivers([{ driverId: 'driver-1' }])).toBe(false)
     expect(hasMultipleDrivers([{ driverId: 'driver-1' }, { driverId: 'driver-2' }])).toBe(true)
+  })
+})
+
+/**
+ * Spec 156 T8b (revisão do code-reviewer): a mesma checagem que decide o botão da linha decide o
+ * que "Devolver" em massa manda — extraída para função pura por não haver suíte de render aqui.
+ */
+describe('selectFieldReturnableDocumentIds (spec 156 T8b)', () => {
+  const OTHER_DOCUMENT_ID = '00000000-0000-4000-8000-000000000d02'
+
+  it('mantém só as notas com fieldReturn na lista', () => {
+    const actions: TripAllowedActions = {
+      documents: {
+        [DOCUMENT_ID]: ['fieldReturn'],
+        [OTHER_DOCUMENT_ID]: ['fieldDelivery'],
+      },
+      stops: {},
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      selectFieldReturnableDocumentIds({
+        capabilities,
+        documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
+      }),
+    ).toEqual([DOCUMENT_ID])
+  })
+
+  it('sem allowedActions, nenhuma nota é enviada — falha fechada', () => {
+    const capabilities = resolveFieldActionCapabilities(undefined)
+
+    expect(selectFieldReturnableDocumentIds({ capabilities, documentIds: [DOCUMENT_ID] })).toEqual(
+      [],
+    )
   })
 })

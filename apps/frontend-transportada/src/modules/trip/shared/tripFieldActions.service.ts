@@ -48,3 +48,16 @@ export function resolveDefaultOnBehalfDriverId(
 export function hasMultipleDrivers(drivers: readonly unknown[]): boolean {
   return drivers.length > 1
 }
+
+/**
+ * Spec 156 T8b (revisão): notas selecionadas sem `fieldReturn` não são enviadas no "Devolver" em
+ * massa — extraída para função pura porque `TripDetail`/`TripStateActions` não têm suíte de render.
+ */
+export function selectFieldReturnableDocumentIds(input: {
+  readonly capabilities: FieldActionCapabilities
+  readonly documentIds: readonly string[]
+}): readonly string[] {
+  return input.documentIds.filter((documentId) =>
+    input.capabilities.canDocument(documentId, 'fieldReturn'),
+  )
+}

@@ -34,5 +34,13 @@ export function useTripDocumentSelection() {
     setSelectedIds(new Set())
   }
 
-  return { clear, selectedIds, toggle, toggleMany }
+  /**
+   * Spec 156 T8b (revisão): "Devolver" em massa com falha parcial troca a seleção pelas notas que
+   * falharam, em vez de limpar tudo — quem tentou de novo continua vendo só o que ainda falta.
+   */
+  function replace(documentIds: readonly string[]): void {
+    setSelectedIds(new Set(documentIds))
+  }
+
+  return { clear, replace, selectedIds, toggle, toggleMany }
 }

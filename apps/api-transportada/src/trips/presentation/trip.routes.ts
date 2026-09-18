@@ -96,7 +96,6 @@ import type {
   TransitionTripDocumentsBatchResult,
   TripDocumentBatchItemOutcome,
 } from '../application/transition-trip-documents-batch.use-case.js'
-import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import {
   parseBatchTransitionTripDocumentsRequest,
@@ -276,8 +275,13 @@ type TripDocumentActionInput = {
   readonly tripId: string
 }
 
+/**
+ * Spec 156 T8b (revisão): `deliver`/`return` saíram do lote — o schema (`TRIP_DOCUMENT_ACTIONS`)
+ * já recusa os dois na fronteira, e este tipo estreita a mesma decisão até quem consome o lote
+ * (`trip-lifecycle.use-case.ts`), em vez de deixar `deliver`/`return` compilarem por engano.
+ */
 type BatchStatusInput = {
-  readonly action: TripDocumentAction
+  readonly action: 'load' | 'separate'
   readonly documentIds: readonly string[]
   readonly note: string | null
   readonly tripId: string

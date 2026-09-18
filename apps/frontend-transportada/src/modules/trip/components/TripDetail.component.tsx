@@ -17,7 +17,7 @@ import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
 import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
-import { resolveFirstTripFeedbackKey } from '../shared/tripFeedback.service'
+import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
 import {
@@ -30,6 +30,7 @@ import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus
 import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
+  selectFieldReturnableDocumentIds,
 } from '../shared/tripFieldActions.service'
 import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
@@ -168,6 +169,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * (`resolveDefaultOnBehalfDriverId`, ADR-0067 §2).
    */
   const [selectedOfficeDriverId, setSelectedOfficeDriverId] = useState('')
+  /**
+   * Spec 156 T8b (revisão): a falha parcial do "Devolver" em massa não é um erro de mutation só —
+   * é um resumo por nota. `null` quando não há lote em aberto ou o último terminou sem falha.
+   */
+  const [batchReturnFailure, setBatchReturnFailure] = useState<{
+    readonly failedCount: number
+    readonly feedbackKey: string
+    readonly totalCount: number
+  } | null>(null)
   /**
    * Spec 065 D4c: dispensar viagem com nota de CT-e não é um toque — é uma decisão que fica na
    * trilha, e o diálogo é onde o motivo é digitado antes de o servidor recusá-la sem ele.
@@ -360,15 +370,39 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * Spec 156 T8b: uma `field-return` por nota selecionada que aceite `fieldReturn` — o lote do
    * escritório com autoria é individual, não existe rota de lote para ele.
    */
+  /**
+   * Spec 156 T8b (revisão do code-reviewer): falha parcial não pode passar em silêncio atrás de
+   * `selection.clear()` — a nota que falhou continua selecionada (para tentar de novo sem procurar
+   * a linha na lista) e o aviso conta quantas ficaram de fora, com o motivo da primeira falha.
+   */
   function handleBatchReturn(reason: DriverReturnReason): void {
     if (trip === undefined) return
-    const documentIds = [...selection.selectedIds].filter((documentId) =>
-      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldReturn'),
-    )
+    const documentIds = selectFieldReturnableDocumentIds({
+      capabilities: workspace.fieldActionCapabilities,
+      documentIds: [...selection.selectedIds],
+    })
     if (documentIds.length === 0) return
     workspace.batchFieldReturnMutation.mutate(
       { documentIds, ...officeDriverIdInput, reason, tripId: trip.id },
-      { onSuccess: selection.clear },
+      {
+        onSuccess: (results) => {
+          const failed = results.filter((result) => result.errorCode !== null)
+          if (failed.length === 0) {
+            setBatchReturnFailure(null)
+            selection.clear()
+            return
+          }
+          const firstErrorCode = failed[0]?.errorCode ?? null
+          setBatchReturnFailure({
+            failedCount: failed.length,
+            feedbackKey:
+              resolveTripFeedbackKey(firstErrorCode === null ? null : new Error(firstErrorCode)) ??
+              'requestFailed',
+            totalCount: results.length,
+          })
+          selection.replace(failed.map((result) => result.item))
+        },
+      },
     )
   }
 
@@ -418,6 +452,16 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${feedbackKey}`)}
+        </p>
+      )}
+
+      {batchReturnFailure === null ? null : (
+        <p className={styles.alert} role="alert">
+          {t('stateActions.batchReturnPartialFailure', {
+            failed: batchReturnFailure.failedCount,
+            reason: t(`feedback.${batchReturnFailure.feedbackKey}`),
+            total: batchReturnFailure.totalCount,
+          })}
         </p>
       )}
 

@@ -58,6 +58,16 @@ describe('trip client contract', () => {
         tripId: TRIP_ID,
       }),
     ).toEqual({ alreadySettled: false, id: DOCUMENT_ID, stopCompleted: true, tripCompleted: false })
+    // Spec 156 T8b, ADR-0067 (revisão): devolver sem autoria (`/return`) saiu — o caminho é
+    // `field-return`, JSON, com autoria (`trip.report-on-behalf`).
+    expect(
+      await client.fieldReturnDocument({
+        documentId: DOCUMENT_ID,
+        idempotencyKey: 'idem-return',
+        reason: 'recipient_absent',
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ alreadySettled: false, id: DOCUMENT_ID, stopCompleted: true, tripCompleted: true })
     expect(await client.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
     )
@@ -69,6 +79,7 @@ describe('trip client contract', () => {
       getRequest,
       linkRequest,
       deliverRequest,
+      returnRequest,
       releaseRequest,
       closeRequest,
     ] = requests
@@ -78,6 +89,7 @@ describe('trip client contract', () => {
       getRequest === undefined ||
       linkRequest === undefined ||
       deliverRequest === undefined ||
+      returnRequest === undefined ||
       releaseRequest === undefined ||
       closeRequest === undefined
     ) {
@@ -114,6 +126,12 @@ describe('trip client contract', () => {
     const deliverForm = await deliverRequest.formData()
     expect(deliverForm.get('deliveredAt')).toBe('2026-09-18T12:00:00.000Z')
     expect(deliverForm.get('driverId')).toBeNull()
+
+    expect(returnRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-return`)
+    expect(returnRequest.method).toBe('POST')
+    expect(returnRequest.headers.get('idempotency-key')).toBe('idem-return')
+    expect(returnRequest.headers.get('content-type')).toBe('application/json')
+    expect(await returnRequest.json()).toEqual({ reason: 'recipient_absent' })
 
     expect(releaseRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}`)
     expect(releaseRequest.method).toBe('DELETE')
@@ -573,6 +591,21 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
             id: DOCUMENT_ID,
             stopCompleted: true,
             tripCompleted: false,
+          },
+        },
+        { status: 201 },
+      ),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-return`) {
+    return Promise.resolve(
+      Response.json(
+        {
+          data: {
+            alreadySettled: false,
+            id: DOCUMENT_ID,
+            stopCompleted: true,
+            tripCompleted: true,
           },
         },
         { status: 201 },

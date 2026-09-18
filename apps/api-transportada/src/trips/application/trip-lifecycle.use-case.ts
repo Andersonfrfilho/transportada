@@ -63,12 +63,16 @@ export type TripLifecycleDependencies = {
  * e o `routes.contract.ts` já cobrem juntos.
  */
 export function createTripLifecycleUseCase(dependencies: TripLifecycleDependencies) {
+  /**
+   * Spec 156 T8b (revisão): `returnReason` saiu — só `separate`/`load` chamam este helper hoje
+   * (`document('return')` saiu de `createTripLifecycleUseCase` na mesma task), e nenhum dos dois
+   * usa motivo de devolução.
+   */
   const document = (action: TripDocumentAction) =>
     async function execute(input: {
       readonly context: CompanyContext
       readonly documentId: string
       readonly note?: string | null
-      readonly returnReason?: string | null
       readonly tripId: string
     }) {
       return transitionTripDocument({
@@ -82,18 +86,21 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         repository: dependencies.documentRepository,
         tripId: input.tripId,
         ...(input.note === undefined ? {} : { note: input.note }),
-        ...(input.returnReason === undefined ? {} : { returnReason: input.returnReason }),
       })
     }
 
   return {
+    /**
+     * Spec 156 T8b (revisão): `deliver`/`return` saíram do lote (ADR-0067) — a ação aqui é só
+     * galpão. `returnReason` saiu junto: nenhuma das duas ações restantes o usa, e mantê-lo como
+     * campo aceito e nunca lido era o tipo de sobra que engana quem lê o código.
+     */
     batchStatus: {
       async execute(input: {
-        readonly action: TripDocumentAction
+        readonly action: 'load' | 'separate'
         readonly context: CompanyContext
         readonly documentIds: readonly string[]
         readonly note?: string | null
-        readonly returnReason?: string | null
         readonly tripId: string
       }) {
         return transitionTripDocumentsBatch({
@@ -104,7 +111,6 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           repository: dependencies.batchRepository,
           tripId: input.tripId,
           ...(input.note === undefined ? {} : { note: input.note }),
-          ...(input.returnReason === undefined ? {} : { returnReason: input.returnReason }),
         })
       },
     },

@@ -2,7 +2,7 @@
 export const FLEET_READ = 'fleet.read'
 export const FLEET_MANAGE = 'fleet.manage'
 export const TRIP_MANAGE = 'trip.manage'
-/** ADR-0067: a baixa do escritório com autoria — `separator`/`operator` sem ela não a alcançam. */
+/** ADR-0067: a baixa do escritório com autoria — `company-admin`, `finance` e `operator` a têm; `separator` não. */
 export const TRIP_REPORT_ON_BEHALF = 'trip.report-on-behalf'
 
 export const SYNTHETIC_ACCESS_TOKEN = 'synthetic-access-token'

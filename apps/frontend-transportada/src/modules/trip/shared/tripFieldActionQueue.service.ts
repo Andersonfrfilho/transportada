@@ -42,14 +42,11 @@ export async function runFieldActionQueue<TItem, TValue>(
   return results
 }
 
+/**
+ * Spec 156 T8b (revisão): o cliente da viagem (`tripClient.service.ts`, `requestError`) carrega o
+ * código de erro em `error.message`, nunca em `.code` — a mesma convenção que
+ * `resolveTripFeedbackKey` já lê. Ler `.code` aqui nunca bateria, e toda falha caía em "UNKNOWN".
+ */
 function readErrorCode(error: unknown): string {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string'
-  ) {
-    return error.code
-  }
-  return 'UNKNOWN'
+  return error instanceof Error ? error.message : 'UNKNOWN'
 }

@@ -970,6 +970,7 @@
   "stateActions": {
     "batchLoad": "Carregar {{count}} nota(s)",
     "batchReturn": "Devolver {{count}} nota(s)",
+    "batchReturnPartialFailure": "{{failed}} de {{total}} nota(s) não foram devolvidas: {{reason}}",
     "batchSeparate": "Separar {{count}} nota(s)",
     "cancel": "Cancelar viagem",
     "dispatch": "Despachar",

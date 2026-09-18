@@ -784,6 +784,7 @@
   "stateActions": {
     "batchLoad": "Load {{count}} document(s)",
     "batchReturn": "Return {{count}} document(s)",
+    "batchReturnPartialFailure": "{{failed}} of {{total}} document(s) were not returned: {{reason}}",
     "batchSeparate": "Separate {{count}} document(s)",
     "cancel": "Cancel trip",
     "dispatch": "Dispatch",

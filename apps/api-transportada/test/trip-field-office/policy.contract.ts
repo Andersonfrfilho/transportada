@@ -59,7 +59,7 @@ describe('as sete rotas do escritório (spec 156 T5/T6)', () => {
     }
   })
 
-  it('company-admin, operator e finance alcançam as quatro (ADR-0067 §1)', () => {
+  it('company-admin, operator e finance alcançam as sete (ADR-0067 §1)', () => {
     for (const role of ['company-admin', 'operator', 'finance'] as const) {
       const permissions = resolveCompanyPermissions([role])
       for (const route of routes) {

@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -13,6 +13,10 @@ import {
 } from '@/modules/driver-trip/shared/driverTrip.types'
 
 import styles from '../styles/trip.module.css'
+
+function isDriverReturnReason(value: string): value is DriverReturnReason {
+  return (DRIVER_RETURN_REASONS as readonly string[]).includes(value)
+}
 
 type TripReturnReasonDialogProps = Readonly<{
   isOpen: boolean
@@ -41,6 +45,11 @@ export function TripReturnReasonDialog({
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
   const [reason, setReason] = useState<DriverReturnReason>(DRIVER_RETURN_REASONS[0])
+
+  /** O motivo não pode sobreviver a um fechamento sem confirmar — cada abertura começa do padrão. */
+  useEffect(() => {
+    if (isOpen) setReason(DRIVER_RETURN_REASONS[0])
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -83,7 +92,9 @@ export function TripReturnReasonDialog({
           {t('stateActions.returnReasonLabel')}
           <Select
             ariaLabel={t('stateActions.returnReasonLabel')}
-            onChange={(value) => setReason(value as DriverReturnReason)}
+            onChange={(value) => {
+              if (isDriverReturnReason(value)) setReason(value)
+            }}
             options={DRIVER_RETURN_REASONS.map((option) => ({
               label: t(`fieldActions.returnReason.${option}`),
               value: option,

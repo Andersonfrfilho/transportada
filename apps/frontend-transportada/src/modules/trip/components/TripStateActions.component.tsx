@@ -8,6 +8,7 @@ import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
+import { selectFieldReturnableDocumentIds } from '../shared/tripFieldActions.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDetail } from '../shared/trip.types'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -83,9 +84,11 @@ export function TripStateActions({
   const canDispatch = ['loading', 'route_planned', 'separating'].includes(trip.status)
   const canCancel = trip.status !== 'completed' && trip.status !== 'cancelled'
   /** Spec 156 T8b: notas selecionadas sem `fieldReturn` não são enviadas — nem oferecidas aqui. */
-  const canReturnSelection = [...selection.selectedIds].some((documentId) =>
-    capabilities.canDocument(documentId, 'fieldReturn'),
-  )
+  const returnableSelection = selectFieldReturnableDocumentIds({
+    capabilities,
+    documentIds: [...selection.selectedIds],
+  })
+  const canReturnSelection = returnableSelection.length > 0
 
   function handleDispatchClick(): void {
     if (unloadedDocuments.length > 0) {
@@ -159,11 +162,7 @@ export function TripStateActions({
               variant="ghost"
             >
               <Icon name="arrow-up" />
-              {t('stateActions.batchReturn', {
-                count: [...selection.selectedIds].filter((documentId) =>
-                  capabilities.canDocument(documentId, 'fieldReturn'),
-                ).length,
-              })}
+              {t('stateActions.batchReturn', { count: returnableSelection.length })}
             </Button>
           ) : null}
           {canFieldOccurrenceBatch ? (

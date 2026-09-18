@@ -13,6 +13,11 @@ import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-d
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
+import {
+  createTripFieldOfficeRoutes,
+  OFFICE_REPORT_POLICY,
+} from '../src/trips/presentation/trip-field-office.routes'
+import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -66,6 +71,12 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createPackageBoxRoutes(dependencies),
     ...createPackageBoxMeasurementExportRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
+    // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
+    // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
+    // "não alcançar" field-delivery/field-return era verdade por elas nunca terem sido testadas,
+    // não porque a permissão as barrasse.
+    ...createTripFieldOfficeRoutes(dependencies),
+    ...createTripFieldOfficeOccurrenceRoutes(dependencies),
   ]
 
   return routes
@@ -311,6 +322,19 @@ describe('separator role contract', () => {
   // O separador monta a viagem; o MDF-e é documento fiscal e continua com quem responde por ele.
   test('does not reach the fiscal manifest of the trip it assembles', () => {
     expect(reachableRoutes(['separator'])).not.toContain('POST /trips/:id/mdfe-manifests')
+  })
+
+  /**
+   * ADR-0067 §1, spec 156 T8b (revisão do code-reviewer): não basta a rota estar ausente da lista
+   * exaustiva — o teste exercita `AuthorizationService.authorize` de verdade, com o contexto real
+   * do `separator` e a `OFFICE_REPORT_POLICY` exportada da própria rota, para provar que é a
+   * política (`trip.report-on-behalf`) que barra, não um acidente de composição do array de rotas.
+   */
+  test('a política real de field-delivery/field-return recusa o separador', () => {
+    const service = new AuthorizationService()
+    const context = companyContext(['separator'])
+
+    expect(() => service.authorize(context, OFFICE_REPORT_POLICY)).toThrow()
   })
 })
 
