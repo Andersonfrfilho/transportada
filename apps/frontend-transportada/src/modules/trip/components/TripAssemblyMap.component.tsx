@@ -608,17 +608,21 @@ export function TripAssemblyMap({
                     */}
                     {summary.isBestOfBoth ? (
                       <span className={styles.routeOptionBadge}>
+                        <Icon name="speed" size="sm" />
+                        <Icon name="savings" size="sm" />
                         {t('assemblyMap.routeOptions.fastestAndCheapest')}
                       </span>
                     ) : (
                       <>
                         {summary.isFastest ? (
                           <span className={styles.routeOptionBadge}>
+                            <Icon name="speed" size="sm" />
                             {t('assemblyMap.routeOptions.fastest')}
                           </span>
                         ) : null}
                         {summary.isCheapest ? (
                           <span className={styles.routeOptionBadge}>
+                            <Icon name="savings" size="sm" />
                             {t('assemblyMap.routeOptions.cheapest')}
                           </span>
                         ) : null}

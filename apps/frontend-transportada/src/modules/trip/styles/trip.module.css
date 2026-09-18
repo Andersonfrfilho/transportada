@@ -1407,7 +1407,7 @@
   box-shadow: inset 0 0 0 1px var(--color-copper);
 }
 
-.routeOption[aria-pressed='true'] svg {
+.routeOption[aria-pressed='true'] .routeOptionHeader > svg {
   color: var(--color-copper);
 }
 
@@ -1438,7 +1438,10 @@
   border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-fog);
   font-size: 0.75rem;
+  align-items: center;
+  display: inline-flex;
   font-weight: 600;
+  gap: var(--space-1);
   padding: 0 var(--space-2);
 }
 

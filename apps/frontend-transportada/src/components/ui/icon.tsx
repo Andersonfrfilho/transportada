@@ -49,9 +49,11 @@ export type IconName =
   | 'refresh'
   | 'remove'
   | 'save'
+  | 'savings'
   | 'search'
   | 'send'
   | 'shield'
+  | 'speed'
   | 'sort'
   | 'spinner'
   | 'sun'
@@ -166,10 +168,18 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   refresh: ['M20 12a8 8 0 1 1-2.6-5.9', 'M20 4v5h-5'],
   remove: ['M5 12h14'],
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
+  /** Cofrinho: o objetivo "gastar menos", não um valor em dinheiro (esse é o `workspace-billing`). */
+  savings: [
+    'M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z',
+    'M2 9v1c0 1.1.9 2 2 2h1',
+    'M16 11h.01',
+  ],
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M20 20l-4-4'],
   send: ['M4 12l16-8-6 16-2.5-6.5L4 12z'],
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
+  /** Raio: o objetivo "chegar antes". O relógio (`clock`) fica para hora marcada. */
+  speed: ['M13 2 4 14h7l-1 8 9-12h-7l1-8z'],
   spinner: ['M12 3a9 9 0 1 0 9 9'],
   sun: [
     'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
