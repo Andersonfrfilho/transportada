@@ -111,3 +111,12 @@ export function redactTripDocumentMoney<
   if (input.canReadFinancials) return input.document
   return omitFields(input.document, ['nfeTotalValue'] as const)
 }
+
+/** Spec 156 L6: `amounts` da listagem de viagens é receita e soma das notas — dinheiro inteiro. */
+export function redactTripAmounts<TTrip extends Readonly<{ amounts: unknown }>>(input: {
+  readonly canReadFinancials: boolean
+  readonly trip: TTrip
+}): Omit<TTrip, 'amounts'> | TTrip {
+  if (input.canReadFinancials) return input.trip
+  return omitFields(input.trip, ['amounts'] as const)
+}

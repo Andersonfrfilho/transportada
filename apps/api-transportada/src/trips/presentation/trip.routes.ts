@@ -46,6 +46,7 @@ import type {
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   redactRouteGeometryMoney,
+  redactTripAmounts,
   redactTripDocumentMoney,
 } from '../../shared/monetary-redaction.service.js'
 
@@ -514,8 +515,13 @@ export function createTripRoutes(
     defineRoute<Omit<ListTripsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listTrips.execute({ context: context.scope, ...input })
+        /** Spec 156 L6: receita e soma das notas são `trip.financials`, como no detalhe. */
+        const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
+        const data = page.items.map((trip) =>
+          redactTripAmounts({ canReadFinancials, trip: serializeTrip(trip) }),
+        )
         return jsonResponse({
-          body: { data: page.items.map(serializeTrip), page: { nextCursor: page.nextCursor } },
+          body: { data, page: { nextCursor: page.nextCursor } },
           status: 200,
         })
       },
@@ -1529,7 +1535,9 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
   })
 }
 
-function serializeTrip(trip: Trip): object {
+function serializeTrip(
+  trip: Trip,
+): Readonly<Record<string, unknown> & { amounts: Trip['amounts'] }> {
   return {
     /**
      * `null` fora da listagem: o detalhe da viagem tem painel de valoração próprio, com custo e

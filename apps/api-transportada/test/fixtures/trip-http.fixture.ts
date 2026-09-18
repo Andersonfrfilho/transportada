@@ -95,6 +95,7 @@ type CreateFixtureParams = {
   readonly listTripCostsError?: Error
   readonly listTripCostsResult?: unknown
   readonly listTripsError?: Error
+  readonly listTripsResult?: typeof TRIP_PAGE
   readonly loadTripDocumentError?: Error
   readonly permissions?: CompanyContext['permissions']
   /**
@@ -336,7 +337,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         listTripsCalls.push(structuredClone(input))
         if (params.listTripsError) throw params.listTripsError
-        return TRIP_PAGE
+        return params.listTripsResult ?? TRIP_PAGE
       },
     },
     loadTripDocument: {

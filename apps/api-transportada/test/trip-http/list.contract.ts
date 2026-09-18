@@ -12,13 +12,14 @@ import {
 } from '../fixtures/trip-http-payload.fixture'
 import {
   COMPANY_CONTEXT,
-  READ_ONLY_PERMISSIONS,
+  FINANCIALS_PERMISSIONS,
   createTripHttpFixture,
 } from '../fixtures/trip-http.fixture'
 
 describe('GET /trips', () => {
   test('lists the trips of the company with the page cursor', async () => {
-    const fixture = await createTripHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
+    /** Com `trip.financials` a linha sai inteira; o recorte sem ela é `list-money-redaction`. */
+    const fixture = await createTripHttpFixture({ permissions: FINANCIALS_PERMISSIONS })
 
     const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
 
@@ -29,7 +30,7 @@ describe('GET /trips', () => {
     })
     expect(fixture.listTripsCalls).toEqual([
       {
-        context: { ...COMPANY_CONTEXT, permissions: READ_ONLY_PERMISSIONS },
+        context: { ...COMPANY_CONTEXT, permissions: FINANCIALS_PERMISSIONS },
         cursor: null,
         limit: 25,
       },

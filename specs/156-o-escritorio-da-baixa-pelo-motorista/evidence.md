@@ -1305,3 +1305,66 @@ disponíveis — a prova com dado real fica para a T16 (revisão final de design
   precache), sem erro.
 - Esta T8 é só frontend — sem rota nova na API, os gates de `apps/api-transportada` não se aplicam;
   a última rodada registrada (T7b) segue válida.
+
+## L6a — `amounts` da listagem de viagens com recorte de `trip.financials`
+
+Primeiro achado da L6. `GET /trips` (`TRIP_FIELD_READ_POLICY`: `fleet.read` ou
+`trip.report-on-behalf`) publicava `amounts` — `documentsTotal` (soma das notas), `revenueTotal` e
+`revenueSource` — sem checar `trip.financials`. `separator` e `viewer` viam receita e valor da carga
+na tabela. É o único campo de dinheiro da linha: o resto é id, status, datas, veículo, `driverNames`
+e a previsão de chegada.
+
+### Decisões
+
+- **O campo sai do objeto, não vira `null`** (spec 153 D10, mesmo molde de
+  `redactTripDocumentMoney`). `amounts: null` já significa "a API não calculou", e a tabela o
+  imprime como "sem valor" — seria afirmar que a carga não tem preço quando o que falta é a
+  permissão.
+- **Recorte no serializador**, como no detalhe: `redactTripAmounts` em
+  `shared/monetary-redaction.service.ts`, com `permissions.has('trip.financials')`. A conta de
+  receita (`readTripRevenueTotals`) continua rodando para quem não vê; cortar a consulta seria
+  otimização de outra tarefa.
+- **Frontend: as duas colunas de dinheiro saem** para quem não tem `trip.financials`
+  (`visibleTripColumns`, exposta pelo `useTripTable` como `table.columns`), em vez de imprimir
+  "sem valor" em toda linha. O validador (`isAbsentOrTripAmounts`) já aceitava ausente e `null`;
+  ganhou contrato para não regredir.
+
+### Arquivos
+
+- API: `src/shared/monetary-redaction.service.ts` (`redactTripAmounts`),
+  `src/trips/presentation/trip.routes.ts` (rota da listagem e tipo de retorno de `serializeTrip`),
+  `test/fixtures/trip-http.fixture.ts` (`listTripsResult`), `test/trip-http/list.contract.ts`
+  (usava `fleet.read` e esperava `amounts` — era o vazamento cristalizado; passou a
+  `FINANCIALS_PERMISSIONS`), `test/trip-http/list-money-redaction.contract.ts` (novo),
+  `test/trip-http.contract.test.ts`.
+- Frontend: `src/modules/trip/shared/tripTable.service.ts` (`visibleTripColumns`),
+  `src/modules/trip/hooks/useTripTable.hook.ts` (`columns`),
+  `src/modules/trip/components/TripTable.component.tsx`, `test/trip/amount-columns.contract.ts`.
+
+### Contratos (antes da implementação)
+
+- API, `list-money-redaction.contract.ts`, com os papéis reais de `COMPANY_ROLE_PERMISSIONS`:
+  `separator` e `viewer` sem a chave `amounts` (**falhou** antes do conserto: `2 fail`); `finance`,
+  `operator` e `company-admin` com `amounts` inteiro.
+- Frontend, `amount-columns.contract.ts`: `visibleTripColumns` sem `cargoValue`/`revenue` sem a
+  permissão e com todas as colunas com ela (**falhou** antes: export inexistente); cabeçalho e
+  células desenhados por `table.columns`; `tripListFromApi` aceita a linha sem `amounts`, com `null`
+  e com o objeto, e recusa `amounts: {}`.
+
+### Gates
+
+- `make check` → exit 0, depois de rebase sobre `origin/staging` (`c5430a5f`): format, lint e
+  typecheck das seis apps; API `6512 pass · 0 fail`, worker `1381 pass`, frontend
+  `4342 pass · 0 fail` mais `5 pass` dos hooks com DOM, build com PWA.
+- Integração com Postgres não se aplica: nenhuma query mudou.
+
+### Revisão de design
+
+`prints/l6-trip-list-viewer.png` (`fleet.read`) e `prints/l6-trip-list-finance.png`
+(`fleet.read` + `trip.financials`), 1280 px, build de preview com a API mockada pelo helper do smoke.
+Sem as duas colunas, a tabela redistribui a largura sem buraco, e cabeçalho, ordenação e botão "Ver"
+seguem iguais aos da versão com dinheiro.
+
+Pendência explícita: o esqueleto de carregamento (`TripsTableSkeleton`) ainda desenha as seis
+colunas, então quem não tem `trip.financials` vê por um instante dois cabeçalhos que somem quando a
+lista chega. O esqueleto não recebe permissão hoje. É salto de layout, não vazamento de valor.

@@ -26,6 +26,9 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [x] **T1 — Entregar e devolver aparecem em `on_delivery_route`** (D10, aceite 4). Primeiro, um teste
       de `tripStatus.service.ts` que falha com a regra de hoje; depois, a correção. Esta task **não**
       espera o `allowedActions` (T7), porque é o conserto mínimo e sai sozinho em staging.
+- [x] **L6a — `GET /trips` recorta `amounts` sem `trip.financials`** (achado L6 da T7, ADR-0049 §6,
+      spec 061 D4). Anterior à spec e fora do escopo dela; registrado aqui para ter evidência. Modelo:
+      `sonnet`.
 
 ## Fase 1 — Decisões e o alvo da viagem
 

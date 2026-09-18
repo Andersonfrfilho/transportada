@@ -9,11 +9,14 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 import {
   TRIP_COLUMN_KEYS,
   sortTrips,
+  visibleTripColumns,
   type TripSortState,
 } from '../../src/modules/trip/shared/tripTable.service'
+import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
 import type { Trip, TripAmounts } from '../../src/modules/trip/shared/trip.types'
 
 const TABLE = new URL('../../src/modules/trip/components/TripTable.component.tsx', import.meta.url)
+const TABLE_HOOK = new URL('../../src/modules/trip/hooks/useTripTable.hook.ts', import.meta.url)
 
 function tripOf(id: string, amounts: TripAmounts | null): Trip {
   return {
@@ -120,5 +123,45 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
     expect(trip.table.noAmount.length).toBeGreaterThan(0)
     expect(trip.table.revenueEstimated.length).toBeGreaterThan(0)
     expect(trip.table.revenueMissing.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * Spec 156 L6 (ADR-0049, spec 061 D4): sem `trip.financials` a API tira `amounts` da linha. A
+   * coluna não pode continuar lá dizendo "sem valor" — seria afirmar que a viagem não tem carga
+   * valorada, quando o que falta é a permissão. A coluna sai, como o painel de resultado do detalhe.
+   */
+  it('tira as duas colunas de dinheiro de quem não tem trip.financials', () => {
+    expect([...visibleTripColumns({ canReadFinancials: false })]).toEqual([
+      'vehicleId',
+      'status',
+      'createdAt',
+      'updatedAt',
+    ])
+    expect([...visibleTripColumns({ canReadFinancials: true })]).toEqual([...TRIP_COLUMN_KEYS])
+  })
+
+  it('desenha o cabeçalho e as células pelas colunas visíveis, nunca pela lista inteira', () => {
+    const table = readFileSync(TABLE, 'utf8')
+    const hook = readFileSync(TABLE_HOOK, 'utf8')
+
+    expect(table).not.toContain('TRIP_COLUMN_KEYS')
+    expect(table.match(/table\.columns\.map/g)?.length).toBe(2)
+    expect(hook).toContain('permissions.includes(FINANCIALS_PERMISSION)')
+  })
+
+  /** A linha recortada não pode derrubar a lista inteira: ausente e `null` passam, forma errada não. */
+  it('aceita a linha da listagem sem amounts, com null e com o objeto', () => {
+    const adapters = createTripResponseAdapters()
+    const withoutAmounts = Object.fromEntries(
+      Object.entries(tripOf('recortada', amountsOf())).filter(([key]) => key !== 'amounts'),
+    )
+    const page = (row: unknown) => ({ data: [row], page: { nextCursor: null } })
+
+    expect(adapters.tripListFromApi(page(withoutAmounts)).items[0]?.amounts).toBeUndefined()
+    expect(adapters.tripListFromApi(page(tripOf('nula', null))).items[0]?.amounts).toBeNull()
+    expect(adapters.tripListFromApi(page(tripOf('cheia', amountsOf()))).items[0]?.amounts).toEqual(
+      amountsOf(),
+    )
+    expect(() => adapters.tripListFromApi(page({ ...withoutAmounts, amounts: {} }))).toThrow()
   })
 })
