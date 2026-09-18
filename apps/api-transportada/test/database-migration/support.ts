@@ -240,9 +240,11 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
     .toSorted()
 }
 
+type PostgresSqlState = '23001' | '23503' | '23505' | '23514' | '55000'
+
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,
-  expectedSqlState: '23001' | '23503' | '23505' | '23514' | '55000',
+  expectedSqlState: PostgresSqlState | readonly PostgresSqlState[],
   expectedConstraint?: string,
 ): Promise<void> {
   try {
@@ -253,7 +255,9 @@ export async function expectQueryToFail(
       readonly constraint?: unknown
       readonly errno?: unknown
     }
-    expect(postgresError.errno).toBe(expectedSqlState)
+    const acceptedSqlStates: readonly unknown[] =
+      typeof expectedSqlState === 'string' ? [expectedSqlState] : expectedSqlState
+    expect(acceptedSqlStates).toContain(postgresError.errno)
     if (expectedConstraint !== undefined) {
       expect(postgresError.constraint).toBe(expectedConstraint)
     }
