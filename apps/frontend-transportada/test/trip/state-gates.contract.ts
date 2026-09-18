@@ -29,6 +29,7 @@ const GATES_BY_STATUS: Readonly<
   draft: { editable: true, return: false, separateOrLoad: false },
   in_transit: { editable: false, return: true, separateOrLoad: false },
   loading: { editable: true, return: false, separateOrLoad: true },
+  on_delivery_route: { editable: false, return: true, separateOrLoad: false },
   route_planned: { editable: true, return: false, separateOrLoad: true },
   separating: { editable: true, return: false, separateOrLoad: true },
 }

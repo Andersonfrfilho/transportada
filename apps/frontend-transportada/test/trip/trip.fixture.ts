@@ -20,6 +20,7 @@ export type TripStatusContract =
   | 'draft'
   | 'in_transit'
   | 'loading'
+  | 'on_delivery_route'
   | 'route_planned'
   | 'separating'
 

@@ -36,7 +36,7 @@ export function canSeparateOrLoadDocuments(status: TripStatus): boolean {
  * terminal (o backend o barra antes de chegar no ramo de rua).
  */
 export function canReturnDocuments(status: TripStatus): boolean {
-  return status === 'dispatched' || status === 'in_transit'
+  return isTripDispatched(status) && status !== 'completed'
 }
 
 /**

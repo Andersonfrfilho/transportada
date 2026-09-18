@@ -21,7 +21,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1 — Entregar e devolver aparecem em `on_delivery_route`** (D10, aceite 4). Primeiro, um teste
+- [x] **T1 — Entregar e devolver aparecem em `on_delivery_route`** (D10, aceite 4). Primeiro, um teste
       de `tripStatus.service.ts` que falha com a regra de hoje; depois, a correção. Esta task **não**
       espera o `allowedActions` (T7), porque é o conserto mínimo e sai sozinho em staging.
 
