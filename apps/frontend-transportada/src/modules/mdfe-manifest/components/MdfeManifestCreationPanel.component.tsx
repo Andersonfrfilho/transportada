@@ -77,7 +77,8 @@ export function MdfeManifestCreationPanel({
       <div className={styles.panelHead}>
         <h2 id="mdfe-manifest-creation-title">{t('creation.title')}</h2>
         <Button onClick={creation.reset} size="sm" type="button" variant="ghost">
-          <Icon name="refresh" />
+          {/* Lixeira, como no rascunho da viagem: `refresh` é "Tentar novamente" no produto. */}
+          <Icon name="trash" />
           {t('actions.resetCreation')}
         </Button>
       </div>

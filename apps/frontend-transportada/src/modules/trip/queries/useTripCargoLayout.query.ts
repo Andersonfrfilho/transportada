@@ -4,7 +4,7 @@ import { type Query, useQuery } from '@tanstack/react-query'
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type { TripCargoLayoutPoll } from '../shared/trip.types'
 
-const TRIP_CARGO_LAYOUT_QUERY_KEY = 'trip-cargo-layout'
+export const TRIP_CARGO_LAYOUT_QUERY_KEY = 'trip-cargo-layout'
 
 /**
  * Spec 145 T11/T12: a planta da prévia pelo `layoutId`. ⚠️ A chave é o id: trocar de prévia troca a

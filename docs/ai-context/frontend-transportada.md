@@ -351,6 +351,34 @@ bundle nomeia mas nunca busca, hoje só o link do rodapé).
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 
+**A montagem sobrevive a sair da tela** (rascunho da montagem, manual e automática). Medir uma caixa
+("Ir para a fila de medição"), o `<a href="/fleet">` e o menu desmontam `TripWorkspacePage`, e tudo
+vivia em `useState`. O ciclo é um só para os dois modos (`hooks/useTripAssemblyDraftLifecycle.hook.ts`,
+usado por `useQuickCreateDraft` e `useRouteAssemblyDraft`): grava a cada mudança em `sessionStorage`
+(`tripAssemblyDraftStorage.service.ts`, chave
+`transportada.trip.assembly-draft:<manual|automatic>:<companyId>:<userId>`, envelope `{ v: 1,
+savedAt, companyId, userId, draft }`, 8 h), restaura uma vez por escopo e recomeça se empresa ou
+usuário mudarem; gravação que falha (armazenamento cheio ou bloqueado) é avisada na tela. ⚠️ **Só
+entradas e ids** — nunca a nota nem a chave de parada (`cidade|CEP|número` é endereço): a ordem é
+guardada pelo **id de uma nota de cada parada** (`tripAssemblyStopOrder.service.ts`) e a chave é
+recalculada na volta. A volta relê as notas pela busca de disponíveis (a que virou viagem sai e é
+**contada**), filtra motorista/veículo — e os caminhões marcados da proposta — pelos selecionáveis
+(por isso o escopo só chega com sessão **e** frota carregadas), **relê** a proposta `ready` e
+**retoma a espera** da sugestão ainda calculando (`pendingSuggestionId` é gravado logo depois do
+`POST`); status terminal descarta só a proposta, com aviso, e falha de rede a **mantém guardada** com
+"Tentar novamente". Busca de notas que falha na volta também não é veredito: nada é aplicado, nada é
+gravado, e a faixa oferece reler (fase `unreachable`). A espera que cai por rede mantém o
+`pendingSuggestionId` e o painel oferece retomá-la; só `failed`/`stale`/teto o esquecem
+(`isSettledSuggestionFailure`). "Limpar rascunho" durante o cálculo invalida a espera
+(`proposalGenerationRef`) e recusa também a sugestão pendente. Enquanto restaura, "Nova viagem"/"Montar roteiro" ficam desabilitados, e se o
+operador mexer antes a restauração não aplica por cima. A busca da montagem automática nasce com a
+seleção do lote (`selectedIds`) — sem isso ela anunciava seleção vazia ao remontar e apagava o lote.
+A rota escolhida volta pela **assinatura** (`preferredRouteChoice` do `TripAssemblyMap`, que só
+publica com resposta da estrada). Cancelar/fechar guarda; "Limpar rascunho" apaga (e recusa a
+proposta); criação e aceite limpam; sair da conta apaga todos (`clearAllTripAssemblyDrafts` no `logout` do
+`KeycloakAuthProvider`, que cobre o menu e o perfil do motorista). A medida da caixa invalida planta e conta pelo efeito `packageBoxMeasurement`, e a
+restauração invalida o mesmo alcance. Contratos: `test/trip/assembly-draft*.contract.ts`.
+
 **A proposta se revisa dentro do diálogo que a pediu, viagem por viagem** (spec 110). Ela era
 renderizada em `TripWorkspace.page.tsx`, entre os botões e a tabela, e o diálogo fechava **antes** de
 ela aparecer — quem escolheu 132 notas, 5 motoristas e 5 veículos perdia de vista o pedido que gerou

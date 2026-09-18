@@ -2960,3 +2960,28 @@
     animation: none;
   }
 }
+
+/* O rascunho da montagem guardado com o diálogo fechado: faixa discreta, ações à direita. */
+.draftBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+}
+
+.draftBanner > p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+/* Quando o aviso é longo e quebra, os botões descem mas continuam à direita, como nas faixas curtas. */
+.draftBannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}

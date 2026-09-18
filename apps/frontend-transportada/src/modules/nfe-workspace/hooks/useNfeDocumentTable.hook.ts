@@ -313,6 +313,8 @@ type UseNfeDocumentTableParams = Readonly<{
    */
   allowBlocked?: boolean
   documents: readonly NfeDocumentListItem[]
+  /** A seleção com que a tabela nasce — quem guarda a escolha fora dela a devolve ao remontar. */
+  initialSelectedIds?: readonly string[]
   preferences?: TableViewPreferencesController
   statusLabels: Readonly<Record<DocumentStatus, string>>
 }>
@@ -817,6 +819,7 @@ function createInitialAdvancedFilter(nextId: () => string): AdvancedFilterModel 
 export function useNfeDocumentTable({
   allowBlocked = false,
   documents,
+  initialSelectedIds,
   preferences,
 }: UseNfeDocumentTableParams): UseNfeDocumentTableResult {
   const idRef = useRef(0)
@@ -835,7 +838,9 @@ export function useNfeDocumentTable({
     seed === undefined ? null : seed.savedAdvancedFilter,
   )
   const [sort, setSort] = useState<SortState>(seed === undefined ? DEFAULT_SORT : seed.sort)
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
+    () => new Set(initialSelectedIds),
+  )
   const initialColumnConfig = useState<ColumnConfig>(loadColumnConfig)[0]
   const [columnOrder, setColumnOrder] = useState<readonly ColumnKey[]>(
     seed?.columnOrder ?? initialColumnConfig.order,

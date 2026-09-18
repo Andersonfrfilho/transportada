@@ -217,6 +217,19 @@ export function TripQuickCreateDialog({
           </Button>
         </header>
 
+        {quickCreate.draftStore.droppedDocumentCount === 0 ? null : (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.droppedDocuments', {
+              count: quickCreate.draftStore.droppedDocumentCount,
+            })}
+          </p>
+        )}
+        {quickCreate.draftStore.isUnsaved ? (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.unsaved')}
+          </p>
+        ) : null}
+
         <div className={styles.scanRow}>
           <label className={styles.scanField}>
             {t('quickCreate.accessKey')}
@@ -366,6 +379,7 @@ export function TripQuickCreateDialog({
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
           onRouteChoiceChange={quickCreate.setRouteChoice}
+          preferredRouteChoice={quickCreate.routeChoice}
           /**
            * ⚠️ A parada é um endereço, e a fila é de **chaves de acesso**: a tradução de id de nota
            * para chave acontece aqui, uma vez, sobre a mesma lista que alimentou o mapa. Nota que
@@ -412,6 +426,17 @@ export function TripQuickCreateDialog({
         ) : null}
 
         <div className={styles.dialogFooter}>
+          {/* Cancelar guarda o rascunho para depois de medir; só este botão o apaga. */}
+          <Button
+            disabled={!quickCreate.hasDraft}
+            onClick={quickCreate.discardDraft}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="trash" />
+            {t('actions.resetCreation')}
+          </Button>
           <Button onClick={quickCreate.close} size="sm" type="button" variant="ghost">
             <Icon name="close" />
             {t('quickCreate.cancel')}

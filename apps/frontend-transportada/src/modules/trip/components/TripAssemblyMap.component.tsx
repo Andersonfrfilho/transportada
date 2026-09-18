@@ -44,7 +44,9 @@ import {
   totalAssemblyMinutes,
 } from '../shared/assemblyLeg.service'
 import {
+  isRouteChoiceSettled,
   resolveAssemblyRouteChoice,
+  resolvePreferredRouteOptionIndex,
   resolveRouteOptionSummaries,
 } from '../shared/assemblyRouteOptions.service'
 import {} from '../shared/tileMap.service'
@@ -86,6 +88,11 @@ type TripAssemblyMapProps = Readonly<{
    * `undefined` é "não há escolha" — rota única, rascunho ou estrada que ainda não veio.
    */
   onRouteChoiceChange?: ((choice: RouteChoice | undefined) => void) | undefined
+  /**
+   * A rota escolhida antes de o operador sair da tela (rascunho da montagem). Ela é reaplicada só
+   * quando a estrada que chega tem a mesma assinatura — outra estrada começa na principal.
+   */
+  preferredRouteChoice?: RouteChoice | undefined
   /**
    * Tirar a parada inteira da viagem — todas as notas que param naquele endereço, pelos ids delas.
    *
@@ -178,6 +185,7 @@ export function TripAssemblyMap({
   onStopRemove,
   onStopUndoRemove,
   order,
+  preferredRouteChoice,
   proposalTimeText,
   removedNoteIds,
   resolveMoveTargets,
@@ -318,6 +326,22 @@ export function TripAssemblyMap({
   }, [routeKey, tollVehicleId])
 
   /**
+   * ⚠️ Depois do efeito acima, e só quando a resposta muda: a escolha publicada volta como
+   * `preferredRouteChoice`, e reagir a ela a cada render brigaria com o clique do operador.
+   */
+  const preferredRouteChoiceRef = useRef(preferredRouteChoice)
+  useEffect(() => {
+    preferredRouteChoiceRef.current = preferredRouteChoice
+  }, [preferredRouteChoice])
+  useEffect(() => {
+    const preferredIndex = resolvePreferredRouteOptionIndex({
+      options: geometryQuery.data?.options ?? [],
+      preferred: preferredRouteChoiceRef.current,
+    })
+    if (preferredIndex !== undefined) setSelectedOptionIndex(preferredIndex)
+  }, [geometryQuery.data])
+
+  /**
    * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
    * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
    */
@@ -370,11 +394,15 @@ export function TripAssemblyMap({
    * ⚠️ Enquanto a estrada é medida (rascunho ou resposta a caminho) nada é publicado: `undefined`
    * ali diria "não há escolha" antes de a resposta dizer isso.
    */
-  const isRouteChoiceSettled = !isDraft && !geometryQuery.isFetching
+  const isChoiceSettled = isRouteChoiceSettled({
+    hasResponse: geometryQuery.data !== undefined,
+    isDraft,
+    isFetching: geometryQuery.isFetching,
+  })
   useEffect(() => {
-    if (!isRouteChoiceSettled) return
+    if (!isChoiceSettled) return
     onRouteChoiceChangeRef.current?.(stableRouteChoice)
-  }, [isRouteChoiceSettled, stableRouteChoice])
+  }, [isChoiceSettled, stableRouteChoice])
 
   /** Enquanto a sonda não responde, as telhas tentam — trocar de desenho depois pisca menos que antes. */
 

@@ -264,7 +264,8 @@ describe('o hook expõe a réplica e as irmãs sob demanda (T3.1)', () => {
     ).text()
 
     expect(source).toContain('replicate')
-    expect(source).toContain('queryKey: [PACKAGE_BOX_QUERY_KEY]')
+    /** A fila entra pelo registro de efeitos — `mutation-invalidation.contract.ts` cobra a chave. */
+    expect(source).toContain('MUTATION_EFFECT.packageBoxMeasurement')
     /** D9: as irmãs nunca vêm junto da fila de 50 linhas — hook próprio, não campo do retorno principal. */
     expect(source).toContain('export function usePackageBoxSiblings')
     expect(source).toContain("queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', boxId]")

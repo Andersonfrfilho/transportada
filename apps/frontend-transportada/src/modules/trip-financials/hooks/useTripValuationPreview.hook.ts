@@ -9,7 +9,7 @@ import {
   type TripValuationSummary,
 } from '../shared/tripValuation.service'
 
-const TRIP_VALUATION_PREVIEW_QUERY_KEY = 'trip-valuation-preview'
+export const TRIP_VALUATION_PREVIEW_QUERY_KEY = 'trip-valuation-preview'
 
 export type TripValuationPreviewController = Readonly<{
   canRead: boolean

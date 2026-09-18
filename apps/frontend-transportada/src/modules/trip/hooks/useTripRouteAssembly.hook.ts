@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import {
   invalidateMutationEffect,
@@ -19,7 +19,11 @@ import {
 } from '@/modules/routing/shared/multiVehiclePairing.service'
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
-import { ROUTE_ASSEMBLY_TIMEOUT_CODE } from '../shared/routeAssemblyFailure.service'
+import {
+  isSettledSuggestionFailure,
+  ROUTE_ASSEMBLY_TIMEOUT_CODE,
+  RouteSuggestionSettledError,
+} from '../shared/routeAssemblyFailure.service'
 import { TRIP_ERROR, TRIP_QUERY_KEY } from '../shared/trip.constant'
 import type {
   AcceptedMultiVehicleTrip,
@@ -42,6 +46,15 @@ import {
 import { getTripClient } from './useTripWorkspace.hook'
 import type { RouteChoice } from '../shared/routeGeometry.service'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
+import {
+  isSameDocumentSelection,
+  type AutomaticProposalState,
+} from '../shared/tripAssemblyDraft.service'
+import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.service'
+import {
+  ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY,
+  useRouteAssemblyDraft,
+} from './useRouteAssemblyDraft.hook'
 
 const SUGGESTION_POLL_MS = 2_000
 const SUGGESTION_POLL_CAP = 60
@@ -76,7 +89,9 @@ async function waitForSuggestion(suggestionId: string): Promise<MultiVehicleProp
      * existe mais, e esperar por ela seria esperar para sempre.
      */
     if (suggestion.status === 'failed' || suggestion.status === 'stale') {
-      throw new Error(suggestion.errorCode ?? `ROUTE_SUGGESTION_${suggestion.status.toUpperCase()}`)
+      throw new RouteSuggestionSettledError(
+        suggestion.errorCode ?? `ROUTE_SUGGESTION_${suggestion.status.toUpperCase()}`,
+      )
     }
     await new Promise((resolve) => setTimeout(resolve, SUGGESTION_POLL_MS))
   }
@@ -87,6 +102,8 @@ async function waitForSuggestion(suggestionId: string): Promise<MultiVehicleProp
 export function useTripRouteAssembly(
   input: Readonly<{
     canManageTrips: boolean
+    /** Empresa e usuário do rascunho da montagem (ver `useTripAssemblyDraftLifecycle`). */
+    draftScope?: TripAssemblyDraftScope | undefined
     /**
      * Uma viagem criada abre nela; várias fecham na lista. Quem acabou de montar quer conferir o
      * roteiro — e o modal que ficava aberto mostrava o sucesso cercado dos três avisos de campo
@@ -157,11 +174,19 @@ export function useTripRouteAssembly(
   const [stopMoves, setStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
   const [draftStopMoves, setDraftStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
+  /** A sugestão pedida e ainda sem resposta: guardada para a volta retomar a espera. */
+  const [pendingSuggestionId, setPendingSuggestionId] = useState<null | string>(null)
+  /**
+   * ⚠️ Cresce a cada "Limpar rascunho", aceite e troca de escopo. Uma espera que termina depois disso
+   * pertence a uma montagem que não existe mais — sem esta conferência ela repunha a proposta limpa
+   * e a gravava de novo.
+   */
+  const proposalGenerationRef = useRef(0)
 
   const documentsQuery = useQuery({
     enabled: input.canManageTrips,
     queryFn: loadAvailableTripDocuments,
-    queryKey: [TRIP_QUERY_KEY, 'route-assembly', 'documents'],
+    queryKey: ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY,
   })
 
   /**
@@ -213,7 +238,12 @@ export function useTripRouteAssembly(
    * desfazer era cancelar cinco viagens uma a uma.
    */
   const proposeMutation = useMutation({
-    mutationFn: async (): Promise<MultiVehicleProposal> => {
+    /** Com um id, **retoma** a espera de uma sugestão já pedida — a volta nunca pede outra. */
+    mutationFn: async (resumeSuggestionId: string | void): Promise<MultiVehicleProposal> => {
+      if (typeof resumeSuggestionId === 'string') return waitForSuggestion(resumeSuggestionId)
+      const generation = proposalGenerationRef.current
+      /** Pedir de novo substitui a sugestão que ficou esperando: a antiga é recusada. */
+      rejectOnServer(pendingSuggestionId ?? undefined)
       const client = getTripClient()
       /**
        * ⚠️ **O recálculo é o que honra a remoção.** Editar só no cliente seria ignorado pelo aceite,
@@ -238,9 +268,29 @@ export function useTripRouteAssembly(
           })),
         ),
       })
+      if (generation !== proposalGenerationRef.current) {
+        rejectOnServer(suggestion.id)
+        throw new RouteSuggestionSettledError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      /** Gravado antes da espera: quem sai para medir no meio do cálculo não deixa a sugestão órfã. */
+      setPendingSuggestionId(suggestion.id)
       return waitForSuggestion(suggestion.id)
     },
-    onSuccess: (result) => {
+    /**
+     * ⚠️ Só o fim de verdade esquece a sugestão pedida. Queda de rede na espera a mantém, e o painel
+     * oferece retomar — esquecê-la aqui a deixaria órfã no servidor.
+     */
+    onError: (error, _variables, context) => {
+      if (context?.generation !== proposalGenerationRef.current) return
+      if (isSettledSuggestionFailure(error)) setPendingSuggestionId(null)
+    },
+    onMutate: () => {
+      assemblyDraft.releaseRetained()
+      return { generation: proposalGenerationRef.current }
+    },
+    onSuccess: (result, _variables, context) => {
+      if (context.generation !== proposalGenerationRef.current) return
+      setPendingSuggestionId(null)
       setProposal(result)
       /**
        * ⚠️ Spec 110 D1: **o diálogo NÃO fecha aqui.** Ele fechava, e a revisão aparecia na tela de
@@ -330,25 +380,91 @@ export function useTripRouteAssembly(
       }
     },
     onSuccess: (result) => {
+      resetAssembly()
+      assemblyDraft.clear()
       setOutcome(result)
-      setProposal(null)
-      setSelectedVehicleIds(new Set())
-      setOpenVehicleId(null)
-      setPendingRemovals(new Set())
-      setOrderByVehicle(new Map())
-      setReleaseLayoutByVehicle(new Map())
-      setRouteChoiceByVehicle(new Map())
-      setDraftOrderByVehicle(new Map())
-      setStopMoves(new Map())
-      setDraftStopMoves(new Map())
-      setIsOpen(false)
-      setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
-      setPool([])
       void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] })
       input.onCreated(result.trips)
     },
   })
+
+  function applyProposalState(restored: MultiVehicleProposal, state: AutomaticProposalState): void {
+    setProposal(restored)
+    setSelectedVehicleIds(state.selectedVehicleIds)
+    setOpenVehicleId(state.openVehicleId)
+    setPendingRemovals(state.pendingRemovals)
+    setOrderByVehicle(state.orderByVehicle)
+    setReleaseLayoutByVehicle(state.releaseLayoutByVehicle)
+    setRouteChoiceByVehicle(state.routeChoiceByVehicle)
+    setDraftOrderByVehicle(state.draftOrderByVehicle)
+    setStopMoves(state.stopMoves)
+    setDraftStopMoves(state.draftStopMoves)
+  }
+
+  /** Aceite, "Limpar rascunho" e troca de escopo: a montagem volta ao começo. */
+  function resetAssembly(): void {
+    proposalGenerationRef.current += 1
+    proposeMutation.reset()
+    setProposal(null)
+    setSelectedVehicleIds(new Set())
+    setOpenVehicleId(null)
+    setPendingRemovals(new Set())
+    setOrderByVehicle(new Map())
+    setReleaseLayoutByVehicle(new Map())
+    setRouteChoiceByVehicle(new Map())
+    setDraftOrderByVehicle(new Map())
+    setStopMoves(new Map())
+    setDraftStopMoves(new Map())
+    setIsOpen(false)
+    setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
+    setPool([])
+    setPendingSuggestionId(null)
+  }
+
+  const assemblyDraft = useRouteAssemblyDraft({
+    form: {
+      draft,
+      isOpen,
+      pendingSuggestionId,
+      pool,
+      proposalState:
+        proposal === null
+          ? null
+          : {
+              draftOrderByVehicle,
+              draftStopMoves,
+              openVehicleId,
+              orderByVehicle,
+              pendingRemovals,
+              releaseLayoutByVehicle,
+              routeChoiceByVehicle,
+              selectedVehicleIds,
+              stopMoves,
+              suggestionId: proposal.suggestion.id,
+            },
+    },
+    onApplyForm: (form) => {
+      setDraft(form.draft)
+      setPool(form.documents)
+      setIsOpen(form.isOpen)
+    },
+    onApplyProposal: applyProposalState,
+    onReset: resetAssembly,
+    onResume: (suggestionId) => {
+      setPendingSuggestionId(suggestionId)
+      proposeMutation.mutate(suggestionId)
+    },
+    scope: input.draftScope,
+    selectableDriverIds: input.selectableDriverIds,
+    selectableVehicleIds: input.selectableVehicleIds,
+  })
+
+  /** Mexer é decidir: a restauração a caminho não aplica por cima, e o aviso da volta sai. */
+  function touch(): void {
+    assemblyDraft.markTouched()
+    assemblyDraft.dismissNotice()
+  }
 
   return {
     pool,
@@ -377,9 +493,19 @@ export function useTripRouteAssembly(
           ? withoutVehicle(current, vehicleId)
           : new Map([...current, [vehicleId, choice]])
       }),
-    /** A escolha da busca **é** o lote: não há segundo passo entre marcar a nota e ela contar. */
-    setPool,
-    close: () => setIsOpen(false),
+    /**
+     * A escolha da busca **é** o lote: não há segundo passo entre marcar a nota e ela contar. ⚠️ A
+     * busca remontada anuncia a mesma seleção — isso não é o operador mexendo.
+     */
+    setPool: (documents: readonly TripCandidateDocument[]) => {
+      if (!isSameDocumentSelection(documents, pool)) touch()
+      setPool(documents)
+    },
+    /** Cancelar guarda o rascunho, e a proposta com ele; só "Limpar rascunho" o apaga. */
+    close: () => {
+      assemblyDraft.dismissNotice()
+      setIsOpen(false)
+    },
     isOpen,
     open: () => setIsOpen(true),
     /**
@@ -388,6 +514,7 @@ export function useTripRouteAssembly(
      * clique, e reofertá-la produziria o `already_linked` que a D1 acabou de aprender a pular.
      */
     retryWith: (nfeDocumentIds: readonly string[]) => {
+      touch()
       const wanted = new Set(nfeDocumentIds)
       setPool((documentsQuery.data ?? []).filter((entry) => wanted.has(entry.id)))
       setOutcome(null)
@@ -480,21 +607,32 @@ export function useTripRouteAssembly(
         next.delete(vehicleId)
         return next
       }),
-    /**
-     * Spec 108: descartar avisa a API (`reject`) e volta o operador ao formulário com a escolha
-     * dele intacta. ⚠️ A recusa remota é **melhor esforço**: falhar ali não pode prender a tela
-     * numa proposta que o operador já rejeitou — a sugestão fica `ready` e ninguém a aceita.
-     */
+    /** Spec 108: descartar a proposta volta o operador ao formulário com a escolha dele intacta. */
     discardProposal: () => {
-      const suggestionId = proposal?.suggestion.id
-      if (suggestionId !== undefined) {
-        void getRouteSuggestionClient()
-          .rejectMultiVehicle({ suggestionId })
-          .catch(() => undefined)
-      }
+      rejectOnServer(proposal?.suggestion.id)
       setProposal(null)
       setIsOpen(true)
     },
+    /** "Limpar rascunho": a proposta em revisão, ou a guardada sem rede, é recusada no servidor. */
+    discardDraft: () => {
+      for (const suggestionId of new Set([
+        proposal?.suggestion.id,
+        assemblyDraft.retainedSuggestionId,
+        pendingSuggestionId ?? undefined,
+      ])) {
+        rejectOnServer(suggestionId)
+      }
+      resetAssembly()
+      assemblyDraft.clear()
+    },
+    assemblyDraft,
+    /** A espera caiu por rede com a sugestão ainda viva: retomar em vez de pedir outra. */
+    canResumeSuggestion:
+      pendingSuggestionId !== null && proposeMutation.isError && !proposeMutation.isPending,
+    resumeSuggestion: () => {
+      if (pendingSuggestionId !== null) proposeMutation.mutate(pendingSuggestionId)
+    },
+    routeChoiceByVehicle,
     bindings,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,
@@ -502,19 +640,35 @@ export function useTripRouteAssembly(
     issues,
     outcome,
     selection,
-    setDriverIds: (driverIds: readonly string[]) =>
-      setDraft((current) => ({ ...current, driverIds })),
+    setDriverIds: (driverIds: readonly string[]) => {
+      touch()
+      setDraft((current) => ({ ...current, driverIds }))
+    },
     boundVehicleIds,
     effectiveVehicleIds,
-    setVehicleIds: (vehicleIds: readonly string[]) =>
+    setVehicleIds: (vehicleIds: readonly string[]) => {
+      touch()
       setDraft((current) => ({
         ...current,
         vehicleIds: toManualVehicleIds({ boundVehicleIds, nextVehicleIds: vehicleIds }),
-      })),
+      }))
+    },
   }
 }
 
 export type TripRouteAssemblyController = ReturnType<typeof useTripRouteAssembly>
+
+/**
+ * Spec 108: descartar avisa a API (`reject`). ⚠️ A recusa remota é **melhor esforço**: falhar ali
+ * não pode prender a tela numa proposta que o operador já rejeitou — a sugestão fica `ready` e
+ * ninguém a aceita.
+ */
+function rejectOnServer(suggestionId: string | undefined): void {
+  if (suggestionId === undefined) return
+  void getRouteSuggestionClient()
+    .rejectMultiVehicle({ suggestionId })
+    .catch(() => undefined)
+}
 
 /** Os veículos que a proposta distribuiu, na ordem em que as paradas os nomeiam. */
 function vehicleIdsOf(proposal: MultiVehicleProposal): readonly string[] {

@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
+import {
   createPackageBoxClient,
   packageBoxErrorCode,
   type PackageBoxMeasurementInput,
@@ -13,7 +17,7 @@ import {
 import { PACKAGE_BOX_REPLICATE_FAILED_CODE } from '../shared/nfeWorkspace.constant'
 import { isRepeatedScan } from '../shared/packageBoxScan.js'
 
-const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
+export const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
@@ -117,7 +121,7 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
      */
     onSuccess: () => {
       setMeasureErrorCode(undefined)
-      void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.packageBoxMeasurement, queryClient })
     },
   })
 
@@ -138,7 +142,7 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     onMutate: () => setReplicateErrorCode(undefined),
     onSuccess: () => {
       setReplicateErrorCode(undefined)
-      void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.packageBoxMeasurement, queryClient })
     },
   })
 

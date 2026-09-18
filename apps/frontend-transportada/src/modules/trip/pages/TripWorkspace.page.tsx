@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { TripAssemblyDraftBanner } from '../components/TripAssemblyDraftBanner.component'
 import { TripQuickCreateDialog } from '../components/TripQuickCreateDialog.component'
 import { TripFilters } from '../components/TripFilters.component'
 import { Tabs } from '@/components/ui/tabs'
@@ -185,6 +186,40 @@ export function TripWorkspacePage() {
    * consultada aqui para os seletores da montagem — uma segunda consulta só para a placa seria
    * varrer a mesma lista duas vezes.
    */
+  const userId = authQuery.data?.data.identity.userId
+  /**
+   * O rascunho da montagem só é lido com sessão **e** frota carregadas: a volta filtra motorista e
+   * veículo pelos selecionáveis, e uma frota ainda vazia apagaria a escolha que está voltando.
+   */
+  const isFleetLoaded =
+    fleet.viewModel.drivers !== undefined && fleet.viewModel.vehicles !== undefined
+  const draftScope =
+    companyId === undefined ||
+    userId === undefined ||
+    !isFleetLoaded ||
+    !workspace.controller.canManageTrips
+      ? undefined
+      : { companyId, userId }
+  /**
+   * Estáveis entre renders: a montagem as consulta ao restaurar o rascunho, e uma lista nova a cada
+   * render não diria nada de novo.
+   */
+  const fleetDrivers = fleet.viewModel.drivers
+  const fleetVehicles = fleet.viewModel.vehicles
+  const selectableDriverIds = useMemo(
+    () =>
+      (fleetDrivers ?? [])
+        .filter((driver) => driver.status === 'active')
+        .map((driver) => driver.id),
+    [fleetDrivers],
+  )
+  const selectableVehicleIds = useMemo(
+    () =>
+      (fleetVehicles ?? [])
+        .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
+        .map((vehicle) => vehicle.id),
+    [fleetVehicles],
+  )
   const plateByVehicleId = new Map(
     (fleet.viewModel.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.plate]),
   )
@@ -194,15 +229,12 @@ export function TripWorkspacePage() {
    */
   const quickCreate = useTripQuickCreate({
     ...(companyId === undefined ? {} : { companyId }),
+    draftScope,
     onCreated: (trip) =>
       navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: trip.id }),
     permissions,
-    selectableDriverIds: (fleet.viewModel.drivers ?? [])
-      .filter((driver) => driver.status === 'active')
-      .map((driver) => driver.id),
-    selectableVehicleIds: (fleet.viewModel.vehicles ?? [])
-      .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
-      .map((vehicle) => vehicle.id),
+    selectableDriverIds,
+    selectableVehicleIds,
   })
   /**
    * Spec 102: cancelar as marcadas, **uma por uma e em sequência**. `Promise.all` mandaria N
@@ -223,6 +255,7 @@ export function TripWorkspacePage() {
 
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
+    draftScope,
     /**
      * Uma viagem abre nela — quem montou quer conferir o roteiro. Várias ficam na lista, que é onde
      * elas cabem: abrir a primeira esconderia as outras que o mesmo clique acabou de criar.
@@ -233,12 +266,8 @@ export function TripWorkspacePage() {
         navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: only.tripId })
       }
     },
-    selectableDriverIds: (fleet.viewModel.drivers ?? [])
-      .filter((driver) => driver.status === 'active')
-      .map((driver) => driver.id),
-    selectableVehicleIds: (fleet.viewModel.vehicles ?? [])
-      .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
-      .map((vehicle) => vehicle.id),
+    selectableDriverIds,
+    selectableVehicleIds,
   })
 
   const isForbidden = companyId === undefined || !workspace.controller.canReadTrips
@@ -322,15 +351,31 @@ export function TripWorkspacePage() {
 
               {workspace.controller.canManageTrips ? (
                 <div className={styles.actionActions}>
-                  <Button onClick={quickCreate.open} size="sm" type="button">
+                  {/* Enquanto o rascunho volta, abrir o diálogo seria montar por cima dele. */}
+                  <Button
+                    disabled={quickCreate.draftStore.isRestoring}
+                    onClick={quickCreate.open}
+                    size="sm"
+                    type="button"
+                  >
                     <Icon name="add" />
                     {t('quickCreate.title')}
                   </Button>
-                  <Button onClick={assembly.open} size="sm" type="button" variant="secondary">
+                  <Button
+                    disabled={assembly.assemblyDraft.isRestoring}
+                    onClick={assembly.open}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
                     <Icon name="workspace-trip" />
                     {t('routeAssembly.title')}
                   </Button>
                 </div>
+              ) : null}
+
+              {workspace.controller.canManageTrips ? (
+                <TripAssemblyDraftBanner assembly={assembly} quickCreate={quickCreate} />
               ) : null}
 
               {assembly.outcome === null ? null : (

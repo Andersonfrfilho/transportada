@@ -89,7 +89,11 @@ export function TripRouteAssemblyPanel({
   }
 
   const { alreadyOnTrip, eligible } = assembly.selection
-  const isBlocked = assembly.issues.length > 0 || assembly.proposeMutation.isPending
+  /** Enquanto a proposta guardada é relida, pedir outra brigaria com a resposta que vem. */
+  const isBlocked =
+    assembly.issues.length > 0 ||
+    assembly.proposeMutation.isPending ||
+    assembly.assemblyDraft.isRetrying
   const failure = assembly.proposeMutation.isError
     ? resolveRouteAssemblyFailure(assembly.proposeMutation.error)
     : null
@@ -122,6 +126,7 @@ export function TripRouteAssemblyPanel({
       <TripDocumentSearch
         documents={assembly.availableDocuments}
         onSelectionChange={assembly.setPool}
+        selectedIds={assembly.pool.map((document) => document.id)}
       />
 
       <p className={styles.hint}>
@@ -238,6 +243,15 @@ export function TripRouteAssemblyPanel({
           {describeFailure(failure)}
         </p>
       )}
+      {/* A espera caiu por rede e a sugestão segue viva: retomar, não pedir outra. */}
+      {assembly.canResumeSuggestion ? (
+        <div className={styles.actionActions}>
+          <Button onClick={assembly.resumeSuggestion} size="sm" type="button" variant="secondary">
+            <Icon name="refresh" />
+            {t('assemblyDraft.retry')}
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
 }

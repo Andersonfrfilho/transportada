@@ -87,3 +87,31 @@ function resolveChoiceCriterion(input: {
   if (input.option.isNoToll) return 'no_toll'
   return 'alternative'
 }
+
+/**
+ * A rota que o operador tinha escolhido antes de sair da tela, reencontrada **pela assinatura**. Sem
+ * assinatura igual a estrada é outra (a ordem ou o veículo mudou), e a escolha antiga não se aplica:
+ * `undefined` deixa o mapa na principal, como em qualquer rota nova.
+ */
+export function resolvePreferredRouteOptionIndex(input: {
+  readonly options: readonly Readonly<{ signature: null | string }>[]
+  readonly preferred: RouteChoice | undefined
+}): number | undefined {
+  const signature = input.preferred?.signature ?? null
+  if (signature === null) return undefined
+  const index = input.options.findIndex((option) => option.signature === signature)
+  return index === -1 ? undefined : index
+}
+
+/**
+ * A escolha só é publicada com uma resposta da estrada na mão. Sem resposta — rascunho, consulta a
+ * caminho ou ainda desligada enquanto o mapa monta —, publicar "sem escolha" apagaria a rota que o
+ * operador tinha escolhido e que acabou de voltar do rascunho.
+ */
+export function isRouteChoiceSettled(input: {
+  readonly hasResponse: boolean
+  readonly isDraft: boolean
+  readonly isFetching: boolean
+}): boolean {
+  return input.hasResponse && !input.isDraft && !input.isFetching
+}

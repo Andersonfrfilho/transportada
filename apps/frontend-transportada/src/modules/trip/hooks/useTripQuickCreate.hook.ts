@@ -19,6 +19,8 @@ import {
 } from '../shared/assemblyOrder.service'
 import { readDailyAllowanceDaysInput } from '../shared/dailyAllowanceDaysField.service'
 import { runQuickCreateTrip } from '../shared/quickCreateTrip.service'
+import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.service'
+import { QUICK_CREATE_DOCUMENTS_QUERY_KEY, useQuickCreateDraft } from './useQuickCreateDraft.hook'
 import type { RouteChoice } from '../shared/routeGeometry.service'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
@@ -42,6 +44,8 @@ export type TripQuickCreateController = ReturnType<typeof useTripQuickCreate>
 export function useTripQuickCreate(
   input: Readonly<{
     companyId?: string
+    /** Empresa e usuário do rascunho da montagem (ver `useTripAssemblyDraftLifecycle`). */
+    draftScope?: TripAssemblyDraftScope | undefined
     onCreated: (trip: TripDetail) => void
     permissions: readonly string[]
     selectableDriverIds: readonly string[]
@@ -80,7 +84,7 @@ export function useTripQuickCreate(
   const documentsQuery = useQuery({
     enabled: isOpen,
     queryFn: loadAvailableTripDocuments,
-    queryKey: [TRIP_QUERY_KEY, 'quick-create', 'documents'],
+    queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
   })
 
   function updateQueue(next: TripQuickCreateQueue): void {
@@ -161,6 +165,37 @@ export function useTripQuickCreate(
     )
   }, [staged])
 
+  const draftStore = useQuickCreateDraft({
+    form: { cityOrder, dailyAllowanceDaysInput, driverIds, isOpen, queue, routeChoice, vehicleId },
+    onApply: (restored) => {
+      updateQueue(
+        stageQuickCreateDocuments({
+          documents: restored.documents,
+          queue: EMPTY_QUICK_CREATE_QUEUE,
+        }),
+      )
+      setCityOrder(restored.cityOrder)
+      setDriverIds(restored.driverIds)
+      setVehicleId(restored.vehicleId)
+      setDailyAllowanceDaysInput(restored.dailyAllowanceDaysInput)
+      setRouteChoice(restored.routeChoice)
+      setIsOpen(restored.isOpen)
+    },
+    onReset: () => {
+      setIsOpen(false)
+      reset()
+    },
+    scope: input.draftScope,
+    selectableDriverIds: input.selectableDriverIds,
+    selectableVehicleIds: input.selectableVehicleIds,
+  })
+
+  /** Mexer é decidir: a restauração a caminho não aplica por cima, e o aviso da volta sai. */
+  function touch(): void {
+    draftStore.markTouched()
+    draftStore.dismissNotice()
+  }
+
   const issues = validateQuickCreate({
     dailyAllowanceDays: dailyAllowanceDaysReading,
     driverIds,
@@ -192,6 +227,7 @@ export function useTripQuickCreate(
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] })
       setIsOpen(false)
       reset()
+      draftStore.clear()
       input.onCreated(trip)
     },
   })
@@ -200,14 +236,32 @@ export function useTripQuickCreate(
     bindings,
     cityOrder,
     moveCityUp: (code: string) => setCityOrder(moveCity({ code, direction: -1, order: cityOrder })),
-    setCityOrder,
+    setCityOrder: (order: AssemblyCityOrder) => {
+      draftStore.markTouched()
+      setCityOrder(order)
+    },
     setRouteChoice,
     stagedDocuments: staged,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,
-    acceptScan,
+    acceptScan: (text: string) => {
+      touch()
+      acceptScan(text)
+    },
     canScan,
-    close: () => setIsOpen(false),
+    /** Cancelar guarda o rascunho; "Limpar rascunho" é o único caminho que o apaga antes de criar. */
+    close: () => {
+      draftStore.dismissNotice()
+      setIsOpen(false)
+    },
+    discardDraft: () => {
+      setIsOpen(false)
+      reset()
+      draftStore.clear()
+    },
+    draftStore,
+    hasDraft: draftStore.hasDraft,
+    routeChoice,
     closeScanner: () => setIsScannerOpen(false),
     createMutation,
     dailyAllowanceDays,
@@ -219,14 +273,27 @@ export function useTripQuickCreate(
     open: () => setIsOpen(true),
     openScanner: () => setIsScannerOpen(true),
     queue,
-    stageDocuments: (documents: readonly ScannedNfeDocument[]) =>
-      updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current })),
-    removeEntry: (accessKey: string) =>
-      updateQueue(removeQuickCreateEntry({ accessKey, queue: queueRef.current })),
+    stageDocuments: (documents: readonly ScannedNfeDocument[]) => {
+      touch()
+      updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current }))
+    },
+    removeEntry: (accessKey: string) => {
+      touch()
+      updateQueue(removeQuickCreateEntry({ accessKey, queue: queueRef.current }))
+    },
     reset,
-    setDailyAllowanceDaysInput,
-    setDriverIds,
-    setVehicleId,
+    setDailyAllowanceDaysInput: (value: string) => {
+      draftStore.markTouched()
+      setDailyAllowanceDaysInput(value)
+    },
+    setDriverIds: (ids: readonly string[]) => {
+      draftStore.markTouched()
+      setDriverIds(ids)
+    },
+    setVehicleId: (id: string) => {
+      draftStore.markTouched()
+      setVehicleId(id)
+    },
     stagedCount: stagedDocumentIds(queue).length,
     vehicleId,
   }

@@ -15,6 +15,22 @@
     "view": "View",
     "viewTrip": "Open the trip for {{vehicle}}"
   },
+  "assemblyDraft": {
+    "automaticPending": "An automatic route is being assembled and is kept in this tab.",
+    "automaticUnreachable": "The invoices of the automatic route being assembled could not be reloaded right now. The draft is still kept in this tab.",
+    "droppedDocuments_one": "{{count}} invoice from the draft did not come back: it is already on a trip or no longer available.",
+    "droppedDocuments_other": "{{count}} invoices from the draft did not come back: they are already on a trip or no longer available.",
+    "droppedVehicles_one": "{{count}} truck from the proposal is no longer available and was unselected.",
+    "droppedVehicles_other": "{{count}} trucks from the proposal are no longer available and were unselected.",
+    "manualPending": "A new trip is being assembled and is kept in this tab.",
+    "manualUnreachable": "The invoices of the new trip being assembled could not be reloaded right now. The draft is still kept in this tab.",
+    "proposalDropped": "The proposal under review is no longer valid — the invoices or the fleet changed. Your request was kept: ask for the route again.",
+    "proposalUnreachable": "The proposal under review could not be reloaded right now. It is still kept in this tab.",
+    "restoring": "Resuming the assembly…",
+    "resume": "Resume",
+    "retry": "Try again",
+    "unsaved": "The draft could not be kept in this tab (storage full or blocked). If you leave the screen, the assembly is lost."
+  },
   "assemblyMap": {
     "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
     "basemapLabel": "City boundary",

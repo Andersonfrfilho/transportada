@@ -61,6 +61,8 @@ type TripProposalDetailProps = Readonly<{
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
   permissions: readonly string[]
+  /** A rota escolhida antes de sair da tela — o mapa a reaplica se a estrada for a mesma. */
+  preferredRouteChoice: RouteChoice | undefined
   /** Spec 148 T7 (D10): marcar as notas que não couberam para o aceite soltá-las. */
   releaseUnplaced: Readonly<{
     isMarked: (layoutId: string) => boolean
@@ -94,6 +96,7 @@ export function TripProposalDetail({
   onUndoRemoveStop,
   pendingRemovals,
   permissions,
+  preferredRouteChoice,
   releaseUnplaced,
   valuation,
   vehicle,
@@ -312,6 +315,7 @@ export function TripProposalDetail({
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
           order={displayOrder}
+          preferredRouteChoice={preferredRouteChoice}
           proposalTimeText={proposalTimeText}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}

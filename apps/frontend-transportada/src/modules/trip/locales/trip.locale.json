@@ -16,6 +16,22 @@
     "viewProof": "Comprovante",
     "viewTrip": "Abrir a viagem de {{vehicle}}"
   },
+  "assemblyDraft": {
+    "automaticPending": "Há um roteiro automático em montagem guardado nesta aba.",
+    "automaticUnreachable": "Não foi possível reler agora as notas do roteiro automático em montagem. O rascunho continua guardado nesta aba.",
+    "droppedDocuments_one": "{{count}} nota do rascunho não voltou: já entrou em viagem ou não está mais disponível.",
+    "droppedDocuments_other": "{{count}} notas do rascunho não voltaram: já entraram em viagem ou não estão mais disponíveis.",
+    "droppedVehicles_one": "{{count}} caminhão da proposta não está mais disponível e foi desmarcado.",
+    "droppedVehicles_other": "{{count}} caminhões da proposta não estão mais disponíveis e foram desmarcados.",
+    "manualPending": "Há uma nova viagem em montagem guardada nesta aba.",
+    "manualUnreachable": "Não foi possível reler agora as notas da nova viagem em montagem. O rascunho continua guardado nesta aba.",
+    "proposalDropped": "A proposta que estava em revisão não vale mais — as notas ou a frota mudaram. O pedido foi mantido: peça o roteiro de novo.",
+    "proposalUnreachable": "Não foi possível reler a proposta em revisão agora. Ela continua guardada nesta aba.",
+    "restoring": "Retomando a montagem…",
+    "resume": "Retomar",
+    "retry": "Tentar novamente",
+    "unsaved": "Não foi possível guardar o rascunho nesta aba (armazenamento cheio ou bloqueado). Se sair da tela, a montagem se perde."
+  },
   "assemblyMap": {
     "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele.",
     "basemapLabel": "Divisa do município",
