@@ -28,6 +28,11 @@ const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy'
 const OPENCV_CHUNK_PREFIX = 'assets/opencv-'
 const OPENCV_CHUNK_GLOB = `${OPENCV_CHUNK_PREFIX}*.js`
 const OPENCV_CACHE_NAME = 'transportada-opencv'
+/**
+ * Spec 156 T14, ADR-0069 §2: o motor de OCR do canhoto — nome de cache próprio, `CacheFirst`, fora
+ * do precache. Só quem liga o interruptor (`canhotoOcrEnabled`) chega a baixar os ~4,5 MB.
+ */
+const CANHOTO_OCR_CACHE_NAME = 'transportada-canhoto-ocr'
 const PWA_ICON_PATH = '/icons/icon-192.png'
 const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
@@ -188,7 +193,7 @@ export default defineConfig({
          * D14). Diferente do recorte, ele é servido do próprio domínio (`vendor/opencv/`), então
          * ganha `CacheFirst` próprio — o worker o busca uma vez e o Service Worker guarda.
          */
-        globIgnores: ['**/background-removal/**', OPENCV_CHUNK_GLOB],
+        globIgnores: ['**/background-removal/**', '**/canhoto-ocr/**', OPENCV_CHUNK_GLOB],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
@@ -206,6 +211,16 @@ export default defineConfig({
             options: {
               cacheName: OPENCV_CACHE_NAME,
               expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            /** Worker, 6 variantes de core e o modelo — a biblioteca escolhe uma variante por aparelho. */
+            urlPattern: /\/canhoto-ocr\/.*$/u,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: CANHOTO_OCR_CACHE_NAME,
+              expiration: { maxEntries: 12 },
               cacheableResponse: { statuses: [200] },
             },
           },

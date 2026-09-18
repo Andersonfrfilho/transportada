@@ -11,6 +11,8 @@ export default typescriptEslint.config(
       'node_modules/**',
       /** Runtime de terceiro servido como asset: é binário e bundle minificado, não código nosso. */
       'public/background-removal/**',
+      /** Motor de OCR do canhoto (spec 156 T14): worker e core minificados, modelo binário. */
+      'public/canhoto-ocr/**',
       /** Build próprio do OpenCV (ADR-0065): saída do Emscripten, conferida por sha256. */
       'vendor/opencv/**',
       'playwright-report/**',

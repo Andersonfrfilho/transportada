@@ -31,6 +31,13 @@ const MAP_TILES_CACHE_CONTROL = 'public, max-age=2592000'
  * no build, e aqui a gente escolhe pelo `Accept-Encoding` do pedido, igual a um proxy faria.
  */
 const OPENCV_CHUNK_PATTERN = /^\/assets\/opencv-[^/]+\.js$/u
+/**
+ * Spec 156 T14, ADR-0069 §2 (R1/R3): o motor de OCR do canhoto — worker, core WASM e modelo —
+ * mora sob um caminho **versionado** (`/canhoto-ocr/<versão>/`). O nome que muda a cada troca de
+ * pacote é o que torna `immutable` seguro aqui (diferente do recorte de fundo, que tem nome fixo).
+ * `scripts/fetch-canhoto-ocr.ts` gera os `.br`/`.gz` ao lado de cada `.wasm.js`/`worker.min.js`.
+ */
+const CANHOTO_OCR_PREFIX = '/canhoto-ocr/'
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -72,7 +79,7 @@ Bun.serve({
       if (url.pathname.startsWith(MAP_TILES_PREFIX)) {
         return respond(rangeResponse(asset, request), MAP_TILES_CACHE_CONTROL)
       }
-      if (OPENCV_CHUNK_PATTERN.test(url.pathname)) {
+      if (OPENCV_CHUNK_PATTERN.test(url.pathname) || url.pathname.startsWith(CANHOTO_OCR_PREFIX)) {
         return respond(
           await precompressedResponse(asset, url.pathname, request),
           cacheControlFor(url.pathname),
@@ -194,6 +201,7 @@ function resolveAsset(pathname: string): Bun.BunFile {
 
 function cacheControlFor(pathname: string): string {
   if (pathname.startsWith(IMMUTABLE_ASSET_PREFIX)) return IMMUTABLE_CACHE_CONTROL
+  if (pathname.startsWith(CANHOTO_OCR_PREFIX)) return IMMUTABLE_CACHE_CONTROL
   if (pathname.startsWith(BACKGROUND_REMOVAL_PREFIX)) return BACKGROUND_REMOVAL_CACHE_CONTROL
   return REVALIDATE_CACHE_CONTROL
 }
