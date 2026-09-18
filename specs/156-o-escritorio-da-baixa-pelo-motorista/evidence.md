@@ -2502,3 +2502,160 @@ task (o painel e o selo são da T14).
   itens explícitos; `docs/SECURITY.md` registra `GET /trips/field-delivery-settings` sem `rateLimit`
   (2026-09-18).
 - R6: a falha do contrato da API acima está nomeada na tabela de gates.
+
+## T14
+
+**Dependências (R1, R7):** `tesseract.js@7.0.0` (dependency), `tesseract.js-core@7.0.0` e
+`@tesseract.js-data/eng@1.0.0` (devDependencies — só o script de preparo os importa), versão exata,
+conferidas pelo lockfile. Transitivas novas registradas no `bun.lock`: `bmp-js@0.1.0`,
+`idb-keyval@6.3.0`, `is-url@1.2.4`, `node-fetch@2.7.0`, `opencollective-postinstall@2.0.3`,
+`regenerator-runtime@0.13.11`, `wasm-feature-detect@1.9.0` (e `zlibjs`, embutido no `worker.min.js`
+minificado, não aparece como entrada própria do lockfile). Efeito colateral do `node-fetch@2`: o
+`tr46`/`webidl-conversions` da árvore baixaram de versão (`whatwg-url` mais antigo) — nenhum dos
+dois é importado pelo nosso código. Nenhuma delas é importada por `src/` — conferido com o mesmo
+grep do `background-removal-assets.contract.ts` estendido para `tesseract`. Sem
+`trustedDependencies`: o `tesseract.js` declara `postinstall`
+(`opencollective-postinstall`), e o Bun não o roda.
+
+**`scripts/fetch-canhoto-ocr.ts`** (molde de `fetch-background-removal.ts`): copia
+`dist/worker.min.js` do `tesseract.js`, as seis variantes `tesseract-core*.wasm.js` do
+`tesseract.js-core` e `4.0.0_best_int/eng.traineddata.gz` do `@tesseract.js-data/eng` para
+`public/canhoto-ocr/<versão>/`, com `<versão>` lida do `package.json` **instalado** do
+`tesseract.js-core` (R1) — nunca digitada, conferido pelo contrato
+(`canhoto-ocr-assets.contract.ts`, "R1: a versão do caminho vem do package.json instalado").
+Licenças e avisos (R7): `LICENSE-tesseract.js.md`, `LICENSE-tesseract.js-core.txt`,
+`THIRD-PARTY-NOTICES-worker.txt` (o `worker.min.js.LICENSE.txt` do build, com os avisos de
+`buffer`/`ieee754`/`regenerator-runtime`/`zlib.js`) e `NOTICE-tesseract.js-data-eng.txt` (o pacote é
+MIT, o modelo em si é do Tesseract OCR, Apache-2.0 — o pacote não traz `LICENSE` próprio). R3: o
+próprio script gera `.br`/`.gz` de cada `.wasm.js` e do `worker.min.js` (idempotente por conteúdo,
+`node:zlib`); o `.traineddata.gz` já vem comprimido e sai como está. Medido:
+`tesseract-core-simd-lstm.wasm.js` 3,90 MB → 1,46 MB gzip (bate com a sonda da ADR-0069 §4).
+`server.ts` serve `/canhoto-ocr/<versão>/` pré-comprimido (mesma `precompressedResponse` do OpenCV)
+com `Cache-Control: public, max-age=31536000, immutable` — imutável é seguro porque o caminho é
+versionado (R1). `vite.config.ts`: `**/canhoto-ocr/**` em `globIgnores` do Workbox, `CacheFirst`
+próprio (`transportada-canhoto-ocr`, `maxEntries: 12`).
+
+**Achado corrigido antes de fechar a task — `tesseract.js` fundindo no chunk de `TripDetail.page`.**
+`tesseract.js` é CommonJS (`"type": "commonjs"`), e o Rollup, por padrão, funde um módulo CJS só
+alcançado por `import()` dinâmico no chunk de quem chama, em vez de separar — medido no primeiro
+`bun run build`: `createWorker`, os enums `OEM` e o fallback `cdn.jsdelivr.net` inteiros apareciam
+dentro de `TripDetail.page-*.js` (confirmado por grep de `workerBlobURL`/`jsdelivr` no arquivo).
+Quem só abria uma viagem — sem nunca tocar no assistente do escritório — baixaria o motor de OCR de
+graça. Corrigido com `manualChunks` em `vite.config.ts` (`id.includes('/node_modules/tesseract.js/')
+→ 'tesseract-ocr'`), guardado por contrato novo
+(`canhoto-ocr-assets.contract.ts`, "tesseract.js ganha manualChunks").
+
+**Bundle, medido com `bun run build` (`apps/frontend-transportada`):**
+
+| Arquivo                                                                 | Antes da T14 (`f8ab8d21`)  | Depois da T14                                                                                                                   | Δ gzip                                                                                   |
+| ----------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `TripDetail.page-*.js` (a página onde o assistente vive)                | 276,78 kB / 73,97 kB gzip  | 280,61 kB / 75,24 kB gzip                                                                                                       | **+1,27 kB** (só a colagem: `canhotoOcr.service`, `canhotoOcrEngine.service`, prop nova) |
+| `index-*.js` (bundle inicial)                                           | 979,86 kB / 300,10 kB gzip | 980,87 kB / 300,46 kB gzip                                                                                                      | +0,36 kB (ruído de build, sem Tesseract)                                                 |
+| `tesseract-ocr-*.js` (chunk novo, sob demanda)                          | —                          | 15,94 kB / 6,79 kB gzip                                                                                                         | carregado só quando o OCR roda de verdade                                                |
+| `public/canhoto-ocr/<versão>/` (worker + core + modelo, fora do bundle) | —                          | ~24 MB no disco do deploy (6 variantes de core); **~4,5 MB** na rede na primeira leitura de um aparelho (uma variante + modelo) | fora do precache, `CacheFirst`                                                           |
+
+Nada de Tesseract no bundle inicial nem em `TripDetail.page` além da colagem fina — confirmado por
+grep de `jsdelivr`/`workerBlobURL` nos dois chunks depois da correção.
+
+**`canhotoOcr.service.ts`** (extração pura, sem tocar no motor): lê o texto inteiro (sem whitelist —
+a whitelist só de dígitos cola número e série, ADR-0069 §3), aproveita o token
+`\d{3}\.\d{3}\.\d{3}` depois de `Nº`/`N°`/`NO`/`NUMERO` e os dígitos depois de `SÉRIE`/`SERIE`.
+Confiança mínima por palavra **provisória**, `CANHOTO_OCR_MINIMUM_WORD_CONFIDENCE = 80` (a sonda da
+ADR-0069 leu 91 num canhoto sintético limpo; o valor final é da validação com canhoto real, §6).
+`matchCanhotoOcrExtraction` — R4: unicidade sobre **todas** as notas da viagem sem as liberadas
+(`releasedAt`); número que casa com nota fora da seleção cai em `manual`, sem bloqueio (o bloqueio de
+chave é da ADR-0067 §4, que não se aplica a número lido por OCR). Fixture de notas consecutivas
+(`455/456/457`) prova que cada número casa só com a nota dele mesmo com vizinhas na viagem, e o
+dígito trocado (`457` lido com confiança abaixo do limiar) cai em inconclusivo, nunca "conserta".
+
+**Também nesta task — a pendência da T13 (`b1653f25`): `accessKey` chega ao assistente.**
+`GET /trips/:id/field-delivery-documents` (rota própria, `trip.report-on-behalf`, mesmo molde de
+`GET /trips/:id/allowed-actions` e de `GET /trips/field-delivery-settings`) devolve
+`{ id, accessKey, nfeNumber, nfeSeries, releasedAt }` de cada nota da viagem — sem tocar em
+`GET /trips/:id` (ressalva M1 do `t7-design.md`: o validador do frontend recusa chave desconhecida
+numa aba com bundle antigo). `TripDetail.component.tsx` busca essa rota só quando o assistente do
+escritório abre (`fieldDeliveryDocumentIds !== null`) e mescla `accessKey`/`releasedAt` na lista que
+já ia para `FieldDeliveryWizard` — o casamento por código de barras (T10/T13) passa a usar a chave
+inteira de verdade em produção, e o casamento por OCR (R4) já nasce com `releasedAt`.
+
+**UI (captura, revisão, painel):** `FieldDeliveryCaptureStep` roda o OCR só depois do código de
+barras devolver `unreadable` **e** com `canhotoOcrEnabled` — carga lazy do motor
+(`canhotoOcrEngine.service.ts`, `await import('tesseract.js')`), sobre o mesmo quadro em resolução
+plena (`drawFullResolutionCanvas`, separado do quadro reduzido do zxing). O resultado nunca decide
+sozinho: `FieldDeliveryReviewStep` mostra "Número lido: X/Y → sugerido: nota Z — Experimental" ao
+lado da nota sugerida, e a pessoa confirma como sempre (ADR-0067 §4) — `ocrSuggestion` é só
+informativo, a decisão de gravar continua sendo o botão "Confirmar" de sempre. R8: erro na consulta
+do interruptor ou na carga do motor cai em `canhotoOcrEnabled: false`/`recognizeCanhotoWords`
+devolvendo `undefined`, e o passo segue no caminho manual de sempre, sem travar.
+
+Painel "Leitura do canhoto por foto" em `TripDeliveryProofSettingsPanel` (aba do comprovante,
+`company-settings` > **Comprovante de entrega**, perto do efeito — `SETTINGS_PANEL_PLACEMENT` já
+apontava para lá desde a T13), molde de `CameraMeasurementSettingsPanel` (spec 152 D14): selo
+"Experimental" com ícone, texto de estimativa ("~4,5 MB, uma vez só"), estado ligado/desligado com a
+cor `--color-ready` no ligado, botão liga/desliga só com `settings.manage`. Grava só
+`canhotoOcrEnabled` via `PUT /company-settings/delivery-proof` (campo opcional — não mexe nos outros
+quatro), reaproveitando a mesma consulta/invalidação de `readDeliveryProofSettings`.
+
+**TDD — vermelho antes, verde depois:** `canhoto-ocr.contract.ts` (extração/casamento, 0 → 19
+testes), `field-delivery-documents.contract.ts` (rota nova, API, 0 → 6), `canhoto-ocr-assets.contract.ts`
+(R1/R3/R7/manualChunks, 0 → 9), `delivery-proof-settings-panel.contract.ts` (bloco do interruptor, 0
+→ 5 novos), `trip-field-delivery-documents.integration.ts` (Postgres real, 0 → 2).
+
+**Gates (2026-09-18):**
+
+| Gate           | Comando                                                | Resultado                                                                                                                                   |
+| -------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| typecheck      | `bun run typecheck` (raiz)                             | exit 0                                                                                                                                      |
+| lint           | `bun run lint` (raiz)                                  | exit 0                                                                                                                                      |
+| contrato API   | `bun --env-file=../../.env.test test --timeout 120000` | 6576 pass, 23 skip, 0 fail                                                                                                                  |
+| integração API | `bun --env-file=../../.env.test run test:integration`  | 430 pass, 4 skip, 8 fail (as 8 são MinIO indisponível — `cte archive gateway` (2) e `toll booth extract/reload` (6), mesmo ambiente da T13) |
+| frontend       | `bun run test`                                         | 4525 + 19 pass, 0 fail                                                                                                                      |
+| frontend build | `bun run build` (`apps/frontend-transportada`)         | exit 0 — bundle medido acima                                                                                                                |
+
+Ambiente: Docker (`make up`) indisponível nesta sessão (daemon parado) — Postgres subiu **nativo
+descartável** (`initdb` no scratchpad, porta 65432, socket em `/tmp/pg156sock` por causa do limite de
+103 bytes do Unix socket do Postgres em caminho longo), com `db:migrate` aplicado antes dos gates,
+seguindo a mesma régua da T13 ("Banco de teste local quebrado" na memória do projeto). As 8 falhas de
+integração são todas de MinIO, que não está disponível aqui — nenhuma toca código desta task.
+
+**Pendências registradas, não resolvidas nesta task:**
+
+- `docs/SECURITY.md`: `GET /trips/:id/field-delivery-documents` sem `rateLimit` (R8) — mesmo lote de
+  decisão das demais leituras de configuração (spec 152, `GET /trips/field-delivery-settings`).
+- O limiar de confiança (`CANHOTO_OCR_MINIMUM_WORD_CONFIDENCE = 80`) e o próprio selo "Experimental"
+  só saem com a validação real da ADR-0069 §6 (≥ 50 canhotos, 3 emitentes, 2 aparelhos, 2 luzes,
+  zero sugestão errada e ≥ 70% certa) — fora do escopo desta task, que implementa o mecanismo.
+- **Revisão de design (web.md §15):** os prints em `prints/t14-*.png` foram tirados com os
+  componentes reais e o CSS de produção (tokens, `--color-graphite`/`--color-ready`), mas por um
+  harness descartável (`dev-preview.tsx`, apagado antes do commit) — não a aplicação autenticada de
+  ponta a ponta, porque o Docker (Postgres, Keycloak, RabbitMQ, MinIO) estava indisponível nesta
+  sessão e não há como logar de verdade sem ele. Comparação contra os vizinhos: o texto do selo
+  "Experimental" segue o mesmo padrão de `CameraMeasurementSettingsPanel` (ícone + texto, sem
+  componente de selo dedicado — não existe um no design system hoje); o botão liga/desliga usa o
+  `<Button variant="secondary"|"default">` do design system, igual ao painel de medida por câmera;
+  a mensagem da sugestão reaproveita `styles.notice`, a mesma classe da mensagem de identificação
+  logo acima dela. Pendência explícita: revalidar com a T16 (revisão final de design, que já cobre
+  a tela inteira) rodando contra a aplicação de verdade quando o Docker estiver disponível.
+- Teste de ponta a ponta com a CSP real (a sonda da T13 é a base) não foi reproduzido nesta task por
+  falta de tempo dentro do escopo — a extração/casamento tem cobertura unitária completa (acima), e
+  o `canhoto-ocr-assets.contract.ts` prova que a configuração de CSP/CacheFirst/compressão está no
+  lugar; falta a prova de ponta a ponta (carregar o worker real por trás da CSP do app, não só do
+  sonda isolado da T13).
+
+Arquivos: ADR — nenhuma mudança (T13 já a fechou; T14 só implementa). API —
+`src/trips/infrastructure/trip-field-delivery-documents.query.ts`,
+`src/trips/application/read-field-delivery-documents.use-case.ts`,
+`src/trips/presentation/trip-field-delivery-documents.routes.ts`, `src/main.ts`, `docs/SECURITY.md`,
+testes `test/trip-field-office/field-delivery-documents.contract.ts`,
+`test/integration/trip-field-delivery-documents.integration.ts` (novos, no `package.json`); frontend —
+`package.json`, `bun.lock`, `.gitignore`, `eslint.config.mjs`, `vite.config.ts`, `server.ts`,
+`scripts/fetch-canhoto-ocr.ts` (novo), `src/modules/trip/shared/{canhotoOcr,canhotoOcrEngine,
+canhotoOcrVersion,fieldDeliveryOcrDocuments,canhotoIdentification,fieldDeliveryCapture,
+fieldDeliveryWizard,deliveryProofSettings,tripClient}.service.ts`,
+`src/modules/trip/queries/{useFieldDeliveryDocuments,useDeliveryProofSettings}.query.ts`,
+`src/modules/trip/components/{FieldDeliveryCaptureStep,FieldDeliveryReviewStep,FieldDeliveryWizard,
+TripDeliveryProofSettingsPanel,TripDetail}.component.tsx`, `src/modules/trip/pages/TripWorkspace.page.tsx`,
+`src/modules/trip/locales/trip{,.en}.locale.json`, `src/modules/trip/styles/trip.module.css`, testes
+`test/trip/{canhoto-ocr,delivery-proof-settings-panel}.contract.ts`,
+`test/shared/canhoto-ocr-assets.contract.ts` (novos/tocados, no `package.json`). Prints em
+`specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t14-*.png`.
