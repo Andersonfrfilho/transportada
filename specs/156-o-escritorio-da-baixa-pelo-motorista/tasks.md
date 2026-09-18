@@ -121,9 +121,27 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 - [x] **T13 🧠 — ADR da dependência de OCR** (code-standart §13) e o interruptor
       `canhoto_ocr_enabled` em `company_delivery_proof_settings`, desligado por padrão.
-- [ ] **T14 — OCR do número**, só com dígitos, casando com exatamente uma nota da viagem. Carrega
-      sob demanda, mostra o selo "Experimental" e não entra no bundle inicial (medir o bundle antes e
-      depois no `evidence.md`).
+- [ ] **T14 — OCR do número**, lendo o texto inteiro e extraindo o número depois de `Nº` e a série
+      depois de `SÉRIE` (ADR-0069 §3 — **não** whitelist só de dígitos), casando com exatamente uma nota
+      da viagem. Carrega sob demanda, mostra o selo "Experimental" e não entra no bundle inicial (medir o
+      bundle antes e depois no `evidence.md`). Itens explícitos da ADR-0069:
+  - **R1** — assets em `public/canhoto-ocr/<versão>/`, versão lida do `package.json` instalado;
+    contrato: versão do caminho == versão em `node_modules`.
+  - **R2** — número só no formato `\d{3}\.\d{3}\.\d{3}`; confiança mínima por palavra (limiar
+    provisório, o final sai da validação); a sugestão mostra o número lido ao lado da nota sugerida;
+    protocolo do §6 com uma viagem de notas consecutivas e a frase do limite estatístico (50 com zero
+    erro ≈ 6% a 95%).
+  - **R3** — o script de preparo gera `.br`/`.gz`; o `server.ts` serve o pré-comprimido com cache
+    imutável sob `/canhoto-ocr/<versão>/`.
+  - **R4** — unicidade contada sobre todas as notas da viagem sem as liberadas (`released_at`);
+    número que casa com nota da viagem fora da seleção → escolha manual, sem bloqueio.
+  - **R7** — o script copia `LICENSE` e avisos (Tesseract, Leptonica); sem `trustedDependencies`;
+    registrar no `evidence.md` as transitivas que entram no lockfile (`node-fetch`, `idb-keyval`,
+    `zlibjs`, …).
+  - **R8** — erro da query do interruptor (ou da carga do motor) vira escolha manual; o hook
+    `useFieldDeliverySettingsQuery` declara o tipo de retorno. A rota sem `rateLimit` está em
+    `docs/SECURITY.md` (2026-09-18).
+  - Painel do interruptor com o selo, perto do efeito (`SETTINGS_PANEL_PLACEMENT`).
 
 ## Fase 6 — Revisão
 

@@ -5,6 +5,8 @@
 - **Decisores:** revisão Opus (T13 da spec 156), sobre a D6.2 decidida pelo usuário na conversa da
   spec
 - **Fecha:** a T13 da spec 156 (`specs/156-o-escritorio-da-baixa-pelo-motorista/`)
+- **Emendada:** 2026-09-18, depois da validação do architect (R1–R8: diretório versionado,
+  formato do número e confiança, compressão, número fora da seleção, licenças, rota sem rateLimit)
 - **Precedentes:** ADR-0065 (dependência wasm pesada sob a nossa CSP, carga sob demanda, selo
   experimental, interruptor por empresa) e ADR-0067 §4 (a foto identifica a nota, quem confirma é a
   pessoa)
@@ -110,20 +112,35 @@ sobre ele, nunca substituto.
   um serviço do módulo `trip` que só é chamado com o interruptor ligado. Nada de Tesseract no bundle
   inicial; a T14 mede o bundle antes e depois.
 - O core, o worker e o modelo **não** passam pelo bundler. Um script de preparo copia de
-  `node_modules` para `public/canhoto-ocr/` (fora do Git, no molde de
+  `node_modules` para `public/canhoto-ocr/<versão>/` (fora do Git, no molde de
   `scripts/fetch-background-removal.ts`, que faz o mesmo com o runtime do `onnxruntime-web`):
   `worker.min.js`, **todas** as variantes `tesseract-core*.wasm.js` do diretório (a biblioteca
   escolhe por aparelho entre simples, SIMD e relaxed-SIMD — a documentação exige o diretório
   inteiro) e `eng.traineddata.gz`. Sem download de URL externa: quem garante integridade é o
   lockfile.
+- **R1 — o diretório é versionado.** `<versão>` é lida do `package.json` instalado do
+  `tesseract.js-core` (e o caminho do modelo, do `@tesseract.js-data/eng`), nunca digitada. Como o
+  service worker guarda por URL com `CacheFirst`, atualizar o pacote sem mudar o caminho serviria o
+  core velho para sempre a quem já baixou. Contrato da T14: a versão no caminho que o serviço usa é
+  igual à versão instalada em `node_modules`.
+- **R7 — licenças e avisos vão junto.** O script copia para `public/canhoto-ocr/<versão>/` a
+  `LICENSE` do `tesseract.js`, do `tesseract.js-core` e do `@tesseract.js-data/eng`, e os avisos de
+  terceiros embutidos no core (Tesseract, Apache-2.0; Leptonica, licença própria estilo BSD). **Sem
+  `trustedDependencies`**: o `tesseract.js` declara `postinstall` (`opencollective-postinstall`) e
+  o Bun não o roda, o que é o desejado. As dependências transitivas (`node-fetch`, `idb-keyval`,
+  `zlibjs`, `bmp-js`, `is-url`, `regenerator-runtime`, `wasm-feature-detect`) entram no lockfile e
+  ficam registradas no `evidence.md` da T14; nenhuma é importada pelo nosso código.
 - Configuração fixa: `workerPath`, `corePath` e `langPath` na própria origem, `workerBlobURL: false`,
   `gzip: true`, `cacheMethod: 'none'` (quem guarda é o service worker, uma política de cache só, e
   nada de cópia paralela em IndexedDB).
 - Service worker: `**/canhoto-ocr/**` em `globIgnores` (fora do precache, como o recorte de fundo e o
   OpenCV) e regra `runtimeCaching` `CacheFirst` própria (`transportada-canhoto-ocr`, `maxEntries`
   para as variantes de core + modelo). A primeira leitura baixa, as seguintes rodam offline.
-- O `server.ts` já serve arquivo pré-comprimido (Brotli/gzip) quando existe. O `.traineddata.gz` já
-  vem comprimido; o `.wasm.js` escolhido cai de 3,90 MB para 1,46 MB com gzip -9.
+- **R3 — compressão e cache no servidor.** O script de preparo gera `.br` e `.gz` de cada
+  `.wasm.js` e do `worker.min.js`, e o `server.ts` serve o pré-comprimido (já faz para o resto do
+  `dist`) com `Cache-Control` de arquivo imutável sob `/canhoto-ocr/<versão>/` — o caminho
+  versionado (R1) é o que torna o imutável seguro. O `.traineddata.gz` já vem comprimido e sai como
+  está; o `.wasm.js` escolhido cai de 3,90 MB para 1,46 MB com gzip -9.
 - CSP e Permissions-Policy **não mudam**. Contrato da T14: nenhum `workerBlobURL` diferente de
   `false`, nenhuma URL de CDN (`jsdelivr`, `unpkg`) nas opções, e a CSP igual à de hoje.
 
@@ -131,17 +148,29 @@ sobre ele, nunca substituto.
 
 1. A leitura roda sobre a foto já capturada (o mesmo quadro do comprovante), só quando o código de
    barras não achou a chave (D6.1 vem antes).
-2. Do texto lido, só valem os dígitos que seguem o rótulo do número (`Nº`, `N°`, `NO`, `NUMERO`) e,
-   quando houver, o da série (`SÉRIE`, `SERIE`). Pontos são separador de milhar e saem; zeros à
-   esquerda não contam.
-3. O número lido é comparado **só** com as notas **daquela viagem**. Com a série lida, número e série
-   têm de bater juntos.
-4. **Exatamente uma** nota casa → ela vira a sugestão do passo, marcada como "lida pela foto", e a
-   pessoa confirma. Se for outra nota da seleção, o assistente oferece trocar (ADR-0067 §4).
-5. **Zero ou mais de uma** → cai na escolha manual, sem aviso de bloqueio. O bloqueio "este canhoto é
+2. **R2 — formato fechado.** O texto é lido inteiro (sem whitelist), e do número só vale o token
+   no formato impresso do DANFE, `\d{3}\.\d{3}\.\d{3}`, depois do rótulo (`Nº`, `N°`, `NO`,
+   `NUMERO`); da série, os dígitos depois de `SÉRIE`/`SERIE`. Token fora do formato é leitura
+   inconclusiva — não se "conserta" dígito faltando. Zeros à esquerda não contam na comparação.
+3. **R2 — confiança por palavra.** Cada palavra do número tem de passar de uma confiança mínima do
+   Tesseract (`words[].confidence`). O limiar **não** é chutado: começa conservador na T14 e o valor
+   final sai da validação do §6.
+4. O número lido é comparado **só** com as notas **daquela viagem**. Com a série lida, número e série
+   têm de bater juntos. **R4 — a unicidade conta todas as notas da viagem**, selecionadas ou não, sem
+   as liberadas (`released_at`): uma nota fora da seleção com o mesmo número torna a leitura ambígua.
+5. **Exatamente uma** nota casa → ela vira a sugestão do passo, marcada como "lida pela foto", e a
+   pessoa confirma. **R2 — a sugestão mostra o número lido ao lado da nota sugerida**, para a pessoa
+   comparar os dois e não confirmar de olhos fechados. Se for outra nota da seleção, o assistente
+   oferece trocar (ADR-0067 §4).
+6. **Zero ou mais de uma** → cai na escolha manual, sem aviso de bloqueio. O bloqueio "este canhoto é
    da nota X, que não está nesta viagem" é da chave de acesso (tem dígito verificador); um número
    lido por OCR fora da viagem é, antes de tudo, suspeita de leitura errada.
-6. **Nunca grava sozinho.** A leitura só muda qual nota o passo sugere; gravar continua sendo o toque
+7. **R4 — número que casa com nota da viagem fora da seleção → escolha manual**, sem bloqueio. O
+   bloqueio `onTripNotSelected` (spec 156 T10) é da chave de acesso; pelo OCR, é exceção ao bloqueio
+   da ADR-0067 §4 (registrada na spec, D6).
+8. **Erro na leitura do interruptor** (`GET /trips/field-delivery-settings` falhando) ou na carga do
+   motor → escolha manual, sem OCR e sem aviso que trave o passo.
+9. **Nunca grava sozinho.** A leitura só muda qual nota o passo sugere; gravar continua sendo o toque
    da pessoa no passo e a confirmação final, como em toda baixa do escritório.
 
 ### 4. Peso
@@ -177,8 +206,10 @@ validação (§6) é por protocolo, não por histórico no banco, e isso fica as
 - **Critério para tirar o selo** (espelho da spec 152 D16): com a função ligada em staging, o
   usuário passa **pelo menos 50 canhotos destacados reais**, de **pelo menos 3 emitentes** (leiautes
   de DANFE diferentes), em **2 aparelhos** (o computador do escritório com a webcam e um celular) e
-  **2 condições de luz**. Para cada canhoto anota a nota verdadeira e o que a sugestão mostrou
-  (nenhuma, a certa, outra).
+  **2 condições de luz**. Para cada canhoto anota a nota verdadeira, o número lido e o que a sugestão
+  mostrou (nenhuma, a certa, outra). **R2 — ao menos uma viagem de teste tem notas de números
+  consecutivos** (…455, …456, …457): é o caso em que um dígito mal lido cai numa nota vizinha que
+  existe, e é ele que o critério precisa ver.
   - **Go**: **zero** sugestão de nota errada **e** sugestão certa em **≥ 70%** dos canhotos → a task
     de revisão tira o selo e o usuário decide ligar em produção.
   - **No-go**: continua experimental e desligada em produção; o relatório diz em que leiaute, aparelho
@@ -186,14 +217,21 @@ validação (§6) é por protocolo, não por histórico no banco, e isso fica as
     volta ao usuário.
   - Uma sugestão errada já é no-go, mesmo com cobertura alta: é o modo de falha que a regra do §3
     existe para impedir, e o que a pessoa tende a confirmar sem ler.
+  - **R2 — o limite do que 50 canhotos provam.** Zero erro em 50 só garante, com 95% de confiança,
+    taxa de sugestão errada abaixo de ~6% (regra dos três: 3/50). O critério não prova que o OCR
+    não erra; **a rede é a confirmação humana** do §3, e é por isso que a sugestão mostra o número
+    lido.
 
 ## Consequências
 
 - O canhoto destacado ganha identificação automática sem abrir a CSP e sem mandar imagem para fora.
 - A primeira leitura custa ~4,5 MB de rede, pagos só por quem tem a função ligada e só na primeira
   vez por aparelho.
-- A T14 implementa exatamente o §2 e o §3; o plan.md fica corrigido por esta ADR quanto à whitelist
-  de dígitos.
+- A T14 implementa exatamente o §2 e o §3; o plan.md e o tasks.md apontam para o §3 quanto à
+  leitura (texto inteiro, extrair depois de `Nº`/`SÉRIE`).
+- **R8 — rota sem `rateLimit`.** `GET /trips/field-delivery-settings` é leitura barata de um booleano,
+  autenticada e por empresa, sem teto por usuário — registrada em `docs/SECURITY.md`, como as demais
+  leituras de configuração.
 - Nenhum pacote entra no `package.json` na T13.
 
 ## O que reabriria esta decisão

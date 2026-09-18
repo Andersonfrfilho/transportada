@@ -98,6 +98,10 @@ motorista <nome>".
   Se a nota identificada for outra nota da seleção, o assistente oferece trocar. Se não pertencer à
   viagem, **bloqueia** com a mensagem "este canhoto é da nota X, que não está nesta viagem". Nenhuma
   foto é gravada numa nota sem o usuário confirmar o passo.
+  **Exceção pelo OCR** (ADR-0069 §3, emenda de 2026-09-18): o bloqueio vale para a **chave de
+  acesso**, que tem dígito verificador. Número lido pelo OCR que não casa com nota da viagem, que casa
+  com mais de uma, ou que casa com nota da viagem fora da seleção **não bloqueia** — cai na escolha
+  manual, porque ali o mais provável é leitura errada.
 
 - **D7 — Ocorrência em massa.** O mesmo tipo de ocorrência, com a mesma observação e a mesma foto
   opcional, pode ser aplicado a várias notas marcadas (ex.: "cliente ausente" em uma parada com três

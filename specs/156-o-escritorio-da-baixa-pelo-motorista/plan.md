@@ -109,7 +109,9 @@ now()`. CHECK: `channel = 'office'` exige `on_behalf_of_driver_id`. O fluxo do W
 
 ### Fase experimental — OCR do número (D6.2)
 
-`tesseract.js` só com dígitos (`tessedit_char_whitelist`), carregado sob demanda, com o worker e o
+`tesseract.js` lendo o **texto inteiro** e extraindo só o número depois de `Nº` e a série depois de
+`SÉRIE` — a whitelist só de dígitos piorou a leitura na sonda (ADR-0069 §3, que manda sobre este
+parágrafo) —, carregado sob demanda, com o worker e o
 wasm servidos pelo próprio app (a CSP já permite `wasm-unsafe-eval` desde a spec 152). O interruptor
 fica em `company_delivery_proof_settings.canhoto_ocr_enabled`, desligado por padrão, e a tela mostra o
 selo "Experimental". O candidato só é aceito se o número lido bater com **exatamente uma** nota da

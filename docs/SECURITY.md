@@ -52,6 +52,20 @@ deploy/restart** — é contenção de abuso casual, não garantia; garantia exi
 
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
+### 2026-09-18 — `GET /trips/field-delivery-settings` sem rate limit (spec 156 T13)
+
+**Onde:** `api-transportada`, `trips/presentation/trip-field-delivery-settings.routes.ts`.
+
+**O que é:** a leitura estreita do interruptor da leitura do canhoto (ADR-0069 §6) não declara
+`rateLimit`. É autenticada, exige `trip.report-on-behalf` na empresa do contexto, só lê um booleano
+por chave primária e não grava nada nem dispara custo externo — o risco é o mesmo das leituras de
+configuração da spec 152 acima (abuso por usuário autenticado), menor por não gravar.
+
+**O que falta:** entrar no mesmo lote de decisão de `scope`/`maxRequests`/`windowSeconds` das rotas da
+spec 152. O cliente (T14) pede uma vez por abertura do assistente, com o cache do TanStack Query.
+
+**Origem:** validação do architect sobre a T13 da spec 156 (R8). Registrado em 2026-09-18.
+
 ### 2026-09-16 — foto congelada da medida pela câmera quebrava sob a CSP real (T14 item 1, fechado)
 
 **Onde:** `frontend-transportada`, `components/ui/useBoxDimensionScanner.hook.ts` e
