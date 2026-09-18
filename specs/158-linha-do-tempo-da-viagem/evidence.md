@@ -495,3 +495,117 @@ com a prioridade decrescente; os três unitários de ordem passaram a esperar o 
 - `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres bun --env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts --timeout 120000`
   — 8 pass, 0 fail.
 - `bun run typecheck` e `bun run lint` na raiz — sem erros.
+
+## T6
+
+### Arquivos
+
+- `src/trips/domain/trip.error.ts` — `TripTimelineCursorInvalidError` (400
+  `TRIP_TIMELINE_CURSOR_INVALID`), ao lado de `TripNotFoundError`.
+- `src/trips/infrastructure/trip-timeline.query.ts` — `findTripCompanyScope` (novo): existência da
+  viagem **nesta empresa**, molde de `DrizzleTripCostRepository.listByTrip`
+  (`select({ id: trips.id })`). As seis fontes de `listTripTimeline` não servem para o 404: uma
+  viagem existente e sem nenhum evento devolveria itens vazios, igual a uma viagem inexistente.
+- `src/trips/application/read-trip-timeline.use-case.ts` (novo): `createReadTripTimelineUseCase`
+  — resolve a viagem da empresa (`existence.findTripCompanyScope`, 404 `TRIP_NOT_FOUND` se `null`,
+  **antes** de chamar o leitor), repassa `companyId`/`cursor`/`limit`/`tripId` a
+  `reader.listTripTimeline`. Sem try/catch — o erro propaga para o Exception Filter do router.
+- `src/trips/presentation/trip-timeline.schema.ts` (novo): `parseTripTimelineQuery(url)` — chave
+  desconhecida é recusa (`readListQuery`), `cursor` string opcional decodificada por
+  `parseTripTimelineCursor` (T5, infraestrutura — reaproveitado porque é quem sabe o formato que
+  ele mesmo produziu, decisão já registrada na T5), `limit` inteiro 1..200 padrão 100 (diferente do
+  teto de 100 de `readPaging`, por isso não reaproveitado).
+- `src/trips/presentation/trip.routes.ts` — `GET /trips/:id/timeline` (`TRIP_TIMELINE_PATH`), no
+  molde de `.../documents/:documentId/occurrences`: `TRIP_FIELD_READ_POLICY`
+  (`fleet.read`/`trip.report-on-behalf`), resposta `200 { data: { items, nextCursor } }` (o envelope
+  exato do plan.md — diferente do `{ data, pagination }` do feed de ocorrências, que é outro
+  contrato). `cache-control: no-store` vem de graça de `jsonResponse`, comum a toda rota do arquivo.
+- `src/main.ts` — ligação: `readTripTimeline: createReadTripTimelineUseCase({ existence:
+{findTripCompanyScope}, reader: {listTripTimeline} })`, ambos batidos em `database` (o mesmo padrão
+  de `listTripOccurrenceFeed(database, query)` já em uso no arquivo — confirmado por `bun run
+typecheck` limpo, não assumido).
+- `test/trip-application/read-trip-timeline.contract.ts` (novo): unitário do caso de uso com
+  dublês — 404 sem chamar o leitor, `companyId`/`cursor`/`limit` repassados ao leitor. Import
+  adicionado a `test/trip-application.contract.test.ts`.
+- `test/trip-http/timeline.contract.ts` (novo): contrato da rota via `route.execute` direto (molde
+  de `test/trip-field-office/finance-read.contract.ts`, sem o router inteiro) — 200 com o envelope,
+  `companyId` do contexto (nunca da query, que nem aceita essa chave), cursor/limit repassados,
+  limit padrão 100, 400 `TRIP_TIMELINE_CURSOR_INVALID`, 400 para limit 0 e 201, 404
+  `TRIP_NOT_FOUND` quando o caso de uso recusa, política `anyPermission`. Import adicionado a
+  `test/trip-http.contract.test.ts`.
+- `test/trip-field-office/finance-read.contract.ts` — `GET /trips/:id/timeline` entrou em
+  `FIELD_READS` (o `finance` alcança pela mesma `trip.report-on-behalf`), na lista exaustiva do
+  `finance` e no mapa `results` da checagem 200. Títulos "as seis"/"seis" viraram "as sete"/"sete"
+  onde citavam `FIELD_READS` por extenso.
+- `test/separator-role.contract.test.ts` — `GET /trips/:id/timeline` entrou na lista exaustiva
+  (alfabética, entre `.../stops` e `.../cargo-layouts/:layoutId`) — o separador tem `fleet.read`,
+  então alcança.
+- `test/integration/trip-timeline.integration.ts` — `describe('GET /trips/:id/timeline contra o
+Postgres (spec 158 T6)')`: 200 com item real (`trip.status_changed`) via `route.execute`, 404 para
+  viagem de outra empresa. Molde de `route.execute` de `trip-field-office.integration.ts`
+  (`fakeContext`, dependências mínimas via `Proxy`).
+
+### Decisões
+
+- **404 não é responsabilidade das seis fontes.** `listTripTimeline` filtra por
+  `companyId`+`tripId` em cada fonte, mas uma viagem existente e silenciosa (nenhum evento ainda)
+  devolve `{ items: [], nextCursor: null }` — indistinguível de uma viagem inexistente. Por isso a
+  T6 introduz `findTripCompanyScope`, uma consulta própria (`select 1` na tabela `trips`), chamada
+  **antes** de `listTripTimeline` no caso de uso — nunca depois, e nunca em paralelo.
+- **`parseTripTimelineCursor` é chamado direto da camada de apresentação**, quebrando a regra geral
+  de módulo em 4 camadas — decisão já registrada na T5 (evidence.md, "O parse do cursor... fica na
+  infraestrutura, não na T6"): é função pura, sem I/O, e é o único lugar que sabe decodificar o
+  formato que ela mesma codifica (`encodeTripTimelineCursor`). Reimplementar o parse na apresentação
+  duplicaria a lógica e poderia divergir do formato real.
+- **O envelope da rota é `{ data: { items, nextCursor } }`, não `{ data, pagination }`.** O plan.md
+  ("Contratos/API/eventos") fixa essa forma por extenso para esta rota — diferente do
+  `TRIP_OCCURRENCE_FEED_PATH`, que usa `{ data: page.items, pagination: {...} }`. Os dois contratos
+  coexistem no mesmo arquivo por serem rotas diferentes com specs diferentes.
+- **Sem OpenAPI/Scalar**: a API não gera documentação OpenAPI a partir das rotas (nenhuma
+  infraestrutura de geração existe no repositório — confirmado por busca, não assumido). A rota
+  entra na documentação viva do jeito que as demais entram: comentário no arquivo de rotas e nesta
+  evidência. Nenhuma infraestrutura nova foi criada para isso (fora do escopo da T6).
+- **Log da rota**: a app não tem um padrão de log por rota de leitura (as outras leituras de
+  `/trips/:id/*` — custos, valuation, stops, allowed-actions — não logam nada na rota; quem loga é o
+  `router.service.ts` genericamente, via `http_request_failed`/`http_request_completed`, sem
+  detalhe de negócio). Inventar um log específico para esta rota quebraria esse padrão sem pedido
+  explícito de nenhuma outra leitura do módulo — decisão registrada aqui em vez de criado.
+
+### TDD
+
+Contrato do caso de uso (`read-trip-timeline.contract.ts`) e da rota (`timeline.contract.ts`)
+escritos antes da implementação, com dublês — vermelho por dependência ausente
+(`createReadTripTimelineUseCase`/rota inexistente), depois verde após `read-trip-timeline.use-case.ts`,
+`trip-timeline.schema.ts` e a rota em `trip.routes.ts`. As listas exaustivas (`finance-read`,
+`separator-role`) e a integração vieram depois, como aceite 6 e prova contra Postgres real.
+
+### Comandos e contagens
+
+- `bun run typecheck` — sem erros.
+- `bun run lint` (`--max-warnings=0`) — sem erros/avisos.
+- `bunx prettier --check` nos arquivos alterados — todos conformes (após `--write` nos 5 que o
+  primeiro `--check` apontou).
+- `bun test ./test/trip-application.contract.test.ts ./test/trip-http.contract.test.ts
+./test/separator-role.contract.test.ts` — **214 pass, 0 fail**.
+- De dentro de `apps/api-transportada`, `bun --env-file=../../.env.test test --timeout 120000`:
+  **6553 pass, 23 skip, 9 fail** — as mesmas 9 falhas pré-existentes de
+  `toll-booth-catalog-repository` (`ERR_POSTGRES_CONNECTION_CLOSED`, arquivo não tocado); antes da
+  T6 eram 6545 pass — os 8 testes novos (2 do caso de uso + 6 da rota) fecham a diferença.
+- Integração (Postgres nativo descartável em 127.0.0.1:65434):
+  `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres bun
+--env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts --timeout 120000`
+  — **10 pass, 0 fail** (os 8 da T5 mais os 2 novos da rota, 200 e 404).
+
+### Formato do envelope (para a T7 do frontend)
+
+```
+GET /trips/:id/timeline?cursor=<opaco base64url>&limit=<1..200, padrão 100>
+200 { "data": { "items": TripTimelineItem[], "nextCursor": string | null } }
+400 { "error": { "code": "TRIP_TIMELINE_CURSOR_INVALID" | outro (limit fora de 1..200), ... } }
+404 { "error": { "code": "TRIP_NOT_FOUND", ... } }
+403 sem `fleet.read` nem `trip.report-on-behalf`
+```
+
+`TripTimelineItem` é exatamente o tipo de `trip-timeline.types.ts` (T5) — nenhum campo é adicionado,
+removido ou renomeado nesta T6; `occurredAt`/`recordedAt` já chegam como string ISO (serializados em
+`listTripTimeline`). `nextCursor` é a mesma string opaca que `cursor` aceita de volta.

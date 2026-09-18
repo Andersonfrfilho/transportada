@@ -52,6 +52,11 @@ import {
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
+import { parseTripTimelineQuery } from './trip-timeline.schema.js'
+import type {
+  ReadTripTimelineResult,
+  TripTimelineCursor,
+} from '../application/trip-timeline.types.js'
 import type {
   CloseTripInput,
   CreateTripInput,
@@ -208,6 +213,8 @@ const TRIP_FINANCIAL_RESULT_PATH = `${API_TRIPS_PATH}/:id/financial-result`
 const TRIP_FINANCIAL_RECALCULATE_PATH = `${TRIP_FINANCIAL_RESULT_PATH}/recalculate`
 /** Pedágio e avulso são lançamento de operação: quem monta a viagem lança. */
 const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
+/** Spec 158 T6: a linha do tempo unificada da viagem, com a mesma leitura de `TRIP_FIELD_READ_POLICY`. */
+const TRIP_TIMELINE_PATH = `${API_TRIPS_PATH}/:id/timeline`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -500,6 +507,15 @@ type Dependencies = {
       readonly tripId: string
     }): Promise<readonly TripCostEntryView[]>
   }
+  /** Spec 158 T6: a linha do tempo unificada — o caso de uso resolve o 404 antes de ler qualquer fonte. */
+  readonly readTripTimeline: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly cursor: TripTimelineCursor | null
+      readonly limit: number
+      readonly tripId: string
+    }): Promise<ReadTripTimelineResult>
+  }
 }
 
 export function createTripRoutes(
@@ -659,6 +675,37 @@ export function createTripRoutes(
       }),
       pathname: TRIP_COSTS_PATH,
       policy: TRIP_FINANCIALS_POLICY,
+    }),
+    /**
+     * Spec 158 T6 (D4, aceites 5, 6): a linha do tempo unificada da viagem. Mesma
+     * `TRIP_FIELD_READ_POLICY` das outras leituras de campo — `fleet.read` ou
+     * `trip.report-on-behalf` — porque é a mesma informação que já aparece espalhada nelas.
+     */
+    defineRoute<{
+      readonly cursor: TripTimelineCursor | null
+      readonly limit: number
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const timeline = await dependencies.readTripTimeline.execute({
+          context: context.scope,
+          cursor: input.cursor,
+          limit: input.limit,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({
+          body: { data: { items: timeline.items, nextCursor: timeline.nextCursor } },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters, request }) => ({
+        ...parseTripTimelineQuery(new URL(request.url)),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_TIMELINE_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<TripIdInput>({
       async handle({ context, input }): Promise<Response> {

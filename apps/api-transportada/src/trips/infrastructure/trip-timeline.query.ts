@@ -30,6 +30,7 @@ import {
   tripDocumentEvents,
   tripDocumentOccurrences,
   tripDocuments,
+  trips,
   tripStatusEvents,
   tripStopEvents,
   tripStopOccurrences,
@@ -676,6 +677,24 @@ export function encodeTripTimelineCursor(cursor: TripTimelineCursor): string {
     occurredAt: cursor.occurredAt.toISOString(),
   })
   return Buffer.from(payload, 'utf8').toString('base64url')
+}
+
+/**
+ * Spec 158 T6: existência da viagem **nesta empresa**, antes de ler qualquer fonte da linha do
+ * tempo — molde de `DrizzleTripCostRepository.listByTrip` (`select({ id: trips.id })`). As seis
+ * fontes de `listTripTimeline` não servem para isso: viagem sem nenhum evento ainda devolveria
+ * itens vazios tanto para "existe e está silenciosa" quanto para "não existe", e o 404 se perderia.
+ */
+export async function findTripCompanyScope(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<{ readonly id: string } | null> {
+  const [trip] = await queryable
+    .select({ id: trips.id })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  return trip ?? null
 }
 
 /**

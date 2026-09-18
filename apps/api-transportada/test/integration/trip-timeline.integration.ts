@@ -33,8 +33,18 @@ import {
   trips,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
+import {
+  findTripCompanyScope,
+  listTripTimeline,
+} from '../../src/trips/infrastructure/trip-timeline.query.js'
 import type { ReadTripTimelineParams } from '../../src/trips/application/trip-timeline.types.js'
+import { createReadTripTimelineUseCase } from '../../src/trips/application/read-trip-timeline.use-case.js'
+import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
+import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
+import type {
+  AuthenticatedContext,
+  CompanyContext,
+} from '../../src/identity/domain/tenant-context.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -593,6 +603,94 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
       })
     },
   )
+})
+
+function fakeContext(company: Company): AuthenticatedContext<CompanyContext> {
+  return {
+    identity: {} as AuthenticatedIdentity,
+    scope: {
+      companyId: company.companyId,
+      kind: 'company',
+      membershipId: crypto.randomUUID(),
+      permissions: new Set(['fleet.read'] as never),
+      roles: ['operator'],
+      userId: company.userId,
+    },
+  }
+}
+
+function findTimelineRoute(database: TestDatabase) {
+  const readTripTimeline = createReadTripTimelineUseCase({
+    existence: { findTripCompanyScope: (input) => findTripCompanyScope(database.db, input) },
+    reader: { listTripTimeline: (input) => listTripTimeline(database.db, input) },
+  })
+  const dependencies = new Proxy(
+    { readTripTimeline },
+    { get: (target, name) => (target as Record<string, unknown>)[String(name)] },
+  )
+  const routes = createTripRoutes(dependencies as never)
+  const route = routes.find(
+    (candidate) => candidate.method === 'GET' && candidate.pathname === '/trips/:id/timeline',
+  )
+  if (route === undefined) throw new Error('route missing')
+  return route
+}
+
+/**
+ * Spec 158 T6, contra o Postgres de verdade: a rota resolve a viagem da empresa do contexto antes
+ * de ler qualquer fonte, no molde de `route.execute` de `trip-field-office.integration.ts`.
+ */
+describe('GET /trips/:id/timeline contra o Postgres (spec 158 T6)', () => {
+  testWithPostgres('200 com itens reais da viagem', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const tripId = await seedTrip(database, company)
+      await database.db.insert(tripStatusEvents).values({
+        actorUserId: company.userId,
+        channel: 'backoffice',
+        companyId: company.companyId,
+        fromStatus: 'route_planned',
+        id: crypto.randomUUID(),
+        toStatus: 'separating',
+        tripId,
+      })
+
+      const route = findTimelineRoute(database)
+      const response = await route.execute({
+        context: fakeContext(company),
+        correlationId: 'integration-timeline',
+        pathParameters: { id: tripId },
+        request: new Request(`http://localhost/trips/${tripId}/timeline`),
+      })
+
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as {
+        data: { items: readonly { kind: string }[]; nextCursor: string | null }
+      }
+      expect(body.data.items).toHaveLength(1)
+      expect(body.data.items[0]?.kind).toBe('trip.status_changed')
+      expect(body.data.nextCursor).toBeNull()
+    })
+  })
+
+  testWithPostgres('404 TRIP_NOT_FOUND para viagem de outra empresa', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyA = await seedCompany(database)
+      const companyB = await seedCompany(database)
+      const tripOfCompanyB = await seedTrip(database, companyB)
+
+      const route = findTimelineRoute(database)
+
+      await expect(
+        route.execute({
+          context: fakeContext(companyA),
+          correlationId: 'integration-timeline',
+          pathParameters: { id: tripOfCompanyB },
+          request: new Request(`http://localhost/trips/${tripOfCompanyB}/timeline`),
+        }),
+      ).rejects.toMatchObject({ code: 'TRIP_NOT_FOUND', status: 404 })
+    })
+  })
 })
 
 async function withDisposableDatabase(

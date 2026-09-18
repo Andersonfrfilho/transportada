@@ -58,7 +58,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       critério de `recordedAt` do D6 (`office` e > 60 s), com teste para uma linha antiga cujo
       `recorded_at` é a hora da migration da spec 156. `trip_document_events` com
       `channel = 'driver_app'` sai como `channel: null` (D3), citando a ADR-0068 §4 no contrato.
-- [ ] **T6 — Caso de uso e rota `GET /trips/:id/timeline`** (D4, aceites 5, 6). Zod de `cursor`/
+- [x] **T6 — Caso de uso e rota `GET /trips/:id/timeline`** (D4, aceites 5, 6). Zod de `cursor`/
       `limit`, 404 para outra empresa, `TRIP_FIELD_READ_POLICY`, ligação em `main.ts`. Atualizar
       `finance-read.contract.ts` e `separator-role.contract.test.ts`. Documentação da rota
       (OpenAPI/Scalar, se a app já gera).

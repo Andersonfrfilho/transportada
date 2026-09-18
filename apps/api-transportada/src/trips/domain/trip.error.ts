@@ -64,6 +64,17 @@ export class TripNotFoundError extends ApiError {
   }
 }
 
+/** Spec 158 T6: `cursor` da querystring que não decodifica no formato de `parseTripTimelineCursor`. */
+export class TripTimelineCursorInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TIMELINE_CURSOR_INVALID',
+      message: 'The timeline cursor is malformed.',
+      status: 400,
+    })
+  }
+}
+
 /** ADR-0067 §2: o escritório registra em nome de um motorista, e a viagem não tem nenhum. */
 export class TripWithoutDriverError extends ApiError {
   public constructor() {

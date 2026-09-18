@@ -317,6 +317,8 @@ import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-
 import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
 import { listTripCosts } from './trips/application/list-trip-costs.use-case'
+import { createReadTripTimelineUseCase } from './trips/application/read-trip-timeline.use-case'
+import { findTripCompanyScope, listTripTimeline } from './trips/infrastructure/trip-timeline.query'
 import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
@@ -2923,6 +2925,10 @@ function createApplicationRoutes({
       listTripCosts: {
         execute: (input) => listTripCosts({ ...input, repository: tripCostRepository }),
       },
+      readTripTimeline: createReadTripTimelineUseCase({
+        existence: { findTripCompanyScope: (input) => findTripCompanyScope(database, input) },
+        reader: { listTripTimeline: (input) => listTripTimeline(database, input) },
+      }),
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
       issueManifestAutomatically: {
         execute: (input) =>

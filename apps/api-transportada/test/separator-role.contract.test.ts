@@ -220,6 +220,12 @@ describe('separator role contract', () => {
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
       /**
+       * Spec 158 T6: a linha do tempo unificada da viagem, sob a mesma `TRIP_FIELD_READ_POLICY`
+       * (`fleet.read` ou `trip.report-on-behalf`) das outras leituras de campo listadas acima — o
+       * separador já enxerga cada uma delas espalhada; aqui é a mesma informação, só unida.
+       */
+      'GET /trips/:id/timeline',
+      /**
        * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
        * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
        * prévia (spec 085, abaixo): sem ela, a planta que ele pediu nunca chegaria à tela dele. Ela

@@ -107,7 +107,10 @@ function reachableRoutes(context: AuthenticatedContext<CompanyContext>): readonl
     .toSorted()
 }
 
-/** As cinco leituras da D11 e a lista de ações da D10 (ressalva M1), com a mesma política. */
+/**
+ * As leituras da D11 e a lista de ações da D10 (ressalva M1), com a mesma política — mais a linha
+ * do tempo unificada (spec 158 T6), que reusa a mesma `TRIP_FIELD_READ_POLICY`.
+ */
 const FIELD_READS = [
   'GET /trips',
   'GET /trips/:id',
@@ -115,6 +118,7 @@ const FIELD_READS = [
   'GET /trips/:id/documents/:documentId/occurrences',
   'GET /trips/:id/documents/:documentId/proof',
   'GET /trips/:id/stops',
+  'GET /trips/:id/timeline',
 ] as const
 
 describe('anyPermission — "qualquer uma de" (spec 156 D11)', () => {
@@ -224,6 +228,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /trips/:id/documents/:documentId/proof',
       'GET /trips/:id/financial-result',
       'GET /trips/:id/stops',
+      'GET /trips/:id/timeline',
       'GET /trips/:id/valuation',
       'GET /trips/occurrence-types/field',
       'POST /trips/:id/confirm-load',
@@ -256,7 +261,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
     }
   })
 
-  it('o operator e o separator seguem alcançando as seis (fleet.read)', () => {
+  it('o operator e o separator seguem alcançando as sete (fleet.read)', () => {
     for (const role of ['operator', 'separator', 'viewer'] as const) {
       const reachable = new Set(reachableRoutes(roleContext(role)))
       for (const signature of FIELD_READS) expect(reachable.has(signature)).toBe(true)
@@ -268,7 +273,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
     for (const signature of FIELD_READS) expect(reachable.has(signature)).toBe(false)
   })
 
-  it('as seis respondem 200 ao finance', async () => {
+  it('as sete respondem 200 ao finance', async () => {
     const results: Readonly<Record<string, unknown>> = {
       getTrip: TRIP_DETAIL,
       listStops: { stops: [] },
@@ -276,6 +281,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       listTrips: TRIP_PAGE,
       readDeliveryProofs: [],
       readTripActionSnapshot: { documents: [], hasDriver: true, status: 'draft', stops: [] },
+      readTripTimeline: { items: [], nextCursor: null },
     }
     const dependencies = new Proxy(
       {},
