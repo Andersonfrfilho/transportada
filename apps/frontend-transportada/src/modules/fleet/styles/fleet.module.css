@@ -1411,19 +1411,65 @@
   margin: 0;
 }
 
+/* No celular o rótulo sobe e os dois botões dividem a linha — soltos, "Próxima" caía sozinha. */
 .catalogPagination {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   align-items: center;
-  justify-content: space-between;
+}
+
+.catalogPagination > button {
+  grid-row: 2;
+  justify-content: center;
 }
 
 .catalogPageLabel {
+  grid-column: 1 / -1;
+  grid-row: 1;
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   font-family: var(--font-utility);
   font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (min-width: 40rem) {
+  .catalogPagination {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .catalogPagination > button {
+    grid-row: 1;
+  }
+
+  .catalogPagination > button:last-child {
+    grid-column: 3;
+  }
+
+  .catalogPageLabel {
+    grid-column: 2;
+  }
+}
+
+/*
+ * A aba de pedágio (e o diálogo da recarga, que sai por portal) opera com o dedo no celular: o
+ * controle compacto sobe ao alvo de toque, como já faz `.tripShell`.
+ */
+.tollBoothPanel {
+  --control-height-compact: var(--touch-target);
+  --field-height-compact: var(--touch-target);
+}
+
+/* Rótulo em cima, campo embaixo — como no combustível; em linha, cada campo tinha uma largura. */
+.tollBoothField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* A ação do bloco anda à esquerda como as irmãs da aba, nunca esticada na largura do painel. */
+.tollBoothReloadAction {
+  justify-self: start;
 }
 
 /* Spec 154 T303: diálogo de confirmação da recarga do catálogo — molde de

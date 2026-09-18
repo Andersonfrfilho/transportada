@@ -11,7 +11,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import { useDayFormatter } from '../hooks/useDayFormatter.hook'
 import type { TollBoothCatalogReloadInput } from '../shared/tollBoothExtractClient.service'
@@ -29,6 +31,8 @@ export type TollBoothCatalogReloadPanelProps = Readonly<{
   errorCode?: string
   extracts: readonly TollBoothExtractRow[] | undefined
   isPending: boolean
+  /** A leitura da lista falhou: dizer "nenhum extrato" aqui seria afirmar algo falso da instalação. */
+  loadFailed: boolean
   loading: boolean
   onReload: (input: TollBoothCatalogReloadInput) => void
   result: TollBoothReloadResult | undefined
@@ -127,11 +131,20 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
   }
 
   return (
-    <section className={styles.panel} aria-labelledby="toll-booth-reload-panel-title">
-      <h3 id="toll-booth-reload-panel-title">{t('tollBoothCharges.reload.title')}</h3>
+    <section
+      className={`${styles.panel} ${styles.tollBoothPanel}`}
+      aria-labelledby="toll-booth-reload-panel-title"
+    >
+      <h2 id="toll-booth-reload-panel-title">{t('tollBoothCharges.reload.title')}</h2>
       <p className={styles.hint}>{t('tollBoothCharges.reload.hint')}</p>
 
-      {props.loading ? null : extracts.length === 0 ? (
+      {props.loading ? (
+        <Skeleton height="var(--field-height)" width="100%" />
+      ) : props.loadFailed ? (
+        <p className={styles.fuelPriceStatusError} role="alert">
+          {t('tollBoothCharges.reload.loadError')}
+        </p>
+      ) : extracts.length === 0 ? (
         <p className={styles.fieldHint}>
           {props.catalogStatus === 'empty'
             ? t('tollBoothCharges.reload.noExtracts')
@@ -149,17 +162,19 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
             />
           </label>
           <Button
+            className={styles.tollBoothReloadAction}
             disabled={selectedExtract === undefined || props.isPending}
             type="button"
             onClick={openConfirmation}
           >
+            <Icon name="download" />
             {t('tollBoothCharges.reload.button')}
           </Button>
         </>
       )}
 
       {props.result !== undefined && (
-        <dl className={styles.catalogHeader} role="status">
+        <div className={styles.catalogHeader} role="status">
           <p className={styles.counter}>
             {t('tollBoothCharges.reload.resultSaved', { count: props.result.savedBoothCount })}
           </p>
@@ -173,7 +188,7 @@ export function TollBoothCatalogReloadPanel(props: TollBoothCatalogReloadPanelPr
               count: props.result.boothsMissingFromExtract,
             })}
           </p>
-        </dl>
+        </div>
       )}
 
       {props.errorCode !== undefined && dialogExtract === null && (

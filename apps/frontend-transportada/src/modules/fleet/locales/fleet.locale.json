@@ -740,8 +740,9 @@
       "nextPage": "Próxima página",
       "pageOfTotal": "Página {{page}} de {{pageCount}}",
       "pendingCount": "{{count}} praças sem tarifa por eixo conhecida.",
+      "pendingCount_one": "{{count}} praça sem tarifa por eixo conhecida.",
       "previousPage": "Página anterior",
-      "searchEmpty": "Nenhuma praça com esse nome no catálogo de {{date}}.",
+      "searchEmpty": "Nenhuma praça com esse nome ou operadora no catálogo de {{date}}.",
       "searchLabel": "Buscar praça por nome ou operadora",
       "status": {
         "current": "Catálogo atualizado.",
@@ -750,6 +751,7 @@
       },
       "summaryObservedOn": "Catálogo de {{date}}.",
       "summaryTotal": "{{count}} praças no catálogo.",
+      "summaryTotal_one": "{{count}} praça no catálogo.",
       "unknownCatalog": "Fora do catálogo atual"
     },
     "clear": "Remover ajuste",
@@ -779,14 +781,18 @@
         "TOLL_BOOTH_EXTRACT_OBJECT_MISSING": "O objeto deste extrato sumiu do bucket. Suba-o de novo pelo runbook antes de recarregar.",
         "default": "Não foi possível recarregar o catálogo. Código: {{code}}."
       },
-      "hint": "Recarrega o catálogo de praças a partir de um extrato já registrado (D3/D6) — o efeito atinge todas as empresas desta instalação, e nenhuma praça é apagada.",
+      "hint": "Recarrega o catálogo de praças a partir de um extrato já registrado — o efeito atinge todas as empresas desta instalação, e nenhuma praça é apagada.",
+      "loadError": "Não foi possível carregar a lista de extratos. Recarregue a página para tentar de novo.",
       "noExtracts": "Nenhum extrato registrado ainda — não há o que recarregar.",
       "noExtractsWithCatalog": "O catálogo já tem praças carregadas, mas nenhum extrato está registrado nesta instalação. Suba um extrato pelo runbook docs/runbooks/osrm-extract.md para poder recarregar.",
       "optionLabel": "{{name}} — {{date}} ({{count}} praças)",
+      "optionLabel_one": "{{name}} — {{date}} ({{count}} praça)",
       "reloading": "Recarregando…",
       "resultMissing": "{{count}} praças do catálogo não vieram neste extrato.",
+      "resultMissing_one": "{{count}} praça do catálogo não veio neste extrato.",
       "resultObservedOn": "Extrato usado: {{date}}.",
       "resultSaved": "{{count}} praças gravadas.",
+      "resultSaved_one": "{{count}} praça gravada.",
       "selectLabel": "Extrato registrado",
       "title": "Recarregar catálogo"
     },

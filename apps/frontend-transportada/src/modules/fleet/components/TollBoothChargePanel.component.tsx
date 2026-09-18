@@ -35,20 +35,29 @@ export function TollBoothChargePanel(props: TollBoothChargePanelProps) {
   const formatDay = useDayFormatter()
   const { catalog } = props
   const hasSearch = props.search.trim() !== ''
+  // Catálogo nunca carregado: o corpo já diz isso — cabeçalho zerado e busca seriam ruído repetido.
+  const isCatalogEmpty = catalog?.summary.status === 'empty'
 
   return (
-    <section className={styles.panel} aria-labelledby="toll-booth-charges-title">
+    <section
+      className={`${styles.panel} ${styles.tollBoothPanel}`}
+      aria-labelledby="toll-booth-charges-title"
+    >
       <h2 id="toll-booth-charges-title">{t('tollBoothCharges.title')}</h2>
       <p className={styles.hint}>{t('tollBoothCharges.hint')}</p>
-      <label className={styles.filterBar}>
-        <span>{t('tollBoothCharges.catalog.searchLabel')}</span>
-        <input
-          type="search"
-          value={props.search}
-          onChange={(event) => props.onSearchChange(event.target.value)}
-        />
-      </label>
-      {catalog !== undefined && <TollBoothCatalogHeader summary={catalog.summary} />}
+      {isCatalogEmpty ? null : (
+        <label className={styles.filterBar}>
+          <span>{t('tollBoothCharges.catalog.searchLabel')}</span>
+          <input
+            type="search"
+            value={props.search}
+            onChange={(event) => props.onSearchChange(event.target.value)}
+          />
+        </label>
+      )}
+      {catalog === undefined || isCatalogEmpty ? null : (
+        <TollBoothCatalogHeader summary={catalog.summary} />
+      )}
       {props.loading ? (
         <TollBoothChargeSkeleton />
       ) : catalog === undefined ? (

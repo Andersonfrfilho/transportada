@@ -27,6 +27,7 @@ function renderGate(canManageSettings: boolean): string {
       catalogStatus="empty"
       extracts={[]}
       isPending={false}
+      loadFailed={false}
       loading={false}
       result={undefined}
       onReload={() => {}}
@@ -46,5 +47,41 @@ describe('bloco de recarga do catálogo só renderiza com settings.manage (spec 
     const html = renderGate(true)
 
     expect(html).toContain(RELOAD_TITLE)
+  })
+})
+
+// Spec 154 T506 (revisão de design): a lista de extratos que falhou ao carregar caía no mesmo ramo
+// de "lista vazia" e dizia "nenhum extrato registrado" — afirmação falsa sobre a instalação.
+describe('bloco de recarga — leitura dos extratos (spec 154 T506)', () => {
+  const NO_EXTRACTS = fleetLocale.tollBoothCharges.reload.noExtracts
+  const LOAD_ERROR = fleetLocale.tollBoothCharges.reload.loadError
+
+  function renderPanel(input: Readonly<{ loadFailed: boolean; loading: boolean }>): string {
+    return renderToStaticMarkup(
+      <TollBoothCatalogReloadGate
+        canManageSettings
+        catalogStatus="empty"
+        extracts={undefined}
+        isPending={false}
+        loadFailed={input.loadFailed}
+        loading={input.loading}
+        result={undefined}
+        onReload={() => {}}
+      />,
+    )
+  }
+
+  it('falha ao ler os extratos diz que falhou, nunca que não há extrato', () => {
+    const html = renderPanel({ loadFailed: true, loading: false })
+
+    expect(html).toContain(LOAD_ERROR)
+    expect(html).not.toContain(NO_EXTRACTS)
+  })
+
+  it('enquanto carrega, nem erro nem "nenhum extrato"', () => {
+    const html = renderPanel({ loadFailed: false, loading: true })
+
+    expect(html).not.toContain(LOAD_ERROR)
+    expect(html).not.toContain(NO_EXTRACTS)
   })
 })

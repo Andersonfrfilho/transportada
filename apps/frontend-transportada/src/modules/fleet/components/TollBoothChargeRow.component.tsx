@@ -111,7 +111,7 @@ export function TollBoothChargeRow(props: TollBoothChargeRowProps) {
         )}
       </div>
       <div className={styles.fuelPriceForm}>
-        <label>
+        <label className={styles.tollBoothField}>
           {t('tollBoothCharges.manualFieldLabel')}
           <input
             aria-invalid={manualInvalid}
@@ -121,7 +121,7 @@ export function TollBoothChargeRow(props: TollBoothChargeRowProps) {
             onChange={(event) => setManualDraft(event.target.value)}
           />
         </label>
-        <label>
+        <label className={styles.tollBoothField}>
           {t('tollBoothCharges.automaticFieldLabel')}
           <input
             aria-invalid={automaticInvalid}

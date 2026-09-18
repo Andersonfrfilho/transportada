@@ -22,7 +22,7 @@ export function TollBoothCatalogHeader(
   const { summary } = props
 
   return (
-    <dl className={styles.catalogHeader}>
+    <div className={styles.catalogHeader}>
       <p className={styles.counter}>
         {t('tollBoothCharges.catalog.summaryTotal', { count: summary.boothCount })}
       </p>
@@ -41,7 +41,7 @@ export function TollBoothCatalogHeader(
           count: summary.boothsWithoutAxleChargeCount,
         })}
       </p>
-    </dl>
+    </div>
   )
 }
 

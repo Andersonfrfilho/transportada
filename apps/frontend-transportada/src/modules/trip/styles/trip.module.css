@@ -1374,6 +1374,11 @@
   color: var(--color-copper);
 }
 
+/* A montagem abre em portal, fora de `.tripShell`: o atalho ao ajuste não herda o alvo de toque. */
+.tollStatementAction {
+  min-height: var(--touch-target);
+}
+
 /* O seletor de rota alternativa (spec 096 T3), logo abaixo do bloco de pedágio. */
 .routeOptions {
   display: flex;

@@ -151,3 +151,32 @@ describe('TollBoothChargePanel renderizado (spec 154 T503, defeito 11)', () => {
     expect(html).toContain(NOTHING_TO_FIX_TEXT)
   })
 })
+
+// Spec 154 T506 (revisão de design): o print do catálogo vazio mostrou a frase de "nunca carregado"
+// duas vezes (cabeçalho e corpo), com "0 praças" e "0 pendências" de ruído; e "1 praças" no singular.
+describe('TollBoothChargePanel — revisão de design (spec 154 T506)', () => {
+  it('catálogo vazio diz "nunca carregado" uma vez só, sem contagens zeradas nem busca', () => {
+    const html = renderPanel()
+
+    expect(html.split(NEVER_LOADED_TEXT).length - 1).toBe(1)
+    expect(html).not.toContain('type="search"')
+    expect(html).not.toContain('0 praças')
+  })
+
+  it('uma praça só é contada no singular', () => {
+    const html = renderPanel({
+      catalog: buildCatalog({
+        summary: {
+          boothCount: 1,
+          boothsWithoutAxleChargeCount: 1,
+          observedOn: '2026-09-14',
+          status: 'current',
+        },
+      }),
+    })
+
+    expect(html).toContain('1 praça no catálogo.')
+    expect(html).toContain('1 praça sem tarifa por eixo conhecida.')
+    expect(html).not.toContain('1 praças')
+  })
+})

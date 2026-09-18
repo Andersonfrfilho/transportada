@@ -336,6 +336,7 @@ export function FleetWorkspacePage() {
             : { errorCode: tollBoothReloadErrorCode })}
           extracts={tollBoothCatalogReload.extractsQuery.data}
           isPending={tollBoothCatalogReload.reloadMutation.isPending}
+          loadFailed={tollBoothCatalogReload.extractsQuery.isError}
           loading={tollBoothCatalogReload.extractsQuery.isLoading}
           result={tollBoothCatalogReload.reloadMutation.data}
           onReload={(input) => tollBoothCatalogReload.reloadMutation.mutate(input)}

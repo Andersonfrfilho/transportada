@@ -66,6 +66,14 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
       logs sem PII — nome de operador de praça não é PII, ator é id opaco, sanitização das rotas
       novas) e conferência dos oito aceites contra a evidência.
 
+## Fase 6 — Revisão de design e usabilidade
+
+> 🤖 Modelo: `opus`
+
+- [x] T506 Revisão do `web.md` §15 nas três telas (aba de pedágio, bloco de recarga, atalho da rota)
+      contra as vizinhas, com prints desktop/celular e medição de alvo de toque, foco e contraste;
+      consertos na mesma tarefa e pendências com motivo em `evidence.md`.
+
 ## Parar e perguntar
 
 - Extrato de staging ausente (T001).

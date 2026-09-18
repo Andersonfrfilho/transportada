@@ -18,7 +18,7 @@ export function TollBoothCatalogReloadError({ errorCode }: TollBoothCatalogReloa
   const { t } = useTranslation('fleet')
 
   return (
-    <p className={styles.feedback} role="alert">
+    <p className={`${styles.feedback} ${styles.feedbackError}`} role="alert">
       {t(`tollBoothCharges.reload.errors.${errorCode}`, {
         code: errorCode,
         defaultValue: t('tollBoothCharges.reload.errors.default', { code: errorCode }),

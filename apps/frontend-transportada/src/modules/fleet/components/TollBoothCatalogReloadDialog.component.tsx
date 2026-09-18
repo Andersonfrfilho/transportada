@@ -37,7 +37,11 @@ export function TollBoothCatalogReloadDialog(props: TollBoothCatalogReloadDialog
   if (extract === null) return null
 
   return createPortal(
-    <div className={styles.overlay} onKeyDown={handleKeyDown} role="presentation">
+    <div
+      className={`${styles.overlay} ${styles.tollBoothPanel}`}
+      onKeyDown={handleKeyDown}
+      role="presentation"
+    >
       <div
         aria-labelledby="toll-booth-reload-title"
         aria-modal="true"
@@ -80,7 +84,7 @@ export function TollBoothCatalogReloadDialog(props: TollBoothCatalogReloadDialog
             {t('tollBoothCharges.reload.cancel')}
           </Button>
           <Button disabled={props.isPending} onClick={props.onConfirm} type="button">
-            <Icon name="check" />
+            <Icon name="download" />
             {props.isPending
               ? t('tollBoothCharges.reload.reloading')
               : t('tollBoothCharges.reload.confirmButton')}

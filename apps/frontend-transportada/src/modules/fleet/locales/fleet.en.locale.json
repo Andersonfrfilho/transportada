@@ -708,8 +708,9 @@
       "nextPage": "Next page",
       "pageOfTotal": "Page {{page}} of {{pageCount}}",
       "pendingCount": "{{count}} booths without a known axle fare.",
+      "pendingCount_one": "{{count}} booth without a known axle fare.",
       "previousPage": "Previous page",
-      "searchEmpty": "No booth with that name in the {{date}} catalog.",
+      "searchEmpty": "No booth with that name or operator in the {{date}} catalog.",
       "searchLabel": "Search booth by name or operator",
       "status": {
         "current": "Catalog up to date.",
@@ -718,6 +719,7 @@
       },
       "summaryObservedOn": "Catalog from {{date}}.",
       "summaryTotal": "{{count}} booths in the catalog.",
+      "summaryTotal_one": "{{count}} booth in the catalog.",
       "unknownCatalog": "Not in the current catalog"
     },
     "clear": "Clear adjustment",
@@ -747,14 +749,18 @@
         "TOLL_BOOTH_EXTRACT_OBJECT_MISSING": "This extract's object is missing from the bucket. Upload it again through the runbook before reloading.",
         "default": "Could not reload the catalog. Code: {{code}}."
       },
-      "hint": "Reloads the toll booth catalog from an already registered extract (D3/D6) — the effect reaches every company in this installation, and no booth is ever deleted.",
+      "hint": "Reloads the toll booth catalog from an already registered extract — the effect reaches every company in this installation, and no booth is ever deleted.",
+      "loadError": "Could not load the list of extracts. Reload the page to try again.",
       "noExtracts": "No extract registered yet — there is nothing to reload.",
       "noExtractsWithCatalog": "The catalog already has booths loaded, but no extract is registered on this installation. Upload an extract through the runbook docs/runbooks/osrm-extract.md to be able to reload.",
       "optionLabel": "{{name}} — {{date}} ({{count}} booths)",
+      "optionLabel_one": "{{name}} — {{date}} ({{count}} booth)",
       "reloading": "Reloading…",
       "resultMissing": "{{count}} booths from the catalog were not in this extract.",
+      "resultMissing_one": "{{count}} booth from the catalog was not in this extract.",
       "resultObservedOn": "Extract used: {{date}}.",
       "resultSaved": "{{count}} booths saved.",
+      "resultSaved_one": "{{count}} booth saved.",
       "selectLabel": "Registered extract",
       "title": "Reload catalog"
     },

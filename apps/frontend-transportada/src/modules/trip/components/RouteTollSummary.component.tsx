@@ -142,6 +142,7 @@ export function RouteTollSummary({ canAdjustTollBooth, toll }: RouteTollSummaryP
                     ) : null}
                     {booth.effectiveChargePerAxle !== null || !canAdjustTollBooth ? null : (
                       <Button
+                        className={styles.tollStatementAction}
                         onClick={() => handleAdjustBooth(booth)}
                         size="sm"
                         type="button"

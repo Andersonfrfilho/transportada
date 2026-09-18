@@ -2138,3 +2138,120 @@ Verde, depois:
 
 Suíte completa da API: **6385 pass · 23 skip · 0 fail** (22206 expect(), 177 arquivos).
 `bun run typecheck`, `bun run lint` e `bun run format:check`: exit 0 nas seis apps.
+
+### T506 — revisão de design e usabilidade
+
+Revisão do `web.md` §15 sobre as três telas da spec, **olhando a tela de verdade**: build com
+`VITE_SMOKE_AUTH_BYPASS=true`, `vite preview` na porta 53117 e um script Playwright descartável
+(fora do repositório) que reaproveita os dublês de `test/fleet-smoke.helper.ts` e
+`test/trip-smoke.helper.ts` e simula `GET /v1/toll-booths`, `GET /v1/toll-booths/extracts` e
+`POST /v1/toll-booths/reload` na forma exata dos `*.validation.ts`. Desktop 1440×900 e celular
+390×844. O resumo da rota é a **tela real** (montagem de "Nova viagem", `TOLL_SINGLE_ROUTE_GEOMETRY`),
+não recorte. Além dos prints, o script mediu: rolagem horizontal, alvos < 44px, foco e ordem de Tab
+no diálogo, `Esc`, e a cor computada do erro.
+
+#### O que foi visto, por tela
+
+**1. Aba de pedágio (Frota)**
+
+| #   | Severidade | Achado                                                                                                                                                                                                                                     | Destino                                                                                                        |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| 1   | média      | Os campos "Nova tarifa manual"/"com tag" ficavam com o rótulo **em linha** com o campo (o `<label>` envolvia o `<input>` sem grade): cada campo com uma largura, desalinhados do "Data da tarifa" logo abaixo e do combustível, a aba irmã | consertado — `.tollBoothField` (rótulo em cima, campo embaixo)                                                 |
+| 2   | média      | Catálogo vazio dizia "O catálogo de praças ainda não foi carregado" **duas vezes** (cabeçalho e corpo), mais "0 praças no catálogo" e "0 praças sem tarifa" e uma busca que não tem o que buscar                                           | consertado — cabeçalho e busca somem com `status: empty`; o corpo diz uma vez                                  |
+| 3   | média      | Alvos de toque de 38px no celular: busca e os dois botões de paginação (`--control-height-compact`)                                                                                                                                        | consertado — `.tollBoothPanel` sobe o compacto ao `--touch-target`, como `.tripShell` já faz                   |
+| 4   | baixa      | Paginação no celular: "Próxima página" caía sozinha numa segunda linha, longe de "Página anterior"                                                                                                                                         | consertado — rótulo em cima, os dois botões dividindo a linha; no desktop continua anterior · rótulo · próxima |
+| 5   | baixa      | "1 praças no catálogo" / "1 praças sem tarifa…" (sem plural)                                                                                                                                                                               | consertado — chaves `_one` nos dois dicionários                                                                |
+| 6   | baixa      | "Nenhuma praça com esse nome…" quando a busca também casa operadora                                                                                                                                                                        | consertado — "com esse nome ou operadora"                                                                      |
+| 7   | baixa      | `<dl>` com `<p>` dentro (marcação inválida para leitor de tela) no cabeçalho                                                                                                                                                               | consertado — `<div>`                                                                                           |
+| 8   | baixa      | Tarifa com quatro casas ("R$ 14,7000") enquanto o resumo da rota mostra duas ("R$ 16,40")                                                                                                                                                  | **pendente** — ver abaixo                                                                                      |
+| 9   | baixa      | Botão "Abrir calendário" do `FleetDateField` com 18px                                                                                                                                                                                      | **pendente** — ver abaixo                                                                                      |
+
+Conferido e sem defeito: a marca "Fora do catálogo atual" (`catalogKnown: false`) legível, cobre sobre
+o fundo claro, e o formulário continua disponível na mesma praça; estado `stale` com a data
+(02/03/2025) e "Catálogo desatualizado."; busca sem resultado nomeia a data do catálogo; sem rolagem
+horizontal em nenhum print.
+
+**2. Bloco de recarga**
+
+| #   | Severidade | Achado                                                                                                                                                                                                   | Destino                                                                                                                                      |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | **alta**   | A falha ao ler a lista de extratos caía no ramo de lista vazia e afirmava "Nenhum extrato registrado ainda" — frase falsa sobre a instalação                                                             | consertado — prop `loadFailed` (`extractsQuery.isError`) com frase própria (`reload.loadError`); carregando vira `Skeleton`, não mais `null` |
+| 11  | média      | O erro da recarga (`TollBoothCatalogReloadError`) saía na cor do texto comum (`rgb(29,43,51)`), igual ao aviso logo acima — o comentário do próprio CSS diz que falha assim "some no meio do formulário" | consertado — `.feedbackError`; medido depois: `rgb(194,56,47)`                                                                               |
+| 12  | média      | Botão "Recarregar catálogo" **esticado na largura do painel** inteira, sem ícone — as ações irmãs da aba ficam à esquerda com ícone (§9)                                                                 | consertado — `justify-self: start` + `Icon download` (o mesmo no botão de confirmar do diálogo, para a ação ter um ícone só)                 |
+| 13  | média      | Texto de ajuda com jargão de spec: "(D3/D6)"                                                                                                                                                             | consertado nos dois dicionários                                                                                                              |
+| 14  | baixa      | Título em `<h3>` com a margem padrão do navegador (vão grande antes da ajuda) e hierarquia diferente da seção irmã (`<h2>`)                                                                              | consertado — `<h2>`, herda `.panel h2`                                                                                                       |
+| 15  | baixa      | Fechar do diálogo com 38px no celular                                                                                                                                                                    | consertado — o overlay (portal) recebe `.tollBoothPanel`; medido 44px                                                                        |
+| 16  | baixa      | Resultado em `<dl>` com `<p>`; "1 praças …" no singular                                                                                                                                                  | consertado                                                                                                                                   |
+| 17  | baixa      | Diálogo não é tela cheia no celular (`web.md` §10)                                                                                                                                                       | **pendente** — ver abaixo                                                                                                                    |
+
+Conferido e sem defeito: o diálogo recebe o foco ao abrir, o Tab circula só dentro dele
+(Fechar → Cancelar → Recarregar → Fechar), `Esc` fecha e o foco volta ao botão "Recarregar
+catálogo"; código desconhecido aparece como `Código: STORAGE_UNAVAILABLE.`, nunca `{{code}}`; as
+duas frases de "nenhum extrato" (catálogo vazio e catálogo populado com o runbook) aparecem no caso
+certo.
+
+**3. Atalho no resumo de pedágio da rota**
+
+| #   | Severidade | Achado                                                                                                              | Destino                                                                                |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 18  | média      | "Ajustar tarifa desta praça" com 38px: a montagem abre em portal, fora de `.tripShell`, e não herda o alvo de toque | consertado — `.tollStatementAction` com `min-height: var(--touch-target)`; medido 44px |
+| 19  | baixa      | "1 praças sem tarifa conhecida" (spec 090)                                                                          | **pendente** — ver abaixo                                                              |
+
+Fluxo medido: da rota ao ajuste são **2 toques** (o botão na praça → a aba de Pedágio já abre filtrada
+em `?tollBoothSearch=Praça Gama`, com a praça como único resultado e o formulário pronto). Achar uma
+praça na própria aba: 1 toque na aba + digitar. Recarregar: 2 toques (botão → Recarregar), com o
+extrato mais novo já escolhido.
+
+#### Pendências, com o motivo
+
+- **Tarifa com quatro casas na aba (#8).** Trocar por `formatAmount` (duas casas) arredonda o valor
+  com tag — 14,70 × 0,95 = 13,965 — e a aba é justamente onde o operador confere o número exato contra
+  o que vai digitar. O combustível, aba irmã, mostra as mesmas quatro casas. É decisão de produto
+  (mostrar só as casas que o número tem), não defeito desta spec.
+- **"Abrir calendário" de 18px (#9)** é do `FleetDateField`, compartilhado por toda a Frota; mexer
+  nele é fora do escopo da spec 154.
+- **Diálogo não é tela cheia no celular (#17).** Segue o molde de `CompanyUserRemoveDialog` e dos
+  outros diálogos de confirmação da app; mudar só este criaria dois comportamentos (`web.md` §14:
+  a divergência é o defeito). Vale para todos, numa tarefa própria.
+- **"1 praças sem tarifa conhecida" na rota (#19)** é texto da spec 090 e é o literal que o smoke
+  `responsive.smoke.spec.ts` assere; corrigir exige tocar o smoke junto, fora desta revisão.
+- **`noExtractsWithCatalog` cita o caminho do runbook** — mantido de propósito: a spec (RF3/caso
+  extremo) pede apontar o runbook, e o contrato `toll-booth-charge-tab.contract.ts` cobra o caminho.
+
+#### Testes (vermelho antes, verde depois)
+
+Quatro testes novos de render (`renderToStaticMarkup`, i18n real), escritos antes do conserto:
+
+- `test/fleet/toll-booth-charge-panel-render.contract.tsx`: catálogo vazio diz "nunca carregado" uma
+  vez só, sem busca e sem "0 praças"; uma praça é contada no singular.
+- `test/fleet/toll-booth-catalog-reload-gate.contract.tsx`: falha ao ler os extratos mostra
+  `reload.loadError` e nunca `noExtracts`; carregando não mostra nenhum dos dois. O render antigo
+  do mesmo arquivo ganhou `loadFailed={false}` (prop nova obrigatória), sem mudar o que assere.
+
+```
+$ bun test ./test/fleet.contract.test.ts        # antes do conserto
+ 551 pass
+ 4 fail
+$ bun test ./test/fleet.contract.test.ts ./test/trip.contract.test.ts   # depois
+ 1584 pass
+ 0 fail
+```
+
+#### Gates
+
+```
+$ bun run format:check   # exit 0 (1 arquivo reformatado por --write antes)
+$ bun run typecheck      # exit 0
+$ bun run lint           # exit 0
+$ cd apps/frontend-transportada && bun run test
+ 4393 pass / 0 fail (contratos) · 10 pass / 0 fail (test:hooks)
+$ bun run build          # ✓ built in 8.60s
+```
+
+#### Prints (fora do repositório)
+
+Pasta: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/` — cada cenário em `before-*` e `after-*`, desktop e mobile:
+`01-full-list`, `02-unknown-catalog-row`, `03-reload-closed`, `04-dialog-open`,
+`05-reload-result`, `06-search-empty`, `07-reload-error-dialog`, `08-reload-error-panel`,
+`09-catalog-empty`, `10-stale-no-extract`, `11-deep-link-filtered`, `12-route-toll-summary`,
+`13-route-to-fleet`; medições em `before-report.json` / `after-report.json`.
