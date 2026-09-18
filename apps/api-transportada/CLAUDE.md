@@ -131,9 +131,13 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
   `toCompanyUserView` é o único ponto de conversão.
 - **O separador é papel próprio** (`trip.manage`, não `fleet.manage` de carona): quatro permissões —
   `invoices.read`, `fleet.read`, `trip.read`, `trip.manage`. Não cadastra frota, não fatura, não emite
-  fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` está no catálogo mas nenhuma
-  rota o pede hoje — leitura de viagem segue em `fleet.read`; migrar isso migra `driver`, `aggregate`
-  e `separator` juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
+  fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` **é** pedido por rotas: as
+  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo), o fluxo de leitura do
+  motorista no WhatsApp e `GET /delivery-charges` + `GET /delivery-clients/:id/charge-rules` — estas
+  duas **não** recortam pelo vínculo, então motorista e agregado leem as cobranças da empresa inteira
+  (achado da spec 156 T15, `docs/SECURITY.md`). A leitura de viagem da empresa segue em `fleet.read`
+  (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
+  juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
 
 ## Viagem (trips) — máquina de estados
@@ -150,6 +154,38 @@ destinatário, nunca pelo CNPJ.
 ⚠️ `return`/`deliver` só depois de `dispatched`; `separate`/`load` exigem roteiro planejado —
 tratar os três como um `isEditable` só oferece o botão exatamente quando ele dá `409`. Guarda:
 `test/trip/state-gates.contract.ts` (frontend).
+
+**O escritório dá baixa em nome do motorista** (spec 156, ADR-0067): permissão própria
+`trip.report-on-behalf` (`company-admin`, `operator`, `finance`; nunca `trip.manage`, que o separador
+tem, nem `trip.report`, que é a chave das rotas `/me`). Rotas com o `tripId` no caminho, alvo
+resolvido pela empresa do contexto (outra empresa → 404; sem motorista → 422 `TRIP_WITHOUT_DRIVER`;
+`driverId` fora da tripulação → 422 `DRIVER_NOT_ON_TRIP`) e os mesmos casos de uso do motorista com
+`{ target }`: `POST /trips/:id/confirm-load`, `…/start-route`, `…/stops/:stopId/arrive` (`arrivedAt`
+opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-delivery` (multipart,
+`deliveredAt` obrigatório), `…/field-return` (JSON, `returnedAt` opcional), `…/field-proof`
+(multipart) e `…/documents/field-occurrences` (lote multipart); leituras `GET /trips/:id/allowed-actions`
+(`anyPermission`), `GET /trips/:id/field-delivery-documents` e `GET /trips/field-delivery-settings`.
+
+- Todo registro grava `channel` (`driver_app | office | whatsapp`, e `backoffice` em
+  `trip_status_events`) e, no `office`, `on_behalf_of_driver_id` (CHECK + FK composta com índice
+  parcial); `actor_user_id` é sempre quem clicou. `operation` em `trip_field_reports` com prefixo
+  `office.`; mesma chave de outro ator ou operação → 409 `TRIP_FIELD_REPORT_KEY_REUSED`.
+- Nota já `delivered`/`returned` no canal `office` → 409 `DOCUMENT_ALREADY_SETTLED` **antes** da
+  janela e da transição (o motorista segue idempotente). A hora informada tem janela: nem futuro, nem
+  antes do despacho congelado (sem ele, `trips.created_at`) — `DELIVERED_AT_*`, `RETURNED_AT_*`,
+  `ARRIVED_AT_*`. A baixa deriva `on_delivery_route` (ADR-0058 §3); a parada sem chegada ganha
+  `arrived_at` da primeira baixa; parada e viagem fecham com a maior hora das notas.
+- `field-proof` substitui só o canhoto do próprio escritório; o do motorista → 409
+  `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`. Assinatura `required` exige foto **e** nome do recebedor
+  (422); documento do recebedor entra selado e mascarado.
+- Upload dentro da transação, com limpeza do objeto se ela desfizer (`runWithStoredObjectCleanup`);
+  arquivo até `OFFICE_PROOF_MAX_BYTES` (960 KiB, abaixo do corpo de 1 MiB), bytes conferidos contra o
+  tipo, lista fechada de campos e um `file` só. `audit_logs` na transação da ação (nunca no reenvio
+  nem em `changed: false`). Rate limit no Postgres: lote 30/300 s, notas 300/300 s, viagem/parada
+  120/300 s (`test/rate-limited-routes.contract.test.ts`).
+- `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no
+  `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
+  `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
 
 **A leitura do canhoto é interruptor da empresa, não do destinatário** (spec 156 T13, ADR-0069):
 `company_delivery_proof_settings.canhoto_ocr_enabled` (padrão `false`, sem coluna na tabela de

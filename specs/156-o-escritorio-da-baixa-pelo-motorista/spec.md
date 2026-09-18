@@ -68,7 +68,8 @@ motorista <nome>".
   - **Isolamento:** viagem de outra empresa responde 404, não 403. A FK é composta,
     `(company_id, on_behalf_of_driver_id)`.
   - **Idempotência:** a mesma tabela `trip_field_reports`, com `operation` própria prefixada
-    `office.`. A mesma chave enviada por outro ator responde 422 `IDEMPOTENCY_KEY_REUSED`.
+    `office.`. A mesma chave enviada por outro ator (ou em outra operação) responde 409
+    `TRIP_FIELD_REPORT_KEY_REUSED` — o código que já existia (emenda da ADR-0067 §2, T6/T15).
   - **Baixa repetida:** no canal `office`, nota já `delivered` ou `returned` responde 409
     `DOCUMENT_ALREADY_SETTLED`, sem evento novo. O canal do motorista continua idempotente como hoje.
     Anexar o canhoto a uma entrega já feita é ação própria (`field-proof`): anexa ao evento

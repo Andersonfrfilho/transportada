@@ -9,7 +9,9 @@
   diferença é que o escritório, com a permissão nova, também pode disparar os dois toques (conferir a
   carga e iniciar o trajeto).
 - **Emendada:** 2026-09-18, depois da validação do architect (baixa repetida, vários motoristas,
-  idempotência, isolamento, exceção à ADR-0057 e leitura do `finance`).
+  idempotência, isolamento, exceção à ADR-0057 e leitura do `finance`), e de novo em 2026-09-18
+  pela revisão de código e segurança da T15 (prefixo `office.`, auditoria na transação, canhoto do
+  motorista preservado, documento selado, hora da chegada, piso da janela e limites do upload).
 
 ## Contexto
 
@@ -89,7 +91,10 @@ de outra empresa. O fluxo do WhatsApp passa a gravar `whatsapp`.
 não 403**: a resposta não pode confirmar que a viagem existe.
 
 **Idempotência.** O escritório usa a mesma tabela do motorista, `trip_field_reports`, com
-`operation` própria prefixada `office.` (por exemplo, `office.document.deliver`). A mesma chave
+`operation` própria prefixada `office.`: `office.document.deliver`, `office.document.return`,
+`office.document.proof`, `office.stop.arrive` e `office.stop.occurrence` (o lote de ocorrências usa
+`office.document.occurrence-batch…`). _(Emenda T15, M8: até a T15 só `field-proof` e o lote tinham o
+prefixo; as outras quatro reusavam a `operation` do motorista.)_ A mesma chave
 enviada por **outro ator** responde **409 `TRIP_FIELD_REPORT_KEY_REUSED`** — o mesmo código que já
 existia para operação diferente, estendido para também comparar o ator (`withFieldReport`, T6).
 _(Emenda 2026-09-18, decisão do líder na T3/T6: fica o código de hoje, não o 422
@@ -103,23 +108,46 @@ comportamento, que é idempotente para quem repete o toque na rua. O escritório
 dias depois, uma segunda baixa sobre a mesma nota criaria uma entrega fantasma na linha do tempo. O
 caso real, "a entrega já foi feita e falta o canhoto", tem ação própria:
 `POST /trips/:id/documents/:documentId/field-proof`. Ela anexa o comprovante ao evento `delivered`
-que já existe. Se já houver comprovante daquele tipo, ele é substituído pelo unique
-`(company, stop_event, kind)`, como manda a ADR-0057. A ação não cria evento e não muda
-`delivered_at`.
+que já existe. Se já houver comprovante daquele tipo **do próprio escritório**, ele é substituído
+pelo unique `(company, stop_event, kind)`, como manda a ADR-0057, e a auditoria guarda o `objectId`
+anterior (`metadata.replacedObjectId`). A ação não cria evento e não muda `delivered_at`.
+
+_(Emenda T15, M1/M2.)_ O comprovante que o **motorista** colheu (`driver_app` ou `whatsapp`) não é
+substituído: `field-proof` responde **409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`** — a foto da rua,
+com posição e hora, é a prova mais forte da entrega. E a reserva da chave, a leitura do evento, o
+upload e o comprovante correm numa transação só (antes, o comprovante gravava pelo pool, fora da
+transação que reservava a chave).
 
 A linha do tempo mostra os dois: "registrado por <usuária> (escritório) pelo motorista <nome>". Cada
 registro do escritório também grava em `audit_logs`, com ator, alvo, IP e horário (`security.md`
 §10). É ação sensível: encerra entrega que outra pessoa fez.
 
+_(Emenda T15, M11.)_ A linha de `audit_logs` nasce **na transação da ação**, no caso de uso — não
+depois, na rota —, com os alvos por id opaco em `metadata` (`documentId`, `stopId`, `documentIds` do
+lote, `replacedObjectId`). O reenvio idempotente e o toque repetido (`changed: false`) não gravam
+linha nova. O IP vem de `x-forwarded-for` e é declarado pelo cliente quando a API não está atrás do
+proxy — registrado em `docs/SECURITY.md`.
+
 ### 3. A hora da entrega é informada (spec 156 D4)
 
 A baixa do escritório registra quando a entrega **aconteceu**, não quando foi digitada. O campo
 "Entregue em" (`deliveredAt`) vem preenchido com agora e pode ser mudado. Ele tem duas travas, com
-códigos estáveis em `shared/errors/codes.ts`:
+códigos estáveis (classes de `ApiError` em `trips/domain/trip.error.ts` e
+`trip-field-office.error.ts` — o produto não tem `shared/errors/codes.ts`):
 
 - não aceita hora no futuro (`DELIVERED_AT_IN_FUTURE`);
 - não aceita hora anterior ao despacho da viagem (`DELIVERED_AT_BEFORE_DISPATCH`). A fonte do
   despacho é `trip_dispatch_snapshots.dispatched_at`, o registro congelado no momento do despacho.
+  _(Emenda T15, M9.)_ Viagem legada sem esse registro usa `trips.created_at` como piso — antes,
+  qualquer data passava.
+
+_(Emenda T15.)_ "Devolvido em" (`returnedAt`) responde com `RETURNED_AT_IN_FUTURE` /
+`RETURNED_AT_BEFORE_DISPATCH`, e a chegada do escritório (`POST …/stops/:stopId/arrive`) ganhou
+`arrivedAt` opcional, na mesma janela, com `ARRIVED_AT_*`. A chegada retroativa **não** desloca a
+previsão das paradas pendentes (spec 109 D3 é para a chegada ao vivo), e o `in_transit` que ela
+provoca leva a hora informada. A parada que o escritório fecha sem chegada registrada ganha
+`arrived_at` = a primeira hora de entrega/devolução dela (C1), e parada e viagem fecham com a maior
+hora das notas, não com a da última digitada (M3).
 
 A hora informada vai para `trip_documents.delivered_at` e para o `occurred_at` do evento. A hora em
 que o registro foi gravado fica à parte, em `recorded_at`. Essa coluna **ainda não existe**: hoje o
@@ -154,6 +182,17 @@ escritório não colhe assinatura, porque quem assina é o recebedor, e ele não
 escritório cumpre a exigência com a **foto do canhoto assinado** mais o **nome do recebedor**. Isso
 fica registrado como comprovante do canal `office`, nunca como assinatura digital. Se o escritório
 digitar o documento do recebedor, ele passa pelo mesmo envelope e pela mesma máscara da ADR-0057 §3.
+
+_(Emenda T15, A2.)_ Com assinatura `required`, o canal `office` exige a foto (422
+`TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`) **e** o nome de quem recebeu, não vazio (422
+`TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED`). O documento digitado, que a T6 descartava, agora é
+selado (`sealDocument`) e mascarado (`maskTaxId`) no mesmo envelope do motorista; com a configuração
+`off` é recusado como no motorista. A migration aditiva
+`20260918170550_delivery_proof_office_receiver_document` relaxa
+`trip_delivery_proofs_receiver_document_check` para `channel = 'office'`, no mesmo molde da emenda 1
+abaixo. O arquivo do escritório tem teto próprio, `OFFICE_PROOF_MAX_BYTES` = 960 KiB, abaixo do
+corpo máximo da API (1 MiB, 413 antes da rota) — o `DELIVERY_PROOF_MAX_BYTES` de 2 MB nunca era
+alcançável —, e os primeiros bytes precisam bater com a imagem declarada (JPEG, PNG ou WebP).
 
 **Emendas 2026-09-18 (T6), decididas pelo líder:**
 

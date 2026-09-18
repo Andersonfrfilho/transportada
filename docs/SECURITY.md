@@ -103,6 +103,49 @@ deploy/restart** — é contenção de abuso casual, não garantia; garantia exi
 
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
+### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente)
+
+**Onde:** `api-transportada`, `delivery-clients/presentation/delivery-charge.routes.ts`
+(`CHARGE_READ_POLICY = trip.read`) → `delivery-charges.use-case.ts` (`list` filtra só por
+`companyId`). Mesmo caso de `GET /delivery-clients/:id/charge-rules`.
+
+**O que é:** `trip.read` é das contas de campo (`driver`, `aggregate`) e do `separator`. As duas
+leituras pedem `trip.read` e devolvem as cobranças e as regras da **empresa inteira** — um motorista
+ou agregado lê cobrança de viagem que não é dele (BOLA, API1:2023). As rotas `/me` que também pedem
+`trip.read` recortam pelo vínculo; estas não.
+
+**O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
+cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
+
+**O que falta:** decidir se estas leituras são do escritório (trocar para `fleet.read`/`trip.manage`)
+ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativo.
+
+**Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
+`CLAUDE.md` da API. Registrado em 2026-09-18.
+
+### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente)
+
+**Onde:** `api-transportada`, `http/client-ip.service.ts` (`resolveClientIp`), usado pela trilha
+das rotas do escritório em nome do motorista (`audit_logs.metadata.ipAddress`, spec 156) e pelos
+limitadores em memória por IP.
+
+**O que é:** `resolveClientIp` confia no **primeiro** endereço de `x-forwarded-for` (e depois em
+`x-real-ip`). Atrás do proxy do Railway/Cloudflare, o primeiro endereço da cadeia é o que o próprio
+cliente mandou, se ele mandou o cabeçalho — o proxy acrescenta o dele no fim. Então quem chama pode
+escolher o IP que a trilha grava (`security.md` §10 pede "ator, alvo, IP e timestamp") e o balde do
+limitador por IP em que cai. Anterior à spec 156; a T15 só o expôs de novo, ao mover a auditoria do
+escritório para dentro da transação.
+
+**O que limita o estrago:** o ator da trilha é o usuário autenticado pelo token (não forjável), e os
+tetos das escritas do escritório contam por empresa e usuário no Postgres, não por IP. O IP é dado
+de apoio da investigação, não a identidade.
+
+**O que falta:** confiar só no endereço que o proxy conhecido acrescentou (o último de
+`x-forwarded-for`, ou o cabeçalho próprio do provedor, como `cf-connecting-ip`), configurável por
+ambiente, e um contrato que prenda o comportamento com uma cadeia forjada.
+
+**Origem:** revisão de segurança da spec 156 (T15). Registrado em 2026-09-18.
+
 ### 2026-09-18 — objeto órfão no bucket do comprovante: limpeza por requisição, sem varredura periódica (spec 156 T15)
 
 **Onde:** `api-transportada`, `trips/application/stored-object-cleanup.service.ts`, usado por

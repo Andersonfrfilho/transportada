@@ -68,12 +68,18 @@ now()`. CHECK: `channel = 'office'` exige `on_behalf_of_driver_id`. O fluxo do W
    `DOCUMENT_ALREADY_SETTLED`, sem `recordEvent`. Hoje `report-document-delivery.use-case.ts`
    (:147-157) grava o evento mesmo quando pula o `settle`; o canal do motorista mantém isso.
 
-   **Idempotência**: `trip_field_reports` com `operation` prefixada `office.`; a mesma chave de outro
-   ator responde 422 `IDEMPOTENCY_KEY_REUSED`.
+   **Idempotência**: `trip_field_reports` com `operation` prefixada `office.`
+   (`office.document.deliver`, `office.document.return`, `office.document.proof`,
+   `office.stop.arrive`, `office.stop.occurrence`); a mesma chave de outro ator ou de outra operação
+   responde 409 `TRIP_FIELD_REPORT_KEY_REUSED` (emenda da ADR-0067 §2; o prefixo chegou às quatro
+   primeiras na T15, M8).
 
 4. **`deliveredAt`** (D4). Zod na borda. O caso de uso valida contra `trip_dispatch_snapshots.dispatched_at` e o relógio, e
-   os erros `DELIVERED_AT_IN_FUTURE` e `DELIVERED_AT_BEFORE_DISPATCH` ficam em
-   `shared/errors/codes.ts`. O motorista continua sem mandar o campo (vale "agora").
+   os erros `DELIVERED_AT_IN_FUTURE` e `DELIVERED_AT_BEFORE_DISPATCH` são classes de `ApiError`
+   com código estável em `trips/domain/trip.error.ts` (o produto não tem `shared/errors/codes.ts`);
+   a T15 acrescentou `RETURNED_AT_*` e `ARRIVED_AT_*` em `trip-field-office.error.ts`. Sem
+   `trip_dispatch_snapshots` (viagem legada), o piso é `trips.created_at` (T15 M9). O motorista
+   continua sem mandar o campo (vale "agora").
 5. **`allowedActions` em `GET /trips/:id`** (D10). A lista é calculada pela `trip-state.policy.ts`
    **e** pelas permissões do usuário, e o frontend para de reescrever essa regra.
 6. **Auditoria**. Cada registro do escritório grava em `audit_logs`, com ator, alvo, IP e horário.

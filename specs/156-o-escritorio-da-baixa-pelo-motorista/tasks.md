@@ -57,7 +57,8 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       outra empresa (aceite 3), autoria gravada e `audit_logs` (aceite 2).
 - [x] **T6 — `field-delivery`, `field-return`, `field-proof` e `deliveredAt`**: multipart com foto,
       entrega e comprovante na mesma transação, `Idempotency-Key` (`operation` prefixada `office.`;
-      mesma chave de outro ator → 422 `IDEMPOTENCY_KEY_REUSED`), validação de `deliveredAt` contra
+      mesma chave de outro ator → 409 `TRIP_FIELD_REPORT_KEY_REUSED`, o código que já existia —
+      emenda da ADR-0067 §2), validação de `deliveredAt` contra
       `trip_dispatch_snapshots.dispatched_at` (aceite 8), configuração de foto obrigatória (aceite 9),
       assinatura `required` cumprida com foto do canhoto assinado + nome do recebedor (D8), e logs sem
       PII (aceite 11). Baixa repetida no canal `office` → 409 `DOCUMENT_ALREADY_SETTLED` sem evento
@@ -73,8 +74,12 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [x] **T7b — Anexo da ocorrência em massa** (D7, decisão L3 da T7). Modelo: `sonnet`. Migration
       aditiva de `trip_document_occurrences.attachment_object_id`, com FK composta para
       `stored_objects` pela empresa, `snapshot.json` e `rollback.sql`. A rota `field-occurrences`
-      aceita multipart com `file` opcional, validado pelo `delivery-proof.schema.ts`. Um objeto
-      guardado serve às N ocorrências do lote, e o upload vem antes da transação, com lease. O feed
+      aceita multipart com `file` opcional, validado pelo mesmo teto e tipos do canhoto do
+      escritório. Um objeto guardado serve às N ocorrências do lote. **O que foi feito de verdade:**
+      o upload acontece **dentro** da transação do lote, depois de tipo e alcance validarem (não
+      antes, com lease, como este texto previa); a T15 acrescentou a limpeza de recurso
+      (`runWithStoredObjectCleanup`: se a transação desfaz depois do upload, o objeto sai do bucket)
+      e registrou em `docs/SECURITY.md` a falta de varredura periódica de órfãos. O feed
       (`listTripOccurrenceAttachmentLocations`) passa a ler também o anexo da ocorrência de nota.
       Desenho em `t7-design.md` §3.5.
 
