@@ -62,7 +62,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 ## Fase 5–6
 
 - [x] **T11** Revisão (`code-reviewer`, `security-reviewer` para posição/tenant) + auditoria §15.
-- [ ] **T12** Revisão de design e usabilidade com print das telas (seletor, ficha, card, pendentes).
+- [x] **T12** Revisão de design e usabilidade com print das telas (seletor, ficha, card, pendentes).
 
 ## Prompt de execução
 

@@ -700,3 +700,65 @@ $ bun run build                          # ok (avisos de chunk >500kB pré-exist
 ```
 
 T11 fica `[x]`.
+
+## T12 — Revisão de design e usabilidade (`web.md` §15)
+
+Prints gerados por `apps/frontend-transportada/test/spec-157-prints.smoke.spec.ts` (Playwright do
+repo, API mockada sobre `driver-trip-smoke.helper.ts`, `fleet-smoke.helper.ts`,
+`trip-smoke.helper.ts`, `multi-vehicle-smoke.helper.ts` e `nfe-workspace-smoke.helper.ts`), PWA a
+390×844 e escritório a 1440×900, **temas escuro e claro** (a app oferece os dois). Build único +
+`vite preview` na 53117, fora do smoke da CI:
+
+```
+PLAYWRIGHT_TEST_MATCH=spec-157-prints.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53117 \
+PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=true PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
+VITE_SMOKE_AUTH_BYPASS=true bunx playwright test      # 22 passed
+```
+
+Cada teste do PWA afirma também sem rolagem horizontal (`scrollWidth <= clientWidth`) e mede os
+alvos de toque visíveis abaixo de 44 px.
+
+### Achados → correção → print
+
+| #   | Tela                  | Achado                                                                                                                                                     | Correção                                                                                                                                                                                       | Print (`prints/`)                                     | Commit     |
+| --- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------- |
+| 1   | Card da parada        | Aviso em cinco frases, cobre a 0,85rem — ilegível ao sol — e terminava em "A entrega já está registrada", **falso** antes do "Entreguei"                   | Título com ícone de câmera, uma frase em 1rem na cor do corpo, fundo cobre suave com filete (aviso, não erro); a regra fina (refazer não melhora, relógio do aparelho) num `<details>` de 44px | `pwa-card-aviso-foto-{dark,light}`                    | `0142ea37` |
+| 2   | Fotos pendentes       | Campo "Nome de quem recebeu" cru, **21px** de altura (medido)                                                                                              | `.proofField input[type='text']` com os tokens `--field-*` (48px), igual ao campo do WhatsApp do perfil                                                                                        | `pwa-fotos-pendentes-{dark,light}`                    | `0142ea37` |
+| 3   | Fotos pendentes       | Itens sem separação — uma nota emendava na outra; sem dizer por que a tela existe; "Foto na fila, aguardando envio." é jargão                              | Cada nota vira cartão (mesmo molde de `profileCard`), frase de contexto no topo, fila com ícone de relógio: "Foto guardada no celular. Ela sobe sozinha quando o sinal voltar."                | `pwa-fotos-pendentes-{dark,light}`                    | `0142ea37` |
+| 4   | Pontualidade          | Três avisos idênticos na cor e sem dizer **de qual nota** eram; "em dia" (boa notícia) com a mesma cara de "fora do prazo"                                 | `DriverProofOutcomeNotice`: nomeia a nota ("Farmácia Vida · Nota 900203/1", guardada no toque via `findProofDocumentLabel`), em dia verde com ✓, tardia/longe cobre com alerta                 | `pwa-pontualidade-{dark,light}`                       | `0142ea37` |
+| 5   | Pontualidade          | **Defeito:** depois de enviar as três fotos, o atalho seguia "Fotos pendentes (3)" — a drenagem só relia o snapshot quando um _evento_ subia, não um anexo | `useDriverTrip`: `attachmentsSent.length > 0` também invalida `CURRENT_TRIP_QUERY_KEY`                                                                                                         | `pwa-pontualidade-*` (atalho some)                    | `0142ea37` |
+| 6   | Perfil                | "85 de 100" no tamanho do texto de apoio, sem dizer como a nota se forma nem por onde melhorar                                                             | Nota na fonte de display, frase de como ela cai e expira, botão "Fotos pendentes (n)" quando houver                                                                                            | `pwa-perfil-nota-*`, `pwa-perfil-sem-nota-*`          | `0142ea37` |
+| 7   | Seletores da viagem   | "95/100" solto não diz que é nota; leitor de tela lê "barra"; "Sem histórico" ambíguo                                                                      | Opção "Nota 95 de 100" / "Sem nota ainda" (`driverScore.option*`), nos dois seletores                                                                                                          | `escritorio-seletor-{nova-viagem,montar-roteiro}-*`   | `60431741` |
+| 8   | Lista / ficha         | Selo esticava na largura do fieldset; tabela de cinco colunas não cabia no painel lateral (~440px) e escondia pontos e prazo                               | Selo com `justify-self: start` e texto "40 de 100"/"Sem nota"; `DriverScoreSection` com lista: motivo e "−10 pontos" à vista, nota fiscal · entrega · expiração embaixo                        | `escritorio-lista-motoristas-*`, `escritorio-ficha-*` | `60431741` |
+| 9   | Painel do comprovante | Hint começava com "Spec 157:" (jargão interno na tela); erro de faixa não ligado ao campo                                                                  | Hint reescrito; `aria-describedby` do campo aponta para a mensagem. Os cinco campos e o erro de vazio conferidos                                                                               | `escritorio-painel-comprovante{,-erro}-*`             | `60431741` |
+| 10  | Smoke                 | `multi-vehicle-smoke.helper` servia motoristas sem `score`, que a validação da listagem exige desde a T10                                                  | `score` no dublê                                                                                                                                                                               | —                                                     | `f35020fe` |
+
+Conferido e mantido: o aviso **não** bloqueia "Entreguei" (o teste afirma o botão habilitado); o selo
+tem cor **e** texto (verde ≥80, neutro 50–79, vermelho <50, itálico sem nota); contraste legível nos
+dois temas; sem rolagem horizontal no celular; primitivos do design system (`Button`, `Icon`,
+`FileField`, `MultiSelect`, `Select`) em todos os controles novos.
+
+### Pendências fora do escopo (registradas, não omitidas)
+
+- Cabeçalho do shell no celular: botões de menu, tema e sair com 32–36×38px (< 44px). Global, anterior
+  à spec 157 — pede tarefa própria no `DriverShellHeader`/shell.
+- Lista de motoristas com a ficha aberta: a coluna "Nota" fica atrás da rolagem horizontal da tabela
+  (layout lista + painel pré-existente).
+- `<input type=number>` cru no painel do comprovante: casa visualmente com os vizinhos (mesma altura e
+  borda); não há primitivo de número no design system para trocar.
+
+### Gates
+
+```
+$ bun run typecheck                               # raiz — 0 erros
+$ bun run lint                                    # raiz — 0 erros
+$ bun run --cwd apps/frontend-transportada test   # 4390 pass / 0 fail (+ 2 pass test:hooks)
+$ bun run --cwd apps/frontend-transportada build  # ok
+```
+
+Contratos novos: `test/driver-trip/proof-pending.contract.ts` (aviso curto, sem "já está
+registrada", `<details>`), `test/driver-trip/proof-pending-queued.contract.ts`
+(`findProofDocumentLabel`, aviso com ícone por veredito, releitura após anexo) e
+`test/fleet/driver-recommendation.contract.ts` (rótulo da nota nos dois seletores, ficha em lista).
+
+T12 fica `[x]`.
