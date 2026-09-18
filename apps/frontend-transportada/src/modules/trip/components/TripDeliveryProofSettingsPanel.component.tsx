@@ -35,9 +35,17 @@ import styles from '../styles/trip.module.css'
 
 type TripDeliveryProofSettingsPanelProps = Readonly<{
   canManage: boolean
+  /** Spec 156 T14, ADR-0069 §6: `undefined` enquanto carrega — o painel some por trás do skeleton. */
+  canhotoOcrEnabled: boolean | undefined
   isSaving: boolean
+  isTogglingCanhotoOcr: boolean
   onReplaceOverrides: (overrides: readonly DeliveryProofSettingsOverride[]) => void
   onSaveSettings: (settings: CompanyDeliveryProofSettings) => void
+  /**
+   * Spec 156 T14, ADR-0069 §6: o `PUT` exige os quatro modos sempre — o painel manda os correntes
+   * (`fieldSettings`) junto do interruptor novo, sem tocar nos cinco parâmetros de pontualidade.
+   */
+  onToggleCanhotoOcr: (fieldSettings: DeliveryProofFieldSettings, nextEnabled: boolean) => void
   overrides: readonly DeliveryProofSettingsOverride[]
   settings: CompanyDeliveryProofSettings | undefined
   showError: boolean
@@ -52,9 +60,12 @@ type TripDeliveryProofSettingsPanelProps = Readonly<{
  */
 export function TripDeliveryProofSettingsPanel({
   canManage,
+  canhotoOcrEnabled,
   isSaving,
+  isTogglingCanhotoOcr,
   onReplaceOverrides,
   onSaveSettings,
+  onToggleCanhotoOcr,
   overrides,
   settings,
   showError,
@@ -210,6 +221,46 @@ export function TripDeliveryProofSettingsPanel({
           {t('deliveryProofSettings.save')}
         </Button>
       ) : null}
+
+      {/*
+       * Spec 156 T14, ADR-0069 §6: painel do interruptor, perto do efeito (`SETTINGS_PANEL_PLACEMENT`
+       * — a leitura do canhoto acontece no assistente desta mesma tela). Molde de
+       * `CameraMeasurementSettingsPanel` (spec 152 D14): selo "Experimental" ao lado do efeito e
+       * estimativa de peso, desligado por padrão em toda instalação.
+       */}
+      <section className={styles.panel} aria-labelledby="canhoto-ocr-title">
+        <h3 className={styles.hint} id="canhoto-ocr-title">
+          {t('deliveryProofSettings.canhotoOcr.title')}
+        </h3>
+        <p className={styles.hint}>{t('deliveryProofSettings.canhotoOcr.hint')}</p>
+        <p className={styles.hint}>
+          <Icon aria-hidden="true" name="camera" />{' '}
+          {t('deliveryProofSettings.canhotoOcr.experimental')}
+        </p>
+        <p className={canhotoOcrEnabled === true ? styles.settingsStatusOn : styles.hint}>
+          {t(
+            canhotoOcrEnabled === true
+              ? 'deliveryProofSettings.canhotoOcr.on'
+              : 'deliveryProofSettings.canhotoOcr.off',
+          )}
+        </p>
+        {canManage ? (
+          <Button
+            disabled={isTogglingCanhotoOcr}
+            onClick={() => onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)}
+            size="sm"
+            type="button"
+            variant={canhotoOcrEnabled === true ? 'secondary' : 'default'}
+          >
+            <Icon name="power" />
+            {t(
+              canhotoOcrEnabled === true
+                ? 'deliveryProofSettings.canhotoOcr.disable'
+                : 'deliveryProofSettings.canhotoOcr.enable',
+            )}
+          </Button>
+        ) : null}
+      </section>
 
       <h3 className={styles.hint}>{t('deliveryProofSettings.overrides.title')}</h3>
       <p className={styles.hint}>{t('deliveryProofSettings.overrides.hint')}</p>

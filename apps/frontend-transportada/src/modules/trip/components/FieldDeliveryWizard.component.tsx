@@ -26,6 +26,8 @@ import { FieldDeliveryWizardHeader } from './FieldDeliveryWizardHeader.component
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryWizardProps = Readonly<{
+  /** Spec 156 T14, ADR-0069 §6: interruptor da empresa — erro na leitura dele cai em `false` (R8). */
+  canhotoOcrEnabled: boolean
   /**
    * Spec 156 T8b/T12: o motorista já escolhido no painel da viagem (`officeDriverId`) — o mesmo
    * seletor único que `FieldOccurrenceDialog` usa. O assistente só pré-preenche com ele; ainda dá
@@ -55,6 +57,7 @@ const TITLE_ID = 'field-delivery-wizard-title'
  * repetição do que falhar — é a T12 (`useFieldDelivery`). Aqui o `onSubmit` só fecha o assistente.
  */
 export function FieldDeliveryWizard({
+  canhotoOcrEnabled,
   defaultDriverId,
   dispatchedAt,
   documents,
@@ -167,6 +170,7 @@ export function FieldDeliveryWizard({
 
     return (
       <FieldDeliveryCaptureStep
+        canhotoOcrEnabled={canhotoOcrEnabled}
         document={currentDocument}
         onCapture={(capture) => dispatch({ capture, kind: 'photoCaptured' })}
         onSkip={() => dispatch({ kind: 'skipRequested' })}

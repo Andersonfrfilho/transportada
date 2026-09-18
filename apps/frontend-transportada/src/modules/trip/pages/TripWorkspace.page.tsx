@@ -26,6 +26,7 @@ import {
   useDeliveryProofOverridesQuery,
   useDeliveryProofSettingsQuery,
   useReplaceDeliveryProofOverridesMutation,
+  useSaveCanhotoOcrEnabledMutation,
   useSaveDeliveryProofSettingsMutation,
 } from '../queries/useDeliveryProofSettings.query'
 import { TripTable } from '../components/TripTable.component'
@@ -180,6 +181,7 @@ export function TripWorkspacePage() {
   })
   const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
   const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
+  const saveCanhotoOcrEnabledMutation = useSaveCanhotoOcrEnabledMutation()
 
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const fleet = useFleet(tenant)
@@ -318,15 +320,23 @@ export function TripWorkspacePage() {
                 ) : tab === 'proof' ? (
                   <TripDeliveryProofSettingsPanel
                     canManage={canManageSettings}
+                    canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}
                     isSaving={
                       saveDeliveryProofSettingsMutation.isPending ||
                       replaceDeliveryProofOverridesMutation.isPending
                     }
+                    isTogglingCanhotoOcr={saveCanhotoOcrEnabledMutation.isPending}
                     onReplaceOverrides={(overrides) =>
                       replaceDeliveryProofOverridesMutation.mutate(overrides)
                     }
                     onSaveSettings={(settings) =>
                       saveDeliveryProofSettingsMutation.mutate(settings)
+                    }
+                    onToggleCanhotoOcr={(fieldSettings, enabled) =>
+                      saveCanhotoOcrEnabledMutation.mutate({
+                        ...fieldSettings,
+                        canhotoOcrEnabled: enabled,
+                      })
                     }
                     overrides={deliveryProofOverridesQuery.data ?? []}
                     settings={deliveryProofSettingsQuery.data}
@@ -334,7 +344,8 @@ export function TripWorkspacePage() {
                       deliveryProofSettingsQuery.isError ||
                       deliveryProofOverridesQuery.isError ||
                       saveDeliveryProofSettingsMutation.isError ||
-                      replaceDeliveryProofOverridesMutation.isError
+                      replaceDeliveryProofOverridesMutation.isError ||
+                      saveCanhotoOcrEnabledMutation.isError
                     }
                   />
                 ) : null,

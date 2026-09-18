@@ -73,6 +73,11 @@ export type CanhotoTripDocument = Readonly<{
   id: string
   nfeNumber?: null | string
   nfeSeries?: null | string
+  /**
+   * Spec 156 T14, ADR-0069 §3 (R4): só o casamento por OCR usa este campo (unicidade sem as notas
+   * liberadas) — a classificação por código de barras, abaixo, não o lê.
+   */
+  releasedAt?: null | string
 }>
 
 function normalizeDigits(value: null | string | undefined): string {

@@ -313,6 +313,15 @@
     "title": "Redirect delivery"
   },
   "deliveryProofSettings": {
+    "canhotoOcr": {
+      "disable": "Turn off proof-of-delivery number reading",
+      "enable": "Turn on proof-of-delivery number reading",
+      "experimental": "Experimental",
+      "hint": "When the proof's barcode can't be read, suggests the document from the printed number (No./Series). First read on the device downloads about 4.5 MB, once; the person always confirms before saving.",
+      "off": "Off",
+      "on": "On",
+      "title": "Delivery slip number reading"
+    },
     "error": "Could not load or save the delivery proof configuration.",
     "fields": {
       "photo": "Photo",
@@ -867,6 +876,7 @@
       "DELIVERED_AT_IN_FUTURE": "\"Delivered at\" cannot be in the future."
     },
     "deliveredAtLabel": "Delivered at",
+    "experimentalBadge": "Experimental",
     "finishedCaptured": "Photographed",
     "finishedSkipped": "Skipped",
     "finishedSubmit": "Send {{count}} document",
@@ -876,6 +886,7 @@
       "otherSelected": "This proof is from another document in the batch — confirm the target below.",
       "unreadable": "Could not read the barcode — pick the document manually."
     },
+    "ocrSuggestion": "Number read: {{number}}/{{series}} → suggested: {{document}}",
     "previousStep": "Back",
     "receiverDocumentLabel": "Receiver's document (optional)",
     "receiverNameLabel": "Receiver's name",

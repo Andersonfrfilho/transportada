@@ -17,6 +17,13 @@ export type FieldDeliveryDraft = Readonly<{
 export type FieldDeliveryCapturedPhoto = Readonly<{
   identification: CanhotoIdentificationResult
   imageBlob: Blob
+  /**
+   * Spec 156 T14, ADR-0069 §3 (R2): presente só quando o código de barras falhou e o OCR leu um
+   * número com confiança suficiente — mostrado ao lado da nota sugerida, para a pessoa comparar os
+   * dois antes de confirmar. Nunca decide sozinho: `identification` já reflete o resultado do
+   * casamento (matched/otherSelected/unreadable), e confirmar continua sendo o toque da pessoa.
+   */
+  ocrSuggestion?: Readonly<{ number: string; series: null | string }>
 }>
 
 /** Só os dois status que travam o passo — a ADR-0067 §4 proíbe o assistente decidir sozinho. */

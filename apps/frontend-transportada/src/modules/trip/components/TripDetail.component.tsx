@@ -12,6 +12,8 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
+import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
+import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -209,6 +211,21 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const fieldDelivery = useFieldDelivery({
     invalidate: workspace.invalidateFieldDeliveryEffects,
     reportFieldDelivery: workspace.controller.reportFieldDelivery,
+    tripId: workspace.trip?.id ?? '',
+  })
+  /**
+   * Spec 156 T14, ADR-0069 §6/§3: o interruptor e a chave de acesso das notas só interessam a quem
+   * abre o assistente do escritório — R8: erro nas duas (rota, permissão) vira `undefined`/lista
+   * vazia no consumidor, nunca trava o passo.
+   */
+  const canhotoOcrSettingsQuery = useFieldDeliverySettingsQuery({
+    enabled: workspace.controller.canReportOnBehalf && fieldDeliveryDocumentIds !== null,
+  })
+  const fieldDeliveryDocumentsQuery = useFieldDeliveryDocumentsQuery({
+    enabled:
+      workspace.controller.canReportOnBehalf &&
+      fieldDeliveryDocumentIds !== null &&
+      workspace.trip !== undefined,
     tripId: workspace.trip?.id ?? '',
   })
   const isSlowLoad = useSlowLoadNotice({
@@ -694,6 +711,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        * decide de fato.
        */}
       <FieldDeliveryWizard
+        canhotoOcrEnabled={canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false}
         defaultDriverId={officeDriverId ?? ''}
         dispatchedAt={null}
         documents={buildFieldDeliveryWizardDocuments({
@@ -720,11 +738,23 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
             : fieldDeliveryDocumentIds.join(',')
         }
         onClose={() => setFieldDeliveryDocumentIds(null)}
-        tripDocuments={trip.documents.map((document) => ({
-          id: document.id,
-          ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
-          ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
-        }))}
+        tripDocuments={trip.documents.map((document) => {
+          /**
+           * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
+           * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
+           * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
+           */
+          const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
+            (candidate) => candidate.id === document.id,
+          )
+          return {
+            id: document.id,
+            ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
+            ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
+            ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
+            ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
+          }
+        })}
       />
 
       {canManage && isEditable ? (

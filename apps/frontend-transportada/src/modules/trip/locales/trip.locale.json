@@ -429,6 +429,15 @@
     "withoutProof": "Entrega registrada sem comprovante anexado."
   },
   "deliveryProofSettings": {
+    "canhotoOcr": {
+      "disable": "Desligar a leitura do canhoto",
+      "enable": "Ligar a leitura do canhoto",
+      "experimental": "Experimental",
+      "hint": "Quando o código de barras do canhoto não é lido, sugere a nota pelo número impresso (Nº/SÉRIE). Primeira leitura no aparelho baixa cerca de 4,5 MB, uma vez só; a pessoa sempre confirma antes de gravar.",
+      "off": "Desligado",
+      "on": "Ligado",
+      "title": "Leitura do canhoto por foto"
+    },
     "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
     "fields": {
       "photo": "Foto",
@@ -1056,6 +1065,7 @@
       "DELIVERED_AT_IN_FUTURE": "\"Entregue em\" não pode ser no futuro."
     },
     "deliveredAtLabel": "Entregue em",
+    "experimentalBadge": "Experimental",
     "finishedCaptured": "Fotografada",
     "finishedSkipped": "Pulada",
     "finishedSubmit": "Enviar {{count}} nota",
@@ -1065,6 +1075,7 @@
       "otherSelected": "Este canhoto é de outra nota do lote — confira o destino abaixo.",
       "unreadable": "Não foi possível ler o código de barras — escolha a nota manualmente."
     },
+    "ocrSuggestion": "Número lido: {{number}}/{{series}} → sugerido: {{document}}",
     "previousStep": "Voltar",
     "receiverDocumentLabel": "Documento de quem recebeu (opcional)",
     "receiverNameLabel": "Nome de quem recebeu",

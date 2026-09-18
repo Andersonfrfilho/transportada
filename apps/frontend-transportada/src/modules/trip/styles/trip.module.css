@@ -142,6 +142,13 @@
   font-size: 0.82rem;
 }
 
+/** Spec 156 T14: o interruptor ligado — mesmo verde de sucesso do resto do módulo. */
+.settingsStatusOn {
+  margin: 0;
+  color: var(--color-ready);
+  font-size: 0.8rem;
+}
+
 .tableScroll {
   position: relative;
   overflow-x: auto;

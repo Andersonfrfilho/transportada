@@ -99,6 +99,20 @@ export function FieldDeliveryReviewStep({
         {t(`fieldDelivery.identification.${identification.status}`)}
       </p>
 
+      {capture.ocrSuggestion === undefined ? null : (
+        <p className={styles.notice} role="status">
+          <Icon aria-hidden="true" name="camera" />{' '}
+          {t('fieldDelivery.ocrSuggestion', {
+            document:
+              documents.find((document) => document.documentId === suggestedDocumentId)
+                ?.recipientName || suggestedDocumentId,
+            number: capture.ocrSuggestion.number,
+            series: capture.ocrSuggestion.series ?? '—',
+          })}{' '}
+          — {t('fieldDelivery.experimentalBadge')}
+        </p>
+      )}
+
       <label>
         {t('fieldDelivery.targetLabel')}
         <Select
