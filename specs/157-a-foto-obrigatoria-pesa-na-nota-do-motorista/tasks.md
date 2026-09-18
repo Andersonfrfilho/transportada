@@ -36,7 +36,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 - [x] **T4** Migration aditiva (`bun run db:generate`, `rollback.sql` escrito), schemas Drizzle, settings
       com cinco campos (schema Zod, repositório, rota). Aceite: `make migration-test`; contrato de settings
       com defaults e faixas.
-- [ ] **T5** `/proof` aceita posição, classifica, grava, responde `punctuality`. Aceite: contratos em
+- [x] **T5** `/proof` aceita posição, classifica, grava, responde `punctuality`. Aceite: contratos em
       `test/driver-trip/delivery-proof.contract.ts` (casos 3/4, 400 de par incompleto, `attachmentKey`
       repetida não reclassifica, foto substituída leva a nova pontualidade) + integração em
       `me-trip.integration.ts`.

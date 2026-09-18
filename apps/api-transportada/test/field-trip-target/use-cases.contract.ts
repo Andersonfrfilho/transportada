@@ -20,6 +20,7 @@ import type {
   FieldTripLocator,
   ResolvedTripFieldTarget,
 } from '../../src/trips/application/field-trip-target.types.js'
+import { DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
@@ -100,6 +101,11 @@ function buildFieldWorld() {
 function buildProofRepository() {
   const lookups: unknown[] = []
   const repository: DeliveryProofPort = {
+    findDeliveryContext: async () => ({
+      deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+      deliveryEventPosition: undefined,
+      stopPosition: undefined,
+    }),
     findDeliveryEventId: async (input) => {
       lookups.push(input)
       return 'event-1'
@@ -111,6 +117,7 @@ function buildProofRepository() {
       receiverName: 'optional',
       signature: 'optional',
     }),
+    resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
     saveProof: async () => ({ id: 'proof-1' }),
   }
   return { lookups, repository }
@@ -248,6 +255,7 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       documentId: DOCUMENT_ID,
       newObjectId: () => 'object-1',
       newProofId: () => 'proof-1',
+      now: new Date('2026-09-18T12:00:00.000Z'),
       repository: proof.repository,
       sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
       storage: { store: async () => ({ sha256: 'a'.repeat(64) }) },
@@ -255,8 +263,10 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       upload: {
         attachmentKey: '',
         bytes: new Uint8Array(16),
+        capturedAt: undefined,
         kind: 'photo',
         mimeType: 'image/jpeg',
+        position: undefined,
         receiverDocument: '',
         receiverName: '',
       },

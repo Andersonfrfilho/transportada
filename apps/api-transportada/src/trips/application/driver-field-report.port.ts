@@ -5,6 +5,7 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type {
   TripDeliveryProofKind,
+  TripDeliveryProofPunctuality,
   TripDocumentSeparationStatus,
   TripStatus,
   TripStopEventKind,
@@ -165,16 +166,23 @@ export type DriverFieldReportTransactionPort = {
    * reabre o objeto no bucket: quem chama já subiu os bytes antes de entrar na transação.
    */
   saveDeliveryProofWithinTransaction(input: {
+    /** ADR-0068 §4: `null` no canal `office` — spec 157 T5, o canhoto não classifica pontualidade. */
+    readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
     readonly authorship: FieldAuthorship
+    readonly capturedAt: Date | null
     readonly companyId: string
     readonly eventId: string
     readonly id: string
     readonly kind: TripDeliveryProofKind
+    readonly latitude: string | null
+    readonly longitude: string | null
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
+    /** ADR-0068 §6: o canal `office` não entra na nota — grava sempre `not_required`. */
+    readonly punctuality: TripDeliveryProofPunctuality
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
     readonly receiverName: string

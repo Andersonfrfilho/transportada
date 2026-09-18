@@ -16,6 +16,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   companies,
   fleetDrivers,
@@ -29,6 +30,7 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
@@ -38,10 +40,13 @@ import {
   tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
+import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 import {
   reportDocumentDelivery,
@@ -316,6 +321,121 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(statusEvents[0]).toMatchObject({ fromStatus: 'dispatched', toStatus: 'in_transit' })
     })
   })
+
+  /**
+   * Spec 157 T5 (ADR-0068 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
+   * verdade — a query de `findDeliveryContext` (join `trip_stop_events`+`trip_stops`) e a de
+   * `resolveProofPunctualitySettings` são o que um contrato com dublê não prova.
+   */
+  testWithPostgres(
+    'a foto classifica pontualidade contra a posição da entrega (spec 157)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        let objectCounter = 0
+        const storage = {
+          store: async () => ({ sha256: `${(objectCounter += 1)}`.padStart(64, '0') }),
+        }
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: 'chegada-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+
+        // A parada não tem coordenada própria (não geocodificada) — a referência é a da entrega.
+        await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[0] ?? '',
+          idempotencyKey: 'entrega-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+
+        const onTime = await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[0] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(NOW.getTime() + 5 * 60 * 1000),
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage,
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: new Date(NOW.getTime() + 5 * 60 * 1000),
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        expect(onTime.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+
+        const [savedOnTime] = await database.db
+          .select({
+            latitude: tripDeliveryProofs.latitude,
+            punctuality: tripDeliveryProofs.punctuality,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.id, onTime.id))
+        expect(savedOnTime?.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+        expect(savedOnTime?.latitude).toBe(LOCATION.latitude)
+
+        // A segunda nota: entrega sem foto ainda, depois foto tardia e longe.
+        await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[1] ?? '',
+          idempotencyKey: 'entrega-2-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+
+        const lateAndAway = await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[1] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage,
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: '-22.0000000', longitude: '-43.0000000' },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        expect(lateAndAway.punctuality).toBe(PROOF_PUNCTUALITY.lateAndAway)
+      })
+    },
+  )
 
   /**
    * O filtro de tenant, exercitado: o motorista da outra empresa **não** enxerga esta viagem, e a

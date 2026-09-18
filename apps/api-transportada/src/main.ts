@@ -2464,6 +2464,7 @@ function createApplicationRoutes({
           ...input,
           newObjectId: () => crypto.randomUUID(),
           newProofId: () => crypto.randomUUID(),
+          now: new Date(),
           repository: deliveryProofRepository,
           sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
           storage: createDeliveryProofStorage({
@@ -2534,12 +2535,18 @@ function createApplicationRoutes({
           idempotencyKey: input.idempotencyKey,
           newObjectId: () => crypto.randomUUID(),
           newProofId: () => crypto.randomUUID(),
+          now: new Date(),
           repository: deliveryProofRepository,
           sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
           storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
           target: input.target,
           unitOfWork: driverFieldReports,
-          upload: { ...input.proof, kind: 'photo' },
+          /**
+           * Spec 157 T5: o `field-proof` do escritório não colhe posição/`capturedAt` — a foto
+           * ainda classifica (ADR-0068 RF4), mas o canal `office` não entra na nota (RF8 filtra por
+           * canal na leitura, T7).
+           */
+          upload: { ...input.proof, capturedAt: undefined, kind: 'photo', position: undefined },
         }),
       audit: tripFieldOfficeAudit,
       reportArrival: (input) =>

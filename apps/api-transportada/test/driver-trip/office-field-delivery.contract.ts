@@ -9,7 +9,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 
-import type { DeliveryProofFieldSettings } from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS as DEFAULT_PUNCTUALITY_SETTINGS,
+  type DeliveryProofFieldSettings,
+} from '../../src/trips/domain/delivery-proof-settings.policy.js'
 import { ApiError } from '../../src/shared/api.error.js'
 import {
   reportDocumentDelivery,
@@ -348,10 +351,17 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
       idempotencyKey: 'office-field-proof-1',
       newObjectId: () => 'object-2',
       newProofId: () => 'proof-2',
+      now: NOW,
       repository: {
         findDeliveryEventId: async () => delivery.id,
+        findDeliveryContext: async () => ({
+          deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+          deliveryEventPosition: undefined,
+          stopPosition: undefined,
+        }),
         findProofIdByAttachmentKey: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
+        resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => ({ id: input.id }),
       },
       sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
@@ -361,7 +371,9 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
       upload: {
         attachmentKey: '',
         bytes: new Uint8Array([1]),
+        capturedAt: undefined,
         kind: 'photo',
+        position: undefined,
         mimeType: 'image/jpeg',
         receiverDocument: '',
         receiverName: 'João da Silva',
@@ -383,10 +395,17 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
         idempotencyKey: 'office-field-proof-no-delivery',
         newObjectId: () => 'object-3',
         newProofId: () => 'proof-3',
+        now: NOW,
         repository: {
           findDeliveryEventId: async () => null,
+          findDeliveryContext: async () => ({
+            deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+            deliveryEventPosition: undefined,
+            stopPosition: undefined,
+          }),
           findProofIdByAttachmentKey: async () => null,
           resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
+          resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
           saveProof: async (input) => ({ id: input.id }),
         },
         sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
@@ -396,8 +415,10 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
         upload: {
           attachmentKey: '',
           bytes: new Uint8Array([1]),
+          capturedAt: undefined,
           kind: 'photo',
           mimeType: 'image/jpeg',
+          position: undefined,
           receiverDocument: '',
           receiverName: '',
         },
@@ -418,10 +439,17 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
       documentId: DOCUMENT_ID,
       newObjectId: () => 'object-4',
       newProofId: () => 'proof-4',
+      now: NOW,
       repository: {
         findDeliveryEventId: async () => 'event-1',
+        findDeliveryContext: async () => ({
+          deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+          deliveryEventPosition: undefined,
+          stopPosition: undefined,
+        }),
         findProofIdByAttachmentKey: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
+        resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => {
           saved.push(input)
           return { id: input.id }
@@ -433,7 +461,9 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
       upload: {
         attachmentKey: '',
         bytes: new Uint8Array([1]),
+        capturedAt: undefined,
         kind: 'photo',
+        position: undefined,
         mimeType: 'image/jpeg',
         receiverDocument: '',
         receiverName: 'Maria Souza',
@@ -452,10 +482,17 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
       driverId: DRIVER_ID,
       newObjectId: () => 'object-5',
       newProofId: () => 'proof-5',
+      now: NOW,
       repository: {
         findDeliveryEventId: async () => 'event-1',
+        findDeliveryContext: async () => ({
+          deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+          deliveryEventPosition: undefined,
+          stopPosition: undefined,
+        }),
         findProofIdByAttachmentKey: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
+        resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => {
           saved.push(input)
           return { id: input.id }
@@ -466,7 +503,9 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
       upload: {
         attachmentKey: '',
         bytes: new Uint8Array([1]),
+        capturedAt: undefined,
         kind: 'photo',
+        position: undefined,
         mimeType: 'image/jpeg',
         receiverDocument: '',
         receiverName: 'Maria Souza',

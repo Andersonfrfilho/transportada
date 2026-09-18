@@ -17,6 +17,7 @@ import {
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
+import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
@@ -147,7 +148,7 @@ export type MeTripDependencies = {
       readonly documentId: string
       readonly upload: DeliveryProofUpload
     },
-  ) => Promise<{ readonly id: string }>
+  ) => Promise<{ readonly id: string; readonly punctuality: ProofPunctuality }>
   readonly readManifestXml: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -418,7 +419,10 @@ export function createMeTripRoutes(
           upload: input.upload,
         })
 
-        return jsonResponse({ body: { data: { id: proof.id } }, status: 201 })
+        return jsonResponse({
+          body: { data: { id: proof.id, punctuality: proof.punctuality } },
+          status: 201,
+        })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {

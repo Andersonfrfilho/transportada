@@ -226,16 +226,25 @@ async function persistOfficeDeliveryProof(input: {
    * Sem isso, a mesma leitura mascarada valeria de forma inconsistente entre os dois canais.
    */
   const proofResult = await transaction.saveDeliveryProofWithinTransaction({
+    /**
+     * ADR-0068 §6, spec 157 T5: a entrega do escritório não entra na nota do motorista (RF8) — o
+     * canhoto grava `not_required`, sem posição nem `capturedAt`, em vez de reclassificar aqui.
+     */
+    accuracyMeters: null,
     actorUserId: reportInput.actorUserId,
     attachmentKey: proof.upload.attachmentKey,
     authorship,
+    capturedAt: null,
     companyId,
     eventId,
     id: proofId,
     kind: 'photo',
+    latitude: null,
+    longitude: null,
     mimeType: proof.upload.mimeType,
     objectId,
     objectKey,
+    punctuality: 'not_required',
     receiverDocumentEnvelope: null,
     receiverDocumentMasked: '',
     receiverName: proof.upload.receiverName,

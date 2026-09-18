@@ -491,14 +491,19 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     const [proof] = await this.transaction
       .insert(tripDeliveryProofs)
       .values({
+        accuracyMeters: input.accuracyMeters,
         actorUserId: input.actorUserId,
         attachmentKey: input.attachmentKey,
+        capturedAt: input.capturedAt,
         channel: input.authorship.channel,
         companyId: input.companyId,
         id: input.id,
         kind: input.kind,
+        latitude: input.latitude,
+        longitude: input.longitude,
         objectId: input.objectId,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+        punctuality: input.punctuality,
         receiverDocumentEnvelope: input.receiverDocumentEnvelope,
         receiverDocumentMasked: input.receiverDocumentMasked,
         receiverName: input.receiverName,

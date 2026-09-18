@@ -143,3 +143,74 @@ no prompt. Nenhum teste pulou.
 Desvio da spec: nenhum. `TRIP_DELIVERY_PROOF_PUNCTUALITIES` duplica os valores de `PROOF_PUNCTUALITY`
 (T2) em vez de importar — decisão de camada preexistente no arquivo (ver comentário de
 `TRIP_FIELD_CHANNELS`), não um desvio do RF4.
+
+## T5 — `POST /me/trips/current/documents/:documentId/proof` classifica a pontualidade
+
+Arquivos:
+
+- `apps/api-transportada/src/trips/presentation/delivery-proof.schema.ts` — `parseDeliveryProofUpload`
+  ganha `latitude`/`longitude` (par obrigatório junto, faixa -90..90/-180..180), `accuracyMeters`
+  (≥0) e `capturedAt` (`z.iso.datetime()`), todos opcionais no multipart; inválido → 400
+  `invalidRequest` (mesmo `ApiError` do resto do arquivo).
+- `apps/api-transportada/src/trips/application/attach-delivery-proof.use-case.ts` — `DeliveryProofUpload`
+  ganha `capturedAt`/`position`; `AttachDeliveryProofInput` ganha `now` (relógio do servidor,
+  RF5); `DeliveryProofPort` ganha `resolveProofPunctualitySettings` e `findDeliveryContext`, e
+  `findProofIdByAttachmentKey`/`saveProof` carregam a pontualidade. Para `kind = 'photo'`,
+  `classifyPhotoPunctuality` junta configuração + contexto do evento e chama
+  `classifyProofPunctuality` (T2); para `kind = 'signature'`, grava `not_required` direto (RF4).
+  `attachDeliveryProof` devolve `{ id, punctuality }`; reenvio pela mesma `attachmentKey` devolve a
+  pontualidade já gravada, sem reclassificar.
+- `apps/api-transportada/src/trips/infrastructure/drizzle-delivery-proof.repository.ts` —
+  `resolveProofPunctualitySettings` (config geral, fábrica se ausente) e `findDeliveryContext`
+  (join `trip_stop_events`+`trip_stops` pelo `eventId` já resolvido; `deliveredAt = captured_at ??
+recorded_at`); `saveProof`/`buildProofUpsertSet` gravam `latitude`/`longitude`/`accuracyMeters`/
+  `capturedAt`/`punctuality` sempre (upsert por `(company, evento, kind)` também substitui a
+  pontualidade — RF4 "a pontualidade da foto substituída acompanha a substituta").
+- `apps/api-transportada/src/trips/application/driver-field-report.port.ts` +
+  `.../infrastructure/drizzle-driver-field-report.repository.ts` — `saveDeliveryProofWithinTransaction`
+  ganha os mesmos cinco campos, para o canhoto do escritório gravar pela mesma escrita.
+- `apps/api-transportada/src/trips/application/report-document-delivery.use-case.ts` —
+  `persistOfficeDeliveryProof` (canal `office`, `/deliver` + comprovante na mesma transação) grava
+  sempre `not_required`, sem posição — decisão documentada: o canal `office` não entra na nota do
+  motorista (RF8 exclui por canal na leitura, T7), então classificar aqui seria trabalho sem efeito;
+  manter o mínimo que não quebra os testes existentes de `office-field-delivery.contract.ts`.
+- `apps/api-transportada/src/trips/presentation/me-trip.routes.ts` — `attachProof` devolve
+  `punctuality`; resposta `201 { data: { id, punctuality } }`.
+- `apps/api-transportada/src/main.ts` — `attachProof` (rota do motorista) ganha `now: new Date()`;
+  `field-proof` do escritório (rota separada de `/deliver`) também ganha `now` e passa
+  `capturedAt`/`position` como `undefined` — ela ainda classifica (kind `photo`), mas sem posição
+  conta como `away`/`late_and_away`; irrelevante para a nota (RF8 filtra por canal).
+- Ajustes mecânicos de tipo em `test/driver-trip/office-field-delivery.contract.ts`,
+  `test/field-trip-target/use-cases.contract.ts`, `test/trip-delivery-proof/receiver-document.contract.ts`,
+  `test/integration/trip-field-office.integration.ts` (dublês de `DeliveryProofPort` e uploads
+  ganham os campos novos; nenhuma asserção mudou de sentido).
+- `apps/api-transportada/test/driver-trip/delivery-proof.contract.ts` (ampliado) — aceite 3 (posição
+  a 0 m, 10 min depois → `on_time`), aceite 4 (2h depois → `late`; sem posição → `away`), assinatura
+  grava `not_required` mesmo com `photo = required`, foto substituída (mesma `eventId`, chave nova)
+  leva a nova pontualidade, reenvio pela mesma `attachmentKey` devolve `{ id, punctuality }`
+  existente sem tocar bucket nem reclassificar.
+- `apps/api-transportada/test/integration/me-trip.integration.ts` (novo teste) — contra Postgres
+  real: entrega sem coordenada na parada usa a posição do evento (RF6); foto na mesma posição e 5 min
+  depois → `on_time`, gravada em `trip_delivery_proofs.latitude`/`punctuality`; segunda foto 3h
+  depois e a 1300 km → `late_and_away`.
+
+Comandos e resultado:
+
+```
+$ bun run typecheck                                        # raiz, todas as apps — 0 erros
+$ bun run lint                                              # raiz, todas as apps — 0 erros
+$ bun test                                                   # apps/api-transportada, suíte completa
+ 6534 pass / 32 skip / 0 fail / 22707 expect() calls — 180 arquivos
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/me-trip.integration.ts
+ 7 pass / 0 fail / 39 expect() calls   # apps/api-transportada, banco do docker-compose (65432)
+```
+
+Banco usado na integração: o mesmo Postgres do `docker-compose.yml` da raiz já saudável neste
+worktree (`transportada-local-postgres-1`, porta 65432) — não foi preciso o contorno do Postgres
+Homebrew. Nenhum teste pulou (`testWithPostgres` rodou, não caiu em `test.skip`).
+
+Desvios da spec: nenhum nas regras RF3-RF6. Decisão registrada (não desvio): o canal `office`
+(`persistOfficeDeliveryProof`, usado só por `/deliver` do escritório) grava `not_required` sem
+posição, em vez de classificar — RF8 já exclui entregas do canal `office` da nota, então a
+classificação ali seria trabalho sem efeito observável; o `field-proof` do escritório (rota separada,
+usada quando a foto sobe depois da entrega) continua classificando normalmente.

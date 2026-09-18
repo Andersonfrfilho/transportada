@@ -3,7 +3,14 @@
  */
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
+import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
+import {
+  classifyProofPunctuality,
+  PROOF_PUNCTUALITY,
+  type ProofPosition,
+  type ProofPunctuality,
+} from '../domain/delivery-proof-punctuality.policy.js'
 import {
   buildDeliveryProofObjectKey,
   DELIVERY_PROOF_MAX_BYTES,
@@ -12,6 +19,7 @@ import {
 import {
   maskTaxId,
   type DeliveryProofFieldSettings,
+  type DeliveryProofPunctualitySettings,
 } from '../domain/delivery-proof-settings.policy.js'
 import {
   TripDeliveryProofDocumentNotAcceptedError,
@@ -35,8 +43,12 @@ export type DeliveryProofUpload = {
    */
   readonly attachmentKey: string
   readonly bytes: Uint8Array
+  /** ADR-0068 §3, spec 157 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
+  readonly capturedAt: Date | undefined
   readonly kind: TripDeliveryProofKind
   readonly mimeType: string
+  /** ADR-0068 §4, spec 157 RF3/RF6: onde o aparelho leu a posição ao tirar a foto. */
+  readonly position: ProofPosition | undefined
   /**
    * ADR-0057 §3 (revisa ADR-0045 §7): o documento de quem recebeu, na forma canônica. Vazio é o
    * caso de fábrica; ele só entra quando a configuração resolvida da empresa o aceita.
@@ -71,24 +83,42 @@ export type DeliveryProofPort = {
     readonly companyId: string
     readonly documentId: string
   }): Promise<DeliveryProofFieldSettings>
+  /** ADR-0068 §3-5, spec 157 RF7: os parâmetros de pontualidade da empresa — geral, sem exceção. */
+  resolveProofPunctualitySettings(input: {
+    readonly companyId: string
+  }): Promise<DeliveryProofPunctualitySettings>
+  /**
+   * ADR-0068 §5, spec 157 RF5/RF6: o que `classifyProofPunctuality` precisa do evento de entrega —
+   * quando aconteceu e onde (evento e parada). Lido pelo `eventId` já resolvido, não pela nota.
+   */
+  findDeliveryContext(input: { readonly companyId: string; readonly eventId: string }): Promise<{
+    readonly deliveredAt: Date
+    readonly deliveryEventPosition: Coordinate | undefined
+    readonly stopPosition: Coordinate | undefined
+  }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
     readonly attachmentKey: string
     readonly companyId: string
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
-  }): Promise<string | null>
+  }): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality } | null>
   saveProof(input: {
+    readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
     readonly authorship: FieldAuthorship
+    readonly capturedAt: Date | null
     readonly companyId: string
     readonly eventId: string
     readonly id: string
     readonly kind: TripDeliveryProofKind
+    readonly latitude: string | null
+    readonly longitude: string | null
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
+    readonly punctuality: ProofPunctuality
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
     readonly receiverName: string
@@ -103,6 +133,8 @@ export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly documentId: string
   readonly newObjectId: () => string
   readonly newProofId: () => string
+  /** ADR-0068 §3, spec 157 RF5: quando o servidor recebeu a foto — referência sem `capturedAt`. */
+  readonly now: Date
   readonly repository: DeliveryProofPort
   /** Sela o documento em envelope A256GCM, com AAD amarrado ao `proofId`. */
   readonly sealDocument: (input: {
@@ -120,7 +152,7 @@ export type AttachDeliveryProofInput = FieldTripLocator & {
  */
 export async function attachDeliveryProof(
   input: AttachDeliveryProofInput,
-): Promise<{ readonly id: string }> {
+): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality }> {
   if (input.upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
     throw new TripDeliveryProofRejectedError('TOO_LARGE')
   }
@@ -152,16 +184,28 @@ export async function attachDeliveryProof(
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
 
-  /** Retry de rede converge sem tocar no bucket: a mesma chave já gravou este comprovante. */
+  /**
+   * Retry de rede converge sem tocar no bucket: a mesma chave já gravou este comprovante — e a
+   * pontualidade já gravada não é recalculada (spec 157, casos extremos).
+   */
   if (input.upload.attachmentKey.length > 0) {
-    const existingId = await input.repository.findProofIdByAttachmentKey({
+    const existing = await input.repository.findProofIdByAttachmentKey({
       attachmentKey: input.upload.attachmentKey,
       companyId: input.companyId,
       eventId,
       kind: input.upload.kind,
     })
-    if (existingId !== null) return { id: existingId }
+    if (existing !== null) return existing
   }
+
+  /**
+   * ADR-0068 §2-6, spec 157 RF4-RF6: só a foto entra na nota — a assinatura grava `not_required`
+   * de propósito (RF4). O motorista é o único canal que chega aqui (a assinatura é sempre dele).
+   */
+  const punctuality =
+    input.upload.kind === 'photo'
+      ? await classifyPhotoPunctuality({ eventId, input, settings })
+      : PROOF_PUNCTUALITY.notRequired
 
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
@@ -191,21 +235,56 @@ export async function attachDeliveryProof(
    */
   const carriesReceiverName = isSignature || authorship.channel === 'office'
 
-  return input.repository.saveProof({
+  const proof = await input.repository.saveProof({
+    accuracyMeters: input.upload.position?.accuracyMeters?.toFixed(2) ?? null,
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
     authorship,
+    capturedAt: input.upload.capturedAt ?? null,
     companyId: input.companyId,
     eventId,
     id: proofId,
     kind: input.upload.kind,
+    latitude: input.upload.position?.latitude ?? null,
+    longitude: input.upload.position?.longitude ?? null,
     mimeType: input.upload.mimeType,
     objectId,
     objectKey,
+    punctuality,
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
     receiverName: carriesReceiverName ? input.upload.receiverName : '',
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
+  })
+
+  return { ...proof, punctuality }
+}
+
+/**
+ * RF4-RF6: junta a configuração de pontualidade da empresa com o contexto do evento de entrega
+ * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'`.
+ */
+async function classifyPhotoPunctuality(params: {
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+  readonly settings: DeliveryProofFieldSettings
+}): Promise<ProofPunctuality> {
+  const { eventId, input, settings } = params
+  const [punctualitySettings, context] = await Promise.all([
+    input.repository.resolveProofPunctualitySettings({ companyId: input.companyId }),
+    input.repository.findDeliveryContext({ companyId: input.companyId, eventId }),
+  ])
+
+  return classifyProofPunctuality({
+    capturedAt: input.upload.capturedAt,
+    deliveredAt: context.deliveredAt,
+    deliveryEventPosition: context.deliveryEventPosition,
+    photoMode: settings.photo,
+    photoPosition: input.upload.position,
+    proofRadiusMeters: punctualitySettings.proofRadiusMeters,
+    proofWindowMinutes: punctualitySettings.proofWindowMinutes,
+    receivedAt: input.now,
+    stopPosition: context.stopPosition,
   })
 }
