@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  buildFieldDeliveryImageQualitySequence,
   computeFieldDeliveryImageDimensions,
   FIELD_DELIVERY_IMAGE_MAX_SIDE,
 } from '../../src/modules/trip/shared/fieldDeliveryImage.service'
@@ -46,5 +47,25 @@ describe('dimensões da foto reduzida do canhoto (spec 156 D9)', () => {
     const result = computeFieldDeliveryImageDimensions({ height: 1, width: 8000 })
     expect(result.width).toBe(FIELD_DELIVERY_IMAGE_MAX_SIDE)
     expect(result.height).toBeGreaterThanOrEqual(1)
+  })
+})
+
+/**
+ * M7 (spec 156 T15): a foto do canhoto cai de qualidade em degraus até caber em ~900 KB —
+ * `canvas.toBlob` não roda no ambiente de teste, então só a sequência de qualidades (pura,
+ * determinística) é testada aqui.
+ */
+describe('buildFieldDeliveryImageQualitySequence (spec 156 T15, M7)', () => {
+  it('começa no padrão (0.85) e desce em degraus de 0.1 até o piso (0.5)', () => {
+    expect(buildFieldDeliveryImageQualitySequence()).toEqual([0.85, 0.75, 0.65, 0.55, 0.5])
+  })
+
+  it('nunca desce abaixo do piso de legibilidade', () => {
+    const sequence = buildFieldDeliveryImageQualitySequence()
+    expect(Math.min(...sequence)).toBe(0.5)
+  })
+
+  it('qualidade inicial já no piso devolve só o piso', () => {
+    expect(buildFieldDeliveryImageQualitySequence(0.5)).toEqual([0.5])
   })
 })

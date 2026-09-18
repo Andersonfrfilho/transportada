@@ -13,6 +13,8 @@ import { recognizeCanhotoWords } from './canhotoOcrEngine.service'
 import { reduceFieldDeliveryImageToJpeg } from './fieldDeliveryImage.service'
 import type { FieldDeliveryCapturedPhoto } from './fieldDeliveryWizard.service'
 
+export { loadImageFromFile } from './fieldDeliveryImage.service'
+
 /**
  * A4c (spec 156 T15): `source` costuma ser o `<video>` ao vivo — dois `drawImage(source, …)`
  * separados (um para a identificação, outro para o JPEG/OCR) amostram o quadro **atual** em cada
@@ -134,21 +136,4 @@ export async function captureFieldDeliveryPhoto({
     imageBlob,
     ocrSuggestion: ocrResult.extraction,
   }
-}
-
-/** O arquivo escolhido em "enviar arquivo" (canhoto escaneado) vira `<img>` para o mesmo canvas. */
-export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      resolve(image)
-      URL.revokeObjectURL(url)
-    }
-    image.onerror = () => {
-      reject(new Error('FIELD_DELIVERY_IMAGE_LOAD_FAILED'))
-      URL.revokeObjectURL(url)
-    }
-    image.src = url
-  })
 }

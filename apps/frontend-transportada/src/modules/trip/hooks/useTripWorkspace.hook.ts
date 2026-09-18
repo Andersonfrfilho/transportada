@@ -10,6 +10,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
+import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 import {
   type CargoLayoutPendingEpisode,
@@ -556,12 +557,17 @@ export function useTripWorkspace(
    * diálogo não fecha com sucesso, do jeito que `arrive`/`occurrence` já fazem por parada.
    */
   const registerFieldOccurrencesMutation = useMutation({
-    mutationFn: (body: Omit<RegisterFieldOccurrencesInput, 'idempotencyKey'>) =>
+    mutationFn: async (body: Omit<RegisterFieldOccurrencesInput, 'idempotencyKey'>) =>
       controller.registerFieldOccurrences({
         ...body,
         idempotencyKey: resolveFieldReportKey(
           `field-occurrence:${[...body.documentIds].toSorted().join(',')}`,
         ),
+        /**
+         * M7 (spec 156 T15): a foto da ocorrência ia crua para a API, sem teto de tamanho nem
+         * remoção de EXIF — mesma redução da foto do canhoto (`reduceImageFileToJpeg`).
+         */
+        ...(body.file === undefined ? {} : { file: await reduceImageFileToJpeg(body.file) }),
       }),
     onSuccess: (_result, variables) => {
       clearFieldReportKey(`field-occurrence:${[...variables.documentIds].toSorted().join(',')}`)
