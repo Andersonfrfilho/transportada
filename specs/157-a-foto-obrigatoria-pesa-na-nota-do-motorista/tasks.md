@@ -18,13 +18,13 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 
 ## Fase 0
 
-- [ ] **T1 🧠 ADR-0068** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
+- [x] **T1 🧠 ADR-0068** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
       Registra a decisão do usuário, a exceção ao 422 da ADR-0067 para o canal do motorista, RF5/RF6/RF8,
       e que foto sem posição conta como longe. Aceite: arquivo em `docs/adr/`, ADR-0057 e ADR-0067 citadas.
 
 ## Fase 1 — domínio
 
-- [ ] **T2** `classifyProofPunctuality` em `trips/domain/delivery-proof-punctuality.policy.ts` +
+- [x] **T2** `classifyProofPunctuality` em `trips/domain/delivery-proof-punctuality.policy.ts` +
       `test/trip-delivery-proof/punctuality.contract.ts`. Aceite: casos 3 e 4 da spec, limite do
       `capturedAt` (futuro e antes da entrega), parada sem coordenada, sem referência nenhuma,
       `not_required`.
