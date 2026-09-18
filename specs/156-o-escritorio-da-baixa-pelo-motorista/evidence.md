@@ -2031,3 +2031,184 @@ despachada sem nenhuma parada. O revisor deu confiança baixa ao caso, e ele vai
 A parte "a linha do tempo mostra 'por <usuária> (escritório) pelo motorista <nome>'" do aceite 2 não
 foi entregue pela T9 (só a ocorrência ganhou autoria; ver "Achado fora do escopo" da T9). Ela fecha
 pela spec 158 (`specs/158-linha-do-tempo-da-viagem/`), com a ADR-0068.
+
+## T11
+
+**Escopo:** `FieldDeliveryWizard.component.tsx` (D5, D6, D8, D9; aceites 5, 6, 8, 9) — o assistente
+de baixa com canhoto, um passo por nota, com câmera, conferência, pular e voltar. Serve tanto a
+ação da linha (uma nota, capacidade `fieldDelivery` do `allowed-actions`) quanto a ação em massa da
+seleção existente (`TripStateActions`).
+
+### Decisões tomadas nesta task
+
+- **"Trocar pela identificação" consome o passo atual, não o do alvo.** Quando a foto capturada no
+  passo da nota A é identificada como a nota B (`otherSelected`, dentro do lote marcado), confirmar
+  grava o rascunho de B e marca A como pulada — não existe um "voltar para A automaticamente". Quem
+  quiser fotografar A de novo usa "Voltar" (se ainda estiver por perto no lote) ou reabre o
+  assistente noutra rodada. Alternativa descartada: tentar reinserir A no fim da fila
+  automaticamente — isso reintroduziria o mesmo "decidir sozinho" que a ADR-0067 §4 proíbe para a
+  própria classificação (T10), agora aplicado à ordem do lote em vez de à nota.
+- **`dispatchedAt` chega `null` do chamador.** `GET /trips/:id` ainda não expõe
+  `trip_dispatch_snapshots.dispatched_at` na resposta que o frontend lê hoje (conferido em
+  `trip.types.ts`: `TripDetail` não tem o campo). `validateFieldDeliveryDeliveredAt` já aceita
+  `dispatchedAt: null` e aplica só a régua do futuro nesse caso — a régua do despacho continua
+  valendo no servidor (`report-document-delivery.use-case.ts`), que responde 400 se o cliente
+  deixar passar uma data antes do despacho. Pendência registrada, fora do escopo desta task de
+  frontend (exigiria expor o campo na rota, que é T5/T6 já fechadas).
+- **Nome/documento do recebedor ficam opcionais no formulário.** D8 diz que o nome é obrigatório
+  quando a empresa exige assinatura, mas o frontend não lê essa configuração hoje (mesma pendência
+  que a T6 já registrou no próprio `evidence.md` dela, para o lado do motorista). Em vez de inventar
+  uma regra client-side sem a fonte da verdade, o campo fica opcional na tela e a falta dele vira o
+  422 da API (`TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`/equivalente de assinatura) quando a T12 ligar o
+  envio de verdade.
+- **A identificação por câmera não usa `useBarcodeScanner`.** Esse hook varre continuamente à
+  procura de qualquer código de barras (uso da etiqueta de caixa, spec 055/152); aqui a leitura
+  acontece **uma vez**, no instante da captura, sobre o quadro que vai virar o comprovante — por
+  isso o wizard usa `useCameraStream` (D19, já compartilhado com o leitor e a medida de caixa) mais
+  um recorte próprio (`fieldDeliveryCapture.service.ts`) que gera o quadro de luminância só na hora
+  do clique, e não a cada 250ms.
+- **Redução de imagem sem EXIF "de graça".** Reencodar pelo `canvas.toBlob('image/jpeg', …)`
+  descarta metadado por natureza — nenhuma biblioteca extra foi necessária para a exigência "sem
+  EXIF" do D9.
+
+### Achado de design corrigido na própria task (web.md §15)
+
+Ao montar os prints, os botões soltos ("Voltar" no cabeçalho, "Tirar outra foto" no bloqueio,
+"Enviar arquivo" na captura) esticavam para 100% da largura do diálogo — filhos diretos de
+`_dialog_` (`display:flex; flex-direction:column`, `align-items` padrão `stretch`). Os vizinhos
+(`TripConfirmDialog`, `FieldOccurrenceDialog`) nunca soltam um botão direto no fluxo do diálogo:
+sempre envolvem em `mdfeGateFooter`/`captureActions`, uma faixa `flex-row`. Corrigido nos três
+lugares (`FieldDeliveryWizardHeader.component.tsx`, `FieldDeliveryWizard.component.tsx`,
+`FieldDeliveryCaptureStep.component.tsx`), reaproveitando a classe `captureActions` já existente em
+vez de criar uma nova só para isto.
+
+### TDD
+
+Testes escritos antes da implementação, todos rodados vermelhos primeiro (`Cannot find module`
+contra o `src` sem os arquivos novos) e depois verdes:
+
+- `test/trip/field-delivery-wizard.contract.ts`: a máquina de passos pura
+  (`fieldDeliveryWizardReducer`) — capturar (matched segue para conferência; `notOnTrip`/
+  `onTripNotSelected` bloqueiam com a identificação completa, não só o texto), retomar depois do
+  bloqueio/conferência sem perder o índice, confirmar grava o rascunho e avança, pular marca e
+  avança sem gravar, voltar recua um passo sem apagar o que já foi decidido, "trocar pela
+  identificação" grava para a nota alvo e deixa a esperada pendente, término com todas as notas
+  decididas, e a montagem dos rascunhos preserva a ordem original dos documentos (não a ordem de
+  confirmação).
+- `test/trip/field-delivery-validation.contract.ts`: `validateFieldDeliveryDeliveredAt` — agora
+  aceito, futuro recusado, antes do despacho recusado, fronteira do despacho inclusiva, sem
+  despacho conhecido só a régua do futuro vale, e data inválida nunca passa em silêncio.
+- `test/trip/field-delivery-image.contract.ts`: `computeFieldDeliveryImageDimensions` — abaixo do
+  teto não muda, no teto exato não muda, retrato e paisagem escalam proporcionalmente ao lado maior
+  (2000px), e proporção extrema nunca devolve dimensão zero. `reduceFieldDeliveryImageToJpeg` (que
+  usa `canvas`) não é exercitada aqui — isolada como função separada e impura, conforme a instrução
+  da task, porque o ambiente de teste (`bun:test`, sem DOM) não tem `HTMLCanvasElement`.
+- `test/trip/field-delivery-document.contract.ts`: `buildFieldDeliveryWizardDocuments` — monta na
+  ordem da seleção (não a ordem da viagem), cidade vem do rótulo da parada, nota sem parada/contato
+  não quebra (campos vazios), e id que não existe mais na viagem é descartado sem gerar passo vazio.
+- Todos os quatro registrados em `test/trip.contract.test.ts` (entrypoint já listado no
+  `package.json` — nenhuma entrada nova necessária, mesmo padrão da T9/T10).
+
+**Parada do stream ao trocar de passo/fechar:** não há um hook próprio para testar com dublê de
+`MediaStream` — o wizard reaproveita `useCameraStream` (D19), que já tem essa garantia coberta em
+`test/design-system/camera-stream.contract.ts` ("fecha a trilha aberta quando desativa ou
+desmonta"). `FieldDeliveryCaptureStep` monta com `isActive: true` e o **pai** desmonta o componente
+ao sair da etapa "capturing" (para "reviewing", "blocked" ou fechar o assistente) — a garantia vem
+de o React sempre rodar o cleanup do efeito ao desmontar, e reescrever esse teste aqui duplicaria o
+que o design-system já prova. Verificado manualmente lendo `FieldDeliveryWizard.component.tsx`:
+`FieldDeliveryCaptureStep` só aparece no JSX quando `state.step.kind === 'capturing'`.
+
+### Revisão de design (web.md §15)
+
+Sem dev server com dados neste ambiente (mesma limitação registrada pela T8/T9: sem Keycloak/API/
+seed disponíveis para navegar a tela real). A comparação foi feita com o **CSS de produção real**
+(`bun run --cwd apps/frontend-transportada build`, servido por `python3 -m http.server` local) e o
+`chromium` do Playwright (`@playwright/test` 1.58.2, instalado nesta sessão via
+`bunx playwright install chromium` — não estava em cache), tema escuro forçado por
+`data-theme="dark"` no `<html>` (headless por padrão reporta `prefers-color-scheme: light`, e o
+produto tem `@media(prefers-color-scheme:light)` como variante — sem o atributo, o print saía no
+tema errado), 1280×720 e 375×900, com as classes hasheadas reais extraídas do CSS gerado
+(`_dialog_1u37j_13`, `_banner_1u37j_57`, `_icon_lgjzr_2`, `_trigger_1psko_14`, `_field_hi3w5_1`
+etc.), não nomes inventados.
+
+Conferido contra os vizinhos (`TripConfirmDialog`, `FieldOccurrenceDialog`, `BarcodeScanner`): mesma
+moldura de diálogo (borda `--color-slate`, fundo `--color-asphalt`, sombra), mesmo `ui-button`
+`default`/`ghost`/`secondary`, `FileField` com a mesma altura de campo, alvo de toque `default`
+(`--control-height`) nos botões de ação, sem scroll horizontal em 375px. Achado corrigido: ver seção
+acima (botões soltos esticando 100% da largura).
+
+Prints:
+
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-capture-desktop.png` (1280×720) —
+  passo de captura, com a faixa da nota sobre a "câmera" (imagem estática, conforme a task permite)
+  e os botões Capturar/Pular/Enviar arquivo.
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-capture-mobile.png` (375×900) — mesmo
+  passo, sem scroll horizontal, botões empilhados por `flex-wrap`.
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-review-matched-desktop.png` (1280×720)
+  — conferência com identificação `matched`, campos de "Entregue em", recebedor e o seletor de nota
+  alvo.
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-blocked-desktop.png` (1280×720) —
+  bloqueio por nota fora da viagem (D6, aceite 6), com a mensagem "este canhoto é da nota X, que não
+  está nesta viagem" e o botão para tirar outra foto.
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-upload-desktop.png` (1280×720) —
+  fallback de "enviar arquivo" quando a câmera está indisponível, com o `FileField` do design
+  system.
+
+Pendência explícita (mesma das tasks anteriores): print contra a tela **real**, com dado de
+verdade e vídeo de câmera de fato, fica para quando houver ambiente com Keycloak/seed disponível
+nesta sessão.
+
+### Wiring (fora do que a task pedia como núcleo, mas necessário para "abrir para uma nota e para
+
+### várias")
+
+- `TripDetail.component.tsx`: estado `fieldDeliveryDocumentIds` (mesmo padrão de
+  `fieldOccurrenceDocumentIds`, T9), `canFieldDeliveryBatch`, `documentActions.canFieldDelivery`/
+  `onOpenFieldDelivery`, e o `<FieldDeliveryWizard>` montado com `dispatchedAt={null}` (decisão
+  acima) e `onSubmit` **provisório** que só fecha o assistente
+  (`() => setFieldDeliveryDocumentIds(null)`) — **não chama a API**. A T12 substitui este `onSubmit`
+  pelo envio de verdade via `useFieldDelivery`.
+- `TripStopList.component.tsx`: `canFieldDelivery`/`onOpenFieldDelivery` na `TripStopDocumentActions`
+  e o botão da linha, ao lado do de ocorrência de campo.
+- `TripStateActions.component.tsx`: `canFieldDeliveryBatch`/`onOpenFieldDeliveryBatch` e o botão de
+  lote, ao lado do de ocorrência em massa.
+- Textos em `trip.locale.json`/`trip.en.locale.json`, namespace `fieldDelivery` mais as chaves de
+  `actions.fieldDelivery` e `stateActions.batchFieldDelivery` (com plural real `_one`/`_other`, não
+  "nota(s)" — o achado que a T16 já cobrou das tasks anteriores).
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bun run --cwd apps/frontend-transportada test` → `4403 pass · 0 fail`, 37207 `expect()`,
+  29 arquivos (mesma contagem — os quatro contratos novos entraram via `import` em
+  `test/trip.contract.test.ts`, já listado no `package.json`) + `test:hooks` `5 pass · 0 fail`.
+- `bun run --cwd apps/frontend-transportada build` → build limpo, PWA gerado, sem erro (rodado duas
+  vezes: antes e depois da correção do achado de design, para confirmar que a mudança de CSS não
+  quebrou nada).
+
+### Arquivos
+
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryWizard.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryWizardHeader.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryCaptureStep.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryReviewStep.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryFinishedStep.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryNoteBanner.component.tsx` (novo)
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliveryWizard.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliveryValidation.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliveryImage.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliveryDocument.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliveryCapture.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/trip/styles/fieldDeliveryWizard.module.css` (novo)
+- `apps/frontend-transportada/test/trip/field-delivery-wizard.contract.ts` (novo)
+- `apps/frontend-transportada/test/trip/field-delivery-validation.contract.ts` (novo)
+- `apps/frontend-transportada/test/trip/field-delivery-image.contract.ts` (novo)
+- `apps/frontend-transportada/test/trip/field-delivery-document.contract.ts` (novo)
+- `apps/frontend-transportada/test/trip.contract.test.ts` (import acrescentado)
+- `apps/frontend-transportada/src/modules/trip/components/TripDetail.component.tsx` (wiring)
+- `apps/frontend-transportada/src/modules/trip/components/TripStateActions.component.tsx` (wiring)
+- `apps/frontend-transportada/src/modules/trip/components/TripStopList.component.tsx` (wiring)
+- `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` (textos)
+- `apps/frontend-transportada/src/modules/trip/locales/trip.en.locale.json` (textos)
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-*.png` (5 novos)

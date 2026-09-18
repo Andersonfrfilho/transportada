@@ -52,6 +52,8 @@ import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
+import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocument.service'
+import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripFieldActions } from './TripFieldActions.component'
 import { TripStateActions } from './TripStateActions.component'
@@ -192,6 +194,10 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const [fieldOccurrenceDocumentIds, setFieldOccurrenceDocumentIds] = useState<
     readonly string[] | null
   >(null)
+  /** Spec 156 T11: mesma ideia — uma nota (linha) ou o maço da seleção (massa) no mesmo assistente. */
+  const [fieldDeliveryDocumentIds, setFieldDeliveryDocumentIds] = useState<
+    readonly string[] | null
+  >(null)
   /**
    * Antes de qualquer `return`: hook depois de saída condicional muda a contagem de hooks entre
    * renders, e o React derruba o componente inteiro — foi o que o smoke pegou. A viagem ainda pode
@@ -270,12 +276,20 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     : resolveDefaultOnBehalfDriverId(trip.drivers)
   /** `exactOptionalPropertyTypes` recusa `{ driverId: undefined }` — o espalhamento omite a chave. */
   const officeDriverIdInput = officeDriverId === undefined ? {} : { driverId: officeDriverId }
+  const canFieldDeliveryBatch =
+    workspace.controller.canReportOnBehalf &&
+    [...selection.selectedIds].some((documentId) =>
+      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
+    )
   const documentActions = {
     canManage,
     canSeparateOrLoad,
+    canFieldDelivery: (documentId: string) =>
+      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     canFieldOccurrence: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
     capabilities: workspace.fieldActionCapabilities,
+    onOpenFieldDelivery: (documentId: string) => setFieldDeliveryDocumentIds([documentId]),
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onToggleProof: (documentId: string) =>
       workspace.setOpenProofDocumentId(
@@ -591,6 +605,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        */}
       <TripStateActions
         canManage={canManage}
+        canFieldDeliveryBatch={canFieldDeliveryBatch}
         canFieldOccurrenceBatch={canFieldOccurrenceBatch}
         canSeparateOrLoad={canSeparateOrLoad}
         capabilities={workspace.fieldActionCapabilities}
@@ -603,6 +618,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onBatchReturn={handleBatchReturn}
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+        onOpenFieldDeliveryBatch={() => setFieldDeliveryDocumentIds([...selection.selectedIds])}
         onOpenFieldOccurrenceBatch={() => setFieldOccurrenceDocumentIds([...selection.selectedIds])}
         onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
@@ -661,6 +677,32 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           )
         }}
         types={workspace.fieldOccurrenceTypesQuery.data ?? []}
+      />
+
+      {/*
+       * Spec 156 T11: o envio é da T12 (`useFieldDelivery`, concorrência limitada e repetição do
+       * que falhar) — `onSubmit` aqui só fecha o assistente, sem chamar a API. `dispatchedAt` é
+       * `null` porque `GET /trips/:id` ainda não expõe `trip_dispatch_snapshots.dispatched_at`
+       * (pendência registrada no `evidence.md` da T11); a régua do futuro continua valendo, e a
+       * API segue sendo quem decide de fato.
+       */}
+      <FieldDeliveryWizard
+        dispatchedAt={null}
+        documents={buildFieldDeliveryWizardDocuments({
+          documentIds: fieldDeliveryDocumentIds ?? [],
+          documents: trip.documents,
+          stops: trip.stops,
+        })}
+        drivers={trip.drivers}
+        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
+        isOpen={fieldDeliveryDocumentIds !== null}
+        onClose={() => setFieldDeliveryDocumentIds(null)}
+        onSubmit={() => setFieldDeliveryDocumentIds(null)}
+        tripDocuments={trip.documents.map((document) => ({
+          id: document.id,
+          ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
+          ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
+        }))}
       />
 
       {canManage && isEditable ? (

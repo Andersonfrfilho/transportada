@@ -21,6 +21,8 @@ export type TripStateActionsProps = Readonly<{
   canManage: boolean
   /** Spec 156 T9: pelo menos uma nota da seleção tem a capacidade `fieldOccurrence`. */
   canFieldOccurrenceBatch: boolean
+  /** Spec 156 T11: pelo menos uma nota da seleção tem a capacidade `fieldDelivery`. */
+  canFieldDeliveryBatch: boolean
   canSeparateOrLoad: boolean
   /** Spec 156 T8b: "Devolver" em massa mostra quando ao menos uma nota selecionada aceita `fieldReturn`. */
   capabilities: FieldActionCapabilities
@@ -35,6 +37,8 @@ export type TripStateActionsProps = Readonly<{
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` com o maço da seleção. */
   onOpenFieldOccurrenceBatch: () => void
+  /** Spec 156 T11: abre `FieldDeliveryWizard` com o maço da seleção. */
+  onOpenFieldDeliveryBatch: () => void
   onPlanRoute: () => void
   selection: TripDocumentSelectionController
   /** O que da seleção ainda tem CT-e a emitir — resolvido em `cteSelection.service.ts`. */
@@ -49,6 +53,7 @@ export type TripStateActionsProps = Readonly<{
  * sobre o maço selecionado (T015). */
 export function TripStateActions({
   canManage,
+  canFieldDeliveryBatch,
   canFieldOccurrenceBatch,
   canSeparateOrLoad,
   capabilities,
@@ -61,6 +66,7 @@ export function TripStateActions({
   onBatchReturn,
   onCancel,
   onDispatch,
+  onOpenFieldDeliveryBatch,
   onOpenFieldOccurrenceBatch,
   onPlanRoute,
   selection,
@@ -116,6 +122,7 @@ export function TripStateActions({
       (canSeparateOrLoad ||
         canReturnSelection ||
         canFieldOccurrenceBatch ||
+        canFieldDeliveryBatch ||
         pendingCteSelection.length > 0) ? (
         <div className={styles.actionActions}>
           {canSeparateOrLoad ? (
@@ -169,6 +176,12 @@ export function TripStateActions({
             <Button onClick={onOpenFieldOccurrenceBatch} size="sm" type="button" variant="ghost">
               <Icon name="alert" />
               {t('stateActions.batchFieldOccurrence', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
+          {canFieldDeliveryBatch ? (
+            <Button onClick={onOpenFieldDeliveryBatch} size="sm" type="button" variant="ghost">
+              <Icon name="camera" />
+              {t('stateActions.batchFieldDelivery', { count: selection.selectedIds.size })}
             </Button>
           ) : null}
         </div>

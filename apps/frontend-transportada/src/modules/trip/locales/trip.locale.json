@@ -15,7 +15,8 @@
     "view": "Ver",
     "viewProof": "Comprovante",
     "viewTrip": "Abrir a viagem de {{vehicle}}",
-    "fieldOccurrence": "Ocorrência"
+    "fieldOccurrence": "Ocorrência",
+    "fieldDelivery": "Dar baixa"
   },
   "assemblyDraft": {
     "automaticPending": "Há um roteiro automático em montagem guardado nesta aba.",
@@ -973,6 +974,47 @@
     "startRouteTitle": "Iniciar rota",
     "title": "Ações de campo (pelo motorista)"
   },
+  "fieldDelivery": {
+    "blockedNotOnTrip": "Este canhoto é da nota {{document}}, que não está nesta viagem.",
+    "blockedOnTripNotSelected": "Este canhoto é de uma nota da viagem que não está no lote marcado.",
+    "cameraDenied": "Câmera negada — envie o arquivo do canhoto.",
+    "cameraLabel": "Câmera para o canhoto",
+    "cameraUnavailable": "Câmera indisponível neste aparelho — envie o arquivo do canhoto.",
+    "capture": "Capturar",
+    "close": "Fechar",
+    "closeConfirm": "Sair sem enviar",
+    "closeMessage": "As fotos já tiradas nesta sessão serão perdidas.",
+    "closeTitle": "Sair do assistente?",
+    "confirm": "Confirmar",
+    "deliveredAtError": {
+      "DELIVERED_AT_BEFORE_DISPATCH": "\"Entregue em\" não pode ser antes do despacho da viagem.",
+      "DELIVERED_AT_IN_FUTURE": "\"Entregue em\" não pode ser no futuro."
+    },
+    "deliveredAtLabel": "Entregue em",
+    "finishedCaptured": "Fotografada",
+    "finishedSkipped": "Pulada",
+    "finishedSubmit": "Enviar {{count}} nota",
+    "finishedSubmit_other": "Enviar {{count}} notas",
+    "identification": {
+      "matched": "Canhoto conferido: é a nota esperada.",
+      "otherSelected": "Este canhoto é de outra nota do lote — confira o destino abaixo.",
+      "unreadable": "Não foi possível ler o código de barras — escolha a nota manualmente."
+    },
+    "previousStep": "Voltar",
+    "receiverDocumentLabel": "Documento de quem recebeu (opcional)",
+    "receiverNameLabel": "Nome de quem recebeu",
+    "recipientUnknown": "Destinatário não informado",
+    "retake": "Tirar outra foto",
+    "reviewImageAlt": "Foto do canhoto capturada",
+    "skip": "Pular nota",
+    "stepProgress": "Nota {{current}} de {{total}}",
+    "targetLabel": "Esta foto é da nota",
+    "title": "Baixa com canhoto",
+    "uploadChoose": "Escolher arquivo",
+    "uploadEmpty": "Nenhum arquivo escolhido",
+    "uploadInstead": "Enviar arquivo",
+    "uploadLabel": "Canhoto escaneado"
+  },
   "stateActions": {
     "batchLoad": "Carregar {{count}} nota(s)",
     "batchReturn": "Devolver {{count}} nota(s)",
@@ -991,7 +1033,9 @@
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",
     "returnTitle": "Devolver nota",
     "title": "Ações da viagem",
-    "batchFieldOccurrence": "Ocorrência em {{count}} nota(s)"
+    "batchFieldOccurrence": "Ocorrência em {{count}} nota(s)",
+    "batchFieldDelivery": "Dar baixa em {{count}} nota",
+    "batchFieldDelivery_other": "Dar baixa em {{count}} notas"
   },
   "status": {
     "cancelled": "Cancelada",

@@ -32,6 +32,8 @@ export type TripStopDocumentActions = Readonly<{
    * — nunca um booleano só, porque a capacidade varia nota a nota dentro da mesma parada.
    */
   canFieldOccurrence: (documentId: string) => boolean
+  /** Spec 156 T11: mesma ideia da ocorrência de campo — a capacidade varia nota a nota. */
+  canFieldDelivery: (documentId: string) => boolean
   canManage: boolean
   canSeparateOrLoad: boolean
   /** `allowedActions.documents[id]` — a mesma capacidade que `TripFieldActions` consome. */
@@ -45,6 +47,8 @@ export type TripStopDocumentActions = Readonly<{
   onFieldReturn: (documentId: string) => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
   onOpenFieldOccurrence: (documentId: string) => void
+  /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
+  onOpenFieldDelivery: (documentId: string) => void
   /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
   onToggleProof: (documentId: string) => void
   openProofDocumentId: null | string
@@ -387,6 +391,17 @@ function TripStopDocumentRow({
           >
             <Icon name="alert" />
             {t('actions.fieldOccurrence')}
+          </Button>
+        ) : null}
+        {actions.canFieldDelivery(document.id) ? (
+          <Button
+            onClick={() => actions.onOpenFieldDelivery(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="camera" />
+            {t('actions.fieldDelivery')}
           </Button>
         ) : null}
       </div>

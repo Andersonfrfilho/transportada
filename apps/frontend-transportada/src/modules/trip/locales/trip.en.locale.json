@@ -14,7 +14,8 @@
     "title": "Actions",
     "view": "View",
     "viewTrip": "Open the trip for {{vehicle}}",
-    "fieldOccurrence": "Occurrence"
+    "fieldOccurrence": "Occurrence",
+    "fieldDelivery": "Deliver"
   },
   "assemblyDraft": {
     "automaticPending": "An automatic route is being assembled and is kept in this tab.",
@@ -784,6 +785,47 @@
     "startRouteTitle": "Start route",
     "title": "Field actions (on behalf of the driver)"
   },
+  "fieldDelivery": {
+    "blockedNotOnTrip": "This proof is from document {{document}}, which is not on this trip.",
+    "blockedOnTripNotSelected": "This proof is from a trip document that is not in the marked batch.",
+    "cameraDenied": "Camera denied — upload the proof file instead.",
+    "cameraLabel": "Camera for the delivery proof",
+    "cameraUnavailable": "Camera unavailable on this device — upload the proof file instead.",
+    "capture": "Capture",
+    "close": "Close",
+    "closeConfirm": "Leave without sending",
+    "closeMessage": "Photos already taken in this session will be lost.",
+    "closeTitle": "Leave the assistant?",
+    "confirm": "Confirm",
+    "deliveredAtError": {
+      "DELIVERED_AT_BEFORE_DISPATCH": "\"Delivered at\" cannot be before the trip's dispatch.",
+      "DELIVERED_AT_IN_FUTURE": "\"Delivered at\" cannot be in the future."
+    },
+    "deliveredAtLabel": "Delivered at",
+    "finishedCaptured": "Photographed",
+    "finishedSkipped": "Skipped",
+    "finishedSubmit": "Send {{count}} document",
+    "finishedSubmit_other": "Send {{count}} documents",
+    "identification": {
+      "matched": "Proof checked: it is the expected document.",
+      "otherSelected": "This proof is from another document in the batch — confirm the target below.",
+      "unreadable": "Could not read the barcode — pick the document manually."
+    },
+    "previousStep": "Back",
+    "receiverDocumentLabel": "Receiver's document (optional)",
+    "receiverNameLabel": "Receiver's name",
+    "recipientUnknown": "Recipient not informed",
+    "retake": "Retake photo",
+    "reviewImageAlt": "Captured proof photo",
+    "skip": "Skip document",
+    "stepProgress": "Document {{current}} of {{total}}",
+    "targetLabel": "This photo is for document",
+    "title": "Delivery with proof",
+    "uploadChoose": "Choose file",
+    "uploadEmpty": "No file chosen",
+    "uploadInstead": "Upload file",
+    "uploadLabel": "Scanned proof"
+  },
   "stateActions": {
     "batchLoad": "Load {{count}} document(s)",
     "batchReturn": "Return {{count}} document(s)",
@@ -802,7 +844,9 @@
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
     "returnTitle": "Return document",
     "title": "Trip actions",
-    "batchFieldOccurrence": "Occurrence on {{count}} document(s)"
+    "batchFieldOccurrence": "Occurrence on {{count}} document(s)",
+    "batchFieldDelivery": "Deliver {{count}} document",
+    "batchFieldDelivery_other": "Deliver {{count}} documents"
   },
   "status": {
     "cancelled": "Cancelled",
