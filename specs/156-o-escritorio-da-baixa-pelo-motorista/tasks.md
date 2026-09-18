@@ -48,7 +48,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [x] **T4 — Migration de autoria** (`channel`, `on_behalf_of_driver_id` com FK composta
       `(company_id, on_behalf_of_driver_id)`, `recorded_at` e CHECK) nas seis tabelas de campo. Aditiva. `make migration-test` verde, incluindo o rollback. O WhatsApp passa a gravar
       `whatsapp`.
-- [ ] **T5 — Rotas de viagem e parada**: `confirm-load`, `start-route`, `arrive` e ocorrência de
+- [x] **T5 — Rotas de viagem e parada**: `confirm-load`, `start-route`, `arrive` e ocorrência de
       parada, em `trip-field-office.routes.ts`. Contratos: 403 sem permissão (aceite 1), 404 para
       outra empresa (aceite 3), autoria gravada e `audit_logs` (aceite 2).
 - [ ] **T6 — `field-delivery`, `field-return`, `field-proof` e `deliveredAt`**: multipart com foto,

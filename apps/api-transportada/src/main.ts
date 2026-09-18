@@ -339,6 +339,9 @@ import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fis
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
+import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
+import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
+import { createDrizzleTripFieldOfficeAudit } from './trips/infrastructure/drizzle-trip-field-office-audit.gateway'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
 import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
 import {
@@ -1496,6 +1499,8 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
+  const tripFieldOfficeAudit = createDrizzleTripFieldOfficeAudit(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
@@ -2476,6 +2481,25 @@ function createApplicationRoutes({
       reportReturn: (input) =>
         reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    ...createTripFieldOfficeRoutes({
+      audit: tripFieldOfficeAudit,
+      reportArrival: (input) =>
+        reportStopArrival({
+          ...input,
+          location: null,
+          now: new Date(),
+          unitOfWork: driverFieldReports,
+        }),
+      reportOccurrence: (input) =>
+        reportStopOccurrence({
+          ...input,
+          attachmentObjectId: null,
+          unitOfWork: driverFieldReports,
+        }),
+      startFieldTrip: (input) =>
+        startFieldTrip({ ...input, repository: currentDriverTripRepository }),
+      targets: fieldTripTargetRepository,
     }),
     ...createTripRoutes({
       batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },

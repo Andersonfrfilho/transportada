@@ -445,3 +445,108 @@ bun run db:test` (equivalente ao `make migration-test`, contra o Postgres de tes
   `trip_document_events`/`trip_stop_events`/`trip_stop_occurrences` pelas mesmas portas desta T4 —
   a autoria já está pronta, só falta a rota chamar `resolveFieldTripTarget` e montar o
   `FieldTripLocator` com `{ target }`.
+
+## T5
+
+Quatro rotas novas em `/trips/:id`, permissão própria `trip.report-on-behalf`, que resolvem o alvo
+pela empresa do contexto (`resolveFieldTripTarget`, T3) e chamam os **mesmos** casos de uso do
+motorista com `{ target }` — a autoria (`channel: 'office'`, `onBehalfOfDriverId`) e as portas já
+estavam prontas desde a T4; esta task é fiação de presentation + `main.ts` + `audit_logs`.
+
+### Arquivos
+
+**Presentation (novos):**
+
+- `apps/api-transportada/src/trips/presentation/trip-field-office.routes.ts` —
+  `createTripFieldOfficeRoutes`: `POST /trips/:id/confirm-load`, `POST /trips/:id/start-route`,
+  `POST /trips/:id/stops/:stopId/arrive`, `POST /trips/:id/stops/:stopId/occurrences`. Todas com
+  `OFFICE_REPORT_POLICY = { permission: 'trip.report-on-behalf', scope: 'company' }`. Cada handler:
+  resolve `TripFieldTripTarget` (com ou sem `driverId` pedido) → `resolveFieldTripTarget` →
+  chama a dependência (`startFieldTrip`/`reportArrival`/`reportOccurrence`) com `{ target }` →
+  grava `audit_logs` via `dependencies.audit.record`. Envelope de resposta idêntico ao das rotas
+  `/me` (`{ data: { changed, status } }` 200 para os dois toques; `{ data: { id } }` 201 para
+  chegada e ocorrência). `resolveClientIp` (já existente, `http/client-ip.service.ts`) captura o IP
+  no `parse`, porque `handle` não recebe a `Request`.
+- `apps/api-transportada/src/trips/presentation/trip-field-office.schema.ts` —
+  `parseOfficeDriverSelection` (corpo vazio/opcional, só `driverId?: uuid`, para os dois toques e a
+  chegada) e `parseOfficeStopOccurrenceRequest` (mesmo schema de `occurrenceSchema` de
+  `me-trip.schema.ts`, com `driverId` a mais). `parseIdempotencyKey` é **reaproveitado** de
+  `me-trip.schema.ts` (exportado), sem duplicar.
+
+**Auditoria (nova, `security.md` §10 — ator, alvo, IP, timestamp):**
+
+- `apps/api-transportada/src/trips/application/trip-field-office-audit.port.ts` —
+  `TripFieldOfficeAuditPort.record`. O IP viaja em `metadata` porque `audit_logs` não tem coluna
+  própria (nenhum gateway de auditoria existente no repositório grava IP em coluna — `security.md`
+  não exige coluna, só que o dado esteja na trilha).
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.ts` —
+  `createDrizzleTripFieldOfficeAudit`: uma linha por ação, `entityType: 'trip'` /
+  `entityId: tripId`, `targetType: 'trip_driver'` / `targetId: onBehalfOfDriverId`,
+  `permission: 'trip.report-on-behalf'`, `metadata: { ipAddress }`. Mesmo padrão de
+  `drizzle-group-audit.gateway.ts` e `drizzle-trip-document-review.repository.ts` (`insertAudit`).
+
+**Composição:** `apps/api-transportada/src/main.ts` — `DrizzleFieldTripTargetRepository` (T3, ainda
+não instanciada em produção) e `createDrizzleTripFieldOfficeAudit` ganham instância própria
+(`fieldTripTargetRepository`, `tripFieldOfficeAudit`); `createTripFieldOfficeRoutes` entra no array
+de rotas logo após `createMeTripRoutes`, reaproveitando `driverFieldReports`
+(`DrizzleDriverFieldReportUnitOfWork`) e `currentDriverTripRepository` — os mesmos que o motorista
+usa, sem instância paralela.
+
+**Testes (novos, listados em `package.json`):**
+
+- `test/trip-field-office.contract.test.ts` → `test/trip-field-office/policy.contract.ts` (aceite 1:
+  política das quatro rotas — `trip.report-on-behalf` só, `separator`/`driver` fora,
+  `company-admin`/`operator`/`finance` dentro) e `test/trip-field-office/routes.contract.ts`
+  (unitário com dublês: resolução do alvo, parâmetros repassados a cada caso de uso, envelope de
+  resposta, `audit_logs` gravado com os campos certos, 404/422/400 propagados pela rota sem
+  tradução).
+- `test/integration/trip-field-office.integration.ts` (**novo**, listado em `test:integration`) —
+  contra Postgres real, roteia por `route.execute(...)` com as dependências reais
+  (`DrizzleFieldTripTargetRepository`, `DrizzleCurrentDriverTripRepository`,
+  `DrizzleDriverFieldReportUnitOfWork`, `createDrizzleTripFieldOfficeAudit`): aceite 2 (start-route
+  em `in_transit` → `on_delivery_route`, `audit_logs` com o motorista de `position = 1`), aceite 13
+  (driverId de `position = 2` respeitado na chegada; fora da tripulação → 422
+  `DRIVER_NOT_ON_TRIP`, sem gravar `audit_logs`), aceite 3 (viagem de outra empresa → 404
+  `TRIP_NOT_FOUND`).
+
+### Decisões
+
+**Auditoria como escrita separada, fora da transação do relato de campo:** `dependencies.audit`
+grava depois que o caso de uso (que já correu dentro de `unitOfWork.execute`) devolveu — mesmo
+padrão de `GroupAuditPort`/`drizzle-group-audit.gateway.ts`, que também audita fora da transação do
+recurso. `security.md` §10 pede a trilha, não atomicidade com o efeito; e os casos de uso de campo
+(T3/T4) são opacos à rota — ela não tem acesso à transação interna deles para inserir junto.
+
+**`startFieldTrip`/`reportArrival`/`reportOccurrence` não ganharam `correlationId`/`ipAddress`:**
+esses dois campos só servem à auditoria, que é escrita separada (decisão acima); passá-los para
+dentro dos casos de uso do motorista mudaria a assinatura que a T3/T4 já fixou e que os testes
+existentes (`field-trip-target/use-cases.contract.ts`) prendem. A rota monta o registro de
+`audit_logs` com o que capturou no próprio `parse` (`correlationId`, `resolveClientIp`).
+
+**Chegada do escritório sem `location`:** o corpo do escritório (`parseOfficeDriverSelection`) não
+tem campo de coordenada — quem está no escritório não tem GPS de estrada para mandar. A porta
+(`ReportStopArrivalInput.location`) continua exigindo o campo por causa da assinatura do motorista;
+a rota do escritório sempre passa `null` na composição (`main.ts`), o mesmo "não aferida" que o
+motorista manda quando o aparelho não pegou sinal.
+
+**`registerDriverOccurrence`/`reportDocumentDelivery`/`reportDocumentReturn`/`attachDeliveryProof`
+ficam para a T6:** a spec 156 T5 lista nominalmente `confirm-load`, `start-route`, `arrive` e
+ocorrência de parada — as quatro rotas que espelham exatamente `me-trip.routes.ts` sem `documentId`
+no corpo. As ações sobre documento (`deliver`, `return`, `field-proof`, `deliveredAt`) têm regras
+próprias (idempotência prefixada `office.`, baixa repetida vira 409, canhoto obrigatório) que a T6
+descreve — implementá-las aqui seria antecipar uma task que ainda não foi escrita.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bun run --cwd apps/api-transportada test` → `6420 pass · 32 skip · 0 fail`, 22379 `expect()`,
+  179 arquivos. Falhou→verde: `test/trip-field-office.contract.test.ts` sozinho, antes da
+  implementação de `trip-field-office.routes.ts`, falhava com `Cannot find module
+'../../src/trips/presentation/trip-field-office.routes.js'`; depois de escrever a rota, os 13
+  testes do arquivo passaram.
+- `bun run --cwd apps/api-transportada build` → `Bundled 1050 modules`, sem erro.
+- De dentro de `apps/api-transportada`:
+  `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts ./test/integration/me-trip.integration.ts ./test/integration/field-trip-target.integration.ts ./test/integration/trip-field-authorship.integration.ts`
+  → `19 pass · 0 fail`, 80 `expect()`, 4 arquivos (a nova integração, mais as três que a T3/T4 já
+  tinham — nenhuma quebrou).
