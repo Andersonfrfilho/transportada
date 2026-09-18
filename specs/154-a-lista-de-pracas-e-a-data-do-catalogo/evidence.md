@@ -2310,8 +2310,8 @@ larguras: é neutro para o layout e tablet também é toque. O primitivo `@/comp
 não mudou — a regra fica escopada ao campo da Frota, como pedido.
 
 **Telas que usam o campo** (grep de `FleetDateField`): **3 telas, 7 campos** — aba **Pedágio**
-("Data da tarifa", 1 por praça), **ficha do motorista** na aba Motoristas ("Primeira habilitação",
-"Validade da CNH" e o terceiro campo de data da ficha) e o **cadastro rápido de motorista** que abre
+("Data da tarifa", 1 por praça), **ficha do motorista** na aba Motoristas ("Data de nascimento",
+"Primeira habilitação" e "Validade da CNH") e o **cadastro rápido de motorista** que abre
 do proprietário agregado em "Novo veículo" (os mesmos 3 campos).
 
 Medido no `vite preview` (Playwright, 1440×900 e 390×844), botão · ícone · gatilho, e
@@ -2356,3 +2356,73 @@ Prints (antes/depois, recorte do campo com os vizinhos): `/private/tmp/claude-50
 **Observação:** o mesmo botão de 18px existe em todo `DatePicker` fora da Frota (o primitivo não foi
 tocado). Levar a regra para `date-range-picker.module.css` resolve a app inteira de uma vez; fica
 como pendência explícita, fora do escopo pedido.
+
+#### Item 3 — diálogo modal em tela cheia no celular (#17 da T506)
+
+**Não há primitivo de diálogo no design system.** O molde comum tem duas metades: o comportamento é
+o hook `useModalDialog` (`modules/shared/useModalDialog.hook.ts` — foco preso, `Esc`, retorno do
+foco), usado por **39 diálogos modais** em 39 componentes; a forma é um par overlay/caixa que cada
+módulo declara no próprio CSS — **18 pares**. O §10 ("modal fullscreen em mobile; margem em desktop")
+e o molde **não divergem**: 13 dos 18 pares já nasciam em tela cheia na base e viravam caixa com
+margem em `@media (min-width: 40rem)` (identidade, viagem, NFS-e, CT-e, cadastro de motorista…). A
+T506 atribuiu ao molde o que era desvio de cinco pares — nenhuma decisão de produto em aberto, então
+segui.
+
+**Os 5 pares que ficavam em caixa flutuante no celular — 5 diálogos afetados:**
+
+| Par (arquivo)                                                     | Diálogo                                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| `fleet.module.css` `.overlay`/`.dialog`                           | `TollBoothCatalogReloadDialog` (recarga do catálogo)           |
+| `billingBulkCancel.module.css` `.overlay`/`.dialog`               | `BillingBulkCancelDialog` (cancelar faturas em lote)           |
+| `addressReport.module.css` `.mailOverlay`/`.mailDialog`           | `AddressCorrectionMailDialog` (e-mail de correção de endereço) |
+| `routing.module.css` `.multiVehicleOverlay`/`.multiVehicleDialog` | `MultiVehicleSuggestionDialog` (distribuição multi-veículo)    |
+| `contractorMailSettings.module.css` `.overlay`/`.dialog`          | arquivar modelo de e-mail (`ContractorMailTemplatesPanel`)     |
+
+Cada um recebeu a forma dos outros 13: na base, overlay `padding: 0` e caixa `width: 100%; height:
+100%; max-height: 100vh; align-content: start` (a caixa de arquivar modelo também ganhou
+`overflow-y: auto`, que não tinha); em `@media (min-width: 40rem)` voltam **os mesmos valores de
+antes** — margem `var(--space-4)`, largura `min(…rem, 100%)`, `max-height` 90/92vh — então o
+desktop não muda. Não há sheet de baixo: o §10 pede tela cheia.
+
+Fora da lista por não serem caixa de diálogo modal (declarados no contrato como exceção): gaveta
+lateral do histórico da NF-e, foto de ocorrência ampliada, aviso de carregamento da medição pela
+câmera; e os dois "diálogos" em linha, sem overlay (`.rejectDialog` das candidaturas/anexos e a
+confirmação `alertdialog` do painel de WhatsApp).
+
+Teste novo `test/design-system/modal-dialog-fullscreen.contract.ts` (registrado em
+`test/design-system.contract.test.ts`): para **cada um dos 18 pares**, overlay com `padding: 0` e
+caixa com `width: 100%`, `height: 100%`, `max-height: 100vh` na base, e `height: auto` +
+`width: min(…)` no tablet; e uma varredura de todo `*.module.css`: overlay `position: fixed` que
+não esteja na lista nem nas exceções reprova — um diálogo novo não nasce fora do molde sem alguém ver.
+
+```
+$ bun test ./test/design-system/modal-dialog-fullscreen.contract.ts     # antes do conserto
+(fail) … > src/modules/billing/styles/billingBulkCancel.module.css .dialog ocupa a tela no celular …
+(fail) … > src/modules/delivery-clients/styles/contractorMailSettings.module.css .dialog ocupa a tela …
+(fail) … > src/modules/fleet/styles/fleet.module.css .dialog ocupa a tela no celular …
+(fail) … > src/modules/nfe-workspace/styles/addressReport.module.css .mailDialog ocupa a tela …
+(fail) … > src/modules/routing/styles/routing.module.css .multiVehicleDialog ocupa a tela …
+ 14 pass
+ 5 fail
+$ bun test ./test/design-system/modal-dialog-fullscreen.contract.ts     # depois
+ 19 pass
+ 0 fail
+```
+
+Medido no `vite preview` em três dos cinco diálogos (caixa `getBoundingClientRect`, foco ao abrir,
+6 × Tab, `Esc`, foco depois de fechar):
+
+| Diálogo                    | 390×844 antes        | 390×844 depois        | 1440×900 antes = depois | foco ao abrir · Tab preso · Esc fecha · foco volta ao botão    |
+| -------------------------- | -------------------- | --------------------- | ----------------------- | -------------------------------------------------------------- |
+| Recarga do catálogo        | 358×270 em (16, 287) | **390×844 em (0, 0)** | 512×222 em (464, 339)   | ✓ · Fechar→Cancelar→Recarregar→Fechar · ✓ · ✓ (antes e depois) |
+| Distribuição multi-veículo | 358×298 em (16, 273) | **390×844 em (0, 0)** | 832×298 em (304, 301)   | ✓ · Fechar→Veículos→Motoristas→Fechar · ✓ · ✓                  |
+| Cancelar faturas em lote   | 358×404 em (16, 220) | **390×844 em (0, 0)** | 704×374 em (368, 263)   | ✓ · Fechar→motivo→Voltar→Confirmar→Fechar · ✓ · ✓              |
+
+Os dois diálogos não medidos (e-mail de correção de endereço e arquivar modelo) receberam a mesma
+mudança de CSS, coberta pelo contrato.
+
+Gates: exit 0 — contratos **4434 pass / 0 fail**, `test:hooks` **14 pass / 0 fail**, build ✓.
+
+Prints (página inteira, antes/depois, celular e desktop):
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/{before,after}-{mobile,desktop}-dialog-01-toll-reload.png`, `…-dialog-02-multi-vehicle.png`,
+`…-dialog-03-billing-bulk-cancel.png`.
