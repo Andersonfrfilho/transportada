@@ -435,3 +435,123 @@ Scalar nem teste que valide rota contra ele (`grep -ri openapi` em `src/` e `tes
 `docs/spec/architecture.md` só cita OpenAPI na tabela de stack). O registro exaustivo de rotas que
 existe hoje é o `separator-role.contract.test.ts`, e a rota nova entrou nele com a decisão escrita.
 Gerar OpenAPI das rotas é trabalho próprio, fora desta spec.
+
+## T9 — PWA: aviso, fotos pendentes, posição no anexo, nota do motorista
+
+Arquivos:
+
+- `apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts` — `proofPending`
+  no `DriverTripDocument`, `score` na raiz do `DriverTripSnapshot`, `ProofPunctuality` (cópia por
+  valor de `delivery-proof-punctuality.policy.ts`).
+- `driverTripResponse.validation.ts` — `proofPending` lenient (ausente vira `false`), `score`
+  lenient (fora de 0-100 ou ausente vira `null`) — nunca quebra a tela por um campo que ainda não
+  chegou.
+- `driverTripView.service.ts` — `isProofPendingWarningDue` (RF12) e `listProofPendingDocuments`
+  (a lista da tela de pendentes, achatada de todas as viagens do snapshot).
+- `DriverStopCard.component.tsx` — aviso (`proofPendingWarning`) antes do botão "Entreguei" quando
+  `proofSettings.photo === 'required'` e a nota ainda não foi entregue; nunca bloqueia o botão.
+  `DeliveryProofSection` exportada para reúso.
+- `pages/DriverPendingProofs.page.tsx` (novo) — lista as notas `proofPending`, reaproveita
+  `DeliveryProofSection`, mostra a pontualidade devolvida em linguagem simples quando ela chega.
+- `pages/DriverTripWorkspace.page.tsx` — atalho com contagem (`pendingProofs.open`), estado
+  `isPendingProofsOpen` no mesmo molde de `isQueueOpen`; `handleProof` compartilhado entre a tela
+  principal e a de pendentes.
+- `pages/DriverProfile.page.tsx` — seção "Sua nota" (`score` ou "sem nota ainda").
+- `offlineAttachments.service.ts` — **revisão do D6**: `enqueueAttachment` não recusa mais com
+  `event-not-queued`; sem evento de entrega na fila, usa uma chave sintética
+  (`documentAttachmentKey`, `document:${documentId}`) — o anexo de uma nota já entregue (em outra
+  sessão, ou pela tela de pendentes) entra na fila do mesmo jeito. `AttachmentSendOutcome`/
+  `AttachmentDrainResult` carregam a pontualidade devolvida por anexo enviado
+  (`attachmentsSent: {documentId, punctuality}[]`).
+- `driverTripClient.service.ts` — `attachProof` aceita `latitude`, `longitude`, `accuracyMeters`,
+  `capturedAt` no multipart e devolve `{id, punctuality}` (antes descartava a resposta).
+- `hooks/useDriverTrip.hook.ts` — `attachProof` sempre enfileira (nunca mais rota multipart direta:
+  o comentário antigo "entrega já enviada segue pela rota multipart direta" saiu); lê
+  `readCurrentLocation()` na captura; expõe `proofOutcomeByDocumentId` (a última pontualidade por
+  documento nesta sessão, atualizada no `onSuccess` da drenagem).
+- Locales (`driverTrip.locale.json`/`.en.locale.json`): `pendingProofs.*`, `proofPendingWarning`,
+  `profile.score(None)?`.
+
+Testes: `test/driver-trip/proof-pending.contract.ts` (novo — validação de `proofPending`/`score`,
+`isProofPendingWarningDue`, `listProofPendingDocuments`); `test/driver-trip/offline-attachments.contract.ts`
+ampliado — o teste antigo "sem evento na fila, devolve `event-not-queued`" virou "grava numa chave
+própria do documento" (comportamento mudou por decisão desta task, não regressão), mais o par
+offline→online do **aceite 8** (fica na fila sem rede, sobe quando ela volta, com `attachmentsSent`
+carregando a pontualidade); `test/driver-trip/dispatch.contract.ts` ajustado (o teste que fixava a
+string do caminho multipart direto passou a fixar a ausência dela, `not.toInclude('event-not-queued')`);
+fixtures de `occurrence.contract.ts`/`progress.contract.ts` ganharam `proofPending: false`.
+
+Comandos e resultado (`apps/frontend-transportada`):
+
+```
+$ bun run typecheck   # 0 erros
+$ bun run lint        # 0 erros
+$ bun run test        # 4357 pass / 0 fail (+ 2 pass test:hooks)
+$ bun run build       # ok
+```
+
+Desvio: a pontualidade só aparece na tela quando a foto sobe **nesta sessão** — o snapshot do
+motorista não carrega pontualidade por documento (só `proofPending`), e persistir isso no cliente
+ficaria fora do escopo desta task (a API não devolve o dado no snapshot, só no `/proof`).
+
+## T10 — Escritório: nota no seletor, na ficha e na frota
+
+Arquivos:
+
+- `fleet/shared/fleet.types.ts` + `fleet.constant.ts` — `FleetDriverPenalty`,
+  `FleetDriverScoreResult`, `DRIVER_PENALTY_REASONS`, `driverScorePath`.
+- `fleet/shared/fleetResponse.validation.ts` + `fleetClient.service.ts` — `readDriverScore` (`GET
+/fleet/drivers/:id/score`), guardas `isDriverPenalty`/`isDriverScoreResult` (nunca aceitam
+  coordenada — a chave está fora do `DRIVER_PENALTY_KEYS`).
+- `fleet/queries/useDriverScore.query.ts` (novo) — `enabled` só com `driverId` definido (nunca no
+  formulário de criação).
+- `fleet/components/DriverScoreBadge.component.tsx` (novo) — cor por faixa (`ready` ≥80, neutra
+  50-79, `alert` <50, `muted` sem histórico), tokens do design system (`--color-ready/alert/slate`).
+- `fleet/components/DriverList.component.tsx`/`DriverPanel.component.tsx` — coluna da nota na
+  listagem; tipo `FleetDriverListItem` propagado (o `score` deixou de se perder no viewmodel).
+- `fleet/components/DriverForm.component.tsx` — seção "Nota do motorista" na ficha (só quando
+  `driver !== undefined`, nunca na criação): badge + tabela de penalidades vigentes (nota fiscal,
+  entrega, motivo, pontos, expira em) — nenhuma coordenada.
+- `fleet/shared/driverRecommendation.service.ts` (novo) — `sortDriversByScore` (RF11): desc por
+  nota, `null` por último, empate por nome (`localeCompare` pt-BR). Pura, sem tela.
+- `trip/components/TripQuickCreateDialog.component.tsx`/`TripRouteAssemblyPanel.component.tsx`
+  (+ `TripRouteAssemblyDialog` para o tipo do prop) — `activeDrivers` ordenado por
+  `sortDriversByScore`; a nota entra como primeira linha da descrição da opção do motorista
+  (reaproveita `t('driverScore.*')` do módulo `fleet`, sem duplicar o texto).
+- `trip/shared/deliveryProofSettings.service.ts` — os cinco campos do RF7
+  (`DELIVERY_PROOF_PUNCTUALITY_FIELDS`, faixas idênticas às do Zod da API,
+  `DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS`), `CompanyDeliveryProofSettings` (quatro modos +
+  cinco parâmetros — a exceção por CNPJ continua só com os quatro modos).
+- `trip/shared/tripClient.service.ts` + `queries/useDeliveryProofSettings.query.ts` — `read`/`save`
+  trocam de `DeliveryProofFieldSettings` para `CompanyDeliveryProofSettings`; o `PUT` passa a mandar
+  os nove campos (a API exige o corpo `.strict()` inteiro).
+- `trip/components/TripDeliveryProofSettingsPanel.component.tsx` — cinco campos numéricos com
+  validação de faixa no campo (`aria-invalid` + mensagem), botão de salvar desabilitado enquanto
+  algum estiver fora da faixa.
+- Locales: `fleet.locale.json`/`.en` (`driverScore.*`, `penaltyReason.*`, `penaltyColumn.*`,
+  `driverScoreSectionTitle/Hint`, `driverPenaltiesTitle/Empty`); `trip.locale.json`/`.en`
+  (`deliveryProofSettings.punctuality.*`).
+
+Testes: `test/fleet/driver-recommendation.contract.ts` (novo — aceite 7: ordena por nota, `null`
+por último, empate por nome, não muta a entrada); `test/trip/delivery-proof-punctuality-settings.contract.ts`
+(novo — faixas idênticas às da API, `isCompanyDeliveryProofSettings`, rótulo de cada campo no
+locale).
+
+Comandos e resultado (raiz do monorepo e `apps/frontend-transportada`):
+
+```
+$ bun run typecheck   # raiz, todas as apps — 0 erros
+$ bun run lint        # raiz, todas as apps — 0 erros
+$ bun run test        # apps/frontend-transportada — 4357 pass / 0 fail (+ 2 pass test:hooks)
+$ bun run build       # apps/frontend-transportada — ok
+```
+
+Desvio: `GET /fleet/drivers/:id/score` não tem cache de query além do padrão do TanStack Query — a
+ficha relê a nota a cada abertura, como as demais consultas da ficha do motorista; não há
+invalidação dedicada porque nada nesta tela grava penalidade (ela é derivada de entregas, fora do
+alcance da ficha).
+
+Rotas para print (T12): `/fleet` (aba de motoristas — coluna e ficha), `/trip` (aba "Comprovante de
+entrega" — painel de configuração; diálogo de criação rápida e de montagem de rota — seletor de
+motoristas), `/minha-viagem` (card da parada com aviso, Perfil com a nota, tela de fotos pendentes
+via o atalho no topo).

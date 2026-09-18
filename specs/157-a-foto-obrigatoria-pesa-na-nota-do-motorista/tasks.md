@@ -53,10 +53,10 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 
 ## Fase 4 — telas
 
-- [ ] **T9** PWA: tipos/validação, aviso no card, página de pendentes, posição + `capturedAt` no anexo,
+- [x] **T9** PWA: tipos/validação, aviso no card, página de pendentes, posição + `capturedAt` no anexo,
       anexo na fila sem `deliver` pendente, nota do motorista. Aceite: caso 8 em
       `test/driver-trip/offline-attachments.contract.ts`, contratos de view.
-- [ ] **T10** Escritório: `DriverScoreBadge`, ordenação no seletor, penalidades na ficha, campos no
+- [x] **T10** Escritório: `DriverScoreBadge`, ordenação no seletor, penalidades na ficha, campos no
       painel de configuração. Aceite: caso 7 em contratos de serviço puro.
 
 ## Fase 5–6
