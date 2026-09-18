@@ -42,6 +42,7 @@ type RouteDependencies = {
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly listDeliveryAddressHistory: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listStops: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readTripActionSnapshot: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listTripCosts: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listTrips: { execute(input: ExecuteCall): Promise<typeof TRIP_PAGE> }
   readonly loadTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
@@ -67,6 +68,8 @@ type RouteDependencies = {
 }
 
 type CreateFixtureParams = {
+  /** Spec 156 D10: o recorte que `GET /trips/:id/allowed-actions` avalia. */
+  readonly tripActionSnapshot?: unknown
   readonly batchStatusError?: Error
   readonly setMdfeRequirementError?: Error
   readonly batchStatusResult?: unknown
@@ -304,6 +307,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         listStopsCalls.push(structuredClone(input))
         return params.listStopsResult ?? { stops: [] }
+      },
+    },
+    readTripActionSnapshot: {
+      async execute() {
+        return params.tripActionSnapshot
       },
     },
     listTripCosts: {

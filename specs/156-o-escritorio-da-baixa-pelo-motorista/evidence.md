@@ -854,3 +854,80 @@ Decisões do líder:
   `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts
 ./test/integration/trip-detail-query-count.integration.ts ./test/integration/me-trip.integration.ts
 ./test/integration/trip-repository.integration.ts` → `19 pass · 0 fail · 0 skip`, 153 `expect()`.
+
+### T7.2 — `GET /trips/:id/allowed-actions`
+
+**Arquivos:**
+
+- `src/trips/domain/trip-allowed-actions.policy.ts` (**novo**, puro). `resolveTripAllowedActions`
+  compõe `checkTripTransition` e `checkTripDocumentTransition`, sem tabela paralela:
+  - Uma ação entra só se a máquina a aplicaria agora (`applied`).
+  - O barracão (`trip.manage`) recebe `separate`, `load`, `planRoute`, `dispatch` e `cancel`, além
+    de `occurrence`, que sai de `resolveOperatorTripActions` (M2).
+  - A baixa (`trip.report-on-behalf`, e só com motorista na viagem) recebe `confirmLoad`,
+    `startRoute`, `arrive`, a ocorrência de parada, `fieldDelivery`, `fieldReturn`, `fieldProof` e
+    `fieldOccurrence`.
+  - **Sem `deliver`/`return` do barracão (A1).**
+  - `resolveTripHasRoute` espelha o SQL de `readRouteState`, ignorando a nota liberada e a nota
+    devolvida sem parada (A2).
+- `src/trips/application/read-trip-action-snapshot.use-case.ts` e
+  `src/trips/infrastructure/trip-action-snapshot.query.ts` (**novos**): o recorte leve (estado,
+  paradas, notas e contagem da tripulação), filtrado por `companyId`. Viagem de outra empresa
+  responde 404 `TRIP_NOT_FOUND`.
+- `src/trips/presentation/trip.routes.ts`: a rota nova, com `TRIP_FIELD_READ_POLICY`. As capacidades
+  vêm das permissões do contexto (M1: rota própria, fora do detalhe).
+- `src/main.ts`: a ligação.
+- Frontend `src/modules/trip/shared/tripAllowedActions.validation.ts` (**novo**,
+  `parseTripAllowedActions`, B4): forma estrita, ids de nota e de parada ⊆ os da viagem, e nome de
+  ação desconhecido filtrado. A T8 é quem liga isso à tela.
+
+**Testes:**
+
+- `test/trip-allowed-actions.contract.test.ts` (**entrypoint novo**, listado no `package.json`) →
+  `trip-allowed-actions/policy.contract.ts`:
+  - Aceite 4.
+  - A1, nos dois sentidos: o separador sem ação de rua, e o `finance` sem ação do barracão.
+  - M2.
+  - `unchanged` fora da lista.
+  - Nota liberada e viagem sem motorista não recebem ação.
+  - Viagem cancelada e viagem concluída.
+  - A parada com e sem chegada.
+  - Os dois toques da ADR-0058.
+  - As quatro bordas de `resolveTripHasRoute`.
+- `test/trip-http/allowed-actions.contract.ts`:
+  - **Aceite 4 por HTTP:** o `operator`, em `on_delivery_route`, recebe `fieldDelivery` e
+    `fieldReturn` na nota `loaded`, e não recebe `deliver`.
+  - O separador recebe 200 sem ação de campo.
+  - O `finance` recebe 200 só com a baixa.
+  - Sem nenhuma das duas permissões, 403.
+- `test/integration/trip-field-office.integration.ts` (estendido):
+  - A2 contra o Postgres: `readRouteState` e `resolveTripHasRoute` concordam em cinco passos
+    (viagem normal; + nota devolvida sem parada; + nota liberada sem parada; + nota viva sem parada;
+    sem paradas).
+  - O recorte da própria empresa, e `null` para outra empresa.
+- Frontend `test/trip/allowed-actions-validation.contract.ts`.
+- `test/trip-field-office/finance-read.contract.ts` e `separator-role.contract.test.ts`: as listas
+  exaustivas ganham `GET /trips/:id/allowed-actions`, porque a rota é nova e a política é a mesma.
+  No separador, a decisão ficou escrita ao lado da linha.
+
+**Vermelho → verde:**
+
+- `bun test ./test/trip-allowed-actions.contract.test.ts ./test/trip-http/allowed-actions.contract.ts`
+  sem a política e a rota falhava com `Cannot find module '…/trip-allowed-actions.policy.js'` e 4
+  falhas de HTTP (404, porque a rota não existia). Com a T7.2, passa verde.
+- Frontend: antes `0 pass · 1 fail` (`Cannot find module …/tripAllowedActions.validation`), depois
+  `978 pass · 0 fail` em `trip.contract.test.ts`.
+- A primeira rodada verde mostrou um erro **meu** no contrato: a máquina **aplica** `separate` numa
+  nota `loaded` antes do despacho (`checkDocumentOrigin`), então ela entra na lista. O contrato foi
+  corrigido para afirmar isso e para confirmar que `load` (`unchanged`) não entra.
+
+**Gates:**
+
+- `bun run typecheck` (raiz) → exit 0, com 0 `error TS`.
+- `bun run lint` (raiz) → exit 0, com 0 erros.
+- `bunx prettier --check .` → limpo.
+- `bun run --cwd apps/api-transportada test` → `6476 pass · 32 skip · 0 fail`, 22563 `expect()`,
+  180 arquivos (+23 em relação à T7.1).
+- `bun run --cwd apps/frontend-transportada test` → `4325 pass · 0 fail`.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts
+./test/integration/trip-lifecycle.integration.ts` → `13 pass · 0 fail · 0 skip`, 61 `expect()`.

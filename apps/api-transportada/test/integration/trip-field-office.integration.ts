@@ -9,7 +9,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
@@ -51,6 +51,9 @@ import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructu
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
 import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
+import { resolveTripHasRoute } from '../../src/trips/domain/trip-allowed-actions.policy.js'
+import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
+import { readTripActionSnapshot } from '../../src/trips/infrastructure/trip-action-snapshot.query.js'
 
 /** As rotas do escritório nunca colhem assinatura (D8) — o comprovante do canhoto é sempre `photo`. */
 const FAKE_ENVELOPE = { ciphertext: 'x', iv: 'y', keyId: 'test', tag: 'z' } as never
@@ -470,6 +473,90 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 })
 
+/**
+ * Spec 156 T7.2, ressalva A2: `resolveTripHasRoute` é cópia do SQL de `readRouteState`, e as duas
+ * precisam concordar na mesma viagem — inclusive com a nota devolvida sem parada, que o SQL ignora.
+ */
+describe('allowed-actions: o recorte e o roteiro batem com o SQL (spec 156 D10, A2)', () => {
+  testWithPostgres('resolveTripHasRoute concorda com readRouteState a cada passo', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+
+      async function compare(expected: boolean): Promise<void> {
+        const snapshot = await readTripActionSnapshot(database.db, {
+          companyId: company.companyId,
+          tripId: trip.tripId,
+        })
+        const route = await routeRepository.readRouteState({
+          companyId: company.companyId,
+          tripId: trip.tripId,
+        })
+        const copy = resolveTripHasRoute({
+          documents: snapshot?.documents ?? [],
+          stopCount: snapshot?.stops.length ?? 0,
+        })
+        expect(route?.hasRoute).toBe(expected)
+        expect(copy).toBe(expected)
+      }
+
+      await compare(true)
+      await seedExtraDocument(database, company, trip, {
+        returnReason: 'recusa',
+        separationStatus: 'returned',
+      })
+      await compare(true)
+      await seedExtraDocument(database, company, trip, {
+        releasedAt: new Date('2026-09-18T09:00:00.000Z'),
+        separationStatus: 'pending',
+      })
+      await compare(true)
+      await seedExtraDocument(database, company, trip, { separationStatus: 'pending' })
+      await compare(false)
+      await database.db.delete(tripDocuments).where(isNull(tripDocuments.stopId))
+      await database.db.update(tripDocuments).set({ stopId: null })
+      await database.db.delete(tripStops).where(eq(tripStops.tripId, trip.tripId))
+      await compare(false)
+    })
+  })
+
+  testWithPostgres(
+    'o recorte traz estado, parada, nota e motorista, e outra empresa não vê',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const other = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+
+        const snapshot = await readTripActionSnapshot(database.db, {
+          companyId: company.companyId,
+          tripId: trip.tripId,
+        })
+        expect(snapshot).toEqual({
+          documents: [
+            {
+              id: trip.documentId,
+              releasedAt: null,
+              separationStatus: 'loaded',
+              stopId: trip.stopId,
+            },
+          ],
+          hasDriver: true,
+          status: 'in_transit',
+          stops: [{ arrivedAt: null, id: trip.stopId }],
+        })
+        expect(
+          await readTripActionSnapshot(database.db, {
+            companyId: other.companyId,
+            tripId: trip.tripId,
+          }),
+        ).toBeNull()
+      })
+    },
+  )
+})
+
 function wireRoutes(database: TestDatabase) {
   const targets = new DrizzleFieldTripTargetRepository(database.db)
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
@@ -630,6 +717,29 @@ async function seedStopArrival(
   arrivedAt: Date,
 ): Promise<void> {
   await database.db.update(tripStops).set({ arrivedAt }).where(eq(tripStops.id, trip.stopId))
+}
+
+/** Nota a mais na viagem, sem parada — o caso que decide se o roteiro existe (A2). */
+async function seedExtraDocument(
+  database: TestDatabase,
+  company: Company,
+  trip: SeededTrip,
+  input: {
+    readonly releasedAt?: Date
+    readonly returnReason?: string
+    readonly separationStatus: 'pending' | 'returned'
+  },
+): Promise<void> {
+  await database.db.insert(tripDocuments).values({
+    companyId: company.companyId,
+    id: crypto.randomUUID(),
+    nfeDocumentId: await seedNfeDocument(database, company),
+    releasedAt: input.releasedAt ?? null,
+    returnReason: input.returnReason ?? null,
+    separationStatus: input.separationStatus,
+    stopId: null,
+    tripId: trip.tripId,
+  })
 }
 
 /** ADR-0067 §3: a fonte de "quando a viagem despachou" para validar `deliveredAt`/`returnedAt`. */

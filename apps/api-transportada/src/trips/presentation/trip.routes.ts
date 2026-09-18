@@ -23,6 +23,10 @@ import type {
 import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import {
+  resolveTripAllowedActions,
+  type AllowedActionsTripSnapshot,
+} from '../domain/trip-allowed-actions.policy.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
 import type { AutomaticManifestResult } from '../../mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
@@ -116,6 +120,7 @@ import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
+const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
 /**
@@ -433,6 +438,10 @@ type Dependencies = {
     }): Promise<TripValuation>
   }
   readonly listStops: { execute(input: TenantInput<TripIdInput>): Promise<ListTripStopsResult> }
+  /** Spec 156 D10: o recorte leve que decide as ações permitidas (`GET /trips/:id/allowed-actions`). */
+  readonly readTripActionSnapshot: {
+    execute(input: TenantInput<TripIdInput>): Promise<AllowedActionsTripSnapshot>
+  }
   readonly listTrips: { execute(input: TenantInput<ListTripsInput>): Promise<TripPage> }
   readonly loadTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -1328,6 +1337,33 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_STOPS_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
+    }),
+    /**
+     * Spec 156 D10 (ressalva M1): rota própria, e não chave do detalhe — o validador do detalhe no
+     * frontend recusa chave desconhecida, e uma aba com bundle antigo cairia inteira. A lista é
+     * calculada aqui, pela máquina de estados e pelas permissões de quem pergunta.
+     */
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const snapshot = await dependencies.readTripActionSnapshot.execute({
+          context: context.scope,
+          ...input,
+        })
+        const allowedActions = resolveTripAllowedActions({
+          capabilities: {
+            canManage: context.scope.permissions.has(TRIP_MANAGE_POLICY.permission),
+            canReportOnBehalf: context.scope.permissions.has(TRIP_REPORT_ON_BEHALF_PERMISSION),
+          },
+          trip: snapshot,
+        })
+        return jsonResponse({ body: { data: allowedActions }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_ALLOWED_ACTIONS_PATH,
       policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<Omit<ReorderStopsInput, 'context'>>({

@@ -150,6 +150,12 @@ describe('separator role contract', () => {
       'GET /trip-occurrences/:id/attachments',
       'GET /trips',
       'GET /trips/:id',
+      /**
+       * Spec 156 D10: as ações permitidas da viagem, e o separador as lê — decisão registrada aqui.
+       * A lista é recortada pelas permissões dele: recebe as do barracão (separar, carregar, roteiro,
+       * despacho) e **nenhuma** de rua (`deliver`, `return`, `field*`), pela ressalva A1.
+       */
+      'GET /trips/:id/allowed-actions',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       /**
        * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada

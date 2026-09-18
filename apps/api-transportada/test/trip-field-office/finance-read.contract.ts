@@ -105,9 +105,11 @@ function reachableRoutes(context: AuthenticatedContext<CompanyContext>): readonl
     .toSorted()
 }
 
-const FIVE_READS = [
+/** As cinco leituras da D11 e a lista de ações da D10 (ressalva M1), com a mesma política. */
+const FIELD_READS = [
   'GET /trips',
   'GET /trips/:id',
+  'GET /trips/:id/allowed-actions',
   'GET /trips/:id/documents/:documentId/occurrences',
   'GET /trips/:id/documents/:documentId/proof',
   'GET /trips/:id/stops',
@@ -214,6 +216,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
     expect(reachableRoutes(roleContext('finance'))).toEqual([
       'GET /trips',
       'GET /trips/:id',
+      'GET /trips/:id/allowed-actions',
       'GET /trips/:id/costs',
       'GET /trips/:id/documents/:documentId/occurrences',
       'GET /trips/:id/documents/:documentId/proof',
@@ -249,25 +252,26 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
     }
   })
 
-  it('o operator e o separator seguem alcançando as cinco (fleet.read)', () => {
+  it('o operator e o separator seguem alcançando as seis (fleet.read)', () => {
     for (const role of ['operator', 'separator', 'viewer'] as const) {
       const reachable = new Set(reachableRoutes(roleContext(role)))
-      for (const signature of FIVE_READS) expect(reachable.has(signature)).toBe(true)
+      for (const signature of FIELD_READS) expect(reachable.has(signature)).toBe(true)
     }
   })
 
-  it('o motorista não alcança nenhuma das cinco', () => {
+  it('o motorista não alcança nenhuma das seis', () => {
     const reachable = new Set(reachableRoutes(roleContext('driver')))
-    for (const signature of FIVE_READS) expect(reachable.has(signature)).toBe(false)
+    for (const signature of FIELD_READS) expect(reachable.has(signature)).toBe(false)
   })
 
-  it('as cinco respondem 200 ao finance', async () => {
+  it('as seis respondem 200 ao finance', async () => {
     const results: Readonly<Record<string, unknown>> = {
       getTrip: TRIP_DETAIL,
       listStops: { stops: [] },
       listTripOccurrences: [],
       listTrips: TRIP_PAGE,
       readDeliveryProofs: [],
+      readTripActionSnapshot: { documents: [], hasDriver: true, status: 'draft', stops: [] },
     }
     const dependencies = new Proxy(
       {},
@@ -278,7 +282,7 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
     const authorization = new AuthorizationService()
     const pathParameters = { documentId: DOCUMENT_ID, id: TRIP_ID }
 
-    for (const signature of FIVE_READS) {
+    for (const signature of FIELD_READS) {
       const route = routes.find(
         (candidate) => `${candidate.method} ${candidate.pathname}` === signature,
       )

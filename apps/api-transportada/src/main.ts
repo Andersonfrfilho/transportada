@@ -224,6 +224,8 @@ import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-lay
 import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
 import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
+import { readTripActionSnapshot } from './trips/application/read-trip-action-snapshot.use-case.js'
+import { readTripActionSnapshot as readTripActionSnapshotQuery } from './trips/infrastructure/trip-action-snapshot.query.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
@@ -2933,6 +2935,16 @@ function createApplicationRoutes({
           }),
       },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
+      readTripActionSnapshot: {
+        execute: (input) =>
+          readTripActionSnapshot({
+            companyId: input.context.companyId,
+            repository: {
+              readTripActionSnapshot: (query) => readTripActionSnapshotQuery(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
       listTrips: { execute: (input) => trips.list(input) },
       loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },
       planTripRoute: { execute: (input) => tripLifecycle.planRoute.execute(input) },
