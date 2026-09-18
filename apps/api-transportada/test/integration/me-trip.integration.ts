@@ -553,6 +553,126 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
+   * Spec 157 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
+   * obrigatórias que faltam continuam listadas em `pendingProofs`, e o `/proof` ainda as aceita.
+   */
+  testWithPostgres(
+    'a última entrega conclui a viagem e a pendente continua listada (spec 157 T11)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const readSnapshot = () =>
+          findCurrentDriverTrip({
+            companyId: world.companyId,
+            membershipId: world.membershipId,
+            now: new Date(),
+            repository: reads,
+            scores: new DrizzleDriverScoreRepository(database.db),
+          })
+
+        for (const [index, stopId] of world.stopIds.entries()) {
+          await reportStopArrival({
+            ...context,
+            idempotencyKey: `chegada-pendente-${String(index)}`,
+            location: null,
+            now: NOW,
+            stopId,
+            unitOfWork,
+          })
+        }
+        const [firstDocumentId, secondDocumentId, lastDocumentId] = world.documentIds
+        await reportDocumentDelivery({
+          ...context,
+          documentId: firstDocumentId ?? '',
+          idempotencyKey: 'entrega-pendente-1',
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        await reportDocumentReturn({
+          ...context,
+          documentId: secondDocumentId ?? '',
+          idempotencyKey: 'retorno-pendente-2',
+          location: null,
+          now: NOW,
+          reason: 'establishment_closed',
+          unitOfWork,
+        })
+        const last = await reportDocumentDelivery({
+          ...context,
+          documentId: lastDocumentId ?? '',
+          idempotencyKey: 'entrega-pendente-3',
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        expect(last.tripCompleted).toBe(true)
+
+        const afterCompletion = await readSnapshot()
+        expect(afterCompletion.trips).toEqual([])
+        expect(afterCompletion.pendingProofs.map((proof) => proof.documentId).sort()).toEqual(
+          [firstDocumentId, lastDocumentId].sort(),
+        )
+        expect(
+          afterCompletion.pendingProofs.find((proof) => proof.documentId === lastDocumentId),
+        ).toMatchObject({
+          deliveryProof: { photo: 'required' },
+          documentNumber: '3',
+          documentSeries: '1',
+          recipientName: 'Destinatario 3',
+          tripId: world.tripId,
+          tripStatus: 'completed',
+        })
+
+        // O `/proof` alcança a viagem concluída, e a nota sai da lista.
+        await attachDeliveryProof({
+          ...context,
+          documentId: lastDocumentId ?? '',
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(),
+          repository: new DrizzleDeliveryProofRepository(database.db),
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage: { store: async () => ({ sha256: 'f'.repeat(64) }) },
+          upload: {
+            attachmentKey: 'foto-depois-de-concluir',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: undefined,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: undefined,
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        const afterPhoto = await readSnapshot()
+        expect(afterPhoto.pendingProofs.map((proof) => proof.documentId)).toEqual([firstDocumentId])
+
+        // O motorista de outra empresa não vê a pendência deste (tenant).
+        const other = await seedDriverOnly(database)
+        const otherSnapshot = await findCurrentDriverTrip({
+          companyId: other.companyId,
+          membershipId: other.membershipId,
+          now: new Date(),
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+        expect(otherSnapshot.pendingProofs).toEqual([])
+      })
+    },
+  )
+
+  /**
    * O filtro de tenant, exercitado: o motorista da outra empresa **não** enxerga esta viagem, e a
    * parada dela não é alcançável por ele. Contrato com dublê passaria com o `where` errado.
    */
@@ -570,7 +690,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         repository: reads,
         scores: new DrizzleDriverScoreRepository(database.db),
       })
-      expect(opened).toEqual({ isRegisteredDriver: true, score: null, trips: [] })
+      expect(opened).toEqual({
+        isRegisteredDriver: true,
+        pendingProofs: [],
+        score: null,
+        trips: [],
+      })
 
       const attempt = reportStopArrival({
         actorUserId: stranger.userId,
@@ -703,7 +828,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         scores: new DrizzleDriverScoreRepository(database.db),
       })
 
-      expect(opened).toEqual({ isRegisteredDriver: false, score: null, trips: [] })
+      expect(opened).toEqual({
+        isRegisteredDriver: false,
+        pendingProofs: [],
+        score: null,
+        trips: [],
+      })
     })
   })
 })

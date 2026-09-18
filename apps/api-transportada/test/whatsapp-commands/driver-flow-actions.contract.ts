@@ -164,6 +164,7 @@ function buildDriverTrip(input: {
   )
   return {
     isRegisteredDriver: true,
+    pendingProofs: [],
     trips: [
       {
         id: TRIP_ID,
@@ -368,7 +369,12 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const result = await callAction({
       channel,
       deps: buildDeps({
-        findCurrentTrip: async () => ({ isRegisteredDriver: true, score: null, trips: [] }),
+        findCurrentTrip: async () => ({
+          isRegisteredDriver: true,
+          pendingProofs: [],
+          score: null,
+          trips: [],
+        }),
       }),
       kind: DRIVER_FLOW_ACTION_KIND.currentTrip,
     })
@@ -382,7 +388,12 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     await callAction({
       channel,
       deps: buildDeps({
-        findCurrentTrip: async () => ({ isRegisteredDriver: false, score: null, trips: [] }),
+        findCurrentTrip: async () => ({
+          isRegisteredDriver: false,
+          pendingProofs: [],
+          score: null,
+          trips: [],
+        }),
       }),
       kind: DRIVER_FLOW_ACTION_KIND.currentTrip,
     })

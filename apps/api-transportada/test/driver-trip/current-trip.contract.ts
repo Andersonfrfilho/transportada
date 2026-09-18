@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   findCurrentDriverTrip,
   type CurrentDriverTripPort,
+  type DriverPendingProof,
   type DriverTrip,
 } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 
@@ -23,12 +24,18 @@ function buildTrip(id: string): DriverTrip {
 
 function buildRepository(input: {
   readonly driverId?: string | null
+  readonly pendingProofs?: readonly DriverPendingProof[]
   readonly trips?: readonly DriverTrip[]
-}): CurrentDriverTripPort & { readonly asked: Array<Record<string, string>> } {
+}): CurrentDriverTripPort & {
+  readonly asked: Array<Record<string, string>>
+  readonly askedPending: Array<Record<string, unknown>>
+} {
   const asked: Array<Record<string, string>> = []
+  const askedPending: Array<Record<string, unknown>> = []
 
   return {
     asked,
+    askedPending,
     findDriverIdByMembership: async (params) => {
       asked.push(params)
       return input.driverId === undefined ? DRIVER_ID : input.driverId
@@ -37,7 +44,27 @@ function buildRepository(input: {
       asked.push(params)
       return input.trips ?? []
     },
+    listPendingProofs: async (params) => {
+      askedPending.push(params)
+      return input.pendingProofs ?? []
+    },
   }
+}
+
+const PENDING_PROOF: DriverPendingProof = {
+  deliveredAt: '2026-09-17T15:00:00.000Z',
+  deliveryProof: {
+    photo: 'required',
+    receiverDocument: 'off',
+    receiverName: 'optional',
+    signature: 'optional',
+  },
+  documentId: 'trip-document-1',
+  documentNumber: '1234',
+  documentSeries: '1',
+  recipientName: 'Destinatario',
+  tripId: 'trip-completed',
+  tripStatus: 'completed',
 }
 
 describe('a viagem do motorista é resolvida pelo servidor', () => {
@@ -67,7 +94,12 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
       repository: buildRepository({ trips: [] }),
     })
 
-    expect(result).toEqual({ isRegisteredDriver: true, score: null, trips: [] })
+    expect(result).toEqual({
+      isRegisteredDriver: true,
+      pendingProofs: [],
+      score: null,
+      trips: [],
+    })
   })
 
   /**
@@ -86,9 +118,51 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
       repository,
     })
 
-    expect(result).toEqual({ isRegisteredDriver: false, score: null, trips: [] })
+    expect(result).toEqual({
+      isRegisteredDriver: false,
+      pendingProofs: [],
+      score: null,
+      trips: [],
+    })
     // E não pergunta por viagem de um motorista que não existe
     expect(repository.asked).toHaveLength(1)
+  })
+
+  /**
+   * Spec 157 T11 (ALTO 1): a última entrega conclui a viagem, ela sai de `trips`, e a foto pendente
+   * precisa continuar alcançável — o bloco `pendingProofs` vem na raiz, inclusive sem viagem ativa.
+   */
+  it('devolve as fotos pendentes do motorista mesmo sem viagem ativa', async () => {
+    const repository = buildRepository({ pendingProofs: [PENDING_PROOF], trips: [] })
+
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
+
+    expect(result.trips).toEqual([])
+    expect(result.pendingProofs).toEqual([PENDING_PROOF])
+    expect(repository.askedPending).toEqual([
+      { companyId: COMPANY_ID, driverId: DRIVER_ID, now: NOW },
+    ])
+  })
+
+  it('conta sem cadastro de motorista não pergunta pelas fotos pendentes', async () => {
+    const repository = buildRepository({ driverId: null, pendingProofs: [PENDING_PROOF] })
+
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
+
+    expect(result.pendingProofs).toEqual([])
+    expect(repository.askedPending).toEqual([])
   })
 
   /** Dois veículos, dois dias: a 056 não impede, e quem escolhe é o motorista. */

@@ -1,0 +1,17 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 157 T11 (§16): os literais que a entrega, a foto e a nota do motorista repetiam em cada
+ * consulta. Tipados pelos catálogos do schema — um erro de digitação não compila.
+ */
+import type {
+  TripDeliveryProofKind,
+  TripDocumentSeparationStatus,
+  TripStopEventKind,
+} from '../../database/trip.schema.js'
+
+export const DELIVERED_EVENT_KIND = 'delivered' satisfies TripStopEventKind
+export const DELIVERED_DOCUMENT_STATUS = 'delivered' satisfies TripDocumentSeparationStatus
+export const PHOTO_PROOF_KIND = 'photo' satisfies TripDeliveryProofKind
+/** A parte da NF-e que recebe a entrega — é o CNPJ dela que resolve a exceção do comprovante. */
+export const RECIPIENT_PARTICIPANT_ROLE = 'recipient'

@@ -95,6 +95,25 @@ export type DriverTrip = {
   readonly vehiclePlate: string
 }
 
+/**
+ * Spec 157 T11 (ALTO 1): a nota entregue pelo próprio motorista nos 90 dias, com foto obrigatória
+ * e sem foto. Vem na raiz do snapshot, fora das viagens: a última entrega conclui a viagem e ela
+ * sai de `trips`, mas a foto ainda pode chegar pelo `/proof` (que aceita viagem `completed`).
+ */
+export type DriverPendingProof = {
+  /** `trip_stop_events.captured_at ?? recorded_at` da entrega — a mesma hora que a nota usa. */
+  readonly deliveredAt: string
+  /** A configuração resolvida da nota, a mesma de `DriverTripDocument.deliveryProof`. */
+  readonly deliveryProof: DeliveryProofFieldSettings
+  /** O id que o `/proof` recebe (`trip_documents.id`). */
+  readonly documentId: string
+  readonly documentNumber: string
+  readonly documentSeries: string
+  readonly recipientName: string
+  readonly tripId: string
+  readonly tripStatus: string
+}
+
 export type CurrentDriverTripPort = {
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   findDriverIdByMembership(input: {
@@ -105,6 +124,11 @@ export type CurrentDriverTripPort = {
     readonly companyId: string
     readonly driverId: string
   }): Promise<readonly DriverTrip[]>
+  listPendingProofs(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly now: Date
+  }): Promise<readonly DriverPendingProof[]>
 }
 
 export type FindCurrentDriverTripInput = {
@@ -123,6 +147,8 @@ export type FindCurrentDriverTripResult = {
    * cadastro" não é "nada para hoje". Sem esta distinção o segundo caso esconde o primeiro.
    */
   readonly isRegisteredDriver: boolean
+  /** Spec 157 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
+  readonly pendingProofs: readonly DriverPendingProof[]
   /** ADR-0068 §6, spec 157 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
   readonly score: number | null
   readonly trips: readonly DriverTrip[]
@@ -142,12 +168,15 @@ export async function findCurrentDriverTrip(
     companyId: input.companyId,
     membershipId: input.membershipId,
   })
-  if (driverId === null) return { isRegisteredDriver: false, score: null, trips: [] }
+  if (driverId === null) {
+    return { isRegisteredDriver: false, pendingProofs: [], score: null, trips: [] }
+  }
 
-  const [trips, scores] = await Promise.all([
+  const [trips, pendingProofs, scores] = await Promise.all([
     input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
+    input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now }),
     input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
   ])
 
-  return { isRegisteredDriver: true, score: scores.get(driverId) ?? null, trips }
+  return { isRegisteredDriver: true, pendingProofs, score: scores.get(driverId) ?? null, trips }
 }

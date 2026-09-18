@@ -1,13 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import {
   tripDeliveryProofs,
@@ -19,8 +20,12 @@ import {
 } from '../../database/trip.schema.js'
 import { tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
+import { DRIVER_SCORE_WINDOW_DAYS } from '../../fleet/domain/driver-score.policy.js'
+import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
+import { FIELD_TRIP_TARGET_KIND } from '../application/field-trip-target.types.js'
 import type {
   CurrentDriverTripPort,
+  DriverPendingProof,
   DriverStopSchedule,
   DriverTrip,
   DriverTripManifest,
@@ -31,8 +36,16 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
+import {
+  DELIVERED_DOCUMENT_STATUS,
+  DELIVERED_EVENT_KIND,
+  PHOTO_PROOF_KIND,
+  RECIPIENT_PARTICIPANT_ROLE,
+} from '../domain/delivery-event.constant.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
-import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -51,7 +64,7 @@ import { recordTripStatusChange } from './trip-status-event.persistence.js'
 const ACTIVE_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
-const RECIPIENT_ROLE = 'recipient'
+const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
 
 /** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
 const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
@@ -258,6 +271,161 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
+   * Spec 157 T11 (ALTO 1): as notas que **este** motorista entregou nos 90 dias, com foto
+   * obrigatória resolvida e sem foto no último `delivered`, em qualquer viagem que o `/proof` ainda
+   * alcança (`TRIP_DISPATCHED_STATUSES`, inclusive `completed`, e o mesmo recorte de tripulação de
+   * `findDeliveryEventId`). O último evento é o da nota, de qualquer autor; quem ele é se decide
+   * depois — se o escritório deu a baixa, a pendência não é do motorista.
+   */
+  public async listPendingProofs(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly now: Date
+  }): Promise<readonly DriverPendingProof[]> {
+    const windowStart = new Date(
+      input.now.getTime() - DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY,
+    )
+    const [rows, accountUserId, proofSettings] = await Promise.all([
+      this.listLastDeliveries({ ...input, windowStart }),
+      this.findDriverAccountUserId(input),
+      this.readProofSettings({ companyId: input.companyId }),
+    ])
+
+    return rows.flatMap((row) => {
+      const isOwnDelivery =
+        row.channel !== TRIP_FIELD_CHANNELS.office &&
+        (row.reportedByDriverId === input.driverId ||
+          (row.reportedByDriverId === null && row.actorUserId === accountUserId))
+      if (!isOwnDelivery || row.hasPhoto || row.separationStatus !== DELIVERED_DOCUMENT_STATUS)
+        return []
+
+      const deliveryProof = resolveProofSettingsForRecipient({
+        lookup: proofSettings,
+        recipientTaxId: row.recipientTaxId ?? '',
+      })
+      if (deliveryProof.photo !== 'required') return []
+
+      return [
+        {
+          deliveredAt: (row.capturedAt ?? row.recordedAt).toISOString(),
+          deliveryProof,
+          documentId: row.tripDocumentId,
+          documentNumber: row.documentNumber ?? '',
+          documentSeries: row.documentSeries ?? '',
+          recipientName: row.recipientName ?? '',
+          tripId: row.tripId,
+          tripStatus: row.tripStatus,
+        },
+      ]
+    })
+  }
+
+  /** A conta ligada hoje ao cadastro — só para o evento antigo, sem `reported_by_driver_id`. */
+  private async findDriverAccountUserId(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<string | null> {
+    const [record] = await this.database
+      .select({ userId: userCompanyMemberships.userId })
+      .from(fleetDrivers)
+      .innerJoin(
+        userCompanyMemberships,
+        and(
+          eq(userCompanyMemberships.companyId, fleetDrivers.companyId),
+          eq(userCompanyMemberships.id, fleetDrivers.membershipId),
+        ),
+      )
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+      .limit(1)
+
+    return record?.userId ?? null
+  }
+
+  /**
+   * O último `delivered` de cada nota da janela nas viagens da tripulação deste motorista, com o
+   * autor, a nota fiscal e se a foto chegou. O desempate é o mesmo da nota do motorista
+   * (`created_at`, depois `id`). Toda tabela com o `company_id` do contexto.
+   */
+  private async listLastDeliveries(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly windowStart: Date
+  }) {
+    return this.database
+      .selectDistinctOn([tripStopEvents.tripDocumentId], {
+        actorUserId: tripStopEvents.actorUserId,
+        capturedAt: tripStopEvents.capturedAt,
+        channel: tripStopEvents.channel,
+        documentNumber: nfeDocuments.number,
+        documentSeries: nfeDocuments.series,
+        hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
+        recipientName: nfeParticipants.legalName,
+        recipientTaxId: nfeParticipants.taxId,
+        recordedAt: tripStopEvents.recordedAt,
+        reportedByDriverId: tripStopEvents.reportedByDriverId,
+        separationStatus: tripDocuments.separationStatus,
+        tripDocumentId: tripDocuments.id,
+        tripId: trips.id,
+        tripStatus: trips.status,
+      })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripDocuments,
+        and(
+          eq(tripDocuments.companyId, tripStopEvents.companyId),
+          eq(tripDocuments.id, tripStopEvents.tripDocumentId),
+        ),
+      )
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .leftJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.companyId, tripDocuments.companyId),
+          eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+        ),
+      )
+      .leftJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, tripDocuments.companyId),
+          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(nfeParticipants.role, RECIPIENT_ROLE),
+        ),
+      )
+      .leftJoin(
+        tripDeliveryProofs,
+        and(
+          eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
+          eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
+          eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+          gte(
+            sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
+            input.windowStart,
+          ),
+          inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
+          fieldTripTargetCondition({
+            driverId: input.driverId,
+            kind: FIELD_TRIP_TARGET_KIND.driver,
+          }),
+        ),
+      )
+      .orderBy(
+        tripStopEvents.tripDocumentId,
+        desc(tripStopEvents.createdAt),
+        desc(tripStopEvents.id),
+      )
+  }
+
+  /**
    * Uma consulta para as viagens todas, não uma por viagem: o motorista costuma levar uma, mas o
    * agregado leva três, e um `await` por viagem seria N+1 no caminho que abre a tela dele.
    *
@@ -442,17 +610,23 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
           eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
-          eq(tripDeliveryProofs.kind, 'photo'),
+          eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
         ),
       )
       .where(
         and(
           eq(tripStopEvents.companyId, input.companyId),
-          eq(tripStopEvents.kind, 'delivered'),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
           inArray(tripStopEvents.tripDocumentId, [...input.documentIds]),
         ),
       )
-      .orderBy(tripStopEvents.tripDocumentId, desc(tripStopEvents.createdAt))
+      // Spec 157 T11: o mesmo desempate da nota do motorista — sem o `id`, empate de `created_at`
+      // deixava o snapshot e a nota lerem eventos diferentes da mesma nota.
+      .orderBy(
+        tripStopEvents.tripDocumentId,
+        desc(tripStopEvents.createdAt),
+        desc(tripStopEvents.id),
+      )
 
     return new Map(
       rows.flatMap((row) =>
