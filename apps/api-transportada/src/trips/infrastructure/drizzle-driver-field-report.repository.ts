@@ -27,6 +27,7 @@ import type {
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
@@ -37,6 +38,7 @@ import {
 } from '../domain/trip-state.policy.js'
 import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -540,6 +542,10 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     })
 
     return true
+  }
+
+  public async recordOfficeAudit(input: TripFieldOfficeAuditInput): Promise<void> {
+    await insertTripFieldOfficeAudit(this.transaction, input)
   }
 
   public async recordEvent(input: Parameters<DriverFieldReportTransactionPort['recordEvent']>[0]) {

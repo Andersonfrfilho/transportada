@@ -48,7 +48,8 @@ import {
   runWithStoredObjectCleanup,
   type RemovableObjectStoragePort,
 } from './stored-object-cleanup.service.js'
-import { withFieldReport } from './trip-field-report.port.js'
+import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
+import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 /**
  * ADR-0067 §2 (emenda): o escritório não herda o no-op do motorista — dias depois, uma segunda baixa
@@ -69,6 +70,8 @@ export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly idempotencyKey: string
   readonly location: ReportedLocation | null
   readonly now: Date
+  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da baixa. */
+  readonly officeAudit?: OfficeAuditRequest
   /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
   readonly recordedAt?: Date
   readonly unitOfWork: DriverFieldReportUnitOfWork
@@ -291,7 +294,7 @@ async function runOutcomeTransaction(context: {
         authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
-        operation,
+        operation: resolveFieldReportOperation({ locator: input, operation }),
         transaction,
       },
       async () => {
@@ -430,6 +433,14 @@ async function runOutcomeTransaction(context: {
           pendingSettings,
           transaction,
         })
+        const audit = buildOfficeAuditEntry({
+          actorUserId: input.actorUserId,
+          audit: input.officeAudit,
+          companyId: input.companyId,
+          details: { documentId: input.documentId, stopId: document.stopId },
+          locator: input,
+        })
+        if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
         return { alreadySettled, id: event.id, proofId, proofPending, stopCompleted, tripCompleted }
       },

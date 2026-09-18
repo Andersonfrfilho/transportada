@@ -13,7 +13,7 @@ import type { FieldTripTargetPort } from '../application/field-trip-target.port.
 import type { ResolvedTripFieldTarget } from '../application/field-trip-target.types.js'
 import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
 import type { RegisterOfficeDocumentOccurrencesResult } from '../application/register-office-document-occurrences.use-case.js'
-import type { TripFieldOfficeAuditPort } from '../application/trip-field-office-audit.port.js'
+import type { OfficeAuditRequest } from '../application/trip-field-office-audit.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
   OFFICE_REPORT_POLICY,
@@ -27,7 +27,6 @@ const OFFICE_DOCUMENT_OCCURRENCES_PATH = `${OFFICE_TRIP_PATH}/documents/field-oc
 const OFFICE_OCCURRENCES_AUDIT_ACTION = 'trip_field_office.document_occurrences'
 
 export type TripFieldOfficeOccurrenceDependencies = {
-  readonly audit: TripFieldOfficeAuditPort
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
   }) => Promise<readonly FieldOccurrenceType[]>
@@ -39,6 +38,7 @@ export type TripFieldOfficeOccurrenceDependencies = {
     readonly idempotencyKey: string
     readonly note: string
     readonly occurrenceTypeId: string
+    readonly officeAudit: OfficeAuditRequest
     readonly target: ResolvedTripFieldTarget
   }) => Promise<RegisterOfficeDocumentOccurrencesResult>
   readonly targets: FieldTripTargetPort
@@ -70,7 +70,8 @@ export function createTripFieldOfficeOccurrenceRoutes(
     }),
     /**
      * D7: a mesma ocorrência de rua em várias notas, uma transação, uma `Idempotency-Key` por lote.
-     * `201` com uma ocorrência por nota, na ordem do pedido; `audit_logs` numa linha, com as notas.
+     * `201` com uma ocorrência por nota, na ordem do pedido; `audit_logs` numa linha, com as notas,
+     * gravada na transação do lote (spec 156 T15 M11).
      */
     defineRoute<{
       readonly attachment: { readonly bytes: Uint8Array; readonly mimeType: string } | null
@@ -98,17 +99,12 @@ export function createTripFieldOfficeOccurrenceRoutes(
           idempotencyKey: input.idempotencyKey,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
+          officeAudit: {
+            action: OFFICE_OCCURRENCES_AUDIT_ACTION,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_OCCURRENCES_AUDIT_ACTION,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          documentIds: input.documentIds,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({ body: { data: { items: result.items } }, status: 201 })

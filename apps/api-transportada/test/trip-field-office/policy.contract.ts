@@ -15,7 +15,6 @@ const NOT_CALLED = () => {
 
 const routes = createTripFieldOfficeRoutes({
   attachProof: NOT_CALLED,
-  audit: { record: NOT_CALLED },
   reportArrival: NOT_CALLED,
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,

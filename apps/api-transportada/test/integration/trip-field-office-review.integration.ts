@@ -12,6 +12,7 @@ import { companyDeliveryProofSettings } from '../../src/database/company-deliver
 import { auditLogs } from '../../src/database/database.schema.js'
 import {
   tripDeliveryProofs,
+  tripFieldReports,
   tripStatusEvents,
   tripStopEvents,
   tripStops,
@@ -548,6 +549,126 @@ describe('a baixa de campo adianta a viagem para on_delivery_route (T15 M4, ADR-
           .from(tripStatusEvents)
           .where(eq(tripStatusEvents.tripId, trip.tripId))
         expect(events).toEqual([{ fromStatus: 'in_transit', toStatus: 'completed' }])
+      })
+    },
+  )
+})
+
+describe('auditoria na mesma unidade de trabalho e operation office. (T15 M8, M11, seg B1, aceite 7)', () => {
+  testWithPostgres(
+    'aceite 7: a mesma Idempotency-Key em field-delivery não duplica evento, comprovante nem auditoria',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const [, , , , deliverRoute] = wireRoutes(database)
+        const send = () =>
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-aceite-7',
+            pathParameters: { documentId: trip.documentId, id: trip.tripId },
+            request: multipartRequest({
+              fields: {
+                attachmentKey: 'canhoto-1',
+                deliveredAt: '2026-09-18T09:00:00.000Z',
+                receiverName: 'Ana',
+              },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: 'review-aceite-7',
+            }),
+          })
+
+        const first = (await (await send()).json()) as { data: { id: string } }
+        const second = (await (await send()).json()) as { data: { id: string } }
+
+        expect(second.data.id).toBe(first.data.id)
+        expect(await database.db.select().from(tripDeliveryProofs)).toHaveLength(1)
+        expect(
+          await database.db
+            .select()
+            .from(tripStopEvents)
+            .where(eq(tripStopEvents.tripDocumentId, trip.documentId)),
+        ).toHaveLength(1)
+        const audits = await database.db
+          .select({ metadata: auditLogs.metadata })
+          .from(auditLogs)
+          .where(eq(auditLogs.entityId, trip.tripId))
+        expect(audits).toHaveLength(1)
+        expect(audits[0]?.metadata).toMatchObject({ documentId: trip.documentId })
+      })
+    },
+  )
+
+  testWithPostgres('M8: as operações do escritório gravam com o prefixo office.', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const [, , arriveRoute, occurrenceRoute, deliverRoute] = wireRoutes(database)
+      await arriveRoute!.execute({
+        context: fakeContext(company),
+        correlationId: 'review-m8-arrive',
+        pathParameters: { id: trip.tripId, stopId: trip.stopId },
+        request: jsonRequest({
+          body: { arrivedAt: '2026-09-18T08:00:00.000Z' },
+          idempotencyKey: 'review-m8-arrive',
+        }),
+      })
+      await occurrenceRoute!.execute({
+        context: fakeContext(company),
+        correlationId: 'review-m8-occurrence',
+        pathParameters: { id: trip.tripId, stopId: trip.stopId },
+        request: jsonRequest({ body: { kind: 'long_wait' }, idempotencyKey: 'review-m8-occ' }),
+      })
+      await deliverRoute!.execute({
+        context: fakeContext(company),
+        correlationId: 'review-m8-deliver',
+        pathParameters: { documentId: trip.documentId, id: trip.tripId },
+        request: multipartRequest({
+          fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+          idempotencyKey: 'review-m8-deliver',
+        }),
+      })
+
+      const operations = await database.db
+        .select({ operation: tripFieldReports.operation })
+        .from(tripFieldReports)
+      expect(operations.map((row) => row.operation).toSorted()).toEqual([
+        'office.document.deliver',
+        'office.stop.arrive',
+        'office.stop.occurrence',
+      ])
+      const audits = await database.db
+        .select({ action: auditLogs.action, metadata: auditLogs.metadata })
+        .from(auditLogs)
+        .where(eq(auditLogs.entityId, trip.tripId))
+      expect(
+        audits.find((row) => row.action === 'trip_field_office.stop_arrive')?.metadata,
+      ).toMatchObject({ stopId: trip.stopId })
+    })
+  })
+
+  testWithPostgres(
+    'B1: start-route repetido (changed: false) não grava auditoria nova',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const [, startRouteRoute] = wireRoutes(database)
+        const start = () =>
+          startRouteRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-b1',
+            pathParameters: { id: trip.tripId },
+            request: jsonRequest({}),
+          })
+
+        await start()
+        const repeated = (await (await start()).json()) as { data: { changed: boolean } }
+
+        expect(repeated.data.changed).toBe(false)
+        expect(
+          await database.db.select().from(auditLogs).where(eq(auditLogs.entityId, trip.tripId)),
+        ).toHaveLength(1)
       })
     },
   )

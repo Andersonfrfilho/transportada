@@ -3,7 +3,22 @@
  */
 import { TripFieldReportKeyReusedError } from '../domain/trip.error.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
-import type { FieldAuthorship } from './field-trip-target.types.js'
+import type { FieldAuthorship, FieldTripLocator } from './field-trip-target.types.js'
+
+/**
+ * Spec 156 T15 M8 (ADR-0067 §2): o escritório reserva a chave numa `operation` própria, prefixada
+ * `office.` — a mesma chave não confirma a ação do motorista nem a do escritório uma pela outra.
+ */
+export const OFFICE_FIELD_OPERATION_PREFIX = 'office.'
+
+export function resolveFieldReportOperation(input: {
+  readonly locator: FieldTripLocator
+  readonly operation: string
+}): string {
+  return input.locator.target === undefined
+    ? input.operation
+    : `${OFFICE_FIELD_OPERATION_PREFIX}${input.operation}`
+}
 
 export type FieldReportGuardInput = {
   readonly actorUserId: string

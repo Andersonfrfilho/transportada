@@ -119,6 +119,9 @@ export function createFieldReportUnitOfWork(
     },
     completeStopIfSettled: async () => state.stopCompletes,
     completeTripIfSettled: async () => state.tripCompletes,
+    recordOfficeAudit: async (input) => {
+      state.calls.push(`recordOfficeAudit:${input.action}`)
+    },
     advanceTripFromSettledDocuments: async (input) => {
       state.calls.push(`advanceTripFromSettledDocuments:${input.tripId}`)
       return false

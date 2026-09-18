@@ -26,6 +26,7 @@ import {
   type OfficeProofPersistResult,
 } from './office-delivery-proof.service.js'
 import { runWithStoredObjectCleanup } from './stored-object-cleanup.service.js'
+import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const FIELD_PROOF_OPERATION = 'office.document.proof'
@@ -36,6 +37,8 @@ export type ReportFieldProofInput = {
   readonly companyId: string
   readonly documentId: string
   readonly idempotencyKey: string
+  /** Spec 156 T15 M11: a trilha nasce na transação do comprovante, com o objeto substituído. */
+  readonly officeAudit: OfficeAuditRequest
   readonly target: ResolvedTripFieldTarget
   readonly unitOfWork: DriverFieldReportUnitOfWork
   readonly upload: OfficeDeliveryProofUpload
@@ -73,7 +76,7 @@ export async function reportFieldProof(
             })
             if (event === null) throw new TripDocumentNotReachableError()
 
-            return persistOfficeProof({
+            const persisted = await persistOfficeProof({
               actorUserId: input.actorUserId,
               attachment: input.attachment,
               authorship,
@@ -83,6 +86,19 @@ export async function reportFieldProof(
               transaction,
               upload: input.upload,
             })
+            const audit = buildOfficeAuditEntry({
+              actorUserId: input.actorUserId,
+              audit: input.officeAudit,
+              companyId: input.companyId,
+              details: {
+                documentId: input.documentId,
+                replacedObjectId: persisted.replacedObjectId,
+              },
+              locator: { target: input.target },
+            })
+            if (audit !== undefined) await transaction.recordOfficeAudit(audit)
+
+            return persisted
           },
           async (resultId) => ({ id: resultId, replacedObjectId: null }),
         ),

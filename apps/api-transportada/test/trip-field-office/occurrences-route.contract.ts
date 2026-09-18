@@ -73,10 +73,8 @@ function multipartRequest(input: {
 }
 
 function buildDependencies() {
-  const audits: unknown[] = []
   const registered: unknown[] = []
   const dependencies: TripFieldOfficeOccurrenceDependencies = {
-    audit: { record: async (input) => void audits.push(input) },
     listFieldOccurrenceTypes: async () => [{ id: TYPE_ID, name: 'Cliente ausente' }],
     registerOccurrences: async (input) => {
       registered.push(input)
@@ -92,7 +90,7 @@ function buildDependencies() {
       }),
     },
   }
-  return { audits, dependencies, registered }
+  return { dependencies, registered }
 }
 
 function findRoute(method: string) {
@@ -149,8 +147,8 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     expect(await response.json()).toEqual({ data: [{ id: TYPE_ID, name: 'Cliente ausente' }] })
   })
 
-  it('POST resolve o alvo, registra o lote e audita com as notas', async () => {
-    const { audits, dependencies, registered } = buildDependencies()
+  it('POST resolve o alvo, registra o lote e pede a trilha ao caso de uso', async () => {
+    const { dependencies, registered } = buildDependencies()
     const route = createTripFieldOfficeOccurrenceRoutes(dependencies).find(
       (candidate) => candidate.method === 'POST',
     )
@@ -178,16 +176,13 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
       idempotencyKey: 'lote-1',
       note: 'Portão fechado',
       occurrenceTypeId: TYPE_ID,
+      officeAudit: {
+        action: 'trip_field_office.document_occurrences',
+        correlationId: 'c-2',
+        ipAddress: expect.any(String),
+      },
       target: { onBehalfOfDriverId: DRIVER_ID, tripId: TRIP_ID },
     })
-    expect(audits).toEqual([
-      expect.objectContaining({
-        action: 'trip_field_office.document_occurrences',
-        documentIds: [DOCUMENT_ID],
-        onBehalfOfDriverId: DRIVER_ID,
-        tripId: TRIP_ID,
-      }),
-    ])
   })
 
   it('POST valida o corpo na borda: vazio, mais de 50, repetido, campo a mais e sem chave → 400', async () => {

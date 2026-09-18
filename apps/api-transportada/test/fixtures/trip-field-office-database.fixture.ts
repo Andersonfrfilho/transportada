@@ -47,7 +47,6 @@ import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructu
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
-import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
 import { registerOfficeDocumentOccurrences } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
 import { readOccurrenceLabelsForDocuments } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
@@ -161,7 +160,6 @@ export function wireOccurrenceRoute(database: TestDatabase) {
   const sent: { dedupeKey: string; recipientUserId: string }[] = []
   const uploads: { objectId: string; objectKey: string }[] = []
   const routes = createTripFieldOfficeOccurrenceRoutes({
-    audit: createDrizzleTripFieldOfficeAudit(database.db),
     listFieldOccurrenceTypes: async () => [],
     registerOccurrences: (input) =>
       registerOfficeDocumentOccurrences({
@@ -233,7 +231,6 @@ export function wireRoutes(
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
   const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
-  const audit = createDrizzleTripFieldOfficeAudit(database.db)
   const attachment = {
     newObjectId: () => crypto.randomUUID(),
     newProofId: () => crypto.randomUUID(),
@@ -251,11 +248,11 @@ export function wireRoutes(
         companyId: input.companyId,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
+        officeAudit: input.officeAudit,
         target: input.target,
         unitOfWork: driverFieldReports,
         upload: input.proof,
       }),
-    audit,
     reportArrival: (input) =>
       reportStopArrival({
         ...input,

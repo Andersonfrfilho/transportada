@@ -41,11 +41,12 @@ import {
   runWithStoredObjectCleanup,
   type RemovableObjectStoragePort,
 } from './stored-object-cleanup.service.js'
+import type { OfficeAuditRequest } from './trip-field-office-audit.port.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 export type OfficeOccurrenceBatchTransactionPort = Pick<
   DriverFieldReportTransactionPort,
-  'claim' | 'settle'
+  'claim' | 'recordOfficeAudit' | 'settle'
 > & {
   findOccurrenceType(input: {
     readonly companyId: string
@@ -131,6 +132,8 @@ export type RegisterOfficeDocumentOccurrencesParams = {
   readonly note: string
   readonly notifications: OfficeOccurrenceNotificationsPort
   readonly occurrenceTypeId: string
+  /** Spec 156 T15 M11: a trilha do lote nasce na transação do lote; o reenvio não grava de novo. */
+  readonly officeAudit: OfficeAuditRequest
   readonly target: ResolvedTripFieldTarget
   readonly unitOfWork: OfficeOccurrenceBatchUnitOfWork
 }
@@ -251,6 +254,14 @@ async function performBatch(context: BatchContext): Promise<BatchOutcome> {
 
   const attachmentObjectId = await persistBatchAttachment(context)
   const items = await recordItems({ attachmentObjectId, context, occurrenceType })
+  await context.transaction.recordOfficeAudit({
+    ...context.officeAudit,
+    actorUserId: context.actorUserId,
+    companyId: context.companyId,
+    documentIds: context.documentIds,
+    onBehalfOfDriverId: context.target.onBehalfOfDriverId,
+    tripId: context.target.tripId,
+  })
   return { id: firstItemId(items), items, occurrenceType }
 }
 

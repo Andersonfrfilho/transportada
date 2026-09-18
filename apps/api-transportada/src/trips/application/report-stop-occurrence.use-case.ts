@@ -10,7 +10,8 @@ import {
   toFieldTripTarget,
   type FieldTripLocator,
 } from './field-trip-target.types.js'
-import { withFieldReport } from './trip-field-report.port.js'
+import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
+import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 const OCCURRENCE_OPERATION = 'stop.occurrence'
 /** O único tipo de ocorrência que fala de dinheiro. Os demais viram pendência operacional. */
@@ -48,6 +49,8 @@ export type ReportStopOccurrenceInput = FieldTripLocator & {
   readonly documentId: string | null
   readonly idempotencyKey: string
   readonly kind: TripStopOccurrenceKind
+  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
+  readonly officeAudit?: OfficeAuditRequest
   readonly stopId: string
   /**
    * Spec 060 D4c: a ocorrência de **cobrança** vira sugestão na fila do escritório. Ausente, a
@@ -82,7 +85,7 @@ export async function reportStopOccurrence(
         authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
-        operation: OCCURRENCE_OPERATION,
+        operation: resolveFieldReportOperation({ locator: input, operation: OCCURRENCE_OPERATION }),
         transaction,
       },
       async () => {
@@ -101,6 +104,18 @@ export async function reportStopOccurrence(
           })
           if (document === null) throw new TripDocumentNotReachableError()
         }
+
+        const audit = buildOfficeAuditEntry({
+          actorUserId: input.actorUserId,
+          audit: input.officeAudit,
+          companyId: input.companyId,
+          details: {
+            ...(input.documentId === null ? {} : { documentId: input.documentId }),
+            stopId: input.stopId,
+          },
+          locator: input,
+        })
+        if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
         return transaction.recordOccurrence({
           actorUserId: input.actorUserId,

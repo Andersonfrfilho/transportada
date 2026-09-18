@@ -16,7 +16,7 @@ import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
-import type { TripFieldOfficeAuditPort } from '../application/trip-field-office-audit.port.js'
+import type { OfficeAuditRequest } from '../application/trip-field-office-audit.port.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
 import {
   FIELD_TRIP_TARGET_KIND,
@@ -81,6 +81,8 @@ export const OFFICE_REPORT_POLICY = {
 type OfficeContextInput = {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 156 T15 M11: a trilha nasce na transação da ação, no caso de uso — não depois, aqui. */
+  readonly officeAudit: OfficeAuditRequest
 }
 
 export type TripFieldOfficeDependencies = {
@@ -92,7 +94,6 @@ export type TripFieldOfficeDependencies = {
       readonly target: ResolvedTripFieldTarget
     },
   ) => Promise<OfficeProofPersistResult>
-  readonly audit: TripFieldOfficeAuditPort
   readonly reportArrival: (
     input: OfficeContextInput & {
       /** ADR-0067 §3, spec 156 T15 A1: quando a chegada aconteceu, já validada contra a janela. */
@@ -190,22 +191,18 @@ export function createTripFieldOfficeRoutes(
             tripId: input.tripId,
           })
           const result = await dependencies.startFieldTrip({
+            officeAudit: {
+              action:
+                step === FIELD_TRIP_STEP.confirmLoad
+                  ? OFFICE_AUDIT_ACTION.confirmLoad
+                  : OFFICE_AUDIT_ACTION.startRoute,
+              correlationId: input.correlationId,
+              ipAddress: input.ipAddress,
+            },
             actorUserId: context.scope.userId,
             companyId: context.scope.companyId,
             step,
             target,
-          })
-          await dependencies.audit.record({
-            action:
-              step === FIELD_TRIP_STEP.confirmLoad
-                ? OFFICE_AUDIT_ACTION.confirmLoad
-                : OFFICE_AUDIT_ACTION.startRoute,
-            actorUserId: context.scope.userId,
-            companyId: context.scope.companyId,
-            correlationId: input.correlationId,
-            ipAddress: input.ipAddress,
-            onBehalfOfDriverId: target.onBehalfOfDriverId,
-            tripId: target.tripId,
           })
 
           return jsonResponse({
@@ -245,21 +242,17 @@ export function createTripFieldOfficeRoutes(
           tripId: input.tripId,
         })
         const result = await dependencies.reportArrival({
+          officeAudit: {
+            action: OFFICE_AUDIT_ACTION.arrive,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           actorUserId: context.scope.userId,
           arrivedAt: input.arrivedAt,
           companyId: context.scope.companyId,
           idempotencyKey: input.idempotencyKey,
           stopId: input.stopId,
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_AUDIT_ACTION.arrive,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
@@ -300,6 +293,11 @@ export function createTripFieldOfficeRoutes(
           tripId: input.tripId,
         })
         const result = await dependencies.reportOccurrence({
+          officeAudit: {
+            action: OFFICE_AUDIT_ACTION.occurrence,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           description: input.description,
@@ -309,15 +307,6 @@ export function createTripFieldOfficeRoutes(
           kind: input.kind,
           stopId: input.stopId,
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_AUDIT_ACTION.occurrence,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
@@ -359,6 +348,11 @@ export function createTripFieldOfficeRoutes(
           tripId: input.tripId,
         })
         const result = await dependencies.reportDelivery({
+          officeAudit: {
+            action: OFFICE_AUDIT_ACTION.deliver,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           deliveredAt: input.deliveredAt,
@@ -366,15 +360,6 @@ export function createTripFieldOfficeRoutes(
           idempotencyKey: input.idempotencyKey,
           proof: input.proof,
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_AUDIT_ACTION.deliver,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({
@@ -425,6 +410,11 @@ export function createTripFieldOfficeRoutes(
           tripId: input.tripId,
         })
         const result = await dependencies.reportReturn({
+          officeAudit: {
+            action: OFFICE_AUDIT_ACTION.return,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           documentId: input.documentId,
@@ -432,15 +422,6 @@ export function createTripFieldOfficeRoutes(
           reason: input.reason,
           returnedAt: input.returnedAt,
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_AUDIT_ACTION.return,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({
@@ -495,22 +476,17 @@ export function createTripFieldOfficeRoutes(
           tripId: input.tripId,
         })
         const result = await dependencies.attachProof({
+          officeAudit: {
+            action: OFFICE_AUDIT_ACTION.proof,
+            correlationId: input.correlationId,
+            ipAddress: input.ipAddress,
+          },
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           documentId: input.documentId,
           idempotencyKey: input.idempotencyKey,
           proof: input.proof,
           target,
-        })
-        await dependencies.audit.record({
-          action: OFFICE_AUDIT_ACTION.proof,
-          replacedObjectId: result.replacedObjectId,
-          actorUserId: context.scope.userId,
-          companyId: context.scope.companyId,
-          correlationId: input.correlationId,
-          ipAddress: input.ipAddress,
-          onBehalfOfDriverId: target.onBehalfOfDriverId,
-          tripId: target.tripId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })

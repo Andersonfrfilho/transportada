@@ -55,11 +55,6 @@ function jsonRequest(input: { readonly body?: object; readonly idempotencyKey?: 
   })
 }
 
-function buildAuditDouble() {
-  const calls: unknown[] = []
-  return { calls, record: async (input: unknown) => void calls.push(input) }
-}
-
 function buildTargetsDouble(crew: FieldTripCrew | null) {
   const calls: unknown[] = []
   return {
@@ -100,12 +95,10 @@ async function expectApiError(
 }
 
 describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
-  it('resolve o alvo pela empresa do contexto e grava audit_logs com o motorista de position 1', async () => {
-    const audit = buildAuditDouble()
+  it('resolve o alvo pela empresa do contexto e pede a trilha (audit_logs) ao caso de uso com o motorista de position 1', async () => {
     const targets = buildTargetsDouble(TWO_DRIVERS)
     const startCalls: unknown[] = []
     const dependencies: TripFieldOfficeDependencies = {
-      audit,
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,
@@ -129,6 +122,11 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
     expect(targets.calls).toEqual([{ companyId: COMPANY_ID, tripId: TRIP_ID }])
     expect(startCalls).toEqual([
       {
+        officeAudit: {
+          action: 'trip_field_office.confirm_load',
+          correlationId: 'correlation-1',
+          ipAddress: 'unknown',
+        },
         actorUserId: ACTOR_USER_ID,
         companyId: COMPANY_ID,
         step: 'confirmLoad',
@@ -138,17 +136,6 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
           tripId: TRIP_ID,
           tripStatus: 'in_transit',
         },
-      },
-    ])
-    expect(audit.calls).toEqual([
-      {
-        action: 'trip_field_office.confirm_load',
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        correlationId: 'correlation-1',
-        ipAddress: 'unknown',
-        onBehalfOfDriverId: FIRST_DRIVER,
-        tripId: TRIP_ID,
       },
     ])
     expect(response.status).toBe(200)
@@ -161,7 +148,6 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
     const targets = buildTargetsDouble(TWO_DRIVERS)
     const startCalls: unknown[] = []
     const [, startRouteRoute] = createTripFieldOfficeRoutes({
-      audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,
@@ -188,7 +174,6 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
 
   it('aceite 3: viagem de outra empresa ou inexistente responde 404 TRIP_NOT_FOUND, nunca 403', async () => {
     const [confirmLoadRoute] = createTripFieldOfficeRoutes({
-      audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,
@@ -212,7 +197,6 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
 
   it('id de viagem malformado responde 400, nunca 500', async () => {
     const [confirmLoadRoute] = createTripFieldOfficeRoutes({
-      audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,
@@ -236,12 +220,10 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
 })
 
 describe('a chegada do escritório (spec 156 T5)', () => {
-  it('exige idempotency-key, resolve o alvo e grava audit_logs', async () => {
-    const audit = buildAuditDouble()
+  it('exige idempotency-key, resolve o alvo e pede a trilha (audit_logs) ao caso de uso', async () => {
     const targets = buildTargetsDouble(TWO_DRIVERS)
     const arrivalCalls: unknown[] = []
     const [, , arriveRoute] = createTripFieldOfficeRoutes({
-      audit,
       reportArrival: async (input) => {
         arrivalCalls.push(input)
         return { id: 'event-1' }
@@ -263,6 +245,11 @@ describe('a chegada do escritório (spec 156 T5)', () => {
 
     expect(arrivalCalls).toEqual([
       {
+        officeAudit: {
+          action: 'trip_field_office.stop_arrive',
+          correlationId: 'correlation-5',
+          ipAddress: 'unknown',
+        },
         actorUserId: ACTOR_USER_ID,
         arrivedAt: expect.any(Date),
         companyId: COMPANY_ID,
@@ -276,17 +263,6 @@ describe('a chegada do escritório (spec 156 T5)', () => {
         },
       },
     ])
-    expect(audit.calls).toEqual([
-      {
-        action: 'trip_field_office.stop_arrive',
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        correlationId: 'correlation-5',
-        ipAddress: 'unknown',
-        onBehalfOfDriverId: FIRST_DRIVER,
-        tripId: TRIP_ID,
-      },
-    ])
     expect(response.status).toBe(201)
     expect(await response.json()).toEqual({ data: { id: 'event-1' } })
   })
@@ -294,7 +270,6 @@ describe('a chegada do escritório (spec 156 T5)', () => {
   it('sem idempotency-key responde 400, antes de resolver o alvo', async () => {
     const targets = buildTargetsDouble(TWO_DRIVERS)
     const [, , arriveRoute] = createTripFieldOfficeRoutes({
-      audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,
@@ -319,12 +294,10 @@ describe('a chegada do escritório (spec 156 T5)', () => {
 })
 
 describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
-  it('mesmo payload da rota do motorista, mais o driverId, e grava audit_logs', async () => {
-    const audit = buildAuditDouble()
+  it('mesmo payload da rota do motorista, mais o driverId, e pede a trilha (audit_logs) ao caso de uso', async () => {
     const targets = buildTargetsDouble(TWO_DRIVERS)
     const occurrenceCalls: unknown[] = []
     const [, , , occurrenceRoute] = createTripFieldOfficeRoutes({
-      audit,
       reportArrival: NOT_CALLED,
       reportOccurrence: async (input) => {
         occurrenceCalls.push(input)
@@ -349,6 +322,11 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
 
     expect(occurrenceCalls).toEqual([
       {
+        officeAudit: {
+          action: 'trip_field_office.stop_occurrence',
+          correlationId: 'correlation-7',
+          ipAddress: 'unknown',
+        },
         actorUserId: ACTOR_USER_ID,
         companyId: COMPANY_ID,
         description: 'Doca fechada',
@@ -365,24 +343,12 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
         },
       },
     ])
-    expect(audit.calls).toEqual([
-      {
-        action: 'trip_field_office.stop_occurrence',
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        correlationId: 'correlation-7',
-        ipAddress: 'unknown',
-        onBehalfOfDriverId: SECOND_DRIVER,
-        tripId: TRIP_ID,
-      },
-    ])
     expect(response.status).toBe(201)
     expect(await response.json()).toEqual({ data: { id: 'occurrence-1' } })
   })
 
   it('aceite 13: driverId fora da tripulação responde 422 DRIVER_NOT_ON_TRIP', async () => {
     const [, , , occurrenceRoute] = createTripFieldOfficeRoutes({
-      audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       attachProof: NOT_CALLED,

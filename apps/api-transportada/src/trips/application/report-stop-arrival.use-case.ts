@@ -18,7 +18,8 @@ import {
   toFieldTripTarget,
   type FieldTripLocator,
 } from './field-trip-target.types.js'
-import { withFieldReport } from './trip-field-report.port.js'
+import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
+import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 const ARRIVE_OPERATION = 'stop.arrive'
 const DISPATCHED_STATUS = 'dispatched'
@@ -30,6 +31,8 @@ export type ReportStopArrivalInput = FieldTripLocator & {
   readonly location: ReportedLocation | null
   /** Quando a chegada aconteceu. O motorista manda agora; o escritório, a hora informada (A1). */
   readonly now: Date
+  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da chegada. */
+  readonly officeAudit?: OfficeAuditRequest
   /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
   readonly recordedAt?: Date
   readonly stopId: string
@@ -58,7 +61,7 @@ export async function reportStopArrival(
         authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
-        operation: ARRIVE_OPERATION,
+        operation: resolveFieldReportOperation({ locator: input, operation: ARRIVE_OPERATION }),
         transaction,
       },
       async () => {
@@ -94,6 +97,15 @@ export async function reportStopArrival(
             tripId: stop.tripId,
           })
         }
+
+        const audit = buildOfficeAuditEntry({
+          actorUserId: input.actorUserId,
+          audit: input.officeAudit,
+          companyId: input.companyId,
+          details: { stopId: input.stopId },
+          locator: input,
+        })
+        if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
         return transaction.recordEvent({
           actorUserId: input.actorUserId,

@@ -49,6 +49,8 @@ import type { TripDatabase } from './trip-queryable.type.js'
 import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
+import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 /**
@@ -161,6 +163,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
    */
   public async updateStatus(input: {
     readonly actorUserId: string
+    readonly audit?: TripFieldOfficeAuditInput
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
@@ -192,6 +195,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         toStatus: input.tripStatus,
         tripId: input.tripId,
       })
+      if (input.audit !== undefined) await insertTripFieldOfficeAudit(transaction, input.audit)
 
       return true
     })

@@ -37,6 +37,7 @@ export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceB
         findDocumentOccurrence: (input) => findDocumentOccurrence(transaction, input),
         findOccurrenceType: (input) => findOccurrenceType(transaction, input),
         findReachableDocumentIds: (input) => findReachableDocumentIds(transaction, input),
+        recordOfficeAudit: (input) => fieldReports.recordOfficeAudit(input),
         saveAttachmentObject: (input) => saveOccurrenceAttachmentObject(transaction, input),
         saveDocumentOccurrence: (input) => saveTripOccurrence(transaction, input),
         settle: (input) => fieldReports.settle(input),

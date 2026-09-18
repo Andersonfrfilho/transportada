@@ -6,6 +6,11 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
 import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
+import {
+  buildOfficeAuditEntry,
+  type OfficeAuditRequest,
+  type TripFieldOfficeAuditInput,
+} from './trip-field-office-audit.port.js'
 
 /**
  * Os dois toques do campo (ADR-0058). O escritório os alcança pela permissão própria, em nome do
@@ -41,6 +46,8 @@ export type StartFieldTripPort = {
    */
   updateStatus(input: {
     readonly actorUserId: string
+    /** Spec 156 T15 M11: a trilha do escritório, gravada só se o status mudou, na mesma transação. */
+    readonly audit?: TripFieldOfficeAuditInput
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
@@ -53,6 +60,8 @@ export type StartFieldTripPort = {
 export type StartFieldTripInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 156 T15 M11: só o escritório manda — o toque repetido (`changed: false`) não audita. */
+  readonly officeAudit?: OfficeAuditRequest
   readonly repository: StartFieldTripPort
   readonly step: FieldTripStep
 }
@@ -120,8 +129,16 @@ async function applyFieldStep(params: ApplyFieldStepParams): Promise<StartFieldT
   }
 
   const authorship = deriveFieldAuthorship(input)
+  const audit = buildOfficeAuditEntry({
+    actorUserId: input.actorUserId,
+    audit: input.officeAudit,
+    companyId: input.companyId,
+    details: {},
+    locator: input,
+  })
   const isWritten = await input.repository.updateStatus({
     actorUserId: input.actorUserId,
+    ...(audit === undefined ? {} : { audit }),
     channel: authorship.channel,
     companyId: input.companyId,
     expectedStatus: tripStatus,

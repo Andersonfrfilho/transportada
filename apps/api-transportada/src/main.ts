@@ -355,7 +355,6 @@ import { listFieldOccurrenceTypes } from './trips/application/list-field-occurre
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
-import { createDrizzleTripFieldOfficeAudit } from './trips/infrastructure/drizzle-trip-field-office-audit.gateway'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
 import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
 import {
@@ -1531,7 +1530,6 @@ function createApplicationRoutes({
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
-  const tripFieldOfficeAudit = createDrizzleTripFieldOfficeAudit(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
    * a rota do galpão e para o lote do escritório (spec 156 T7.3).
@@ -2598,11 +2596,11 @@ function createApplicationRoutes({
           companyId: input.companyId,
           documentId: input.documentId,
           idempotencyKey: input.idempotencyKey,
+          officeAudit: input.officeAudit,
           target: input.target,
           unitOfWork: driverFieldReports,
           upload: input.proof,
         }),
-      audit: tripFieldOfficeAudit,
       /** Spec 156 T15 A1: a hora informada é a da chegada; a da gravação vai em `recordedAt`. */
       reportArrival: (input) =>
         reportStopArrival({
@@ -2649,7 +2647,6 @@ function createApplicationRoutes({
       targets: fieldTripTargetRepository,
     }),
     ...createTripFieldOfficeOccurrenceRoutes({
-      audit: tripFieldOfficeAudit,
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,

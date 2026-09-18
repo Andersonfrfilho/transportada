@@ -13,6 +13,7 @@ import type {
 } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
+import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -168,6 +169,9 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<boolean>
+
+  /** Spec 156 T15 M11: a trilha do escritório na mesma transação da ação (`audit_logs`). */
+  recordOfficeAudit(input: TripFieldOfficeAuditInput): Promise<void>
 
   recordEvent(input: {
     readonly actorUserId: string

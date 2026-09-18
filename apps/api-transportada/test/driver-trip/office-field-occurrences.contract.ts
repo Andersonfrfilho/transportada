@@ -68,6 +68,8 @@ type SavedOccurrence = {
 
 type World = {
   readonly attachmentUploads: { objectId: string }[]
+  /** Spec 156 T15 M11: a trilha do lote, gravada na mesma transação. */
+  readonly audits: { action: string; documentIds: readonly string[] }[]
   readonly claims: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly notified: { documentId: string; tripId: string }[]
   occurrenceType: OccurrenceTypeRecord | null
@@ -78,6 +80,7 @@ type World = {
 function buildWorld(): World {
   return {
     attachmentUploads: [],
+    audits: [],
     claims: new Map(),
     notified: [],
     occurrenceType: DELIVERY_TYPE,
@@ -93,6 +96,7 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
       const claims = new Map(world.claims)
       const saved = [...world.saved]
       const attachmentUploads = [...world.attachmentUploads]
+      const audits = [...world.audits]
       const transaction: OfficeOccurrenceBatchTransactionPort = {
         async claim(input): Promise<FieldReportClaim> {
           const existing = claims.get(input.idempotencyKey)
@@ -146,12 +150,16 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
         async saveAttachmentObject(input) {
           attachmentUploads.push({ objectId: input.objectId })
         },
+        async recordOfficeAudit(input) {
+          audits.push({ action: input.action, documentIds: input.documentIds ?? [] })
+        },
       }
       const result = await operation(transaction)
       world.attachmentUploads.splice(0, world.attachmentUploads.length, ...attachmentUploads)
       world.claims.clear()
       for (const [key, value] of claims) world.claims.set(key, value)
       world.saved.splice(0, world.saved.length, ...saved)
+      world.audits.splice(0, world.audits.length, ...audits)
       return result
     },
   }
@@ -177,6 +185,11 @@ async function register(
       readLabels: async (input) => labelsFor(input.documentIds),
     },
     occurrenceTypeId: TYPE_ID,
+    officeAudit: {
+      action: 'trip_field_office.document_occurrences',
+      correlationId: 'c-1',
+      ipAddress: '203.0.113.7',
+    },
     target: await resolveTarget(),
     unitOfWork: unitOfWork(world),
     ...overrides,
@@ -323,6 +336,17 @@ describe('ocorrência em massa do escritório (spec 156 D7, aceite 10)', () => {
         event: 'trip_office_occurrences_notification_failed',
         meta: { companyId: COMPANY_ID, reason: 'pool esgotado', tripId: TRIP_ID },
       },
+    ])
+  })
+
+  it('M11: a trilha do lote nasce na transação, com as notas, e o reenvio não grava outra', async () => {
+    const world = buildWorld()
+
+    await register(world)
+    await register(world)
+
+    expect(world.audits).toEqual([
+      { action: 'trip_field_office.document_occurrences', documentIds: [...DOCUMENTS] },
     ])
   })
 
