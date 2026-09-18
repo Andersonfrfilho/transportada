@@ -294,11 +294,17 @@
   font-size: 0.78rem;
 }
 
+/**
+ * Design (T15, achado da T14): a borda cobre destoava do painel cinza (`.panel`, `--color-slate`)
+ * que a envolve — "Ações de campo" e "Ações da viagem" moram dentro do detalhe da viagem, e um
+ * bloco interno com borda mais saturada que o próprio contêiner lia como destaque não intencional.
+ * Mesma régua de borda do `.panel`, um tom mais escuro de fundo para diferenciar o bloco.
+ */
 .actionForm {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
 }
 
@@ -338,6 +344,24 @@
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+}
+
+/**
+ * Design (T15): o campo "Observação" (textarea cru do `FieldOccurrenceDialog`) saía com o fundo
+ * default do navegador, branco, ao lado do `Select` do design system — mesmos tokens do campo em
+ * `.occurrenceForm textarea`, para os dois lerem como o mesmo tipo de controle.
+ */
+.mdfeGateDialog textarea {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+  width: 100%;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
 .mdfeGateHeader h2 {

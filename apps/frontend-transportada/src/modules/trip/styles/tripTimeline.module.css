@@ -113,6 +113,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/**
+ * Design (T15): sem regra própria, a autoria herdava só o `--color-slate` puro de `.itemMeta` —
+ * contraste pior que o mesmo texto em `TripOccurrences` (`.hint`, que clareia 10% com branco).
+ * Mesmo tom aqui, para as duas leituras da frase de autoria (spec 158) baterem.
+ */
+.itemAuthorship {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+}
+
 .itemDetail {
   margin: 0;
   font-size: 0.85rem;
