@@ -49,6 +49,9 @@
 - **B1.** A chave derivada tem espaço próprio, `batch:<sha256(chave)>:<documentId>`, com uma
   `operation` exclusiva (`office.document.occurrence-batch-item`). Assim ela nunca colide com a chave
   que um cliente mandaria.
+  - Resíduo aceito: um cliente pode mandar como `Idempotency-Key` uma chave que já comece com
+    `batch:`. Mesmo assim ela não mistura dado nenhum: a `operation` é diferente, e o
+    `withFieldReport` responde 409 `TRIP_FIELD_REPORT_KEY_REUSED` para os dois lados.
 - **M4.** O `dedupeKey` do aviso inclui o `documentId`, para duas notas sem rótulo não colapsarem num
   aviso só. Os avisos vão para quem despachou a viagem, que é o destinatário do trilho de ocorrência
   (`occurrence-notifier.gateway.ts`).

@@ -11,7 +11,8 @@ export type FieldReportGuardInput = {
   readonly companyId: string
   readonly idempotencyKey: string
   readonly operation: string
-  readonly transaction: DriverFieldReportTransactionPort
+  /** Só a reserva e a liquidação da chave: o lote de ocorrências (spec 156 T7.3) usa a guarda sem as demais portas. */
+  readonly transaction: Pick<DriverFieldReportTransactionPort, 'claim' | 'settle'>
 }
 
 /**

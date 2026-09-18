@@ -51,7 +51,7 @@ export type LinkTripDocumentBody = z.infer<typeof linkTripDocumentSchema>
  * O maço real do armazém, não uma lista arbitrária — mesmo teto que o T009 testou
  * (`transition-trip-documents-batch.use-case.ts`).
  */
-const MAX_BATCH_DOCUMENTS = 50
+export const MAX_BATCH_DOCUMENTS = 50
 /**
  * O vínculo em lote tem teto próprio, dez vezes o do lote de status. São operações diferentes: o
  * maço que o separador marca de uma vez é de dezenas, e a viagem que se monta a partir de um filtro

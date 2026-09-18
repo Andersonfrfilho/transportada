@@ -14,6 +14,7 @@ import { parseBody, parseOptionalBody } from '../../http/request-parsing.service
 import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
 import type { OfficeDeliveryProofUpload } from '../application/report-document-delivery.use-case.js'
+import { MAX_BATCH_DOCUMENTS } from './trip-request.schema.js'
 
 const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
 const RECEIVER_NAME_MAX_LENGTH = 120
@@ -203,5 +204,38 @@ export async function parseOfficeFieldProofRequest(request: Request): Promise<{
       receiverDocument: parseReceiverDocument(form.get(FIELD_DELIVERY_RECEIVER_DOCUMENT_FIELD)),
       receiverName: parseOfficeReceiverName(form.get(FIELD_DELIVERY_RECEIVER_FIELD)),
     },
+  }
+}
+
+/**
+ * Spec 156 T7.3 (D7): o lote de ocorrências. Sem `productCode` — no lote a ocorrência é sempre da
+ * nota inteira, porque cada nota tem os seus itens. Nota repetida é engano do cliente, e recusado.
+ */
+const fieldOccurrencesSchema = z
+  .object({
+    documentIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(MAX_BATCH_DOCUMENTS)
+      .refine((documentIds) => new Set(documentIds).size === documentIds.length),
+    driverId: z.uuid().optional(),
+    note: z.string().trim().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).default(''),
+    occurrenceTypeId: z.uuid(),
+  })
+  .strict()
+
+export async function parseOfficeFieldOccurrencesRequest(request: Request): Promise<{
+  readonly documentIds: readonly string[]
+  readonly driverId: string | undefined
+  readonly note: string
+  readonly occurrenceTypeId: string
+}> {
+  const body = await parseBody(fieldOccurrencesSchema, request)
+
+  return {
+    documentIds: body.documentIds,
+    driverId: body.driverId,
+    note: body.note,
+    occurrenceTypeId: body.occurrenceTypeId,
   }
 }

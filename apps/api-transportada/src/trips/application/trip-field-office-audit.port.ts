@@ -9,6 +9,8 @@ export type TripFieldOfficeAuditInput = {
   readonly actorUserId: string
   readonly companyId: string
   readonly correlationId: string
+  /** Spec 156 T7.3: as notas de um lote, por id opaco — nunca dado de negócio. */
+  readonly documentIds?: readonly string[]
   /** `security.md` §10: ator, alvo, IP e timestamp — o IP viaja em `metadata`, sem coluna própria. */
   readonly ipAddress: string
   readonly onBehalfOfDriverId: string

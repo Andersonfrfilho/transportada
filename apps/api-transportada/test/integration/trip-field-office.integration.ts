@@ -25,8 +25,11 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  companyOccurrenceTypes,
   trips,
   tripDeliveryProofs,
+  tripDocumentOccurrences,
+  tripFieldReports,
   tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
@@ -52,6 +55,12 @@ import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure
 import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
 import { resolveTripHasRoute } from '../../src/trips/domain/trip-allowed-actions.policy.js'
+import { registerOfficeDocumentOccurrences } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
+import { readOccurrenceLabels } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { DrizzleOfficeOccurrenceBatchUnitOfWork } from '../../src/trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
+import { createOccurrenceNotifier } from '../../src/trips/infrastructure/occurrence-notifier.gateway.js'
+import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
+import { createTripFieldOfficeOccurrenceRoutes } from '../../src/trips/presentation/trip-field-office-occurrence.routes.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { readTripActionSnapshot } from '../../src/trips/infrastructure/trip-action-snapshot.query.js'
 
@@ -557,6 +566,203 @@ describe('allowed-actions: o recorte e o roteiro batem com o SQL (spec 156 D10, 
   )
 })
 
+/**
+ * Spec 156 T7.3 (D7, aceite 10) contra o Postgres: o lote grava uma ocorrência `office` por nota
+ * numa transação só, cada uma aparece no feed de `/ocorrencias`, avisa quem despachou por nota, e o
+ * reenvio da mesma chave não grava nem avisa de novo.
+ */
+describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3)', () => {
+  testWithPostgres(
+    'aceite 10: três notas, três ocorrências no feed, três avisos, reenvio sem efeito',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedDispatchSnapshot(database, company, trip, new Date('2026-09-18T06:30:00.000Z'))
+        const documentIds = [
+          trip.documentId,
+          await seedExtraDocument(database, company, trip, {
+            separationStatus: 'loaded',
+            stopId: trip.stopId,
+          }),
+          await seedExtraDocument(database, company, trip, {
+            separationStatus: 'loaded',
+            stopId: trip.stopId,
+          }),
+        ]
+        const typeId = await seedDeliveryOccurrenceType(database, company)
+        const { route, sent } = wireOccurrenceRoute(database)
+        const post = () =>
+          route.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-occurrences',
+            pathParameters: { id: trip.tripId },
+            request: jsonRequest({
+              body: { documentIds, note: 'Portão fechado', occurrenceTypeId: typeId },
+              idempotencyKey: 'lote-integracao',
+            }),
+          })
+
+        const first = await post()
+        expect(first.status).toBe(201)
+        const firstBody = (await first.json()) as {
+          data: { items: { documentId: string; id: string }[] }
+        }
+        expect(firstBody.data.items.map((item) => item.documentId)).toEqual(documentIds)
+
+        const rows = await database.db
+          .select()
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.companyId, company.companyId))
+        expect(rows).toHaveLength(3)
+        for (const row of rows) {
+          expect(row.channel).toBe('office')
+          expect(row.onBehalfOfDriverId).toBe(company.firstDriverId)
+          expect(row.stage).toBe('delivery')
+        }
+
+        const feed = await listTripOccurrenceFeed(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 20,
+          order: 'desc',
+        })
+        expect(feed.items.map((item) => item.id).toSorted()).toEqual(
+          firstBody.data.items.map((item) => item.id).toSorted(),
+        )
+
+        expect(sent).toHaveLength(3)
+        expect(new Set(sent.map((notice) => notice.dedupeKey)).size).toBe(3)
+        expect(sent.every((notice) => notice.recipientUserId === company.userId)).toBe(true)
+
+        const [audit] = await database.db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.action, 'trip_field_office.document_occurrences'))
+        expect(audit?.metadata).toMatchObject({ documentIds })
+
+        const replay = await post()
+        expect(replay.status).toBe(201)
+        expect(await replay.json()).toEqual(firstBody)
+        expect(
+          await database.db
+            .select()
+            .from(tripDocumentOccurrences)
+            .where(eq(tripDocumentOccurrences.companyId, company.companyId)),
+        ).toHaveLength(3)
+        expect(sent).toHaveLength(3)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'uma nota de outra viagem desfaz o lote inteiro (409, zero linhas)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const otherTrip = await seedTrip(database, company, 'in_transit')
+        const typeId = await seedDeliveryOccurrenceType(database, company)
+        const { route } = wireOccurrenceRoute(database)
+
+        let failure: unknown
+        try {
+          await route.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-occurrences-foreign',
+            pathParameters: { id: trip.tripId },
+            request: jsonRequest({
+              body: {
+                documentIds: [trip.documentId, otherTrip.documentId],
+                occurrenceTypeId: typeId,
+              },
+              idempotencyKey: 'lote-estrangeiro',
+            }),
+          })
+        } catch (error) {
+          failure = error
+        }
+
+        expect((failure as { code?: string }).code).toBe('TRIP_DOCUMENT_NOT_REACHABLE')
+        expect((failure as { details?: unknown }).details).toEqual([
+          { field: 'documentIds', message: otherTrip.documentId },
+        ])
+        expect(await database.db.select().from(tripDocumentOccurrences)).toHaveLength(0)
+        expect(await database.db.select().from(tripFieldReports)).toHaveLength(0)
+      })
+    },
+  )
+
+  testWithPostgres('viagem de outra empresa responde 404, sem gravar', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const other = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      const typeId = await seedDeliveryOccurrenceType(database, other)
+      const { route } = wireOccurrenceRoute(database)
+
+      let failure: unknown
+      try {
+        await route.execute({
+          context: fakeContext(other),
+          correlationId: 'integration-occurrences-other-company',
+          pathParameters: { id: trip.tripId },
+          request: jsonRequest({
+            body: { documentIds: [trip.documentId], occurrenceTypeId: typeId },
+            idempotencyKey: 'lote-outra-empresa',
+          }),
+        })
+      } catch (error) {
+        failure = error
+      }
+
+      expect((failure as { status?: number }).status).toBe(404)
+      expect(await database.db.select().from(tripDocumentOccurrences)).toHaveLength(0)
+    })
+  })
+})
+
+function wireOccurrenceRoute(database: TestDatabase) {
+  const sent: { dedupeKey: string; recipientUserId: string }[] = []
+  const routes = createTripFieldOfficeOccurrenceRoutes({
+    audit: createDrizzleTripFieldOfficeAudit(database.db),
+    listFieldOccurrenceTypes: async () => [],
+    registerOccurrences: (input) =>
+      registerOfficeDocumentOccurrences({
+        ...input,
+        notifications: {
+          notifier: createOccurrenceNotifier({
+            logger: { warn() {} },
+            queryable: database.db,
+            send: async (notice) => void sent.push(notice),
+          }),
+          readLabels: (query) => readOccurrenceLabels(database.db, query),
+        },
+        unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db),
+      }),
+    targets: new DrizzleFieldTripTargetRepository(database.db),
+  })
+  const route = routes.find((candidate) => candidate.method === 'POST')
+  if (route === undefined) throw new Error('route missing')
+  return { route, sent }
+}
+
+async function seedDeliveryOccurrenceType(
+  database: TestDatabase,
+  company: Company,
+): Promise<string> {
+  const id = crypto.randomUUID()
+  await database.db.insert(companyOccurrenceTypes).values({
+    active: true,
+    companyId: company.companyId,
+    id,
+    name: 'Cliente ausente',
+    notifies: true,
+    stage: 'delivery',
+  })
+  return id
+}
+
 function wireRoutes(database: TestDatabase) {
   const targets = new DrizzleFieldTripTargetRepository(database.db)
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
@@ -719,7 +925,7 @@ async function seedStopArrival(
   await database.db.update(tripStops).set({ arrivedAt }).where(eq(tripStops.id, trip.stopId))
 }
 
-/** Nota a mais na viagem, sem parada — o caso que decide se o roteiro existe (A2). */
+/** Nota a mais na viagem — sem parada é o caso que decide se o roteiro existe (A2). */
 async function seedExtraDocument(
   database: TestDatabase,
   company: Company,
@@ -727,19 +933,22 @@ async function seedExtraDocument(
   input: {
     readonly releasedAt?: Date
     readonly returnReason?: string
-    readonly separationStatus: 'pending' | 'returned'
+    readonly separationStatus: 'loaded' | 'pending' | 'returned'
+    readonly stopId?: string
   },
-): Promise<void> {
+): Promise<string> {
+  const documentId = crypto.randomUUID()
   await database.db.insert(tripDocuments).values({
     companyId: company.companyId,
-    id: crypto.randomUUID(),
+    id: documentId,
     nfeDocumentId: await seedNfeDocument(database, company),
     releasedAt: input.releasedAt ?? null,
     returnReason: input.returnReason ?? null,
     separationStatus: input.separationStatus,
-    stopId: null,
+    stopId: input.stopId ?? null,
     tripId: trip.tripId,
   })
+  return documentId
 }
 
 /** ADR-0067 §3: a fonte de "quando a viagem despachou" para validar `deliveredAt`/`returnedAt`. */

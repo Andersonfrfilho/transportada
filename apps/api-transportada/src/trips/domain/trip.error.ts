@@ -305,16 +305,45 @@ export class TripStopNotReachableError extends ApiError {
   }
 }
 
+const UNREACHABLE_DOCUMENTS_FIELD = 'documentIds'
+
 /**
  * Confirmação enfileirada de uma nota que o escritório desvinculou. O código é estável porque a tela
  * mostra o conflito — sumir com o toque do motorista é pior do que recusá-lo com o motivo.
  */
 export class TripDocumentNotReachableError extends ApiError {
-  public constructor() {
+  /**
+   * Spec 156 T7.3: o lote do escritório diz **todas** as notas inalcançáveis de uma vez — ids
+   * opacos, sem dado de negócio. Sem lista, é o erro de uma nota só, como sempre foi.
+   */
+  public constructor(params: { readonly unreachableDocumentIds?: readonly string[] } = {}) {
     super({
       code: 'TRIP_DOCUMENT_NOT_REACHABLE',
+      ...(params.unreachableDocumentIds === undefined
+        ? {}
+        : {
+            details: params.unreachableDocumentIds.map((documentId) => ({
+              field: UNREACHABLE_DOCUMENTS_FIELD,
+              message: documentId,
+            })),
+          }),
       message: 'The document is no longer part of an active trip of this driver.',
       status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 156 T7.3 (L4): o escritório registra ocorrência **em nome do motorista**, e o motorista só
+ * registra ocorrência de rua. Tipo de galpão, aposentado ou de outra empresa respondem igual — quem
+ * pergunta é a própria empresa, e a tela precisa dizer o motivo.
+ */
+export class OccurrenceTypeNotFieldError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_FIELD',
+      message: 'The occurrence type is not an active delivery occurrence type.',
+      status: 422,
     })
   }
 }

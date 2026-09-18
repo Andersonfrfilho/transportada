@@ -88,6 +88,7 @@ async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => v
     documentId: '00000000-0000-4000-8000-000000000017',
     note: '',
     notificationParameters: {
+      documentId: '00000000-0000-4000-8000-000000000017',
       documentLabel: '883658/1',
       occurrenceType: '',
       stopLabel: 'RUA MIGUEL PETRONI, 1166',

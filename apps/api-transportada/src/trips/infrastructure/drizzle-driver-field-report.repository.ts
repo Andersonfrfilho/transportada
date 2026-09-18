@@ -52,7 +52,7 @@ export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnit
   }
 }
 
-class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
+export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
   public constructor(private readonly transaction: Transaction) {}
 
   /**

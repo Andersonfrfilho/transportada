@@ -23,6 +23,7 @@ import type {
 } from '../../src/identity/domain/tenant-context.js'
 import { createTripDocumentReviewRoutes } from '../../src/trips/presentation/trip-document-review.routes.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
+import { createTripFieldOfficeOccurrenceRoutes } from '../../src/trips/presentation/trip-field-office-occurrence.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
 import { appliedMigrations } from '../fixtures/health.fixture.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
@@ -87,6 +88,7 @@ function routeSignatures(): readonly {
     ...createFleetRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
     ...OFFICE_ROUTES,
+    ...createTripFieldOfficeOccurrenceRoutes(dependencies),
   ].map((route) => ({ route, signature: `${route.method} ${route.pathname}` }))
 }
 
@@ -223,10 +225,12 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /trips/:id/financial-result',
       'GET /trips/:id/stops',
       'GET /trips/:id/valuation',
+      'GET /trips/occurrence-types/field',
       'POST /trips/:id/confirm-load',
       'POST /trips/:id/documents/:documentId/field-delivery',
       'POST /trips/:id/documents/:documentId/field-proof',
       'POST /trips/:id/documents/:documentId/field-return',
+      'POST /trips/:id/documents/field-occurrences',
       'POST /trips/:id/financial-result/recalculate',
       'POST /trips/:id/start-route',
       'POST /trips/:id/stops/:stopId/arrive',

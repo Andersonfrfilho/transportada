@@ -172,7 +172,12 @@ export async function registerTripOccurrence(
   })
   if (saved === null) throw new TripDocumentNotFoundError()
 
-  await notifyOccurrence(input, occurrenceType)
+  await notifyOccurrence({
+    companyId,
+    notificationParameters: input.notificationParameters,
+    notifier: input.notifier,
+    occurrenceType,
+  })
 
   return { ...saved, email: await renderEmail({ input, occurrenceType, scope }) }
 }
@@ -216,10 +221,16 @@ async function renderEmail(params: {
  * O padrão continua sendo **não avisar**: sem notificador, sem parâmetros ou sem a flag ligada para
  * aquele tipo, nada sai.
  */
-async function notifyOccurrence(
-  input: RegisterTripOccurrenceInput,
-  occurrenceType: OccurrenceTypeRecord,
-): Promise<void> {
+export type NotifyOccurrenceParams = {
+  readonly companyId: string
+  readonly notificationParameters: OccurrenceNotificationParameters | undefined
+  readonly notifier: OccurrenceNotifierPort | undefined
+  readonly occurrenceType: OccurrenceTypeRecord
+}
+
+/** Spec 156 T7.3: exportada para o lote do escritório avisar por nota com a mesma regra. */
+export async function notifyOccurrence(input: NotifyOccurrenceParams): Promise<void> {
+  const { occurrenceType } = input
   if (input.notifier === undefined || input.notificationParameters === undefined) return
 
   /**

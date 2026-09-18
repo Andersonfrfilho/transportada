@@ -46,7 +46,7 @@ import {
   parseOfficeStopOccurrenceRequest,
 } from './trip-field-office.schema.js'
 
-const OFFICE_TRIP_PATH = `${API_TRIPS_PATH}/:id`
+export const OFFICE_TRIP_PATH = `${API_TRIPS_PATH}/:id`
 const OFFICE_CONFIRM_LOAD_PATH = `${OFFICE_TRIP_PATH}/confirm-load`
 const OFFICE_START_ROUTE_PATH = `${OFFICE_TRIP_PATH}/start-route`
 const OFFICE_STOP_ARRIVE_PATH = `${OFFICE_TRIP_PATH}/stops/:stopId/arrive`
@@ -71,7 +71,7 @@ const OFFICE_AUDIT_ACTION = {
  * e ele não reporta entrega), nem `trip.report` (é a chave das rotas `/me`, que acham a viagem
  * pelo vínculo do motorista logado).
  */
-const OFFICE_REPORT_POLICY = {
+export const OFFICE_REPORT_POLICY = {
   permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
   scope: 'company',
 } as const
@@ -148,7 +148,7 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
  * sem motorista, 422 `TRIP_WITHOUT_DRIVER`; `driverId` fora da tripulação, 422 `DRIVER_NOT_ON_TRIP`
  * — as três decisões são de `resolveFieldTripTarget`/`pickOnBehalfOfDriver`, não desta rota.
  */
-async function resolveOfficeTarget(input: {
+export async function resolveOfficeTarget(input: {
   readonly companyId: string
   readonly driverId: string | undefined
   readonly targets: FieldTripTargetPort

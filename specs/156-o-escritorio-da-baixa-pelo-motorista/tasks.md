@@ -60,7 +60,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       PII (aceite 11). Baixa repetida no canal `office` → 409 `DOCUMENT_ALREADY_SETTLED` sem evento
       novo, com o canal do motorista inalterado (aceite 12). `field-proof` anexa ao evento `delivered`
       existente, substitui pelo unique `(company, stop_event, kind)` e não muda `delivered_at`.
-- [ ] **T7 🧠 — `allowedActions` em `GET /trips/:id`**, ocorrência em massa `field-occurrences`
+- [x] **T7 🧠 — `allowedActions` (rota própria `GET /trips/:id/allowed-actions`, ressalva M1)**, ocorrência em massa `field-occurrences`
       (aceite 10) e **leitura da viagem pelo `finance`** (D11): política `anyPermission` com
       `['fleet.read', 'trip.report-on-behalf']` só em `GET /trips`, `GET /trips/:id`,
       `GET /trips/:id/stops`, `GET …/documents/:documentId/proof` e

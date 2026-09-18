@@ -58,9 +58,10 @@ export function createOccurrenceNotifier(input: {
           /**
            * Derivada da nota **e do tipo**: a mesma nota pode ter ocorrências diferentes, e cada
            * uma muda o que a pessoa precisa fazer. Repetir o mesmo tipo na mesma nota não vira
-           * segundo aviso.
+           * segundo aviso. Spec 156 T7.3 (M4): a nota entra pelo id — o rótulo de duas notas sem
+           * número de NF-e é o mesmo, e o lote do escritório as colapsaria num aviso só.
            */
-          dedupeKey: `${templateKey}:${parameters.tripId}:${parameters.documentLabel}:${parameters.occurrenceType}`,
+          dedupeKey: `${templateKey}:${parameters.tripId}:${parameters.documentId}:${parameters.occurrenceType}`,
           payload: {
             documentLabel: parameters.documentLabel,
             occurrenceType: parameters.occurrenceType,

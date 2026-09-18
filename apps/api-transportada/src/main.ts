@@ -342,6 +342,10 @@ import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure
 import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
+import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
+import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
+import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
+import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
 import { createDrizzleTripFieldOfficeAudit } from './trips/infrastructure/drizzle-trip-field-office-audit.gateway'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
@@ -1504,6 +1508,20 @@ function createApplicationRoutes({
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   const tripFieldOfficeAudit = createDrizzleTripFieldOfficeAudit(database)
+  /**
+   * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
+   * a rota do galpão e para o lote do escritório (spec 156 T7.3).
+   */
+  const occurrenceNotifier = createOccurrenceNotifier({
+    logger,
+    queryable: database,
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      } as never),
+  })
+  const officeOccurrenceBatches = new DrizzleOfficeOccurrenceBatchUnitOfWork(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
@@ -2550,6 +2568,24 @@ function createApplicationRoutes({
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       targets: fieldTripTargetRepository,
     }),
+    ...createTripFieldOfficeOccurrenceRoutes({
+      audit: tripFieldOfficeAudit,
+      listFieldOccurrenceTypes: (input) =>
+        listFieldOccurrenceTypes({
+          companyId: input.companyId,
+          repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
+        }),
+      registerOccurrences: (input) =>
+        registerOfficeDocumentOccurrences({
+          ...input,
+          notifications: {
+            notifier: occurrenceNotifier,
+            readLabels: (query) => readOccurrenceLabels(database, query),
+          },
+          unitOfWork: officeOccurrenceBatches,
+        }),
+      targets: fieldTripTargetRepository,
+    }),
     ...createTripRoutes({
       batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },
       cancelTrip: { execute: (input) => tripLifecycle.cancel.execute(input) },
@@ -2632,19 +2668,12 @@ function createApplicationRoutes({
                 documentId: input.documentId,
                 tripId: input.tripId,
               })),
+              documentId: input.documentId,
               /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
               occurrenceType: '',
               tripId: input.tripId,
             },
-            notifier: createOccurrenceNotifier({
-              logger,
-              queryable: database,
-              send: (params) =>
-                notifications.useCases.sendNotification.execute({
-                  ...params,
-                  locale: NOTIFICATION_DEFAULT_LOCALE,
-                } as never),
-            }),
+            notifier: occurrenceNotifier,
             occurrenceTypeId: input.occurrenceTypeId,
             /** A data que o modelo imprime é a de agora: a ocorrência é registrada quando acontece. */
             occurredOn: new Date().toLocaleDateString('pt-BR'),

@@ -931,3 +931,123 @@ Decisões do líder:
 - `bun run --cwd apps/frontend-transportada test` → `4325 pass · 0 fail`.
 - `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts
 ./test/integration/trip-lifecycle.integration.ts` → `13 pass · 0 fail · 0 skip`, 61 `expect()`.
+
+### T7.3 — Os tipos de rua (L2) e a ocorrência em massa (D7, aceite 10)
+
+**Arquivos:**
+
+- `src/trips/presentation/trip-field-office-occurrence.routes.ts` (**novo**). Tem arquivo próprio
+  porque `trip-field-office.routes.ts` já passava de 500 linhas, e a política, o caminho e a
+  resolução do alvo são importados de lá. As rotas são:
+  - `GET /trips/occurrence-types/field`: só `id` e `name` dos tipos ativos de rua.
+  - `POST /trips/:id/documents/field-occurrences`: `{ documentIds (1..50, sem repetição),
+occurrenceTypeId, note, driverId? }` e `Idempotency-Key` obrigatória. Responde `201` com
+    `{ items: [{ documentId, id }] }` na ordem do pedido e grava uma linha em `audit_logs` com as
+    notas em `metadata.documentIds`.
+  - As duas usam `trip.report-on-behalf` (`OFFICE_REPORT_POLICY`).
+- `src/trips/presentation/trip-field-office.schema.ts`: `parseOfficeFieldOccurrencesRequest`, com
+  `MAX_BATCH_DOCUMENTS` exportado de `trip-request.schema.ts` (o mesmo 50 do `batch-status`). O
+  schema é `.strict()`, sem `productCode`.
+- `src/trips/application/register-office-document-occurrences.use-case.ts` (**novo**):
+  - **Transação única, tudo ou nada.**
+  - A3: tipo e alcance são validados dentro do `perform` do lote. O `recall` reconstrói os itens
+    pelas reservas por nota, na ordem do pedido, e nunca devolve `null`. A marca `createdNow` é
+    fechada no `perform` de cada nota.
+  - Os avisos saem depois do commit, em `Promise.all`, só para o que foi criado nesta chamada.
+- `src/trips/application/list-field-occurrence-types.use-case.ts` (**novo**).
+- `src/trips/domain/occurrence-batch.policy.ts` (**novo**): a operação do lote carrega a impressão
+  sha256 do conteúdo, e a chave de cada nota fica em espaço próprio,
+  `batch:<sha256(chave)>:<documentId>`, com a `operation` exclusiva
+  `office.document.occurrence-batch-item` (B1).
+- `src/trips/infrastructure/drizzle-office-occurrence-batch.repository.ts` (**novo**): a unidade de
+  trabalho do lote. Reusa `DrizzleDriverFieldReportTransaction`, que passou a ser exportada, para a
+  reserva e a liquidação, e `findOccurrenceType`/`saveTripOccurrence` na mesma transação.
+  `findReachableDocumentIds` aplica o recorte de `findDriverReachableDocument` numa consulta só, e
+  só nas notas vivas.
+- `src/trips/application/register-trip-occurrence.use-case.ts`: `notifyOccurrence` foi exportada
+  com parâmetros em objeto, para não haver cópia da regra do aviso.
+- M4 em três arquivos:
+  - `src/trips/domain/occurrence-notification.policy.ts`: `documentId` entrou nos parâmetros do
+    aviso.
+  - `src/trips/infrastructure/occurrence-notifier.gateway.ts`: o `dedupeKey` usa o `documentId`
+    no lugar do rótulo. Duas notas sem número de NF-e colapsavam num aviso só.
+  - `src/main.ts`: a rota do galpão passa o `documentId`.
+- `src/trips/domain/trip.error.ts`:
+  - `OccurrenceTypeNotFieldError`: 422 `OCCURRENCE_TYPE_NOT_FIELD` (L4).
+  - `TripDocumentNotReachableError` aceita `unreachableDocumentIds` e as devolve em `details`.
+- `src/trips/application/trip-field-report.port.ts`: `withFieldReport` passou a exigir só
+  `claim`/`settle` da transação. A mudança alarga o que ela aceita.
+- `trip-field-office-audit.port.ts` e o gateway: `documentIds?` opcional em `metadata`.
+- `src/main.ts`:
+  - `occurrenceNotifier` virou uma instância só, usada pela rota do galpão e pelo lote. Antes a
+    configuração era repetida.
+  - `DrizzleOfficeOccurrenceBatchUnitOfWork` e as rotas novas foram ligadas.
+
+**Testes:**
+
+- `test/driver-trip/office-field-occurrences.contract.ts` (novo, em `driver-trip.contract.test.ts`):
+  - Três notas geram três ocorrências `office`, em nome do motorista e na ordem do pedido.
+  - Um aviso por nota. Tipo sem aviso não avisa, e o aviso que falha não derruba o lote.
+  - Reenvio: mesmos ids e nenhum aviso novo.
+  - **A3:** o reenvio depois de o tipo ser aposentado devolve o mesmo resultado.
+  - Outro conteúdo ou outro ator com a mesma chave: 409.
+  - **B1:** o espaço e a operação das chaves por nota.
+  - Uma nota fora da viagem: 409 com `details`, zero gravado, zero reservas.
+  - **L4:** tipo de separação, aposentado ou inexistente: 422.
+  - A lista de tipos do escritório.
+- `test/trip-field-office/occurrences-route.contract.ts` (novo, em `trip-field-office.contract.test.ts`):
+  - A política das duas rotas.
+  - Aceite 1 pelo `authorize` real: separador, motorista e `viewer` fora; `operator`, `finance` e
+    `company-admin` dentro.
+  - A fiação e o `audit_logs`.
+  - 400 para lote vazio, 51 notas, nota repetida, campo a mais e falta de chave.
+- `test/integration/trip-field-office.integration.ts` (estendido, Postgres):
+  - **Aceite 10:** três notas geram três linhas `office` com o motorista de `position 1`. Elas
+    aparecem em `listTripOccurrenceFeed`, que é o feed de `/ocorrencias`. São três avisos com três
+    `dedupeKey` distintos, para quem despachou, e o `audit_logs` traz as notas. O reenvio devolve o
+    mesmo corpo, sem linha nem aviso novo.
+  - Uma nota de outra viagem desfaz o lote: 409 com `details`, zero ocorrências e zero reservas em
+    `trip_field_reports`.
+  - Viagem de outra empresa: 404, sem gravar.
+- `test/trip-field-office/finance-read.contract.ts`: a lista exaustiva do `finance` ganha as duas
+  rotas novas.
+- `test/trip-occurrence/notification.contract.ts` e `template-key.contract.ts`: os parâmetros do
+  aviso ganharam `documentId`, que agora é obrigatório (M4). A mudança é só na fixture.
+
+**Vermelho → verde:**
+
+- Os dois arquivos novos contra o `src` sem a T7.3:
+  `bun test ./test/driver-trip.contract.test.ts ./test/trip-field-office.contract.test.ts` →
+  `0 pass · 2 fail`. Dá `Cannot find module …/register-office-document-occurrences.use-case.js` e
+  `…/trip-field-office-occurrence.routes.js`.
+- Depois: `170 pass · 0 fail` (com `trip-occurrence.contract.test.ts`).
+- No meio do caminho, um erro **meu** no contrato de borda: o parâmetro padrão do JavaScript
+  engolia o `undefined` de "sem chave", e o caso respondia 201. Corrigi o teste para usar `null`
+  como sentinela.
+
+**Gates:**
+
+- `bun run typecheck` (raiz) → exit 0, com 0 `error TS`.
+- `bun run lint` (raiz) → exit 0, com 0 erros.
+- `bunx prettier --check .` → limpo.
+- `bun run --cwd apps/api-transportada test` → `6494 pass · 32 skip · 0 fail`, 22629 `expect()`,
+  180 arquivos (+18 em relação à T7.2).
+- `bun run --cwd apps/frontend-transportada test` → `4325 pass · 0 fail`. O frontend não foi tocado
+  nesta etapa.
+- De dentro de `apps/api-transportada`, com
+  `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts
+./test/integration/me-trip.integration.ts ./test/integration/trip-field-authorship.integration.ts
+./test/integration/field-trip-target.integration.ts ./test/integration/whatsapp-driver-flow-actions.integration.ts
+./test/integration/whatsapp-operator-flow-actions.integration.ts` → `32 pass · 0 fail · 0 skip`,
+  166 `expect()`, 6 arquivos. O motorista, o WhatsApp e as T3–T6 continuam verdes.
+
+### Para as próximas tasks
+
+- **T8:** o hook consome `GET /trips/:id/allowed-actions` com `parseTripAllowedActions`, passando
+  os ids de nota e de parada do detalhe. Ele não lê `allowedActions` do detalhe. Na tela do
+  `finance`, os painéis de geometria, agendamento, prontidão fiscal e produtos respondem 403 e
+  precisam ficar ocultos, sem derrubar a tela.
+- **T9:** o diálogo lista os tipos por `GET /trips/occurrence-types/field` e envia o lote com uma
+  `Idempotency-Key` por abertura do diálogo. O 422 `OCCURRENCE_TYPE_NOT_FIELD` e o 409 com
+  `details` (as notas inalcançáveis) precisam de texto na tela.
+- **T7b:** o anexo do lote (`tasks.md`).
