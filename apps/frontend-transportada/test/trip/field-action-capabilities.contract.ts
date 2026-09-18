@@ -5,6 +5,7 @@ import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
   resolveFieldActionCapabilities,
+  selectFieldActionableDocumentIds,
   selectFieldReturnableDocumentIds,
 } from '../../src/modules/trip/shared/tripFieldActions.service'
 import type { TripAllowedActions } from '../../src/modules/trip/shared/tripAllowedActions.validation'
@@ -102,5 +103,70 @@ describe('selectFieldReturnableDocumentIds (spec 156 T8b)', () => {
     expect(selectFieldReturnableDocumentIds({ capabilities, documentIds: [DOCUMENT_ID] })).toEqual(
       [],
     )
+  })
+})
+
+/**
+ * A4d (spec 156 T15): a mesma régua da devolução vale para baixa e ocorrência em massa — a base
+ * genérica por trás de `selectFieldReturnableDocumentIds`.
+ */
+describe('selectFieldActionableDocumentIds (spec 156 T15, A4d)', () => {
+  const OTHER_DOCUMENT_ID = '00000000-0000-4000-8000-000000000d03'
+
+  it('mantém só as notas com a capacidade pedida (fieldOccurrence)', () => {
+    const actions: TripAllowedActions = {
+      documents: {
+        [DOCUMENT_ID]: ['fieldOccurrence'],
+        [OTHER_DOCUMENT_ID]: ['fieldDelivery'],
+      },
+      stops: {},
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      selectFieldActionableDocumentIds({
+        action: 'fieldOccurrence',
+        capabilities,
+        documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
+      }),
+    ).toEqual([DOCUMENT_ID])
+  })
+
+  it('mantém só as notas com a capacidade pedida (fieldDelivery)', () => {
+    const actions: TripAllowedActions = {
+      documents: {
+        [DOCUMENT_ID]: ['fieldOccurrence'],
+        [OTHER_DOCUMENT_ID]: ['fieldDelivery'],
+      },
+      stops: {},
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      selectFieldActionableDocumentIds({
+        action: 'fieldDelivery',
+        capabilities,
+        documentIds: [DOCUMENT_ID, OTHER_DOCUMENT_ID],
+      }),
+    ).toEqual([OTHER_DOCUMENT_ID])
+  })
+
+  it('nota nova/desconhecida (fora de allowedActions) é ignorada, não recusa o lote inteiro', () => {
+    const actions: TripAllowedActions = {
+      documents: { [DOCUMENT_ID]: ['fieldDelivery'] },
+      stops: {},
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      selectFieldActionableDocumentIds({
+        action: 'fieldDelivery',
+        capabilities,
+        documentIds: [DOCUMENT_ID, 'nota-desconhecida'],
+      }),
+    ).toEqual([DOCUMENT_ID])
   })
 })

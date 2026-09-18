@@ -932,8 +932,10 @@
     "returnTitle": "Return document",
     "title": "Trip actions",
     "batchFieldOccurrence": "Occurrence on {{count}} document(s)",
+    "batchFieldOccurrenceExcluded": "{{count}} document(s) without that action were left out. ",
     "batchFieldDelivery": "Deliver {{count}} document",
-    "batchFieldDelivery_other": "Deliver {{count}} documents"
+    "batchFieldDelivery_other": "Deliver {{count}} documents",
+    "batchFieldDeliveryExcluded": "{{count}} document(s) without that action were left out."
   },
   "status": {
     "cancelled": "Cancelled",

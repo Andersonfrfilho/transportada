@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
-import { validateFieldDeliveryDeliveredAt } from '../shared/fieldDeliveryValidation.service'
+import {
+  resolveFieldDeliveryDeliveredAtIso,
+  validateFieldDeliveryDeliveredAt,
+} from '../shared/fieldDeliveryValidation.service'
 import type {
   FieldDeliveryCapturedPhoto,
   FieldDeliveryDraft,
@@ -57,7 +60,7 @@ export function FieldDeliveryReviewStep({
 
   useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl])
 
-  const deliveredAtIso = new Date(deliveredAt).toISOString()
+  const deliveredAtIso = resolveFieldDeliveryDeliveredAtIso(deliveredAt)
   const deliveredAtError = validateFieldDeliveryDeliveredAt({
     deliveredAt: deliveredAtIso,
     dispatchedAt,

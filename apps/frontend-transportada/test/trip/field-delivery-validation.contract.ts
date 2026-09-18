@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 
-import { validateFieldDeliveryDeliveredAt } from '../../src/modules/trip/shared/fieldDeliveryValidation.service'
+import {
+  resolveFieldDeliveryDeliveredAtIso,
+  validateFieldDeliveryDeliveredAt,
+} from '../../src/modules/trip/shared/fieldDeliveryValidation.service'
 
 /**
  * Spec 156 T11 (D4, aceite 8): a mesma régua da API (`DELIVERED_AT_IN_FUTURE`,
@@ -51,5 +54,22 @@ describe('validação de "Entregue em" (spec 156 D4)', () => {
     expect(validateFieldDeliveryDeliveredAt({ deliveredAt: 'not-a-date', dispatchedAt, now })).toBe(
       'DELIVERED_AT_IN_FUTURE',
     )
+  })
+})
+
+describe('resolveFieldDeliveryDeliveredAtIso (A4b, spec 156 T15)', () => {
+  it('data válida vira ISO', () => {
+    const value = '2026-09-18T09:00'
+    expect(resolveFieldDeliveryDeliveredAtIso(value)).toBe(new Date(value).toISOString())
+  })
+
+  it('campo vazio ("Entregue em" limpo pelo operador) nunca lança — devolve o texto cru', () => {
+    expect(() => resolveFieldDeliveryDeliveredAtIso('')).not.toThrow()
+    expect(resolveFieldDeliveryDeliveredAtIso('')).toBe('')
+  })
+
+  it('texto sem formato de data nunca lança — devolve o texto cru', () => {
+    expect(() => resolveFieldDeliveryDeliveredAtIso('not-a-date')).not.toThrow()
+    expect(resolveFieldDeliveryDeliveredAtIso('not-a-date')).toBe('not-a-date')
   })
 })

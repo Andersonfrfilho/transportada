@@ -19,6 +19,16 @@ export type ValidateFieldDeliveryDeliveredAtParams = Readonly<{
  * anterior ao despacho da viagem) para a tela recusar antes da viagem de rede — a API continua
  * sendo quem decide de fato, e responde 400 quando esta função, por algum motivo, discordar dela.
  */
+/**
+ * A4b (spec 156 T15): `new Date('').toISOString()` lança `RangeError` — campo "Entregue em" vazio
+ * (ou qualquer texto sem data válida) não pode derrubar o render do passo de conferência. Data
+ * inválida devolve o texto cru, que `validateFieldDeliveryDeliveredAt` já sabe recusar (`NaN`).
+ */
+export function resolveFieldDeliveryDeliveredAtIso(deliveredAt: string): string {
+  const date = new Date(deliveredAt)
+  return Number.isNaN(date.getTime()) ? deliveredAt : date.toISOString()
+}
+
 export function validateFieldDeliveryDeliveredAt({
   deliveredAt,
   dispatchedAt,

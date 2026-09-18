@@ -758,6 +758,8 @@ export type ReportFieldDeliveryInput = TripFieldActionTarget &
     imageBlob: Blob
     receiverDocument?: string
     receiverName?: string
+    /** A4a (spec 156 T15): fechar o assistente durante o envio cancela o lote em andamento. */
+    signal?: AbortSignal
   }>
 
 /** O envelope de `field-delivery`: `alreadySettled` é 409 tratado como sucesso informativo (D3). */

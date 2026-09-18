@@ -149,6 +149,43 @@ describe('useFieldDelivery (spec 156 T12)', () => {
     rendered.unmount()
   })
 
+  test('A4a: fechar (reset) durante o envio cancela o lote — resposta atrasada não reaparece', async () => {
+    let releaseDoc1: (() => void) | undefined
+    const seenSignals: AbortSignal[] = []
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: (input) => {
+          if (input.signal !== undefined) seenSignals.push(input.signal)
+          if (input.documentId === 'doc-1') {
+            return new Promise((resolve) => {
+              releaseDoc1 = () => resolve(settledResult())
+            })
+          }
+          return Promise.resolve(settledResult())
+        },
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftFor('doc-1')])
+    await waitFor(() => expect(rendered.result().statusByDocumentId['doc-1']?.kind).toBe('sending'))
+    expect(seenSignals[0]?.aborted).toBe(false)
+
+    rendered.result().reset()
+    await waitFor(() => expect(Object.keys(rendered.result().statusByDocumentId)).toHaveLength(0))
+    expect(seenSignals[0]?.aborted).toBe(true)
+
+    /** A resposta do lote antigo chega depois do fechamento — não pode ressuscitar o status. */
+    releaseDoc1?.()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(Object.keys(rendered.result().statusByDocumentId)).toHaveLength(0)
+    expect(rendered.result().isSubmitting).toBe(false)
+
+    rendered.unmount()
+  })
+
   test('reset esquece o lote — próximo submit começa de status vazio', async () => {
     const rendered = await renderHook(() =>
       useFieldDelivery({

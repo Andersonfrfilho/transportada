@@ -542,6 +542,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         idempotencyKey: input.idempotencyKey,
         method: 'POST',
         path: `${documentPath(input)}/field-delivery`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       return adapters.reportFieldDeliveryResultFromApi(readEnvelopeData(response))
     },

@@ -642,8 +642,10 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onBatchReturn={handleBatchReturn}
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
-        onOpenFieldDeliveryBatch={() => setFieldDeliveryDocumentIds([...selection.selectedIds])}
-        onOpenFieldOccurrenceBatch={() => setFieldOccurrenceDocumentIds([...selection.selectedIds])}
+        onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
+        onOpenFieldOccurrenceBatch={(documentIds) =>
+          setFieldOccurrenceDocumentIds([...documentIds])
+        }
         onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
         pendingCteSelection={

@@ -50,6 +50,22 @@ export function hasMultipleDrivers(drivers: readonly unknown[]): boolean {
 }
 
 /**
+ * Spec 156 T8b/T15 (A4d): base comum das ações de campo em massa — a seleção da tela mistura notas
+ * de qualquer capacidade, e só quem tem a capacidade pedida (`fieldReturn`/`fieldOccurrence`/
+ * `fieldDelivery`) entra no lote enviado à API. Extraída para função pura porque
+ * `TripDetail`/`TripStateActions` não têm suíte de render.
+ */
+export function selectFieldActionableDocumentIds(input: {
+  readonly action: DocumentAllowedAction
+  readonly capabilities: FieldActionCapabilities
+  readonly documentIds: readonly string[]
+}): readonly string[] {
+  return input.documentIds.filter((documentId) =>
+    input.capabilities.canDocument(documentId, input.action),
+  )
+}
+
+/**
  * Spec 156 T8b (revisão): notas selecionadas sem `fieldReturn` não são enviadas no "Devolver" em
  * massa — extraída para função pura porque `TripDetail`/`TripStateActions` não têm suíte de render.
  */
@@ -57,7 +73,5 @@ export function selectFieldReturnableDocumentIds(input: {
   readonly capabilities: FieldActionCapabilities
   readonly documentIds: readonly string[]
 }): readonly string[] {
-  return input.documentIds.filter((documentId) =>
-    input.capabilities.canDocument(documentId, 'fieldReturn'),
-  )
+  return selectFieldActionableDocumentIds({ ...input, action: 'fieldReturn' })
 }

@@ -1121,8 +1121,10 @@
     "returnTitle": "Devolver nota",
     "title": "Ações da viagem",
     "batchFieldOccurrence": "Ocorrência em {{count}} nota(s)",
+    "batchFieldOccurrenceExcluded": "{{count}} nota(s) sem essa ação ficaram de fora. ",
     "batchFieldDelivery": "Dar baixa em {{count}} nota",
-    "batchFieldDelivery_other": "Dar baixa em {{count}} notas"
+    "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
+    "batchFieldDeliveryExcluded": "{{count}} nota(s) sem essa ação ficaram de fora."
   },
   "status": {
     "cancelled": "Cancelada",

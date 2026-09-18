@@ -43,6 +43,13 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   const [isSubmitting, setIsSubmitting] = useState(false)
   const draftsRef = useRef<Record<string, FieldDeliveryDraft>>({})
   const idempotencyKeysRef = useRef<Record<string, string>>({})
+  /**
+   * A4a (spec 156 T15): fechar o assistente no meio do envio não pode deixar o lote antigo
+   * terminando por trás — as chamadas em voo são canceladas (`AbortController`) e qualquer
+   * `onStart`/`onSettle` que ainda chegue depois do cancelamento é ignorado, para o próximo
+   * assistente (que reusa o mesmo hook) começar limpo em vez de herdar status de um lote morto.
+   */
+  const abortControllerRef = useRef<AbortController | undefined>(undefined)
 
   function resolveIdempotencyKey(documentId: string): string {
     const existing = idempotencyKeysRef.current[documentId]
@@ -52,13 +59,17 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     return key
   }
 
-  async function sendDraft(draft: FieldDeliveryDraft): Promise<FieldDeliverySendOutcome> {
+  async function sendDraft(
+    draft: FieldDeliveryDraft,
+    signal: AbortSignal,
+  ): Promise<FieldDeliverySendOutcome> {
     try {
       const result = await input.reportFieldDelivery({
         deliveredAt: draft.deliveredAt,
         documentId: draft.documentId,
         idempotencyKey: resolveIdempotencyKey(draft.documentId),
         imageBlob: draft.imageBlob,
+        signal,
         tripId: input.tripId,
         ...(draft.driverId === undefined ? {} : { driverId: draft.driverId }),
         ...(draft.receiverDocument === undefined
@@ -75,17 +86,22 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
 
   async function runBatch(drafts: readonly FieldDeliveryDraft[]): Promise<void> {
     if (drafts.length === 0) return
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     setIsSubmitting(true)
     await runFieldDeliverySendBatch({
       drafts,
       onSettle: (documentId, outcome) => {
+        if (controller.signal.aborted) return
         setStatusByDocumentId((previous) => ({ ...previous, [documentId]: outcome }))
       },
       onStart: (documentId) => {
+        if (controller.signal.aborted) return
         setStatusByDocumentId((previous) => ({ ...previous, [documentId]: { kind: 'sending' } }))
       },
-      send: sendDraft,
+      send: (draft) => sendDraft(draft, controller.signal),
     })
+    if (controller.signal.aborted) return
     setIsSubmitting(false)
     await input.invalidate()
   }
@@ -110,6 +126,8 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   }
 
   function reset(): void {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = undefined
     setStatusByDocumentId({})
     setIsSubmitting(false)
     draftsRef.current = {}

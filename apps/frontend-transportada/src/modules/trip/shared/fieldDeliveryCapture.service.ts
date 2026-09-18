@@ -13,28 +13,14 @@ import { recognizeCanhotoWords } from './canhotoOcrEngine.service'
 import { reduceFieldDeliveryImageToJpeg } from './fieldDeliveryImage.service'
 import type { FieldDeliveryCapturedPhoto } from './fieldDeliveryWizard.service'
 
-function captureLuminanceFrame(
-  source: CanvasImageSource,
-  width: number,
-  height: number,
-): BarcodeFrame | undefined {
-  if (width === 0 || height === 0) return undefined
-  const factor = Math.min(1, MAXIMUM_FRAME_WIDTH / width)
-  const targetWidth = Math.round(width * factor)
-  const targetHeight = Math.round(height * factor)
-  const canvas = document.createElement('canvas')
-  canvas.width = targetWidth
-  canvas.height = targetHeight
-  const context = canvas.getContext('2d')
-  if (context === null) return undefined
-  context.drawImage(source, 0, 0, targetWidth, targetHeight)
-  return {
-    height: targetHeight,
-    luminance: toLuminance(context.getImageData(0, 0, targetWidth, targetHeight).data),
-    width: targetWidth,
-  }
-}
-
+/**
+ * A4c (spec 156 T15): `source` costuma ser o `<video>` ao vivo — dois `drawImage(source, …)`
+ * separados (um para a identificação, outro para o JPEG/OCR) amostram o quadro **atual** em cada
+ * chamada, e entre eles corre um `await` (`reduceFieldDeliveryImageToJpeg`), tempo de sobra para o
+ * vídeo avançar. O canhoto acaba identificado por um frame e fotografado por outro. A captura
+ * desenha a fonte **uma vez só**, aqui, e tudo daqui em diante (luminância, JPEG, OCR) deriva desse
+ * canvas estático — nunca de `source` de novo.
+ */
 function drawFullResolutionCanvas(
   source: CanvasImageSource,
   width: number,
@@ -48,6 +34,27 @@ function drawFullResolutionCanvas(
   if (context === null) return undefined
   context.drawImage(source, 0, 0, width, height)
   return canvas
+}
+
+function captureLuminanceFrame(
+  frameCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+): BarcodeFrame | undefined {
+  const factor = Math.min(1, MAXIMUM_FRAME_WIDTH / width)
+  const targetWidth = Math.round(width * factor)
+  const targetHeight = Math.round(height * factor)
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const context = canvas.getContext('2d')
+  if (context === null) return undefined
+  context.drawImage(frameCanvas, 0, 0, targetWidth, targetHeight)
+  return {
+    height: targetHeight,
+    luminance: toLuminance(context.getImageData(0, 0, targetWidth, targetHeight).data),
+    width: targetWidth,
+  }
 }
 
 export type CaptureFieldDeliveryPhotoParams = Readonly<{
@@ -84,19 +91,29 @@ export async function captureFieldDeliveryPhoto({
   tripDocuments,
   width,
 }: CaptureFieldDeliveryPhotoParams): Promise<FieldDeliveryCapturedPhoto> {
-  const frame = captureLuminanceFrame(source, width, height)
+  /** A4c: um único `drawImage(source, …)` — tudo abaixo deriva deste canvas estático, nunca de
+   * `source` de novo, para a identificação e a foto nunca virem de instantes diferentes. */
+  const frameCanvas = drawFullResolutionCanvas(source, width, height)
+  const frame =
+    frameCanvas === undefined ? undefined : captureLuminanceFrame(frameCanvas, width, height)
   const identification: CanhotoIdentificationResult =
     frame === undefined
       ? { status: 'unreadable' }
       : identifyCanhotoFromFrame({ expectedDocumentId, frame, selectedDocumentIds, tripDocuments })
-  const imageBlob = await reduceFieldDeliveryImageToJpeg(source, { height, width })
+  const imageBlob =
+    frameCanvas === undefined
+      ? await reduceFieldDeliveryImageToJpeg(source, { height, width })
+      : await reduceFieldDeliveryImageToJpeg(frameCanvas, { height, width })
 
-  if (identification.status !== 'unreadable' || canhotoOcrEnabled !== true) {
+  if (
+    identification.status !== 'unreadable' ||
+    canhotoOcrEnabled !== true ||
+    frameCanvas === undefined
+  ) {
     return { identification, imageBlob }
   }
 
-  const canvas = drawFullResolutionCanvas(source, width, height)
-  const words = canvas === undefined ? undefined : await recognizeCanhotoWords(canvas)
+  const words = await recognizeCanhotoWords(frameCanvas)
   if (words === undefined) return { identification, imageBlob }
 
   const ocrResult = identifyCanhotoNumber({

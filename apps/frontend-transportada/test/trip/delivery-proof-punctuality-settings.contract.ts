@@ -77,7 +77,8 @@ describe('os cinco parâmetros da nota do motorista no painel de comprovante (RF
     expect(isCompanyDeliveryProofSettings(validSettings())).toBe(true)
     expect(isCompanyDeliveryProofSettings({ ...VALID_MODES })).toBe(false)
     expect(isCompanyDeliveryProofSettings(validSettings({ proofWindowMinutes: 4 }))).toBe(false)
-    const { canhotoOcrEnabled: _canhotoOcrEnabled, ...withoutSwitch } = validSettings()
+    const withoutSwitch: Record<string, unknown> = { ...validSettings() }
+    delete withoutSwitch.canhotoOcrEnabled
     expect(isCompanyDeliveryProofSettings(withoutSwitch)).toBe(false)
   })
 

@@ -8,7 +8,10 @@ import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
-import { selectFieldReturnableDocumentIds } from '../shared/tripFieldActions.service'
+import {
+  selectFieldActionableDocumentIds,
+  selectFieldReturnableDocumentIds,
+} from '../shared/tripFieldActions.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDetail } from '../shared/trip.types'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -35,10 +38,10 @@ export type TripStateActionsProps = Readonly<{
   onBatchReturn: (reason: DriverReturnReason) => void
   onCancel: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
-  /** Spec 156 T9: abre `FieldOccurrenceDialog` com o maço da seleção. */
-  onOpenFieldOccurrenceBatch: () => void
-  /** Spec 156 T11: abre `FieldDeliveryWizard` com o maço da seleção. */
-  onOpenFieldDeliveryBatch: () => void
+  /** Spec 156 T9/T15: abre `FieldOccurrenceDialog` só com as notas do maço que têm `fieldOccurrence`. */
+  onOpenFieldOccurrenceBatch: (documentIds: readonly string[]) => void
+  /** Spec 156 T11/T15: abre `FieldDeliveryWizard` só com as notas do maço que têm `fieldDelivery`. */
+  onOpenFieldDeliveryBatch: (documentIds: readonly string[]) => void
   onPlanRoute: () => void
   selection: TripDocumentSelectionController
   /** O que da seleção ainda tem CT-e a emitir — resolvido em `cteSelection.service.ts`. */
@@ -95,6 +98,23 @@ export function TripStateActions({
     documentIds: [...selection.selectedIds],
   })
   const canReturnSelection = returnableSelection.length > 0
+  /**
+   * A4d (spec 156 T15): a baixa/ocorrência em massa enviam só as notas selecionadas com a
+   * capacidade — a seleção inteira ia direto para a API sem esse filtro, e cada nota sem a
+   * capacidade virava um 403/409 solto no lote. O aviso mostra quantas ficaram de fora.
+   */
+  const occurrenceSelection = selectFieldActionableDocumentIds({
+    action: 'fieldOccurrence',
+    capabilities,
+    documentIds: [...selection.selectedIds],
+  })
+  const deliverySelection = selectFieldActionableDocumentIds({
+    action: 'fieldDelivery',
+    capabilities,
+    documentIds: [...selection.selectedIds],
+  })
+  const excludedFromOccurrenceBatch = selection.selectedIds.size - occurrenceSelection.length
+  const excludedFromDeliveryBatch = selection.selectedIds.size - deliverySelection.length
 
   function handleDispatchClick(): void {
     if (unloadedDocuments.length > 0) {
@@ -173,16 +193,38 @@ export function TripStateActions({
             </Button>
           ) : null}
           {canFieldOccurrenceBatch ? (
-            <Button onClick={onOpenFieldOccurrenceBatch} size="sm" type="button" variant="ghost">
+            <Button
+              onClick={() => onOpenFieldOccurrenceBatch(occurrenceSelection)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
               <Icon name="alert" />
-              {t('stateActions.batchFieldOccurrence', { count: selection.selectedIds.size })}
+              {t('stateActions.batchFieldOccurrence', { count: occurrenceSelection.length })}
             </Button>
           ) : null}
           {canFieldDeliveryBatch ? (
-            <Button onClick={onOpenFieldDeliveryBatch} size="sm" type="button" variant="ghost">
+            <Button
+              onClick={() => onOpenFieldDeliveryBatch(deliverySelection)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
               <Icon name="camera" />
-              {t('stateActions.batchFieldDelivery', { count: selection.selectedIds.size })}
+              {t('stateActions.batchFieldDelivery', { count: deliverySelection.length })}
             </Button>
+          ) : null}
+          {excludedFromOccurrenceBatch > 0 || excludedFromDeliveryBatch > 0 ? (
+            <p className={styles.hint} role="status">
+              {excludedFromOccurrenceBatch > 0
+                ? t('stateActions.batchFieldOccurrenceExcluded', {
+                    count: excludedFromOccurrenceBatch,
+                  })
+                : null}
+              {excludedFromDeliveryBatch > 0
+                ? t('stateActions.batchFieldDeliveryExcluded', { count: excludedFromDeliveryBatch })
+                : null}
+            </p>
           ) : null}
         </div>
       ) : null}
