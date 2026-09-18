@@ -5,6 +5,36 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 157)
+
+**Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
+`latitude`, `longitude`, `accuracyMeters`, `capturedAt`) e a nota do motorista que deriva deles
+(ADR-0068); `frontend-transportada`, fila offline de anexos do PWA (IndexedDB).
+
+**O que é (risco aceito):** a pontualidade da foto (`on_time`/`late`/`away`) sai de dados que o
+**cliente declara**. Um aparelho adulterado pode mandar a coordenada da parada e um `capturedAt`
+plausível sem estar lá. O servidor limita o que dá: `capturedAt` só vale dentro de
+`[max(entrega − 2 min, recebimento − missingAfterHours), recebimento + 2 min]`, a precisão soma ao
+raio no máximo um raio e acima de 10 km é recusada, a foto substituta nunca melhora a pontualidade, e
+a foto sem posição conta como longe. Não há atestado do aparelho (Play Integrity/App Attest) nem
+checagem de EXIF — a nota é sinal de gestão, não prova. A decisão foi do usuário na spec 157.
+
+**Dado pessoal guardado:** a posição da foto é dado de localização (LGPD). Ela não entra em log nem
+em resposta (a ficha mostra só motivo, pontos e datas) e cai aos 90 dias pelo expurgo
+`trip.location.purge` do worker (latitude, longitude e precisão; `captured_at` fica). O `params:` do
+`DrizzleQueryError` é apagado antes de sair para o Sentry. **Resta:** a fila offline do PWA guarda a
+foto **com a posição** no IndexedDB do aparelho até conseguir subir — sem prazo de descarte no
+aparelho e legível por quem tiver o celular desbloqueado.
+
+**O que falta:** prazo de descarte da fila offline no PWA (apagar anexo parado há mais de
+`missingAfterHours`, ou ao sair da conta); avaliar atestado do aparelho se a nota passar a pesar em
+dinheiro. Limitação conhecida da atribuição: o evento de entrega anterior à T11, sem
+`reported_by_driver_id`, ainda acha o motorista pelo vínculo atual da conta — se o acesso ao app for
+desligado, essa parte do histórico some da ficha (as entregas novas não dependem mais do vínculo).
+
+**Origem:** spec 157, revisão T11 (achados de segurança sobre posição e tenant). Registrado em
+2026-09-18.
+
 ### 2026-09-16 — chave de envio do Resend e senha do SMTP expostas em conversa
 
 **Onde:** worker de produção no Railway — `RESEND_API_KEY` (referenciada da chave que o operador

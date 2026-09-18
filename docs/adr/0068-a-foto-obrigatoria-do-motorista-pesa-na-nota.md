@@ -48,3 +48,30 @@ motorista transformaria falta de sinal em entrega perdida, e a entrega física j
 - O app nativo, quando ganhar entrega, segue o mesmo contrato sem mudança no backend.
 - Recalcular é barato e sem cron; mudar os pontos da empresa muda a nota de todos imediatamente, o que
   é intencional (a regra é da empresa, não do momento).
+
+## Emenda 2026-09-18 — revisão T11 (decisões do usuário)
+
+A revisão da T11 achou brechas na regra acima; o usuário decidiu:
+
+- **D1 — sem retroatividade.** A nota conta só entrega a partir da ativação:
+  `company_delivery_proof_settings.score_effective_since` (`timestamptz not null default now()`). A
+  migration grava o instante dela em toda linha existente e cria a linha de fábrica para toda empresa
+  que ainda não tinha (mesmos valores que a ausência de linha já significava, ADR-0057 §4). Empresa
+  criada depois não tem entrega anterior à regra — sem linha, não há corte. O `PUT` da configuração
+  nunca altera a data.
+- **D2 — só o app entra na nota.** `channel = 'whatsapp'` fica fora, como `office` (§6): o canal
+  ainda não será liberado. `proofPending` continua calculado para ele.
+- **D3a — o relógio do aparelho tem prazo.** O piso da referência de tempo (§3) passa a ser
+  `max(entrega − 2 min, recebimento − missingAfterHours)`: foto que sobe dias depois com o relógio
+  voltado para a hora da entrega não passa mais como pontual.
+- **D3b — a foto substituta nunca melhora a pontualidade.** Fica a pior das duas; `late` e `away`
+  pesam igual e juntos viram `late_and_away`; `on_time` só vence `not_required`. A foto do
+  escritório (`field-proof`) não classifica e é fundida do mesmo jeito: não penaliza o motorista
+  (sem posição ela contaria como `away`) e não lava uma foto dele fora da regra.
+- **D4 — as penalidades continuam sob `fleet.read`.** Sem mudança.
+
+E, sem decisão nova, a revisão consertou: a precisão soma ao raio no máximo um raio (e acima de
+10 km é `400`); a baixa repetida do motorista não grava `delivered` novo; o motorista do evento passa
+a ser gravado nele (`reported_by_driver_id`), e desligar o acesso ao app não apaga o histórico; as
+fotos pendentes de viagem concluída aparecem em `pendingProofs` no snapshot; a posição da foto cai
+aos 90 dias com a do evento. Riscos aceitos em `docs/SECURITY.md` (2026-09-18, spec 157).

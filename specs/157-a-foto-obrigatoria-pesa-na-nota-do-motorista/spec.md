@@ -75,34 +75,53 @@ a foto obrigatória, de onde anexa em lote — e a foto entra na **fila offline*
 - **RF1** `POST /me/.../deliver` nunca recusa por falta de foto. A resposta ganha `proofPending: boolean`
   = configuração resolvida da nota com `photo = 'required'` e nenhuma foto anexada ao evento de entrega.
 - **RF2** O snapshot do motorista expõe por documento `proofPending: boolean` e, na raiz, `score` (a nota
-  do próprio motorista, ou `null` sem histórico).
+  do próprio motorista, ou `null` sem histórico) e `pendingProofs` (T11): as notas que o próprio
+  motorista entregou nos 90 dias, com foto obrigatória e sem foto, em qualquer viagem que o `/proof`
+  alcança — **inclusive `completed`**, que some de `trips`. Vem vazio sem cadastro de motorista e
+  presente mesmo sem viagem ativa. Cada item: `documentId`, `tripId`, `tripStatus`, `documentNumber`,
+  `documentSeries`, `recipientName`, `deliveredAt`, `deliveryProof`.
 - **RF3** `POST /me/.../proof` aceita, opcionais no multipart, `latitude`, `longitude`,
-  `accuracyMeters` (≥ 0) e `capturedAt` (ISO). Par incompleto ou fora de faixa → 400 `invalidRequest`.
+  `accuracyMeters` (0–10000) e `capturedAt` (ISO), validados por Zod como texto decimal com teto
+  antes de virar número (T11). Par incompleto, fora de faixa, notação científica ou precisão acima de
+  10 km → 400 `invalidRequest`.
 - **RF4** Ao gravar uma foto (`kind = 'photo'`) para nota com `photo = 'required'` resolvida, a API grava a
   **pontualidade**: `on_time`, `late`, `away` ou `late_and_away`. Foto de nota sem exigência grava
-  `not_required`. A pontualidade da foto substituída acompanha a substituta.
+  `not_required`. **Foto substituída fica com a pior pontualidade das duas** (T11, decisão D3b):
+  `late` e `away` pesam igual, juntos viram `late_and_away`; `on_time` só vence `not_required`. A foto
+  do escritório (`field-proof`, canal `office`) não classifica: grava `not_required` fundida com a
+  anterior — preserva a pontualidade da foto do motorista e, sem foto anterior, fica `not_required`.
 - **RF5** Horário de referência da foto = `capturedAt` do cliente, limitado ao intervalo
-  `[evento de entrega − 2 min, recebimento no servidor + 2 min]` (mesma folga da
+  `[max(evento de entrega − 2 min, recebimento − missingAfterHours), recebimento no servidor + 2 min]`
+  (T11, decisão D3a: o relógio do aparelho só vale até `missingAfterHours` antes do recebimento; a
+  folga de 2 min é a da
   `field-delivery-timing.policy.ts`); sem `capturedAt`, o recebimento no servidor. **Tardia** = referência
   mais de `proofWindowMinutes` depois de `trip_stop_events.captured_at ?? recorded_at` da entrega.
 - **RF6** **Longe** = distância haversine entre a posição da foto e a da parada (`trip_stops.latitude/
 longitude`) maior que `proofRadiusMeters + accuracyMeters da foto`. Parada sem coordenada usa a
   posição do evento de entrega; sem nenhuma das duas referências, não há como julgar a distância e ela
-  não pesa. **Foto sem posição conta como longe** — o motorista precisa compartilhar a localização para
+  não pesa. A precisão soma ao raio no máximo um raio (`min(accuracyMeters, proofRadiusMeters)`, T11). **Foto sem posição conta como longe** — o motorista precisa compartilhar a localização para
   provar que estava no local.
 - **RF7** Parâmetros por empresa, junto da configuração do comprovante (`GET/PUT
 /company-settings/delivery-proof`): `proofWindowMinutes` (padrão 60, 5–1440), `proofRadiusMeters`
   (padrão 300, 50–5000), `latePenaltyPoints` (padrão 5, 0–100), `missingPenaltyPoints` (padrão 10,
   0–100), `missingAfterHours` (padrão 24, 1–168). A exceção por CNPJ **não** carrega esses campos: são
-  da empresa.
+  da empresa. No `PUT` os cinco são opcionais: o que não vem mantém o valor gravado (ou o padrão).
 - **RF8** Penalidades de uma entrega do motorista com foto obrigatória, nos últimos 90 dias:
   - foto `late`, `away` ou `late_and_away` → `latePenaltyPoints` (uma vez por entrega, não soma os dois);
   - sem foto e entrega há mais de `missingAfterHours` → `missingPenaltyPoints`;
   - sem foto e dentro do prazo → nenhuma ainda (fica `proofPending`).
-    Entrega com canal `office` não entra. O motorista da entrega é o do evento: `on_behalf_of_driver_id`
-    ou o cadastro de motorista ligado a `actor_user_id`. Nota devolvida sem entrega não conta.
+    Só entrega com canal `driver_app` entra (T11, decisão D2: `office` e `whatsapp` ficam fora — o
+    WhatsApp ainda não será liberado; `proofPending` continua calculado para ele). O motorista da
+    entrega é o do evento: `on_behalf_of_driver_id`, `reported_by_driver_id` (gravado pelo app e pelo
+    WhatsApp desde a T11) ou, no evento antigo sem a coluna, o cadastro ligado a `actor_user_id`. Nota
+    devolvida sem entrega não conta. O último `delivered` da nota decide; a baixa repetida do
+    motorista (no-op `alreadySettled`) não grava evento novo.
 - **RF9** Nota = `max(0, 100 − Σ penalidades vigentes)`; `null` quando o motorista não teve nenhuma entrega
-  com foto obrigatória em 90 dias. A penalidade expira 90 dias depois da entrega.
+  com foto obrigatória em 90 dias. A penalidade expira 90 dias depois da entrega. **Sem
+  retroatividade** (T11, decisão D1): só conta entrega a partir de
+  `company_delivery_proof_settings.score_effective_since` (instante da migration para as empresas que
+  já existiam; `now()` na criação da linha; sem linha, sem corte). A lista `pendingProofs` usa o
+  mesmo corte.
 - **RF10** `GET /fleet/drivers` devolve `score` por motorista; `GET /fleet/drivers/:id/score` devolve a nota
   e a lista de penalidades vigentes (id do documento, número da NF-e, data da entrega, motivo, pontos,
   expira em). Permissão de leitura da frota; escopo da empresa do token.
@@ -112,6 +131,10 @@ longitude`) maior que `proofRadiusMeters + accuracyMeters da foto`. Parada sem c
   obrigatória e que tirá-la depois ou longe dali tira pontos; a entrega não é bloqueada. Tela "fotos
   pendentes" lista as notas com `proofPending`. O anexo leva a posição lida no momento da captura e
   `capturedAt`, e vai para a fila offline mesmo quando a entrega já saiu dela.
+
+- **RF13** (T11) A posição da foto (`latitude`, `longitude`, `accuracy_meters` de
+  `trip_delivery_proofs`) é apagada aos 90 dias pelo expurgo `trip.location.purge` do worker, como a
+  do evento de entrega; `captured_at`, o arquivo e a pontualidade ficam.
 
 ## Requisitos não funcionais
 
@@ -125,13 +148,19 @@ longitude`) maior que `proofRadiusMeters + accuracyMeters da foto`. Parada sem c
 ## Casos extremos e falhas
 
 - Foto enviada duas vezes com a mesma `attachmentKey`: devolve a mesma, sem reclassificar.
-- Foto substituída (upsert por `(evento, kind)`): a pontualidade é a da **última** foto.
+- Foto substituída (upsert por `(evento, kind)`): fica a **pior** pontualidade das duas (T11, D3b).
+- Foto do escritório sobre entrega do motorista: não penaliza nem lava (T11).
+- Baixa do escritório com foto e, depois, `deliver` repetido pela fila do motorista: devolve o evento
+  do escritório, sem evento novo — nada fica pendente nem penaliza (T11).
 - `capturedAt` do aparelho no futuro ou antes da entrega: é limitado pela RF5, nunca recusado.
 - Configuração muda de `required` para `optional` depois da entrega: a penalidade de ausência usa a
   configuração **atual**; a pontualidade já gravada numa foto não muda.
 - Viagem com vários motoristas: só quem registrou a entrega é penalizado.
 - Entrega repetida pela fila (mesma `Idempotency-Key`): um único evento, uma única avaliação.
 - Motorista desligado ou sem cadastro: não aparece na recomendação; o histórico continua lido pela ficha.
+  Desligar o acesso ao app (`fleet_drivers.membership_id = null`) não apaga o histórico das entregas
+  gravadas com `reported_by_driver_id`; o evento anterior à T11 ainda depende do vínculo (limitação
+  conhecida).
 
 ## Critérios de aceite
 

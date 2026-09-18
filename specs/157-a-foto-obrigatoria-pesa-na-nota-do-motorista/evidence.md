@@ -555,3 +555,110 @@ Rotas para print (T12): `/fleet` (aba de motoristas — coluna e ficha), `/trip`
 entrega" — painel de configuração; diálogo de criação rápida e de montagem de rota — seletor de
 motoristas), `/minha-viagem` (card da parada com aviso, Perfil com a nota, tela de fotos pendentes
 via o atalho no topo).
+
+## T11 — correção da revisão (backend: API e worker) — **aberta, falta o frontend**
+
+Decisões do usuário (2026-09-18): D1 sem retroatividade, D2 WhatsApp fora da nota, D3a relógio do
+aparelho com prazo, D3b substituta fica com a pior pontualidade, D4 penalidades seguem `fleet.read`.
+Registradas em `spec.md` (RF2–RF9, RF13, casos extremos) e em ADR-0068 (emenda 2026-09-18). Teste
+escrito antes da correção em cada item.
+
+| #      | Achado                                                                  | Correção                                                                                                                                                                                                                                                                                                                                                                              | Teste                                                                                                                                                                                                             | Commit                 |
+| ------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 1 ALTO | Viagem concluída some do snapshot e a foto pendente fica inalcançável   | `pendingProofs` na raiz de `GET /me/trips/current` (vazio sem cadastro, presente sem viagem ativa); `listPendingProofs` com o recorte de tripulação do `/proof` e `TRIP_DISPATCHED_STATUSES` (inclui `completed`). `/proof` em viagem `completed` confirmado                                                                                                                          | `current-trip.contract.ts` (2 novos); integração `me-trip` "a última entrega conclui a viagem e a pendente continua listada" (concluída → `trips: []`, pendentes listadas, `/proof` aceita, sai da lista, tenant) | `75c31fb9`             |
+| 2 ALTO | `field-proof` do escritório penalizava (sem posição = `away`) ou lavava | canal `office` não classifica: `not_required` fundido com a anterior (`mergeProofPunctuality`); comentário de `main.ts` corrigido                                                                                                                                                                                                                                                     | `office-field-delivery.contract.ts` (3 casos, sem ler configuração); integração `trip-field-office`: motorista `late_and_away` + canhoto do escritório → fica `late_and_away`; sem foto anterior → `not_required` | `2bf747b5`             |
+| 3 ALTO | No-op `alreadySettled` gravava `delivered` novo que escondia a foto     | no-op devolve o último evento do tipo (`findLatestEventForDocument`); só nota sem evento (legado) grava um. Resposta segue 201 `alreadySettled: true`                                                                                                                                                                                                                                 | `field-report.contract.ts` (2 novos); integração `trip-field-office`: baixa do escritório com foto + `deliver` repetido do motorista → mesmo evento, `proofPending: false`, 1 `delivered`, nota `null`            | `9ed00ed4`             |
+| 4      | `accuracyMeters` sem teto                                               | parse: 0–10000, senão 400; regra: `min(accuracy, proofRadiusMeters)`                                                                                                                                                                                                                                                                                                                  | `proof-location-parse.contract.ts`; `punctuality.contract.ts` "precisão enorme soma no máximo um raio"                                                                                                            | `869cef1b`, `758637d1` |
+| 5      | Configuração lida dentro da transação (segunda conexão do pool)         | `resolveOutcomeProofSettings` antes de `unitOfWork.execute`; o `field-proof` do escritório não lê mais a configuração de pontualidade                                                                                                                                                                                                                                                 | contratos de `field-report`/`office-field-delivery` + integrações verdes                                                                                                                                          | `758637d1`             |
+| 6      | `PUT` exigia os cinco campos novos                                      | opcionais; ausente mantém o gravado (ou o padrão)                                                                                                                                                                                                                                                                                                                                     | `punctuality-settings.contract.ts` (2 novos)                                                                                                                                                                      | `758637d1`             |
+| 7      | Nota varria a empresa; desempate do snapshot divergente                 | subquery só nas notas com entrega dos motoristas pedidos (`buildRequestedDriverDocuments`), `distinct on` segue por nota; snapshot com `desc(id)`                                                                                                                                                                                                                                     | integração `driver-score` "última entrega do escritório tira a nota do motorista" + as 5 anteriores                                                                                                               | `bb788045`, `75c31fb9` |
+| 8      | Posição da foto sem prazo (LGPD)                                        | worker `trip.location.purge` zera lat/long/precisão de `trip_delivery_proofs` aos 90 dias (contador `redactedProofs`; `captured_at` fica); índice parcial `trip_delivery_proofs_located_created_at_idx`                                                                                                                                                                               | `purge.contract.ts` (novo caso); `trip-location-purge.integration.test.ts` contra Postgres migrado                                                                                                                | `45fbd11a`             |
+| 9      | `params:` do `DrizzleQueryError` ia ao Sentry                           | `scrubSentryEvent` apaga `\nparams: …` de toda string e a chave `params`                                                                                                                                                                                                                                                                                                              | `sentry.contract.ts` "os parâmetros de uma consulta que falhou nunca saem"                                                                                                                                        | `758637d1`             |
+| 10     | Multipart novo sem Zod                                                  | `proofLocationSchema`: texto com teto e regex decimal (até 17 casas — `String(number)` do GPS) antes de `Number`                                                                                                                                                                                                                                                                      | `proof-location-parse.contract.ts` (15 casos)                                                                                                                                                                     | `758637d1`             |
+| 11     | `new Error('TRIP_STOP_EVENT_NOT_FOUND')`                                | `DeliveryProofEventVanishedError` (`DiagnosableError`)                                                                                                                                                                                                                                                                                                                                | typecheck + contratos                                                                                                                                                                                             | `758637d1`             |
+| 12     | Literais repetidos (§16)                                                | `trips/domain/delivery-event.constant.ts` (`DELIVERED_EVENT_KIND`, `DELIVERED_DOCUMENT_STATUS`, `PHOTO_PROOF_KIND`, `RECIPIENT_PARTICIPANT_ROLE`, `REQUIRED_PROOF_FIELD_MODE`) e `shared/time.constant.ts`                                                                                                                                                                            | typecheck                                                                                                                                                                                                         | `758637d1`, `75c31fb9` |
+| 13     | Índice de `20260918115535` sem `CONCURRENTLY`                           | **não dá**: o migrator do Drizzle (`pg-core/async/session.js`, `migrate`) roda todas as migrations pendentes numa transação só, e `CREATE INDEX CONCURRENTLY` não roda em transação. Mantido; os três índices novos da T11 são parciais/pequenos. Se a tabela crescer, criar à mão fora do deploy antes da migration (o `IF NOT EXISTS` não existe no gerado — seria migration à mão) | — (documentado)                                                                                                                                                                                                   | —                      |
+| 14     | Motorista resolvido pelo vínculo atual                                  | `trip_stop_events.reported_by_driver_id` (FK composta com `fleet_drivers`), gravado por entrega/retorno do app e do WhatsApp; atribuição `on_behalf → reported_by → vínculo`. **Limitação**: evento anterior à T11 segue pelo vínculo (registrado em SECURITY.md e na spec)                                                                                                           | integração `driver-score` "o histórico sobrevive ao desligamento do acesso ao app"; `me-trip` confere a coluna gravada                                                                                            | `bb788045`             |
+| 15     | Riscos aceitos sem registro                                             | `docs/SECURITY.md` 2026-09-18 (posição/horário declarados pelo cliente; fila offline guarda posição; limitação do item 14)                                                                                                                                                                                                                                                            | —                                                                                                                                                                                                                 | commit de docs         |
+| D1     | Retroatividade                                                          | `score_effective_since` (migration grava o instante nas linhas e cria a linha de fábrica de toda empresa sem linha; sem linha depois disso = empresa nova, sem corte); `computeDriverScore({ effectiveSince })`; `pendingProofs` com o mesmo corte                                                                                                                                    | `driver-score.contract.ts` (2 novos); integração "entrega anterior à ativação da nota não conta"; rollback + reaplicação manual (abaixo)                                                                          | `869cef1b`             |
+| D2     | WhatsApp na nota                                                        | `eq(channel, 'driver_app')`                                                                                                                                                                                                                                                                                                                                                           | integração aceite 5 com entrega `whatsapp` que não pesa                                                                                                                                                           | `869cef1b`             |
+| D3a    | Relógio do aparelho sem prazo                                           | piso `max(entrega − 2 min, recebimento − missingAfterHours)`                                                                                                                                                                                                                                                                                                                          | `punctuality.contract.ts` (2 novos)                                                                                                                                                                               | `869cef1b`             |
+| D3b    | Substituta lavava a pontualidade                                        | `mergeProofPunctuality`                                                                                                                                                                                                                                                                                                                                                               | `punctuality.contract.ts` (13 combinações); `delivery-proof.contract.ts` "foto pontual que substitui a tardia continua late"                                                                                      | `2bf747b5`             |
+
+Migrations novas (todas aditivas, com `snapshot.json` e `rollback.sql`):
+`20260918132305_driver_score_reported_by_driver`, `20260918133047_driver_score_effective_since`
+(com `INSERT … SELECT id FROM companies ON CONFLICT DO NOTHING`), `20260918134113_delivery_proof_location_purge_index`.
+Verificação manual contra Postgres 18 descartável: migrar tudo → aplicar os rollbacks de
+`effective_since` e `reported_by_driver` → colunas somem (0) → inserir empresa → migrar de novo →
+a empresa ganhou linha de fábrica com `score_effective_since` preenchido e as colunas voltaram (2).
+
+Contrato novo para o frontend (`GET /me/trips/current`, campo aditivo):
+
+```json
+{
+  "data": {
+    "isRegisteredDriver": true,
+    "score": 85,
+    "trips": [],
+    "pendingProofs": [
+      {
+        "documentId": "<trip_documents.id>",
+        "tripId": "…",
+        "tripStatus": "completed",
+        "documentNumber": "1234",
+        "documentSeries": "1",
+        "recipientName": "…",
+        "deliveredAt": "2026-09-18T12:00:00.000Z",
+        "deliveryProof": {
+          "photo": "required",
+          "receiverDocument": "off",
+          "receiverName": "optional",
+          "signature": "optional"
+        }
+      }
+    ]
+  }
+}
+```
+
+O que o frontend precisa fazer (não feito nesta task):
+
+1. Tela "fotos pendentes" e contador: ler `data.pendingProofs` (raiz) em vez de percorrer `trips` —
+   é o único jeito de ver a pendente de viagem concluída; validar o bloco em
+   `driverTripResponse.validation.ts` (hoje ignorado por ser chave desconhecida). O anexo continua
+   pelo `POST /me/trips/current/documents/:documentId/proof` com o `documentId` do item.
+2. `/proof`: `accuracyMeters` acima de 10000 agora é `400` — omitir (ou limitar) a precisão acima de
+   10 km antes de enviar, inclusive nos itens já parados na fila offline, senão eles travam.
+3. Aviso ao motorista: a foto refeita não melhora mais a pontualidade (D3b), e a foto que sobe depois
+   de `missingAfterHours` é tardia mesmo com `capturedAt` antigo (D3a) — o texto do card/pendentes
+   que sugere "tire de novo no local" deve dizer isso.
+4. Fila offline: prazo de descarte do anexo parado (risco aceito em `docs/SECURITY.md`).
+5. Painel de configuração: nada obrigatório (o `PUT` continua aceitando os cinco campos); pode
+   omitir os que não mudaram.
+
+Comandos e resultado (Postgres 18 Homebrew descartável na porta 65471 — 65433/65434 estavam
+ocupadas por clusters de outras sessões —, `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65471/postgres`):
+
+```
+$ bun run typecheck                      # raiz, todas as apps — 0 erros
+$ bun run lint                           # raiz, todas as apps — 0 erros
+# apps/api-transportada
+$ bun --env-file=../../.env.test test --timeout 120000
+  6624 pass / 1 fail (6625 em 180 arquivos)
+  falha pré-existente de ambiente: "Drizzle migration integration > … fiscal migration"
+  (Postgres 18 devolve 23001 onde o teste espera 23503 — cte-profile-output-constraints)
+$ bun --env-file=../../.env.test run test:integration
+  409 pass / 18 fail (427 em 79 arquivos) — as 18 são de ambiente:
+  - 9: auth-me, authentication-repository, database-availability (5 + beforeAll), tenant-context
+    leem API_TEST_DATABASE_URL/DATABASE_URL do .env.test (Postgres do Docker quebrado); rodadas de
+    novo contra um banco migrado local → 8 pass / 0 fail
+  - 8: cte-archive (2) e toll-booth extract/reload (6) precisam do MinIO (59000 não está ouvindo)
+  - 1: a mesma migration 23001 do Postgres 18
+# apps/worker-transportada
+$ bun run test                           # 1382 pass / 0 fail (90 arquivos)
+$ DATABASE_URL=<banco migrado> bun test ./test/trip-location-purge.integration.test.ts   # 2 pass
+# apps/frontend-transportada (contrato da API mudou só de forma aditiva)
+$ bun run test                           # 4357 pass / 0 fail (+ 2 pass test:hooks)
+```
+
+T11 **não** fica `[x]`: falta a parte do frontend acima (e a revisão dela).
