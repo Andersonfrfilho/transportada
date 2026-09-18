@@ -2405,3 +2405,81 @@ botões, mesma correção).
 - `apps/frontend-transportada/playwright.config.ts` (alterado) — `testMatch` passa a ser uma
   lista (`responsive.smoke.spec.ts` + `field-delivery.smoke.spec.ts`).
 - `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t12-send-*.png` (4 novos).
+
+## T13
+
+**ADR:** `docs/adr/0069-o-numero-do-canhoto-se-le-no-aparelho-e-nunca-decide.md` (0068 já era da
+spec 158; conferido `git fetch --all` + todas as branches remotas e locais e os worktrees vizinhos —
+0069 livre em 2026-09-18). Decisão: `tesseract.js` 7.0.0 + `tesseract.js-core` 7.0.0 +
+`@tesseract.js-data/eng` 1.0.0 (`4.0.0_best_int`), dependências npm fixadas que **só entram na T14**;
+servidas da própria origem (`public/canhoto-ocr/`, copiadas de `node_modules`), carga sob demanda com o
+interruptor ligado, fora do precache, `CacheFirst` próprio. Rejeitadas: `TextDetector` (atrás de flag,
+não lê texto), ONNX/PaddleOCR (≥ 13,6 MB de runtime e OpenCV de novo), MNIST (dígito manuscrito
+isolado), `scribe.js-ocr` (AGPL-3.0), OCR no servidor (a foto sairia do aparelho). "Só manual" segue
+como fallback de todo caminho.
+
+**Sonda sob a CSP real** (`buildContentSecurityPolicy` do app em toda resposta, Chromium headless do
+Playwright 1.58.2): zero violação de CSP; carga 107–153 ms e leitura 110–124 ms no desktop; com
+`workerBlobURL: false` (obrigatório — o padrão cria worker `blob:`). Achado que muda o plan.md: a
+whitelist só de dígitos **piora** a leitura (`NF-e Nº 000.123.456 SÉRIE 1` → `000` / `0001234561`, número
+e série colados); sem whitelist sai `NF-e N° 000.123.456 SERIE 1` com confiança 91. A T14 lê o texto
+inteiro e aproveita só os dígitos depois de `Nº`/`SÉRIE` (ADR-0069 §3). A imagem era sintética: prova
+que roda, não que acerta canhoto real — isso é do critério de validação (ADR-0069 §6, espelho da spec
+152 D16: ≥ 50 canhotos reais, 3 emitentes, 2 aparelhos, 2 luzes; go = zero sugestão errada e ≥ 70%
+certa).
+
+**Interruptor** `company_delivery_proof_settings.canhoto_ocr_enabled boolean not null default false`:
+
+- Migration aditiva `drizzle/20260918142214_delivery_proof_canhoto_ocr/` (`db:generate`, com
+  `snapshot.json`) + `rollback.sql` (drop da coluna + remoção da linha do journal, conferindo 1).
+- `GET /company-settings/delivery-proof` devolve `canhotoOcrEnabled`; no `PUT` o campo é **opcional** e
+  ausente não mexe (o painel de hoje manda só os quatro campos e não pode desligar calado). Não entra
+  na tabela de exceções nem no snapshot do motorista (é da empresa).
+- Leitura estreita do escritório: `GET /trips/field-delivery-settings` → `{ data: { canhotoOcrEnabled } }`,
+  `trip.report-on-behalf`, `cache-control: no-store` (molde de `GET /nfe-package-boxes/measurement-settings`
+  da spec 152 D14). Rota exata, casada antes de `/trips/:id`. Arquivo próprio
+  (`trip-field-delivery-settings.routes.ts`) para não mexer no contrato "sete rotas POST" da T5.
+- Frontend: `readFieldDeliverySettings()` no `tripClient` (resposta fora do contrato é
+  `TRIP_RESPONSE_INVALID`, nunca "desligado") e `useFieldDeliverySettingsQuery({ enabled })`. **Quem
+  consome é a T14** (o assistente só muda de comportamento quando houver OCR); o painel com o
+  interruptor e o selo "Experimental" também vão na T14, junto com a função que ele liga.
+
+**TDD — vermelho antes:** contratos `settings-canhoto-ocr` (2 falhas) e `delivery-settings` (módulo
+inexistente); integração `canhoto-ocr-flag` 0/5; contrato do frontend 0/6.
+
+**Gates (2026-09-18):**
+
+| Gate                 | Comando                                                                                                                                                                                      | Resultado                         |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| typecheck            | `bun run typecheck` (raiz)                                                                                                                                                                   | exit 0                            |
+| lint                 | `bun run lint` (raiz)                                                                                                                                                                        | exit 0                            |
+| formato              | `bunx prettier --check .`                                                                                                                                                                    | exit 0                            |
+| contrato API         | `bun --env-file=../../.env.test test --timeout 120000` (com `DRIZZLE_TEST_DATABASE_URL`)                                                                                                     | 6570 pass, 1 fail (abaixo)        |
+| integração API       | `bun --env-file=../../.env.test run test:integration` (as três URLs de banco no Postgres nativo)                                                                                             | 421 pass, 9 fail, 0 skip (abaixo) |
+| integração nova      | `canhoto-ocr-flag.integration.ts` + `trip-field-office.integration.ts`                                                                                                                       | 21 pass, 0 fail, 0 skip           |
+| db:test              | `bun --env-file=../../.env.test run db:test`                                                                                                                                                 | 96 pass, 1 fail (abaixo)          |
+| migration + rollback | script descartável: migra tudo → grava linha ligada → `rollback.sql` (coluna e journal somem, linha fica) → reaplica (volta `false`) → cadeia inteira de rollbacks pós-identidade → reaplica | ok                                |
+| frontend             | `bun run test`                                                                                                                                                                               | 4489 + 19 pass, 0 fail            |
+
+Ambiente: o Postgres do `.env.test` (65432, Docker) não respondia e o MinIO (59000) também não. A
+integração rodou num Postgres 18 nativo descartável (127.0.0.1:65437, `initdb` no scratchpad). As
+falhas restantes são todas desse ambiente e nenhuma toca o código da T13: `Drizzle migration
+integration … fiscal migration` recebe `23001` onde espera `23503` (diferença conhecida do Postgres 18
+nativo, registrada em 18/09) — por isso a cadeia de rollback dessa suíte não chegou a rodar, e o
+rollback foi provado pelo script acima; `cte archive gateway` (2) e `toll booth extract/reload` (6)
+precisam do MinIO.
+
+Arquivos: `docs/adr/0069-…md` (novo); API — `src/database/company-delivery-proof-settings.schema.ts`,
+`src/trips/domain/delivery-proof-settings.policy.ts`,
+`src/trips/infrastructure/drizzle-delivery-proof-settings.repository.ts`,
+`src/trips/presentation/delivery-proof-settings.{routes,schema}.ts`,
+`src/trips/presentation/trip-field-delivery-settings.routes.ts` (novo), `src/main.ts`,
+`drizzle/20260918142214_delivery_proof_canhoto_ocr/` (novo), `CLAUDE.md`, testes
+`test/trip-delivery-proof/settings-canhoto-ocr.contract.ts`,
+`test/trip-field-office/delivery-settings.contract.ts`,
+`test/integration/canhoto-ocr-flag.integration.ts` (novos, listados no `package.json`/entrypoints),
+`test/database-migration/static-migration.contract.ts`; frontend —
+`src/modules/trip/shared/{deliveryProofSettings,tripClient}.service.ts`,
+`src/modules/trip/queries/useFieldDeliverySettings.query.ts` (novo),
+`test/trip/field-delivery-settings.contract.ts` (novo). Sem tela tocada: nada a revisar de design nesta
+task (o painel e o selo são da T14).

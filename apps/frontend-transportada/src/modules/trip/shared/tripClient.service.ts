@@ -82,10 +82,13 @@ import type { DeliveryProof } from './deliveryProof.service'
 import {
   DELIVERY_PROOF_OVERRIDES_PATH,
   DELIVERY_PROOF_SETTINGS_PATH,
+  FIELD_DELIVERY_SETTINGS_PATH,
   isDeliveryProofFieldSettings,
   isDeliveryProofSettingsOverride,
+  isFieldDeliverySettings,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
+  type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type { OccurrenceType } from './occurrence.constant'
@@ -193,6 +196,8 @@ export type TripClient = Readonly<{
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
   readDeliveryProofSettings: () => Promise<DeliveryProofFieldSettings>
+  /** Spec 156 T13: o assistente de baixa do escritório lê só o interruptor da leitura do canhoto. */
+  readFieldDeliverySettings: () => Promise<FieldDeliverySettings>
   saveDeliveryProofSettings: (
     input: DeliveryProofFieldSettings,
   ) => Promise<DeliveryProofFieldSettings>
@@ -684,6 +689,16 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       const data = readEnvelopeData(response)
       if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async readFieldDeliverySettings() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: FIELD_DELIVERY_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isFieldDeliverySettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
     },
     async saveDeliveryProofSettings(input) {

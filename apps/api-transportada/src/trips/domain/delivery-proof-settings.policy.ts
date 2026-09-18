@@ -25,6 +25,22 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 
+/**
+ * ADR-0069 §6: a configuração geral carrega, além dos quatro campos, o interruptor da leitura do
+ * canhoto. Ele é da empresa, não entra na exceção por destinatário nem no snapshot do motorista.
+ */
+export type DeliveryProofCompanySettings = DeliveryProofFieldSettings & {
+  readonly canhotoOcrEnabled: boolean
+}
+
+/** No `PUT`, o interruptor ausente é "não mexe": o painel de antes da T13 manda só os campos. */
+export type DeliveryProofSettingsInput = DeliveryProofFieldSettings & {
+  readonly canhotoOcrEnabled?: boolean
+}
+
+/** ADR-0069 §6: experimental, desligada por padrão — sem linha gravada vale isto. */
+export const DEFAULT_CANHOTO_OCR_ENABLED = false
+
 export type ResolveDeliveryProofSettingsParams = {
   readonly general: DeliveryProofFieldSettings | null
   readonly override: DeliveryProofFieldSettings | null

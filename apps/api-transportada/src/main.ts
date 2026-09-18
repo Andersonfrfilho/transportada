@@ -345,6 +345,7 @@ import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
+import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
@@ -2434,6 +2435,10 @@ function createApplicationRoutes({
       readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
       replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
+    ...createTripFieldDeliverySettingsRoutes({
+      readCanhotoOcrEnabled: (input) =>
+        deliveryProofSettingsRepository.readCanhotoOcrEnabled(input),
     }),
     ...createMeTripRoutes({
       startFieldTrip: (input) =>

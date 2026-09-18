@@ -11,11 +11,14 @@ import {
   API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
-import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type {
+  DeliveryProofCompanySettings,
+  DeliveryProofSettingsInput,
+} from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofSettingsOverride } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
+  deliveryProofCompanySettingsSchema,
   deliveryProofOverridesSchema,
-  deliveryProofSettingsSchema,
 } from './delivery-proof-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -26,15 +29,15 @@ export type DeliveryProofSettingsDependencies = {
   }) => Promise<readonly DeliveryProofSettingsOverride[]>
   readonly readSettings: (input: {
     readonly companyId: string
-  }) => Promise<DeliveryProofFieldSettings>
+  }) => Promise<DeliveryProofCompanySettings>
   readonly replaceOverrides: (input: {
     readonly companyId: string
     readonly overrides: readonly DeliveryProofSettingsOverride[]
   }) => Promise<void>
   readonly saveSettings: (input: {
     readonly companyId: string
-    readonly settings: DeliveryProofFieldSettings
-  }) => Promise<DeliveryProofFieldSettings>
+    readonly settings: DeliveryProofSettingsInput
+  }) => Promise<DeliveryProofCompanySettings>
 }
 
 function jsonResponse(body: object): Response {
@@ -60,7 +63,7 @@ export function createDeliveryProofSettingsRoutes(
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
-    defineRoute<DeliveryProofFieldSettings>({
+    defineRoute<DeliveryProofSettingsInput>({
       async handle({ context, input }): Promise<Response> {
         const settings = await dependencies.saveSettings({
           companyId: context.scope.companyId,
@@ -69,7 +72,13 @@ export function createDeliveryProofSettingsRoutes(
         return jsonResponse(settings)
       },
       method: 'PUT',
-      parse: ({ request }) => parseBody(deliveryProofSettingsSchema, request),
+      parse: async ({ request }) => {
+        const { canhotoOcrEnabled, ...fields } = await parseBody(
+          deliveryProofCompanySettingsSchema,
+          request,
+        )
+        return canhotoOcrEnabled === undefined ? fields : { ...fields, canhotoOcrEnabled }
+      },
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),

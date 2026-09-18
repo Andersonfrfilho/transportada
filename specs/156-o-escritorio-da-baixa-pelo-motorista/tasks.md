@@ -119,7 +119,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` 🧠 para T13 · `sonnet` para T14
 
-- [ ] **T13 🧠 — ADR da dependência de OCR** (code-standart §13) e o interruptor
+- [x] **T13 🧠 — ADR da dependência de OCR** (code-standart §13) e o interruptor
       `canhoto_ocr_enabled` em `company_delivery_proof_settings`, desligado por padrão.
 - [ ] **T14 — OCR do número**, só com dígitos, casando com exatamente uma nota da viagem. Carrega
       sob demanda, mostra o selo "Experimental" e não entra no bundle inicial (medir o bundle antes e

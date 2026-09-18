@@ -151,6 +151,12 @@ destinatário, nunca pelo CNPJ.
 tratar os três como um `isEditable` só oferece o botão exatamente quando ele dá `409`. Guarda:
 `test/trip/state-gates.contract.ts` (frontend).
 
+**A leitura do canhoto é interruptor da empresa, não do destinatário** (spec 156 T13, ADR-0069):
+`company_delivery_proof_settings.canhoto_ocr_enabled` (padrão `false`, sem coluna na tabela de
+exceções) sai no `GET`/`PUT /company-settings/delivery-proof` (`settings.manage`; no `PUT` o campo é
+opcional e ausente não mexe). O escritório lê **só** o interruptor em `GET
+/trips/field-delivery-settings` (`trip.report-on-behalf`, rota exata antes de `/trips/:id`).
+
 **Cancelar devolve a carga** (spec 102): `markCancelled` marca `released_at` nas notas ainda
 vinculadas na mesma transação do status — mas **libera é marcar, nunca apagar** a linha de
 `trip_documents` (é a prova histórica do que aconteceu), e `stop_id` **não** é zerado. Nota entregue

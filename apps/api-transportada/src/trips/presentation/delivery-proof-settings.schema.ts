@@ -18,6 +18,11 @@ export const deliveryProofSettingsSchema = z
   })
   .strict()
 
+/** ADR-0069 §6: o interruptor da leitura do canhoto é da configuração geral, nunca da exceção. */
+export const deliveryProofCompanySettingsSchema = deliveryProofSettingsSchema
+  .extend({ canhotoOcrEnabled: z.boolean().optional() })
+  .strict()
+
 /** O corpo do `PUT` de exceções é o conjunto inteiro — o que não veio sai. */
 export const deliveryProofOverridesSchema = z
   .object({

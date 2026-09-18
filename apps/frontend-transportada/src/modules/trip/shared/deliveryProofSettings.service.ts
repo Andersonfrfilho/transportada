@@ -4,6 +4,13 @@ import { isRecord, isString } from './tripGuards.validation'
 /** Spec 082 (ADR-0057): a configuração é da empresa — o app do campo lê o resolvido no snapshot. */
 export const DELIVERY_PROOF_SETTINGS_PATH = '/company-settings/delivery-proof'
 export const DELIVERY_PROOF_OVERRIDES_PATH = '/company-settings/delivery-proof/overrides'
+/**
+ * Spec 156 T13, ADR-0069 §6: o escritório (`trip.report-on-behalf`) lê só o interruptor da leitura
+ * do canhoto — a configuração inteira do comprovante é `settings.manage`.
+ */
+export const FIELD_DELIVERY_SETTINGS_PATH = '/trips/field-delivery-settings'
+
+export type FieldDeliverySettings = Readonly<{ canhotoOcrEnabled: boolean }>
 
 /** Cópia por valor do catálogo da API — o bundle não importa código dela. */
 export const DELIVERY_PROOF_FIELD_MODES = ['required', 'optional', 'off'] as const
@@ -59,4 +66,8 @@ export function isDeliveryProofSettingsOverride(
   value: unknown,
 ): value is DeliveryProofSettingsOverride {
   return isRecord(value) && isString(value['taxId']) && isDeliveryProofFieldSettings(value)
+}
+
+export function isFieldDeliverySettings(value: unknown): value is FieldDeliverySettings {
+  return isRecord(value) && typeof value['canhotoOcrEnabled'] === 'boolean'
 }

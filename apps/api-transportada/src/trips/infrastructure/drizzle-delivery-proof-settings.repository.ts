@@ -13,8 +13,11 @@ import {
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import {
+  DEFAULT_CANHOTO_OCR_ENABLED,
   DEFAULT_DELIVERY_PROOF_SETTINGS,
+  type DeliveryProofCompanySettings,
   type DeliveryProofFieldSettings,
+  type DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -29,9 +32,10 @@ export class DrizzleDeliveryProofSettingsRepository {
   /** Ausência de linha é o padrão de fábrica — a leitura nunca devolve "não configurado". */
   public async readSettings(input: {
     readonly companyId: string
-  }): Promise<DeliveryProofFieldSettings> {
+  }): Promise<DeliveryProofCompanySettings> {
     const [record] = await this.database
       .select({
+        canhotoOcrEnabled: companyDeliveryProofSettings.canhotoOcrEnabled,
         photo: companyDeliveryProofSettings.photo,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
         receiverName: companyDeliveryProofSettings.receiverName,
@@ -41,13 +45,33 @@ export class DrizzleDeliveryProofSettingsRepository {
       .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
       .limit(1)
 
-    return record ?? DEFAULT_DELIVERY_PROOF_SETTINGS
+    return (
+      record ?? {
+        ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+        canhotoOcrEnabled: DEFAULT_CANHOTO_OCR_ENABLED,
+      }
+    )
   }
 
+  /**
+   * ADR-0069 §6: a leitura estreita do escritório (`trip.report-on-behalf`) — só o interruptor,
+   * nunca a configuração inteira, que é `settings.manage`.
+   */
+  public async readCanhotoOcrEnabled(input: { readonly companyId: string }): Promise<boolean> {
+    const [record] = await this.database
+      .select({ canhotoOcrEnabled: companyDeliveryProofSettings.canhotoOcrEnabled })
+      .from(companyDeliveryProofSettings)
+      .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+      .limit(1)
+
+    return record?.canhotoOcrEnabled ?? DEFAULT_CANHOTO_OCR_ENABLED
+  }
+
+  /** Interruptor ausente no `input` não é gravado: nem cria ligado, nem desliga o que estava ligado. */
   public async saveSettings(input: {
     readonly companyId: string
-    readonly settings: DeliveryProofFieldSettings
-  }): Promise<DeliveryProofFieldSettings> {
+    readonly settings: DeliveryProofSettingsInput
+  }): Promise<DeliveryProofCompanySettings> {
     await this.database
       .insert(companyDeliveryProofSettings)
       .values({ companyId: input.companyId, ...input.settings })
@@ -56,7 +80,7 @@ export class DrizzleDeliveryProofSettingsRepository {
         target: companyDeliveryProofSettings.companyId,
       })
 
-    return input.settings
+    return this.readSettings({ companyId: input.companyId })
   }
 
   public async listOverrides(input: {

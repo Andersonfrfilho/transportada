@@ -2,7 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  foreignKey,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -40,6 +49,11 @@ export const companyDeliveryProofSettings = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /**
+     * ADR-0069 §6: a leitura do número do canhoto pela foto é experimental e nasce desligada. É da
+     * empresa, não do destinatário — por isso não existe na tabela de exceções.
+     */
+    canhotoOcrEnabled: boolean('canhoto_ocr_enabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
