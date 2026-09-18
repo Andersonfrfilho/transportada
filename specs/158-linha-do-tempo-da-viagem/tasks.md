@@ -98,7 +98,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T11 — Registrar os defeitos fora do escopo**, com data, em `specs/PERGUNTAS-ABERTAS.md` (ou
+- [x] **T11 — Registrar os defeitos fora do escopo**, com data, em `specs/PERGUNTAS-ABERTAS.md` (ou
       backlog equivalente): (1) entrega repetida do motorista sobre nota já baixada grava evento novo
       (`report-document-delivery.use-case.ts:313-318`); (2) `close` aceita `cancelled → completed`
       (`trip.use-case.ts:106` não passa por `checkTripTransition`); (3) `dispatch`,

@@ -1084,3 +1084,17 @@ Revisão de design e usabilidade (web.md §15) da seção "Linha do tempo" — a
 
 - `prints/t10-timeline-desktop-light.png`, `prints/t10-timeline-desktop-dark.png` (1280 px)
 - `prints/t10-timeline-mobile-light.png`, `prints/t10-timeline-mobile-dark.png` (375 px)
+
+## T11
+
+Registro de três defeitos encontrados durante T9–T10, fora do escopo desta spec:
+
+1. **Entrega repetida do motorista** — `report-document-delivery.use-case.ts:313-318` grava evento novo
+   sem validar idempotência. Pergunta: 409 ou deduplicar na leitura?
+2. **Transição `cancelled → completed` no `close`** — `trip.use-case.ts:106` não passa por
+   `checkTripTransition`. Pergunta: bloquear com 409 ou permitir?
+3. **Escrita sem guarda de origem** — `dispatch`, `markRoutePlanned`, `markCancelled` e `close`
+   (`drizzle-trip-route.repository.ts`, `drizzle-trip.repository.ts`) leem a precondição fora da
+   transação e escrevem sem `WHERE status = :fromStatus`. Pergunta: acrescentar a guarda?
+
+Registrados em `specs/PERGUNTAS-ABERTAS.md` como itens 27, 28, 29 (data 2026-09-18, origem ADR-0068).
