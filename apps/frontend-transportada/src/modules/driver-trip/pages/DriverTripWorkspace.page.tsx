@@ -73,6 +73,14 @@ export function DriverTripWorkspacePage() {
   })
   /** Spec 082 D2: uma leitura ao abrir — recusa vira `null`, e a distância só não aparece. */
   const [lastKnownLocation, setLastKnownLocation] = useState<DriverReportedLocation | null>(null)
+  /**
+   * Spec 157 (T11): o resultado da pontualidade fica visível fora da tela de pendentes — um aviso
+   * persistente até o motorista dispensar. Derivado direto do estado do hook a cada render, sem
+   * `useEffect`: dispensar é só marcar o documento como lido.
+   */
+  const [dismissedProofOutcomeIds, setDismissedProofOutcomeIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  )
 
   useEffect(() => {
     let ativo = true
@@ -168,6 +176,7 @@ export function DriverTripWorkspacePage() {
           onBack={() => setIsPendingProofsOpen(false)}
           onProof={handleProof}
           proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
+          queueView={driverTrip.queueView}
           snapshot={snapshot}
         />
         <DriverBottomBar section={section} onSelect={setSection} />
@@ -224,6 +233,10 @@ export function DriverTripWorkspacePage() {
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
   const proofPendingCount = listProofPendingDocuments(snapshot).length
+  /** Spec 157 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
+  const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
+    ([documentId]) => !dismissedProofOutcomeIds.has(documentId),
+  )
 
   return (
     <div className={styles.moduleShell}>
@@ -286,6 +299,23 @@ export function DriverTripWorkspacePage() {
             <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
           </button>
         ) : null}
+
+        {/* Spec 157 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
+        {visibleProofOutcomes.map(([documentId, outcome]) => (
+          <p className={styles.proofOutcomeToast} key={documentId} role="status">
+            <span>{t(`pendingProofs.outcome.${outcome}`)}</span>
+            <Button
+              aria-label={t('pendingProofs.outcomeDismiss')}
+              onClick={() =>
+                setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
+              }
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+            </Button>
+          </p>
+        ))}
 
         {attachmentLimit !== undefined ? (
           <p className={styles.alert} role="alert">

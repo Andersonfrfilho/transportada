@@ -26,6 +26,7 @@ import {
   countPendingDocuments,
   findOccurrencePhotoDocument,
   isDocumentSettled,
+  isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
 import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
 import {
@@ -280,7 +281,7 @@ function DocumentRow({
     <li className={styles.document}>
       <span>{document.recipientName}</span>
       {/* Spec 157 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
-      {proofSettings?.photo === 'required' ? (
+      {isProofPendingWarningDue({ document, stopProofSettings }) ? (
         <p className={styles.proofPendingWarning} role="status">
           {t('proofPendingWarning')}
         </p>

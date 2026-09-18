@@ -155,10 +155,11 @@
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
-  "proofPendingWarning": "Photo required for this delivery. Take it now, on site — attaching it later or far from here may cost points on your score. The delivery is already recorded.",
+  "proofPendingWarning": "Photo required for this delivery. Take it now, on site: sending it later or from somewhere else may cost points on your score. Retaking it never helps — the worst attempt counts. Uploading it much later counts as late, even if the device clock shows another time. The delivery is already recorded.",
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
+    "documentLabel": "Document {{number}}/{{series}}",
     "empty": "No pending photos. You are all caught up.",
     "open": "Pending photos",
     "outcome": {
@@ -168,6 +169,8 @@
       "not_required": "Recorded.",
       "on_time": "Recorded on time and on site."
     },
+    "outcomeDismiss": "Dismiss notice",
+    "queued": "Photo queued, waiting to send.",
     "title": "Pending photos"
   }
 }

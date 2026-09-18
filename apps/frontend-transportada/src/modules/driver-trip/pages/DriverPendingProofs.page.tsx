@@ -7,6 +7,8 @@ import {
   DeliveryProofSection,
   type DriverProofAttachment,
 } from '../components/DriverStopCard.component'
+import type { EventQueueItemView } from '../shared/eventQueueView.service'
+import { documentAttachmentKey } from '../shared/offlineAttachments.service'
 import type { DriverTripSnapshot, ProofPunctuality } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
@@ -15,8 +17,21 @@ type DriverPendingProofsPageProps = Readonly<{
   onBack: () => void
   onProof: (input: DriverProofAttachment) => void
   proofOutcomeByDocumentId: ReadonlyMap<string, ProofPunctuality>
+  /** Spec 157 (T11): diz quais documentos já têm anexo na fila, aguardando envio. */
+  queueView: readonly EventQueueItemView[]
   snapshot: DriverTripSnapshot | undefined
 }>
+
+/** O documento já tem anexo parado na fila — o formulário some, para não duplicar o toque. */
+export function isProofAlreadyQueued(input: {
+  readonly documentId: string
+  readonly queueView: readonly EventQueueItemView[]
+}): boolean {
+  const key = documentAttachmentKey(input.documentId)
+  return input.queueView.some(
+    (item) => item.idempotencyKey === key && item.status.state !== 'rejected',
+  )
+}
 
 /**
  * Spec 157 (P6, T9): toda nota entregue sem a foto obrigatória, em qualquer viagem do snapshot —
@@ -27,6 +42,7 @@ export function DriverPendingProofsPage({
   onBack,
   onProof,
   proofOutcomeByDocumentId,
+  queueView,
   snapshot,
 }: DriverPendingProofsPageProps) {
   const { t } = useTranslation('driverTrip')
@@ -47,22 +63,37 @@ export function DriverPendingProofsPage({
         </p>
       ) : (
         <ul className={styles.documentList}>
-          {entries.map(({ document, stopLabel }) => {
-            const outcome = proofOutcomeByDocumentId.get(document.id)
+          {entries.map((entry) => {
+            const outcome = proofOutcomeByDocumentId.get(entry.documentId)
+            const isQueued = isProofAlreadyQueued({
+              documentId: entry.documentId,
+              queueView,
+            })
             return (
-              <li className={styles.document} key={document.id}>
-                <span>{document.recipientName}</span>
-                <span className={styles.stopMeta}>{stopLabel}</span>
+              <li className={styles.document} key={entry.documentId}>
+                <span>{entry.recipientName}</span>
+                <span className={styles.stopMeta}>
+                  {t('pendingProofs.documentLabel', {
+                    number: entry.documentNumber,
+                    series: entry.documentSeries,
+                  })}
+                </span>
                 {outcome === undefined ? null : (
                   <p className={styles.profileMeta} role="status">
                     {t(`pendingProofs.outcome.${outcome}`)}
                   </p>
                 )}
-                <DeliveryProofSection
-                  documentId={document.id}
-                  onProof={onProof}
-                  proofSettings={document.deliveryProof}
-                />
+                {isQueued ? (
+                  <p className={styles.profileMeta} role="status">
+                    {t('pendingProofs.queued')}
+                  </p>
+                ) : (
+                  <DeliveryProofSection
+                    documentId={entry.documentId}
+                    onProof={onProof}
+                    proofSettings={entry.deliveryProof}
+                  />
+                )}
               </li>
             )
           })}

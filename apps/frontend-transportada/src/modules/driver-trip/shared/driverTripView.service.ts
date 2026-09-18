@@ -5,6 +5,7 @@ import type {
   DriverTripDocument,
   DriverTripSnapshot,
   DriverTripStop,
+  PendingProofDocument,
 } from './driverTrip.types'
 
 /** Entregue e devolvida saíram do eixo do campo: não há mais o que tocar nelas. */
@@ -57,28 +58,15 @@ export function isProofPendingWarningDue(input: {
   return proofSettings?.photo === 'required' && !isDocumentSettled(input.document)
 }
 
-export type ProofPendingEntry = Readonly<{
-  document: DriverTripDocument
-  stopLabel: string
-  tripId: string
-}>
-
 /**
- * Spec 157 RF12: a lista da tela "fotos pendentes" — toda nota entregue sem a foto obrigatória, em
- * qualquer viagem do snapshot. A ordem é a mesma da viagem/parada, sem reordenar por urgência.
+ * Spec 157 (T11, revisão): a lista da tela "fotos pendentes" **lê a raiz do snapshot**, não mais
+ * percorre `trips` — é o único jeito de enxergar a pendente de uma viagem já `completed`, que sai
+ * de `trips` mas continua em `pendingProofs`. A ordem é a que a API mandou.
  */
 export function listProofPendingDocuments(
   snapshot: DriverTripSnapshot | undefined,
-): readonly ProofPendingEntry[] {
-  if (snapshot === undefined) return []
-
-  return snapshot.trips.flatMap((trip) =>
-    trip.stops.flatMap((stop) =>
-      stop.documents
-        .filter((document) => document.proofPending)
-        .map((document) => ({ document, stopLabel: stop.label, tripId: trip.id })),
-    ),
-  )
+): readonly PendingProofDocument[] {
+  return snapshot?.pendingProofs ?? []
 }
 
 /**

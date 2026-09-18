@@ -76,8 +76,26 @@ export type DriverTrip = Readonly<{
   vehiclePlate: string
 }>
 
+/**
+ * Spec 157 (T11, revisão): a foto pendente **na raiz** do snapshot — sai daqui mesmo sem viagem
+ * ativa, porque a nota entregue pode ser de uma viagem já `completed`. É esta lista, não mais o
+ * percurso por `trips`, que alimenta a tela "Fotos pendentes" e o contador do workspace.
+ */
+export type PendingProofDocument = Readonly<{
+  deliveredAt: string | null
+  deliveryProof: DriverDeliveryProofSettings | null
+  documentId: string
+  documentNumber: string
+  documentSeries: string
+  recipientName: string
+  tripId: string
+  tripStatus: string
+}>
+
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
+  /** Spec 157 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
+  pendingProofs: readonly PendingProofDocument[]
   /** Spec 157 RF2/RF9, ADR-0068 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
   score: number | null
   trips: readonly DriverTrip[]

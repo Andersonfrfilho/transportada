@@ -31,6 +31,18 @@
   padding: var(--space-3);
 }
 
+/* Spec 157 (T11): resultado da pontualidade — persiste até o motorista dispensar. */
+.proofOutcomeToast {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-radius: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin: 0;
+  padding: var(--space-3);
+}
+
 .stopList {
   display: grid;
   gap: var(--space-4);

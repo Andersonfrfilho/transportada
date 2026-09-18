@@ -68,6 +68,7 @@
   "pendingProofs": {
     "attach": "Anexar comprovante",
     "back": "Voltar",
+    "documentLabel": "Nota {{number}}/{{series}}",
     "empty": "Nenhuma foto pendente. Está tudo em dia.",
     "open": "Fotos pendentes",
     "outcome": {
@@ -77,9 +78,11 @@
       "not_required": "Registrada.",
       "on_time": "Registrada em dia e no local."
     },
+    "outcomeDismiss": "Dispensar aviso",
+    "queued": "Foto na fila, aguardando envio.",
     "title": "Fotos pendentes"
   },
-  "proofPendingWarning": "Foto obrigatória para esta entrega. Tire agora, no local — anexar depois ou longe daqui pode tirar pontos da sua nota. A entrega já está registrada.",
+  "proofPendingWarning": "Foto obrigatória para esta entrega. Tire agora, no local: enviar depois ou de outro lugar pode tirar pontos da sua nota. Tirar de novo não melhora — vale a pior tentativa. Subir a foto muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora. A entrega já está registrada.",
   "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceKind": {

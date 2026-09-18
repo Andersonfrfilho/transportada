@@ -7,6 +7,7 @@ import type {
   DriverTripManifest,
   DriverTripSnapshot,
   DriverTripStop,
+  PendingProofDocument,
 } from './driverTrip.types'
 
 /**
@@ -148,6 +149,31 @@ function toStop(value: unknown): DriverTripStop {
   }
 }
 
+/**
+ * Spec 157 (T11): item malformado da lista raiz não derruba a tela inteira — ele só some da lista,
+ * o mesmo espírito do resto deste arquivo (campo faltando é recusa explícita do item, não exceção).
+ */
+function toPendingProof(value: unknown): PendingProofDocument | null {
+  if (!isRecord(value)) return null
+  if (typeof value.documentId !== 'string' || typeof value.tripId !== 'string') return null
+
+  return {
+    deliveredAt: readNullableString(value.deliveredAt),
+    deliveryProof: toDeliveryProof(value.deliveryProof),
+    documentId: value.documentId,
+    documentNumber: readOptionalText(value.documentNumber),
+    documentSeries: readOptionalText(value.documentSeries),
+    recipientName: readOptionalText(value.recipientName),
+    tripId: value.tripId,
+    tripStatus: readOptionalText(value.tripStatus),
+  }
+}
+
+function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
+  if (!Array.isArray(value)) return []
+  return value.map(toPendingProof).filter((item): item is PendingProofDocument => item !== null)
+}
+
 function toTrip(value: unknown): DriverTrip {
   if (!isRecord(value) || !Array.isArray(value.stops)) throw new DriverTripResponseError()
 
@@ -169,6 +195,7 @@ export function toDriverTripSnapshot(payload: unknown): DriverTripSnapshot {
 
   return {
     isRegisteredDriver: data.isRegisteredDriver,
+    pendingProofs: toPendingProofs(data.pendingProofs),
     score: readDriverScore(data.score),
     trips: data.trips.map(toTrip),
   }

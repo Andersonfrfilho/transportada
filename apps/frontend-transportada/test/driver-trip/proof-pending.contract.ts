@@ -1,17 +1,25 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
+import driverTrip from '@/modules/driver-trip/locales/driverTrip.locale.json'
+import driverTripEn from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import {
   isProofPendingWarningDue,
   listProofPendingDocuments,
 } from '@/modules/driver-trip/shared/driverTripView.service'
 import { toDriverTripSnapshot } from '@/modules/driver-trip/shared/driverTripResponse.validation'
 import type {
-  DriverTrip,
   DriverTripDocument,
   DriverTripSnapshot,
-  DriverTripStop,
+  PendingProofDocument,
 } from '@/modules/driver-trip/shared/driverTrip.types'
+
+const CARD = new URL(
+  '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+  import.meta.url,
+)
 
 function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripDocument {
   return {
@@ -32,31 +40,16 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
   }
 }
 
-function buildStop(overrides: Partial<DriverTripStop> = {}): DriverTripStop {
+function buildPendingProof(overrides: Partial<PendingProofDocument> = {}): PendingProofDocument {
   return {
-    arrivedAt: null,
-    completedAt: null,
+    deliveredAt: null,
     deliveryProof: null,
-    deliveryWindowEnd: null,
-    deliveryWindowStart: null,
-    documents: [],
-    id: 'stop-1',
-    label: 'Rua das Entregas, 100',
-    latitude: null,
-    longitude: null,
-    schedule: null,
-    sequence: 1,
-    ...overrides,
-  }
-}
-
-function buildTrip(overrides: Partial<DriverTrip> = {}): DriverTrip {
-  return {
-    id: 'trip-1',
-    manifest: null,
-    status: 'in_transit',
-    stops: [],
-    vehiclePlate: 'ABC1D23',
+    documentId: 'document-1',
+    documentNumber: '123',
+    documentSeries: '1',
+    recipientName: 'Cliente',
+    tripId: 'trip-1',
+    tripStatus: 'in_transit',
     ...overrides,
   }
 }
@@ -171,38 +164,128 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       }),
     ).toBe(false)
   })
+
+  /** Spec 157 (T11, item 8): o cartão chama o serviço, nunca reimplementa a condição à parte. */
+  it('o cartão da parada usa isProofPendingWarningDue, sem reimplementar a condição', () => {
+    const card = readFileSync(CARD, 'utf8')
+    expect(card).toInclude('isProofPendingWarningDue({ document, stopProofSettings })')
+    expect(card).not.toInclude("proofSettings?.photo === 'required' ? (")
+  })
+
+  /**
+   * Spec 157 (T11, item 3, ADR-0068 D3a/D3b): tirar a foto de novo não melhora a pontualidade, e a
+   * foto que sobe muito depois conta como tardia mesmo com o relógio do aparelho dizendo outra
+   * hora — o aviso tem de dizer isso em linguagem simples.
+   */
+  it('o aviso diz que refazer não ajuda e que o atraso no envio conta mesmo assim', () => {
+    expect(driverTrip.proofPendingWarning).toInclude('Tirar de novo não melhora')
+    expect(driverTrip.proofPendingWarning).toInclude('relógio do aparelho')
+    expect(driverTripEn.proofPendingWarning).toInclude('Retaking it never helps')
+    expect(driverTripEn.proofPendingWarning).toInclude('device clock')
+  })
 })
 
-describe('a lista de fotos pendentes (T9)', () => {
-  it('reúne toda nota proofPending de qualquer viagem, na ordem da parada', () => {
+/**
+ * Spec 157 (T11, revisão): `pendingProofs` sai da **raiz** do snapshot, não mais do percurso por
+ * `trips` — é o único jeito de ver a pendente de uma viagem já `completed`, que sai de `trips` mas
+ * continua aqui. Contrato novo do frontend registrado em `evidence.md` §T11.
+ */
+describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
+  it('lê pendingProofs mesmo sem viagem ativa nenhuma', () => {
+    const snapshot = toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        pendingProofs: [
+          {
+            deliveredAt: '2026-09-18T12:00:00.000Z',
+            deliveryProof: {
+              photo: 'required',
+              receiverDocument: 'off',
+              receiverName: 'optional',
+              signature: 'optional',
+            },
+            documentId: 'document-1',
+            documentNumber: '1234',
+            documentSeries: '1',
+            recipientName: 'Cliente',
+            tripId: 'trip-1',
+            tripStatus: 'completed',
+          },
+        ],
+        score: 85,
+        trips: [],
+      },
+    })
+
+    expect(snapshot.trips).toEqual([])
+    expect(snapshot.pendingProofs).toEqual([
+      {
+        deliveredAt: '2026-09-18T12:00:00.000Z',
+        deliveryProof: {
+          photo: 'required',
+          receiverDocument: 'off',
+          receiverName: 'optional',
+          signature: 'optional',
+        },
+        documentId: 'document-1',
+        documentNumber: '1234',
+        documentSeries: '1',
+        recipientName: 'Cliente',
+        tripId: 'trip-1',
+        tripStatus: 'completed',
+      },
+    ])
+  })
+
+  it('pendingProofs ausente (snapshot em cache antigo) vira lista vazia', () => {
+    const snapshot = toDriverTripSnapshot({
+      data: { isRegisteredDriver: true, score: null, trips: [] },
+    })
+
+    expect(snapshot.pendingProofs).toEqual([])
+  })
+
+  it('item sem documentId ou tripId some da lista, sem quebrar a tela', () => {
+    const snapshot = toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        pendingProofs: [{ recipientName: 'Sem id' }],
+        score: null,
+        trips: [],
+      },
+    })
+
+    expect(snapshot.pendingProofs).toEqual([])
+  })
+})
+
+describe('a lista de fotos pendentes (T9, T11)', () => {
+  it('lê a raiz do snapshot, na ordem que a API mandou', () => {
     const snapshot: DriverTripSnapshot = {
       isRegisteredDriver: true,
-      score: 90,
-      trips: [
-        buildTrip({
-          stops: [
-            buildStop({
-              documents: [
-                buildDocument({ id: 'a', proofPending: false }),
-                buildDocument({ id: 'b', proofPending: true }),
-              ],
-              id: 'stop-1',
-              label: 'Parada 1',
-            }),
-            buildStop({
-              documents: [buildDocument({ id: 'c', proofPending: true })],
-              id: 'stop-2',
-              label: 'Parada 2',
-            }),
-          ],
-        }),
+      pendingProofs: [
+        buildPendingProof({ documentId: 'b' }),
+        buildPendingProof({ documentId: 'c', tripId: 'trip-2', tripStatus: 'completed' }),
       ],
+      score: 90,
+      trips: [],
     }
 
     const entries = listProofPendingDocuments(snapshot)
 
-    expect(entries.map((entry) => entry.document.id)).toEqual(['b', 'c'])
-    expect(entries[1]?.stopLabel).toBe('Parada 2')
+    expect(entries.map((entry) => entry.documentId)).toEqual(['b', 'c'])
+    expect(entries[1]?.tripStatus).toBe('completed')
+  })
+
+  it('alcança a pendente de uma viagem concluída, sem viagem ativa no snapshot', () => {
+    const snapshot: DriverTripSnapshot = {
+      isRegisteredDriver: true,
+      pendingProofs: [buildPendingProof({ tripStatus: 'completed' })],
+      score: 90,
+      trips: [],
+    }
+
+    expect(listProofPendingDocuments(snapshot)).toHaveLength(1)
   })
 
   it('sem snapshot, a lista é vazia', () => {
