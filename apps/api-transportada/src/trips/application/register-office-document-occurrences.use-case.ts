@@ -37,6 +37,10 @@ import {
   type OccurrenceTypeRecord,
   type TripOccurrence,
 } from './register-trip-occurrence.use-case.js'
+import {
+  runWithStoredObjectCleanup,
+  type RemovableObjectStoragePort,
+} from './stored-object-cleanup.service.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 export type OfficeOccurrenceBatchTransactionPort = Pick<
@@ -105,15 +109,7 @@ export type OfficeOccurrenceAttachmentUpload = {
 
 export type OfficeOccurrenceAttachment = {
   readonly newObjectId: () => string
-  readonly storage: {
-    store(input: {
-      readonly bytes: Uint8Array
-      readonly companyId: string
-      readonly mimeType: string
-      readonly objectId: string
-      readonly objectKey: string
-    }): Promise<{ readonly sha256: string }>
-  }
+  readonly storage: RemovableObjectStoragePort
   readonly upload: OfficeOccurrenceAttachmentUpload | null
 }
 
@@ -147,6 +143,8 @@ type BatchItemOutcome = OfficeOccurrenceBatchItem & {
 
 type BatchContext = RegisterOfficeDocumentOccurrencesParams & {
   readonly authorship: FieldAuthorship
+  /** A storage rastreada por `runWithStoredObjectCleanup` — o objeto some se o lote desfizer. */
+  readonly storage: RemovableObjectStoragePort | undefined
   readonly transaction: OfficeOccurrenceBatchTransactionPort
 }
 
@@ -177,27 +175,34 @@ export async function registerOfficeDocumentOccurrences(
   const upload = params.attachment?.upload ?? null
   if (upload !== null) assertAttachmentUploadIsValid(upload)
 
-  const outcome = await params.unitOfWork.execute((transaction) => {
-    const context: BatchContext = { ...params, authorship, transaction }
-    return withFieldReport<BatchOutcome>(
-      {
-        actorUserId: params.actorUserId,
-        authorship,
-        companyId: params.companyId,
-        idempotencyKey: params.idempotencyKey,
-        operation: buildOccurrenceBatchOperation({
-          attachmentSha256: upload === null ? null : sha256Hex(upload.bytes),
-          documentIds: params.documentIds,
-          note: params.note,
-          occurrenceTypeId: params.occurrenceTypeId,
-          onBehalfOfDriverId: params.target.onBehalfOfDriverId,
-        }),
-        transaction,
-      },
-      () => performBatch(context),
-      () => recallBatch(context),
-    )
-  })
+  const runBatch = (storage: RemovableObjectStoragePort | undefined) =>
+    params.unitOfWork.execute((transaction) => {
+      const context: BatchContext = { ...params, authorship, storage, transaction }
+      return withFieldReport<BatchOutcome>(
+        {
+          actorUserId: params.actorUserId,
+          authorship,
+          companyId: params.companyId,
+          idempotencyKey: params.idempotencyKey,
+          operation: buildOccurrenceBatchOperation({
+            attachmentSha256: upload === null ? null : sha256Hex(upload.bytes),
+            documentIds: params.documentIds,
+            note: params.note,
+            occurrenceTypeId: params.occurrenceTypeId,
+            onBehalfOfDriverId: params.target.onBehalfOfDriverId,
+          }),
+          transaction,
+        },
+        () => performBatch(context),
+        () => recallBatch(context),
+      )
+    })
+  /** Spec 156 T15: a foto sobe dentro da transação do lote; se ela desfizer, sai do bucket. */
+  const attachmentStorage = params.attachment?.storage
+  const outcome =
+    upload === null || attachmentStorage === undefined
+      ? await runBatch(undefined)
+      : await runWithStoredObjectCleanup({ operation: runBatch, storage: attachmentStorage })
 
   await notifyCreated({ outcome, params })
 
@@ -243,8 +248,8 @@ async function performBatch(context: BatchContext): Promise<BatchOutcome> {
 
 /** `null` quando o lote não trouxe foto. Uma única escrita em `stored_objects`, para o lote inteiro. */
 async function persistBatchAttachment(context: BatchContext): Promise<string | null> {
-  const { attachment } = context
-  if (attachment === undefined || attachment.upload === null) return null
+  const { attachment, storage } = context
+  if (attachment === undefined || attachment.upload === null || storage === undefined) return null
 
   const objectId = attachment.newObjectId()
   const objectKey = buildOccurrenceBatchAttachmentObjectKey({
@@ -252,7 +257,7 @@ async function persistBatchAttachment(context: BatchContext): Promise<string | n
     objectId,
     tripId: context.target.tripId,
   })
-  const stored = await attachment.storage.store({
+  const stored = await storage.store({
     bytes: attachment.upload.bytes,
     companyId: context.companyId,
     mimeType: attachment.upload.mimeType,

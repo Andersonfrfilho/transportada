@@ -143,13 +143,12 @@ export function multipartRequest(input: {
  * é exercitado aqui, e um `sha256` fabricado basta: a impressão do lote (aceite "outro conteúdo")
  * usa o hash dos bytes recebidos, calculado no caso de uso, não o que o dublê devolve.
  */
-export function fakeAttachmentStorage(uploads: { objectId: string; objectKey: string }[]): {
-  store(input: { readonly objectId: string; readonly objectKey: string }): Promise<{
-    readonly sha256: string
-  }>
-} {
+export function fakeAttachmentStorage(
+  uploads: { objectId: string; objectKey: string }[],
+): RemovableObjectStoragePort {
   let counter = 0
   return {
+    async remove() {},
     async store(input) {
       uploads.push({ objectId: input.objectId, objectKey: input.objectKey })
       counter += 1

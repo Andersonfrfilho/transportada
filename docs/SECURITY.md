@@ -103,6 +103,32 @@ deploy/restart** — é contenção de abuso casual, não garantia; garantia exi
 
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
+### 2026-09-18 — objeto órfão no bucket do comprovante: limpeza por requisição, sem varredura periódica (spec 156 T15)
+
+**Onde:** `api-transportada`, `trips/application/stored-object-cleanup.service.ts`, usado por
+`report-document-delivery.use-case.ts` (`field-delivery`), `report-field-proof.use-case.ts`
+(`field-proof`) e `register-office-document-occurrences.use-case.ts` (`field-occurrences`).
+
+**O que é:** as três rotas do escritório sobem o arquivo **dentro** da transação da baixa, para que
+o anexo recusado desfaça a entrega inteira. Quando a transação desfaz depois do upload, o objeto já
+está no bucket sem nenhuma linha em `stored_objects` apontando para ele. A T15 acrescentou a limpeza
+por requisição (`runWithStoredObjectCleanup`: apaga o objeto e relança o erro original), mas ela não
+cobre três casos: o processo morrer entre o upload e o `catch`; a própria remoção falhar (ela é
+engolida para não trocar o erro que o cliente recebe); e o canhoto do escritório **substituído**
+pelo unique `(company, stop_event, kind)`, cuja linha antiga de `stored_objects` e cujo objeto ficam
+sem referência (o mesmo vale para a foto substituta do motorista, desde a spec 082).
+
+**O que limita o estrago:** o bucket é privado (`security.md` §7), a chave do objeto só tem
+identificadores opacos (`tenants/<empresa>/delivery-proofs/<evento>/<objeto>`) e ninguém serve um
+objeto sem linha que o referencie. O custo é armazenamento e retenção de imagem de canhoto (dado
+pessoal: assinatura e, às vezes, nome) além do necessário.
+
+**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` e de
+`trip-occurrence-attachments/` sem linha viva que os referencie há mais de N horas e os apague, com
+contagem no log. Até lá, a remoção depende da limpeza por requisição.
+
+**Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
+
 ### 2026-09-18 — `GET /trips/field-delivery-settings` sem rate limit (spec 156 T13)
 
 **Onde:** `api-transportada`, `trips/presentation/trip-field-delivery-settings.routes.ts`.

@@ -211,6 +211,7 @@ function fakeAttachment(
   return {
     newObjectId: () => `object-${(nextObjectId += 1)}`,
     storage: {
+      async remove() {},
       async store() {
         return { sha256: 'a'.repeat(64) }
       },
@@ -440,6 +441,41 @@ describe('T7b: o anexo opcional do lote (D7 §3.5)', () => {
     expect(await codeOf(register(world, { attachment: fakeAttachment(pdf) }))).toBe(
       'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE',
     )
+  })
+
+  it('T15 órfão: o lote que desfaz depois do upload apaga a foto do bucket e relança', async () => {
+    const world = buildWorld()
+    const stored: string[] = []
+    const removed: string[] = []
+    const base = unitOfWork(world)
+    const failing: RegisterOfficeDocumentOccurrencesParams['unitOfWork'] = {
+      execute: (operation) =>
+        base.execute((transaction) =>
+          operation({
+            ...transaction,
+            saveDocumentOccurrence: () => Promise.reject(new Error('CONNECTION_LOST')),
+          }),
+        ),
+    }
+
+    await expect(
+      register(world, {
+        attachment: {
+          ...fakeAttachment(photo),
+          storage: {
+            remove: async (input) => void removed.push(input.objectKey),
+            store: async (input) => {
+              stored.push(input.objectKey)
+              return { sha256: 'a'.repeat(64) }
+            },
+          },
+        },
+        unitOfWork: failing,
+      }),
+    ).rejects.toThrow('CONNECTION_LOST')
+
+    expect(stored).toHaveLength(1)
+    expect(removed).toEqual(stored)
   })
 
   it('lote inalcançável não sobe a foto (upload só depois de tipo e alcance validarem)', async () => {
