@@ -1,0 +1,272 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * ADR-0068 §5-6, spec 157 RF8-RF10 (T7): busca e agrupa as entregas que pesam na nota do
+ * motorista. A regra (quais penalizam, quantos pontos, `null` sem histórico) mora em
+ * `computeDriverScore`; aqui só se lê o banco — uma consulta de entregas para a lista inteira de
+ * motoristas (sem N+1) e as duas leituras de configuração da empresa, em paralelo.
+ */
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { and, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm'
+
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingOverrides,
+} from '../../database/company-delivery-proof-settings.schema.js'
+import { fleetDrivers } from '../../database/fleet.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
+import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import {
+  TRIP_FIELD_CHANNELS,
+  tripDeliveryProofs,
+  tripDocuments,
+  tripStopEvents,
+} from '../../database/trip.schema.js'
+import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  resolveProofSettingsForRecipient,
+  type ProofSettingsLookup,
+} from '../../trips/domain/delivery-proof-settings.policy.js'
+import type { DriverScorePort } from '../application/driver-score.port.js'
+import {
+  computeDriverScore,
+  DRIVER_SCORE_WINDOW_DAYS,
+  type DriverScoreDelivery,
+  type DriverScoreResult,
+  type DriverScoreSettings,
+} from '../domain/driver-score.policy.js'
+
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const DELIVERED_EVENT_KIND = 'delivered'
+const PHOTO_PROOF_KIND = 'photo'
+const RECIPIENT_ROLE = 'recipient'
+const RETURNED_DOCUMENT_STATUS = 'returned'
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
+
+type ReadScoresInput = Parameters<DriverScorePort['readScores']>[0]
+
+type DeliveryRow = {
+  readonly capturedAt: Date | null
+  readonly documentNumber: string | null
+  readonly driverId: string
+  readonly punctuality: DriverScoreDelivery['photoPunctuality'] | null
+  readonly recipientTaxId: string | null
+  readonly recordedAt: Date
+  readonly tripDocumentId: string
+}
+
+type ScoreSettings = {
+  readonly lookup: ProofSettingsLookup
+  readonly score: DriverScoreSettings
+}
+
+export class DrizzleDriverScoreRepository implements DriverScorePort {
+  public constructor(private readonly database: Database) {}
+
+  public async readScores(input: ReadScoresInput): Promise<ReadonlyMap<string, number | null>> {
+    const results = await this.computeResults(input)
+
+    return new Map([...results].map(([driverId, result]) => [driverId, result.score]))
+  }
+
+  public async readPenalties(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly now: Date
+  }): Promise<DriverScoreResult> {
+    const results = await this.computeResults({
+      companyId: input.companyId,
+      driverIds: [input.driverId],
+      now: input.now,
+    })
+
+    return results.get(input.driverId) ?? { penalties: [], score: null }
+  }
+
+  private async computeResults(input: ReadScoresInput): Promise<Map<string, DriverScoreResult>> {
+    if (input.driverIds.length === 0) return new Map()
+
+    const [rows, settings] = await Promise.all([
+      this.listDeliveries(input),
+      this.readSettings(input.companyId),
+    ])
+    const deliveriesByDriver = groupDeliveriesByDriver({ lookup: settings.lookup, rows })
+
+    return new Map(
+      input.driverIds.map((driverId) => [
+        driverId,
+        computeDriverScore({
+          deliveries: deliveriesByDriver.get(driverId) ?? [],
+          now: input.now,
+          settings: settings.score,
+        }),
+      ]),
+    )
+  }
+
+  /**
+   * O motorista do evento é `on_behalf_of_driver_id` ou o cadastro de frota ligado ao vínculo de
+   * `actor_user_id` — a mesma ligação `fleet_drivers.membership_id` que resolve a conta logada em
+   * `/me/trips/current`. Toda tabela do join carrega o `company_id` do contexto.
+   */
+  private async listDeliveries(input: ReadScoresInput): Promise<readonly DeliveryRow[]> {
+    const lastDelivery = buildLastDeliverySubquery({ database: this.database, ...input })
+    const on = buildTenantJoinConditions({ companyId: input.companyId, lastDelivery })
+    const driverId = sql<string>`coalesce(${lastDelivery.onBehalfOfDriverId}, ${fleetDrivers.id})`
+
+    return this.database
+      .select({
+        capturedAt: lastDelivery.capturedAt,
+        documentNumber: nfeDocuments.number,
+        driverId,
+        punctuality: tripDeliveryProofs.punctuality,
+        recipientTaxId: nfeParticipants.taxId,
+        recordedAt: lastDelivery.recordedAt,
+        tripDocumentId: tripDocuments.id,
+      })
+      .from(lastDelivery)
+      .innerJoin(tripDocuments, on.tripDocument)
+      .leftJoin(userCompanyMemberships, on.membership)
+      .leftJoin(fleetDrivers, on.driver)
+      .leftJoin(nfeDocuments, on.nfeDocument)
+      .leftJoin(nfeParticipants, on.recipient)
+      .leftJoin(tripDeliveryProofs, on.photo)
+      .where(
+        and(
+          ne(lastDelivery.channel, TRIP_FIELD_CHANNELS.office),
+          ne(tripDocuments.separationStatus, RETURNED_DOCUMENT_STATUS),
+          inArray(driverId, [...input.driverIds]),
+        ),
+      )
+  }
+
+  /**
+   * A exceção por CNPJ decide o modo `photo` **atual** de cada nota (RF8, casos extremos); os
+   * parâmetros de pontos e prazo são só da configuração geral. Sem linha, a fábrica.
+   */
+  private async readSettings(companyId: string): Promise<ScoreSettings> {
+    const [generalRows, overrideRows] = await Promise.all([
+      this.database
+        .select()
+        .from(companyDeliveryProofSettings)
+        .where(eq(companyDeliveryProofSettings.companyId, companyId))
+        .limit(1),
+      this.database
+        .select()
+        .from(deliveryProofSettingOverrides)
+        .where(eq(deliveryProofSettingOverrides.companyId, companyId)),
+    ])
+    const general = generalRows[0]
+
+    return {
+      lookup: {
+        general: general ?? null,
+        overridesByTaxId: new Map(overrideRows.map((row) => [row.taxId, row])),
+      },
+      score: general ?? DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+    }
+  }
+}
+
+/**
+ * RF8: o **último** evento `delivered` de cada nota nos 90 dias (a correção de uma entrega gera
+ * outro evento, e só o mais recente conta). O recorte de canal e de motorista fica **fora** do
+ * `distinct on`: se a última entrega foi do escritório, a nota sai da nota do motorista, mesmo que
+ * um evento anterior tenha sido dele.
+ */
+function buildLastDeliverySubquery(input: {
+  readonly companyId: string
+  readonly database: Database
+  readonly now: Date
+}) {
+  const windowStart = new Date(
+    input.now.getTime() - DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY,
+  )
+
+  return input.database
+    .selectDistinctOn([tripStopEvents.tripDocumentId], {
+      actorUserId: tripStopEvents.actorUserId,
+      capturedAt: tripStopEvents.capturedAt,
+      channel: tripStopEvents.channel,
+      eventId: tripStopEvents.id,
+      onBehalfOfDriverId: tripStopEvents.onBehalfOfDriverId,
+      recordedAt: tripStopEvents.recordedAt,
+      tripDocumentId: tripStopEvents.tripDocumentId,
+    })
+    .from(tripStopEvents)
+    .where(
+      and(
+        eq(tripStopEvents.companyId, input.companyId),
+        eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+        gte(sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`, windowStart),
+      ),
+    )
+    .orderBy(tripStopEvents.tripDocumentId, desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
+    .as('last_delivery')
+}
+
+type LastDeliverySubquery = ReturnType<typeof buildLastDeliverySubquery>
+
+/** Tenant em **todas** as tabelas do join, pelo `companyId` do contexto — nunca herdado do evento. */
+function buildTenantJoinConditions(input: {
+  readonly companyId: string
+  readonly lastDelivery: LastDeliverySubquery
+}) {
+  const { companyId, lastDelivery } = input
+
+  return {
+    driver: and(
+      eq(fleetDrivers.companyId, companyId),
+      eq(fleetDrivers.membershipId, userCompanyMemberships.id),
+    ),
+    membership: and(
+      eq(userCompanyMemberships.companyId, companyId),
+      eq(userCompanyMemberships.userId, lastDelivery.actorUserId),
+    ),
+    nfeDocument: and(
+      eq(nfeDocuments.companyId, companyId),
+      eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+    ),
+    photo: and(
+      eq(tripDeliveryProofs.companyId, companyId),
+      eq(tripDeliveryProofs.stopEventId, lastDelivery.eventId),
+      eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+    ),
+    recipient: and(
+      eq(nfeParticipants.companyId, companyId),
+      eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+      eq(nfeParticipants.role, RECIPIENT_ROLE),
+    ),
+    tripDocument: and(
+      eq(tripDocuments.companyId, companyId),
+      eq(tripDocuments.id, lastDelivery.tripDocumentId),
+    ),
+  }
+}
+
+function groupDeliveriesByDriver(input: {
+  readonly lookup: ProofSettingsLookup
+  readonly rows: readonly DeliveryRow[]
+}): Map<string, DriverScoreDelivery[]> {
+  const deliveriesByDriver = new Map<string, DriverScoreDelivery[]>()
+
+  for (const row of input.rows) {
+    const settings = resolveProofSettingsForRecipient({
+      lookup: input.lookup,
+      recipientTaxId: row.recipientTaxId ?? '',
+    })
+    const delivery: DriverScoreDelivery = {
+      deliveredAt: row.capturedAt ?? row.recordedAt,
+      documentNumber: row.documentNumber ?? '',
+      photoMode: settings.photo,
+      photoPunctuality: row.punctuality ?? undefined,
+      tripDocumentId: row.tripDocumentId,
+    }
+    const deliveries = deliveriesByDriver.get(row.driverId) ?? []
+    deliveries.push(delivery)
+    deliveriesByDriver.set(row.driverId, deliveries)
+  }
+
+  return deliveriesByDriver
+}

@@ -288,3 +288,95 @@ integração), acoplar `readScores`/`readPenalties` ao `find-current-driver-trip
 (`score: number | null` na raiz de `FindCurrentDriverTripResult`, não por viagem — é atributo do
 motorista) e passar a implementação real em `main.ts`. Nenhum `DriverTripDocument`/`DriverTrip`
 existente foi tocado além de `proofPending`.
+
+## T7 — `DrizzleDriverScoreRepository` (uma consulta, sem N+1)
+
+Retomada de uma sessão interrompida: o trabalho não commitado foi revisado arquivo a arquivo e
+aproveitado inteiro — repositório, integração, índice com `rollback.sql`, acoplamento ao snapshot e
+os ajustes de chamadores. Nada precisou ser corrigido na lógica; o que faltava era a medição do
+`EXPLAIN` registrada aqui, o teste do `rollback.sql` e a evidência.
+
+Arquivos:
+
+- `apps/api-transportada/src/fleet/infrastructure/drizzle-driver-score.repository.ts` (novo) —
+  `readScores`/`readPenalties` sobre `computeResults`: **uma** consulta de entregas para a lista
+  inteira de motoristas + as duas leituras de configuração da empresa (geral e exceções por CNPJ), em
+  paralelo. O modo `photo` atual de cada nota sai de `resolveProofSettingsForRecipient`; os pontos e o
+  prazo, da configuração geral (sem linha → `DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS`). A regra é
+  toda de `computeDriverScore`.
+- `apps/api-transportada/src/fleet/application/driver-score.port.ts` — `readPenalties` devolve
+  `DriverScoreResult` (nota + penalidades): a ficha da T8 mostra as duas coisas, e duas chamadas
+  fariam a mesma consulta duas vezes.
+- `apps/api-transportada/src/trips/application/find-current-driver-trip.use-case.ts` — `score` na
+  raiz do resultado, lido **só** para o motorista resolvido do vínculo (conta sem cadastro → `null`
+  sem consulta), com `now` injetado; `me-trip.routes.ts` serializa `score`.
+- `apps/api-transportada/src/main.ts` — `DrizzleDriverScoreRepository` nos dois pontos que montam
+  `findCurrentDriverTrip` (rota do motorista e ações do WhatsApp).
+- `apps/api-transportada/src/database/trip.schema.ts` + migration
+  `drizzle/20260918115535_driver_score_delivered_index/` (`migration.sql`, `snapshot.json`,
+  `rollback.sql` à mão) — índice parcial `trip_stop_events (company_id, coalesce(captured_at,
+recorded_at)) where kind = 'delivered'`. `static-migration.contract.ts` lista a pasta nova.
+- Testes: `test/integration/driver-score.integration.ts` (novo, listado em `test:integration`),
+  `test/driver-trip/current-trip.contract.ts` (nota do próprio motorista, perguntada pelo id resolvido;
+  conta sem cadastro não pergunta), e chamadores ajustados (`me-trip`, `mixed-cargo-end-to-end`,
+  `whatsapp-driver-flow-actions` na integração; `driver-flow-actions` no contrato).
+
+SQL (resumo). Subconsulta `last_delivery`: `select distinct on (trip_document_id) … from
+trip_stop_events where company_id = $1 and kind = 'delivered' and coalesce(captured_at, recorded_at)
+
+> = now − 90d order by trip_document_id, created_at desc, id desc`— o último`delivered`de cada nota.
+Por fora:`join trip_documents`(empresa + id;`separation_status <> 'returned'`), `left join
+> user_company_memberships`(empresa +`user_id = actor_user_id`) → `left join fleet_drivers`(empresa +`membership_id`) — a mesma ligação de `findDriverIdByMembership`do`/me/trips/current`—,`left join
+> nfe_documents`(número),`left join nfe_participants` (`role = 'recipient'`, CNPJ para a exceção),
+`left join trip_delivery_proofs` (`kind = 'photo'`do evento →`punctuality`); `where channel <>
+> 'office' and coalesce(on_behalf_of_driver_id, fleet_drivers.id) in (…ids)`. `company_id`do contexto
+em **toda** tabela do join. O recorte de canal fica fora do`distinct on` de propósito: se a última
+> entrega da nota foi do escritório, ela sai da nota do motorista.
+
+`EXPLAIN (ANALYZE, BUFFERS)` da consulta real (capturada pelo logger do Drizzle, script no scratchpad
+da sessão), Postgres 18.4, 5 empresas × 100 motoristas × 40 000 notas em 365 dias (400 000 eventos,
+metade `arrived`), 60% com foto, empresa medida com 80 000 eventos:
+
+|              | leitura de `trip_stop_events`                                                            | linhas lidas → descartadas        | buffers | execução |
+| ------------ | ---------------------------------------------------------------------------------------- | --------------------------------- | ------- | -------- |
+| sem o índice | Bitmap Index Scan em `trip_stop_events_company_stop_created_at_idx` só por `company_id`  | 80 000 → 70 026 (87,5%) no filtro | 2 110   | 27,8 ms  |
+| com o índice | Bitmap Index Scan em `trip_stop_events_company_delivered_at_idx` (`company_id` + janela) | 9 974 → 0                         | 930     | 23,0 ms  |
+
+Sem o índice a leitura cresce com **todo** o histórico da empresa (todos os tipos, todos os anos);
+com ele, só com a janela fixa de 90 dias — por isso a migration fica. O resto do plano: `Unique` do
+`distinct on` sobre 9 974 linhas, foto por `trip_delivery_proofs_company_event_kind_unique` (index
+scan por evento), motoristas e vínculos por hash. Ponto conhecido e aceito: o planejador faz hash de
+`trip_documents` da empresa inteira (40 000 linhas, ~6 ms) em vez de ir pela PK por nota; cresce com
+o histórico, mas é leitura por índice e não pediu índice novo nesta medição.
+
+`rollback.sql` provado à mão num banco descartável: migrations aplicadas → índice presente (1) →
+`rollback.sql` → índice 0, linha do journal 0 → migrations de novo → índice 1.
+
+Comandos e resultado:
+
+```
+$ bun run typecheck                                        # raiz — 0 erros
+$ bun run lint                                              # raiz — 0 erros
+$ DRIZZLE_TEST_DATABASE_URL=… bun --env-file=../../.env.test test --timeout 120000   # contrato
+ 6571 pass / 1 fail / 23216 expect() calls — 180 arquivos
+$ DRIZZLE_TEST_DATABASE_URL=… API_TEST_DATABASE_URL=… bun --env-file=../../.env.test run test:integration
+ 412 pass / 10 fail / 0 skip / 3100 expect() calls — 79 arquivos
+$ … test --timeout 120000 ./test/integration/driver-score.integration.ts
+ 4 pass / 0 fail   # aceite 5 (85; 3 h sem penalidade; 91 dias, office, devolvida e exceção por CNPJ fora; WhatsApp conta), só o último delivered, vários motoristas numa chamada (null sem histórico), tenant negativo
+$ … test --timeout 120000 ./test/integration/{driver-score,me-trip,whatsapp-driver-flow-actions,mixed-cargo-end-to-end}.integration.ts
+ 14 pass / 0 fail
+```
+
+Banco: o Docker não estava de pé nesta sessão (daemon parado), então a integração rodou no Postgres
+18.4 do Homebrew em cluster descartável no scratchpad (porta 65433). As falhas são todas de
+ambiente, nenhuma em arquivo tocado: 8 de MinIO ausente (`cte-archive-gateway`, `toll-booth-extract`,
+`toll-booth-reload` — `OBJECT_STORAGE_UNAVAILABLE`), 1 de `server.integration.ts` que estoura os 5 s
+padrão a frio sob a suíte (sozinho, com `--timeout`, 4 pass / 0 fail), e 1 de
+`database-migration.integration.ts` (`cte-profile-output-constraints`: o Postgres 18 devolve `23001`
+`restrict_violation` onde o teste espera `23503` — a mesma falha aparece no contrato, pelo mesmo
+arquivo). Nenhum teste pulou.
+
+Desvios: nenhum na regra. Decisão registrada: o recorte dos 90 dias fica **dentro** do `distinct on`
+(para o índice servir); se uma correção de entrega fosse gravada depois com `captured_at` de mais de
+90 dias atrás, o evento anterior da mesma nota seria o eleito — caso só teórico, porque o
+`captured_at` do motorista é o relógio do aparelho no momento da entrega.

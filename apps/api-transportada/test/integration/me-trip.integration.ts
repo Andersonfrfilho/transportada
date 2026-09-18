@@ -54,6 +54,7 @@ import {
 } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
+import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 
@@ -99,7 +100,9 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
       expect(opened.isRegisteredDriver).toBe(true)
       expect(opened.trips).toHaveLength(1)
@@ -485,12 +488,19 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         const beforePhoto = await findCurrentDriverTrip({
           companyId: world.companyId,
           membershipId: world.membershipId,
+          now: NOW,
           repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
         })
         const documentBeforePhoto = beforePhoto.trips[0]?.stops[0]?.documents.find(
           (entry) => entry.id === world.documentIds[0],
         )
         expect(documentBeforePhoto?.proofPending).toBe(true)
+        /**
+         * Spec 157 RF2/RF8 (T7): a entrega com foto obrigatória acabou de acontecer — conta para a
+         * nota (sai de `null`), mas ainda está dentro das `missingAfterHours`: nenhuma penalidade.
+         */
+        expect(beforePhoto.score).toBe(100)
 
         // 2. A foto chega em lote, depois — e o aviso some, sem ninguém ter recusado nada.
         let objectCounter = 0
@@ -520,7 +530,9 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         const afterPhoto = await findCurrentDriverTrip({
           companyId: world.companyId,
           membershipId: world.membershipId,
+          now: NOW,
           repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
         })
         const documentAfterPhoto = afterPhoto.trips[0]?.stops[0]?.documents.find(
           (entry) => entry.id === world.documentIds[0],
@@ -550,9 +562,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: stranger.companyId,
         membershipId: stranger.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
-      expect(opened).toEqual({ isRegisteredDriver: true, trips: [] })
+      expect(opened).toEqual({ isRegisteredDriver: true, score: null, trips: [] })
 
       const attempt = reportStopArrival({
         actorUserId: stranger.userId,
@@ -592,7 +606,9 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
       expect(opened.trips.map((trip) => trip.status)).toEqual(['route_planned'])
 
@@ -678,10 +694,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId,
         membershipId,
+        now: NOW,
         repository: new DrizzleCurrentDriverTripRepository(database.db),
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
 
-      expect(opened).toEqual({ isRegisteredDriver: false, trips: [] })
+      expect(opened).toEqual({ isRegisteredDriver: false, score: null, trips: [] })
     })
   })
 })

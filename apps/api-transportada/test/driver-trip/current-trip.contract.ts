@@ -12,6 +12,10 @@ import {
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000002'
 const DRIVER_ID = '00000000-0000-4000-8000-000000000003'
+const NOW = new Date('2026-09-18T12:00:00.000Z')
+
+/** Porta da nota sem histórico nenhum: o motorista existe, mas nada pesou ainda. */
+const NO_SCORES = { readScores: async () => new Map<string, number | null>() }
 
 function buildTrip(id: string): DriverTrip {
   return { id, manifest: null, status: 'dispatched', stops: [], vehiclePlate: 'GCQ8E47' }
@@ -41,7 +45,13 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
   it('resolve o motorista pelo vínculo do token, não por parâmetro', async () => {
     const repository = buildRepository({ trips: [buildTrip('trip-1')] })
 
-    await findCurrentDriverTrip({ companyId: COMPANY_ID, membershipId: MEMBERSHIP_ID, repository })
+    await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository,
+      scores: NO_SCORES,
+    })
 
     expect(repository.asked[0]).toEqual({ companyId: COMPANY_ID, membershipId: MEMBERSHIP_ID })
     expect(repository.asked[1]).toEqual({ companyId: COMPANY_ID, driverId: DRIVER_ID })
@@ -52,10 +62,12 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     const result = await findCurrentDriverTrip({
       companyId: COMPANY_ID,
       membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      scores: NO_SCORES,
       repository: buildRepository({ trips: [] }),
     })
 
-    expect(result).toEqual({ isRegisteredDriver: true, trips: [] })
+    expect(result).toEqual({ isRegisteredDriver: true, score: null, trips: [] })
   })
 
   /**
@@ -69,10 +81,12 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     const result = await findCurrentDriverTrip({
       companyId: COMPANY_ID,
       membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      scores: NO_SCORES,
       repository,
     })
 
-    expect(result).toEqual({ isRegisteredDriver: false, trips: [] })
+    expect(result).toEqual({ isRegisteredDriver: false, score: null, trips: [] })
     // E não pergunta por viagem de um motorista que não existe
     expect(repository.asked).toHaveLength(1)
   })
@@ -82,6 +96,8 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     const result = await findCurrentDriverTrip({
       companyId: COMPANY_ID,
       membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      scores: NO_SCORES,
       repository: buildRepository({ trips: [buildTrip('trip-1'), buildTrip('trip-2')] }),
     })
 
@@ -144,9 +160,54 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     const result = await findCurrentDriverTrip({
       companyId: COMPANY_ID,
       membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      scores: NO_SCORES,
       repository,
     })
 
     expect(result.trips[0]?.stops[0]?.documents[0]?.proofPending).toBe(true)
+  })
+
+  /**
+   * Spec 157 RF2, ADR-0068 §6: a nota do motorista logado sobe na raiz do snapshot. O caso de uso
+   * pergunta só pelo motorista resolvido do vínculo, com o relógio injetado — nunca por id vindo de
+   * fora (ADR-0045 §2).
+   */
+  it('devolve a nota do próprio motorista, perguntada pelo id resolvido do vínculo', async () => {
+    const asked: unknown[] = []
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository: buildRepository({ trips: [] }),
+      scores: {
+        readScores: async (params) => {
+          asked.push(params)
+          return new Map([[DRIVER_ID, 85]])
+        },
+      },
+    })
+
+    expect(result.score).toBe(85)
+    expect(asked).toEqual([{ companyId: COMPANY_ID, driverIds: [DRIVER_ID], now: NOW }])
+  })
+
+  it('conta sem cadastro de motorista não pergunta pela nota', async () => {
+    const asked: unknown[] = []
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      now: NOW,
+      repository: buildRepository({ driverId: null }),
+      scores: {
+        readScores: async (params) => {
+          asked.push(params)
+          return new Map()
+        },
+      },
+    })
+
+    expect(result.score).toBeNull()
+    expect(asked).toHaveLength(0)
   })
 })

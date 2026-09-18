@@ -372,6 +372,7 @@ import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-d
 import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
 import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
 import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
@@ -727,11 +728,17 @@ export function bootstrap(): Bun.Server<undefined> {
    * neste arquivo. Nenhum caminho paralelo: o motorista pelo WhatsApp grava pelo mesmo repositório.
    */
   const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
+  const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
-      findCurrentDriverTrip({ ...input, repository: whatsappDriverTripRepository }),
+      findCurrentDriverTrip({
+        ...input,
+        now: new Date(),
+        repository: whatsappDriverTripRepository,
+        scores: whatsappDriverScoreRepository,
+      }),
     listOccurrenceTypes: (input) =>
       listOccurrenceTypes(database.db, { companyId: input.companyId }),
     registerOccurrence: (input) =>
@@ -1480,6 +1487,7 @@ function createApplicationRoutes({
     fuelPrices: fleetFuelPriceGateway,
   })
   const fleetDriverRepository = new DrizzleFleetDriverRepository(database)
+  const driverScoreRepository = new DrizzleDriverScoreRepository(database)
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
   const fleetDriverRegionRepository = new DrizzleFleetDriverRegionRepository(database)
   const fleetDriverVehicleRepository = new DrizzleFleetDriverVehicleRepository({
@@ -2496,7 +2504,12 @@ function createApplicationRoutes({
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       findCurrentTrip: (input) =>
-        findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
+        findCurrentDriverTrip({
+          ...input,
+          now: new Date(),
+          repository: currentDriverTripRepository,
+          scores: driverScoreRepository,
+        }),
       readManifestXml: (input) => readMdfeDocument.readXmlDownload(input),
       renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),
       reportArrival: (input) =>

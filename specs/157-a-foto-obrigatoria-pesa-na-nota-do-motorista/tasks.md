@@ -43,7 +43,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 - [x] **T6** `/deliver` devolve `proofPending`; snapshot com `proofPending` por documento (`score` fica
       para a T7 — porta definida, sem implementação falsa). Aceite: casos 1/2; teste `:310` da
       `office-field-delivery` ampliado.
-- [ ] **T7 🧠** `DrizzleDriverScoreRepository` (uma consulta, sem N+1) + integração com o caso 5 contra
+- [x] **T7 🧠** `DrizzleDriverScoreRepository` (uma consulta, sem N+1) + integração com o caso 5 contra
       Postgres real, contrato negativo de tenant e `EXPLAIN`.
 
 ## Fase 3 — frota

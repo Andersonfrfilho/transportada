@@ -367,7 +367,9 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({
       channel,
-      deps: buildDeps({ findCurrentTrip: async () => ({ isRegisteredDriver: true, trips: [] }) }),
+      deps: buildDeps({
+        findCurrentTrip: async () => ({ isRegisteredDriver: true, score: null, trips: [] }),
+      }),
       kind: DRIVER_FLOW_ACTION_KIND.currentTrip,
     })
 
@@ -379,7 +381,9 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const { channel, sent } = buildChannel()
     await callAction({
       channel,
-      deps: buildDeps({ findCurrentTrip: async () => ({ isRegisteredDriver: false, trips: [] }) }),
+      deps: buildDeps({
+        findCurrentTrip: async () => ({ isRegisteredDriver: false, score: null, trips: [] }),
+      }),
       kind: DRIVER_FLOW_ACTION_KIND.currentTrip,
     })
 

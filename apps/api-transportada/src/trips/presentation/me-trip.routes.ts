@@ -210,6 +210,7 @@ export function createMeTripRoutes(
           body: {
             data: {
               isRegisteredDriver: result.isRegisteredDriver,
+              score: result.score,
               trips: result.trips.map(serializeTrip),
             },
           },

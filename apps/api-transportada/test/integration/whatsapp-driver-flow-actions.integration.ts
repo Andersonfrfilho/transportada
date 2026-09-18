@@ -50,6 +50,7 @@ import {
   listOccurrenceTypes,
   saveTripOccurrence,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
@@ -252,7 +253,9 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
+        now: new Date(),
         repository: new DrizzleCurrentDriverTripRepository(db),
+        scores: new DrizzleDriverScoreRepository(db),
       })
       expect(opened.trips).toHaveLength(0)
     },
@@ -424,7 +427,12 @@ async function buildScenario(db: Database, companyId: string) {
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db)
   const driverFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
-      findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
+      findCurrentDriverTrip({
+        ...input,
+        now: new Date(),
+        repository: currentDriverTripRepository,
+        scores: new DrizzleDriverScoreRepository(db),
+      }),
     listOccurrenceTypes: (input) => listOccurrenceTypes(db, { companyId: input.companyId }),
     registerOccurrence: (input) =>
       registerDriverOccurrence({

@@ -1,0 +1,1 @@
+CREATE INDEX "trip_stop_events_company_delivered_at_idx" ON "trip_stop_events" ("company_id",coalesce("captured_at", "recorded_at")) WHERE "kind" = 'delivered';

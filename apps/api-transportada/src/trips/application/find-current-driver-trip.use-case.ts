@@ -19,6 +19,7 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 
 export type DriverTripDocument = {
@@ -109,7 +110,10 @@ export type CurrentDriverTripPort = {
 export type FindCurrentDriverTripInput = {
   readonly companyId: string
   readonly membershipId: string
+  /** O relógio da nota (RF9: penalidade vigente 90 dias) — injetado, nunca lido aqui. */
+  readonly now: Date
   readonly repository: CurrentDriverTripPort
+  readonly scores: Pick<DriverScorePort, 'readScores'>
 }
 
 export type FindCurrentDriverTripResult = {
@@ -119,6 +123,8 @@ export type FindCurrentDriverTripResult = {
    * cadastro" não é "nada para hoje". Sem esta distinção o segundo caso esconde o primeiro.
    */
   readonly isRegisteredDriver: boolean
+  /** ADR-0068 §6, spec 157 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
+  readonly score: number | null
   readonly trips: readonly DriverTrip[]
 }
 
@@ -136,9 +142,12 @@ export async function findCurrentDriverTrip(
     companyId: input.companyId,
     membershipId: input.membershipId,
   })
-  if (driverId === null) return { isRegisteredDriver: false, trips: [] }
+  if (driverId === null) return { isRegisteredDriver: false, score: null, trips: [] }
 
-  const trips = await input.repository.listActiveTrips({ companyId: input.companyId, driverId })
+  const [trips, scores] = await Promise.all([
+    input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
+    input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
+  ])
 
-  return { isRegisteredDriver: true, trips }
+  return { isRegisteredDriver: true, score: scores.get(driverId) ?? null, trips }
 }

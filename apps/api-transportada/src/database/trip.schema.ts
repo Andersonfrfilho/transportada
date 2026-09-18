@@ -906,6 +906,14 @@ export const tripStopEvents = pgTable(
       table.stopId,
       table.createdAt,
     ),
+    /**
+     * Spec 157 T7: a nota do motorista lê as entregas dos últimos 90 dias pela hora da entrega
+     * (`captured_at ?? recorded_at`). Sem ele, o `EXPLAIN` varria todo evento da empresa, de todo
+     * tipo e de todo o histórico, para descartar 88% no filtro.
+     */
+    index('trip_stop_events_company_delivered_at_idx')
+      .on(table.companyId, sql`coalesce(${table.capturedAt}, ${table.recordedAt})`)
+      .where(sql`${table.kind} = 'delivered'`),
     /** O expurgo dos 90 dias varre por data e apaga só a coordenada; sem este índice ele varre tudo. */
     index('trip_stop_events_located_created_at_idx')
       .on(table.createdAt)
