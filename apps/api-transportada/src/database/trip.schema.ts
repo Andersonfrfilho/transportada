@@ -311,6 +311,13 @@ export const tripStatusEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_status_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_status_events_company_id_id_unique').on(table.companyId, table.id),
     /** A linha do tempo lê por viagem, ordenada — sem este índice ela varre a tabela inteira. */
     index('trip_status_events_company_trip_occurred_at_idx').on(
@@ -660,6 +667,13 @@ export const tripDocumentEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_document_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     index('trip_document_events_company_document_occurred_idx').on(
       table.companyId,
       table.tripDocumentId,
@@ -907,6 +921,13 @@ export const tripStopEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_stop_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     foreignKey({
       columns: [table.companyId, table.reportedByDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
@@ -1074,6 +1095,13 @@ export const tripStopOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_stop_occurrences_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_stop_occurrences_company_id_id_unique').on(table.companyId, table.id),
     index('trip_stop_occurrences_company_stop_created_at_idx').on(
       table.companyId,
@@ -1156,6 +1184,13 @@ export const tripFieldReports = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_field_reports_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_field_reports_company_key_unique').on(table.companyId, table.idempotencyKey),
     check('trip_field_reports_key_check', sql`length(${table.idempotencyKey}) > 0`),
     check('trip_field_reports_operation_check', sql`length(${table.operation}) > 0`),
@@ -1286,6 +1321,13 @@ export const tripDeliveryProofs = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_delivery_proofs_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_delivery_proofs_company_id_id_unique').on(table.companyId, table.id),
     /**
      * Spec 159 T11 (item 8): a posição da foto é dado de localização como a do evento de entrega, e
@@ -1415,6 +1457,13 @@ export const tripDocumentOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_document_occurrences_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     foreignKey({
       columns: [table.companyId, table.attachmentObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],

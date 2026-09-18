@@ -1,0 +1,7 @@
+CREATE INDEX "trip_delivery_proofs_company_on_behalf_driver_idx" ON "trip_delivery_proofs" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_document_events_company_on_behalf_driver_idx" ON "trip_document_events" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_document_occurrences_company_on_behalf_driver_idx" ON "trip_document_occurrences" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_field_reports_company_on_behalf_driver_idx" ON "trip_field_reports" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_status_events_company_on_behalf_driver_idx" ON "trip_status_events" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_stop_events_company_on_behalf_driver_idx" ON "trip_stop_events" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;--> statement-breakpoint
+CREATE INDEX "trip_stop_occurrences_company_on_behalf_driver_idx" ON "trip_stop_occurrences" ("company_id","on_behalf_of_driver_id") WHERE "on_behalf_of_driver_id" is not null;
