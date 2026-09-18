@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 156 T5, aceite 1: sem `trip.report-on-behalf` nenhuma rota do escritório abre — nem para o
+ * Spec 156 T5/T6, aceite 1: sem `trip.report-on-behalf` nenhuma rota do escritório abre — nem para o
  * separador (que tem `trip.manage`) nem para o motorista (que tem `trip.report`).
  */
 import { describe, expect, it } from 'bun:test'
@@ -14,16 +14,19 @@ const NOT_CALLED = () => {
 }
 
 const routes = createTripFieldOfficeRoutes({
+  attachProof: NOT_CALLED,
   audit: { record: NOT_CALLED },
   reportArrival: NOT_CALLED,
+  reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
+  reportReturn: NOT_CALLED,
   startFieldTrip: NOT_CALLED,
   targets: { findTripCrew: NOT_CALLED },
 })
 
-describe('as quatro rotas do escritório (spec 156 T5)', () => {
-  it('existem as quatro, todas em /trips/:id', () => {
-    expect(routes).toHaveLength(4)
+describe('as sete rotas do escritório (spec 156 T5/T6)', () => {
+  it('existem as sete, todas em /trips/:id', () => {
+    expect(routes).toHaveLength(7)
     for (const route of routes) {
       expect(route.method).toBe('POST')
       expect(route.pathname).toStartWith('/trips/:id')

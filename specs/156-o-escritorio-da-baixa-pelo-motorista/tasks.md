@@ -51,7 +51,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [x] **T5 — Rotas de viagem e parada**: `confirm-load`, `start-route`, `arrive` e ocorrência de
       parada, em `trip-field-office.routes.ts`. Contratos: 403 sem permissão (aceite 1), 404 para
       outra empresa (aceite 3), autoria gravada e `audit_logs` (aceite 2).
-- [ ] **T6 — `field-delivery`, `field-return`, `field-proof` e `deliveredAt`**: multipart com foto,
+- [x] **T6 — `field-delivery`, `field-return`, `field-proof` e `deliveredAt`**: multipart com foto,
       entrega e comprovante na mesma transação, `Idempotency-Key` (`operation` prefixada `office.`;
       mesma chave de outro ator → 422 `IDEMPOTENCY_KEY_REUSED`), validação de `deliveredAt` contra
       `trip_dispatch_snapshots.dispatched_at` (aceite 8), configuração de foto obrigatória (aceite 9),

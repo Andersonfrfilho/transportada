@@ -1077,7 +1077,11 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
-    /** Nome de quem recebeu, quando ele assina. */
+    /**
+     * Nome de quem recebeu. Normalmente só na assinatura — mas o canal `office` também o carrega em
+     * `kind: 'photo'` (ADR-0067 §5, emenda 2026-09-18, spec 156 T6): o escritório não colhe
+     * assinatura, e cumpre "assinatura obrigatória" com a foto do canhoto assinado + este nome.
+     */
     receiverName: text('receiver_name').notNull().default(''),
     /**
      * ADR-0057 §3 (revisa ADR-0045 §7): o documento do recebedor entra **só quando a configuração
@@ -1148,10 +1152,14 @@ export const tripDeliveryProofs = pgTable(
       'trip_delivery_proofs_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
     ),
-    /** Nome só faz sentido em assinatura: foto de canhoto não tem quem assine. */
+    /**
+     * Nome só faz sentido em assinatura, ou no canhoto do escritório (ADR-0067 §5, emenda
+     * 2026-09-18): ele nunca colhe assinatura, e o nome do recebedor é como cumpre a exigência.
+     * Relaxado por migration aditiva da spec 156 T6 — o motorista continua sem essa saída.
+     */
     check(
       'trip_delivery_proofs_receiver_check',
-      sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
+      sql`${table.kind} = 'signature' or ${table.channel} = 'office' or length(${table.receiverName}) = 0`,
     ),
     /** O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita. */
     check(

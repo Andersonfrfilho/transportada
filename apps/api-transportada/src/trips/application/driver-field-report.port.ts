@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
+
 import type {
+  TripDeliveryProofKind,
   TripDocumentSeparationStatus,
   TripStatus,
   TripStopEventKind,
@@ -33,6 +36,12 @@ export type DriverDocumentReference = {
 }
 
 export type FieldReportClaim = {
+  /**
+   * ADR-0067 §5 (emenda 2026-09-18): quem reservou a chave. A mesma chave usada por outro ator é
+   * erro do cliente, tanto quanto usá-la numa operação diferente — dois usuários do escritório não
+   * compartilham confirmação um do outro.
+   */
+  readonly actorUserId: string
   /** `true` quando esta transação é a primeira a usar a chave — e portanto quem executa o efeito. */
   readonly claimed: boolean
   readonly operation: string
@@ -73,6 +82,14 @@ export type DriverFieldReportTransactionPort = {
     readonly documentId: string
     readonly target: FieldTripTarget
   }): Promise<DriverDocumentReference | null>
+  /**
+   * Spec 156 T6, ADR-0067 §3: a fonte de "quando a viagem despachou", congelada em
+   * `trip_dispatch_snapshots`. `null` quando a viagem nunca foi despachada.
+   */
+  findDispatchedAt(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<Date | null>
 
   markStopArrived(input: {
     readonly at: Date
@@ -122,8 +139,44 @@ export type DriverFieldReportTransactionPort = {
     readonly documentId: string | null
     readonly kind: TripStopEventKind
     readonly location: ReportedLocation | null
+    /**
+     * ADR-0067 §3: quando aconteceu. Ausente para o motorista (a coluna cai no `defaultNow()`, e as
+     * duas horas coincidem); a baixa retroativa do escritório manda a hora informada.
+     */
+    readonly occurredAt?: Date
+    /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
+    readonly recordedAt?: Date
     readonly stopId: string
   }): Promise<{ readonly id: string }>
+  /**
+   * Spec 156 T6: o comprovante da entrega **na mesma transação** da entrega — ao contrário do
+   * motorista, cujo anexo é ação separada (`DeliveryProofPort.saveProof`, própria transação). Não
+   * reabre o objeto no bucket: quem chama já subiu os bytes antes de entrar na transação.
+   */
+  saveDeliveryProofWithinTransaction(input: {
+    readonly actorUserId: string
+    readonly attachmentKey: string
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly eventId: string
+    readonly id: string
+    readonly kind: TripDeliveryProofKind
+    readonly mimeType: string
+    readonly objectId: string
+    readonly objectKey: string
+    readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
+    readonly receiverDocumentMasked: string
+    readonly receiverName: string
+    readonly sha256: string
+    readonly sizeBytes: number
+  }): Promise<{ readonly id: string }>
+  /** Reaproveita a leitura de dedupe do anexo (spec 082) dentro da mesma transação da entrega. */
+  findProofIdByAttachmentKeyWithinTransaction(input: {
+    readonly attachmentKey: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<string | null>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null

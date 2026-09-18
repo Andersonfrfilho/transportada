@@ -144,7 +144,10 @@ motorista <nome>".
 7. Falha de rede em 1 das 5 notas: as outras 4 gravam, e a que falhou aparece para tentar de novo.
    Repetir não duplica comprovante nem evento (idempotência).
 8. "Entregue em" no futuro, ou antes do despacho, responde 400 com código estável.
-9. Com a empresa exigindo foto, a entrega sem foto responde 422, igual acontece com o motorista.
+9. Com a empresa exigindo foto, a entrega do escritório sem foto responde 422
+   `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`. _(Decisão do líder, 2026-09-18: o motorista **ainda não**
+   tem essa verificação no backend hoje — só o front dele barra sem foto. Estender ao motorista é
+   pendência registrada fora da spec 156, no `evidence.md` da T6.)_
 10. Ocorrência em massa em 3 notas grava 3 ocorrências, dispara a notificação configurada de cada
     uma, e cada uma aparece em `/ocorrencias`.
 11. Nenhum log contém a imagem, o documento de quem recebeu ou o nome do destinatário (security.md §1).

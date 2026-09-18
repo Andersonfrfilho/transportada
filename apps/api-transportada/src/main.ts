@@ -350,6 +350,7 @@ import {
 } from './trips/application/report-document-delivery.use-case'
 import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
 import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { reportFieldProof } from './trips/application/report-field-proof.use-case'
 import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
 import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
 import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
@@ -2483,6 +2484,22 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createTripFieldOfficeRoutes({
+      /** Spec 156 T6: sem `Idempotency-Key` própria — o unique `(company, stop_event, kind)` reusa `office.document.proof`. */
+      attachProof: (input) =>
+        reportFieldProof({
+          actorUserId: input.actorUserId,
+          companyId: input.companyId,
+          documentId: input.documentId,
+          idempotencyKey: input.idempotencyKey,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          repository: deliveryProofRepository,
+          sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
+          storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
+          target: input.target,
+          unitOfWork: driverFieldReports,
+          upload: { ...input.proof, kind: 'photo' },
+        }),
       audit: tripFieldOfficeAudit,
       reportArrival: (input) =>
         reportStopArrival({
@@ -2491,10 +2508,40 @@ function createApplicationRoutes({
           now: new Date(),
           unitOfWork: driverFieldReports,
         }),
+      /**
+       * Spec 156 T6, D9: entrega + comprovante na mesma transação — o alvo já resolveu o motorista
+       * em nome de quem se registra, e `proof.upload` pode ser `null` (a foto é opcional conforme a
+       * configuração da empresa; quem barra é o caso de uso, aceite 9).
+       */
+      reportDelivery: (input) =>
+        reportDocumentDelivery({
+          ...input,
+          location: null,
+          now: input.deliveredAt,
+          proof: {
+            newObjectId: () => crypto.randomUUID(),
+            newProofId: () => crypto.randomUUID(),
+            resolveSettings: (settings) =>
+              deliveryProofRepository.resolveProofFieldSettings(settings),
+            sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
+            storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
+            upload: input.proof,
+          },
+          recordedAt: new Date(),
+          unitOfWork: driverFieldReports,
+        }),
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
           attachmentObjectId: null,
+          unitOfWork: driverFieldReports,
+        }),
+      reportReturn: (input) =>
+        reportDocumentReturn({
+          ...input,
+          location: null,
+          now: input.returnedAt,
+          recordedAt: new Date(),
           unitOfWork: driverFieldReports,
         }),
       startFieldTrip: (input) =>

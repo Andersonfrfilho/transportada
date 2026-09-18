@@ -24,16 +24,24 @@ import {
   type TripFieldTripTarget,
 } from '../application/field-trip-target.types.js'
 import { resolveFieldTripTarget } from '../application/resolve-field-trip-target.use-case.js'
+import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
   type StartFieldTripResult,
 } from '../application/start-field-trip.use-case.js'
+import type {
+  OfficeDeliveryProofUpload,
+  ReportDocumentOutcomeResult,
+} from '../application/report-document-delivery.use-case.js'
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
   parseOfficeDriverSelection,
+  parseOfficeFieldDeliveryRequest,
+  parseOfficeFieldProofRequest,
+  parseOfficeFieldReturnRequest,
   parseOfficeStopOccurrenceRequest,
 } from './trip-field-office.schema.js'
 
@@ -42,11 +50,18 @@ const OFFICE_CONFIRM_LOAD_PATH = `${OFFICE_TRIP_PATH}/confirm-load`
 const OFFICE_START_ROUTE_PATH = `${OFFICE_TRIP_PATH}/start-route`
 const OFFICE_STOP_ARRIVE_PATH = `${OFFICE_TRIP_PATH}/stops/:stopId/arrive`
 const OFFICE_STOP_OCCURRENCES_PATH = `${OFFICE_TRIP_PATH}/stops/:stopId/occurrences`
+const OFFICE_DOCUMENT_PATH = `${OFFICE_TRIP_PATH}/documents/:documentId`
+const OFFICE_DOCUMENT_DELIVER_PATH = `${OFFICE_DOCUMENT_PATH}/field-delivery`
+const OFFICE_DOCUMENT_RETURN_PATH = `${OFFICE_DOCUMENT_PATH}/field-return`
+const OFFICE_DOCUMENT_PROOF_PATH = `${OFFICE_DOCUMENT_PATH}/field-proof`
 
 const OFFICE_AUDIT_ACTION = {
   arrive: 'trip_field_office.stop_arrive',
   confirmLoad: 'trip_field_office.confirm_load',
+  deliver: 'trip_field_office.document_deliver',
   occurrence: 'trip_field_office.stop_occurrence',
+  proof: 'trip_field_office.document_proof',
+  return: 'trip_field_office.document_return',
   startRoute: 'trip_field_office.start_route',
 } as const
 
@@ -63,6 +78,14 @@ type OfficeContextInput = {
 }
 
 export type TripFieldOfficeDependencies = {
+  readonly attachProof: (
+    input: OfficeContextInput & {
+      readonly documentId: string
+      readonly idempotencyKey: string
+      readonly proof: OfficeDeliveryProofUpload
+      readonly target: ResolvedTripFieldTarget
+    },
+  ) => Promise<{ readonly id: string }>
   readonly audit: TripFieldOfficeAuditPort
   readonly reportArrival: (
     input: OfficeContextInput & {
@@ -71,6 +94,15 @@ export type TripFieldOfficeDependencies = {
       readonly target: ResolvedTripFieldTarget
     },
   ) => Promise<ReportStopArrivalResult>
+  readonly reportDelivery: (
+    input: OfficeContextInput & {
+      readonly deliveredAt: Date
+      readonly documentId: string
+      readonly idempotencyKey: string
+      readonly proof: OfficeDeliveryProofUpload | null
+      readonly target: ResolvedTripFieldTarget
+    },
+  ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
     input: OfficeContextInput & {
       readonly description: string
@@ -82,6 +114,15 @@ export type TripFieldOfficeDependencies = {
       readonly target: ResolvedTripFieldTarget
     },
   ) => Promise<ReportStopOccurrenceResult>
+  readonly reportReturn: (
+    input: OfficeContextInput & {
+      readonly documentId: string
+      readonly idempotencyKey: string
+      readonly reason: DriverReturnReason
+      readonly returnedAt: Date
+      readonly target: ResolvedTripFieldTarget
+    },
+  ) => Promise<ReportDocumentOutcomeResult>
   readonly startFieldTrip: (
     input: OfficeContextInput & {
       readonly step: FieldTripStep
@@ -287,6 +328,194 @@ export function createTripFieldOfficeRoutes(
         }
       },
       pathname: OFFICE_STOP_OCCURRENCES_PATH,
+      policy: OFFICE_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly deliveredAt: Date
+      readonly documentId: string
+      readonly driverId: string | undefined
+      readonly idempotencyKey: string
+      readonly ipAddress: string
+      readonly proof: OfficeDeliveryProofUpload | null
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const target = await resolveOfficeTarget({
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+          targets: dependencies.targets,
+          tripId: input.tripId,
+        })
+        const result = await dependencies.reportDelivery({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          deliveredAt: input.deliveredAt,
+          documentId: input.documentId,
+          idempotencyKey: input.idempotencyKey,
+          proof: input.proof,
+          target,
+        })
+        await dependencies.audit.record({
+          action: OFFICE_AUDIT_ACTION.deliver,
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          ipAddress: input.ipAddress,
+          onBehalfOfDriverId: target.onBehalfOfDriverId,
+          tripId: target.tripId,
+        })
+
+        return jsonResponse({
+          body: {
+            data: {
+              alreadySettled: result.alreadySettled,
+              id: result.id,
+              proofId: result.proofId,
+              stopCompleted: result.stopCompleted,
+              tripCompleted: result.tripCompleted,
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseOfficeFieldDeliveryRequest(request)
+        return {
+          correlationId,
+          deliveredAt: body.deliveredAt,
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          driverId: body.driverId,
+          idempotencyKey: parseIdempotencyKey(request),
+          ipAddress: resolveClientIp(request),
+          proof: body.proof,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: OFFICE_DOCUMENT_DELIVER_PATH,
+      policy: OFFICE_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly documentId: string
+      readonly driverId: string | undefined
+      readonly idempotencyKey: string
+      readonly ipAddress: string
+      readonly reason: DriverReturnReason
+      readonly returnedAt: Date
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const target = await resolveOfficeTarget({
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+          targets: dependencies.targets,
+          tripId: input.tripId,
+        })
+        const result = await dependencies.reportReturn({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          idempotencyKey: input.idempotencyKey,
+          reason: input.reason,
+          returnedAt: input.returnedAt,
+          target,
+        })
+        await dependencies.audit.record({
+          action: OFFICE_AUDIT_ACTION.return,
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          ipAddress: input.ipAddress,
+          onBehalfOfDriverId: target.onBehalfOfDriverId,
+          tripId: target.tripId,
+        })
+
+        return jsonResponse({
+          body: {
+            data: {
+              alreadySettled: result.alreadySettled,
+              id: result.id,
+              stopCompleted: result.stopCompleted,
+              tripCompleted: result.tripCompleted,
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseOfficeFieldReturnRequest(request)
+        return {
+          correlationId,
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          driverId: body.driverId,
+          idempotencyKey: parseIdempotencyKey(request),
+          ipAddress: resolveClientIp(request),
+          reason: body.reason,
+          returnedAt: body.returnedAt ?? new Date(),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: OFFICE_DOCUMENT_RETURN_PATH,
+      policy: OFFICE_REPORT_POLICY,
+    }),
+    /**
+     * Anexa a uma entrega **já feita** (ADR-0067 §2): não cria evento, não muda `delivered_at`. Sem
+     * `Idempotency-Key` da tabela `trip_field_reports` — o unique `(company, stop_event, kind)` já
+     * é a chave de dedupe (mesma régua do motorista, `POST /me/.../proof`).
+     */
+    defineRoute<{
+      readonly correlationId: string
+      readonly documentId: string
+      readonly driverId: string | undefined
+      readonly idempotencyKey: string
+      readonly ipAddress: string
+      readonly proof: OfficeDeliveryProofUpload
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const target = await resolveOfficeTarget({
+          companyId: context.scope.companyId,
+          driverId: input.driverId,
+          targets: dependencies.targets,
+          tripId: input.tripId,
+        })
+        const result = await dependencies.attachProof({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          idempotencyKey: input.idempotencyKey,
+          proof: input.proof,
+          target,
+        })
+        await dependencies.audit.record({
+          action: OFFICE_AUDIT_ACTION.proof,
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          ipAddress: input.ipAddress,
+          onBehalfOfDriverId: target.onBehalfOfDriverId,
+          tripId: target.tripId,
+        })
+
+        return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseOfficeFieldProofRequest(request)
+        return {
+          correlationId,
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          driverId: body.driverId,
+          idempotencyKey: parseIdempotencyKey(request),
+          ipAddress: resolveClientIp(request),
+          proof: body.proof,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: OFFICE_DOCUMENT_PROOF_PATH,
       policy: OFFICE_REPORT_POLICY,
     }),
   ]

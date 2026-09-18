@@ -182,11 +182,19 @@ export async function attachDeliveryProof(
     receiverDocument.length === 0
       ? null
       : await input.sealDocument({ companyId: input.companyId, proofId, receiverDocument })
+  const authorship = deriveFieldAuthorship(input)
+  /**
+   * ADR-0067 §5 (emenda 2026-09-18): o canhoto do escritório é sempre `kind: 'photo'`, e é o único
+   * caso em que uma foto carrega `receiverName` — quem assina é o recebedor, não o escritório, e
+   * `receiverName` é como ele cumpre a exigência de assinatura sem colhê-la (D8). O CHECK do banco
+   * (`trip_delivery_proofs_receiver_check`) foi relaxado para `channel = 'office'` na mesma migration.
+   */
+  const carriesReceiverName = isSignature || authorship.channel === 'office'
 
   return input.repository.saveProof({
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
-    authorship: deriveFieldAuthorship(input),
+    authorship,
     companyId: input.companyId,
     eventId,
     id: proofId,
@@ -196,7 +204,7 @@ export async function attachDeliveryProof(
     objectKey,
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
-    receiverName: isSignature ? input.upload.receiverName : '',
+    receiverName: carriesReceiverName ? input.upload.receiverName : '',
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
   })

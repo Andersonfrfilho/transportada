@@ -162,6 +162,11 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           idempotencyKey: 'office-delivery',
           location: null,
           now: NOW,
+          /**
+           * Spec 156 T6, ADR-0067 §3: o canal `office` valida `deliveredAt` contra "agora" — sem
+           * isto o teste ficaria refém do relógio de parede em vez do `NOW` fixo do arquivo.
+           */
+          recordedAt: NOW,
           target,
           unitOfWork,
         })

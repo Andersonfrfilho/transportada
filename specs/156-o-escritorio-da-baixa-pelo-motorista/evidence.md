@@ -550,3 +550,203 @@ descreve — implementá-las aqui seria antecipar uma task que ainda não foi es
   `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts ./test/integration/me-trip.integration.ts ./test/integration/field-trip-target.integration.ts ./test/integration/trip-field-authorship.integration.ts`
   → `19 pass · 0 fail`, 80 `expect()`, 4 arquivos (a nova integração, mais as três que a T3/T4 já
   tinham — nenhuma quebrou).
+
+## T6
+
+`field-delivery`, `field-return` e `field-proof` em `trip-field-office.routes.ts` — entrega e
+comprovante do escritório na mesma transação, `deliveredAt`/`returnedAt` validados contra o relógio
+e contra o despacho congelado, baixa repetida do canal `office` sem evento novo, foto obrigatória
+por configuração e idempotência estendida ao ator.
+
+### Duas decisões fora da spec, levadas ao líder antes de implementar
+
+Ao mapear a T6 encontrei dois pontos que a spec não decidia e que travariam a implementação:
+
+1. **`kind: 'photo'` + `receiverName` (D8) violava um `CHECK` que a própria T4 gravou.**
+   `trip_delivery_proofs_receiver_check` era `kind = 'signature' or length(receiver_name) = 0` — o
+   INSERT do canhoto do escritório (`kind: 'photo'`, `receiverName` preenchido) falharia no banco.
+   **Decisão do líder:** relaxar o `CHECK` por migration nova (`kind = 'signature' or channel =
+'office' or length(receiver_name) = 0`), sem apagar dado; `rollback.sql` recria o `CHECK` antigo
+   e falha (sem apagar nada) se já existir linha `office`+`photo` com nome preenchido.
+2. **Não existe hoje nenhum código de erro "foto obrigatória"** — nem no motorista, nem em lugar
+   nenhum do repositório (busquei `PHOTO_REQUIRED`, `photo.*required`, `DeliveryProofPhoto` no
+   projeto inteiro). O texto original da task ("422 com o MESMO código que o motorista recebe
+   hoje") pressupunha um código que não existe. **Decisão do líder:** criar
+   `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED` (422) no padrão de `TripDeliveryProofDocumentRequiredError`,
+   aplicado **só ao canal `office`** nesta T6.
+
+**Pendência registrada (fora da spec 156):** o motorista continua sem verificação de foto
+obrigatória no backend — hoje só o front dele barra o envio sem foto. Estender
+`TRIP_DELIVERY_PROOF_PHOTO_REQUIRED` (ou equivalente) ao fluxo `POST /me/.../deliver` +
+`.../proof` do motorista é trabalho novo, não desta spec. Sinalizado ao usuário para virar task
+separada.
+
+### Arquivos
+
+**Domínio (novos/alterados):**
+
+- `src/trips/domain/field-delivery-timing.policy.ts` (**novo**) — `assertDeliveredAtWithinWindow`:
+  função pura, `DELIVERED_AT_IN_FUTURE` (tolerância de 2 min contra o relógio) e
+  `DELIVERED_AT_BEFORE_DISPATCH` (contra `trip_dispatch_snapshots.dispatched_at`, `null` quando a
+  viagem nunca despachou — não é esta regra que decide se isso pode acontecer).
+- `src/trips/domain/trip.error.ts` — `TripDocumentAlreadySettledError` (409
+  `DOCUMENT_ALREADY_SETTLED`), `DeliveredAtInFutureError`/`DeliveredAtBeforeDispatchError` (400),
+  `TripDeliveryProofPhotoRequiredError` (422 `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`).
+- `src/database/trip.schema.ts` — comentário e `CHECK` de `trip_delivery_proofs_receiver_check`
+  ajustados (decisão 1 acima).
+
+**Aplicação (alterados/novos):**
+
+- `src/trips/application/report-document-delivery.use-case.ts` — `runOutcome` ganha: (a) o gate
+  `isOffice` (`'target' in input`), que valida `deliveredAt`/`returnedAt` via
+  `assertDeliveredAtWithinWindow` **antes** de checar a transição; (b) `DOCUMENT_ALREADY_SETTLED`
+  quando `alreadySettled && isOffice`, **antes** de `settle`/`recordEvent` (canal do motorista
+  inalterado — só entra no `if` quando há `target`); (c) `occurredAt`/`recordedAt` explícitos no
+  `recordEvent` só para o escritório (o motorista continua com as duas colunas em `defaultNow()`);
+  (d) `persistOfficeDeliveryProof`, que roda **dentro da mesma transação** da entrega — checa
+  `settings.photo === 'required'`, valida tamanho/tipo do arquivo e grava o comprovante via
+  `transaction.saveDeliveryProofWithinTransaction` (novo método do port, abaixo). `reportDocumentDelivery` ganha o parâmetro opcional `proof:
+OfficeDeliveryProofAttachment` — ausente para o motorista e para `reportDocumentReturn` (que
+  nunca leva comprovante).
+- `src/trips/application/report-field-proof.use-case.ts` (**novo**) — `reportFieldProof`: o único
+  caso de uso da T6 com `Idempotency-Key` própria que **não** passa pelo `runOutcome` de entrega —
+  ele embrulha `attachDeliveryProof` (a mesma porta do motorista) em `withFieldReport`, com
+  `operation: 'office.document.proof'`. Não cria evento nem muda `delivered_at`: só encontra o
+  evento `delivered` já existente (`findDeliveryEventId`) e substitui o comprovante pelo unique
+  `(company, stop_event, kind)`.
+- `src/trips/application/attach-delivery-proof.use-case.ts` — `receiverName` passa a ser gravado
+  quando `isSignature` **ou** `authorship.channel === 'office'` (decisão 1). É o que faz
+  `field-proof` (que reusa esta função) também aceitar o nome do recebedor no canhoto `photo` do
+  escritório.
+- `src/trips/application/driver-field-report.port.ts` — `DriverFieldReportTransactionPort` ganha
+  `findDispatchedAt`, `saveDeliveryProofWithinTransaction`,
+  `findProofIdByAttachmentKeyWithinTransaction`; `recordEvent` ganha `occurredAt`/`recordedAt`
+  opcionais. `FieldReportClaim` ganha `actorUserId` (idempotência estendida ao ator, abaixo).
+- `src/trips/application/trip-field-report.port.ts` — `withFieldReport` agora lança
+  `TripFieldReportKeyReusedError` (409, já existia) quando `claim.operation !== input.operation`
+  **ou** `claim.actorUserId !== input.actorUserId` — ADR-0067 §5, decisão do líder na T3 (§8 do
+  `t3-design.md`), implementada aqui.
+
+**Infraestrutura (alterados):**
+
+- `src/trips/infrastructure/drizzle-driver-field-report.repository.ts` — `claim`/`select` passam a
+  ler/devolver `actorUserId`; `recordEvent` grava `createdAt`/`recordedAt` só quando informados
+  (spread condicional, sem mudar o `defaultNow()` do motorista); `findDispatchedAt` (lê
+  `trip_dispatch_snapshots`, único por viagem); `saveDeliveryProofWithinTransaction` e
+  `findProofIdByAttachmentKeyWithinTransaction` (reaproveitam `buildProofUpsertSet`, importado de
+  `drizzle-delivery-proof.repository.ts`, para não duplicar a lógica do upsert).
+
+**Migration:**
+
+- `drizzle/20260918070043_delivery_proof_office_receiver_name/` — `migration.sql` (drop+add do
+  `CHECK`, uma transação), `rollback.sql` (recria o `CHECK` antigo, falha com mensagem clara se
+  houver linha `office`+`photo` com nome).
+
+**Presentation (alterados):**
+
+- `src/trips/presentation/trip-field-office.schema.ts` — `parseOfficeFieldDeliveryRequest`
+  (multipart: `deliveredAt` obrigatório, `file` opcional, `receiverName`/`receiverDocument`
+  opcionais, `driverId` opcional; `kind` nunca vem do corpo — é sempre `'photo'`, ADR-0067 §5),
+  `parseOfficeFieldReturnRequest` (JSON: `reason`, `returnedAt` opcional cai em "agora"),
+  `parseOfficeFieldProofRequest` (multipart, `file` obrigatório).
+- `src/trips/presentation/trip-field-office.routes.ts` — três rotas novas:
+  `POST /trips/:id/documents/:documentId/field-delivery` (201, `{ alreadySettled, id, proofId,
+stopCompleted, tripCompleted }`), `.../field-return` (201, mesmo envelope sem `proofId`),
+  `.../field-proof` (201, `{ id }`). Todas com `OFFICE_REPORT_POLICY`
+  (`trip.report-on-behalf`), `Idempotency-Key` obrigatória (inclusive `field-proof`, que reusa
+  `trip_field_reports` com `operation: 'office.document.proof'` — decisão explícita da T6, não do
+  padrão do motorista, para a mesma chave repetida não duplicar o anexo) e `audit.record`.
+
+**Composição:** `src/main.ts` — `reportDelivery`/`reportReturn`/`attachProof` entram em
+`createTripFieldOfficeRoutes`, reaproveitando `driverFieldReports`, `deliveryProofRepository`,
+`deliveryProofDocumentSecrets` e `createDeliveryProofStorage` — os mesmos que o motorista usa, sem
+instância paralela.
+
+**Testes (novos, no mesmo entrypoint já listado em `package.json`):**
+
+- `test/driver-trip/office-field-delivery.contract.ts` (importado por
+  `test/driver-trip.contract.test.ts`, já listado) — unitário com dublês
+  (`field-report.double.ts`, estendido com `dispatchedAtByTripId`/`proofsByAttachmentKey` e os três
+  métodos novos do port): entrega + comprovante na mesma transação; aceite 9 (foto obrigatória);
+  foto opcional ausente conclui sem comprovante; aceite 8 (futuro / antes do despacho); aceite 12
+  (`DOCUMENT_ALREADY_SETTLED` sem evento novo); aceite 7 (repetir a mesma chave não duplica evento
+  nem comprovante); idempotência estendida ao ator (409 `TRIP_FIELD_REPORT_KEY_REUSED`); o
+  motorista continua sem validação de `deliveredAt`/foto; `field-proof` não cria evento nem muda
+  `delivered_at`; `field-proof` sobre nota sem entrega alcançável → 409
+  `TRIP_DOCUMENT_NOT_REACHABLE`; `attachDeliveryProof` só carrega `receiverName` em `kind: 'photo'`
+  no canal `office` (canal `driver_app` continua sem).
+- `test/integration/trip-field-office.integration.ts` (estendido) — novo `describe` contra
+  Postgres real: grava entrega + comprovante na mesma transação (`delivered_at` = `deliveredAt`
+  informado, prova lendo `trip_documents`/`trip_delivery_proofs`); aceite 9 real (config
+  `company_delivery_proof_settings.photo = 'required'` → 422, nota continua `loaded`); aceite 8
+  real (antes do despacho, com `trip_dispatch_snapshots` semeado); aceite 12 real (segunda entrega
+  → 409, sem segunda linha em `trip_stop_events`); `field-proof` real (não muda `delivered_at`,
+  substitui a linha pelo unique); 404 de outra empresa em `field-delivery`.
+- `test/integration/trip-field-authorship.integration.ts` e
+  `test/field-trip-target/use-cases.contract.ts` (T3/T4, **ajustados, não reescritos**): os dois
+  testes que já chamavam `reportDocumentDelivery` com `target` (canal `office`) passaram a mandar
+  `recordedAt` fixo — sem isso, ficavam reféns do relógio de parede contra o `now`/`NOW` fixo do
+  arquivo, porque a T6 passou a validar `deliveredAt` sempre que há `target`. Comportamento
+  esperado da mudança, não regressão escondida.
+- `test/database-migration/static-migration.contract.ts` — lista de diretórios de migration
+  ganhou a nova entrada.
+
+### Decisões
+
+**Idempotência de `field-proof` é própria, não a do motorista.** O motorista anexa comprovante sem
+`Idempotency-Key` (dedupe só por `attachmentKey`, opcional). O escritório usa `Idempotency-Key`
+obrigatória e `trip_field_reports` com `operation: 'office.document.proof'` — pedido explícito da
+task (idempotência do escritório é uniforme nas três rotas), mesmo essa ação não criando evento
+nenhum. `reportFieldProof` embrulha `attachDeliveryProof` (que abre a própria transação em
+`saveProof`) dentro de outra transação só para a reserva da chave — não é uma transação única de
+ponta a ponta, mas é suficiente para a garantia que importa: a segunda chamada com a mesma chave
+nunca executa `attachDeliveryProof` de novo.
+
+**`field-proof` não recebe `deliveredAt`.** Ele nunca muda `delivered_at` (ADR-0067 §2) — não fazia
+sentido pedir um campo que a ação ignora.
+
+**`receiverDocument` no `field-delivery`/`field-proof` do escritório segue o mesmo portão do
+motorista (kind), não um portão novo.** A task pedia o campo no corpo "com o mesmo
+envelope/máscara da ADR-0057 §3", mas como `kind` do escritório é sempre `'photo'`,
+`attachDeliveryProof` já zera `receiverDocument` para qualquer `kind !== 'signature'` — o
+escritório nunca coleta assinatura, então o campo é aceito e validado na forma canônica pelo
+schema, mas nunca persiste. Manter esse portão (em vez de abrir uma segunda exceção como a do
+`receiverName`) evita alargar `trip_delivery_proofs_receiver_document_check`, que ninguém pediu
+para relaxar.
+
+**`recordedAt` como parâmetro opcional, não um segundo `now`.** `ReportDocumentOutcomeInput.now`
+continua sendo "a hora que vale para `trip_documents`/o evento" (para o motorista, é literalmente
+agora; para o escritório, é `deliveredAt`/`returnedAt`). `recordedAt` é só usado (a) como referência
+de "agora" na validação de janela e (b) gravado em `trip_stop_events.recorded_at` — ausente, os
+dois caem em `new Date()`/`input.now`, preservando o comportamento de hoje para o motorista e o
+WhatsApp sem tocar nas chamadas deles em `main.ts`.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro (1 `no-unused-vars` corrigido no
+  caminho).
+- `bun run --cwd apps/api-transportada build` → `Bundled 1052 modules`, sem erro.
+- `bun run --cwd apps/api-transportada test` → `6437 pass · 32 skip · 0 fail`, 22440 `expect()`,
+  179 arquivos (17 a mais que a T5, todos novos desta task; nenhum dos 6420 anteriores quebrou
+  depois do ajuste de `recordedAt` nos dois testes T3/T4 citados acima).
+- `make migration-test` (via `DRIZZLE_TEST_DATABASE_URL` + `db:test`) → migration + rollback da T6
+  incluídos, `97 pass · 0 fail` (8 arquivos, inclui `database-migration.contract.test.ts`).
+- De dentro de `apps/api-transportada`, contra o Postgres de `.env.test` (65432):
+  `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts ./test/integration/me-trip.integration.ts ./test/integration/field-trip-target.integration.ts ./test/integration/trip-field-authorship.integration.ts`
+  → `25 pass · 0 fail`, 94 `expect()` (6 a mais que a T5: as novas de field-delivery/field-return/
+  field-proof).
+- `.../test/integration/whatsapp-driver-flow-actions.integration.ts` → `1 pass · 0 fail` (o canal
+  `whatsapp` de `reportDocumentDelivery` não usa `target`, então não entra no gate `isOffice` —
+  continua sem validar `deliveredAt`).
+- Suíte completa de `.integration.ts` (todas, `--timeout 120000`, `.env.test`): `322 pass · 8 fail`.
+  As 8 falhas são `toll-booth-reload.integration.ts` (4) e `cte-archive-gateway.integration.ts` (2,
+  contadas em duplicidade pelo runner) — todas por `ObjectStorageError: Object storage is
+unavailable` (MinIO fora do ar neste ambiente), pré-existentes e sem relação com `trips`/
+  `delivery-proof`/`field-trip-target`. Nenhuma falha em qualquer arquivo tocado por esta task.
+
+TDD: os oito testes novos de `office-field-delivery.contract.ts` e o novo `describe` de
+`trip-field-office.integration.ts` foram escritos contra o código de campo desta T6 e falhavam
+antes das mudanças em `report-document-delivery.use-case.ts`/`report-field-proof.use-case.ts`/
+`trip-field-office.routes.ts` (módulo/rota inexistente ou comportamento antigo sem
+`DOCUMENT_ALREADY_SETTLED`/validação de `deliveredAt`/foto obrigatória).

@@ -108,6 +108,9 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       audit,
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: async (input) => {
         startCalls.push(input)
         return { changed: true, tripId: TRIP_ID, tripStatus: 'on_delivery_route' }
@@ -161,6 +164,9 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: async (input) => {
         startCalls.push(input)
         return { changed: true, tripId: TRIP_ID, tripStatus: 'on_delivery_route' }
@@ -185,6 +191,9 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets: buildTargetsDouble(null),
     })
@@ -206,6 +215,9 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets: { findTripCrew: NOT_CALLED },
     })
@@ -235,6 +247,9 @@ describe('a chegada do escritório (spec 156 T5)', () => {
         return { id: 'event-1' }
       },
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -281,6 +296,9 @@ describe('a chegada do escritório (spec 156 T5)', () => {
       audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -311,6 +329,9 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
         occurrenceCalls.push(input)
         return { id: 'occurrence-1' }
       },
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -363,6 +384,9 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
       audit: buildAuditDouble(),
       reportArrival: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
+      attachProof: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportReturn: NOT_CALLED,
       startFieldTrip: NOT_CALLED,
       targets: buildTargetsDouble(TWO_DRIVERS),
     })

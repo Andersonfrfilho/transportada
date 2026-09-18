@@ -37,9 +37,15 @@ export async function withFieldReport<TResult extends { readonly id: string }>(
   })
 
   if (!claim.claimed) {
-    // A mesma chave em ações diferentes é erro do cliente, não repetição — e aceitar em silêncio
-    // faria uma entrega ser "confirmada" pela chave de uma chegada.
-    if (claim.operation !== input.operation) throw new TripFieldReportKeyReusedError()
+    /**
+     * A mesma chave em ações diferentes é erro do cliente, não repetição — e aceitar em silêncio
+     * faria uma entrega ser "confirmada" pela chave de uma chegada. ADR-0067 §5 (emenda
+     * 2026-09-18): o mesmo vale para o ator — duas pessoas do escritório nunca compartilham a
+     * confirmação uma da outra, mesmo que peçam a mesma coisa.
+     */
+    if (claim.operation !== input.operation || claim.actorUserId !== input.actorUserId) {
+      throw new TripFieldReportKeyReusedError()
+    }
     const recalled = claim.resultId === null ? null : await recall(claim.resultId)
     if (recalled !== null) return recalled
   }

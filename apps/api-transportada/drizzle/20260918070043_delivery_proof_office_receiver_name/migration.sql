@@ -1,0 +1,1 @@
+ALTER TABLE "trip_delivery_proofs" DROP CONSTRAINT "trip_delivery_proofs_receiver_check", ADD CONSTRAINT "trip_delivery_proofs_receiver_check" CHECK ("kind" = 'signature' or "channel" = 'office' or length("receiver_name") = 0);

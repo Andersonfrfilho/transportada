@@ -1,11 +1,23 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
+
 import {
+  buildDeliveryProofObjectKey,
+  DELIVERY_PROOF_MAX_BYTES,
+  isDeliveryProofMimeType,
+} from '../domain/delivery-proof.policy.js'
+import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import { assertDeliveredAtWithinWindow } from '../domain/field-delivery-timing.policy.js'
+import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
+import {
+  TripDeliveryProofPhotoRequiredError,
+  TripDeliveryProofRejectedError,
+  TripDocumentAlreadySettledError,
   TripDocumentNotReachableError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
-import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
   checkTripDocumentTransition,
   TRIP_DOCUMENT_ACTION,
@@ -19,12 +31,49 @@ import type {
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
+  type FieldAuthorship,
   type FieldTripLocator,
 } from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const DELIVER_OPERATION = 'document.deliver'
 const RETURN_OPERATION = 'document.return'
+
+/**
+ * Spec 156 T6, D9: o comprovante que o escritório sobe junto com a entrega, na mesma transação.
+ * `kind` é sempre `'photo'` para o canal `office` — quem colhe assinatura é o motorista.
+ */
+export type OfficeDeliveryProofUpload = {
+  readonly attachmentKey: string
+  readonly bytes: Uint8Array
+  readonly mimeType: string
+  readonly receiverDocument: string
+  readonly receiverName: string
+}
+
+export type OfficeDeliveryProofAttachment = {
+  readonly newObjectId: () => string
+  readonly newProofId: () => string
+  readonly resolveSettings: (input: {
+    readonly companyId: string
+    readonly documentId: string
+  }) => Promise<DeliveryProofFieldSettings>
+  readonly sealDocument: (input: {
+    readonly companyId: string
+    readonly proofId: string
+    readonly receiverDocument: string
+  }) => Promise<SecretEnvelopeV1>
+  readonly storage: {
+    store(input: {
+      readonly bytes: Uint8Array
+      readonly companyId: string
+      readonly mimeType: string
+      readonly objectId: string
+      readonly objectKey: string
+    }): Promise<{ readonly sha256: string }>
+  }
+  readonly upload: OfficeDeliveryProofUpload | null
+}
 
 export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly actorUserId: string
@@ -33,7 +82,14 @@ export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly idempotencyKey: string
   readonly location: ReportedLocation | null
   readonly now: Date
+  /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
+  readonly recordedAt?: Date
   readonly unitOfWork: DriverFieldReportUnitOfWork
+}
+
+export type ReportDocumentDeliveryInput = ReportDocumentOutcomeInput & {
+  /** Spec 156 T6: só o canal `office` manda isto — o motorista anexa depois, por rota própria. */
+  readonly proof?: OfficeDeliveryProofAttachment
 }
 
 export type ReportDocumentReturnInput = ReportDocumentOutcomeInput & {
@@ -47,6 +103,8 @@ export type ReportDocumentOutcomeResult = {
    */
   readonly alreadySettled: boolean
   readonly id: string
+  /** `null` quando não veio comprovante (motorista, ou escritório sem foto obrigatória). */
+  readonly proofId: string | null
   /** Para a tela do motorista saber que a parada fechou sem precisar recarregar a viagem inteira. */
   readonly stopCompleted: boolean
   readonly tripCompleted: boolean
@@ -57,11 +115,12 @@ export type ReportDocumentOutcomeResult = {
  * viagem a `completed` sozinha (spec 056 D1). Ninguém no escritório aperta nada para isso.
  */
 export async function reportDocumentDelivery(
-  input: ReportDocumentOutcomeInput,
+  input: ReportDocumentDeliveryInput,
 ): Promise<ReportDocumentOutcomeResult> {
   return runOutcome({
     input,
     operation: DELIVER_OPERATION,
+    ...(input.proof === undefined ? {} : { proof: input.proof }),
     settle: (transaction, documentId) =>
       transaction.markDocumentDelivered({
         at: input.now,
@@ -101,15 +160,96 @@ type RunOutcomeParams = {
   readonly input: ReportDocumentOutcomeInput
   readonly kind: 'delivered' | 'returned'
   readonly operation: string
+  /** Spec 156 T6: só a entrega do escritório manda isto. */
+  readonly proof?: OfficeDeliveryProofAttachment
   readonly settle: (
     transaction: DriverFieldReportTransactionPort,
     documentId: string,
   ) => Promise<void>
 }
 
+/**
+ * ADR-0067 §5 (emenda 2026-09-18): sela o canhoto **dentro** da transação da entrega — se o
+ * anexo for recusado, a entrega inteira desfaz, e não fica uma nota "entregue" sem o comprovante
+ * que a configuração exige.
+ */
+async function persistOfficeDeliveryProof(input: {
+  readonly authorship: FieldAuthorship
+  readonly companyId: string
+  readonly eventId: string
+  readonly proof: OfficeDeliveryProofAttachment
+  readonly reportInput: ReportDocumentOutcomeInput
+  readonly transaction: DriverFieldReportTransactionPort
+}): Promise<string | null> {
+  const { authorship, companyId, eventId, proof, reportInput, transaction } = input
+  const settings = await proof.resolveSettings({
+    companyId,
+    documentId: reportInput.documentId,
+  })
+
+  if (proof.upload === null) {
+    if (settings.photo === 'required') throw new TripDeliveryProofPhotoRequiredError()
+    return null
+  }
+
+  if (proof.upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
+  if (!isDeliveryProofMimeType(proof.upload.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+
+  if (proof.upload.attachmentKey.length > 0) {
+    const existingId = await transaction.findProofIdByAttachmentKeyWithinTransaction({
+      attachmentKey: proof.upload.attachmentKey,
+      companyId,
+      eventId,
+      kind: 'photo',
+    })
+    if (existingId !== null) return existingId
+  }
+
+  const objectId = proof.newObjectId()
+  const objectKey = buildDeliveryProofObjectKey({ companyId, eventId, objectId })
+  const stored = await proof.storage.store({
+    bytes: proof.upload.bytes,
+    companyId,
+    mimeType: proof.upload.mimeType,
+    objectId,
+    objectKey,
+  })
+
+  const proofId = proof.newProofId()
+  /**
+   * ADR-0067 §5 (emenda): documento do recebedor **não** entra pelo canhoto do escritório — quem
+   * assina é o motorista, e `kind: 'photo'` nunca carrega o CPF/CNPJ (mesmo gate do motorista).
+   * Sem isso, a mesma leitura mascarada valeria de forma inconsistente entre os dois canais.
+   */
+  const proofResult = await transaction.saveDeliveryProofWithinTransaction({
+    actorUserId: reportInput.actorUserId,
+    attachmentKey: proof.upload.attachmentKey,
+    authorship,
+    companyId,
+    eventId,
+    id: proofId,
+    kind: 'photo',
+    mimeType: proof.upload.mimeType,
+    objectId,
+    objectKey,
+    receiverDocumentEnvelope: null,
+    receiverDocumentMasked: '',
+    receiverName: proof.upload.receiverName,
+    sha256: stored.sha256,
+    sizeBytes: proof.upload.bytes.byteLength,
+  })
+
+  return proofResult.id
+}
+
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
-  const { action, input, kind, operation, settle } = params
+  const { action, input, kind, operation, proof, settle } = params
   const authorship = deriveFieldAuthorship(input)
+  const isOffice = 'target' in input && input.target !== undefined
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
@@ -137,6 +277,22 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         }
 
         /**
+         * ADR-0067 §3: só o escritório manda "quando aconteceu" — o motorista sempre reporta agora.
+         * A janela é contra o relógio do servidor e contra o despacho congelado da viagem.
+         */
+        if (isOffice) {
+          const dispatchedAt = await transaction.findDispatchedAt({
+            companyId: input.companyId,
+            tripId: document.tripId,
+          })
+          assertDeliveredAtWithinWindow({
+            deliveredAt: input.now,
+            dispatchedAt,
+            now: input.recordedAt ?? new Date(),
+          })
+        }
+
+        /**
          * Quem decide se a transição vale é a política da 056, não uma segunda lista aqui. Ela põe o
          * no-op idempotente **antes** do estado da viagem de propósito: a fila offline drena muito
          * depois do toque, e uma entrega que funcionou voltaria como 409 para o motorista que fez
@@ -152,6 +308,13 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         }
         const alreadySettled = transition.outcome === 'unchanged'
 
+        /**
+         * ADR-0067 §2 (emenda): o escritório não herda o no-op do motorista — dias depois, uma
+         * segunda baixa sobre a mesma nota seria uma entrega fantasma na linha do tempo. O caso
+         * real ("falta só o canhoto") é `field-proof`, que não passa por aqui.
+         */
+        if (alreadySettled && isOffice) throw new TripDocumentAlreadySettledError()
+
         if (!alreadySettled) await settle(transaction, input.documentId)
         const event = await transaction.recordEvent({
           actorUserId: input.actorUserId,
@@ -160,8 +323,23 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           documentId: input.documentId,
           kind,
           location: input.location,
+          ...(isOffice
+            ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
+            : {}),
           stopId: document.stopId,
         })
+
+        const proofId =
+          proof === undefined
+            ? null
+            : await persistOfficeDeliveryProof({
+                authorship,
+                companyId: input.companyId,
+                eventId: event.id,
+                proof,
+                reportInput: input,
+                transaction,
+              })
 
         const stopCompleted = await transaction.completeStopIfSettled({
           at: input.now,
@@ -175,14 +353,30 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
             })
           : false
 
-        return { alreadySettled, id: event.id, stopCompleted, tripCompleted }
+        return { alreadySettled, id: event.id, proofId, stopCompleted, tripCompleted }
       },
       async (eventId) => {
         const event = await transaction.findEventById({ companyId: input.companyId, eventId })
+        if (event === null) return null
+
+        const proofId =
+          proof?.upload === undefined || proof.upload === null || proof.upload.attachmentKey === ''
+            ? null
+            : await transaction.findProofIdByAttachmentKeyWithinTransaction({
+                attachmentKey: proof.upload.attachmentKey,
+                companyId: input.companyId,
+                eventId: event.id,
+                kind: 'photo',
+              })
+
         // O reenvio devolve o mesmo evento; o que a parada e a viagem fizeram já está feito.
-        return event === null
-          ? null
-          : { alreadySettled: true, id: event.id, stopCompleted: false, tripCompleted: false }
+        return {
+          alreadySettled: true,
+          id: event.id,
+          proofId,
+          stopCompleted: false,
+          tripCompleted: false,
+        }
       },
     ),
   )

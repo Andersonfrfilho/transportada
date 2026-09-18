@@ -11,10 +11,12 @@ import type {
 
 export type FieldReportState = {
   readonly calls: string[]
+  readonly dispatchedAtByTripId: Map<string, Date>
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
-  readonly reports: Map<string, { operation: string; resultId: string | null }>
+  readonly proofsByAttachmentKey: Map<string, string>
+  readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
   tripCompletes: boolean
@@ -25,9 +27,11 @@ export function createFieldReportState(
 ): FieldReportState {
   return {
     calls: [],
+    dispatchedAtByTripId: new Map(),
     documents: new Map(),
     events: new Map(),
     occurrences: new Map(),
+    proofsByAttachmentKey: new Map(),
     reports: new Map(),
     stops: new Map(),
     stopCompletes: false,
@@ -56,10 +60,24 @@ export function createFieldReportUnitOfWork(
       state.calls.push('claim')
       const existing = state.reports.get(input.idempotencyKey)
       if (existing !== undefined) {
-        return { claimed: false, operation: existing.operation, resultId: existing.resultId }
+        return {
+          actorUserId: existing.actorUserId,
+          claimed: false,
+          operation: existing.operation,
+          resultId: existing.resultId,
+        }
       }
-      state.reports.set(input.idempotencyKey, { operation: input.operation, resultId: null })
-      return { claimed: true, operation: input.operation, resultId: null }
+      state.reports.set(input.idempotencyKey, {
+        actorUserId: input.actorUserId,
+        operation: input.operation,
+        resultId: null,
+      })
+      return {
+        actorUserId: input.actorUserId,
+        claimed: true,
+        operation: input.operation,
+        resultId: null,
+      }
     },
     settle: async (input) => {
       state.calls.push('settle')
@@ -68,6 +86,7 @@ export function createFieldReportUnitOfWork(
     },
     findStopForDriver: async (input) => state.stops.get(input.stopId) ?? null,
     findDocumentForDriver: async (input) => state.documents.get(input.documentId) ?? null,
+    findDispatchedAt: async (input) => state.dispatchedAtByTripId.get(input.tripId) ?? null,
     markStopArrived: async (input) => {
       state.calls.push(`markStopArrived:${input.stopId}`)
       const stop = state.stops.get(input.stopId)
@@ -102,6 +121,19 @@ export function createFieldReportUnitOfWork(
     },
     findEventById: async (input) => state.events.get(input.eventId) ?? null,
     findOccurrenceById: async (input) => state.occurrences.get(input.occurrenceId) ?? null,
+    saveDeliveryProofWithinTransaction: async (input) => {
+      state.calls.push(`saveDeliveryProofWithinTransaction:${input.eventId}:${input.kind}`)
+      if (input.attachmentKey.length > 0) {
+        state.proofsByAttachmentKey.set(
+          `${input.eventId}:${input.kind}:${input.attachmentKey}`,
+          input.id,
+        )
+      }
+      return { id: input.id }
+    },
+    findProofIdByAttachmentKeyWithinTransaction: async (input) =>
+      state.proofsByAttachmentKey.get(`${input.eventId}:${input.kind}:${input.attachmentKey}`) ??
+      null,
   }
 
   return { execute: (operation) => operation(transaction), state }

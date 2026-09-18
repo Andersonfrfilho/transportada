@@ -12,6 +12,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   auditLogs,
   companies,
@@ -23,20 +24,36 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { trips, tripDrivers, tripDocuments, tripStops } from '../../src/database/trip.schema.js'
+import {
+  trips,
+  tripDeliveryProofs,
+  tripDispatchSnapshots,
+  tripDocuments,
+  tripDrivers,
+  tripStops,
+} from '../../src/database/trip.schema.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import type {
   AuthenticatedContext,
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
+import {
+  reportDocumentDelivery,
+  reportDocumentReturn,
+} from '../../src/trips/application/report-document-delivery.use-case.js'
+import { reportFieldProof } from '../../src/trips/application/report-field-proof.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
 import { startFieldTrip } from '../../src/trips/application/start-field-trip.use-case.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
 import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
+
+/** As rotas do escritório nunca colhem assinatura (D8) — o comprovante do canhoto é sempre `photo`. */
+const FAKE_ENVELOPE = { ciphertext: 'x', iv: 'y', keyId: 'test', tag: 'z' } as never
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -83,6 +100,22 @@ function jsonRequest(input: { readonly body?: object; readonly idempotencyKey?: 
     headers,
     method: 'POST',
   })
+}
+
+/** Spec 156 T6: `field-delivery`/`field-proof` são multipart — sem `file`, a foto é "não veio". */
+function multipartRequest(input: {
+  readonly fields: Record<string, string>
+  readonly file?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  readonly idempotencyKey?: string
+}): Request {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(input.fields)) form.set(key, value)
+  if (input.file !== undefined) {
+    form.set('file', new File([input.file.bytes], 'canhoto.jpg', { type: input.file.mimeType }))
+  }
+  const headers: Record<string, string> = {}
+  if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
+  return new Request('http://localhost/trips/x', { body: form, headers, method: 'POST' })
 }
 
 describe('as rotas do escritório contra o Postgres (spec 156 T5, ADR-0067)', () => {
@@ -217,13 +250,253 @@ describe('as rotas do escritório contra o Postgres (spec 156 T5, ADR-0067)', ()
   })
 })
 
+describe('field-delivery, field-return e field-proof contra o Postgres (spec 156 T6, ADR-0067)', () => {
+  testWithPostgres(
+    'grava entrega + comprovante na mesma transação, com delivered_at = deliveredAt informado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedDispatchSnapshot(database, company, trip, new Date('2026-09-17T08:00:00.000Z'))
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute] = wireRoutes(database)
+        const deliveredAt = '2026-09-18T09:00:00.000Z'
+
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-delivery-1',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt, receiverName: 'João da Silva' },
+            file: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-field-delivery-1',
+          }),
+        })
+
+        expect(response.status).toBe(201)
+        const body = (await response.json()) as {
+          data: { alreadySettled: boolean; proofId: string | null }
+        }
+        expect(body.data.alreadySettled).toBe(false)
+        expect(body.data.proofId).not.toBeNull()
+
+        const [documentRow] = await database.db
+          .select({
+            deliveredAt: tripDocuments.deliveredAt,
+            status: tripDocuments.separationStatus,
+          })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+        expect(documentRow?.status).toBe('delivered')
+        expect(documentRow?.deliveredAt?.toISOString()).toBe(deliveredAt)
+
+        const [proofRow] = await database.db
+          .select({
+            channel: tripDeliveryProofs.channel,
+            receiverName: tripDeliveryProofs.receiverName,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.id, body.data.proofId ?? ''))
+        expect(proofRow).toEqual({ channel: 'office', receiverName: 'João da Silva' })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'aceite 9: empresa exige foto e ela não veio — 422 TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await database.db.insert(companyDeliveryProofSettings).values({
+          companyId: company.companyId,
+          photo: 'required',
+        })
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-delivery-photo-required',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+              idempotencyKey: 'office-field-delivery-photo-required',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', status: 422 })
+
+        const [documentRow] = await database.db
+          .select({ status: tripDocuments.separationStatus })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+        expect(documentRow?.status).toBe('loaded')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'aceite 8: deliveredAt antes do despacho responde 400 DELIVERED_AT_BEFORE_DISPATCH',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedDispatchSnapshot(database, company, trip, new Date('2026-09-17T08:00:00.000Z'))
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-delivery-before-dispatch',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-17T07:00:00.000Z' },
+              idempotencyKey: 'office-field-delivery-before-dispatch',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'DELIVERED_AT_BEFORE_DISPATCH', status: 400 })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'aceite 12: baixa repetida no canal office responde 409 DOCUMENT_ALREADY_SETTLED, sem evento novo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-already-settled-1',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-field-delivery-settled-1',
+          }),
+        })
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-already-settled-2',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-18T10:00:00.000Z' },
+              idempotencyKey: 'office-field-delivery-settled-2',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'DOCUMENT_ALREADY_SETTLED', status: 409 })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'field-proof anexa ao evento delivered sem mudar delivered_at nem criar evento',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-proof-1',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-field-delivery-for-proof',
+          }),
+        })
+        const [beforeDocument] = await database.db
+          .select({ deliveredAt: tripDocuments.deliveredAt })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+
+        const response = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-proof-2',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { receiverName: 'Ana Paula' },
+            file: { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-field-proof-1',
+          }),
+        })
+
+        expect(response.status).toBe(201)
+        const [afterDocument] = await database.db
+          .select({ deliveredAt: tripDocuments.deliveredAt })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+        expect(afterDocument?.deliveredAt?.toISOString()).toBe(
+          beforeDocument?.deliveredAt?.toISOString(),
+        )
+
+        const proofRows = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'field-delivery de viagem de outra empresa responde 404, nunca 403',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const otherCompany = await seedCompany(database)
+        const trip = await seedTrip(database, otherCompany, 'in_transit')
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-delivery-404',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+              idempotencyKey: 'office-field-delivery-404',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_NOT_FOUND', status: 404 })
+      })
+    },
+  )
+})
+
 function wireRoutes(database: TestDatabase) {
   const targets = new DrizzleFieldTripTargetRepository(database.db)
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
+  const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
   const audit = createDrizzleTripFieldOfficeAudit(database.db)
+  let objectCounter = 0
+  const storage = {
+    store: async () => ({ sha256: (objectCounter++, `${objectCounter}`.padStart(64, '0')) }),
+  }
 
   return createTripFieldOfficeRoutes({
+    attachProof: (input) =>
+      reportFieldProof({
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        documentId: input.documentId,
+        idempotencyKey: input.idempotencyKey,
+        newObjectId: () => crypto.randomUUID(),
+        newProofId: () => crypto.randomUUID(),
+        repository: deliveryProofs,
+        sealDocument: async () => FAKE_ENVELOPE,
+        storage,
+        target: input.target,
+        unitOfWork: driverFieldReports,
+        upload: { ...input.proof, kind: 'photo' },
+      }),
     audit,
     reportArrival: (input) =>
       reportStopArrival({
@@ -232,8 +505,32 @@ function wireRoutes(database: TestDatabase) {
         now: new Date('2026-09-18T13:00:00.000Z'),
         unitOfWork: driverFieldReports,
       }),
+    reportDelivery: (input) =>
+      reportDocumentDelivery({
+        ...input,
+        location: null,
+        now: input.deliveredAt,
+        proof: {
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          resolveSettings: (settings) => deliveryProofs.resolveProofFieldSettings(settings),
+          sealDocument: async () => FAKE_ENVELOPE,
+          storage,
+          upload: input.proof,
+        },
+        recordedAt: new Date('2026-09-18T13:00:00.000Z'),
+        unitOfWork: driverFieldReports,
+      }),
     reportOccurrence: (input) =>
       reportStopOccurrence({ ...input, attachmentObjectId: null, unitOfWork: driverFieldReports }),
+    reportReturn: (input) =>
+      reportDocumentReturn({
+        ...input,
+        location: null,
+        now: input.returnedAt,
+        recordedAt: new Date('2026-09-18T13:00:00.000Z'),
+        unitOfWork: driverFieldReports,
+      }),
     startFieldTrip: (input) => startFieldTrip({ ...input, repository: currentDriverTrips }),
     targets,
   })
@@ -321,6 +618,36 @@ async function seedTrip(
   })
 
   return { documentId, stopId, tripId }
+}
+
+/**
+ * `completeStopIfSettled` exige `arrived_at` preenchido (`trip_stops_completed_requires_arrived_check`)
+ * — a entrega que fecha a última parada da viagem só é válida depois da chegada.
+ */
+async function seedStopArrival(
+  database: TestDatabase,
+  trip: SeededTrip,
+  arrivedAt: Date,
+): Promise<void> {
+  await database.db.update(tripStops).set({ arrivedAt }).where(eq(tripStops.id, trip.stopId))
+}
+
+/** ADR-0067 §3: a fonte de "quando a viagem despachou" para validar `deliveredAt`/`returnedAt`. */
+async function seedDispatchSnapshot(
+  database: TestDatabase,
+  company: Company,
+  trip: SeededTrip,
+  dispatchedAt: Date,
+): Promise<void> {
+  await database.db.insert(tripDispatchSnapshots).values({
+    actorUserId: company.userId,
+    companyId: company.companyId,
+    dispatchedAt,
+    id: crypto.randomUUID(),
+    snapshot: { stops: [] },
+    snapshotSha256: '0'.repeat(64),
+    tripId: trip.tripId,
+  })
 }
 
 async function seedNfeDocument(database: TestDatabase, company: Company): Promise<string> {

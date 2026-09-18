@@ -82,8 +82,11 @@ não 403**: a resposta não pode confirmar que a viagem existe.
 
 **Idempotência.** O escritório usa a mesma tabela do motorista, `trip_field_reports`, com
 `operation` própria prefixada `office.` (por exemplo, `office.document.deliver`). A mesma chave
-enviada por **outro ator** responde 422 `IDEMPOTENCY_KEY_REUSED`, e não devolve o resultado de
-outra pessoa.
+enviada por **outro ator** responde **409 `TRIP_FIELD_REPORT_KEY_REUSED`** — o mesmo código que já
+existia para operação diferente, estendido para também comparar o ator (`withFieldReport`, T6).
+_(Emenda 2026-09-18, decisão do líder na T3/T6: fica o código de hoje, não o 422
+`IDEMPOTENCY_KEY_REUSED` que este parágrafo previa antes.)_ Ela nunca devolve o resultado de outra
+pessoa.
 
 **Baixa repetida.** No canal `office`, nota já `delivered` ou `returned` responde **409
 `DOCUMENT_ALREADY_SETTLED`** e não grava evento novo. Hoje `report-document-delivery.use-case.ts`
@@ -143,6 +146,25 @@ escritório não colhe assinatura, porque quem assina é o recebedor, e ele não
 escritório cumpre a exigência com a **foto do canhoto assinado** mais o **nome do recebedor**. Isso
 fica registrado como comprovante do canal `office`, nunca como assinatura digital. Se o escritório
 digitar o documento do recebedor, ele passa pelo mesmo envelope e pela mesma máscara da ADR-0057 §3.
+
+**Emendas 2026-09-18 (T6), decididas pelo líder:**
+
+1. **O `CHECK` de `trip_delivery_proofs` que travava `receiver_name` à assinatura foi relaxado por
+   migration aditiva.** `trip_delivery_proofs_receiver_check` era
+   `kind = 'signature' or length(receiver_name) = 0` — e bloquearia exatamente o caso que este
+   parágrafo pede: canhoto `kind: 'photo'` do canal `office` com o nome do recebedor. A migration da
+   T6 (`20260918070043_delivery_proof_office_receiver_name`) troca para
+   `kind = 'signature' or channel = 'office' or length(receiver_name) = 0` — puro relaxamento, sem
+   perda de dado; o `rollback.sql` recria o `CHECK` antigo e **falha** (sem apagar nada) se já
+   existir uma linha `office`+`photo` com `receiver_name` preenchido. `attachDeliveryProof`
+   (`application/attach-delivery-proof.use-case.ts`) só carrega `receiverName` quando `isSignature`
+   **ou** `authorship.channel === 'office'` — o motorista continua exatamente como antes.
+2. **Nasce `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED` (422)**, no padrão de
+   `TripDeliveryProofDocumentRequiredError`, para `settings.photo === 'required'` sem foto. Aplicado
+   **só ao canal `office`** nesta T6 — o motorista hoje não tem essa verificação no backend (a
+   exigência de foto só existe hoje na configuração e no front do motorista, nunca checada no
+   `attachDeliveryProof`/`report-document-delivery` dele). Estender ao motorista é decisão fora da
+   spec 156, registrada como pendência no `evidence.md` da T6.
 
 ## Alternativas rejeitadas
 

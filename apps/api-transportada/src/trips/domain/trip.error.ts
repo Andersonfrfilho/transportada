@@ -454,3 +454,55 @@ export class OccurrenceEmailTemplateNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0067 §2 (emenda): no canal `office`, nota já `delivered`/`returned` não gera evento novo — o
+ * caso real ("a entrega já aconteceu e falta o canhoto") é `field-proof`, que anexa ao evento
+ * existente. O canal do motorista não passa por aqui: continua com o no-op idempotente de hoje.
+ */
+export class TripDocumentAlreadySettledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DOCUMENT_ALREADY_SETTLED',
+      message: 'This document was already settled by another field report.',
+      status: 409,
+    })
+  }
+}
+
+/** ADR-0067 §3: "Entregue em"/"Devolvido em" não aceita hora no futuro (tolerância de relógio de 2min). */
+export class DeliveredAtInFutureError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERED_AT_IN_FUTURE',
+      message: 'The informed time is in the future.',
+      status: 400,
+    })
+  }
+}
+
+/** ADR-0067 §3: a hora informada não pode ser anterior ao despacho congelado da viagem. */
+export class DeliveredAtBeforeDispatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERED_AT_BEFORE_DISPATCH',
+      message: 'The informed time is before the trip was dispatched.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * ADR-0067 §5 (emenda 2026-09-18): a configuração da empresa exige foto e o escritório não a
+ * mandou. Aplicado só ao canal `office` nesta T6 — o motorista ainda não tem esta verificação no
+ * backend (pendência registrada fora da spec 156).
+ */
+export class TripDeliveryProofPhotoRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
+      message: 'This company requires a photo of the delivery receipt.',
+      status: 422,
+    })
+  }
+}

@@ -203,6 +203,11 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       idempotencyKey: 'office-delivery',
       location: null,
       now: NOW,
+      /**
+       * Spec 156 T6, ADR-0067 §3: o canal `office` valida `deliveredAt` contra "agora" — sem isto o
+       * teste ficaria refém do relógio de parede em vez do `NOW` fixo do arquivo.
+       */
+      recordedAt: NOW,
       target: await resolveTarget('in_transit'),
       unitOfWork: office.unitOfWork,
     })
