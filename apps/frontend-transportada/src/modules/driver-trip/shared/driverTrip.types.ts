@@ -149,18 +149,10 @@ export type DriverFieldReport =
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
  *
  * ⚠️ A lista **vem do servidor**: ela deixou de ser cópia por valor quando os tipos viraram
- * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele.
+ * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele —, e o filtro é
+ * do servidor (spec 157): a rota `/me/trips/current/occurrence-types` devolve só `id` e `name`.
  */
 export type DriverOccurrenceType = Readonly<{
-  active: boolean
   id: string
   name: string
-  stage: 'delivery' | 'separation'
 }>
-
-/** O que a tela dele oferece: rua, ativo, e nada mais. */
-export function driverSelectableOccurrenceTypes(
-  types: readonly DriverOccurrenceType[],
-): readonly DriverOccurrenceType[] {
-  return types.filter((type) => type.active && type.stage === 'delivery')
-}

@@ -133,6 +133,17 @@ export async function mockDriverTripApi(
     await fulfillJson(route, buildSnapshot({ arrived }))
   })
 
+  /** Spec 157: a lista de tipos de rua do motorista — sem o dublê, o pedido escapa para a API real. */
+  await input.page.route(/\/me\/trips\/current\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await fulfillJson(route, {
+      data: [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }],
+    })
+  })
+
   await input.page.route(/\/me\/trips\/current\/(stops|documents)\//, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ headers: CORS_HEADERS, status: 204 })

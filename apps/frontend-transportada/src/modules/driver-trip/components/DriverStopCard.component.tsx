@@ -12,7 +12,6 @@ import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
-  driverSelectableOccurrenceTypes,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceKind,
   type DriverOccurrenceType,
@@ -293,7 +292,7 @@ function DocumentRow({
         <fieldset className={styles.occurrenceForm}>
           <legend>{t('documentOccurrence')}</legend>
           <p>{t('documentOccurrenceHint')}</p>
-          {driverSelectableOccurrenceTypes(occurrenceTypes).map((occurrenceType) => (
+          {occurrenceTypes.map((occurrenceType) => (
             <Button
               key={occurrenceType.id}
               onClick={() => {

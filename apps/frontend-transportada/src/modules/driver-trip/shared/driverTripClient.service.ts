@@ -161,7 +161,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const body = await request({
         dependencies,
         method: 'GET',
-        path: '/company-settings/occurrence-types',
+        path: `${CURRENT_TRIP_PATH}/occurrence-types`,
       })
 
       /**

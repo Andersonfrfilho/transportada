@@ -1214,6 +1214,21 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
   await assertNoHorizontalOverflow(page)
 })
 
+/**
+ * Spec 157: a lista vinha de `/company-settings/occurrence-types` (`settings.manage`), o motorista
+ * levava 403 e o seletor abria vazio. Agora ela vem da árvore `/me`, e o tipo de rua aparece.
+ */
+test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+})
+
 /** A tela diz a verdade: sem sinal, o toque fica "aguardando envio" — nunca "enviado". */
 test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile)

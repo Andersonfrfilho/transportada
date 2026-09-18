@@ -6,9 +6,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
+import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
 import {
   DRIVER_RETURN_REASONS,
-  driverSelectableOccurrenceTypes,
   type DriverTripDocument,
   type DriverTripStop,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
@@ -19,11 +19,18 @@ const CARD = new URL(
   import.meta.url,
 )
 
-const TIPOS = [
-  { active: true, id: 'a', name: 'Recebeu parte', stage: 'delivery' as const },
-  { active: true, id: 'b', name: 'Item faltante', stage: 'separation' as const },
-  { active: false, id: 'c', name: 'Aposentado', stage: 'delivery' as const },
-]
+function buildClient(response: Response) {
+  const seen: Request[] = []
+  const client = createDriverTripClient({
+    apiUrl: 'https://api.test',
+    fetch: (input) => {
+      seen.push(input as Request)
+      return Promise.resolve(response)
+    },
+    getAccessToken: () => Promise.resolve('token-de-mentira'),
+  })
+  return { client, seen }
+}
 
 /**
  * Spec 079. Os tipos viraram **cadastro da empresa**, e a tela do motorista escolhe entre eles.
@@ -32,16 +39,28 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   const source = readFileSync(CARD, 'utf8')
 
   /**
-   * ⚠️ **Só rua, e só ativo.** O galpão não é dele — ele não separou a carga —, e tipo aposentado
-   * sai da escolha sem apagar o que já foi registrado sob ele.
+   * ⚠️ **Só rua, e só ativo — e quem filtra é o servidor** (spec 157). A lista vinha de
+   * `/company-settings/occurrence-types`, que é `settings.manage`: o motorista levava 403 e o
+   * seletor ficava vazio sem aviso. A rota da árvore `/me` devolve só `id` e `name` dos tipos de rua.
    */
-  it('oferece só tipo de rua ativo', () => {
-    expect(driverSelectableOccurrenceTypes(TIPOS).map((type) => type.id)).toEqual(['a'])
+  it('lista os tipos pela rota do motorista, não pela da configuração', async () => {
+    const { client, seen } = buildClient(
+      Response.json({ data: [{ id: 'a', name: 'Recebeu parte' }] }),
+    )
+
+    expect(await client.listOccurrenceTypes()).toEqual([{ id: 'a', name: 'Recebeu parte' }])
+    expect(new URL(seen[0]?.url ?? '').pathname).toBe('/me/trips/current/occurrence-types')
+  })
+
+  it('corpo estranho vira lista vazia, e a entrega segue', async () => {
+    const { client } = buildClient(Response.json({ data: { unexpected: true } }))
+
+    expect(await client.listOccurrenceTypes()).toEqual([])
   })
 
   it('a nota tem como registrar a ocorrência', () => {
     expect(source).toInclude('onDocumentOccurrence')
-    expect(source).toInclude('driverSelectableOccurrenceTypes')
+    expect(source).toInclude('occurrenceTypes.map(')
   })
 
   /**
