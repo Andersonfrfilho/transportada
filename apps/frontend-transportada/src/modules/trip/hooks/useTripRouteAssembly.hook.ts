@@ -444,6 +444,9 @@ export function useTripRouteAssembly(
               suggestionId: proposal.suggestion.id,
             },
     },
+    onAbandonSuggestions: (suggestionIds) => {
+      for (const suggestionId of suggestionIds) rejectOnServer(suggestionId)
+    },
     onApplyForm: (form) => {
       setDraft(form.draft)
       setPool(form.documents)

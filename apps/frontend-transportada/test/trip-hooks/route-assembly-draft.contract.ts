@@ -214,6 +214,32 @@ describe('rascunho da montagem automática no hook', () => {
     expect(storage.getItem(DRAFT_KEY)).toBeNull()
   })
 
+  test('mexer durante a volta descarta a restauração e recusa as sugestões que só o rascunho guardado conhecia', async () => {
+    seedStoredDraft(storage, { pendingSuggestionId: 'suggestion-1', proposal: STORED_PROPOSAL })
+    const documentsLoad = createDeferred<readonly TripCandidateDocument[]>()
+    fakes.loadDocuments = () => documentsLoad.promise
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      readMultiVehicleSuggestion: () =>
+        Promise.resolve(buildSuggestion({ id: 'suggestion-2', status: 'running' })),
+    }
+
+    hook = await renderAssembly()
+    const rendered = hook
+    await waitFor(() => expect(rendered.result().assemblyDraft.isRestoring).toBe(true))
+    act(() => rendered.result().setVehicleIds([VEHICLE_ID]))
+    act(() => documentsLoad.resolve([DOCUMENT]))
+    await waitFor(() => expect(rendered.result().assemblyDraft.isRestoring).toBe(false))
+    await settle()
+
+    /** O que o operador fez vale, e a gravação seguinte substitui o rascunho: nada mais as recusaria. */
+    expect([...fakes.rejectedSuggestionIds].sort()).toEqual(['suggestion-1', 'suggestion-2'])
+    expect(rendered.result().proposal).toBeNull()
+    expect(rendered.result().canResumeSuggestion).toBe(false)
+    expect(rendered.result().draft.vehicleIds).toEqual([VEHICLE_ID])
+    expect(readStoredPendingSuggestionId(storage)).toBeNull()
+  })
+
   test('na volta, a busca de notas falhando deixa a fase "unreachable" sem escrever no storage', async () => {
     const storedRaw = seedStoredDraft(storage)
     fakes.loadDocuments = () => Promise.reject(new Error('NETWORK_DOWN'))

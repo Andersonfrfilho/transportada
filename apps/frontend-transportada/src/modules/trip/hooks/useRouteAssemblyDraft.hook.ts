@@ -15,7 +15,10 @@ import {
   isAutomaticAssemblyDraftEmpty,
   type AutomaticProposalState,
 } from '../shared/tripAssemblyDraft.service'
-import { isAutomaticAssemblyDraft } from '../shared/tripAssemblyDraft.validation'
+import {
+  isAutomaticAssemblyDraft,
+  type AutomaticAssemblyDraft,
+} from '../shared/tripAssemblyDraft.validation'
 import {
   DRAFT_DOCUMENTS_UNREACHABLE,
   restoreAutomaticAssemblyDraft,
@@ -63,6 +66,8 @@ type RouteAssemblyDraftInput = Readonly<{
     pool: readonly TripCandidateDocument[]
     proposalState: AutomaticProposalState | null
   }>
+  /** As sugestões de um rascunho guardado que ninguém mais vai reler: recusá-las no servidor. */
+  onAbandonSuggestions: (suggestionIds: readonly string[]) => void
   onApplyForm: (form: RestoredForm) => void
   onApplyProposal: (proposal: MultiVehicleProposal, state: AutomaticProposalState) => void
   onReset: () => void
@@ -124,6 +129,10 @@ export function useRouteAssemblyDraft(input: RouteAssemblyDraftInput) {
     isDraft: isAutomaticAssemblyDraft,
     isEmpty: isAutomaticAssemblyDraftEmpty,
     mode: TRIP_ASSEMBLY_DRAFT_MODE.automatic,
+    onRestoreDiscarded: (stored) => {
+      const suggestionIds = listStoredSuggestionIds(stored)
+      if (suggestionIds.length > 0) input.onAbandonSuggestions(suggestionIds)
+    },
     reset,
     restore: async (stored) => {
       const restored = await restoreAutomaticAssemblyDraft({
@@ -190,10 +199,7 @@ export function useRouteAssemblyDraft(input: RouteAssemblyDraftInput) {
     /** As sugestões do rascunho que a volta ainda não aplicou: apagá-lo sem recusá-las as deixa órfãs. */
     readUnrestoredSuggestionIds: (): readonly string[] => {
       const stored = lifecycle.readUnrestored()
-      if (stored === undefined) return []
-      return [stored.pendingSuggestionId, stored.proposal?.suggestionId].filter(
-        (suggestionId): suggestionId is string => typeof suggestionId === 'string',
-      )
+      return stored === undefined ? [] : listStoredSuggestionIds(stored)
     },
     /** Uma nova proposta substitui a que não pôde ser relida. */
     releaseRetained: () => setRetained(null),
@@ -204,4 +210,11 @@ export function useRouteAssemblyDraft(input: RouteAssemblyDraftInput) {
     /** Reler as notas do rascunho quando a busca falhou na volta. */
     retryDocuments: lifecycle.retry,
   }
+}
+
+/** A sugestão pedida e a proposta em revisão que o rascunho guardado aponta. */
+function listStoredSuggestionIds(stored: AutomaticAssemblyDraft): readonly string[] {
+  return [stored.pendingSuggestionId, stored.proposal?.suggestionId].filter(
+    (suggestionId): suggestionId is string => typeof suggestionId === 'string',
+  )
 }

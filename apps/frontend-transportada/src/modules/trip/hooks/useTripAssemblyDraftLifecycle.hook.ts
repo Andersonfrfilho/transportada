@@ -30,6 +30,11 @@ type TripAssemblyDraftLifecycleInput<TDraft> = Readonly<{
   isDraft: (value: unknown) => value is TDraft
   isEmpty: (draft: TDraft) => boolean
   mode: TripAssemblyDraftMode
+  /**
+   * O operador mexeu antes da volta aplicar: o rascunho guardado é descartado e a próxima gravação o
+   * substitui. ⚠️ O que só ele conhecia (a sugestão pedida) precisa ser encerrado aqui ou fica órfão.
+   */
+  onRestoreDiscarded?: (draft: TDraft) => void
   /** Zera o estado do dono: é o que a troca de escopo faz antes de restaurar o do escopo novo. */
   reset: () => void
   /** Relê o que o rascunho aponta e devolve **quem aplica** — aplicar é decidido aqui. */
@@ -82,7 +87,8 @@ export function useTripAssemblyDraftLifecycle<TDraft>(
       const apply = await latestRef.current.restore(request.draft)
       if (request.generation !== generationRef.current) return
       if (apply === DRAFT_DOCUMENTS_UNREACHABLE) next = DRAFT_PHASE.unreachable
-      else if (!isTouchedRef.current) apply()
+      else if (isTouchedRef.current) latestRef.current.onRestoreDiscarded?.(request.draft)
+      else apply()
     } catch {
       /** Volta que falha deixa o formulário como está: vazio é melhor que preso em "retomando". */
     }
