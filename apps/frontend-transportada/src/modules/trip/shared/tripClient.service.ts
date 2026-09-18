@@ -31,20 +31,27 @@ import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldReportIdResult,
+  FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   LinkTripDocumentsBatchInput,
   LinkTripDocumentsBatchResult,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
+  ReadTripAllowedActionsInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportStopArrivalInput,
+  ReportStopOccurrenceInput,
   ScannedNfeDocument,
+  StartFieldTripInput,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
   TripCteBatchResult,
@@ -62,6 +69,7 @@ import type {
   TripCargoPreview,
   TripCargoLayoutPoll,
 } from './trip.types'
+import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   DELIVERY_PROOF_OVERRIDES_PATH,
@@ -89,6 +97,8 @@ export type TripClient = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  /** Spec 156 T5: `POST /trips/:id/confirm-load` — o mesmo caso de uso do motorista, com o alvo. */
+  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
@@ -224,6 +234,14 @@ export type TripClient = Readonly<{
   ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
+  /** Spec 156 T7.2: rota própria, fora do detalhe (t7-design §2.4, ressalva M1). */
+  readTripAllowedActions: (input: ReadTripAllowedActionsInput) => Promise<TripAllowedActions>
+  /** Spec 156 T5: `POST /trips/:id/stops/:stopId/arrive`. */
+  reportStopArrival: (input: ReportStopArrivalInput) => Promise<FieldReportIdResult>
+  /** Spec 156 T5: `POST /trips/:id/stops/:stopId/occurrences`. */
+  reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
+  /** Spec 156 T5: `POST /trips/:id/start-route` — leva a viagem a `on_delivery_route`. */
+  startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
@@ -301,6 +319,15 @@ function readEnvelopeData(input: unknown): unknown {
   return input.data
 }
 
+/**
+ * Spec 156 T5: `confirm-load`, `start-route` e `arrive` levam corpo vazio ou só `driverId` — o
+ * espalhamento condicional evita `body: undefined` explícito, que `exactOptionalPropertyTypes`
+ * recusa mesmo quando o valor é o mesmo de "propriedade ausente".
+ */
+function officeDriverSelectionBody(driverId: string | undefined): Readonly<{ body?: string }> {
+  return driverId === undefined ? {} : { body: JSON.stringify({ driverId }) }
+}
+
 function buildSearch(
   input: Readonly<{ cursor: null | string; limit: number }>,
   filters: Readonly<Record<string, string | undefined>>,
@@ -353,6 +380,61 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/close`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async confirmLoadTrip(input) {
+      const response = await authorizedRequest({
+        ...officeDriverSelectionBody(input.driverId),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/confirm-load`,
+      })
+      return adapters.fieldTripStepResultFromApi(readEnvelopeData(response))
+    },
+    async startFieldTrip(input) {
+      const response = await authorizedRequest({
+        ...officeDriverSelectionBody(input.driverId),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/start-route`,
+      })
+      return adapters.fieldTripStepResultFromApi(readEnvelopeData(response))
+    },
+    async reportStopArrival(input) {
+      const response = await authorizedRequest({
+        ...officeDriverSelectionBody(input.driverId),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/${input.stopId}/arrive`,
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
+    },
+    async reportStopOccurrence(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          description: input.description,
+          distanceMeters: input.distanceMeters,
+          documentId: input.documentId,
+          driverId: input.driverId,
+          kind: input.kind,
+        }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/${input.stopId}/occurrences`,
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
+    },
+    async readTripAllowedActions(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/allowed-actions`,
+      })
+      return parseTripAllowedActions({
+        trip: { documentIds: input.documentIds, stopIds: input.stopIds },
+        value: readEnvelopeData(response),
+      })
     },
     async createTrip(input) {
       const response = await authorizedRequest({

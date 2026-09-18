@@ -50,6 +50,8 @@ import {
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
+  FIELD_REPORT_ID_RESULT_KEYS,
+  FIELD_TRIP_STEP_RESULT_KEYS,
   TRIP_AMOUNTS_KEYS,
   TRIP_KEYS,
   TRIP_OPTIONAL_KEYS,
@@ -75,6 +77,8 @@ import type {
   CancelTripResult,
   DeliveryAddressOverride,
   DispatchTripResult,
+  FieldReportIdResult,
+  FieldTripStepResult,
   PlanTripRouteResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
@@ -389,6 +393,20 @@ function isTripStatusResult(value: unknown): value is Readonly<{ tripStatus: Tri
   return hasExactKeys(value, TRIP_STATUS_RESULT_KEYS) && isOneOf(value.tripStatus, TRIP_STATUS)
 }
 
+/** Spec 156 T5: `POST .../confirm-load` e `POST .../start-route` — nenhum recurso nasce ali. */
+function isFieldTripStepResult(value: unknown): value is FieldTripStepResult {
+  return (
+    hasExactKeys(value, FIELD_TRIP_STEP_RESULT_KEYS) &&
+    isBoolean(value.changed) &&
+    isOneOf(value.status, TRIP_STATUS)
+  )
+}
+
+/** Spec 156 T5: `POST .../arrive` e `POST .../occurrences` — o id do recurso criado. */
+function isFieldReportIdResult(value: unknown): value is FieldReportIdResult {
+  return hasExactKeys(value, FIELD_REPORT_ID_RESULT_KEYS) && isString(value.id)
+}
+
 function isTransitionResult(value: unknown): value is TransitionTripDocumentResult {
   if (!hasExactKeys(value, TRANSITION_RESULT_KEYS)) return false
   return isDocument(value.document) && isOneOf(value.tripStatus, TRIP_STATUS)
@@ -647,6 +665,14 @@ export function createTripResponseAdapters() {
     dispatchTripResultFromApi(input: unknown): DispatchTripResult {
       if (!isTripStatusResult(input)) throw invalid()
       return { tripStatus: input.tripStatus }
+    },
+    fieldReportIdResultFromApi(input: unknown): FieldReportIdResult {
+      if (!isFieldReportIdResult(input)) throw invalid()
+      return { id: input.id }
+    },
+    fieldTripStepResultFromApi(input: unknown): FieldTripStepResult {
+      if (!isFieldTripStepResult(input)) throw invalid()
+      return { changed: input.changed, status: input.status }
     },
     planTripRouteResultFromApi(input: unknown): PlanTripRouteResult {
       if (!isTripStatusResult(input)) throw invalid()

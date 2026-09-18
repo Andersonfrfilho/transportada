@@ -15,6 +15,20 @@ export const SCAN_LOOKUP_LIMIT = 1
 export const TRIP_READ_PERMISSION = 'fleet.read'
 export const TRIP_MANAGE_PERMISSION = 'trip.manage'
 /**
+ * Spec 156 D11/T8: o escritório dá baixa (`trip.report-on-behalf`) e precisa abrir a viagem sem
+ * ganhar `fleet.read` — a ficha de todos os motoristas. `canReadTrip` substitui a leitura direta de
+ * `TRIP_READ_PERMISSION` (`useTripWorkspace.hook.ts`): a tela de `/ocorrencias` continua só em
+ * `fleet.read`, por constante própria (`TripOccurrencesWorkspace.page.tsx`).
+ */
+export const TRIP_REPORT_ON_BEHALF_PERMISSION = 'trip.report-on-behalf'
+
+export function canReadTrip(permissions: readonly string[]): boolean {
+  return (
+    permissions.includes(TRIP_READ_PERMISSION) ||
+    permissions.includes(TRIP_REPORT_ON_BEHALF_PERMISSION)
+  )
+}
+/**
  * Spec 065 D4bis: disparar o lote urgente é submeter emissão fiscal, e por isso é a permissão de
  * quem submete o lote normal — **não** a de quem monta a viagem. Quem separa carga não emite CT-e.
  */
@@ -49,6 +63,7 @@ export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
+  DRIVER_NOT_ON_TRIP: 'driverNotOnTrip',
   STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
@@ -59,6 +74,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',
   TRIP_DRIVER_NOT_FOUND: 'driverNotFound',
+  /** Spec 156 D3: a mesma chave enviada por outro ator ou com outro conteúdo. */
+  TRIP_FIELD_REPORT_KEY_REUSED: 'idempotencyKeyReused',
   TRIP_FORBIDDEN: 'readOnly',
   TRIP_HAS_UNLOADED_DOCUMENTS: 'hasUnloadedDocuments',
   TRIP_NOT_FOUND: 'notFound',
@@ -67,7 +84,13 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
+  /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */
+  TRIP_WITHOUT_DRIVER: 'withoutDriver',
 }
+
+/** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
+export const FIELD_TRIP_STEP_RESULT_KEYS = ['changed', 'status'] as const
+export const FIELD_REPORT_ID_RESULT_KEYS = ['id'] as const
 
 export const TRIP_KEYS = [
   /** Quem dirige: a listagem nomeia o motorista, e o UUID do veículo não dizia nem isso. */

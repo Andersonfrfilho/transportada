@@ -624,6 +624,51 @@ export type LinkTripDocumentInput = LinkTripDocumentBody & Readonly<{ tripId: st
 
 export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: string }>
 
+/**
+ * Spec 156 T5/T8: as rotas do escritório espelham as do motorista, com o `tripId` no caminho. O
+ * `driverId` é o motorista escolhido entre os da tripulação — ausente cai no de `position = 1`
+ * (`resolveDefaultOnBehalfDriverId`).
+ */
+export type TripFieldActionTarget = Readonly<{ driverId?: string; tripId: string }>
+
+export type ConfirmLoadTripInput = TripFieldActionTarget
+export type StartFieldTripInput = TripFieldActionTarget
+
+/** O que `POST .../confirm-load` e `POST .../start-route` devolvem — nenhum recurso nasce ali. */
+export type FieldTripStepResult = Readonly<{ changed: boolean; status: TripStatus }>
+
+export type ReportStopArrivalInput = TripFieldActionTarget &
+  Readonly<{ idempotencyKey: string; stopId: string }>
+
+/** ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS` da API — o bundle não carrega código de lá. */
+export const STOP_OCCURRENCE_KINDS = [
+  'unexpected_charge',
+  'long_wait',
+  'dock_closed',
+  'appointment_required',
+  'other',
+] as const
+export type StopOccurrenceKind = (typeof STOP_OCCURRENCE_KINDS)[number]
+
+export type ReportStopOccurrenceInput = TripFieldActionTarget &
+  Readonly<{
+    description: string
+    distanceMeters: number | null
+    documentId: string | null
+    idempotencyKey: string
+    kind: StopOccurrenceKind
+    stopId: string
+  }>
+
+/** O que `POST .../arrive` e `POST .../occurrences` devolvem — o id do recurso criado. */
+export type FieldReportIdResult = Readonly<{ id: string }>
+
+export type ReadTripAllowedActionsInput = Readonly<{
+  documentIds: readonly string[]
+  stopIds: readonly string[]
+  tripId: string
+}>
+
 export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>

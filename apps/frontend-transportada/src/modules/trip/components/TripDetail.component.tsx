@@ -50,6 +50,7 @@ import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
+import { TripFieldActions } from './TripFieldActions.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -213,6 +214,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   }
 
   const canManage = workspace.controller.canManageTrips
+  /**
+   * Spec 156 D11/T8: geometria, agendamento, prontidão fiscal e produtos continuam só em
+   * `fleet.read` — o `finance` (`trip.report-on-behalf`) recebe 403 nessas rotas. O painel fica
+   * **oculto**, não quebrado: mostrar "sem acesso" a cada um seria ruído para quem nunca teve o
+   * botão de configurar isso.
+   */
+  const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
   const isEditable = isTripEditable(trip.status)
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
   const canReturn = canReturnDocuments(trip.status)
@@ -268,6 +276,10 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     workspace.dispatchMutation.error,
     workspace.cancelMutation.error,
     workspace.planRouteMutation.error,
+    workspace.confirmLoadTripMutation.error,
+    workspace.startFieldTripMutation.error,
+    workspace.reportStopArrivalMutation.error,
+    workspace.reportStopOccurrenceMutation.error,
   ])
 
   /**
@@ -359,9 +371,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         </p>
       )}
 
-      <p className={styles.summaryLine}>
-        {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
-      </p>
+      {/*
+       * Spec 156 D11: sem `fleet.read` a viagem não traz placa nenhuma — só o `vehicleId` bruto — e
+       * mostrá-lo vazaria o identificador interno em vez de omitir a linha (t7-design §2.6).
+       */}
+      {canReadFleetDetails ? (
+        <p className={styles.summaryLine}>
+          {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+        </p>
+      ) : null}
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>
@@ -440,17 +458,20 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />
 
-      <TripRouteMap
-        canAdjustTollBooth={canAdjustTollBooth}
-        canCorrect={canManage}
-        geometry={workspace.routeGeometryQuery.data ?? null}
-        stops={trip.stops}
-        isCorrecting={workspace.correctAddressMutation.isPending}
-        isGeometryError={workspace.routeGeometryQuery.isError}
-        isGeometryPending={workspace.routeGeometryQuery.isPending}
-        onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-        onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-      />
+      {/* Spec 156 D11: geometria é `fleet.read` — sem ela, oculta em vez de bater 403 sozinha. */}
+      {canReadFleetDetails ? (
+        <TripRouteMap
+          canAdjustTollBooth={canAdjustTollBooth}
+          canCorrect={canManage}
+          geometry={workspace.routeGeometryQuery.data ?? null}
+          stops={trip.stops}
+          isCorrecting={workspace.correctAddressMutation.isPending}
+          isGeometryError={workspace.routeGeometryQuery.isError}
+          isGeometryPending={workspace.routeGeometryQuery.isPending}
+          onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+          onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
+        />
+      ) : null}
 
       {selection.selectedIds.size > 0 ? (
         <div className={styles.selectionBar} role="status">
@@ -493,6 +514,28 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
         }
         selection={selection}
+        trip={trip}
+      />
+
+      <TripFieldActions
+        canReportOnBehalf={workspace.controller.canReportOnBehalf}
+        capabilities={workspace.fieldActionCapabilities}
+        isArrivePending={workspace.reportStopArrivalMutation.isPending}
+        isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
+        isOccurrencePending={workspace.reportStopOccurrenceMutation.isPending}
+        isStartRoutePending={workspace.startFieldTripMutation.isPending}
+        onArrive={(input) =>
+          workspace.reportStopArrivalMutation.mutate({ ...input, tripId: trip.id })
+        }
+        onConfirmLoad={(input) =>
+          workspace.confirmLoadTripMutation.mutate({ ...input, tripId: trip.id })
+        }
+        onRegisterStopOccurrence={(input) =>
+          workspace.reportStopOccurrenceMutation.mutate({ ...input, tripId: trip.id })
+        }
+        onStartRoute={(input) =>
+          workspace.startFieldTripMutation.mutate({ ...input, tripId: trip.id })
+        }
         trip={trip}
       />
 
@@ -606,18 +649,21 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       {canManage && isEditable ? <RouteSuggestionSection controller={routeSuggestion} /> : null}
 
       {/* A prontidão fica **acima** das ações: quem rola até "emitir" já sabe se dá para emitir */}
-      <TripFiscalReadinessPanel
-        canManageMdfe={workspace.controller.canManageMdfe}
-        canSubmitCte={workspace.controller.canSubmitCte}
-        documents={trip.documents}
-        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
-        isSavingRequirement={workspace.setMdfeRequirementMutation.isPending}
-        readiness={workspace.fiscalReadiness}
-        requiresMdfe={trip.requiresMdfe}
-        requiresMdfeReason={trip.requiresMdfeReason}
-        onGenerateCteBatch={() => workspace.createCteBatchMutation.mutate({ tripId: trip.id })}
-        onSetRequirement={handleSetMdfeRequirement}
-      />
+      {/* Spec 156 D11: prontidão fiscal é `fleet.read` — sem ela, oculta em vez de bater 403. */}
+      {canReadFleetDetails ? (
+        <TripFiscalReadinessPanel
+          canManageMdfe={workspace.controller.canManageMdfe}
+          canSubmitCte={workspace.controller.canSubmitCte}
+          documents={trip.documents}
+          isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+          isSavingRequirement={workspace.setMdfeRequirementMutation.isPending}
+          readiness={workspace.fiscalReadiness}
+          requiresMdfe={trip.requiresMdfe}
+          requiresMdfeReason={trip.requiresMdfeReason}
+          onGenerateCteBatch={() => workspace.createCteBatchMutation.mutate({ tripId: trip.id })}
+          onSetRequirement={handleSetMdfeRequirement}
+        />
+      ) : null}
 
       <div className={styles.actionActions}>
         {canManage && !isCompleted && trip.documents.length > 0 ? (

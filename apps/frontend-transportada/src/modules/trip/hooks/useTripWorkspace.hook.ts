@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
@@ -25,29 +25,37 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
   TRIP_READ_PERMISSION,
+  TRIP_REPORT_ON_BEHALF_PERMISSION,
 } from '../shared/trip.constant'
 import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldReportIdResult,
+  FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportStopArrivalInput,
+  ReportStopOccurrenceInput,
   ScannedNfeDocument,
+  StartFieldTripInput,
   TripFiscalReadiness,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
@@ -58,6 +66,7 @@ import type {
   TripDocumentActionInput,
   TripMdfeRequirement,
 } from '../shared/trip.types'
+import { useTripAllowedActions } from './useTripAllowedActions.hook'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
 
 export type TripController = Readonly<{
@@ -65,15 +74,31 @@ export type TripController = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   canManageTrips: boolean
   canReadTrips: boolean
+  /**
+   * Spec 156 D11: `fleet.read` propriamente dito — geometria, agendamento, prontidão fiscal e
+   * produtos continuam só nele (`TRIP_READ_POLICY` no backend, nunca a variante `anyPermission`).
+   * `canReadTrips` (a variante larga) abre as cinco leituras do D11; este é o recorte estrito que
+   * decide se esses painéis aparecem, para o `finance` não bater 403 contra eles.
+   */
+  canReadTripFleetDetails: boolean
+  /** Spec 156 D1: `trip.report-on-behalf` — a baixa do escritório em nome do motorista. */
+  canReportOnBehalf: boolean
   canManageMdfe: boolean
   canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
   ) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripAllowedActions: (
+    input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
+  ) => ReturnType<TripClient['readTripAllowedActions']>
+  reportStopArrival: (input: ReportStopArrivalInput) => Promise<FieldReportIdResult>
+  reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
+  startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
@@ -127,8 +152,10 @@ function forbidden(): Promise<never> {
 export function createTripController(
   input: Readonly<{ client: TripClient; permissions: readonly string[] }>,
 ): TripController {
-  const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
+  const canReadTrips = canReadTrip(input.permissions)
+  const canReadTripFleetDetails = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
+  const canReportOnBehalf = input.permissions.includes(TRIP_REPORT_ON_BEHALF_PERMISSION)
   /** Cadastrar tipo é configuração da empresa, e configuração é `settings.manage`. */
   const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
@@ -139,9 +166,13 @@ export function createTripController(
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
     canManageMdfe,
     canManageTrips,
+    canReadTripFleetDetails,
     canReadTrips,
+    canReportOnBehalf,
     canSubmitCte,
     closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
+    confirmLoadTrip: (body) =>
+      canReportOnBehalf ? input.client.confirmLoadTrip(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
@@ -149,8 +180,15 @@ export function createTripController(
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readTripAllowedActions: (body) =>
+      canReadTrips ? input.client.readTripAllowedActions(body) : forbidden(),
+    reportStopArrival: (body) =>
+      canReportOnBehalf ? input.client.reportStopArrival(body) : forbidden(),
+    reportStopOccurrence: (body) =>
+      canReportOnBehalf ? input.client.reportStopOccurrence(body) : forbidden(),
+    startFieldTrip: (body) => (canReportOnBehalf ? input.client.startFieldTrip(body) : forbidden()),
     readRouteGeometry: (body) =>
-      canReadTrips ? input.client.readRouteGeometry(body) : forbidden(),
+      canReadTripFleetDetails ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
     correctGeocodedAddress: (body) =>
@@ -161,13 +199,13 @@ export function createTripController(
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>
-      canReadTrips ? input.client.readTripDocumentProducts(body) : forbidden(),
+      canReadTripFleetDetails ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
     readFiscalReadiness: (query) =>
-      canReadTrips ? input.client.readFiscalReadiness(query) : forbidden(),
+      canReadTripFleetDetails ? input.client.readFiscalReadiness(query) : forbidden(),
     setTripMdfeRequirement: (body) =>
       canManageMdfe ? input.client.setTripMdfeRequirement(body) : forbidden(),
     linkTripDocument: (body) =>
@@ -213,7 +251,8 @@ export function useTripWorkspace(
   input: Readonly<{ companyId?: string; permissions: readonly string[]; tripId?: string }>,
 ) {
   const permissions = input.companyId === undefined ? [] : input.permissions
-  const controller = createTripController({ client: getTripClient(), permissions })
+  const client = getTripClient()
+  const controller = createTripController({ client, permissions })
   const queryClient = useQueryClient()
   const tripKey = [TRIP_QUERY_KEY, input.companyId, input.tripId] as const
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
@@ -289,7 +328,8 @@ export function useTripWorkspace(
    * paradas primeiro e engrossa a linha depois; falha aqui deixa a reta tracejada, nunca a tela.
    */
   const routeGeometryQuery = useQuery({
-    enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      controller.canReadTripFleetDetails && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.readRouteGeometry({ tripId: input.tripId ?? '' }),
     queryKey: [...tripKey, 'route-geometry'] as const,
   })
@@ -306,7 +346,11 @@ export function useTripWorkspace(
 
   /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
   const documentProductsQuery = useQuery({
-    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      controller.canReadTripFleetDetails &&
+      openProofDocumentId !== null &&
+      input.tripId !== undefined &&
+      input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
         documentId: openProofDocumentId ?? '',
@@ -334,7 +378,7 @@ export function useTripWorkspace(
 
   const fiscalReadinessQuery = useQuery({
     enabled:
-      controller.canReadTrips &&
+      controller.canReadTripFleetDetails &&
       input.tripId !== undefined &&
       input.tripId !== '' &&
       (tripQuery.data?.documents.length ?? 0) > 0,
@@ -342,6 +386,15 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'fiscal-readiness'] as const,
     refetchInterval: (query) =>
       query.state.data?.state === 'incomplete' ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
+  })
+
+  /** Spec 156 T8: `GET /trips/:id/allowed-actions`, em rota própria (t7-design §2.6, ressalva M1). */
+  const fieldActionCapabilities = useTripAllowedActions({
+    canRead: controller.canReadTrips,
+    client,
+    documentIds: tripQuery.data?.documents.map((document) => document.id) ?? [],
+    stopIds: tripQuery.data?.stops.map((stop) => stop.id) ?? [],
+    tripId: input.tripId,
   })
 
   function invalidate(): Promise<void> {
@@ -384,6 +437,54 @@ export function useTripWorkspace(
     mutationFn: controller.correctGeocodedAddress,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: tripKey })
+    },
+  })
+
+  /**
+   * Spec 156 T8: `Idempotency-Key` gerada por ação e reusada no retry da **mesma** ação — a chave
+   * só se apaga quando a chamada termina (sucesso ou erro que não deve repetir a mesma tentativa),
+   * nunca a cada clique. `mutationFn: false` na app inteira (CLAUDE.md), então "retry" aqui é o
+   * usuário clicando de novo, não o TanStack tentando sozinho.
+   */
+  const fieldReportKeysRef = useRef<Record<string, string>>({})
+  function resolveFieldReportKey(scope: string): string {
+    const existing = fieldReportKeysRef.current[scope]
+    if (existing !== undefined) return existing
+    const key = crypto.randomUUID()
+    fieldReportKeysRef.current[scope] = key
+    return key
+  }
+  function clearFieldReportKey(scope: string): void {
+    delete fieldReportKeysRef.current[scope]
+  }
+
+  const confirmLoadTripMutation = useMutation({
+    mutationFn: controller.confirmLoadTrip,
+    onSuccess: invalidate,
+  })
+  const startFieldTripMutation = useMutation({
+    mutationFn: controller.startFieldTrip,
+    onSuccess: invalidate,
+  })
+  const reportStopArrivalMutation = useMutation({
+    mutationFn: (body: Omit<ReportStopArrivalInput, 'idempotencyKey'>) =>
+      controller.reportStopArrival({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`arrive:${body.stopId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`arrive:${variables.stopId}`)
+      return invalidate()
+    },
+  })
+  const reportStopOccurrenceMutation = useMutation({
+    mutationFn: (body: Omit<ReportStopOccurrenceInput, 'idempotencyKey'>) =>
+      controller.reportStopOccurrence({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`occurrence:${body.stopId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`occurrence:${variables.stopId}`)
     },
   })
 
@@ -442,13 +543,18 @@ export function useTripWorkspace(
     cancelMutation,
     cargoLayoutView,
     closeMutation,
+    confirmLoadTripMutation,
     controller,
     createCteBatchMutation,
     createMutation,
     correctAddressMutation,
     deliverDocumentMutation,
     deliveryProofsQuery,
+    fieldActionCapabilities,
+    reportStopArrivalMutation,
+    reportStopOccurrenceMutation,
     routeGeometryQuery,
+    startFieldTripMutation,
     refetchTrip: () => void tripQuery.refetch(),
     documentProductsQuery,
     occurrenceTypesQuery,

@@ -486,7 +486,9 @@
     "driverDuplicated": "Este motorista já está na viagem.",
     "driverNotAvailable": "Motorista indisponível para a viagem.",
     "driverNotFound": "Motorista não encontrado.",
+    "driverNotOnTrip": "Este motorista não está na tripulação desta viagem.",
     "hasUnloadedDocuments": "Há notas ainda não carregadas nesta viagem.",
+    "idempotencyKeyReused": "Esta ação já foi enviada com outro conteúdo — recarregue e tente de novo.",
     "notFound": "Viagem não encontrada.",
     "readOnly": "Seu acesso atual não permite esta ação.",
     "requestFailed": "Não foi possível falar com a API.",
@@ -495,7 +497,8 @@
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
-    "vehicleNotFound": "Veículo não encontrado."
+    "vehicleNotFound": "Veículo não encontrado.",
+    "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -920,6 +923,31 @@
     "asc": "ordenado crescente",
     "desc": "ordenado decrescente",
     "none": "sem ordenação"
+  },
+  "fieldActions": {
+    "arrive": "Registrar chegada",
+    "confirmLoad": "Conferir carga",
+    "driverLabel": "Em nome do motorista",
+    "occurrence": "Registrar ocorrência",
+    "occurrenceDescriptionLabel": "Descrição",
+    "occurrenceDistanceLabel": "Distância percorrida (metros)",
+    "occurrenceDocumentLabel": "Nota relacionada (opcional)",
+    "occurrenceDocumentPlaceholder": "Nenhuma nota específica",
+    "occurrenceKind": {
+      "appointment_required": "Exige agendamento",
+      "dock_closed": "Doca fechada",
+      "long_wait": "Espera longa",
+      "other": "Outra",
+      "unexpected_charge": "Cobrança inesperada"
+    },
+    "occurrenceKindLabel": "Tipo de ocorrência",
+    "occurrenceSubmit": "Registrar ocorrência",
+    "occurrenceTitle": "Ocorrência da parada",
+    "startRoute": "Iniciar rota",
+    "startRouteConfirm": "Iniciar rota mesmo assim",
+    "startRouteMessage": "A viagem passa a \"em rota de entrega\" e não é possível desfazer o toque. Confirma o início?",
+    "startRouteTitle": "Iniciar rota",
+    "title": "Ações de campo (pelo motorista)"
   },
   "stateActions": {
     "batchLoad": "Carregar {{count}} nota(s)",

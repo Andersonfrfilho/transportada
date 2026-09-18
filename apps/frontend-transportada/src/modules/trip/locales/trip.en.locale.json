@@ -367,7 +367,9 @@
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
+    "driverNotOnTrip": "This driver is not part of this trip's crew.",
     "hasUnloadedDocuments": "This trip has documents that were never loaded.",
+    "idempotencyKeyReused": "This action was already sent with different content — reload and try again.",
     "notFound": "Trip not found.",
     "readOnly": "Your current access does not allow this action.",
     "requestFailed": "Could not reach the API.",
@@ -376,7 +378,8 @@
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
-    "vehicleNotFound": "Vehicle not found."
+    "vehicleNotFound": "Vehicle not found.",
+    "withoutDriver": "This trip has no driver — assign one before reporting on their behalf."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -734,6 +737,31 @@
     "asc": "sorted ascending",
     "desc": "sorted descending",
     "none": "not sorted"
+  },
+  "fieldActions": {
+    "arrive": "Report arrival",
+    "confirmLoad": "Confirm load",
+    "driverLabel": "On behalf of driver",
+    "occurrence": "Report occurrence",
+    "occurrenceDescriptionLabel": "Description",
+    "occurrenceDistanceLabel": "Distance travelled (meters)",
+    "occurrenceDocumentLabel": "Related document (optional)",
+    "occurrenceDocumentPlaceholder": "No specific document",
+    "occurrenceKind": {
+      "appointment_required": "Appointment required",
+      "dock_closed": "Dock closed",
+      "long_wait": "Long wait",
+      "other": "Other",
+      "unexpected_charge": "Unexpected charge"
+    },
+    "occurrenceKindLabel": "Occurrence type",
+    "occurrenceSubmit": "Report occurrence",
+    "occurrenceTitle": "Stop occurrence",
+    "startRoute": "Start route",
+    "startRouteConfirm": "Start route anyway",
+    "startRouteMessage": "The trip moves to \"on delivery route\" and this cannot be undone. Confirm the start?",
+    "startRouteTitle": "Start route",
+    "title": "Field actions (on behalf of the driver)"
   },
   "stateActions": {
     "batchLoad": "Load {{count}} document(s)",

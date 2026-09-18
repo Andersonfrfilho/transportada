@@ -79,7 +79,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T8 — `TripFieldActions`**: iniciar rota, chegada e ocorrência de parada, controlados por
+- [x] **T8 — `TripFieldActions`**: iniciar rota, chegada e ocorrência de parada, controlados por
       `allowedActions`. `tripStatus.service.ts` deixa de decidir as ações de campo. Seletor de
       motorista só quando a viagem tem mais de um. `canReadTrip(permissions)` substitui
       `TRIP_READ_PERMISSION` (`trip.constant.ts:15`, `useTripWorkspace.hook.ts:130`), e o detalhe

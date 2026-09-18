@@ -1135,3 +1135,172 @@ isso no §3.5 ponto 3, para a rota genérica de anexos continuar servindo ocorr�
   `16 pass · 0 fail`, 74 `expect()` (o lote da T7.3 continua verde, mais o teste novo do anexo).
 - `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/local-identity-seed.integration.ts ./test/database-migration.contract.test.ts` →
   `73 pass · 4 skip · 0 fail`.
+
+## T8
+
+`TripFieldActions`: conferir carga, iniciar rota, registrar chegada e ocorrência de parada, tudo
+controlado por `GET /trips/:id/allowed-actions` (T7.2) — nunca por uma cópia da máquina de estados
+no frontend. `canReadTrip` substitui `TRIP_READ_PERMISSION` cru em `useTripWorkspace.hook.ts`, e o
+detalhe passa a funcionar para o `finance` sem `useFleet` derrubar nada (ele já se degradava
+sozinho — o achado real era outro, ver "Decisões").
+
+### Arquivos
+
+**Novos:**
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripFieldActions.service.ts` —
+  `resolveFieldActionCapabilities` (pura, falha fechada sem a lista), `resolveDefaultOnBehalfDriverId`
+  (motorista de `position = 1`) e `hasMultipleDrivers`.
+- `apps/frontend-transportada/src/modules/trip/hooks/useTripAllowedActions.hook.ts` — o hook pedido
+  pela task: `useQuery` para `GET /trips/:id/allowed-actions`, devolvendo `canTrip`/`canStop`/
+  `canDocument` via `resolveFieldActionCapabilities`. `useTripWorkspace.hook.ts` o consome (em vez de
+  duplicar a consulta), expondo `fieldActionCapabilities` no controlador da página.
+- `apps/frontend-transportada/src/modules/trip/components/TripFieldActions.component.tsx` — o painel
+  novo, mesmo molde de `TripStateActions` (`actionForm`/`actionActions`), com o seletor de motorista
+  (`@/components/ui/select`, só quando `hasMultipleDrivers`) e um `stopCard`/`stopCardHead` por parada
+  alcançável — **não** `driverChecklist`/`driverLine` (ficha do motorista, layout em coluna): a
+  primeira versão reusava esse primitivo e desalinhava rótulo com botão quando a parada tinha duas
+  ações (achado da própria revisão de design, corrigido nesta task — ver "Revisão de design").
+- `apps/frontend-transportada/src/modules/trip/components/TripConfirmDialog.component.tsx` —
+  confirmação genérica sem campo de motivo (mesmo molde visual de `TripReasonDialog`), usada antes de
+  "Iniciar rota" (ação irreversível, `web.md` §15).
+- `apps/frontend-transportada/src/modules/trip/components/TripStopOccurrenceDialog.component.tsx` —
+  ocorrência de **parada** (`TRIP_STOP_OCCURRENCE_KINDS`: atraso, cais fechado, cobrança inesperada,
+  agendamento exigido, outra), não confundir com `FieldOccurrenceDialog` da T9 (ocorrência de **nota**,
+  catálogo da empresa). Kind fixo, descrição, distância opcional, nota da parada opcional — sem foto:
+  a rota real (`POST .../stops/:stopId/occurrences`) é JSON, sem multipart.
+
+**Alterados:**
+
+- `shared/trip.constant.ts` — `TRIP_REPORT_ON_BEHALF_PERMISSION` e `canReadTrip(permissions)`
+  (`fleet.read` OU `trip.report-on-behalf`); `TRIP_FEEDBACK_KEY_BY_ERROR` ganhou
+  `TRIP_WITHOUT_DRIVER`/`DRIVER_NOT_ON_TRIP`/`TRIP_FIELD_REPORT_KEY_REUSED`.
+- `shared/trip.types.ts` — `TripFieldActionTarget`, `ConfirmLoadTripInput`, `StartFieldTripInput`,
+  `FieldTripStepResult`, `ReportStopArrivalInput`, `STOP_OCCURRENCE_KINDS`/`StopOccurrenceKind`,
+  `ReportStopOccurrenceInput`, `FieldReportIdResult`, `ReadTripAllowedActionsInput`.
+- `shared/tripClient.service.ts` — `confirmLoadTrip`, `startFieldTrip`, `reportStopArrival`,
+  `reportStopOccurrence`, `readTripAllowedActions` (usa `parseTripAllowedActions` direto, sem passar
+  pelos adapters de `tripResponse.validation.ts`, porque ele precisa dos ids da própria viagem).
+  `officeDriverSelectionBody` evita `body: undefined` explícito (`exactOptionalPropertyTypes`).
+- `shared/tripResponse.validation.ts` — `fieldTripStepResultFromApi`/`fieldReportIdResultFromApi`
+  (`isFieldTripStepResult`/`isFieldReportIdResult`).
+- `hooks/useTripWorkspace.hook.ts` — `canReadTrip` no lugar de `TRIP_READ_PERMISSION` cru;
+  `canReportOnBehalf` e `canReadTripFleetDetails` (recorte estrito de `fleet.read`, só para os
+  painéis que continuam nele — ver "Decisões"); mutations `confirmLoadTripMutation`,
+  `startFieldTripMutation`, `reportStopArrivalMutation`, `reportStopOccurrenceMutation` com
+  `Idempotency-Key` gerada por ação e reusada no retry (`fieldReportKeysRef`, chave só se apaga no
+  sucesso); `fieldActionCapabilities` via `useTripAllowedActions`.
+- `components/TripDetail.component.tsx` — `TripFieldActions` entra logo depois de
+  `TripStateActions`; a placa (`summaryLine`), `TripRouteMap` e `TripFiscalReadinessPanel` só
+  renderizam com `canReadTripFleetDetails` (D11); os quatro erros novos entram em
+  `resolveFirstTripFeedbackKey`.
+- `locales/trip.locale.json` e `trip.en.locale.json` — namespace `fieldActions` (títulos, seletor de
+  motorista, ocorrência de parada) e três chaves novas em `feedback`.
+
+### Decisões
+
+**`useFleet` já se degradava sozinho — o achado real era outro.** A task supunha que `useFleet`
+quebraria para o `finance` sem `fleet.read`; na prática `createFleetController` já desliga cada
+consulta por `canReadFleet` (`enabled: controller.canReadFleet`), então `vehicles` chega `[]` sem
+erro. O defeito de verdade era **rio abaixo**: `describeVehicle` cai no `vehicleId` bruto (UUID) para
+qualquer id fora da lista — que é sempre o caso para quem não tem `fleet.read`, já que a viagem não
+traz placa nenhuma sem ela (D11, `driverTaxId`/e-mail/telefone já saem `null`, mas `vehicleId` não tem
+substituto). Corrigido **omitindo a linha da placa** (`canReadFleetDetails`), não tentando exibi-la —
+opção B do enunciado da spec ("placa pelo dado da viagem, ou omitida"), porque a viagem não carrega
+placa nenhuma, só o UUID interno.
+
+**`canReadTripFleetDetails`, recorte novo, separado de `canReadTrip`.** Geometria, agendamento,
+prontidão fiscal e produtos continuam em `TRIP_READ_POLICY` (`fleet.read` puro) no backend — nunca
+migraram para `TRIP_FIELD_READ_POLICY` (`anyPermission`, D11). Gatear esses painéis pelo `canReadTrip`
+solto (a variante larga) mandaria o `finance` bater 403 sozinho contra cada um; gatear pelo
+`canManageTrips` quebraria quem tem `fleet.read` sem `trip.manage` (separador, `viewer`), que já os
+via. O recorte estrito (`permissions.includes('fleet.read')`, sem a variante `anyPermission`) é o
+único que preserva os dois grupos.
+
+**`useTripAllowedActions` como hook próprio, não inline em `useTripWorkspace`.** A task nomeia o
+hook; a primeira versão inlinava a consulta dentro de `useTripWorkspace.hook.ts`. Extraído para
+`hooks/useTripAllowedActions.hook.ts` (recebe `client` já pronto, sem instanciar outro) — mais fácil
+de testar isolado e é exatamente o nome que a T9/T11 vão importar.
+
+**Ocorrência de parada não tem foto, ao contrário do que o enunciado da task sugeria.** A rota real
+(`POST /trips/:id/stops/:stopId/occurrences`, `parseOfficeStopOccurrenceRequest`) é JSON — `kind`
+(enum fixo `TRIP_STOP_OCCURRENCE_KINDS`), `description`, `distanceMeters`, `documentId`, `driverId`.
+O multipart com foto e a lista de `GET /trips/occurrence-types/field` são da **outra** ocorrência —
+o lote **de nota** (`POST /trips/:id/documents/field-occurrences`, T7.3/T7b/D7), com o catálogo da
+empresa. As duas rotas, os dois vocabulários e os dois modelos de dado são propositalmente
+diferentes (uma é ocorrência de parada com tipo fixo da máquina; a outra é ocorrência de nota com
+tipo cadastrado). Implementar T8 com o vocabulário da outra rota teria produzido um formulário que a
+API real recusaria em produção. `GET /trips/occurrence-types/field` fica para a T9
+(`FieldOccurrenceDialog`), como o próprio `evidence.md` da T7.3 já registrava ("Para as próximas
+tasks").
+
+**`confirm-load`/`start-route` não levam `Idempotency-Key`.** Conferido em
+`trip-field-office.routes.ts`: só `arrive` e `occurrences` chamam `parseIdempotencyKey`. Os dois
+toques da viagem são idempotentes pela própria máquina de estados (`changed: false` ao repetir), e a
+task pede a chave "por ação" — aqui não há ação sujeita a duplicar evento.
+
+**Idempotency-Key por escopo, não por clique.** `fieldReportKeysRef` (um `useRef<Record<string,
+string>>` dentro de `useTripWorkspace`) gera a chave na primeira tentativa de `arrive`/`occurrence`
+por parada e a mantém até o sucesso — clique de novo na mesma parada antes de resolver reusa a
+mesma chave (retry); depois do sucesso, a chave cai e uma ação nova (outra parada, ou a mesma depois
+de resolvida) gera outra.
+
+### TDD
+
+Contratos escritos e rodados **vermelho** antes da implementação (módulo inexistente):
+
+- `test/trip/field-read-permission.contract.ts` → `canReadTrip`. Vermelho:
+  `Cannot find module '.../trip.constant'` export `canReadTrip` — não existia. Verde após a T8.
+- `test/trip/field-action-capabilities.contract.ts` → `resolveFieldActionCapabilities` (resposta
+  ausente = falha fechada; aceite 4 na forma de capacidade — `fieldDelivery`/`fieldReturn` presentes
+  quando `allowedActions` os lista), `resolveDefaultOnBehalfDriverId`, `hasMultipleDrivers`. Vermelho:
+  `Cannot find module '.../tripFieldActions.service'`.
+- `test/trip/field-error-mapping.contract.ts` → `TRIP_WITHOUT_DRIVER`/`DRIVER_NOT_ON_TRIP`/
+  `TRIP_FIELD_REPORT_KEY_REUSED` mapeiam para chave de `feedback` presente nos dois locales. Vermelho:
+  as três chaves caíam no `requestFailed` genérico antes desta task.
+
+Registrados em `test/trip.contract.test.ts` (entrypoint já listado no `package.json` — nenhuma
+entrada nova precisou entrar lá).
+
+### Revisão de design (web.md §15)
+
+Sem dev server com dados (sem Keycloak/API neste ambiente): a comparação foi feita renderizando um
+recorte estático com o **CSS de produção real** (`bun run --cwd apps/frontend-transportada build`,
+depois `apps/frontend-transportada/dist/assets/{index-CDGmFc6C,tripGuards-SpqO-gu_,select-B9ftldSd}.css`
+servidos por um `http.server` local) e o `chromium` do `node_modules/.bun/playwright-core@1.58.2`,
+tema escuro (único do produto), 1280×720 e 375×900.
+
+**Achado corrigido na própria task:** a primeira versão do painel de paradas reusava
+`driverChecklist`/`driverLine` (ficha do motorista — rótulo em cima, ações empilhadas **em coluna**
+abaixo). Com duas ações na mesma parada, o botão de baixo ficava visualmente alinhado com o botão da
+**próxima** parada, não com o rótulo dela — mesma altura, colunas diferentes, mas parecendo uma linha
+só. Print antes: nenhum guardado (o defeito foi achado e corrigido na mesma sessão, sem publicar a
+versão ruim). Trocado por `stopCard`/`stopCardHead`/`stopLabel` — o primitivo que `TripStopList` já
+usa para "rótulo + ações na mesma linha, com quebra" — e o alinhamento passou a bater linha por
+linha, cada parada no próprio cartão.
+
+Prints finais, comparando `TripFieldActions` com o vizinho `TripStateActions` (mesmo `panel`/
+`actionForm`, mesmos `ui-button` `default`/`secondary`/`ghost`, mesmo `Select` de campo, mesmo
+`stopCard`):
+
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t8-field-actions-desktop.png` (1280×720)
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t8-field-actions-mobile.png` (375×900)
+
+Conferido: borda, raio, fundo e contraste do painel batem com o vizinho no tema escuro; botões
+usam os mesmos três primitivos (`default` copper, `secondary` outline, `ghost`) já usados ao lado;
+ícones (`check`/`send`/`alert`) herdam `currentColor`; alvo de toque idêntico ao dos botões vizinhos
+(mesmo `sm`, já auditado em telas existentes); sem scroll horizontal em 375px. Pendência explícita:
+o print usa dados de fixture (não a tela real autenticada), porque este ambiente não tem Keycloak/API
+disponíveis — a prova com dado real fica para a T16 (revisão final de design e usabilidade da spec).
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bun run --cwd apps/frontend-transportada test` → `4338 pass · 0 fail`, 37103 `expect()`,
+  29 arquivos (13 a mais que a T7.2, todos os três contratos novos desta task, mais o crescimento de
+  `trip.contract.test.ts`: `991 pass · 0 fail` isolado).
+- `bun run --cwd apps/frontend-transportada build` → build limpo, PWA gerado (132 entradas
+  precache), sem erro.
+- Esta T8 é só frontend — sem rota nova na API, os gates de `apps/api-transportada` não se aplicam;
+  a última rodada registrada (T7b) segue válida.
