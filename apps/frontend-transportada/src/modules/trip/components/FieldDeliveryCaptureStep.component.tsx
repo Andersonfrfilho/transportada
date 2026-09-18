@@ -11,6 +11,7 @@ import { useCameraStream } from '@/components/ui/useCameraStream.hook'
 import {
   captureFieldDeliveryPhoto,
   loadImageFromFile,
+  shouldTriggerCaptureShortcut,
 } from '../shared/fieldDeliveryCapture.service'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
 import type {
@@ -102,6 +103,7 @@ export function FieldDeliveryCaptureStep({
     <div
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || !showCamera) return
+        if (!shouldTriggerCaptureShortcut(event.target)) return
         event.preventDefault()
         handleCameraCapture()
       }}

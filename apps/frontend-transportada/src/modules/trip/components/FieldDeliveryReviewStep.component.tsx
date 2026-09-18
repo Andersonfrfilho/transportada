@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import {
   resolveFieldDeliveryDeliveredAtIso,
@@ -78,8 +79,11 @@ export function FieldDeliveryReviewStep({
     const driverIdInput = driverId === undefined ? {} : { driverId }
     const receiverNameInput =
       receiverName.trim() === '' ? {} : { receiverName: receiverName.trim() }
+    /** Baixos (T15): a máscara acompanha a digitação; o que sobe é a forma canônica (sem pontuação),
+     * mesmo padrão de `proofFormPlan.service.ts` no lado do motorista. */
+    const canonicalReceiverDocument = normalizeTaxId(receiverDocument)
     const receiverDocumentInput =
-      receiverDocument.trim() === '' ? {} : { receiverDocument: receiverDocument.trim() }
+      canonicalReceiverDocument === '' ? {} : { receiverDocument: canonicalReceiverDocument }
     onConfirm({
       deliveredAt: deliveredAtIso,
       documentId: targetDocumentId,
@@ -150,8 +154,13 @@ export function FieldDeliveryReviewStep({
 
       <label>
         {t('fieldDelivery.receiverDocumentLabel')}
+        {/* Baixos (T15): máscara de CPF/CNPJ durante a digitação (web.md §11) — nunca
+            `inputMode="numeric"`, o CNPJ alfanumérico (IN RFB 2229/2024) tem letra na base. */}
         <input
-          onChange={(event) => setReceiverDocument(event.target.value)}
+          onChange={(event) => {
+            const normalized = normalizeTaxId(event.target.value)
+            setReceiverDocument(normalized === '' ? '' : formatTaxId(normalized))
+          }}
           value={receiverDocument}
         />
       </label>

@@ -15,6 +15,21 @@ import type { FieldDeliveryCapturedPhoto } from './fieldDeliveryWizard.service'
 
 export { loadImageFromFile } from './fieldDeliveryImage.service'
 
+/** Elementos que já respondem ao Enter sozinhos — o atalho de "Capturar" não pode disputar com o
+ * clique nativo deles (M13f). */
+const INTERACTIVE_ELEMENT_TAGS = new Set(['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'])
+
+/**
+ * M13f (spec 156 T15): Enter tira foto só quando o foco não está num controle interativo — sem
+ * isto, Enter no botão "Pular" (ou em qualquer outro botão do passo) disputava com o clique nativo
+ * dele: o `preventDefault` do atalho cancelava a ação do botão focado e disparava a câmera no lugar.
+ */
+export function shouldTriggerCaptureShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return true
+  if (INTERACTIVE_ELEMENT_TAGS.has(target.tagName)) return false
+  return target.getAttribute('role') !== 'button'
+}
+
 /**
  * A4c (spec 156 T15): `source` costuma ser o `<video>` ao vivo — dois `drawImage(source, …)`
  * separados (um para a identificação, outro para o JPEG/OCR) amostram o quadro **atual** em cada

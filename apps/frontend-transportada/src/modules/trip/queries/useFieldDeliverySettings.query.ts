@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type { FieldDeliverySettings } from '../shared/deliveryProofSettings.service'
@@ -11,7 +11,9 @@ const FIELD_DELIVERY_SETTINGS_QUERY_KEY = ['trip', 'field-delivery-settings'] as
  * canhoto está ligada. `enabled` fica com quem chama — só quem tem `trip.report-on-behalf` abre o
  * assistente, e a rota responde 403 para os demais.
  */
-export function useFieldDeliverySettingsQuery(input: Readonly<{ enabled: boolean }>) {
+export function useFieldDeliverySettingsQuery(
+  input: Readonly<{ enabled: boolean }>,
+): UseQueryResult<FieldDeliverySettings> {
   return useQuery<FieldDeliverySettings>({
     enabled: input.enabled,
     queryFn: () => getTripClient().readFieldDeliverySettings(),
