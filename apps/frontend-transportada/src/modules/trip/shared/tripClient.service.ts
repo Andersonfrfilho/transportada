@@ -38,8 +38,11 @@ import type {
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldDeliverDocumentInput,
   FieldOccurrenceType,
   FieldReportIdResult,
+  FieldReturnDocumentInput,
+  FieldSettlementResult,
   FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   RegisterFieldOccurrencesInput,
@@ -138,8 +141,13 @@ export type TripClient = Readonly<{
   listNfeDocuments: (
     input: Readonly<{ cursor: null | string; limit: number; signal?: AbortSignal }>,
   ) => Promise<TripCandidateDocumentPage>
-  /** Entregar passou pela máquina de estados na API, então devolve o estado da viagem junto. */
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  /**
+   * Spec 156 T8b, ADR-0067: entrega com autoria pelo escritório, `trip.report-on-behalf`.
+   * Multipart — a foto entra só na T11 (`FieldDeliveryWizard`).
+   */
+  fieldDeliverDocument: (input: FieldDeliverDocumentInput) => Promise<FieldSettlementResult>
+  /** Spec 156 T8b, ADR-0067: devolução com autoria pelo escritório, `trip.report-on-behalf`. */
+  fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
@@ -334,6 +342,26 @@ function readEnvelopeData(input: unknown): unknown {
   return input.data
 }
 
+/** Spec 156 T8b: a resposta comum de `field-delivery`/`field-return` (T6). */
+function readFieldSettlementResult(response: unknown): FieldSettlementResult {
+  const data = readEnvelopeData(response)
+  if (
+    !isRecord(data) ||
+    typeof data.alreadySettled !== 'boolean' ||
+    !isString(data.id) ||
+    typeof data.stopCompleted !== 'boolean' ||
+    typeof data.tripCompleted !== 'boolean'
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return {
+    alreadySettled: data.alreadySettled,
+    id: data.id,
+    stopCompleted: data.stopCompleted,
+    tripCompleted: data.tripCompleted,
+  }
+}
+
 /**
  * Spec 156 T5: `confirm-load`, `start-route` e `arrive` levam corpo vazio ou só `driverId` — o
  * espalhamento condicional evita `body: undefined` explícito, que `exactOptionalPropertyTypes`
@@ -372,7 +400,6 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           action: input.action,
           documentIds: input.documentIds,
           note: input.note ?? null,
-          returnReason: input.returnReason ?? null,
         }),
         dependencies,
         method: 'POST',
@@ -552,13 +579,33 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return multiVehicleSuggestionFromApi(readEnvelopeData(response))
     },
-    async deliverTripDocument(input) {
+    async fieldDeliverDocument(input) {
+      const form = new FormData()
+      form.set('deliveredAt', input.deliveredAt)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+
       const response = await authorizedRequest({
         dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
         method: 'POST',
-        path: `${documentPath(input)}/deliver`,
+        path: `${documentPath(input)}/field-delivery`,
       })
-      return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
+      return readFieldSettlementResult(response)
+    },
+    async fieldReturnDocument(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          driverId: input.driverId,
+          reason: input.reason,
+          returnedAt: input.returnedAt,
+        }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-return`,
+      })
+      return readFieldSettlementResult(response)
     },
     async readTripDocumentProducts(input) {
       const response = await authorizedRequest({
@@ -981,10 +1028,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async transitionTripDocument(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({
-          note: input.note ?? null,
-          returnReason: input.returnReason ?? null,
-        }),
+        body: JSON.stringify({ note: input.note ?? null }),
         dependencies,
         method: 'POST',
         path: `${documentPath(input)}/${input.action}`,

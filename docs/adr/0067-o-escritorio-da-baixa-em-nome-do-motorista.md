@@ -46,6 +46,14 @@ e ele **não reporta entrega**. Essa linha entre galpão e campo já está na AD
 `trip.manage` daria ao separador, de carona, o poder de encerrar a entrega da carga que ele mesmo
 separou.
 
+**Emenda 2026-09-18 (T8b), achado B2 da validação da T7.** O caminho antigo — `POST
+.../documents/:documentId/deliver`, `.../return` e as ações `deliver`/`return` do lote
+(`batch-status`), todos atrás de `trip.manage`, sem gravar `channel`/`on_behalf_of_driver_id` — saiu.
+Ele era exatamente a brecha que este parágrafo descreve: o `separator` o alcançava de carona, e
+nenhum registro dizia quem realmente deu a baixa. Os botões "Entregar"/"Devolver" da tela passam a
+chamar `field-delivery`/`field-return` (com autoria), mostrados só quando `allowedActions` os lista.
+`separate`/`load` continuam nas rotas antigas — são do galpão, nunca do campo.
+
 **Por que não reusar `trip.report`.** `trip.report` abre as rotas `/me` do motorista, que acham a
 viagem pelo **vínculo de motorista** de quem está logado. Dar essa permissão ao escritório misturaria
 dois modos de achar a viagem sob um nome só. Também faria `isFieldOnlyUser`

@@ -2605,7 +2605,6 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
-      deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
       },
@@ -3031,7 +3030,6 @@ function createApplicationRoutes({
       },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
-      returnTripDocument: { execute: (input) => tripLifecycle.return.execute(input) },
       separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),
     ...createCteEmissionProfileRoutes({

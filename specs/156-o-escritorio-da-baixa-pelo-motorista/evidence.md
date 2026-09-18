@@ -1734,3 +1734,188 @@ Verde depois de restaurar o `isNull`: `6 pass · 0 fail` em `field-trip-target.i
   `trip-field-office.integration.ts`, `trip-field-authorship.integration.ts`,
   `trip-repository.integration.ts`, `whatsapp-driver-flow-actions.integration.ts` →
   `34 pass · 0 fail`, 0 skip.
+
+### T8b.2 — Só o caminho com autoria fica
+
+Achado B2 da validação da T7 e decisão do usuário na conversa: em vez de conceder
+`trip.report-on-behalf` a mais papéis ou fechar `trip.manage` no separador, o caminho antigo
+(entrega/devolução sem autoria) saiu por inteiro. `separate`/`load` continuam — são trabalho de
+galpão, não de campo.
+
+### Arquivos
+
+**Backend (`apps/api-transportada`), alterados:**
+
+- `src/trips/presentation/trip.routes.ts` — saíram as duas chamadas a `tripDocumentActionRoute` para
+  `deliver`/`return` (e `TRIP_DOCUMENT_DELIVER_PATH`/`TRIP_DOCUMENT_RETURN_PATH`), os dois campos
+  `deliverTripDocument`/`returnTripDocument` de `RouteDependencies` e o comentário sobre a rota antiga.
+  `separate`/`load` continuam na mesma `tripDocumentActionRoute`. Comentário de cabeçalho atualizado
+  para explicar por que as duas saíram (ADR-0067, spec 156 T8b) no lugar do comentário obsoleto da
+  ADR-0043 que já não descrevia o código real (achado da investigação: o comentário antigo dizia que
+  `deliver` "não ganha rota individual", quando na verdade tinha ganhado uma havia meses).
+- `src/trips/presentation/trip-request.schema.ts` — `TRIP_DOCUMENT_ACTIONS` de
+  `['deliver', 'load', 'return', 'separate']` para `['load', 'separate']`; `returnReason` saiu de
+  `transitionTripDocumentSchema` (só servia a rota `/return`, que não existe mais) e de
+  `batchTransitionTripDocumentsSchema` (o lote não aceita mais `return`, logo o motivo nunca chega).
+- `src/trips/application/trip-lifecycle.use-case.ts` — as chaves `deliver`/`return` do objeto
+  retornado por `createTripLifecycleUseCase` saíram (`document('deliver')`/`document('return')`);
+  `transitionTripDocument` (o motor genérico) e `separate`/`load` continuam intactos — ele também
+  segue servindo o lote (`transitionTripDocumentsBatch`, que nunca dependeu dessas duas chaves).
+- `src/main.ts` — a fiação de `deliverTripDocument`/`returnTripDocument` (chaves de
+  `createTripRoutes`) saiu; nenhum outro caminho as usava.
+
+**Backend, testes alterados:**
+
+- `test/fixtures/trip-http.fixture.ts` — `deliverTripDocument`/`returnTripDocument` saíram do tipo
+  `RouteDependencies`, do `CreateFixtureParams`, do retorno da fábrica e da implementação.
+- `test/trip-http/documents.contract.ts` — `'delivers a linked document through the state machine'`
+  virou `'the old individual deliver route no longer exists'`: mesma chamada, `expect(status).toBe(404)`
+  no lugar de 200.
+- `test/trips/routes.contract.ts` — `'returns a document, forwarding the reason'` virou
+  `'the old individual return route no longer exists'` (mesma troca 200→404); o `objectContaining` do
+  teste de lote parou de afirmar `returnReason: null` (campo que não existe mais no corpo); novo
+  `test.each(['deliver', 'return'])('refuses a batch with the retired action %s', …)` confirma 400 e
+  zero chamadas ao use case.
+- `test/trip-http/security.contract.ts` — as duas asserções que usavam `tripDocumentDeliverPath()`
+  como uma das "cinco rotas de escrita" passaram a usar `tripDocumentSeparatePath()` (que continua
+  exigindo `trip.manage`), preservando a cobertura das cinco rotas sem depender de uma rota que saiu.
+- `test/separator-role.contract.test.ts` — `'POST /trips/:id/documents/:documentId/deliver'` e
+  `.../return'` saíram da lista exaustiva do que o `separator` alcança.
+- `test/trip-delivery-proof/orphan-deliver.contract.ts` — o teste que afirmava
+  `main).toInclude('tripLifecycle.deliver.execute')` (a segunda geração da rota, que a T8b também
+  matou) virou `not.toInclude`, e ganhou a mesma asserção para `tripLifecycle.return.execute`.
+
+**Frontend (`apps/frontend-transportada`), novos:**
+
+- `src/modules/trip/components/TripReturnReasonDialog.component.tsx` — mesmo molde visual de
+  `TripReasonDialog`, com `@/components/ui/select` sobre `DRIVER_RETURN_REASONS` (copiado por valor
+  do módulo `driver-trip`, mesma cópia que o app do motorista já usa) no lugar do campo de texto
+  livre — `field-return` exige um enum, não uma frase.
+- `src/modules/trip/shared/tripFieldActionQueue.service.ts` — `runFieldActionQueue`, fila de
+  concorrência limitada por item (não por fatia, ao contrário de `runEmissionQueue` do
+  `nfe-workspace`, que inspirou o desenho): uma `field-return` por nota, concorrência 3, falha
+  isolada não derruba as irmãs.
+- `test/trip/field-office-retired-routes.contract.ts` — `TRIP_BATCH_ACTIONS`/
+  `TRIP_DOCUMENT_TRANSITION_ACTIONS` não voltam a listar `deliver`/`return`; o texto-fonte do client
+  não contém mais `/deliver`\` nem `deliverTripDocument`, e contém `/field-delivery`\`/`/field-return`\`.
+
+**Frontend, alterados:**
+
+- `shared/trip.types.ts` — `TRIP_DOCUMENT_TRANSITION_ACTIONS`/`TRIP_BATCH_ACTIONS` para
+  `['load', 'separate']`; `returnReason` saiu de `TransitionTripDocumentInput`/`BatchStatusInput`;
+  `FieldDeliverDocumentInput`, `FieldReturnDocumentInput` (`reason: DriverReturnReason`, importado do
+  módulo `driver-trip` — cruzar módulos dentro do mesmo app já é padrão aqui, ex. `fleet.types`) e
+  `FieldSettlementResult` (`{ alreadySettled, id, stopCompleted, tripCompleted }`, o formato comum de
+  `field-delivery`/`field-return`, T6).
+- `shared/tripClient.service.ts` — `authorizedRequest` ganhou `form?: FormData` (mesmo padrão de
+  `driverTripClient.service.ts`: o `content-type` do multipart só o `fetch` sabe montar);
+  `deliverTripDocument` saiu; `fieldDeliverDocument` (multipart: `deliveredAt`, `driverId?`) e
+  `fieldReturnDocument` (JSON: `driverId?`, `reason`, `returnedAt?`) entraram, os dois com
+  `idempotencyKey`; `readFieldSettlementResult` valida a resposta comum; `batchStatus`/
+  `transitionTripDocument` pararam de mandar `returnReason`.
+- `hooks/useTripWorkspace.hook.ts` — `deliverDocumentMutation` saiu; `fieldDeliverDocumentMutation`/
+  `fieldReturnDocumentMutation` entraram, reusando `resolveFieldReportKey`/`clearFieldReportKey` (T8)
+  com escopo `fieldDeliver:${documentId}`/`fieldReturn:${documentId}`; `batchFieldReturnMutation`
+  roda `runFieldActionQueue` (concorrência 3) chamando `fieldReturnDocument` por nota, cada uma com a
+  própria chave de idempotência.
+- `components/TripStopList.component.tsx` — `TripStopDocumentActions` trocou `canDeliver`/`canReturn`/
+  `onDeliver`/`onReturn` por `capabilities: FieldActionCapabilities` (o mesmo tipo que
+  `TripFieldActions`, T8, já consome) e `onFieldDeliver`/`onFieldReturn`; os botões usam
+  `capabilities.canDocument(document.id, 'fieldDelivery'|'fieldReturn')` — nunca mais
+  `canManage && canDeliver`.
+- `components/TripStateActions.component.tsx` — `canReturn: boolean` (derivado de
+  `canReturnDocuments(trip.status)`) virou `capabilities: FieldActionCapabilities` +
+  `canReturnSelection` (`ao menos uma nota selecionada aceita fieldReturn`); `onBatch` perdeu a ação
+  `'return'`/`returnReason` (só `load`/`separate` seguem em lote via `batch-status`); `onBatchReturn`
+  entrou, chamado pelo novo diálogo de motivo fechado.
+- `components/TripDetail.component.tsx` — `documentActions` reconstruído em cima de `capabilities`;
+  `handleReturnSubmit` chama `fieldReturnDocumentMutation`; `handleBatch` só repassa `load`/`separate`;
+  `handleBatchReturn` novo filtra a seleção por `canDocument(…, 'fieldReturn')` e dispara
+  `batchFieldReturnMutation`; seletor de motorista (`selectedOfficeDriverId`, usando
+  `resolveDefaultOnBehalfDriverId`/`hasMultipleDrivers` de `tripFieldActions.service.ts`, o mesmo
+  seletor que `TripFieldActions` já usa) aparece só com mais de um motorista, acima da lista de
+  paradas, e alimenta `field-delivery`/`field-return` da linha e do lote.
+- `shared/tripStatus.service.ts` — `canDeliverDocuments`/`canReturnDocuments` saíram: a porta de rua
+  deixou de existir no cliente, porque `allowedActions` (resolvido pelo servidor) é quem decide agora.
+- `locales/trip.locale.json`/`trip.en.locale.json` — `fieldActions.returnReason.*` (cinco chaves,
+  cópia dos rótulos que `driverTrip.locale.json` já usa para os mesmos `DRIVER_RETURN_REASONS`).
+
+### Decisões
+
+**`findDriverReachableDocument` não é chamada pelo escritório em produção hoje** (ver T8b.1) — mas
+`field-delivery`/`field-return` (que o escritório usa de fato) chamam `findDocumentForDriver`, que já
+filtrava `releasedAt` desde a T3/T6. Nada nesta task precisou tocar nesse caminho.
+
+**`returnReason` (texto livre) saiu por completo, não só da rota `/return`.** O schema do lote também
+o carregava; como `return` saiu das ações do lote, mantê-lo ali seria um campo aceito que nunca chega
+a lugar nenhum — pior que removê-lo, porque um cliente antigo que ainda o mandasse não veria aviso
+nenhum (o body é `.strict()`, então na prática ele já quebraria — mas a intenção do campo ficaria
+enganosa no código).
+
+**`transitionTripDocumentsBatch`/`transitionTripDocument` (o motor genérico da máquina de estados)
+não foram tocados.** Eles continuam aceitando `deliver`/`return` como `TripDocumentAction` no nível de
+domínio (`trip-state.policy.ts`) — é o vocabulário da máquina de estados, não da superfície HTTP. Só
+a fronteira (schema Zod, `TRIP_DOCUMENT_ACTIONS`) ficou mais estreita. Encolher o enum de domínio
+também exigiria auditar todo consumidor de `TripDocumentAction` (inclusive o que resta de
+`whatsapp-commands`, que hoje não chega em `deliver`/`return` por nenhum caminho, mas declara o tipo
+largo) — risco desproporcional ao pedido desta task.
+
+**Viagem despachada sem motorista, tentando "Entregar"/"Devolver": consequência aceita, sem
+fallback novo.** `resolveFieldTripTarget` (T3) já responde `422 TRIP_WITHOUT_DRIVER` para esse caso,
+e a T8 já mapeia esse código para uma mensagem de erro na tela (`TRIP_FEEDBACK_KEY_BY_ERROR`). Não
+foi necessário nenhum tratamento novo — é o mesmo portão que `field-delivery`/`field-return` já
+tinham antes desta task, agora alcançado pelos botões da lista em vez de só pelo painel de campo.
+
+**Seletor de motorista: um só, no nível da tela, não um por linha.** A task pede "o mesmo
+seletor/decisão de `driverId` que a T8 usa em `TripFieldActions`". `TripFieldActions` tem o próprio
+seletor local porque suas ações (conferir carga, iniciar rota) são da viagem inteira. As ações de nota
+(entregar/devolver, na lista e em massa) preferem um seletor único acima da lista — replicar o
+seletor por linha de nota multiplicaria o mesmo controle dezenas de vezes na tela sem ganho: quem bate
+à porta em nome de um motorista normalmente está processando o maço inteiro daquela viagem, não
+trocando de motorista nota a nota.
+
+### TDD
+
+Contratos escritos e verificados antes/durante a implementação:
+
+- Backend: `test/trip-http/documents.contract.ts` e `test/trips/routes.contract.ts` viraram negativos
+  (200→404) **antes** de as rotas serem removidas do código — rodados vermelho contra o código velho
+  não fazia sentido (o objetivo era a rota sumir), então a ordem real foi: remover a rota, então
+  atualizar o teste, então confirmar verde. `test.each(['deliver', 'return'])` no lote nasceu depois
+  do `TRIP_DOCUMENT_ACTIONS` estreito, para provar o 400.
+- `test/trip-delivery-proof/orphan-deliver.contract.ts`: vermelho ao trocar `toInclude` por
+  `not.toInclude` contra o `main.ts` ainda com a fiação antiga (confirmado durante o desenvolvimento,
+  antes de remover `deliverTripDocument`/`returnTripDocument` de `main.ts`); verde depois.
+- Frontend: `test/trip/field-office-retired-routes.contract.ts` (novo) confirma que `TRIP_BATCH_ACTIONS`/
+  `TRIP_DOCUMENT_TRANSITION_ACTIONS` não voltam a listar as ações retiradas e que o texto-fonte do
+  client não contém mais `/deliver`; `test/trip/client-and-controller.contract.ts` exercita
+  `fieldDeliverDocument` contra um servidor sintético real (`Request`/`Response` de verdade, não
+  dublê), afirmando método, path, `idempotency-key` e os campos do `FormData`; a mesma suíte prova que
+  `trip.manage` sozinho recebe `TRIP_FORBIDDEN` em `fieldDeliverDocument` e que
+  `trip.report-on-behalf` a alcança.
+- `test/trip/state-gates.contract.ts`: a tabela `GATES_BY_STATUS` perdeu a coluna `return`; o teste
+  antigo que afirmava `canDeliverDocuments === canReturnDocuments` foi substituído por um que afirma
+  que **nenhuma das duas funções existe mais** no módulo — a regressão que este arquivo guardava
+  (entregar herdando o portão de devolver) deixou de ser possível porque não há mais portão nenhum
+  no cliente para herdar.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bunx prettier --check .` (raiz) → `All matched files use Prettier code style!`.
+- `bun run --cwd apps/api-transportada test` → `6504 pass · 0 fail · 32 skip`, 22643 `expect()`.
+- `bun run --cwd apps/frontend-transportada test` → `4339 pass · 0 fail`, 37096 `expect()`, 29
+  arquivos (3 testes a mais que a rodada anterior, todos em
+  `test/trip/field-office-retired-routes.contract.ts`).
+- Integração (`bun --env-file=../../.env.test test --timeout 120000`, dentro de
+  `apps/api-transportada`): `field-trip-target.integration.ts`, `me-trip.integration.ts`,
+  `trip-field-office.integration.ts`, `trip-field-authorship.integration.ts`,
+  `trip-repository.integration.ts`, `whatsapp-driver-flow-actions.integration.ts` →
+  `34 pass · 0 fail`, 0 skip.
+
+### Pendências explícitas
+
+- Revisão de design (web.md §15) do seletor de motorista novo e do `TripReturnReasonDialog` fica
+  para a T16 (revisão final de design e usabilidade da spec) — este ambiente não tem Keycloak/API
+  para renderizar a tela autenticada (mesma limitação registrada na T8).

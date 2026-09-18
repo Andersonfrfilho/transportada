@@ -2,6 +2,8 @@
 export const FLEET_READ = 'fleet.read'
 export const FLEET_MANAGE = 'fleet.manage'
 export const TRIP_MANAGE = 'trip.manage'
+/** ADR-0067: a baixa do escritório com autoria — `separator`/`operator` sem ela não a alcançam. */
+export const TRIP_REPORT_ON_BEHALF = 'trip.report-on-behalf'
 
 export const SYNTHETIC_ACCESS_TOKEN = 'synthetic-access-token'
 export const SYNTHETIC_CURSOR = '2026-07-28T12:00:00.000Z::00000000-0000-4000-8000-000000000a11'

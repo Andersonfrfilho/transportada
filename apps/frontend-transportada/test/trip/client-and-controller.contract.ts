@@ -21,6 +21,7 @@ import {
   TRIP_ID,
   TRIP_MANAGE,
   TRIP_PAGE,
+  TRIP_REPORT_ON_BEHALF,
 } from './trip.fixture'
 
 const API_URL = 'https://api.example.test'
@@ -47,13 +48,16 @@ describe('trip client contract', () => {
         tripId: TRIP_ID,
       }),
     ).toEqual(TRIP_DOCUMENT)
-    // Entregar deixou de ter caminho próprio na API: ela passa pela mesma máquina de separar,
-    // carregar e devolver, e por isso devolve o estado da viagem junto com a nota. Sem isso a barra
-    // de progresso não se movia — a nota ficava `pending` com hora de entrega gravada.
-    expect(await client.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual({
-      document: TRIP_DOCUMENT,
-      tripStatus: 'separating',
-    })
+    // Spec 156 T8b, ADR-0067: entregar sem autoria (`/deliver`, `trip.manage`) saiu — o caminho é
+    // `field-delivery`, multipart, com autoria (`trip.report-on-behalf`).
+    expect(
+      await client.fieldDeliverDocument({
+        deliveredAt: '2026-09-18T12:00:00.000Z',
+        documentId: DOCUMENT_ID,
+        idempotencyKey: 'idem-deliver',
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ alreadySettled: false, id: DOCUMENT_ID, stopCompleted: true, tripCompleted: false })
     expect(await client.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
     )
@@ -102,8 +106,14 @@ describe('trip client contract', () => {
       nfeDocumentId: NFE_DOCUMENT_ID,
     })
 
-    expect(deliverRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`)
+    expect(deliverRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-delivery`,
+    )
     expect(deliverRequest.method).toBe('POST')
+    expect(deliverRequest.headers.get('idempotency-key')).toBe('idem-deliver')
+    const deliverForm = await deliverRequest.formData()
+    expect(deliverForm.get('deliveredAt')).toBe('2026-09-18T12:00:00.000Z')
+    expect(deliverForm.get('driverId')).toBeNull()
 
     expect(releaseRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}`)
     expect(releaseRequest.method).toBe('DELETE')
@@ -204,14 +214,13 @@ describe('trip client contract', () => {
     }
 
     expect(separateRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`)
-    expect(await separateRequest.json()).toEqual({ note: null, returnReason: null })
+    expect(await separateRequest.json()).toEqual({ note: null })
 
     expect(batchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`)
     expect(await batchRequest.json()).toEqual({
       action: 'load',
       documentIds: [DOCUMENT_ID],
       note: null,
-      returnReason: null,
     })
 
     expect(planRouteRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/plan-route`)
@@ -316,8 +325,34 @@ describe('trip controller contract', () => {
       nfeDocumentId: NFE_DOCUMENT_ID,
       tripId: TRIP_ID,
     })
-    await controller.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
     await controller.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
+    expect(client.mutationCount).toBe(4)
+
+    // Spec 156 T8b, ADR-0067: `fieldDeliverDocument` é `trip.report-on-behalf`, não `trip.manage` —
+    // o `separator`, que tem `trip.manage`, não deve alcançá-la (ele não reporta entrega).
+    expect(
+      await controller
+        .fieldDeliverDocument({
+          deliveredAt: '2026-09-18T12:00:00.000Z',
+          documentId: DOCUMENT_ID,
+          idempotencyKey: 'idem-deliver',
+          tripId: TRIP_ID,
+        })
+        .catch((caught: unknown) => caught),
+    ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
+    expect(client.mutationCount).toBe(4)
+
+    const officeController = createTripController({
+      client,
+      permissions: [FLEET_READ, TRIP_REPORT_ON_BEHALF],
+    })
+    expect(officeController.canManageTrips).toBe(false)
+    await officeController.fieldDeliverDocument({
+      deliveredAt: '2026-09-18T12:00:00.000Z',
+      documentId: DOCUMENT_ID,
+      idempotencyKey: 'idem-deliver',
+      tripId: TRIP_ID,
+    })
     expect(client.mutationCount).toBe(5)
   })
 })
@@ -529,9 +564,19 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents`) {
     return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }, { status: 201 }))
   }
-  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`) {
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-delivery`) {
     return Promise.resolve(
-      Response.json({ data: { document: TRIP_DOCUMENT, tripStatus: 'separating' } }),
+      Response.json(
+        {
+          data: {
+            alreadySettled: false,
+            id: DOCUMENT_ID,
+            stopCompleted: true,
+            tripCompleted: false,
+          },
+        },
+        { status: 201 },
+      ),
     )
   }
   if (
@@ -600,7 +645,8 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
     cancelTrip: recordStatusMutation,
     closeTrip: recordDetailMutation,
     createTrip: recordDetailMutation,
-    deliverTripDocument: recordDocumentMutation,
+    fieldDeliverDocument: recordDocumentMutation,
+    fieldReturnDocument: recordDocumentMutation,
     dispatchTrip: recordStatusMutation,
     getTrip: () => Promise.resolve(TRIP_DETAIL),
     linkTripDocument: recordDocumentMutation,
@@ -639,18 +685,33 @@ type OverrideDeliveryAddressInput = Readonly<{
 }>
 
 type BatchStatusInput = Readonly<{
-  action: 'deliver' | 'load' | 'return' | 'separate'
+  action: 'load' | 'separate'
   documentIds: readonly string[]
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
 type TransitionInput = Readonly<{
-  action: 'load' | 'return' | 'separate'
+  action: 'load' | 'separate'
   documentId: string
   note?: null | string
-  returnReason?: null | string
+  tripId: string
+}>
+
+type FieldDeliverInput = Readonly<{
+  deliveredAt: string
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  tripId: string
+}>
+
+type FieldReturnInput = Readonly<{
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  reason: string
+  returnedAt?: string
   tripId: string
 }>
 
@@ -661,7 +722,8 @@ type TripClient = {
   cancelTrip(input: TripIdInput): Promise<unknown>
   closeTrip(input: TripIdInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
-  deliverTripDocument(input: DocumentActionInput): Promise<unknown>
+  fieldDeliverDocument(input: FieldDeliverInput): Promise<unknown>
+  fieldReturnDocument(input: FieldReturnInput): Promise<unknown>
   dispatchTrip(input: DispatchInput): Promise<unknown>
   getTrip(input: TripIdInput): Promise<unknown>
   linkTripDocument(input: LinkDocumentInput): Promise<unknown>
@@ -695,7 +757,7 @@ type TripController = {
   readonly canReadTrips: boolean
   readonly closeTrip: (input: TripIdInput) => Promise<unknown>
   readonly createTrip: (input: typeof CREATE_TRIP_BODY) => Promise<unknown>
-  readonly deliverTripDocument: (input: DocumentActionInput) => Promise<unknown>
+  readonly fieldDeliverDocument: (input: FieldDeliverInput) => Promise<unknown>
   readonly getTrip: (input: TripIdInput) => Promise<unknown>
   readonly linkTripDocument: (input: LinkDocumentInput) => Promise<unknown>
   readonly releaseTripDocument: (input: DocumentActionInput) => Promise<unknown>

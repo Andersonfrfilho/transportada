@@ -7,10 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
-import {
-  hasMultipleDrivers,
-  resolveDefaultOnBehalfDriverId,
-} from '../shared/tripFieldActions.service'
+import { hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import type { TripDetail } from '../shared/trip.types'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
 import {
@@ -31,7 +28,14 @@ export type TripFieldActionsProps = Readonly<{
   onRegisterStopOccurrence: (
     input: TripStopOccurrenceSubmission & { driverId?: string; stopId: string },
   ) => void
+  onSelectDriverId: (driverId: string) => void
   onStartRoute: (input: { driverId?: string }) => void
+  /**
+   * Spec 156 T8b (revisão): estado único do motorista escolhido, levantado para `TripDetail` — as
+   * ações de nota (`field-delivery`/`field-return`) e as de viagem (aqui) usam o mesmo seletor, em
+   * vez de duas cópias divergentes do mesmo controle.
+   */
+  selectedDriverId: string
   trip: TripDetail
 }>
 
@@ -52,13 +56,12 @@ export function TripFieldActions({
   onArrive,
   onConfirmLoad,
   onRegisterStopOccurrence,
+  onSelectDriverId,
   onStartRoute,
+  selectedDriverId,
   trip,
 }: TripFieldActionsProps) {
   const { t } = useTranslation('trip')
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(
-    () => resolveDefaultOnBehalfDriverId(trip.drivers) ?? '',
-  )
   const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
   const [occurrenceStopId, setOccurrenceStopId] = useState<null | string>(null)
 
@@ -87,7 +90,7 @@ export function TripFieldActions({
           {t('fieldActions.driverLabel')}
           <Select
             ariaLabel={t('fieldActions.driverLabel')}
-            onChange={setSelectedDriverId}
+            onChange={onSelectDriverId}
             options={trip.drivers.map((driver) => ({
               label: driver.driverName,
               value: driver.driverId,

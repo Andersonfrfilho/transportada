@@ -87,6 +87,17 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       motorista só quando a viagem tem mais de um. `canReadTrip(permissions)` substitui
       `TRIP_READ_PERMISSION` (`trip.constant.ts:15`, `useTripWorkspace.hook.ts:130`), e o detalhe
       funciona sem `useFleet` (placa pelo dado da viagem, ou omitida).
+- [x] **T8b — Entregar e devolver pelo escritório só pelo caminho com autoria** (ressalva A1 e
+      achado B2 da validação da T7; decisão do usuário: remover o caminho antigo e trocar os
+      botões). **T8b.1:** `findDriverReachableDocument` passa a filtrar `releasedAt`, igual a
+      `findReachableDocumentIds`: nota liberada da viagem não recebe ocorrência, entrega nem
+      devolução, nem do motorista nem do escritório. **T8b.2:** saem `POST …/documents/:documentId/deliver`,
+      `POST …/documents/:documentId/return` e as ações `deliver`/`return` do `batch-status`
+      (`trip.manage`, sem autoria). O separador tinha acesso a elas. Os botões "Entregar" e
+      "Devolver" da linha da nota e o "Devolver" em massa passam a chamar `field-delivery`/`field-return`
+      (`trip.report-on-behalf`, com `channel` e `on_behalf_of_driver_id`), mostrados por
+      `allowedActions`. Contratos negativos: as rotas antigas não existem mais; o lote recusa
+      `deliver`/`return` com 400; o separador recebe 403 em `field-delivery`/`field-return`.
 - [x] **T9 — Linha do tempo com autoria** ("por X (escritório) pelo motorista Y") e
       `FieldOccurrenceDialog` para uma nota ou para várias.
 

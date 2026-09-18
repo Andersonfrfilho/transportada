@@ -133,7 +133,6 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return result
       },
     },
-    deliver: { execute: document('deliver') },
     dispatch: {
       async execute(input: {
         readonly context: CompanyContext
@@ -243,7 +242,6 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         })
       },
     },
-    return: { execute: document('return') },
     separate: { execute: document('separate') },
   }
 }

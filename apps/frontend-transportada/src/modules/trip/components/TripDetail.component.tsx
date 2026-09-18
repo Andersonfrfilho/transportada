@@ -26,12 +26,12 @@ import {
   navigateToNfeWorkspace,
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
+import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
 import {
-  canDeliverDocuments,
-  canReturnDocuments,
-  canSeparateOrLoadDocuments,
-  isTripEditable,
-} from '../shared/tripStatus.service'
+  hasMultipleDrivers,
+  resolveDefaultOnBehalfDriverId,
+} from '../shared/tripFieldActions.service'
+import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
@@ -45,12 +45,12 @@ import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
+import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
-import { hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripFieldActions } from './TripFieldActions.component'
 import { TripStateActions } from './TripStateActions.component'
@@ -163,6 +163,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
   const [returnDocumentId, setReturnDocumentId] = useState<string | null>(null)
   /**
+   * Spec 156 T8b: mesmo seletor/decisão de `driverId` que `TripFieldActions` (T8) usa — só aparece
+   * quando a viagem tem mais de um motorista (`hasMultipleDrivers`), e o padrão é o de `position = 1`
+   * (`resolveDefaultOnBehalfDriverId`, ADR-0067 §2).
+   */
+  const [selectedOfficeDriverId, setSelectedOfficeDriverId] = useState('')
+  /**
    * Spec 065 D4c: dispensar viagem com nota de CT-e não é um toque — é uma decisão que fica na
    * trilha, e o diálogo é onde o motivo é digitado antes de o servidor recusá-la sem ele.
    */
@@ -232,7 +238,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
   const isEditable = isTripEditable(trip.status)
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
-  const canReturn = canReturnDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
   const unassignedDocuments = trip.documents.filter((document) => document.stopId === null)
@@ -241,13 +246,25 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     [...selection.selectedIds].some((documentId) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
     )
+  /**
+   * Spec 156 T8b (revisão): o motorista escolhido só vale se estiver na tripulação da viagem
+   * **atual** — a página não remonta ao trocar de viagem (`workspace.trip` muda sob o mesmo
+   * componente), então um id escolhido na viagem anterior sobreviveria aqui sem essa checagem.
+   */
+  const isSelectedDriverOnTrip = trip.drivers.some(
+    (driver) => driver.driverId === selectedOfficeDriverId,
+  )
+  const officeDriverId = isSelectedDriverOnTrip
+    ? selectedOfficeDriverId
+    : resolveDefaultOnBehalfDriverId(trip.drivers)
+  /** `exactOptionalPropertyTypes` recusa `{ driverId: undefined }` — o espalhamento omite a chave. */
+  const officeDriverIdInput = officeDriverId === undefined ? {} : { driverId: officeDriverId }
   const documentActions = {
     canManage,
-    canReturn,
     canSeparateOrLoad,
-    canDeliver: canDeliverDocuments(trip.status),
     canFieldOccurrence: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
+    capabilities: workspace.fieldActionCapabilities,
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onToggleProof: (documentId: string) =>
       workspace.setOpenProofDocumentId(
@@ -261,18 +278,24 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         workspace={workspace}
       />
     ),
-    isDeliverPending: workspace.deliverDocumentMutation.isPending,
+    isDeliverPending: workspace.fieldDeliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
+    isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
     isTransitionPending: workspace.transitionDocumentMutation.isPending,
-    onDeliver: (documentId: string) =>
-      workspace.deliverDocumentMutation.mutate({ documentId, tripId: trip.id }),
+    onFieldDeliver: (documentId: string) =>
+      workspace.fieldDeliverDocumentMutation.mutate({
+        deliveredAt: new Date().toISOString(),
+        documentId,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      }),
+    onFieldReturn: (documentId: string) => setReturnDocumentId(documentId),
     onLoad: (documentId: string) =>
       workspace.transitionDocumentMutation.mutate({ action: 'load', documentId, tripId: trip.id }),
     onOverrideAddress: (documentId: string) => setOverrideDocumentId(documentId),
     onRelease: (documentId: string) =>
       workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
-    onReturn: (documentId: string) => setReturnDocumentId(documentId),
     onSeparate: (documentId: string) =>
       workspace.transitionDocumentMutation.mutate({
         action: 'separate',
@@ -284,7 +307,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const returnDocument = trip.documents.find((document) => document.id === returnDocumentId)
   const feedbackKey = resolveFirstTripFeedbackKey([
     workspace.linkDocumentMutation.error,
-    workspace.deliverDocumentMutation.error,
+    workspace.fieldDeliverDocumentMutation.error,
+    workspace.fieldReturnDocumentMutation.error,
     workspace.releaseDocumentMutation.error,
     workspace.closeMutation.error,
     workspace.reorderStopsMutation.error,
@@ -313,29 +337,37 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     workspace.setMdfeRequirementMutation.mutate({ reason: null, requiresMdfe, tripId: trip.id })
   }
 
-  function handleReturnSubmit(reason: string): void {
+  function handleReturnSubmit(reason: DriverReturnReason): void {
     if (trip === undefined || returnDocumentId === null) return
-    workspace.transitionDocumentMutation.mutate({
-      action: 'return',
+    workspace.fieldReturnDocumentMutation.mutate({
       documentId: returnDocumentId,
-      returnReason: reason,
+      ...officeDriverIdInput,
+      reason,
       tripId: trip.id,
     })
     setReturnDocumentId(null)
   }
 
-  function handleBatch(input: {
-    readonly action: 'load' | 'return' | 'separate'
-    readonly returnReason?: string
-  }): void {
+  function handleBatch(input: { readonly action: 'load' | 'separate' }): void {
     if (trip === undefined || selection.selectedIds.size === 0) return
     workspace.batchStatusMutation.mutate(
-      {
-        action: input.action,
-        documentIds: [...selection.selectedIds],
-        returnReason: input.returnReason ?? null,
-        tripId: trip.id,
-      },
+      { action: input.action, documentIds: [...selection.selectedIds], tripId: trip.id },
+      { onSuccess: selection.clear },
+    )
+  }
+
+  /**
+   * Spec 156 T8b: uma `field-return` por nota selecionada que aceite `fieldReturn` — o lote do
+   * escritório com autoria é individual, não existe rota de lote para ele.
+   */
+  function handleBatchReturn(reason: DriverReturnReason): void {
+    if (trip === undefined) return
+    const documentIds = [...selection.selectedIds].filter((documentId) =>
+      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldReturn'),
+    )
+    if (documentIds.length === 0) return
+    workspace.batchFieldReturnMutation.mutate(
+      { documentIds, ...officeDriverIdInput, reason, tripId: trip.id },
       { onSuccess: selection.clear },
     )
   }
@@ -510,13 +542,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       <TripStateActions
         canManage={canManage}
         canFieldOccurrenceBatch={canFieldOccurrenceBatch}
-        canReturn={canReturn}
         canSeparateOrLoad={canSeparateOrLoad}
+        capabilities={workspace.fieldActionCapabilities}
         isBatchPending={workspace.batchStatusMutation.isPending}
+        isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
         isCancelPending={workspace.cancelMutation.isPending}
         isDispatchPending={workspace.dispatchMutation.isPending}
         isPlanRoutePending={workspace.planRouteMutation.isPending}
         onBatch={handleBatch}
+        onBatchReturn={handleBatchReturn}
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
         onOpenFieldOccurrenceBatch={() => setFieldOccurrenceDocumentIds([...selection.selectedIds])}
@@ -553,9 +587,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onRegisterStopOccurrence={(input) =>
           workspace.reportStopOccurrenceMutation.mutate({ ...input, tripId: trip.id })
         }
+        onSelectDriverId={setSelectedOfficeDriverId}
         onStartRoute={(input) =>
           workspace.startFieldTripMutation.mutate({ ...input, tripId: trip.id })
         }
+        selectedDriverId={officeDriverId ?? ''}
         trip={trip}
       />
 
@@ -763,13 +799,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         title={t('requirement.dispenseTitle')}
       />
 
-      <TripReasonDialog
+      <TripReturnReasonDialog
         isOpen={returnDocumentId !== null}
-        isSubmitting={workspace.transitionDocumentMutation.isPending}
+        isSubmitting={workspace.fieldReturnDocumentMutation.isPending}
         onClose={() => setReturnDocumentId(null)}
         onSubmit={handleReturnSubmit}
-        reasonLabel={t('stateActions.returnReasonLabel')}
-        submitLabel={t('stateActions.returnSubmit')}
         {...(returnDocument === undefined
           ? {}
           : {

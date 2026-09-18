@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
@@ -697,19 +698,22 @@ export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 
-/** As três transições que o escritório aciona por nota ou em lote — `deliver` é ação de rua
- * (spec 057) e só existe hoje pelo lote antigo, sem rota própria de item único (T012). */
-export const TRIP_DOCUMENT_TRANSITION_ACTIONS = ['load', 'return', 'separate'] as const
+/**
+ * Spec 156 T8b: só as duas transições de galpão — `separate`/`load`. `deliver`/`return` saíram
+ * (ADR-0067): elas não gravavam autoria e o `separator` (`trip.manage`) as alcançava sem nunca
+ * dever reportar entrega. O caminho com autoria é `fieldDeliverDocument`/`fieldReturnDocument`,
+ * atrás de `trip.report-on-behalf`.
+ */
+export const TRIP_DOCUMENT_TRANSITION_ACTIONS = ['load', 'separate'] as const
 export type TripDocumentTransitionAction = (typeof TRIP_DOCUMENT_TRANSITION_ACTIONS)[number]
 
-export const TRIP_BATCH_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
+export const TRIP_BATCH_ACTIONS = ['load', 'separate'] as const
 export type TripBatchAction = (typeof TRIP_BATCH_ACTIONS)[number]
 
 export type TransitionTripDocumentInput = Readonly<{
   action: TripDocumentTransitionAction
   documentId: string
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
@@ -737,13 +741,38 @@ export type BatchStatusInput = Readonly<{
   action: TripBatchAction
   documentIds: readonly string[]
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
 export type BatchStatusResult = Readonly<{
   items: readonly TripDocumentBatchItemResult[]
   tripStatus: TripStatus
+}>
+
+/** Spec 156 T8b: `POST .../field-delivery`, multipart — a foto entra na T11 (`FieldDeliveryWizard`). */
+export type FieldDeliverDocumentInput = Readonly<{
+  deliveredAt: string
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  tripId: string
+}>
+
+/** Spec 156 T8b: `POST .../field-return`, JSON. `returnedAt` ausente é "agora" no servidor. */
+export type FieldReturnDocumentInput = Readonly<{
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  reason: DriverReturnReason
+  returnedAt?: string
+  tripId: string
+}>
+
+export type FieldSettlementResult = Readonly<{
+  alreadySettled: boolean
+  id: string
+  stopCompleted: boolean
+  tripCompleted: boolean
 }>
 
 export type DispatchTripInput = Readonly<{

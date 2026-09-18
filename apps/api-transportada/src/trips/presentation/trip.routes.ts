@@ -130,7 +130,6 @@ const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
  */
 const ROUTE_GEOMETRY_PATH = '/route-geometry'
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
-const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
@@ -168,14 +167,14 @@ type ReadDeliveryProofsRouteInput = {
   readonly tripId: string
 }
 /**
- * ADR-0043 §1: `deliver` não ganha rota individual aqui — RF-6 da spec 056 só lista
- * separate/load/return para o escritório. Entregar é ação de rua (spec 057, `/me/trips/*`, papel
- * `trip.report`) e já teria colidido com `TRIP_DOCUMENT_DELIVER_PATH` acima, que é o fluxo antigo
- * (spec 027) — `deliver` continua acessível pelo lote (`batch-status`) enquanto a 057 não nasce.
+ * ADR-0067 (spec 156 T8b): `deliver` e `return` deixaram de ter rota individual aqui — elas não
+ * gravavam autoria (`channel`/`on_behalf_of_driver_id`), e a permissão era `trip.manage`, que o
+ * `separator` tem sem nunca dever reportar entrega (ADR-0067 §1). O caminho do escritório com
+ * autoria é `POST .../field-delivery` e `POST .../field-return` (`trip-field-office.routes.ts`,
+ * `trip.report-on-behalf`). `separate`/`load` continuam aqui — são do galpão, não do campo.
  */
 const TRIP_DOCUMENT_SEPARATE_PATH = `${TRIP_DOCUMENT_PATH}/separate`
 const TRIP_DOCUMENT_LOAD_PATH = `${TRIP_DOCUMENT_PATH}/load`
-const TRIP_DOCUMENT_RETURN_PATH = `${TRIP_DOCUMENT_PATH}/return`
 const TRIP_DOCUMENTS_BATCH_STATUS_PATH = `${TRIP_DOCUMENTS_PATH}/batch-status`
 /** Vincular o maço de uma vez: uma transação para o lote inteiro, e não uma por nota. */
 const TRIP_DOCUMENTS_BATCH_PATH = `${TRIP_DOCUMENTS_PATH}/batch`
@@ -274,7 +273,6 @@ type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: Company
 type TripDocumentActionInput = {
   readonly documentId: string
   readonly note: string | null
-  readonly returnReason: string | null
   readonly tripId: string
 }
 
@@ -282,7 +280,6 @@ type BatchStatusInput = {
   readonly action: TripDocumentAction
   readonly documentIds: readonly string[]
   readonly note: string | null
-  readonly returnReason: string | null
   readonly tripId: string
 }
 
@@ -376,10 +373,6 @@ type Dependencies = {
       input: TenantInput<ReadDeliveryProofsRouteInput>,
     ): Promise<readonly TripDocumentProduct[]>
   }
-  /** Mesma forma das outras três transições: entregar passou a usar a máquina de estados. */
-  readonly deliverTripDocument: {
-    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
-  }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
   /** Spec 145 D7: o pedido lazy da planta, disparado pelo detalhe depois da leitura. */
@@ -470,9 +463,6 @@ type Dependencies = {
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
-  }
-  readonly returnTripDocument: {
-    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
   readonly separateTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -1038,25 +1028,6 @@ export function createTripRoutes(
       dependency: dependencies.loadTripDocument,
       pathname: TRIP_DOCUMENT_LOAD_PATH,
     }),
-    tripDocumentActionRoute({
-      dependency: dependencies.returnTripDocument,
-      pathname: TRIP_DOCUMENT_RETURN_PATH,
-    }),
-    /**
-     * ⚠️ `deliver` tinha rota própria, fora da máquina de estados — resíduo do fluxo antigo da
-     * spec 027, anterior à 056. Ela gravava `deliveredAt` e **não tocava em `separationStatus`**:
-     * a nota ficava com hora de entrega e status `pending` para sempre, a barra de progresso não
-     * saía do lugar, e a viagem — cujo estado é derivado do das notas — nunca alcançava
-     * `completed`. Medido em staging com doze notas: `Carregada 100%`, `Entregue 0%`, e o
-     * `POST /deliver` respondendo `200`.
-     *
-     * Ela passa a usar o mesmo caminho das outras três, então também herda os portões: entregar
-     * exige viagem despachada, e antes disso responde `409` em vez de carimbar carga que não saiu.
-     */
-    tripDocumentActionRoute({
-      dependency: dependencies.deliverTripDocument,
-      pathname: TRIP_DOCUMENT_DELIVER_PATH,
-    }),
     /**
      * Spec 079 T004. Ler é `fleet.read`, como o resto do detalhe da viagem: quem acompanha a
      * operação precisa do canhoto, e exigir `trip.manage` esconderia o comprovante de quem só olha.
@@ -1277,7 +1248,6 @@ export function createTripRoutes(
           action: body.action,
           documentIds: body.documentIds,
           note: body.note,
-          returnReason: body.returnReason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },
@@ -1470,7 +1440,6 @@ export function createTripRoutes(
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           note: body.note,
-          returnReason: body.returnReason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },

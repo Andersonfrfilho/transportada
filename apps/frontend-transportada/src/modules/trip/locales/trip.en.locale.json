@@ -768,6 +768,13 @@
     "occurrenceKindLabel": "Occurrence type",
     "occurrenceSubmit": "Report occurrence",
     "occurrenceTitle": "Stop occurrence",
+    "returnReason": {
+      "address_not_found": "Address not found",
+      "damaged_goods": "Damaged",
+      "establishment_closed": "Establishment closed",
+      "recipient_absent": "Recipient absent",
+      "recipient_refused": "Refused"
+    },
     "startRoute": "Start route",
     "startRouteConfirm": "Start route anyway",
     "startRouteMessage": "The trip moves to \"on delivery route\" and this cannot be undone. Confirm the start?",

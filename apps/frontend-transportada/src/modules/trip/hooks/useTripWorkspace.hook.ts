@@ -44,8 +44,11 @@ import type {
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldDeliverDocumentInput,
   FieldOccurrenceType,
   FieldReportIdResult,
+  FieldReturnDocumentInput,
+  FieldSettlementResult,
   FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
@@ -70,6 +73,7 @@ import type {
 } from '../shared/trip.types'
 import { useTripAllowedActions } from './useTripAllowedActions.hook'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
+import { runFieldActionQueue } from '../shared/tripFieldActionQueue.service'
 
 export type TripController = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
@@ -93,7 +97,10 @@ export type TripController = Readonly<{
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
   ) => Promise<TripCteBatchResult>
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  /** Spec 156 T8b, ADR-0067: entrega com autoria, `trip.report-on-behalf`. */
+  fieldDeliverDocument: (input: FieldDeliverDocumentInput) => Promise<FieldSettlementResult>
+  /** Spec 156 T8b, ADR-0067: devolução com autoria, `trip.report-on-behalf`. */
+  fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readTripAllowedActions: (
     input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
@@ -184,8 +191,10 @@ export function createTripController(
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
-    deliverTripDocument: (body) =>
-      canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    fieldDeliverDocument: (body) =>
+      canReportOnBehalf ? input.client.fieldDeliverDocument(body) : forbidden(),
+    fieldReturnDocument: (body) =>
+      canReportOnBehalf ? input.client.fieldReturnDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     readTripAllowedActions: (body) =>
@@ -526,8 +535,57 @@ export function useTripWorkspace(
     },
   })
 
-  const deliverDocumentMutation = useMutation({
-    mutationFn: controller.deliverTripDocument,
+  const fieldDeliverDocumentMutation = useMutation({
+    mutationFn: (body: Omit<FieldDeliverDocumentInput, 'idempotencyKey'>) =>
+      controller.fieldDeliverDocument({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`fieldDeliver:${body.documentId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`fieldDeliver:${variables.documentId}`)
+      return invalidate()
+    },
+  })
+  const fieldReturnDocumentMutation = useMutation({
+    mutationFn: (body: Omit<FieldReturnDocumentInput, 'idempotencyKey'>) =>
+      controller.fieldReturnDocument({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`fieldReturn:${body.documentId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`fieldReturn:${variables.documentId}`)
+      return invalidate()
+    },
+  })
+  /**
+   * Spec 156 T8b: "Devolver" em massa dispara uma `field-return` por nota — a rota do escritório é
+   * individual, não há lote com autoria. Concorrência 3, cada nota gera a própria chave (a mesma
+   * função de escopo do resto do painel), e uma falha isolada não impede as outras.
+   */
+  const batchFieldReturnMutation = useMutation({
+    mutationFn: async (body: {
+      readonly documentIds: readonly string[]
+      readonly driverId?: string
+      readonly reason: FieldReturnDocumentInput['reason']
+      readonly tripId: string
+    }) =>
+      runFieldActionQueue({
+        concurrency: 3,
+        items: body.documentIds,
+        run: (documentId) =>
+          controller
+            .fieldReturnDocument({
+              documentId,
+              ...(body.driverId === undefined ? {} : { driverId: body.driverId }),
+              idempotencyKey: resolveFieldReportKey(`fieldReturn:${documentId}`),
+              reason: body.reason,
+              tripId: body.tripId,
+            })
+            .then((result) => {
+              clearFieldReportKey(`fieldReturn:${documentId}`)
+              return result
+            }),
+      }),
     onSuccess: invalidate,
   })
   const releaseDocumentMutation = useMutation({
@@ -577,6 +635,7 @@ export function useTripWorkspace(
   })
 
   return {
+    batchFieldReturnMutation,
     batchStatusMutation,
     cancelMutation,
     cargoLayoutView,
@@ -586,10 +645,11 @@ export function useTripWorkspace(
     createCteBatchMutation,
     createMutation,
     correctAddressMutation,
-    deliverDocumentMutation,
     deliveryProofsQuery,
     fieldActionCapabilities,
+    fieldDeliverDocumentMutation,
     fieldOccurrenceTypesQuery,
+    fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     reportStopArrivalMutation,
     reportStopOccurrenceMutation,

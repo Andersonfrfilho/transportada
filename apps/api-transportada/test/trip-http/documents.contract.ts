@@ -107,27 +107,20 @@ describe('trip documents http contract', () => {
    * Hoje ela passa pelo mesmo caminho de separar, carregar e devolver, e por isso devolve o estado
    * da viagem junto: é ele que a tela precisa para se atualizar sem recarregar.
    */
-  test('delivers a linked document through the state machine', async () => {
+  /**
+   * Spec 156 T8b: a rota individual `/deliver` saiu — ela não gravava autoria (`trip.manage`, sem
+   * `channel`/`on_behalf_of_driver_id`), e o `separator`, que tem `trip.manage`, a alcançava sem
+   * nunca dever reportar entrega (ADR-0067 §1). O caminho com autoria é `POST .../field-delivery`
+   * (`trip-field-office.routes.ts`, `trip.report-on-behalf`).
+   */
+  test('the old individual deliver route no longer exists', async () => {
     const fixture = await createTripHttpFixture()
 
     const response = await fixture.handle(
       jsonRequest({ method: 'POST', path: tripDocumentDeliverPath() }),
     )
 
-    expect(response.status).toBe(200)
-    expect(await responseData(response)).toMatchObject({
-      document: expect.any(Object),
-      tripStatus: expect.any(String),
-    })
-    expect(fixture.deliverTripDocumentCalls).toEqual([
-      {
-        context: COMPANY_CONTEXT,
-        documentId: TRIP_DOCUMENT_ID,
-        note: null,
-        returnReason: null,
-        tripId: TRIP_ID,
-      },
-    ])
+    expect(response.status).toBe(404)
   })
 
   test('releases a linked document', async () => {

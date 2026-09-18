@@ -36,7 +36,6 @@ type RouteDependencies = {
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
-  readonly deliverTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly dispatchTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly getTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
@@ -50,7 +49,6 @@ type RouteDependencies = {
   readonly planTripRoute: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly releaseTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
-  readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
@@ -77,7 +75,6 @@ type CreateFixtureParams = {
   readonly closeTripError?: Error
   readonly createTripError?: Error
   readonly createTripMdfeManifestError?: Error
-  readonly deliverTripDocumentError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
   readonly getTripResult?: object
@@ -110,7 +107,6 @@ type CreateFixtureParams = {
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
   readonly reorderStopsError?: Error
-  readonly returnTripDocumentError?: Error
   readonly separateTripDocumentError?: Error
 }
 
@@ -162,7 +158,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly closeTripCalls: ExecuteCall[]
   readonly createTripCalls: ExecuteCall[]
   readonly createTripMdfeManifestCalls: ExecuteCall[]
-  readonly deliverTripDocumentCalls: ExecuteCall[]
   readonly dispatchTripCalls: ExecuteCall[]
   readonly getTripCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
@@ -176,7 +171,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly planTripRouteCalls: ExecuteCall[]
   readonly releaseTripDocumentCalls: ExecuteCall[]
   readonly reorderStopsCalls: ExecuteCall[]
-  readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
   readonly readRouteGeometryCalls: ExecuteCall[]
@@ -193,7 +187,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const closeTripCalls: ExecuteCall[] = []
   const createTripCalls: ExecuteCall[] = []
   const createTripMdfeManifestCalls: ExecuteCall[] = []
-  const deliverTripDocumentCalls: ExecuteCall[] = []
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
   const linkTripDocumentCalls: ExecuteCall[] = []
@@ -215,7 +208,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
-  const returnTripDocumentCalls: ExecuteCall[] = []
   const separateTripDocumentCalls: ExecuteCall[] = []
 
   const transitionResult = (): TransitionResult => ({
@@ -267,13 +259,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         createTripMdfeManifestCalls.push(structuredClone(input))
         if (params.createTripMdfeManifestError) throw params.createTripMdfeManifestError
         return MDFE_MANIFEST_DETAIL
-      },
-    },
-    deliverTripDocument: {
-      async execute(input) {
-        deliverTripDocumentCalls.push(structuredClone(input))
-        if (params.deliverTripDocumentError) throw params.deliverTripDocumentError
-        return transitionResult()
       },
     },
     dispatchTrip: {
@@ -479,13 +464,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return { tripStatus: 'route_planned' }
       },
     },
-    returnTripDocument: {
-      async execute(input) {
-        returnTripDocumentCalls.push(structuredClone(input))
-        if (params.returnTripDocumentError) throw params.returnTripDocumentError
-        return transitionResult()
-      },
-    },
     separateTripDocument: {
       async execute(input) {
         separateTripDocumentCalls.push(structuredClone(input))
@@ -513,7 +491,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     closeTripCalls,
     createTripCalls,
     createTripMdfeManifestCalls,
-    deliverTripDocumentCalls,
     dispatchTripCalls,
     getTripCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
@@ -536,7 +513,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     reopenCargoLayoutCalls,
     warnings,
     setMdfeRequirementCalls,
-    returnTripDocumentCalls,
     separateTripDocumentCalls,
   }
 }

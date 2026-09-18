@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
+import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDetail } from '../shared/trip.types'
 import { TripReasonDialog } from './TripReasonDialog.component'
+import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import styles from '../styles/trip.module.css'
 
 const NOT_LOADED_STATUSES = new Set(['pending', 'separated'])
@@ -17,16 +20,16 @@ export type TripStateActionsProps = Readonly<{
   canManage: boolean
   /** Spec 156 T9: pelo menos uma nota da seleção tem a capacidade `fieldOccurrence`. */
   canFieldOccurrenceBatch: boolean
-  canReturn: boolean
   canSeparateOrLoad: boolean
+  /** Spec 156 T8b: "Devolver" em massa mostra quando ao menos uma nota selecionada aceita `fieldReturn`. */
+  capabilities: FieldActionCapabilities
   isBatchPending: boolean
+  isBatchReturnPending: boolean
   isCancelPending: boolean
   isDispatchPending: boolean
   isPlanRoutePending: boolean
-  onBatch: (input: {
-    readonly action: 'load' | 'return' | 'separate'
-    readonly returnReason?: string
-  }) => void
+  onBatch: (input: { readonly action: 'load' | 'separate' }) => void
+  onBatchReturn: (reason: DriverReturnReason) => void
   onCancel: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` com o maço da seleção. */
@@ -46,13 +49,15 @@ export type TripStateActionsProps = Readonly<{
 export function TripStateActions({
   canManage,
   canFieldOccurrenceBatch,
-  canReturn,
   canSeparateOrLoad,
+  capabilities,
   isBatchPending,
+  isBatchReturnPending,
   isCancelPending,
   isDispatchPending,
   isPlanRoutePending,
   onBatch,
+  onBatchReturn,
   onCancel,
   onDispatch,
   onOpenFieldOccurrenceBatch,
@@ -77,6 +82,10 @@ export function TripStateActions({
   const canPlanRoute = trip.status === 'draft'
   const canDispatch = ['loading', 'route_planned', 'separating'].includes(trip.status)
   const canCancel = trip.status !== 'completed' && trip.status !== 'cancelled'
+  /** Spec 156 T8b: notas selecionadas sem `fieldReturn` não são enviadas — nem oferecidas aqui. */
+  const canReturnSelection = [...selection.selectedIds].some((documentId) =>
+    capabilities.canDocument(documentId, 'fieldReturn'),
+  )
 
   function handleDispatchClick(): void {
     if (unloadedDocuments.length > 0) {
@@ -91,9 +100,9 @@ export function TripStateActions({
     onDispatch({ force: true, forceReason: reason })
   }
 
-  function handleBatchReturn(reason: string): void {
+  function handleBatchReturn(reason: DriverReturnReason): void {
     setIsReturnDialogOpen(false)
-    onBatch({ action: 'return', returnReason: reason })
+    onBatchReturn(reason)
   }
 
   return (
@@ -102,7 +111,7 @@ export function TripStateActions({
 
       {hasSelection &&
       (canSeparateOrLoad ||
-        canReturn ||
+        canReturnSelection ||
         canFieldOccurrenceBatch ||
         pendingCteSelection.length > 0) ? (
         <div className={styles.actionActions}>
@@ -141,16 +150,20 @@ export function TripStateActions({
               {t('stateActions.generateCteSelection', { count: pendingCteSelection.length })}
             </Button>
           ) : null}
-          {canReturn ? (
+          {canReturnSelection ? (
             <Button
-              disabled={isBatchPending}
+              disabled={isBatchReturnPending}
               onClick={() => setIsReturnDialogOpen(true)}
               size="sm"
               type="button"
               variant="ghost"
             >
               <Icon name="arrow-up" />
-              {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
+              {t('stateActions.batchReturn', {
+                count: [...selection.selectedIds].filter((documentId) =>
+                  capabilities.canDocument(documentId, 'fieldReturn'),
+                ).length,
+              })}
             </Button>
           ) : null}
           {canFieldOccurrenceBatch ? (
@@ -206,13 +219,11 @@ export function TripStateActions({
         title={t('stateActions.forceTitle')}
       />
 
-      <TripReasonDialog
+      <TripReturnReasonDialog
         isOpen={isReturnDialogOpen}
-        isSubmitting={isBatchPending}
+        isSubmitting={isBatchReturnPending}
         onClose={() => setIsReturnDialogOpen(false)}
         onSubmit={handleBatchReturn}
-        reasonLabel={t('stateActions.returnReasonLabel')}
-        submitLabel={t('stateActions.returnSubmit')}
         title={t('stateActions.returnTitle')}
       />
     </div>

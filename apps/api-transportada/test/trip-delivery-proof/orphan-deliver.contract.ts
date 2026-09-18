@@ -23,6 +23,14 @@ const MAIN = new URL('../../src/main.ts', import.meta.url)
  *
  * O que este contrato faz é o que importa: **impedir a religação**. Quem quiser servir uma rota por
  * ela vai esbarrar aqui antes de o defeito voltar a produção.
+ *
+ * Spec 156 T8b: `tripLifecycle.deliver.execute`/`.return.execute` — a segunda geração, que passava
+ * pela máquina de estados mas gravava sem autoria e ficava alcançável pelo `separator` via
+ * `trip.manage` — também saíram. Entregar/devolver agora só existem com autoria: `POST
+ * .../field-delivery` e `.../field-return` (`trip-field-office.routes.ts`,
+ * `trip.report-on-behalf`) para o escritório, e `report-document-delivery.use-case.ts` para o
+ * motorista (`/me`). Nenhum dos dois passa por `transitionTripDocument`/`tripLifecycle.deliver`/
+ * `.return`.
  */
 describe('a escrita órfã de entrega não volta a ser servida', () => {
   test('nenhuma rota chama o caminho antigo de entregar', () => {
@@ -31,11 +39,11 @@ describe('a escrita órfã de entrega não volta a ser servida', () => {
     expect(routes).not.toInclude('deliverDocument')
   })
 
-  test('a composição não liga dependência nenhuma nele', () => {
+  test('a composição não liga a máquina de estados a deliver/return', () => {
     const main = readFileSync(MAIN, 'utf8')
 
     expect(main).not.toInclude('trips.deliverDocument')
-    // A rota de entregar usa a máquina de estados, como separar, carregar e devolver.
-    expect(main).toInclude('tripLifecycle.deliver.execute')
+    expect(main).not.toInclude('tripLifecycle.deliver.execute')
+    expect(main).not.toInclude('tripLifecycle.return.execute')
   })
 })

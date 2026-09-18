@@ -954,6 +954,13 @@
     "occurrenceKindLabel": "Tipo de ocorrência",
     "occurrenceSubmit": "Registrar ocorrência",
     "occurrenceTitle": "Ocorrência da parada",
+    "returnReason": {
+      "address_not_found": "Endereço não encontrado",
+      "damaged_goods": "Avaria",
+      "establishment_closed": "Estabelecimento fechado",
+      "recipient_absent": "Ausente",
+      "recipient_refused": "Recusa"
+    },
     "startRoute": "Iniciar rota",
     "startRouteConfirm": "Iniciar rota mesmo assim",
     "startRouteMessage": "A viagem passa a \"em rota de entrega\" e não é possível desfazer o toque. Confirma o início?",

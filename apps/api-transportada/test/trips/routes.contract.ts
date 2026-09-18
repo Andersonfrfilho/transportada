@@ -80,7 +80,12 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.loadTripDocumentCalls).toHaveLength(1)
   })
 
-  test('returns a document, forwarding the reason', async () => {
+  /**
+   * Spec 156 T8b: a rota individual `/return` saiu, pelo mesmo motivo de `/deliver` — sem autoria,
+   * alcançável pelo `separator` via `trip.manage`. O caminho com autoria é `POST .../field-return`
+   * (`trip-field-office.routes.ts`, `trip.report-on-behalf`).
+   */
+  test('the old individual return route no longer exists', async () => {
     const fixture = await createTripHttpFixture()
 
     const response = await fixture.handle(
@@ -91,10 +96,7 @@ describe('trip state routes (spec 056 T012)', () => {
       }),
     )
 
-    expect(response.status).toBe(200)
-    expect(fixture.returnTripDocumentCalls[0]).toMatchObject({
-      returnReason: 'Destinatário ausente',
-    })
+    expect(response.status).toBe(404)
   })
 
   test('transitions a batch of documents in one call', async () => {
@@ -111,7 +113,7 @@ describe('trip state routes (spec 056 T012)', () => {
 
     expect(response.status).toBe(200)
     expect(fixture.batchStatusCalls).toEqual([
-      expect.objectContaining({ action: 'separate', documentIds, note: null, returnReason: null }),
+      expect.objectContaining({ action: 'separate', documentIds, note: null }),
     ])
   })
 
@@ -129,6 +131,29 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(response.status).toBe(400)
     expect(fixture.batchStatusCalls).toHaveLength(0)
   })
+
+  /**
+   * Spec 156 T8b: `deliver`/`return` saíram de `TRIP_DOCUMENT_ACTIONS` — o lote do escritório não
+   * grava autoria, e o caminho com autoria (`field-delivery`/`field-return`) é individual, nunca
+   * em massa por `trip.manage`.
+   */
+  test.each(['deliver', 'return'] as const)(
+    'refuses a batch with the retired action %s',
+    async (action) => {
+      const fixture = await createTripHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { action, documentIds: [TRIP_DOCUMENT_ID] },
+          method: 'POST',
+          path: tripDocumentsBatchStatusPath(),
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.batchStatusCalls).toHaveLength(0)
+    },
+  )
 
   test('plans the route with no body', async () => {
     const fixture = await createTripHttpFixture()
@@ -355,7 +380,6 @@ describe('trip state routes (spec 056 T012)', () => {
     const responses = await Promise.all([
       fixture.handle(jsonRequest({ method: 'POST', path: tripDocumentSeparatePath() })),
       fixture.handle(jsonRequest({ method: 'POST', path: tripDocumentLoadPath() })),
-      fixture.handle(jsonRequest({ method: 'POST', path: tripDocumentReturnPath() })),
       fixture.handle(
         jsonRequest({
           body: { action: 'separate', documentIds: [TRIP_DOCUMENT_ID] },

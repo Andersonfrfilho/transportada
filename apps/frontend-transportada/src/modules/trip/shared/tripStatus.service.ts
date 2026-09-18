@@ -30,25 +30,9 @@ export function canSeparateOrLoadDocuments(status: TripStatus): boolean {
 }
 
 /**
- * ADR-0043 §1: devolver é trabalho de **rua**, não de barracão — espelha o ramo `isStreetWork` de
- * `checkTripAcceptsDocumentWork`, que exige `isTripDispatched`. A nota só volta depois de a carga
- * ter saído; antes disso ela se desvincula, não se devolve. `completed` fica de fora por ser
- * terminal (o backend o barra antes de chegar no ramo de rua).
+ * Spec 156 T8b, ADR-0067: entregar/devolver deixaram de ter porta própria aqui — os botões de
+ * `TripStopList`/`TripStateActions` passaram a obedecer só `allowedActions`
+ * (`fieldActionCapabilities.canDocument`), a mesma fonte que `TripFieldActions` (T8) já usa. Uma
+ * cópia da máquina de estados no cliente era exatamente o risco que a T8 apontava para as ações de
+ * campo — o servidor decide, o cliente só mostra.
  */
-export function canReturnDocuments(status: TripStatus): boolean {
-  return isTripDispatched(status) && status !== 'completed'
-}
-
-/**
- * Entregar é o **mesmo** trabalho de rua que devolver: `checkTripAcceptsDocumentWork` põe os dois
- * no ramo `isStreetWork`, que exige `isTripDispatched`.
- *
- * ⚠️ Até 02/09/2026 entregar tinha rota própria fora da máquina de estados — ela aceitava qualquer
- * estado, e por isso o botão vivia atrás de `isTripEditable` sem ninguém notar. Com a rota passando
- * pela política, `isTripEditable` passou a oferecer o botão exatamente onde o backend responde 409.
- * Delegar a `canReturnDocuments` — em vez de repetir a condição — é o que impede os dois de
- * divergirem em silêncio; `test/trip/state-gates.contract.ts` afirma a igualdade.
- */
-export function canDeliverDocuments(status: TripStatus): boolean {
-  return canReturnDocuments(status)
-}

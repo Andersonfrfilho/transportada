@@ -61,18 +61,16 @@ export const MAX_BATCH_DOCUMENTS = 50
  */
 const MAX_LINK_BATCH_DOCUMENTS = 500
 
-const TRIP_DOCUMENT_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
-
 /**
- * `returnReason` é opcional aqui de propósito: exigi-lo só quando `action = 'return'` é regra de
- * domínio, e o use case (T008/T009) já lança `TripDocumentReturnReasonRequiredError` — validar
- * duas vezes duplicaria a mensagem sem duplicar a segurança.
+ * Spec 156 T8b: `deliver`/`return` saíram — elas não gravavam autoria e o `separator`, que tem
+ * `trip.manage`, as alcançava sem nunca dever reportar entrega (ADR-0067 §1). O caminho com
+ * autoria é `field-delivery`/`field-return` (`trip-field-office.routes.ts`,
+ * `trip.report-on-behalf`). Uma ou outra no corpo aqui responde `400` na validação.
  */
+const TRIP_DOCUMENT_ACTIONS = ['load', 'separate'] as const
+
 export const transitionTripDocumentSchema = z
-  .object({
-    note: z.string().trim().min(1).nullable().default(null),
-    returnReason: z.string().trim().min(1).nullable().default(null),
-  })
+  .object({ note: z.string().trim().min(1).nullable().default(null) })
   .strict()
 
 export type TransitionTripDocumentBody = z.infer<typeof transitionTripDocumentSchema>
@@ -82,7 +80,6 @@ export const batchTransitionTripDocumentsSchema = z
     action: z.enum(TRIP_DOCUMENT_ACTIONS),
     documentIds: z.array(z.uuid()).min(1).max(MAX_BATCH_DOCUMENTS),
     note: z.string().trim().min(1).nullable().default(null),
-    returnReason: z.string().trim().min(1).nullable().default(null),
   })
   .strict()
 
