@@ -145,6 +145,8 @@ export const TRIP_TABLES = [
   'trip_stops',
   'trip_document_events',
   'trip_dispatch_snapshots',
+  /** Spec 158 / ADR-0068: histórico de `trips.status`, um evento por transição gravada. */
+  'trip_status_events',
   /** Spec 057: a execução de campo — o que aconteceu na rua, e a chave que impede o reenvio duplicar. */
   'trip_stop_events',
   'trip_stop_occurrences',

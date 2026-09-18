@@ -18,6 +18,7 @@ import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
+import { assertTripStatusEventRollbackRefusesRecordedHistory } from './trip-status-event-rollback.assertion.js'
 import {
   FISCAL_TABLES,
   FLEET_TABLES,
@@ -101,6 +102,20 @@ describe('Drizzle migration integration', () => {
         await assertFreightRegionConstraints(database, identityFixture, fleetFixture)
         await assertMdfeConstraints(database, identityFixture, fleetFixture)
         await assertTripConstraints(database, identityFixture, fleetFixture)
+
+        const rollbackProbeTripId = crypto.randomUUID()
+        await database`
+          insert into trips (id, company_id, vehicle_id)
+          values (${rollbackProbeTripId}, ${identityFixture.companyId}, ${fleetFixture.vehicleId})
+        `
+        await assertTripStatusEventRollbackRefusesRecordedHistory({
+          companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
         await assertRntrcRollbackRefusesNinePositions({
           database,
           directories: migrationDirectories,

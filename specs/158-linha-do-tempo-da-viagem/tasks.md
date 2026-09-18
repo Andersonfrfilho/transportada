@@ -31,7 +31,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2 — `trip_status_events` e `backoffice`** (RF1, aceite 10). Schema Drizzle, migration SQL
+- [x] **T2 — `trip_status_events` e `backoffice`** (RF1, aceite 10). Schema Drizzle, migration SQL
       aditiva com down que falha alto se houver `backoffice` gravado, `make migration-test`. Contrato
       de schema (FKs compostas, check `office ⇒ on_behalf`, índice). Backfill do D3 só se a ADR
       escolheu (a).

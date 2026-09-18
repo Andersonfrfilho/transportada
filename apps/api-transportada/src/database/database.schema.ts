@@ -177,6 +177,7 @@ import {
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStops,
   trips,
 } from './trip.schema.js'
@@ -384,6 +385,7 @@ export const databaseSchema = {
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStops,
   trips,
   userCompanyMemberships,

@@ -370,6 +370,15 @@ export async function assertTripConstraints(
     tripId,
     userId,
   })
+
+  await assertTripStatusEventConstraints({
+    companyId,
+    database,
+    driverId,
+    otherCompanyId,
+    tripId,
+    userId,
+  })
 }
 
 /**
@@ -633,4 +642,133 @@ async function assertFieldChannelConstraints(input: {
     returning id
   `
   expect(officeEvent?.id).toBeDefined()
+}
+
+/**
+ * Spec 158 T2 / ADR-0068 §1: `trip_status_events` é o histórico de `trips.status`. Cobre a forma da
+ * tabela — as duas FKs compostas, os três `check`s de vocabulário/transição e o índice de leitura —
+ * no mesmo molde de `assertFieldChannelConstraints`.
+ */
+async function assertTripStatusEventConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
+  readonly tripId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, driverId, otherCompanyId, tripId, userId } = input
+  const otherCompanyDriverId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id)
+    values (${otherCompanyDriverId}, ${otherCompanyId}, 'Motorista De Outra Empresa Do Status', '33344455566')
+  `
+
+  // O caminho feliz: transição registrada com o canal padrão (driver_app).
+  const [event] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+    values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId})
+    returning id
+  `
+  expect(event?.id).toBeDefined()
+
+  // `from_status <> to_status` — não há transição para o próprio estado.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'draft', 'draft', ${userId})
+    `,
+    '23514',
+    'trip_status_events_transition_check',
+  )
+
+  // Vocabulário fechado de `TripStatus`, nos dois lados da transição.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'open', 'route_planned', ${userId})
+    `,
+    '23514',
+    'trip_status_events_from_status_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'draft', 'open', ${userId})
+    `,
+    '23514',
+    'trip_status_events_to_status_check',
+  )
+
+  // Canal fora da lista fechada (agora com `backoffice`).
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+      values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_status_events_channel_check',
+  )
+
+  // `channel = 'office'` sem `on_behalf_of_driver_id` — o CHECK de implicação (ADR-0067 §2).
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+      values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'office')
+    `,
+    '23514',
+    'trip_status_events_office_driver_check',
+  )
+
+  // `channel = 'backoffice'` não exige `on_behalf_of_driver_id` (ADR-0068 §3).
+  const [backofficeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+    values (${companyId}, ${tripId}, 'route_planned', 'dispatched', ${userId}, 'backoffice')
+    returning id
+  `
+  expect(backofficeEvent?.id).toBeDefined()
+
+  // FK composta: viagem inexistente na empresa é recusada.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${crypto.randomUUID()}, 'draft', 'route_planned', ${userId})
+    `,
+    '23503',
+    'trip_status_events_company_trip_fk',
+  )
+
+  // FK composta: o motorista em nome de quem se registra nunca é de outra empresa, mesmo com
+  // `channel = 'office'` satisfeito por um id que existe, só que no tenant errado.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (
+        company_id, trip_id, from_status, to_status, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (
+        ${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'office', ${otherCompanyDriverId}
+      )
+    `,
+    '23503',
+    'trip_status_events_company_driver_fk',
+  )
+
+  // O caminho feliz de `office`: o motorista da própria empresa grava normalmente.
+  const [officeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (
+      company_id, trip_id, from_status, to_status, actor_user_id, channel, on_behalf_of_driver_id
+    )
+    values (${companyId}, ${tripId}, 'dispatched', 'in_transit', ${userId}, 'office', ${driverId})
+    returning id
+  `
+  expect(officeEvent?.id).toBeDefined()
+
+  // A linha do tempo lê por viagem, ordenada por `occurred_at` — sem este índice ela varre tudo.
+  const [index] = await database<Array<{ readonly indexdef: string }>>`
+    select indexdef from pg_indexes where indexname = 'trip_status_events_company_trip_occurred_at_idx'
+  `
+  expect(index?.indexdef).toContain('(company_id, trip_id, occurred_at, id)')
+
+  await database`delete from trip_status_events where company_id = ${companyId}`
 }

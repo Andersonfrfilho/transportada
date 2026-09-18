@@ -43,6 +43,11 @@ export const TRIP_FIELD_CHANNELS = {
   driverApp: 'driver_app',
   office: 'office',
   whatsapp: 'whatsapp',
+  /**
+   * ADR-0068 §3: ação da tela do escritório que **não** é em nome do motorista (fechar, planejar
+   * rota, despachar pela web, cancelar). Não exige `on_behalf_of_driver_id`.
+   */
+  backoffice: 'backoffice',
 } as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
 
@@ -244,6 +249,92 @@ export const trips = pgTable(
       'trips_requires_mdfe_trail_check',
       sql`(${table.requiresMdfe} is null) = (${table.requiresMdfeActorUserId} is null)
         and (${table.requiresMdfe} is null) = (${table.requiresMdfeSetAt} is null)`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0068 §1: histórico de `trips.status`. `recordTripStatusChange` (`trip-status-event.persistence.ts`,
+ * spec 158 T3) é o **único** escritor.
+ *
+ * ⚠️ `actor_user_id` **não** tem FK para `user_company_memberships` (mesma assimetria deliberada de
+ * `nfe_package_box_measurements` — `nfe.schema.ts`): `removeMembership`
+ * (`drizzle-company-user.repository.ts`) faz DELETE físico da linha de membership, e aqui RESTRICT
+ * quebraria a remoção de quem já planejou, cancelou ou fechou uma viagem — e falharia depois de já
+ * ter desvinculado o WhatsApp e desabilitado a conta no Keycloak. O isolamento por empresa continua
+ * garantido pela FK composta `(company_id, trip_id)` abaixo; o ator é só um dado guardado, não um
+ * vínculo referencial. A leitura resolve o nome por membership escopado pela empresa; ator removido
+ * aparece sem nome.
+ *
+ * `from_status`/`actor_user_id` são `not null`: não há escrita de sistema hoje (inventário da
+ * ADR-0068), e nada grava a criação da viagem — ela já está em `trips.created_at`.
+ */
+export const tripStatusEvents = pgTable(
+  'trip_status_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    fromStatus: text('from_status').notNull().$type<TripStatus>(),
+    toStatus: text('to_status').notNull().$type<TripStatus>(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /** A hora em que a transição aconteceu — não necessariamente a hora em que foi gravada. */
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    /** ADR-0067 §3 / ADR-0068 "Consequências": igual a `trip_stop_events.recorded_at`. */
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_status_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_status_events_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_status_events_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_status_events_company_id_id_unique').on(table.companyId, table.id),
+    /** A linha do tempo lê por viagem, ordenada — sem este índice ela varre a tabela inteira. */
+    index('trip_status_events_company_trip_occurred_at_idx').on(
+      table.companyId,
+      table.tripId,
+      table.occurredAt,
+      table.id,
+    ),
+    check(
+      'trip_status_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_status_events_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
+    ),
+    check('trip_status_events_transition_check', sql`${table.fromStatus} <> ${table.toStatus}`),
+    check(
+      'trip_status_events_from_status_check',
+      sql`${table.fromStatus} in (${raw(inList(TRIP_STATUSES))})`,
+    ),
+    check(
+      'trip_status_events_to_status_check',
+      sql`${table.toStatus} in (${raw(inList(TRIP_STATUSES))})`,
     ),
   ],
 )
