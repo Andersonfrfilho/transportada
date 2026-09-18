@@ -609,3 +609,128 @@ GET /trips/:id/timeline?cursor=<opaco base64url>&limit=<1..200, padrão 100>
 `TripTimelineItem` é exatamente o tipo de `trip-timeline.types.ts` (T5) — nenhum campo é adicionado,
 removido ou renomeado nesta T6; `occurredAt`/`recordedAt` já chegam como string ISO (serializados em
 `listTripTimeline`). `nextCursor` é a mesma string opaca que `cursor` aceita de volta.
+
+## T7
+
+### Arquivos
+
+- `apps/frontend-transportada/src/modules/trip/shared/trip.types.ts`: `TRIP_FIELD_CHANNELS` ganha
+  `backoffice` (D2, ADR-0068 §3); `TRIP_TIMELINE_KINDS`/`TripTimelineKind` (cópia por valor dos oito
+  `kind`s de `trip-timeline.types.ts`, T5), `TripTimelineStopReference`,
+  `TripTimelineDocumentReference`, `TripTimelineOccurrenceReference`, `TripTimelineItem` (D6) e
+  `TripTimelinePage`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts`: `TRIP_TIMELINE_ITEM_KEYS`
+  (os 13 campos, todos sempre presentes — nenhum é opcional no D6) e as três listas de chave dos
+  objetos aninhados (`stop`/`document`/`occurrence`), `TRIP_TIMELINE_DEFAULT_LIMIT` (100, o padrão
+  do D4). `TRIP_TIMELINE_CURSOR_INVALID` entra em `TRIP_FEEDBACK_KEY_BY_ERROR` → `timelineCursorInvalid`
+  (o único lugar do módulo que mapeia código de erro para chave de feedback).
+- `apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts`:
+  `tripTimelineFromApi` (molde de `occurrencesFromApi`) e `isTimelineItem` (molde de `isOccurrence`,
+  `:1051`) com `hasExactKeys` — todos os 13 campos são obrigatórios (D6 não tem opcional), então uma
+  chave a mais (`actorUserId`, `receiverName`, `latitude`, …) já reprova sozinha; `channel`/`kind`
+  fora do vocabulário fechado (`isOneOf`) e os três guardas aninhados
+  (`isTimelineStopReference`/`isTimelineDocumentReference`/`isTimelineOccurrenceReference`).
+- `apps/frontend-transportada/src/modules/trip/shared/tripClient.service.ts`: `readTripTimeline`
+  (molde de `readTripOccurrences`, `:731`), `buildSearch({cursor, limit}, {})` já existente (mesmo
+  usado por `listNfeDocuments`) e `path` = `${TRIPS_PATH}/:tripId/timeline`.
+- `apps/frontend-transportada/src/modules/trip/hooks/useTripTimeline.hook.ts` (novo):
+  `useInfiniteQuery` pelo cursor, `enabled: canReadTrip(permissions)` — a mesma política de leitura
+  de `useTripWorkspace.hook.ts` (`canReadTrips`, `fleet.read` **ou** `trip.report-on-behalf`, D4),
+  chave `[TRIP_QUERY_KEY, tripId, 'timeline']`.
+- `apps/frontend-transportada/src/modules/trip/shared/fieldAuthorship.service.ts` (renomeado de
+  `fieldOccurrenceAuthorship.service.ts`, `git mv`): `resolveFieldAuthorshipText` ganha `backoffice`
+  e o canal `null` (não registrado, D3) — mesma frase "por `<ator>`" para os dois, e `whatsapp` passa
+  a levar o nome do ator quando ele existe. `office`/`driver_app` mantidos sem mudança de texto.
+- `apps/frontend-transportada/src/modules/trip/locales/{trip,trip.en}.locale.json`: namespace
+  `occurrence.authorship.*` movido para `authorship.*` (raiz), com as chaves novas
+  `backoffice`/`notRegistered`/`removedActor`/`whatsappWithActor`; `feedback.timelineCursorInvalid`.
+- `apps/frontend-transportada/src/modules/trip/components/TripOccurrences.component.tsx`: import
+  migrado para `fieldAuthorship.service`.
+- `test/trip/field-occurrence-authorship.contract.ts`: migrado para `fieldAuthorship.service` e o
+  namespace `authorship.*` — não apagado, os testes existentes continuam e ganham `backoffice`,
+  canal `null`, ator removido nos dois casos, `whatsapp` com nome, e a checagem de que nenhum canal
+  produz "pelo sistema" (ADR-0068). `test/trip/field-occurrence-validation.contract.ts`: comentário
+  do teste de vocabulário atualizado para citar `backoffice`.
+- `test/trip/timeline.contract.ts` (novo, importado por `test/trip.contract.test.ts`): validador
+  (página completa; `channel`/`recordedAt`/`document` nulos; chave desconhecida; `channel`/`kind`
+  fora do vocabulário; envelope sem `items`/`nextCursor`), cliente HTTP (query string com
+  `cursor`/`limit`, e sem `cursor` a chave não vai), e paridade de `TRIP_TIMELINE_KINDS` e
+  `TRIP_FIELD_CHANNELS` com os arquivos-fonte da API (molde de
+  `test/driver-trip/catalog-parity.contract.ts`).
+
+### Decisões
+
+- **`channel: undefined` continua "sem frase" — `channel: null` agora tem frase própria.** São dois
+  sinais diferentes: `undefined` é ausência do campo (registro anterior à ADR-0067, ou uma API mais
+  antiga que ainda não manda o campo — `TripOccurrence.channel` continua opcional); `null` é o D3
+  confirmando, na leitura, que o canal **não foi registrado**. Misturar os dois faria a linha do
+  tempo (que sempre manda `channel`, nunca ausente — D6) cair siempre no ramo "sem frase", quando o
+  D3 pede "por `<usuária>`" explícito. `FieldAuthorship.channel` passa de `TripFieldChannel?` para
+  `null | TripFieldChannel | undefined`.
+- **`backoffice` e o canal `null` compartilham o texto "por `<ator>`"**, mas por chaves i18n
+  diferentes (`authorship.backoffice`/`authorship.notRegistered`): são conceitualmente diferentes
+  (um canal real vs. ausência confirmada) mesmo que a frase de hoje seja igual — divergir no futuro
+  não exige tocar na outra.
+- **"ator sem nome" não é um caso só.** Para `office`/`driver_app` o rótulo genérico já existente
+  (sem nome do ator, mantém o resto da frase) não mudou — a task pede para "manter" os dois. Para
+  `backoffice`/canal `null`, o ator **é** a frase inteira, então `actorName: null` cai no rótulo
+  dedicado "por usuário removido" (`authorship.removedActor`), nunca a frase ficando vazia. `whatsapp`
+  sem nome continua na frase genérica antiga (a mesma decisão do D7: "sem nome, a frase genérica que
+  já existia") — não veio pedido para "usuário removido" nesse canal.
+- **Não existe "pelo sistema" em canal nenhum** (ADR-0068 "toda escrita tem ator humano") — testado
+  explicitamente iterando os cinco canais (`office`, `driver_app`, `whatsapp`, `backoffice`, `null`)
+  e conferindo que a palavra "sistema" nunca aparece.
+- **`TRIP_TIMELINE_ITEM_KEYS` não tem lista "opcional"** (diferente de `TRIP_OCCURRENCE_KEYS` +
+  `TRIP_OCCURRENCE_OPTIONAL_KEYS`): o D6 declara todo campo do `TripTimelineItem` como sempre
+  presente (nulo quando falta o dado), então `hasExactKeys` com uma lista só já expressa a regra —
+  não há janela de deploy API-antes-do-front a proteger aqui, porque a rota inteira é nova nesta
+  spec.
+- **Sem `TripTimelineDetailPage`/componente visual.** T7 é só tipos, validador, cliente e hook — a
+  seção "Linha do tempo" no detalhe da viagem é a T8, que decide como consumir
+  `useTripTimeline`/`resolveFieldAuthorshipText` na tela.
+- **Paridade lida do arquivo-fonte da API, não restatada como literal** — mesmo raciocínio do
+  `catalog-parity.contract.ts` (`test/driver-trip/`): se a API ganhar um `kind`/canal novo, o teste
+  vermelho aponta a divergência antes de a tela mostrar uma lista curta. `TRIP_FIELD_CHANNELS` na API
+  é um objeto (`{ driverApp: 'driver_app', … }`, não um array `as const`), então a regex de extração
+  usa `: 'valor'` (os valores das chaves), e a comparação ordena os dois lados (`sort()`) porque o
+  objeto não garante a mesma ordem do array do front.
+
+### TDD
+
+Os testes de `field-occurrence-authorship.contract.ts` (novos casos: `backoffice`, canal `null`,
+ator removido, `whatsapp` com nome, "sem sistema") foram escritos contra a assinatura nova de
+`resolveFieldAuthorshipText` antes da reescrita da função — vermelho por chave i18n inexistente
+(`authorship.backoffice`/`authorship.notRegistered`/`authorship.removedActor`/
+`authorship.whatsappWithActor`), verde depois de mover o namespace e acrescentar as quatro chaves
+nos dois locales. `timeline.contract.ts` foi escrito contra `tripTimelineFromApi`/`readTripTimeline`
+antes de existirem (import de módulo já criado nesta mesma task — T7 não tem uma etapa "API ainda
+não existe" como a T5/T6 tinham, porque o contrato da API já estava fechado e testado desde a T6).
+
+### Comandos e contagens
+
+- `bun run typecheck` (raiz, monorepo inteiro) — sem erros.
+- `bun run lint` (raiz do frontend, `eslint .`) — sem erros/avisos, após corrigir dois
+  `@typescript-eslint/require-await` nos stubs de `fetch` do `timeline.contract.ts` (viraram
+  `Promise.resolve(...)` em vez de função `async` sem `await`).
+- `bunx prettier --check` nos arquivos alterados/criados — todos conformes.
+- De dentro de `apps/frontend-transportada`, `bun test test/trip.contract.test.ts`: **1101 pass, 0
+  fail** (18120 `expect()`) — 15 casos novos (`field-occurrence-authorship.contract.ts`: 7 → 12;
+  `timeline.contract.ts`: 10 novos).
+- `bun run test` (suíte inteira da app, `package.json`): **4499 pass, 0 fail** nos contratos +
+  **19 pass, 0 fail** em `test:hooks` — nenhuma falha pré-existente a justificar (a app não tinha
+  vermelho antes desta task).
+- `bun run build` (`vite build` + PWA) — build concluído, sem erro; os avisos de chunk > 500 kB são
+  pré-existentes (`pdf`, `vectorBasemap.service`, `index`), nenhum arquivo desta task entra nessa
+  lista.
+
+### Desvios do pedido
+
+- **Filename do teste de autoria mantido** (`field-occurrence-authorship.contract.ts`, não renomeado
+  para `field-authorship.contract.ts`): a instrução pediu migrar o conteúdo ("não apagado"), não
+  necessariamente o nome do arquivo — o conteúdo interno (describe, imports, casos) já reflete o
+  nome/namespace novos.
+- **Teste de `useTripTimeline` não escrito à parte**: hooks que só encapsulam `useInfiniteQuery`
+  sobre um cliente e uma condição de permissão (o mesmo padrão de `useTripAllowedActions.hook.ts`,
+  que também não tem contrato próprio) não têm precedente de teste direto neste módulo — a lógica
+  que vale testar (`canReadTrip`, `tripTimelineFromApi`, `readTripTimeline`) já está coberta em
+  `timeline.contract.ts`/`trip.constant.ts`. Registrado aqui como desvio explícito, não omitido.

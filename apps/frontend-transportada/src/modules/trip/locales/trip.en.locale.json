@@ -17,6 +17,18 @@
     "fieldOccurrence": "Occurrence",
     "fieldDelivery": "Deliver"
   },
+  "authorship": {
+    "backoffice": "by {{actor}}",
+    "driverApp": "by driver {{actor}} (app)",
+    "driverAppWithoutActor": "by the driver (app)",
+    "notRegistered": "by {{actor}}",
+    "office": "recorded by {{actor}} (office) on behalf of driver {{driver}}",
+    "officeWithoutActor": "recorded by the office on behalf of driver {{driver}}",
+    "removedActor": "removed user",
+    "unknownDriver": "unidentified",
+    "whatsapp": "(WhatsApp)",
+    "whatsappWithActor": "by {{actor}} via WhatsApp"
+  },
   "assemblyDraft": {
     "automaticPending": "An automatic route is being assembled and is kept in this tab.",
     "automaticUnreachable": "The invoices of the automatic route being assembled could not be reloaded right now. The draft is still kept in this tab.",
@@ -390,7 +402,8 @@
     "documentAlreadySettled": "This document was already delivered or returned.",
     "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
     "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
-    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending."
+    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending.",
+    "timelineCursorInvalid": "The timeline cursor is invalid."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -431,15 +444,7 @@
     "editTemplates": "Edit email templates",
     "emailTemplate": "Email template",
     "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)",
-    "authorship": {
-      "driverApp": "by driver {{actor}} (app)",
-      "driverAppWithoutActor": "by the driver (app)",
-      "office": "recorded by {{actor}} (office) on behalf of driver {{driver}}",
-      "officeWithoutActor": "recorded by the office on behalf of driver {{driver}}",
-      "unknownDriver": "unidentified",
-      "whatsapp": "(WhatsApp)"
-    }
+    "legacyTemplate": "{{subject}} — own template (legacy)"
   },
   "occurrenceFeed": {
     "columns": {

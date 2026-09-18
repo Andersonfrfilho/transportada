@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
-import { resolveFieldAuthorshipText } from '../shared/fieldOccurrenceAuthorship.service'
+import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'

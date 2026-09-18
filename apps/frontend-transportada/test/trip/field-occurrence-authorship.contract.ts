@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { resolveFieldAuthorshipText } from '../../src/modules/trip/shared/fieldOccurrenceAuthorship.service'
+import { resolveFieldAuthorshipText } from '../../src/modules/trip/shared/fieldAuthorship.service'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 
@@ -22,10 +22,11 @@ function translate(key: string, options?: Record<string, unknown>): string {
 }
 
 /**
- * Spec 156 T9 (D3): a frase de autoria que a linha do tempo imprime, por canal — a leitura só
- * publica `channel`/`actorName`/`onBehalfOfDriverName` a partir desta task (M1: campos opcionais).
+ * Spec 158 D7: a frase de autoria única (`fieldAuthorship.service.ts`, namespace `authorship.*`) —
+ * `TripOccurrences` e a linha do tempo consomem a mesma função. Migrado de
+ * `occurrence.authorship.*` (spec 156 T9).
  */
-describe('autoria da linha do tempo por canal (spec 156 T9, D3)', () => {
+describe('autoria de campo por canal (spec 158 D7)', () => {
   it('sem channel (registro anterior à ADR-0067, ou API antiga): sem frase', () => {
     expect(resolveFieldAuthorshipText({}, translate)).toBeNull()
   })
@@ -58,22 +59,70 @@ describe('autoria da linha do tempo por canal (spec 156 T9, D3)', () => {
     expect(text).toContain('João Pereira')
   })
 
-  it('whatsapp: sem nome nenhum, só o canal', () => {
+  it('whatsapp com nome: "por <nome> pelo WhatsApp"', () => {
+    const text = resolveFieldAuthorshipText(
+      { actorName: 'Marina Alves', channel: 'whatsapp' },
+      translate,
+    )
+    expect(text).toBe('por Marina Alves pelo WhatsApp')
+  })
+
+  it('whatsapp sem nome: a frase genérica que já existia, sem null/undefined', () => {
     const text = resolveFieldAuthorshipText({ channel: 'whatsapp' }, translate)
     expect(text).not.toBeNull()
     expect(text).not.toContain('undefined')
     expect(text).not.toContain('null')
   })
 
+  it('backoffice (D2): "por <usuária>", sem selo de motorista', () => {
+    const text = resolveFieldAuthorshipText(
+      { actorName: 'Marina Alves', channel: 'backoffice' },
+      translate,
+    )
+    expect(text).toBe('por Marina Alves')
+    expect(text).not.toContain('motorista')
+  })
+
+  it('canal null (não registrado, D3): "por <usuária>", igual ao backoffice', () => {
+    const text = resolveFieldAuthorshipText({ actorName: 'Marina Alves', channel: null }, translate)
+    expect(text).toBe('por Marina Alves')
+  })
+
+  it('ator removido (actorName: null) em backoffice: "por usuário removido", nunca id/null/undefined', () => {
+    const text = resolveFieldAuthorshipText({ actorName: null, channel: 'backoffice' }, translate)
+    expect(text).toBe('por usuário removido')
+    expect(text).not.toContain('null')
+    expect(text).not.toContain('undefined')
+  })
+
+  it('ator removido (actorName: null) em canal não registrado: "por usuário removido"', () => {
+    const text = resolveFieldAuthorshipText({ actorName: null, channel: null }, translate)
+    expect(text).toBe('por usuário removido')
+  })
+
+  it('a frase de "pelo sistema" não existe (ADR-0068): nenhum canal produz esse texto', () => {
+    for (const channel of ['office', 'driver_app', 'whatsapp', 'backoffice', null] as const) {
+      const text = resolveFieldAuthorshipText({ actorName: 'Marina Alves', channel }, translate)
+      expect(text).not.toContain('sistema')
+    }
+  })
+
   it('as chaves de autoria existem nos dois idiomas', () => {
-    const keys = ['office', 'officeWithoutActor', 'driverApp', 'driverAppWithoutActor', 'whatsapp']
+    const keys = [
+      'office',
+      'officeWithoutActor',
+      'driverApp',
+      'driverAppWithoutActor',
+      'whatsapp',
+      'whatsappWithActor',
+      'backoffice',
+      'notRegistered',
+      'removedActor',
+      'unknownDriver',
+    ]
     for (const key of keys) {
-      expect(
-        trip.occurrence.authorship[key as keyof typeof trip.occurrence.authorship],
-      ).toBeTruthy()
-      expect(
-        tripEn.occurrence.authorship[key as keyof typeof tripEn.occurrence.authorship],
-      ).toBeTruthy()
+      expect(trip.authorship[key as keyof typeof trip.authorship]).toBeTruthy()
+      expect(tripEn.authorship[key as keyof typeof tripEn.authorship]).toBeTruthy()
     }
   })
 })

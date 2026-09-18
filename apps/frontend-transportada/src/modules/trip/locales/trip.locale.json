@@ -18,6 +18,18 @@
     "fieldOccurrence": "Ocorrência",
     "fieldDelivery": "Dar baixa"
   },
+  "authorship": {
+    "backoffice": "por {{actor}}",
+    "driverApp": "pelo motorista {{actor}} (aplicativo)",
+    "driverAppWithoutActor": "pelo motorista (aplicativo)",
+    "notRegistered": "por {{actor}}",
+    "office": "registrado por {{actor}} (escritório) pelo motorista {{driver}}",
+    "officeWithoutActor": "registrado pelo escritório pelo motorista {{driver}}",
+    "removedActor": "usuário removido",
+    "unknownDriver": "não identificado",
+    "whatsapp": "(WhatsApp)",
+    "whatsappWithActor": "por {{actor}} pelo WhatsApp"
+  },
   "assemblyDraft": {
     "automaticPending": "Há um roteiro automático em montagem guardado nesta aba.",
     "automaticUnreachable": "Não foi possível reler agora as notas do roteiro automático em montagem. O rascunho continua guardado nesta aba.",
@@ -512,7 +524,8 @@
     "documentAlreadySettled": "Esta nota já estava entregue ou devolvida.",
     "deliveredAtInFuture": "\"Entregue em\" não pode ser no futuro.",
     "deliveredAtBeforeDispatch": "\"Entregue em\" não pode ser antes do despacho da viagem.",
-    "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar."
+    "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar.",
+    "timelineCursorInvalid": "O cursor da linha do tempo é inválido."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -592,15 +605,7 @@
     "submit": "Registrar",
     "title": "Ocorrências",
     "wholeDocument": "A nota inteira",
-    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
-    "authorship": {
-      "driverApp": "pelo motorista {{actor}} (aplicativo)",
-      "driverAppWithoutActor": "pelo motorista (aplicativo)",
-      "office": "registrado por {{actor}} (escritório) pelo motorista {{driver}}",
-      "officeWithoutActor": "registrado pelo escritório pelo motorista {{driver}}",
-      "unknownDriver": "não identificado",
-      "whatsapp": "(WhatsApp)"
-    }
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
   },
   "occurrenceFeed": {
     "columns": {

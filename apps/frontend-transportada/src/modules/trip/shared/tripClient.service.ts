@@ -76,6 +76,7 @@ import type {
   TripPage,
   TripCargoPreview,
   TripCargoLayoutPoll,
+  TripTimelinePage,
 } from './trip.types'
 import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
 import type { DeliveryProof } from './deliveryProof.service'
@@ -194,6 +195,10 @@ export type TripClient = Readonly<{
     }>,
   ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  /** Spec 158 D4: `GET /trips/:id/timeline`, paginada por cursor `(occurredAt, id)`. */
+  readTripTimeline: (
+    input: Readonly<{ cursor: null | string; limit: number; tripId: string }>,
+  ) => Promise<TripTimelinePage>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
   readDeliveryProofSettings: () => Promise<DeliveryProofFieldSettings>
   /** Spec 156 T13: o assistente de baixa do escritório lê só o interruptor da leitura do canhoto. */
@@ -750,6 +755,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/occurrences`,
       })
       return adapters.occurrencesFromApi(readEnvelopeData(response))
+    },
+    async readTripTimeline(input) {
+      const search = buildSearch({ cursor: input.cursor, limit: input.limit }, {})
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${encodeURIComponent(input.tripId)}/timeline?${search}`,
+      })
+      return adapters.tripTimelineFromApi(readEnvelopeData(response))
     },
     async registerTripOccurrence(input) {
       const response = await authorizedRequest({

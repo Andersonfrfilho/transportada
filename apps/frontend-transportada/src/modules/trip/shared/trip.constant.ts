@@ -86,6 +86,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
+  /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
+  TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */
@@ -281,6 +283,29 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
 export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
 
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
+
+/** Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta). */
+export const TRIP_TIMELINE_ITEM_KEYS = [
+  'actorName',
+  'channel',
+  'document',
+  'fromStatus',
+  'id',
+  'kind',
+  'occurrence',
+  'occurredAt',
+  'onBehalfOfDriverName',
+  'recordedAt',
+  'returnReason',
+  'stop',
+  'toStatus',
+] as const
+
+export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
+export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
+export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
+
+export const TRIP_TIMELINE_DEFAULT_LIMIT = 100
 
 export const TRIP_DOCUMENT_PRODUCT_KEYS = [
   'code',

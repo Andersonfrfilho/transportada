@@ -38,7 +38,7 @@ describe('leitura da ocorrência com autoria (spec 156 T9)', () => {
     expect(items[0]?.onBehalfOfDriverName).toBe('João Pereira')
   })
 
-  it('recusa canal fora do vocabulário (driver_app | office | whatsapp)', () => {
+  it('recusa canal fora do vocabulário (driver_app | office | whatsapp | backoffice, spec 158 D2)', () => {
     expect(() =>
       adapters.occurrencesFromApi([{ ...BASE_OCCURRENCE, channel: 'invented' }]),
     ).toThrow()

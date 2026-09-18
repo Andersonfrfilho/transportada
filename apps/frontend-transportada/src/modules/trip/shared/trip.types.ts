@@ -122,8 +122,12 @@ export type TripDocument = Readonly<{
   updatedAt: string
 }>
 
-/** ⚠️ Cópia por valor de `TRIP_FIELD_CHANNELS` da API (ADR-0067 §2) — o bundle não carrega código de lá. */
-export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp'] as const
+/**
+ * ⚠️ Cópia por valor de `TRIP_FIELD_CHANNELS` da API (ADR-0067 §2, ADR-0068 §3) — o bundle não
+ * carrega código de lá. `backoffice` (spec 158 D2): ação da tela do escritório que **não** é em
+ * nome do motorista — não exige `onBehalfOfDriverName`.
+ */
+export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp', 'backoffice'] as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
 
 /** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
@@ -154,6 +158,60 @@ export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
  */
 export type RegisteredOccurrence = TripOccurrence &
   Readonly<{ email: null | Readonly<{ body: string; subject: string }> }>
+
+/**
+ * Spec 158 D5: ⚠️ Cópia por valor de `TRIP_TIMELINE_KINDS` da API
+ * (`trip-timeline.types.ts`) — o bundle não carrega código de lá. `TRIP_STOP_EVENT_KINDS.occurrence`
+ * nunca aparece aqui — não é escrito hoje.
+ */
+export const TRIP_TIMELINE_KINDS = [
+  'trip.dispatched',
+  'trip.status_changed',
+  'stop.arrived',
+  'document.delivered',
+  'document.returned',
+  'stop.occurrence',
+  'document.occurrence',
+  'document.status_changed',
+] as const
+export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
+
+export type TripTimelineStopReference = Readonly<{ id: string; sequence: number }>
+
+/** `number`/`series` anuláveis, no molde de `TripOccurrenceFeedItem.invoiceNumber/invoiceSeries`. */
+export type TripTimelineDocumentReference = Readonly<{
+  id: string
+  number: null | string
+  series: null | string
+}>
+
+export type TripTimelineOccurrenceReference = Readonly<{ note: string; typeName: string }>
+
+/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
+export type TripTimelineItem = Readonly<{
+  actorName: null | string
+  /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
+  channel: null | TripFieldChannel
+  document: null | TripTimelineDocumentReference
+  /** Só em `*.status_changed`. */
+  fromStatus: null | string
+  id: string
+  kind: TripTimelineKind
+  occurrence: null | TripTimelineOccurrenceReference
+  occurredAt: string
+  onBehalfOfDriverName: null | string
+  /** D6: só quando `channel = 'office'` e a diferença para `occurredAt` passa de 60 s. */
+  recordedAt: null | string
+  /** Só em `document.returned`. */
+  returnReason: null | string
+  stop: null | TripTimelineStopReference
+  toStatus: null | string
+}>
+
+export type TripTimelinePage = Readonly<{
+  items: readonly TripTimelineItem[]
+  nextCursor: null | string
+}>
 
 /** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */
 export type TripDocumentProduct = Readonly<{

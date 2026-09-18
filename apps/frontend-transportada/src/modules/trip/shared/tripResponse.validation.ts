@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
-import { TRIP_FIELD_CHANNELS } from './trip.types'
+import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
@@ -14,6 +14,11 @@ import type {
   TripCargoWeight,
   TripOccupancy,
   TripPendingMeasurement,
+  TripTimelineDocumentReference,
+  TripTimelineItem,
+  TripTimelineOccurrenceReference,
+  TripTimelinePage,
+  TripTimelineStopReference,
   TripWeightConcentration,
 } from './trip.types'
 import {
@@ -66,6 +71,10 @@ import {
   TRIP_OCCURRENCE_OPTIONAL_KEYS,
   FIELD_OCCURRENCE_TYPE_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
+  TRIP_TIMELINE_ITEM_KEYS,
+  TRIP_TIMELINE_STOP_REFERENCE_KEYS,
+  TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
+  TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -814,6 +823,18 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
     },
+    /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
+    tripTimelineFromApi(input: unknown): TripTimelinePage {
+      if (
+        !isRecord(input) ||
+        !Array.isArray(input.items) ||
+        !input.items.every(isTimelineItem) ||
+        !isNullableString(input.nextCursor)
+      ) {
+        throw invalid()
+      }
+      return { items: input.items, nextCursor: input.nextCursor }
+    },
     /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
     fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isFieldOccurrenceType)) throw invalid()
@@ -1053,6 +1074,55 @@ function isOccurrence(value: unknown): value is TripOccurrence {
 function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
   return (
     hasExactKeys(value, FIELD_OCCURRENCE_TYPE_KEYS) && isString(value.id) && isString(value.name)
+  )
+}
+
+function isTimelineStopReference(value: unknown): value is TripTimelineStopReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_STOP_REFERENCE_KEYS) &&
+    isString(value.id) &&
+    isUnsignedInteger(value.sequence)
+  )
+}
+
+function isTimelineDocumentReference(value: unknown): value is TripTimelineDocumentReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS) &&
+    isString(value.id) &&
+    isNullableString(value.number) &&
+    isNullableString(value.series)
+  )
+}
+
+function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOccurrenceReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS) &&
+    isString(value.note) &&
+    isString(value.typeName)
+  )
+}
+
+/**
+ * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
+ * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`, `longitude`, `objectKey`
+ * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
+ */
+function isTimelineItem(value: unknown): value is TripTimelineItem {
+  if (!hasExactKeys(value, TRIP_TIMELINE_ITEM_KEYS)) return false
+  return (
+    isNullableString(value.actorName) &&
+    (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
+    (value.document === null || isTimelineDocumentReference(value.document)) &&
+    isNullableString(value.fromStatus) &&
+    isString(value.id) &&
+    isOneOf(value.kind, TRIP_TIMELINE_KINDS) &&
+    (value.occurrence === null || isTimelineOccurrenceReference(value.occurrence)) &&
+    isString(value.occurredAt) &&
+    isNullableString(value.onBehalfOfDriverName) &&
+    isNullableString(value.recordedAt) &&
+    isNullableString(value.returnReason) &&
+    (value.stop === null || isTimelineStopReference(value.stop)) &&
+    isNullableString(value.toStatus)
   )
 }
 

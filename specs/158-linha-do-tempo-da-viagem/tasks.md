@@ -67,7 +67,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T7 — Tipos, validador, cliente e frase de autoria** (D7, aceite 8). `tripTimelineFromApi`,
+- [x] **T7 — Tipos, validador, cliente e frase de autoria** (D7, aceite 8). `tripTimelineFromApi`,
       `readTripTimeline`, `useTripTimeline` (cursor), `fieldAuthorship.service.ts` com `backoffice`,
       "canal não registrado", "por <nome> pelo WhatsApp" e "usuário removido"; `TripOccurrences` migrado para a
       função única.
