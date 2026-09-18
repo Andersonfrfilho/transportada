@@ -10,10 +10,13 @@
  * desempate do `order by`. Um `union all` em SQL pouparia a fusão, mas obrigaria as duas metades a
  * caberem na mesma projeção — e elas não cabem: uma tem tipo cadastrado, a outra tem anexo.
  */
+import { alias } from 'drizzle-orm/pg-core'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { SQL, SQLWrapper } from 'drizzle-orm'
 
-import { fleetVehicles } from '../../database/fleet.schema.js'
+import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -27,6 +30,7 @@ import {
   trips,
 } from '../../database/trip.schema.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
@@ -40,6 +44,11 @@ import type {
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
+
+/** Spec 156 T9 (D3): quem gravou, resolvido pela mesma janela do padrão de nfe-documents (D16, H13). */
+const feedActorMembership = alias(userCompanyMemberships, 'trip_occurrence_feed_actor_membership')
+const feedActorProfile = alias(identityUserProfiles, 'trip_occurrence_feed_actor_profile')
+const feedOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_feed_on_behalf_driver')
 
 function keysetCondition(
   createdAtColumn: SQLWrapper,
@@ -127,6 +136,8 @@ async function listDocumentOccurrenceRows(
 
   const rows = await queryable
     .select({
+      actorName: feedActorProfile.name,
+      channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
       driverName: tripDrivers.driverName,
@@ -134,6 +145,7 @@ async function listDocumentOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
+      onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
       stopLabel: tripStops.label,
       tripId: tripDocuments.tripId,
@@ -182,6 +194,22 @@ async function listDocumentOccurrenceRows(
         eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
       ),
     )
+    .leftJoin(
+      feedActorMembership,
+      and(
+        eq(feedActorMembership.companyId, tripDocumentOccurrences.companyId),
+        eq(feedActorMembership.userId, tripDocumentOccurrences.actorUserId),
+        eq(feedActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(feedActorProfile, eq(feedActorProfile.userId, feedActorMembership.userId))
+    .leftJoin(
+      feedOnBehalfDriver,
+      and(
+        eq(feedOnBehalfDriver.companyId, tripDocumentOccurrences.companyId),
+        eq(feedOnBehalfDriver.id, tripDocumentOccurrences.onBehalfOfDriverId),
+      ),
+    )
     .where(and(...conditions))
     .orderBy(
       ...orderExpression(
@@ -193,6 +221,8 @@ async function listDocumentOccurrenceRows(
     .limit(query.limit + 1)
 
   return rows.map((row) => ({
+    actorName: row.actorName ?? null,
+    channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
     driverName: row.driverName ?? '',
@@ -201,6 +231,7 @@ async function listDocumentOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
+    onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
     stage: row.stage,
     stopLabel: row.stopLabel,
@@ -238,7 +269,9 @@ async function listStopOccurrenceRows(
 
   const rows = await queryable
     .select({
+      actorName: feedActorProfile.name,
       attachmentObjectId: tripStopOccurrences.attachmentObjectId,
+      channel: tripStopOccurrences.channel,
       createdAt: tripStopOccurrences.createdAt,
       description: tripStopOccurrences.description,
       driverName: tripDrivers.driverName,
@@ -246,6 +279,7 @@ async function listStopOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       kind: tripStopOccurrences.kind,
+      onBehalfOfDriverName: feedOnBehalfDriver.name,
       stopLabel: tripStops.label,
       tripId: tripStops.tripId,
       vehiclePlate: fleetVehicles.plate,
@@ -285,11 +319,29 @@ async function listStopOccurrenceRows(
         eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
       ),
     )
+    .leftJoin(
+      feedActorMembership,
+      and(
+        eq(feedActorMembership.companyId, tripStopOccurrences.companyId),
+        eq(feedActorMembership.userId, tripStopOccurrences.actorUserId),
+        eq(feedActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(feedActorProfile, eq(feedActorProfile.userId, feedActorMembership.userId))
+    .leftJoin(
+      feedOnBehalfDriver,
+      and(
+        eq(feedOnBehalfDriver.companyId, tripStopOccurrences.companyId),
+        eq(feedOnBehalfDriver.id, tripStopOccurrences.onBehalfOfDriverId),
+      ),
+    )
     .where(and(...conditions))
     .orderBy(...orderExpression(tripStopOccurrences.createdAt, tripStopOccurrences.id, query.order))
     .limit(query.limit + 1)
 
   return rows.map((row) => ({
+    actorName: row.actorName ?? null,
+    channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
     driverName: row.driverName ?? '',
@@ -298,6 +350,7 @@ async function listStopOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: false,
+    onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
     stage: null,
     stopLabel: row.stopLabel,

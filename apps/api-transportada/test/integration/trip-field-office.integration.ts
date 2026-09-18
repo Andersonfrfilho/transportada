@@ -56,7 +56,10 @@ import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructur
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
 import { resolveTripHasRoute } from '../../src/trips/domain/trip-allowed-actions.policy.js'
 import { registerOfficeDocumentOccurrences } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
-import { readOccurrenceLabels } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import {
+  listTripOccurrences,
+  readOccurrenceLabels,
+} from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from '../../src/trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { createOccurrenceNotifier } from '../../src/trips/infrastructure/occurrence-notifier.gateway.js'
 import { listTripOccurrenceFeed } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
@@ -639,6 +642,22 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
         expect(feed.items.map((item) => item.id).toSorted()).toEqual(
           firstBody.data.items.map((item) => item.id).toSorted(),
         )
+
+        // Spec 156 T9 (D3): a leitura do feed publica quem registrou e em nome de quem.
+        expect(feed.items.every((item) => item.channel === 'office')).toBe(true)
+        expect(feed.items.every((item) => item.onBehalfOfDriverName === 'Motorista Um')).toBe(true)
+        // Nenhum perfil (`identity_user_profiles`) foi semeado para o ator nesta fixture: sem
+        // vínculo com nome resolvido, a leitura publica `null`, nunca o id cru.
+        expect(feed.items.every((item) => item.actorName === null)).toBe(true)
+
+        const [occurrenceRead] = await listTripOccurrences(database.db, {
+          companyId: company.companyId,
+          documentId: documentIds[0]!,
+          tripId: trip.tripId,
+        })
+        expect(occurrenceRead?.channel).toBe('office')
+        expect(occurrenceRead?.onBehalfOfDriverName).toBe('Motorista Um')
+        expect(occurrenceRead?.actorName).toBeNull()
 
         expect(sent).toHaveLength(3)
         expect(new Set(sent.map((notice) => notice.dedupeKey)).size).toBe(3)

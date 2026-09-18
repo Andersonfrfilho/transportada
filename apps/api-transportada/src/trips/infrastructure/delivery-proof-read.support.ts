@@ -6,8 +6,12 @@
  * uma junção sem `company_id` em qualquer degrau é o caminho pelo qual o canhoto de uma empresa
  * aparece na tela de outra.
  */
+import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
+import { fleetDrivers } from '../../database/fleet.schema.js'
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import {
   nfeAddresses,
   nfeDocuments,
@@ -25,11 +29,13 @@ import {
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
   TripOccurrence,
+  TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -41,6 +47,16 @@ import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+
+/**
+ * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
+ * (nfe-documents/D16, H13) — `null` só quando ninguém foi gravado; `{ removed: true }` não se
+ * aplica aqui porque a leitura publica direto `string | null`, sem marcar remoção (não há tela que
+ * distinga "sem ator" de "ator sem vínculo ativo" nesta rota).
+ */
+const occurrenceActorMembership = alias(userCompanyMemberships, 'trip_occurrence_actor_membership')
+const occurrenceActorProfile = alias(identityUserProfiles, 'trip_occurrence_actor_profile')
+const occurrenceOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_on_behalf_driver')
 
 export async function listDeliveryProofs(
   queryable: TripQueryable,
@@ -164,16 +180,20 @@ export async function listTripOccurrences(
     readonly tripId: string
   },
 ): Promise<
-  readonly (TripOccurrence & { readonly attachment: TripOccurrenceAttachmentLocation | null })[]
+  readonly (TripOccurrence &
+    TripOccurrenceAuthorship & { readonly attachment: TripOccurrenceAttachmentLocation | null })[]
 > {
   const rows = await queryable
     .select({
+      actorName: occurrenceActorProfile.name,
       attachmentBucket: storedObjects.bucket,
       attachmentMimeType: storedObjects.mimeType,
       attachmentObjectKey: storedObjects.objectKey,
+      channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       id: tripDocumentOccurrences.id,
       note: tripDocumentOccurrences.note,
+      onBehalfOfDriverName: occurrenceOnBehalfDriver.name,
       productCode: tripDocumentOccurrences.productCode,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       stage: tripDocumentOccurrences.stage,
@@ -202,6 +222,25 @@ export async function listTripOccurrences(
         eq(storedObjects.id, tripDocumentOccurrences.attachmentObjectId),
       ),
     )
+    .leftJoin(
+      occurrenceActorMembership,
+      and(
+        eq(occurrenceActorMembership.companyId, tripDocumentOccurrences.companyId),
+        eq(occurrenceActorMembership.userId, tripDocumentOccurrences.actorUserId),
+        eq(occurrenceActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(
+      occurrenceActorProfile,
+      eq(occurrenceActorProfile.userId, occurrenceActorMembership.userId),
+    )
+    .leftJoin(
+      occurrenceOnBehalfDriver,
+      and(
+        eq(occurrenceOnBehalfDriver.companyId, tripDocumentOccurrences.companyId),
+        eq(occurrenceOnBehalfDriver.id, tripDocumentOccurrences.onBehalfOfDriverId),
+      ),
+    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -212,6 +251,7 @@ export async function listTripOccurrences(
     .orderBy(asc(tripDocumentOccurrences.createdAt))
 
   return rows.map((row) => ({
+    actorName: row.actorName ?? null,
     attachment:
       row.attachmentBucket === null || row.attachmentObjectKey === null
         ? null
@@ -220,9 +260,11 @@ export async function listTripOccurrences(
             mimeType: row.attachmentMimeType ?? '',
             objectKey: row.attachmentObjectKey,
           },
+    channel: row.channel,
     createdAt: row.createdAt.toISOString(),
     id: row.id,
     note: row.note,
+    onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     occurrenceTypeId: row.occurrenceTypeId,
     productCode: row.productCode,
     stage: row.stage,

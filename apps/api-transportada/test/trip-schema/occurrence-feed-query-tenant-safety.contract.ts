@@ -25,8 +25,12 @@ describe('tenant safety da listagem de ocorrências', () => {
     const joins = QUERY_SOURCE.match(/\.(?:inner|left)Join\(/gu) ?? []
     const scopedJoins =
       QUERY_SOURCE.match(/\.(?:inner|left)Join\(\s*\w+,\s*and\(\s*eq\(\w+\.companyId,/gu) ?? []
+    // Spec 156 T9 (D3): `identity_user_profiles` não tem `company_id` — é global, por `user_id` — e
+    // só entra depois de uma junção com `userCompanyMemberships` já escopada pela empresa (mesmo
+    // padrão de nfe-documents, D16/H13). É a única junção legitimamente sem `and(eq(…companyId`.
+    const actorProfileJoins = QUERY_SOURCE.match(/\.leftJoin\(feedActorProfile, eq\(/gu) ?? []
     expect(joins.length).toBeGreaterThan(0)
-    expect(scopedJoins.length).toBe(joins.length)
+    expect(scopedJoins.length + actorProfileJoins.length).toBe(joins.length)
   })
 
   test('a leitura de anexo exige empresa e ocorrência juntas', () => {

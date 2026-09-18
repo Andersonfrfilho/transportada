@@ -5,6 +5,7 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -40,9 +41,21 @@ export type TripOccurrenceAttachmentSummary = {
   readonly mimeType: string
 }
 
-export type TripOccurrenceWithAttachment = TripOccurrence & {
-  readonly attachment: TripOccurrenceAttachmentSummary | null
+/**
+ * Spec 156 T9 (D3): quem registrou e em nome de quem — só nomes, nunca CPF/e-mail/telefone
+ * (D11). `actorName`/`onBehalfOfDriverName` são `null` quando o usuário ou o motorista não têm
+ * mais vínculo ativo na empresa (nome não resolvido, id nunca vaza).
+ */
+export type TripOccurrenceAuthorship = {
+  readonly channel: TripFieldChannel
+  readonly actorName: string | null
+  readonly onBehalfOfDriverName: string | null
 }
+
+export type TripOccurrenceWithAttachment = TripOccurrence &
+  TripOccurrenceAuthorship & {
+    readonly attachment: TripOccurrenceAttachmentSummary | null
+  }
 
 /**
  * O que o **registro** devolve: a ocorrência mais o e-mail pronto.
