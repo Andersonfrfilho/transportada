@@ -23,6 +23,7 @@ import {
   DELIVERY_PROOF_PUNCTUALITY_RANGES,
   isDeliveryProofPunctualityValue,
   mergeDeliveryProofSettings,
+  resolvePunctualityFieldValue,
   type CompanyDeliveryProofSettings,
   type DeliveryProofField,
   type DeliveryProofFieldMode,
@@ -82,10 +83,10 @@ export function TripDeliveryProofSettingsPanel({
   const isOverrideDuplicated = overrides.some((override) => override.taxId === overrideTaxId)
 
   function punctualityFieldValue(field: DeliveryProofPunctualityField): number {
-    const draftValue = punctualityDraft[field]
-    if (draftValue === undefined) return punctualityGeneral[field]
-    const parsed = Number(draftValue)
-    return Number.isFinite(parsed) ? parsed : punctualityGeneral[field]
+    return resolvePunctualityFieldValue({
+      draftValue: punctualityDraft[field],
+      fallback: punctualityGeneral[field],
+    })
   }
 
   const isPunctualityValid = DELIVERY_PROOF_PUNCTUALITY_FIELDS.every((field) =>

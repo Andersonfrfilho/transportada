@@ -118,6 +118,22 @@ export function isDeliveryProofPunctualityValue(
   return Number.isInteger(value) && value >= range.min && value <= range.max
 }
 
+/**
+ * Spec 157 (T11, item 7): o campo em branco **nunca** vira `0` silencioso — `Number('')` é `0`, e
+ * `latePenaltyPoints`/`missingPenaltyPoints` aceitam `0` como valor válido, então o campo vazio
+ * passaria como "zero pontos" sem o motorista ter digitado nada. Vazio vira `NaN`: reprova
+ * `Number.isInteger` em `isDeliveryProofPunctualityValue` e aparece com a mensagem de erro do campo.
+ */
+export function resolvePunctualityFieldValue(input: {
+  readonly draftValue: string | undefined
+  readonly fallback: number
+}): number {
+  if (input.draftValue === undefined) return input.fallback
+  if (input.draftValue.trim() === '') return Number.NaN
+  const parsed = Number(input.draftValue)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
 export function isDeliveryProofPunctualitySettings(
   value: unknown,
 ): value is DeliveryProofPunctualitySettings {

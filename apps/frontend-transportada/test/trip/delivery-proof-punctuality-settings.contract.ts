@@ -12,6 +12,7 @@ import {
   DELIVERY_PROOF_PUNCTUALITY_RANGES,
   isCompanyDeliveryProofSettings,
   isDeliveryProofPunctualityValue,
+  resolvePunctualityFieldValue,
 } from '../../src/modules/trip/shared/deliveryProofSettings.service'
 
 const PANEL = new URL(
@@ -73,8 +74,31 @@ describe('os cinco parâmetros da nota do motorista no painel de comprovante (RF
     expect(isCompanyDeliveryProofSettings(validSettings({ proofWindowMinutes: 4 }))).toBe(false)
   })
 
+  /**
+   * Spec 157 (T11, item 7): `Number('')` é `0`, e `latePenaltyPoints`/`missingPenaltyPoints`
+   * aceitam `0` como valor válido — o campo vazio não pode virar "zero pontos" silenciosamente.
+   */
+  it('campo vazio nunca vira 0 silencioso — fica inválido até alguém digitar', () => {
+    expect(Number.isNaN(resolvePunctualityFieldValue({ draftValue: '', fallback: 5 }))).toBe(true)
+    expect(
+      isDeliveryProofPunctualityValue(
+        'latePenaltyPoints',
+        resolvePunctualityFieldValue({ draftValue: '', fallback: 5 }),
+      ),
+    ).toBe(false)
+  })
+
+  it('campo não tocado usa o valor gravado; texto não numérico também fica inválido', () => {
+    expect(resolvePunctualityFieldValue({ draftValue: undefined, fallback: 5 })).toBe(5)
+    expect(Number.isNaN(resolvePunctualityFieldValue({ draftValue: 'abc', fallback: 5 }))).toBe(
+      true,
+    )
+    expect(resolvePunctualityFieldValue({ draftValue: '7', fallback: 5 })).toBe(7)
+  })
+
   it('o painel tem um campo por parâmetro, com rótulo no locale', () => {
     const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toInclude('resolvePunctualityFieldValue')
     expect(panel).toInclude('DELIVERY_PROOF_PUNCTUALITY_FIELDS')
     for (const field of DELIVERY_PROOF_PUNCTUALITY_FIELDS) {
       expect(trip.deliveryProofSettings.punctuality[field]).toBeString()
