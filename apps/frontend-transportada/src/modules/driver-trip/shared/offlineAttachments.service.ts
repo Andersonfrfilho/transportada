@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ProofPunctuality } from './driverTrip.types'
+import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
 /**
@@ -100,6 +100,71 @@ export async function enqueueAttachment(input: {
   })
 
   return { accepted: true, eventKey }
+}
+
+/**
+ * Spec 157 (T11, item 6): a foto entra no IndexedDB **antes** de esperar o GPS — só assim ela
+ * nunca se perde se o motorista fechar o app durante a leitura de posição (até 8 s). A posição
+ * chega depois, por esta função, atualizando o mesmo item pela `attachmentKey`.
+ */
+export function applyAttachmentLocation(input: {
+  readonly attachmentKey: string
+  readonly items: readonly QueuedAttachment[]
+  readonly location: DriverReportedLocation
+}): readonly QueuedAttachment[] {
+  return input.items.map((item) =>
+    item.attachmentKey === input.attachmentKey
+      ? {
+          ...item,
+          latitude: input.location.latitude,
+          longitude: input.location.longitude,
+          ...(input.location.accuracyMeters === undefined
+            ? {}
+            : { accuracyMeters: input.location.accuracyMeters }),
+        }
+      : item,
+  )
+}
+
+/**
+ * Spec 157 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
+ * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
+ * pode ficar indefinidamente no aparelho.
+ */
+export const ATTACHMENT_DISCARD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
+
+export function isAttachmentDiscardable(input: {
+  readonly attachment: QueuedAttachment
+  readonly now: Date
+}): boolean {
+  const capturedAt = new Date(input.attachment.capturedAt).getTime()
+  if (!Number.isFinite(capturedAt)) return false
+  return input.now.getTime() - capturedAt > ATTACHMENT_DISCARD_AFTER_MS
+}
+
+/** Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista. */
+export async function discardStaleAttachments(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly now: Date
+}): Promise<number> {
+  const groups = await input.attachmentStore.readAll()
+  let discardedCount = 0
+
+  for (const [eventKey, attachments] of groups) {
+    const hasStale = attachments.some((attachment) =>
+      isAttachmentDiscardable({ attachment, now: input.now }),
+    )
+    if (!hasStale) continue
+
+    const remaining = await input.attachmentStore.update({
+      eventKey,
+      mutate: (current) =>
+        current.filter((attachment) => !isAttachmentDiscardable({ attachment, now: input.now })),
+    })
+    discardedCount += attachments.length - remaining.length
+  }
+
+  return discardedCount
 }
 
 export type AttachmentSendOutcome =

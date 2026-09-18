@@ -3,8 +3,12 @@ import { describe, expect, it } from 'bun:test'
 
 import type { DriverFieldReport } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
+  applyAttachmentLocation,
+  ATTACHMENT_DISCARD_AFTER_MS,
+  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  isAttachmentDiscardable,
   type AttachmentStore,
   type QueuedAttachment,
 } from '@/modules/driver-trip/shared/offlineAttachments.service'
@@ -444,5 +448,86 @@ describe('a fila offline com anexos (D6)', () => {
 
     expect(sentAttachments).toEqual([])
     expect(attachmentStore.entries().get('chave-1')).toHaveLength(1)
+  })
+})
+
+/**
+ * Spec 157 (T11, item 6): a foto grava no IndexedDB antes de esperar o GPS — a posição chega depois
+ * e atualiza o mesmo item pela `attachmentKey`, sem tocar nos outros anexos do grupo.
+ */
+describe('a posição chega depois do anexo (T11, item 6)', () => {
+  it('atualiza só o anexo da chave informada, preservando os demais', () => {
+    const first = photo('document-1', 10, 'anexo-1')
+    const second = photo('document-1', 10, 'anexo-2')
+
+    const next = applyAttachmentLocation({
+      attachmentKey: 'anexo-1',
+      items: [first, second],
+      location: { accuracyMeters: 12, capturedAt: NOW, latitude: -23.5, longitude: -46.6 },
+    })
+
+    expect(next[0]).toEqual({ ...first, accuracyMeters: 12, latitude: -23.5, longitude: -46.6 })
+    expect(next[1]).toEqual(second)
+  })
+
+  it('sem `accuracyMeters` na posição, o campo não entra no anexo', () => {
+    const next = applyAttachmentLocation({
+      attachmentKey: 'anexo-1',
+      items: [photo()],
+      location: { capturedAt: NOW, latitude: -23.5, longitude: -46.6 },
+    })
+
+    expect(next[0]?.accuracyMeters).toBeUndefined()
+    expect(next[0]?.latitude).toBe(-23.5)
+  })
+})
+
+/**
+ * Spec 157 (T11, item 4): anexo recusado ou parado expira aos 7 dias — o descarte apaga o dado
+ * (blob, posição), não só a entrada da fila. Risco aceito em `docs/SECURITY.md`.
+ */
+describe('descarte do anexo parado (T11, item 4)', () => {
+  const now = new Date('2026-09-18T00:00:00.000Z')
+
+  it('7 dias e um instante depois da captura é descartável; no limite, não é', () => {
+    const stale = photo('document-1', 10, 'velho')
+    const capturedAtStale = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS - 1).toISOString()
+    const capturedAtFresh = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS + 1).toISOString()
+
+    expect(
+      isAttachmentDiscardable({ attachment: { ...stale, capturedAt: capturedAtStale }, now }),
+    ).toBe(true)
+    expect(
+      isAttachmentDiscardable({ attachment: { ...stale, capturedAt: capturedAtFresh }, now }),
+    ).toBe(false)
+  })
+
+  it('descarta o anexo velho e apaga o dado — o recente permanece na mesma chave', async () => {
+    const attachmentStore = createMemoryAttachments()
+    const oldCapturedAt = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS - 1).toISOString()
+    await attachmentStore.update({
+      eventKey: 'chave-1',
+      mutate: () => [
+        { ...photo('document-1', 10, 'velho'), capturedAt: oldCapturedAt, rejectionCause: '409' },
+        { ...photo('document-1', 10, 'recente'), capturedAt: now.toISOString() },
+      ],
+    })
+
+    const discarded = await discardStaleAttachments({ attachmentStore, now })
+
+    expect(discarded).toBe(1)
+    const remaining = attachmentStore.entries().get('chave-1') ?? []
+    expect(remaining.map((item) => item.attachmentKey)).toEqual(['recente'])
+  })
+
+  it('sem anexo velho nenhum, nada é descartado', async () => {
+    const attachmentStore = createMemoryAttachments()
+    await enqueueAttachment({
+      attachment: { ...photo(), capturedAt: now.toISOString() },
+      attachmentStore,
+      store: createMemoryQueue(),
+    })
+
+    expect(await discardStaleAttachments({ attachmentStore, now })).toBe(0)
   })
 })

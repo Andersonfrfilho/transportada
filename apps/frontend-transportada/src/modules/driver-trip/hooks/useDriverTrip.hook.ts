@@ -15,6 +15,8 @@ import {
   createIndexedDbQueueStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  applyAttachmentLocation,
+  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
   type AttachmentSendOutcome,
@@ -42,10 +44,9 @@ export type DriverProofInput = Readonly<{
 
 /**
  * Spec 157 (revisão D6): todo anexo aceito vira `queued` — a fila sempre recebe primeiro, mesmo
- * online, e a drenagem sobe quase na hora. `sent` fica só por compatibilidade de tipo com quem lê
- * este valor; nada mais o produz.
+ * online, e a drenagem sobe quase na hora.
  */
-export type DriverProofOutcome = 'count-limit' | 'queued' | 'sent' | 'size-limit'
+export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
 
 /** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
 export type DriverReportOutcome = 'count-limit' | 'queued'
@@ -237,11 +238,17 @@ export function useDriverTrip(
       drainRef.current(undefined)
     }
     window.addEventListener('online', handleOnline)
-    void refreshQueueView()
+    /**
+     * Spec 157 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
+     * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
+     */
+    void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
+      refreshQueueView(),
+    )
     drainRef.current(undefined)
 
     return () => window.removeEventListener('online', handleOnline)
-  }, [refreshQueueView])
+  }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
     const result = await enqueueReport({ now: new Date(), report: fieldReport, store })
@@ -256,12 +263,16 @@ export function useDriverTrip(
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
    * drenagem (que roda logo em seguida, quase instantânea quando há rede). Teto atingido volta como
-   * recusa anunciada — nada é descartado. A chave do anexo nasce **aqui, na captura**, e a posição
-   * também — é o instante da captura que a RF5/RF6 avaliam, não o do envio.
+   * recusa anunciada — nada é descartado. A chave do anexo nasce **aqui, na captura**.
+   *
+   * Spec 157 (T11, item 6): a foto grava no IndexedDB **antes** de esperar o GPS, não depois — o
+   * `getCurrentPosition` pode levar até 8 s, e a foto só em memória durante essa espera some se o
+   * motorista fechar o app no meio. A posição chega em seguida, atualizando o mesmo anexo; se a
+   * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0068
+   * §4) — nunca perdida.
    */
   async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     const attachmentKey = createIdempotencyKey()
-    const location = await readCurrentLocation()
     const result = await enqueueAttachment({
       attachment: {
         attachmentKey,
@@ -270,15 +281,6 @@ export function useDriverTrip(
         documentId: input.documentId,
         fileName: input.file.name,
         kind: input.kind,
-        ...(location === null
-          ? {}
-          : {
-              latitude: location.latitude,
-              longitude: location.longitude,
-              ...(location.accuracyMeters === undefined
-                ? {}
-                : { accuracyMeters: location.accuracyMeters }),
-            }),
         ...(input.receiverDocument === undefined
           ? {}
           : { receiverDocument: input.receiverDocument }),
@@ -287,12 +289,22 @@ export function useDriverTrip(
       attachmentStore,
       store,
     })
-    if (result.accepted) {
-      await refreshQueueView()
-      requestDrain(undefined)
-      return 'queued'
-    }
-    return result.reason
+    if (!result.accepted) return result.reason
+
+    const eventKey = result.eventKey
+    void readCurrentLocation().then((location) => {
+      if (location === null) return
+      void attachmentStore
+        .update({
+          eventKey,
+          mutate: (items) => applyAttachmentLocation({ attachmentKey, items, location }),
+        })
+        .then(() => refreshQueueView())
+    })
+
+    await refreshQueueView()
+    requestDrain(undefined)
+    return 'queued'
   }
 
   const loadedView = queueView ?? []
