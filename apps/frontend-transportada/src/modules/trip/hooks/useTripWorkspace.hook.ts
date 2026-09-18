@@ -44,12 +44,14 @@ import type {
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldOccurrenceType,
   FieldReportIdResult,
   FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
+  RegisterFieldOccurrencesInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ReportStopArrivalInput,
@@ -99,6 +101,12 @@ export type TripController = Readonly<{
   reportStopArrival: (input: ReportStopArrivalInput) => Promise<FieldReportIdResult>
   reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
+  registerFieldOccurrences: (
+    input: RegisterFieldOccurrencesInput,
+  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
@@ -187,6 +195,10 @@ export function createTripController(
     reportStopOccurrence: (body) =>
       canReportOnBehalf ? input.client.reportStopOccurrence(body) : forbidden(),
     startFieldTrip: (body) => (canReportOnBehalf ? input.client.startFieldTrip(body) : forbidden()),
+    readFieldOccurrenceTypes: () =>
+      canReportOnBehalf ? input.client.readFieldOccurrenceTypes() : forbidden(),
+    registerFieldOccurrences: (body) =>
+      canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
     readRouteGeometry: (body) =>
       canReadTripFleetDetails ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>
@@ -488,6 +500,32 @@ export function useTripWorkspace(
     },
   })
 
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  const fieldOccurrenceTypesQuery = useQuery({
+    enabled: controller.canReportOnBehalf,
+    queryFn: () => controller.readFieldOccurrenceTypes(),
+    queryKey: [TRIP_QUERY_KEY, 'field-occurrence-types'] as const,
+  })
+
+  /**
+   * Spec 156 T9: a chave por escopo é o mesmo lote (a lista de notas ordenada) — reusada enquanto o
+   * diálogo não fecha com sucesso, do jeito que `arrive`/`occurrence` já fazem por parada.
+   */
+  const registerFieldOccurrencesMutation = useMutation({
+    mutationFn: (body: Omit<RegisterFieldOccurrencesInput, 'idempotencyKey'>) =>
+      controller.registerFieldOccurrences({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(
+          `field-occurrence:${[...body.documentIds].toSorted().join(',')}`,
+        ),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`field-occurrence:${[...variables.documentIds].toSorted().join(',')}`)
+      void queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+    },
+  })
+
   const deliverDocumentMutation = useMutation({
     mutationFn: controller.deliverTripDocument,
     onSuccess: invalidate,
@@ -551,6 +589,8 @@ export function useTripWorkspace(
     deliverDocumentMutation,
     deliveryProofsQuery,
     fieldActionCapabilities,
+    fieldOccurrenceTypesQuery,
+    registerFieldOccurrencesMutation,
     reportStopArrivalMutation,
     reportStopOccurrenceMutation,
     routeGeometryQuery,

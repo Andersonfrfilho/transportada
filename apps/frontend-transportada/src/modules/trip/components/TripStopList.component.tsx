@@ -24,6 +24,11 @@ import styles from '../styles/trip.module.css'
 export type TripStopDocumentActions = Readonly<{
   /** Spec 079: entregar é o mesmo trabalho de rua que devolver, e desde 02/09 o backend o exige. */
   canDeliver: boolean
+  /**
+   * Spec 156 T9: a ocorrência de campo é por nota (`allowed-actions`, capacidade `fieldOccurrence`)
+   * — nunca um booleano só, porque a capacidade varia nota a nota dentro da mesma parada.
+   */
+  canFieldOccurrence: (documentId: string) => boolean
   canManage: boolean
   canReturn: boolean
   canSeparateOrLoad: boolean
@@ -32,6 +37,8 @@ export type TripStopDocumentActions = Readonly<{
   isReleasePending: boolean
   isTransitionPending: boolean
   onDeliver: (documentId: string) => void
+  /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
+  onOpenFieldOccurrence: (documentId: string) => void
   /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
   onToggleProof: (documentId: string) => void
   openProofDocumentId: null | string
@@ -364,6 +371,17 @@ function TripStopDocumentRow({
           >
             <Icon name="edit" />
             {t('deliveryOverride.menuAction')}
+          </Button>
+        ) : null}
+        {actions.canFieldOccurrence(document.id) ? (
+          <Button
+            onClick={() => actions.onOpenFieldOccurrence(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="alert" />
+            {t('actions.fieldOccurrence')}
           </Button>
         ) : null}
       </div>

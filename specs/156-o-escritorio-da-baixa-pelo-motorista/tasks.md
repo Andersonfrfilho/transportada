@@ -87,7 +87,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       motorista só quando a viagem tem mais de um. `canReadTrip(permissions)` substitui
       `TRIP_READ_PERMISSION` (`trip.constant.ts:15`, `useTripWorkspace.hook.ts:130`), e o detalhe
       funciona sem `useFleet` (placa pelo dado da viagem, ou omitida).
-- [ ] **T9 — Linha do tempo com autoria** ("por X (escritório) pelo motorista Y") e
+- [x] **T9 — Linha do tempo com autoria** ("por X (escritório) pelo motorista Y") e
       `FieldOccurrenceDialog` para uma nota ou para várias.
 
 ## Fase 4 — Entrega com canhoto, individual e em massa

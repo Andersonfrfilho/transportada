@@ -7,6 +7,7 @@ import {
   TRIPS_PATH,
   TRIP_CARGO_LAYOUTS_PATH,
   TRIP_DOCUMENT_REVIEWS_PATH,
+  TRIP_FIELD_OCCURRENCE_TYPES_PATH,
 } from './trip.constant'
 import { createTripReviewAdapters } from './tripReview.validation'
 import type {
@@ -37,9 +38,11 @@ import type {
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldOccurrenceType,
   FieldReportIdResult,
   FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
+  RegisterFieldOccurrencesInput,
   LinkTripDocumentInput,
   LinkTripDocumentsBatchInput,
   LinkTripDocumentsBatchResult,
@@ -242,6 +245,15 @@ export type TripClient = Readonly<{
   reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
   /** Spec 156 T5: `POST /trips/:id/start-route` — leva a viagem a `on_delivery_route`. */
   startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  /**
+   * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — ocorrência de campo para
+   * uma ou várias notas (até 50), multipart, com foto opcional para o lote inteiro.
+   */
+  registerFieldOccurrences: (
+    input: RegisterFieldOccurrencesInput,
+  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
@@ -284,6 +296,8 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
+    /** Multipart — nunca junto com `body`. O `content-type` (com a fronteira) é o próprio `fetch`. */
+    form?: FormData
     idempotencyKey?: string
     method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
@@ -296,6 +310,7 @@ async function authorizedRequest(
   if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  if (input.form !== undefined) requestInit.body = input.form
   if (input.signal !== undefined) requestInit.signal = input.signal
 
   return requestJson({
@@ -424,6 +439,31 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/stops/${input.stopId}/occurrences`,
       })
       return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
+    },
+    async readFieldOccurrenceTypes() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+      })
+      return adapters.fieldOccurrenceTypesFromApi(readEnvelopeData(response))
+    },
+    async registerFieldOccurrences(input) {
+      const form = new FormData()
+      for (const documentId of input.documentIds) form.append('documentIds', documentId)
+      form.set('occurrenceTypeId', input.occurrenceTypeId)
+      form.set('note', input.note)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+      if (input.file !== undefined) form.set('file', input.file)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/field-occurrences`,
+      })
+      return adapters.fieldOccurrenceBatchResultFromApi(readEnvelopeData(response))
     },
     async readTripAllowedActions(input) {
       const response = await authorizedRequest({

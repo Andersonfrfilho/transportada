@@ -13,7 +13,8 @@
     "separate": "Separate",
     "title": "Actions",
     "view": "View",
-    "viewTrip": "Open the trip for {{vehicle}}"
+    "viewTrip": "Open the trip for {{vehicle}}",
+    "fieldOccurrence": "Occurrence"
   },
   "assemblyDraft": {
     "automaticPending": "An automatic route is being assembled and is kept in this tab.",
@@ -379,7 +380,9 @@
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found.",
-    "withoutDriver": "This trip has no driver — assign one before reporting on their behalf."
+    "withoutDriver": "This trip has no driver — assign one before reporting on their behalf.",
+    "occurrenceTypeNotField": "This occurrence type belongs to the warehouse, not the road — pick a road type.",
+    "documentNotReachable": "Some selected document does not belong to this trip."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -420,7 +423,15 @@
     "editTemplates": "Edit email templates",
     "emailTemplate": "Email template",
     "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)"
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "authorship": {
+      "driverApp": "by driver {{actor}} (app)",
+      "driverAppWithoutActor": "by the driver (app)",
+      "office": "recorded by {{actor}} (office) on behalf of driver {{driver}}",
+      "officeWithoutActor": "recorded by the office on behalf of driver {{driver}}",
+      "unknownDriver": "unidentified",
+      "whatsapp": "(WhatsApp)"
+    }
   },
   "occurrenceFeed": {
     "columns": {
@@ -779,7 +790,8 @@
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
     "returnTitle": "Return document",
-    "title": "Trip actions"
+    "title": "Trip actions",
+    "batchFieldOccurrence": "Occurrence on {{count}} document(s)"
   },
   "status": {
     "cancelled": "Cancelled",
@@ -918,5 +930,24 @@
       "STATE_TRANSITION_NOT_ALLOWED": "The trip was already dispatched: the invoice no longer changes trucks.",
       "generic": "It could not be completed. Try again."
     }
+  },
+  "fieldOccurrence": {
+    "batchSubmit": "Register on {{count}} document(s)",
+    "batchTitle": "Occurrence on {{count}} document(s)",
+    "documentsLabel": "Selected documents",
+    "driverLabel": "On behalf of driver",
+    "empty": "No occurrence type registered for the office yet.",
+    "limitExceeded": "Select at most 50 documents per batch.",
+    "noteLabel": "Note",
+    "photoHint": "Optional — one photo covers every document in the batch.",
+    "photoLabel": "Photo (optional)",
+    "photoRemove": "Remove photo",
+    "submit": "Register occurrence",
+    "title": "Field occurrence",
+    "typeLabel": "Occurrence type",
+    "typePlaceholder": "Select the type",
+    "unreachableDocuments": "Documents outside this trip's reach: {{documents}}.",
+    "photoChoose": "Choose photo",
+    "photoEmpty": "No photo chosen"
   }
 }

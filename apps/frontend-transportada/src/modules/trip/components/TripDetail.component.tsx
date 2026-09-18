@@ -50,6 +50,8 @@ import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
+import { hasMultipleDrivers } from '../shared/tripFieldActions.service'
+import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripFieldActions } from './TripFieldActions.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
@@ -167,6 +169,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
   /**
+   * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
+   * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
+   */
+  const [fieldOccurrenceDocumentIds, setFieldOccurrenceDocumentIds] = useState<
+    readonly string[] | null
+  >(null)
+  /**
    * Antes de qualquer `return`: hook depois de saída condicional muda a contagem de hooks entre
    * renders, e o React derruba o componente inteiro — foi o que o smoke pegou. A viagem ainda pode
    * não ter carregado, e `''` é um id que nunca resolve, o que é exatamente o que se quer aqui.
@@ -227,11 +236,19 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
   const unassignedDocuments = trip.documents.filter((document) => document.stopId === null)
+  const canFieldOccurrenceBatch =
+    workspace.controller.canReportOnBehalf &&
+    [...selection.selectedIds].some((documentId) =>
+      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
+    )
   const documentActions = {
     canManage,
     canReturn,
     canSeparateOrLoad,
     canDeliver: canDeliverDocuments(trip.status),
+    canFieldOccurrence: (documentId: string) =>
+      workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
+    onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onToggleProof: (documentId: string) =>
       workspace.setOpenProofDocumentId(
         workspace.openProofDocumentId === documentId ? null : documentId,
@@ -280,6 +297,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     workspace.startFieldTripMutation.error,
     workspace.reportStopArrivalMutation.error,
     workspace.reportStopOccurrenceMutation.error,
+    workspace.registerFieldOccurrencesMutation.error,
   ])
 
   /**
@@ -491,6 +509,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        */}
       <TripStateActions
         canManage={canManage}
+        canFieldOccurrenceBatch={canFieldOccurrenceBatch}
         canReturn={canReturn}
         canSeparateOrLoad={canSeparateOrLoad}
         isBatchPending={workspace.batchStatusMutation.isPending}
@@ -500,6 +519,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onBatch={handleBatch}
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+        onOpenFieldOccurrenceBatch={() => setFieldOccurrenceDocumentIds([...selection.selectedIds])}
         onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
         pendingCteSelection={
@@ -537,6 +557,23 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           workspace.startFieldTripMutation.mutate({ ...input, tripId: trip.id })
         }
         trip={trip}
+      />
+
+      <FieldOccurrenceDialog
+        documentIds={fieldOccurrenceDocumentIds ?? []}
+        drivers={trip.drivers}
+        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
+        isOpen={fieldOccurrenceDocumentIds !== null}
+        isSubmitting={workspace.registerFieldOccurrencesMutation.isPending}
+        onClose={() => setFieldOccurrenceDocumentIds(null)}
+        onSubmit={(input) => {
+          if (fieldOccurrenceDocumentIds === null) return
+          workspace.registerFieldOccurrencesMutation.mutate(
+            { ...input, documentIds: fieldOccurrenceDocumentIds, tripId: trip.id },
+            { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
+          )
+        }}
+        types={workspace.fieldOccurrenceTypesQuery.data ?? []}
       />
 
       {canManage && isEditable ? (

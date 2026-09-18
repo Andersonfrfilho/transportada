@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
+import { TRIP_FIELD_CHANNELS } from './trip.types'
 import type {
+  FieldOccurrenceType,
   RegisteredOccurrence,
   TripDocumentProduct,
   TripOccurrence,
@@ -61,6 +63,8 @@ import {
   TRIP_STOP_OPTIONAL_KEYS,
   TRIP_CARGO_LAYOUT_STATE_KEYS,
   TRIP_CARGO_LAYOUT_POLL_KEYS,
+  TRIP_OCCURRENCE_OPTIONAL_KEYS,
+  FIELD_OCCURRENCE_TYPE_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -786,6 +790,28 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
     },
+    /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
+    fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
+      if (!Array.isArray(input) || !input.every(isFieldOccurrenceType)) throw invalid()
+      return input
+    },
+    /** Spec 156 T7.3/T9: `POST .../field-occurrences` — na ordem do pedido, nunca `null`. */
+    fieldOccurrenceBatchResultFromApi(
+      input: unknown,
+    ): readonly Readonly<{ documentId: string; id: string }>[] {
+      if (!isRecord(input) || !Array.isArray(input.items)) throw invalid()
+      if (
+        !input.items.every(
+          (item): item is Readonly<{ documentId: string; id: string }> =>
+            hasExactKeys(item, ['documentId', 'id']) &&
+            isString(item.documentId) &&
+            isString(item.id),
+        )
+      ) {
+        throw invalid()
+      }
+      return input.items
+    },
     /**
      * ⚠️ O registro devolve **mais** que a listagem: o e-mail pronto vem junto. O guard aceita a
      * chave a mais em vez de reusar `isOccurrence`, que é exato de propósito.
@@ -978,15 +1004,31 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
 }
 
 function isOccurrence(value: unknown): value is TripOccurrence {
-  if (!hasExactKeys(value, TRIP_OCCURRENCE_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_OCCURRENCE_KEYS, ...TRIP_OCCURRENCE_OPTIONAL_KEYS],
+      required: TRIP_OCCURRENCE_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
+    (value.actorName === undefined || isNullableString(value.actorName)) &&
+    (value.channel === undefined || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isString(value.createdAt) &&
     isString(value.id) &&
     isString(value.note) &&
+    (value.onBehalfOfDriverName === undefined || isNullableString(value.onBehalfOfDriverName)) &&
     isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
+  )
+}
+
+function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
+  return (
+    hasExactKeys(value, FIELD_OCCURRENCE_TYPE_KEYS) && isString(value.id) && isString(value.name)
   )
 }
 

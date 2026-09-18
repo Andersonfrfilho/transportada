@@ -15,6 +15,8 @@ const NOT_LOADED_STATUSES = new Set(['pending', 'separated'])
 
 export type TripStateActionsProps = Readonly<{
   canManage: boolean
+  /** Spec 156 T9: pelo menos uma nota da seleção tem a capacidade `fieldOccurrence`. */
+  canFieldOccurrenceBatch: boolean
   canReturn: boolean
   canSeparateOrLoad: boolean
   isBatchPending: boolean
@@ -27,6 +29,8 @@ export type TripStateActionsProps = Readonly<{
   }) => void
   onCancel: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
+  /** Spec 156 T9: abre `FieldOccurrenceDialog` com o maço da seleção. */
+  onOpenFieldOccurrenceBatch: () => void
   onPlanRoute: () => void
   selection: TripDocumentSelectionController
   /** O que da seleção ainda tem CT-e a emitir — resolvido em `cteSelection.service.ts`. */
@@ -41,6 +45,7 @@ export type TripStateActionsProps = Readonly<{
  * sobre o maço selecionado (T015). */
 export function TripStateActions({
   canManage,
+  canFieldOccurrenceBatch,
   canReturn,
   canSeparateOrLoad,
   isBatchPending,
@@ -50,6 +55,7 @@ export function TripStateActions({
   onBatch,
   onCancel,
   onDispatch,
+  onOpenFieldOccurrenceBatch,
   onPlanRoute,
   selection,
   pendingCteSelection,
@@ -94,7 +100,11 @@ export function TripStateActions({
     <div className={styles.actionForm}>
       <h3>{t('stateActions.title')}</h3>
 
-      {hasSelection && (canSeparateOrLoad || canReturn || pendingCteSelection.length > 0) ? (
+      {hasSelection &&
+      (canSeparateOrLoad ||
+        canReturn ||
+        canFieldOccurrenceBatch ||
+        pendingCteSelection.length > 0) ? (
         <div className={styles.actionActions}>
           {canSeparateOrLoad ? (
             <Button
@@ -141,6 +151,12 @@ export function TripStateActions({
             >
               <Icon name="arrow-up" />
               {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
+          {canFieldOccurrenceBatch ? (
+            <Button onClick={onOpenFieldOccurrenceBatch} size="sm" type="button" variant="ghost">
+              <Icon name="alert" />
+              {t('stateActions.batchFieldOccurrence', { count: selection.selectedIds.size })}
             </Button>
           ) : null}
         </div>

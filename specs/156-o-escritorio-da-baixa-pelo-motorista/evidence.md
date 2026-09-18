@@ -1368,3 +1368,221 @@ seguem iguais aos da versão com dinheiro.
 Pendência explícita: o esqueleto de carregamento (`TripsTableSkeleton`) ainda desenha as seis
 colunas, então quem não tem `trip.financials` vê por um instante dois cabeçalhos que somem quando a
 lista chega. O esqueleto não recebe permissão hoje. É salto de layout, não vazamento de valor.
+
+## T9
+
+Linha do tempo com autoria (D3) e `FieldOccurrenceDialog` (uma nota ou o lote da seleção, D7,
+aceite 10). A API já gravava `channel`/`on_behalf_of_driver_id` desde a T4 — esta task é a primeira
+a **ler** isso: nenhuma leitura publicava autoria antes dela.
+
+### Escopo confirmado por leitura, antes de implementar
+
+Conferido antes de tocar em código (instrução da task): nenhuma leitura hoje expunha
+`channel`/ator/`onBehalfOfDriverName`. Decisão de escopo, registrada aqui:
+
+- **Ocorrência de nota** (`GET .../documents/:documentId/occurrences`, usada por `TripOccurrences`)
+  e o **feed da empresa** (`GET /trips/occurrences`, `/ocorrencias`) ganharam autoria nesta task —
+  são a leitura que `FieldOccurrenceDialog` alimenta e o que o aceite 10 cobra ("cada uma aparece em
+  `/ocorrencias`").
+- **`trip_document_events`/`trip_stop_events`** (a entrega/devolução/chegada em si) **não têm
+  leitura nenhuma hoje** — nem antes nem depois desta task. Não existe endpoint que liste esses
+  eventos; a T4/T5/T6 só os gravam. Promover a autoria deles a uma tela é trabalho novo de leitura
+  (caso de uso, rota, tipo, validador), não uma extensão de duas linhas — fora do escopo desta task,
+  registrado como achado.
+
+### Arquivos
+
+**API (aditivo, mesma resposta, campos novos):**
+
+- `src/trips/application/register-trip-occurrence.use-case.ts`: `TripOccurrenceAuthorship`
+  (`channel`, `actorName`, `onBehalfOfDriverName`), somada a `TripOccurrenceWithAttachment` (o tipo
+  que `listTripOccurrences.execute` já declarava) — o tipo de escrita (`TripOccurrence` puro,
+  `saveTripOccurrence`) não mudou, porque a rota de escrita não é uma leitura que a tela usa.
+- `src/trips/application/trip-occurrence-feed.use-case.ts`: os mesmos três campos em
+  `TripOccurrenceFeedItem`.
+- `src/trips/infrastructure/delivery-proof-read.support.ts`: `listTripOccurrences` ganhou os
+  `leftJoin`s — `userCompanyMemberships`/`identityUserProfiles` (ator, mesma janela de
+  `ACTIVE_MEMBERSHIP_STATUS` que `nfe-documents` já usa para D16/H13, reaproveitada por import, não
+  reescrita) e `fleetDrivers` (o motorista de `onBehalfOfDriverId`, por `companyId`).
+- `src/trips/infrastructure/trip-occurrence-feed.query.ts`: os mesmos dois `leftJoin`s, replicados
+  nas **duas** sub-consultas (`listDocumentOccurrenceRows` e `listStopOccurrenceRows` — a segunda já
+  tinha `actorUserId`/`channel`/`onBehalfOfDriverId` na tabela, só não os lia).
+- `test/trip-schema/occurrence-feed-query-tenant-safety.contract.ts`: a leitura estática que exige
+  `and(eq(<tabela>.companyId, …` em toda junção ganhou uma exceção documentada — a junção com
+  `identity_user_profiles` não tem `company_id` (é global, por `user_id`), e só é segura porque vem
+  **depois** de uma junção com `userCompanyMemberships` já escopada pela empresa.
+
+**Frontend (novos):**
+
+- `src/modules/trip/components/FieldOccurrenceDialog.component.tsx` — o diálogo pedido pela task,
+  no molde de `TripStopOccurrenceDialog` (T8): mesma estrutura de portal/overlay/`useModalDialog`,
+  troca de vocabulário (tipo vindo de `GET /trips/occurrence-types/field`, não o `kind` fixo de
+  parada) e de forma de envio (multipart, `FileField` do design system para a foto — **não** um
+  `<input type="file">` cru, que o `test/design-system/file-field.contract.ts` recusa). Serve **uma**
+  nota (`documentIds.length === 1`, ação da linha) e **várias** (a seleção existente, ação em massa)
+  — o mesmo formulário, só o título/rótulo do botão mudam (`resolveFieldOccurrenceDialogMode`).
+- `src/modules/trip/shared/fieldOccurrenceBatch.service.ts` — `MAX_FIELD_OCCURRENCE_DOCUMENTS` (o
+  mesmo 50 da API, nunca um número solto de novo) e `resolveFieldOccurrenceDialogMode`.
+- `src/modules/trip/shared/fieldOccurrenceAuthorship.service.ts` — `resolveFieldAuthorshipText`, a
+  frase da timeline por canal (D3): `office` com os dois nomes, `driver_app` só com o do motorista
+  (ele é o próprio ator), `whatsapp` sem nome nenhum (o canal não garante identidade resolvida do
+  mesmo jeito que os outros dois). Ator sem vínculo ativo (`actorName: null`) cai no rótulo genérico
+  — nunca imprime `null`/`undefined`/id cru.
+
+**Frontend (alterados):**
+
+- `shared/trip.types.ts` — `TRIP_FIELD_CHANNELS`/`TripFieldChannel` (cópia por valor da API),
+  `TripOccurrence.channel`/`actorName`/`onBehalfOfDriverName` (os três **opcionais**, M1),
+  `FieldOccurrenceType`, `RegisterFieldOccurrencesInput`.
+- `shared/trip.constant.ts` — `TRIP_OCCURRENCE_OPTIONAL_KEYS`, `FIELD_OCCURRENCE_TYPE_KEYS`,
+  `TRIP_FIELD_OCCURRENCE_TYPES_PATH`; `TRIP_FEEDBACK_KEY_BY_ERROR` ganhou
+  `OCCURRENCE_TYPE_NOT_FIELD`/`TRIP_DOCUMENT_NOT_REACHABLE` (`TRIP_FIELD_REPORT_KEY_REUSED` já
+  existia da T8, reusado sem código novo).
+- `shared/tripResponse.validation.ts` — `isOccurrence` trocou `hasExactKeys` por `hasKeys` com a
+  lista opcional (M1 — o mesmo padrão de `isStopDetail`/`isDetail`, nunca um afrouxamento livre);
+  `isFieldOccurrenceType`; `fieldOccurrenceTypesFromApi`/`fieldOccurrenceBatchResultFromApi`
+  (a resposta do lote, `{ items: [{ documentId, id }] }`, na ordem do pedido).
+- `shared/tripClient.service.ts` — `authorizedRequest` ganhou `form?: FormData` (não existia
+  suporte a multipart neste client antes; o padrão veio de `driverTripClient.service.ts`, o app do
+  motorista); `readFieldOccurrenceTypes`, `registerFieldOccurrences` (monta o `FormData` com
+  `documentIds` repetido, como a rota espera).
+- `hooks/useTripWorkspace.hook.ts` — os dois métodos no `TripController`, gated por
+  `canReportOnBehalf` (a mesma permissão de T8); `fieldOccurrenceTypesQuery` e
+  `registerFieldOccurrencesMutation`, com `Idempotency-Key` por escopo do **lote** (a lista de notas
+  ordenada), reusando `resolveFieldReportKey`/`clearFieldReportKey` da T8 em vez de um mecanismo
+  próprio.
+- `components/TripDetail.component.tsx` — estado único `fieldOccurrenceDocumentIds` (uma nota ou o
+  maço da seleção) abre o mesmo diálogo; `documentActions.canFieldOccurrence`/`onOpenFieldOccurrence`
+  (por nota); `canFieldOccurrenceBatch` computado da seleção para o botão em massa;
+  `registerFieldOccurrencesMutation.error` entra em `resolveFirstTripFeedbackKey`.
+- `components/TripStopList.component.tsx` — `TripStopDocumentActions.canFieldOccurrence` é
+  **função**, não booleano (a capacidade varia nota a nota, `allowed-actions`), e
+  `onOpenFieldOccurrence`; botão "Ocorrência" na linha, ao lado dos existentes.
+- `components/TripStateActions.component.tsx` — `canFieldOccurrenceBatch`/
+  `onOpenFieldOccurrenceBatch`; botão de lote (`stateActions.batchFieldOccurrence`) no mesmo grupo de
+  `batchLoad`/`batchReturn`.
+- `components/TripOccurrences.component.tsx` — a linha de cada ocorrência ganhou a frase de autoria
+  (`resolveFieldAuthorshipText`), ausente (`null`) quando `channel` não veio (histórico anterior à
+  ADR-0067, ou API antiga na janela do M1).
+- `locales/trip.locale.json`/`trip.en.locale.json` — `occurrence.authorship.*` (as cinco frases),
+  namespace `fieldOccurrence` (título, tipos, motorista, nota, foto, erros de lote), `actions.
+fieldOccurrence`, `stateActions.batchFieldOccurrence`, e as duas chaves novas de `feedback`.
+
+### Decisões
+
+**Escrita não ganhou autoria, só a leitura.** A task pede "leituras que a tela usa"; `saveTripOccurrence`
+(o `POST /trips/:id/documents/:documentId/occurrences` do galpão) continua devolvendo o tipo
+`TripOccurrence` sem os três campos — ele não é consumido como "a tela mostra autoria" em lugar
+nenhum, e adicionar os campos ali exigiria resolver nome de ator/motorista numa escrita que hoje não
+precisa disso. Menor mudança que resolve exatamente o pedido.
+
+**`identity_user_profiles` sem `company_id` é exceção documentada, não regra quebrada.** O contrato
+estático de `trip-occurrence-feed.query.ts` (tenant safety por junção) existia antes desta task e
+exigia `and(eq(...companyId,` em toda junção. A junção com o perfil do usuário não tem coluna de
+empresa — é intencional (login é do realm inteiro, `identity-user-profile.schema.ts`) — e o teste
+foi ajustado para reconhecer essa junção específica como segura **por transitividade**: ela só roda
+depois de `userCompanyMemberships`, que já filtra pela empresa. Ajustar o teste em vez de forçar uma
+junção artificial com `company_id` inexistente.
+
+**`FieldOccurrenceDialog` usa `FileField`, não `<input type="file">` cru.** A primeira versão usava o
+input nativo; `test/design-system/file-field.contract.ts` (varredura estática por
+`type="file"` fora da lista de exceções) reprovou. Trocado pelo componente do design system — mesmo
+usado por `DriverStopCard`/`NfeUploadPanel` — com `label`/`actionLabel`/`placeholder` separados
+(rótulo do campo, texto do botão, texto vazio), não os três reaproveitando o mesmo texto (achado da
+própria revisão de design, corrigido antes do print final).
+
+**`canFieldOccurrence` é função por nota, não booleano do painel.** Ao contrário de `canDeliver`/
+`canReturn` (globais, decididos pelo status da nota inteira), a capacidade de ocorrência de campo
+vem de `allowed-actions` por documento — duas notas na mesma parada podem divergir. Um booleano só
+mostraria o botão em todas ou nenhuma.
+
+**O botão de lote mora em `TripStateActions`, então segue o gate de `canManage`.** A task pediu
+"ação em massa na seleção existente de notas... TripStateActions" — e esse componente só renderiza
+com `trip.manage`. Quem tem só `trip.report-on-behalf` sem `trip.manage` (hipoteticamente um
+`finance` sem mais nada) não veria o botão de lote, só a ação por linha via `TripFieldActions`/
+`TripStopList` — mas isso não vale para o caso real de hoje: a ADR-0067 concede
+`trip.report-on-behalf` a `admin`, `operator` e `finance`, e `operator`/`admin` já têm `trip.manage`.
+Registrado aqui porque é uma decisão de leitura da task, não um contrato testado.
+
+### Achado fora do escopo (registrado, não corrigido nesta task)
+
+**Não há leitura de `trip_document_events`/`trip_stop_events` (entrega, devolução, chegada) em
+lugar nenhum da API.** A T9 promete "linha do tempo com autoria" e a spec fala em "eventos/ocorrências
+da viagem e da nota" — mas a única coisa que a tela lê hoje é _ocorrência_ (nota e feed), nunca o
+evento de entrega/devolução em si, porque não existe endpoint para isso. Adicionar autoria a um
+evento que ninguém lista seria enfeite morto. Sinalizado como tarefa separada, fora da spec 156.
+
+### TDD
+
+- `apps/api-transportada/test/integration/trip-field-office.integration.ts`, teste "aceite 10: três
+  notas..." (T7.3) — estendido com as asserções novas desta task: `feed.items` trazem
+  `channel: 'office'`, `onBehalfOfDriverName: 'Motorista Um'` e `actorName: null` (a fixture não
+  semeia `identity_user_profiles` para o ator — sem vínculo com nome resolvido, é `null`, nunca o id
+  cru); `listTripOccurrences` (a leitura de `GET .../occurrences`) confirma os mesmos três campos.
+  Como `channel`/`actorName`/`onBehalfOfDriverName` não existiam nessas leituras antes da task, o
+  teste teria falhado por `undefined`/chave ausente contra o `src` anterior — confirmado pela
+  exploração prévia (nenhuma leitura publicava esses campos), não por reversão e re-execução.
+- Frontend, `test/trip/field-occurrence-validation.contract.ts`: `occurrencesFromApi` aceita a
+  ocorrência sem os três campos novos (API antiga, M1), aceita com `actorName: null` (ator sem
+  vínculo, nunca id cru), recusa `channel` fora do vocabulário e recusa chave desconhecida;
+  `fieldOccurrenceTypesFromApi`/`fieldOccurrenceBatchResultFromApi` (o catálogo e o resultado do
+  lote, na ordem do pedido).
+- `test/trip/field-occurrence-authorship.contract.ts`: as cinco frases de autoria por canal,
+  inclusive o caso "office sem vínculo ativo do ator" (nunca imprime `null`/`undefined`), e a
+  presença das cinco chaves nos dois idiomas.
+- `test/trip/field-occurrence-error-mapping.contract.ts`: `OCCURRENCE_TYPE_NOT_FIELD`/
+  `TRIP_DOCUMENT_NOT_REACHABLE` mapeiam para `feedback` com texto nos dois idiomas.
+- `test/trip/field-occurrence-dialog.contract.ts`: modo do diálogo (uma nota vs. lote) e o teto de
+  50 notas (`isWithinFieldOccurrenceLimit`), o mesmo número da API.
+- Todos os quatro registrados em `test/trip.contract.test.ts` (o entrypoint listado no
+  `package.json`), rodando contra o `src` sem a implementação primeiro: `Cannot find module
+'.../fieldOccurrenceAuthorship.service'`/`'.../fieldOccurrenceBatch.service'` e `occurrencesFromApi`
+  recusando `channel`/`actorName` (chave desconhecida, `hasExactKeys` da T7.3) — vermelho confirmado
+  antes de escrever `fieldOccurrenceAuthorship.service.ts`/`fieldOccurrenceBatch.service.ts` e trocar
+  `isOccurrence` para `hasKeys`. Depois: verde, ver "Gates".
+
+### Revisão de design (web.md §15)
+
+Mesma limitação da T8 registrada aqui de novo: sem dev server com dados neste ambiente (sem
+Keycloak/API/seed disponíveis para navegar a tela real). A comparação foi feita com o **CSS de
+produção real** (`bun run --cwd apps/frontend-transportada build`, servido por `http.server` local)
+e o `chromium` de `node_modules/.bun/playwright-core@1.58.2`, tema escuro (único do produto),
+1280×720 e 375×900 — exatamente o recorte que a T8 documentou, com as classes hasheadas reais
+extraídas do CSS gerado (`_mdfeGateDialog_183z4_315`, `_trigger_1psko_14`, `_field_hi3w5_1` etc.),
+não nomes inventados.
+
+**Achado corrigido na própria task:** a primeira versão do campo de foto reaproveitava o mesmo texto
+para `label`, `actionLabel` e `placeholder` do `FileField` ("Foto (opcional)" repetido três vezes na
+tela). Corrigido para o padrão que `DriverStopCard`/`NfeUploadPanel` já usam: rótulo do campo,
+"Escolher foto" no botão, "Nenhuma foto escolhida" no vazio, com a explicação do lote
+("uma foto vale para todas as notas") como legenda própria abaixo — sem repetição.
+
+Prints, comparando `FieldOccurrenceDialog` com o vizinho `TripStopOccurrenceDialog` (mesmo
+`_mdfeGateOverlay_`/`_mdfeGateDialog_`/`_mdfeGateHeader_`/`_mdfeGateFooter_`, mesmo `Select`,
+`ui-button` `default`/`ghost`):
+
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t9-field-occurrence-dialog-desktop.png`
+  (1280×720)
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t9-field-occurrence-dialog-mobile.png`
+  (375×900)
+
+Conferido: borda copper, raio e fundo do diálogo idênticos ao vizinho; `Select` com o mesmo
+`_trigger_`/`_chevron_`; `FileField` com a mesma altura de campo dos outros usos no produto; botão
+primário copper e ghost secundário; sem scroll horizontal em 375px; alvo de toque `sm` igual ao
+resto da tela. Pendência explícita (mesma da T8): print contra a tela **real** com dado de
+verdade — inclusive o texto de autoria (`Marina Alves (escritório) pelo motorista João Pereira`,
+mockado no recorte) — fica para quando houver ambiente com Keycloak/seed disponível nesta sessão.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bun run --cwd apps/api-transportada test` → `6502 pass · 32 skip · 0 fail`, 22646 `expect()`,
+  180 arquivos (sem mudança de contagem de arquivo — os campos novos entraram em teste de integração
+  existente, não um arquivo unitário novo).
+- `bun --env-file=../../.env.test test --timeout 120000` de dentro de `apps/api-transportada`, com
+  `./test/integration/trip-field-office.integration.ts ./test/integration/trip-lifecycle.integration.ts
+./test/integration/me-trip.integration.ts` → `23 pass · 0 fail · 0 skip`, 141 `expect()`.
+- `bun run --cwd apps/frontend-transportada test` → `4359 pass · 0 fail`, 37145 `expect()`,
+  29 arquivos (+21 em relação à T8, os quatro contratos novos desta task).
+- `bun run --cwd apps/frontend-transportada build` → build limpo, PWA gerado, sem erro.

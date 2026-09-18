@@ -7,7 +7,9 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { resolveFieldAuthorshipText } from '../shared/fieldOccurrenceAuthorship.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
@@ -79,18 +81,22 @@ export function TripOccurrences({
         <p className={styles.hint}>{t('occurrence.none')}</p>
       ) : (
         <ul className={styles.documentProductList}>
-          {occurrences.map((occurrence) => (
-            <li key={occurrence.id}>
-              {t('occurrence.line', {
-                moment: momentFormatter.format(new Date(occurrence.createdAt)),
-                type: occurrence.typeName,
-              })}
-              {occurrence.productCode === ''
-                ? ` — ${t('occurrence.wholeDocument')}`
-                : ` — ${occurrence.productCode}`}
-              {occurrence.note === '' ? null : ` — ${occurrence.note}`}
-            </li>
-          ))}
+          {occurrences.map((occurrence) => {
+            const authorship = resolveFieldAuthorshipText(occurrence, t as Translate)
+            return (
+              <li key={occurrence.id}>
+                {t('occurrence.line', {
+                  moment: momentFormatter.format(new Date(occurrence.createdAt)),
+                  type: occurrence.typeName,
+                })}
+                {occurrence.productCode === ''
+                  ? ` — ${t('occurrence.wholeDocument')}`
+                  : ` — ${occurrence.productCode}`}
+                {occurrence.note === '' ? null : ` — ${occurrence.note}`}
+                {authorship === null ? null : <span className={styles.hint}> — {authorship}</span>}
+              </li>
+            )
+          })}
         </ul>
       )}
       {/*

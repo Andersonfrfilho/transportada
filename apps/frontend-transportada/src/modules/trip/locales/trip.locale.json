@@ -14,7 +14,8 @@
     "title": "Ações",
     "view": "Ver",
     "viewProof": "Comprovante",
-    "viewTrip": "Abrir a viagem de {{vehicle}}"
+    "viewTrip": "Abrir a viagem de {{vehicle}}",
+    "fieldOccurrence": "Ocorrência"
   },
   "assemblyDraft": {
     "automaticPending": "Há um roteiro automático em montagem guardado nesta aba.",
@@ -498,7 +499,9 @@
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
     "vehicleNotFound": "Veículo não encontrado.",
-    "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório."
+    "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório.",
+    "occurrenceTypeNotField": "Este tipo de ocorrência é do galpão, não da rua — escolha um tipo de rua.",
+    "documentNotReachable": "Alguma nota selecionada não pertence a esta viagem."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -578,7 +581,15 @@
     "submit": "Registrar",
     "title": "Ocorrências",
     "wholeDocument": "A nota inteira",
-    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
+    "authorship": {
+      "driverApp": "pelo motorista {{actor}} (aplicativo)",
+      "driverAppWithoutActor": "pelo motorista (aplicativo)",
+      "office": "registrado por {{actor}} (escritório) pelo motorista {{driver}}",
+      "officeWithoutActor": "registrado pelo escritório pelo motorista {{driver}}",
+      "unknownDriver": "não identificado",
+      "whatsapp": "(WhatsApp)"
+    }
   },
   "occurrenceFeed": {
     "columns": {
@@ -965,7 +976,8 @@
     "returnSubmit": "Confirmar devolução",
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",
     "returnTitle": "Devolver nota",
-    "title": "Ações da viagem"
+    "title": "Ações da viagem",
+    "batchFieldOccurrence": "Ocorrência em {{count}} nota(s)"
   },
   "status": {
     "cancelled": "Cancelada",
@@ -1111,5 +1123,24 @@
       "STATE_TRANSITION_NOT_ALLOWED": "A viagem já foi despachada: a nota não muda mais de caminhão.",
       "generic": "Não foi possível concluir. Tente de novo."
     }
+  },
+  "fieldOccurrence": {
+    "batchSubmit": "Registrar em {{count}} nota(s)",
+    "batchTitle": "Ocorrência em {{count}} nota(s)",
+    "documentsLabel": "Notas selecionadas",
+    "driverLabel": "Em nome do motorista",
+    "empty": "Nenhum tipo de ocorrência cadastrado para o escritório ainda.",
+    "limitExceeded": "Selecione no máximo 50 notas por lote.",
+    "noteLabel": "Observação",
+    "photoHint": "Opcional — uma foto vale para todas as notas do lote.",
+    "photoLabel": "Foto (opcional)",
+    "photoRemove": "Remover foto",
+    "submit": "Registrar ocorrência",
+    "title": "Ocorrência de campo",
+    "typeLabel": "Tipo de ocorrência",
+    "typePlaceholder": "Selecione o tipo",
+    "unreachableDocuments": "Notas fora do alcance desta viagem: {{documents}}.",
+    "photoChoose": "Escolher foto",
+    "photoEmpty": "Nenhuma foto escolhida"
   }
 }

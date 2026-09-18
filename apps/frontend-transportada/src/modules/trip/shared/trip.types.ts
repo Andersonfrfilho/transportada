@@ -121,18 +121,29 @@ export type TripDocument = Readonly<{
   updatedAt: string
 }>
 
+/** ⚠️ Cópia por valor de `TRIP_FIELD_CHANNELS` da API (ADR-0067 §2) — o bundle não carrega código de lá. */
+export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp'] as const
+export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
+
 /** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
 export type TripOccurrence = Readonly<{
+  /** Spec 156 T9 (D3, M1): nasce opcional — API na frente do bundle não pode servir sem ele. */
+  actorName?: null | string
+  channel?: TripFieldChannel
   createdAt: string
   id: string
   note: string
   occurrenceTypeId: string
+  onBehalfOfDriverName?: null | string
   /** Vazio é a nota inteira: recusa total não tem item a apontar. */
   productCode: string
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>
+
+/** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório. */
+export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
 
 /**
  * O que o registro devolve: a ocorrência mais o e-mail pronto.
@@ -658,6 +669,19 @@ export type ReportStopOccurrenceInput = TripFieldActionTarget &
     idempotencyKey: string
     kind: StopOccurrenceKind
     stopId: string
+  }>
+
+/**
+ * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — uma nota (linha) ou várias
+ * (lote da seleção, até 50). A foto é única para o lote inteiro, não por nota (D7 §3.5).
+ */
+export type RegisterFieldOccurrencesInput = TripFieldActionTarget &
+  Readonly<{
+    documentIds: readonly string[]
+    file?: File
+    idempotencyKey: string
+    note: string
+    occurrenceTypeId: string
   }>
 
 /** O que `POST .../arrive` e `POST .../occurrences` devolvem — o id do recurso criado. */

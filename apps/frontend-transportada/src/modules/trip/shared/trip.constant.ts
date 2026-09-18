@@ -64,11 +64,15 @@ export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   DRIVER_NOT_ON_TRIP: 'driverNotOnTrip',
+  /** Spec 156 T7.3/T9 (L4): tipo de separação, aposentado ou inexistente no lote de ocorrência. */
+  OCCURRENCE_TYPE_NOT_FIELD: 'occurrenceTypeNotField',
   STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
   TRIP_DOCUMENT_NOT_FOUND: 'documentNotFound',
+  /** Spec 156 T7.3/T9: alguma nota do lote não pertence à viagem — `details.unreachableDocumentIds`. */
+  TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
   TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
@@ -247,6 +251,21 @@ export const TRIP_OCCURRENCE_KEYS = [
   'stage',
   'typeName',
 ] as const
+
+/**
+ * Spec 156 T9 (D3, M1): quem registrou e em nome de quem — API na frente do bundle não pode apagar
+ * a ocorrência inteira, então os três nascem opcionais aqui até a promoção decidida por escrito.
+ */
+export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
+  'actorName',
+  'channel',
+  'onBehalfOfDriverName',
+] as const
+
+/** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
+export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
+
+export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 
 export const TRIP_DOCUMENT_PRODUCT_KEYS = [
   'code',
