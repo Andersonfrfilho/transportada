@@ -8,7 +8,11 @@ import {
   DELIVERY_PROOF_MAX_BYTES,
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
-import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import {
+  maskTaxId,
+  type DeliveryProofFieldSettings,
+} from '../domain/delivery-proof-settings.policy.js'
+import { assertOfficeProofMeetsSettings } from '../domain/office-delivery-proof.policy.js'
 import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
@@ -24,7 +28,6 @@ import {
 } from '../domain/field-delivery-timing.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
-  TripDeliveryProofPhotoRequiredError,
   TripDeliveryProofRejectedError,
   TripDocumentAlreadySettledError,
   TripDocumentNotReachableError,
@@ -230,11 +233,8 @@ async function persistOfficeDeliveryProof(input: {
 }): Promise<string | null> {
   const { authorship, companyId, eventId, proof, reportInput, settings, transaction } = input
 
-  if (proof.upload === null) {
-    if (settings.photo === REQUIRED_PROOF_FIELD_MODE)
-      throw new TripDeliveryProofPhotoRequiredError()
-    return null
-  }
+  assertOfficeProofMeetsSettings({ receiver: proof.upload, settings })
+  if (proof.upload === null) return null
 
   if (proof.upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
     throw new TripDeliveryProofRejectedError('TOO_LARGE')
@@ -265,10 +265,14 @@ async function persistOfficeDeliveryProof(input: {
 
   const proofId = proof.newProofId()
   /**
-   * ADR-0067 §5 (emenda): documento do recebedor **não** entra pelo canhoto do escritório — quem
-   * assina é o motorista, e `kind: 'photo'` nunca carrega o CPF/CNPJ (mesmo gate do motorista).
-   * Sem isso, a mesma leitura mascarada valeria de forma inconsistente entre os dois canais.
+   * Spec 156 T15 A2 (ADR-0067 §5): o documento que o escritório digita passa pelo mesmo envelope e
+   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro.
    */
+  const { receiverDocument } = proof.upload
+  const receiverDocumentEnvelope =
+    receiverDocument.length === 0
+      ? null
+      : await proof.sealDocument({ companyId, proofId, receiverDocument })
   const proofResult = await transaction.saveDeliveryProofWithinTransaction({
     /**
      * ADR-0070 §6, spec 159 T5: a entrega do escritório não entra na nota do motorista (RF8) — o
@@ -289,9 +293,9 @@ async function persistOfficeDeliveryProof(input: {
     objectId,
     objectKey,
     punctuality: 'not_required',
-    receiverDocumentEnvelope: null,
-    receiverDocumentMasked: '',
-    receiverName: proof.upload.receiverName,
+    receiverDocumentEnvelope,
+    receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
+    receiverName: proof.upload.receiverName.trim(),
     sha256: stored.sha256,
     sizeBytes: proof.upload.bytes.byteLength,
   })

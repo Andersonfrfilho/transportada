@@ -49,3 +49,17 @@ export class ArrivedAtBeforeDispatchError extends ApiError {
     })
   }
 }
+
+/**
+ * ADR-0067 §5 (D8): com assinatura `required`, o escritório cumpre a exigência com a foto do canhoto
+ * assinado **e** o nome de quem recebeu — sem o nome, a foto sozinha não diz quem assinou.
+ */
+export class TripDeliveryProofReceiverNameRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED',
+      message: 'This company requires the name of who received the delivery.',
+      status: 422,
+    })
+  }
+}

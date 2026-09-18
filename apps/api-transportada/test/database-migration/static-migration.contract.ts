@@ -272,6 +272,7 @@ describe('Drizzle migrations', () => {
       '20260918150300_driver_score_reported_by_driver',
       '20260918150400_driver_score_effective_since',
       '20260918150500_delivery_proof_location_purge_index',
+      '20260918170550_delivery_proof_office_receiver_document',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

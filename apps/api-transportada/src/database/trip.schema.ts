@@ -1314,10 +1314,14 @@ export const tripDeliveryProofs = pgTable(
       'trip_delivery_proofs_receiver_check',
       sql`${table.kind} = 'signature' or ${table.channel} = 'office' or length(${table.receiverName}) = 0`,
     ),
-    /** O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita. */
+    /**
+     * O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita.
+     * Spec 156 T15 A2 (ADR-0067 §5): o canhoto do escritório cumpre a assinatura e carrega o
+     * documento digitado, selado — relaxado por migration aditiva, o motorista continua sem essa saída.
+     */
     check(
       'trip_delivery_proofs_receiver_document_check',
-      sql`(${table.kind} = 'signature' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
+      sql`(${table.kind} = 'signature' or ${table.channel} = 'office' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
     ),
     check(
       'trip_delivery_proofs_channel_check',

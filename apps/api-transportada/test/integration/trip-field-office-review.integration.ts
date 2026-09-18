@@ -8,7 +8,9 @@
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
+import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
+  tripDeliveryProofs,
   tripStatusEvents,
   tripStopEvents,
   tripStops,
@@ -333,6 +335,93 @@ describe('nota já fechada no canal office (T15 M6)', () => {
             }),
           }),
         ).rejects.toMatchObject({ code: 'DOCUMENT_ALREADY_SETTLED', status: 409 })
+      })
+    },
+  )
+})
+
+/** Um JPEG mínimo: a assinatura de bytes `FF D8 FF` que a rota confere (T15 seg B2). */
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+
+describe('assinatura exigida no canal office (T15 A2, ADR-0067 §5 D8)', () => {
+  testWithPostgres(
+    'A2: com assinatura required, canhoto sem nome do recebedor responde 422 e não baixa a nota',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: company.companyId, signature: 'required' })
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-a2-name',
+            pathParameters: { documentId: trip.documentId, id: trip.tripId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: '   ' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: 'review-a2-name',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED', status: 422 })
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-a2-photo',
+            pathParameters: { documentId: trip.documentId, id: trip.tripId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana' },
+              idempotencyKey: 'review-a2-photo',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED', status: 422 })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'A2: o documento do recebedor entra selado e mascarado, no envelope do motorista (ADR-0057 §3)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await database.db.insert(companyDeliveryProofSettings).values({
+          companyId: company.companyId,
+          receiverDocument: 'optional',
+          signature: 'required',
+        })
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-a2-document',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: {
+              deliveredAt: '2026-09-18T09:00:00.000Z',
+              receiverDocument: '11144477735',
+              receiverName: 'Ana',
+            },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'review-a2-document',
+          }),
+        })
+
+        expect(response.status).toBe(201)
+        const [proof] = await database.db
+          .select({
+            envelope: tripDeliveryProofs.receiverDocumentEnvelope,
+            masked: tripDeliveryProofs.receiverDocumentMasked,
+            receiverName: tripDeliveryProofs.receiverName,
+          })
+          .from(tripDeliveryProofs)
+        expect(proof?.masked).toBe('***.444.777-**')
+        expect(proof?.envelope).not.toBeNull()
+        expect(proof?.receiverName).toBe('Ana')
       })
     },
   )
