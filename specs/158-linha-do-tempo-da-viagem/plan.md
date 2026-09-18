@@ -67,10 +67,12 @@ GET /trips/:id/timeline?cursor=<opaco>&limit=100
 
 - Aditiva: `create table trip_status_events`, `alter ... drop constraint / add constraint` da check de
   `channel` com o valor novo (a check antiga é subconjunto: nenhuma linha viola).
-- Rollback: `drop table trip_status_events`; a check volta ao vocabulário antigo **só se** não houver
-  `backoffice` gravado — o down script falha alto se houver, em vez de apagar dado.
-- D3 (a) exigiria `update trip_document_events set channel='backoffice'` — backfill não destrutivo,
-  mas só se a ADR escolher (a) com a medição da T1.
+- Rollback: o bloco `DO $$` recusa se `trip_status_events` tiver **qualquer** linha ou se houver
+  `backoffice` gravado em qualquer tabela; só então `drop table` e as checks antigas. Nunca apaga
+  histórico (molde: `20260918054353_trip_field_authorship/rollback.sql`). As checks novas entram
+  `NOT VALID` + `VALIDATE CONSTRAINT`. A tabela nova entra em `TRIP_TABLES`
+  (`test/database-migration/support.ts:141`) e ganha assertion de rollback recusado.
+- D3: sem backfill (ADR-0068 §4).
 
 ## Segurança e tenant
 
@@ -106,4 +108,5 @@ Log `info` da rota com `tripId`, contagem de itens por `kind` e duração; nada 
 - **Escritor de `trips.status` esquecido** → buraco silencioso na linha do tempo. Mitigação: contrato
   estático (aceite 9).
 - **Custo da leitura** em viagem grande → índices por `company_id` + fonte, medição de p95.
-- **Rótulo de histórico** (D3) errado → decidido com dado, não com palpite.
+- **Deadlock** com `FOR UPDATE` → `FOR NO KEY UPDATE` logo antes do `UPDATE trips` (ADR-0068 §2).
+- **"Registrado em" falso** nas linhas antigas → critério `office` e > 60 s (D6).

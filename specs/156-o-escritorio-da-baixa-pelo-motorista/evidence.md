@@ -2025,3 +2025,9 @@ foram corrigidos no último commit da T8b:
 
 Fica fora: o seletor de motorista vive em `TripFieldActions`, que não aparece numa viagem
 despachada sem nenhuma parada. O revisor deu confiança baixa ao caso, e ele vai para a T16.
+
+## Aceite 2 — linha do tempo (2026-09-18)
+
+A parte "a linha do tempo mostra 'por <usuária> (escritório) pelo motorista <nome>'" do aceite 2 não
+foi entregue pela T9 (só a ocorrência ganhou autoria; ver "Achado fora do escopo" da T9). Ela fecha
+pela spec 158 (`specs/158-linha-do-tempo-da-viagem/`), com a ADR-0068.

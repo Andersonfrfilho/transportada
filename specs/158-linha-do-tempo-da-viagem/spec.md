@@ -22,7 +22,7 @@ autoria só na **ocorrência** (nota e feed `/ocorrencias`). O resto nunca foi l
 troca de status da viagem, cada chegada, entrega, devolução e ocorrência, e as transições manuais das
 notas — cada item com **quando aconteceu**, **quando foi registrado** (se diferente), a nota ou a
 parada a que se refere e a frase de autoria do canal: "por <usuária> (escritório) pelo motorista
-<nome>", "pelo motorista <nome>", "pelo WhatsApp", "por <usuária>". Fecha o aceite 2 da spec 156.
+<nome>", "pelo motorista <nome>", "por <nome> pelo WhatsApp", "por <usuária>". Fecha o aceite 2 da spec 156.
 
 ## Fora do escopo
 
@@ -36,26 +36,26 @@ parada a que se refere e a frase de autoria do canal: "por <usuária> (escritór
 
 ## Decisões
 
-- **D1 — Tabela nova `trip_status_events`** _(decisão do usuário, 2026-09-18)_: `id`, `company_id`,
-  `trip_id`, `from_status` (nulo na criação), `to_status`, `actor_user_id` (nulo quando a troca é do
-  sistema — cron/worker), `channel`, `on_behalf_of_driver_id`, `occurred_at`, `recorded_at`. FK
-  composta `(company_id, trip_id)` e `(company_id, on_behalf_of_driver_id)`, mesma check de
-  `channel = 'office' ⇒ on_behalf_of_driver_id is not null` das tabelas de campo. Índice
-  `(company_id, trip_id, occurred_at, id)`. Migration **aditiva**. **Toda** escrita de
-  `trips.status` grava o evento na mesma transação, só quando o status mudou de fato (`changed=true`).
-  Registrada na ADR-0068.
+- **D1 — Tabela nova `trip_status_events`** _(decisão do usuário, 2026-09-18; forma fechada na
+  ADR-0068 §1)_: `id`, `company_id`, `trip_id`, `from_status` e `to_status` (os dois `NOT NULL`: a
+  criação da viagem não gera evento), `actor_user_id` (`NOT NULL`: nenhuma escrita de status é de
+  sistema hoje, e sem FK de membership, para não travar a remoção de usuário), `channel`,
+  `on_behalf_of_driver_id`, `occurred_at`, `recorded_at` (`NOT NULL DEFAULT now()`, como em
+  `trip_stop_events`). FKs compostas `(company_id, trip_id)` e `(company_id, on_behalf_of_driver_id)`,
+  check `channel = 'office' ⇒ on_behalf_of_driver_id is not null`, checks dos status contra o
+  vocabulário. Índice `(company_id, trip_id, occurred_at, id)`. Migration **aditiva**. **Toda**
+  escrita de `trips.status` grava o evento na mesma transação, só quando o status mudou de fato, com
+  a trava `FOR NO KEY UPDATE` descrita na ADR-0068 §2.
 - **D2 — Canal novo `backoffice`** _(decisão do usuário, 2026-09-18)_ em `TRIP_FIELD_CHANNELS`: a ação
   feita pela tela do escritório que **não** é em nome do motorista (fluxo manual de separação/carga/
   baixa, ações de estado da viagem). Não exige `on_behalf_of_driver_id`. O fluxo manual passa a gravar
   `backoffice` pela web e `whatsapp` pelo WhatsApp do operador. `office` continua significando "em
   nome do motorista" (spec 156 D3).
-- **D3 — Histórico de `trip_document_events`**: hoje só o fluxo manual grava nessa tabela
-  (`drizzle-trip-document.repository.ts`, `drizzle-trip-document-batch.repository.ts`), mas web e
-  WhatsApp do operador passam pelos mesmos repositórios, então o histórico não sabe de onde veio.
-  A ADR-0068 escolhe, com dado de produção medido na T1, entre: (a) backfill `backoffice` se não
-  houver linha vinda do WhatsApp do operador; (b) nenhuma reescrita, e a leitura trata linhas com
-  `occurred_at` anterior ao corte da migration como **canal não registrado** (frase "por <usuária>",
-  sem selo). A escolha fica escrita na ADR, não deixada para o executor.
+- **D3 — Histórico de `trip_document_events`: sem reescrita** (ADR-0068 §4). Web e WhatsApp do
+  operador passam pelos mesmos repositórios e não se distinguem linha a linha. Como o motorista
+  **nunca** grava nessa tabela, a regra de leitura é exata: ali, `channel = 'driver_app'` significa
+  **canal não registrado** (frase "por <usuária>", sem selo). Não há corte de data nem consulta a
+  produção.
 - **D4 — Rota `GET /trips/:id/timeline`**, com `TRIP_FIELD_READ_POLICY` (`fleet.read` **ou**
   `trip.report-on-behalf`), a mesma das leituras do D11 da spec 156: o `finance` lê, o separador não
   ganha nada novo. Viagem de outra empresa → 404. Paginação por cursor `(occurredAt, id)`, `limit`
@@ -75,8 +75,9 @@ parada a que se refere e a frase de autoria do canal: "por <usuária> (escritór
 
   O `kind='occurrence'` de `TRIP_STOP_EVENT_KINDS` nunca é escrito e não entra.
 
-- **D6 — Formato do item**: `id`, `kind`, `occurredAt`, `recordedAt` (só quando difere de
-  `occurredAt`), `channel` (nulo = não registrado), `actorName`, `onBehalfOfDriverName`, `fromStatus`/
+- **D6 — Formato do item**: `id`, `kind`, `occurredAt`, `recordedAt` (só quando `channel = 'office'`
+  e a diferença para `occurredAt` passa de 60 s — o `recorded_at` das linhas antigas carrega a hora
+  da migration da spec 156, ADR-0068 "Consequências"), `channel` (nulo = não registrado), `actorName`, `onBehalfOfDriverName`, `fromStatus`/
   `toStatus` (só nos `*.status_changed`), `stop` (`{ id, sequence }` ou nulo), `document`
   (`{ id, number, series }` ou nulo), `occurrence` (`{ typeName, note }` ou nulo), `returnReason`
   (só em `document.returned`). **Nunca**: ids de usuário, documento/nome de quem recebeu, imagem,
@@ -85,7 +86,12 @@ parada a que se refere e a frase de autoria do canal: "por <usuária> (escritór
   vínculo ativo, `actorName: null`, nunca o id cru.
 - **D7 — Frase de autoria única no front**: `resolveFieldAuthorshipText` sai do namespace
   `occurrence.authorship.*` para um neutro (`authorship.*`) e ganha `backoffice` e "canal não
-  registrado". `TripOccurrences` e a linha do tempo usam a mesma função.
+  registrado". `whatsapp` passa a trazer o nome do ator ("por <nome> pelo WhatsApp"), porque o canal
+  agora cobre também o operador (ADR-0068 §3). `TripOccurrences` e a linha do tempo usam a mesma
+  função.
+- **D8 — Ordem**: `(occurredAt desc, prioridade do kind, id desc)`. O evento de status causado pela
+  chegada ou pela entrega usa o mesmo `now` do caso de uso, e a prioridade põe a chegada antes da
+  troca de status que ela provoca, e a entrega antes da conclusão da viagem.
 
 ## Histórias priorizadas
 
@@ -132,10 +138,9 @@ sem o selo de motorista.
 
 - Viagem sem evento nenhum (recém-criada): `items: []`, a tela mostra o estado vazio.
 - Ator removido da empresa: `actorName: null` → "por usuário removido"; nunca id.
-- Troca de status sem ator (cron/worker): `channel: null`, `actorName: null` → "pelo sistema".
 - Dois eventos com o mesmo `occurredAt`: desempate estável por `id`, o cursor não repete nem pula.
 - Entrega repetida do motorista (fora do escopo): aparecem os dois itens.
-- Viagem anterior ao deploy: sem `trip.status_changed` antes do corte; a tela não inventa.
+- Viagem anterior ao deploy: sem `trip.status_changed` antes do deploy; a tela não inventa.
 
 ## Critérios de aceite
 
@@ -159,4 +164,4 @@ sem o selo de motorista.
 
 ## Dúvidas
 
-Nenhuma bloqueante. D3 é decidida na ADR-0068 com dado medido (T1), com as duas saídas já escritas.
+Nenhuma. D3 foi fechada na ADR-0068 §4, sem consulta a produção.

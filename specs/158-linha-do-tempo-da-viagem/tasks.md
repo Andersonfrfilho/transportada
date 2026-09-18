@@ -21,12 +21,11 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` (validar com `architect`)
 
-- [ ] **T1 🧠 — ADR-0068 e inventário.** (1) Listar os 14 `update(trips)` de
+- [x] **T1 🧠 — ADR-0068 e inventário.** (1) Listar os 14 `update(trips)` de
       `src/trips/infrastructure/` e marcar quais mudam `status`, com o canal/ator que cada um tem à
-      mão. (2) Medir em produção (só leitura, com aprovação) quantas linhas de `trip_document_events`
-      vieram do WhatsApp do operador — se não der para distinguir, registrar isso. (3) ADR-0068:
-      `trip_status_events` (D1), canal `backoffice` (D2) e a escolha (a) ou (b) do D3 com o número
-      medido. Atualizar `specs/156-.../evidence.md` apontando o aceite 2 para esta spec.
+      mão. (2) ~~Medir em produção~~ — dispensado: a saída (b) do D3 é exata sem o número (ADR-0068
+      §4). (3) ADR-0068: `trip_status_events` (D1), canal `backoffice` (D2), D3 (b). Atualizar
+      `specs/156-.../evidence.md` apontando o aceite 2 para esta spec.
 
 ## Fase 1 — Migration
 
@@ -55,7 +54,10 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 - [ ] **T5 — `trip-timeline.query.ts`** (D5, D6, aceites 3, 5, 7, 8). Uma função por fonte, junções
       de ator/motorista no molde do feed, `mergeTripTimeline` com cursor. Contrato estático de tenant
       estendido a este arquivo; unitário do merge (empate e cursor); integração com 250 eventos e
-      medição de p95.
+      medição de p95. Ordem do D8 (empate entre chegada e troca de status no mesmo `now`) e o
+      critério de `recordedAt` do D6 (`office` e > 60 s), com teste para uma linha antiga cujo
+      `recorded_at` é a hora da migration da spec 156. `trip_document_events` com
+      `channel = 'driver_app'` sai como `channel: null` (D3), citando a ADR-0068 §4 no contrato.
 - [ ] **T6 — Caso de uso e rota `GET /trips/:id/timeline`** (D4, aceites 5, 6). Zod de `cursor`/
       `limit`, 404 para outra empresa, `TRIP_FIELD_READ_POLICY`, ligação em `main.ts`. Atualizar
       `finance-read.contract.ts` e `separator-role.contract.test.ts`. Documentação da rota
@@ -67,7 +69,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 - [ ] **T7 — Tipos, validador, cliente e frase de autoria** (D7, aceite 8). `tripTimelineFromApi`,
       `readTripTimeline`, `useTripTimeline` (cursor), `fieldAuthorship.service.ts` com `backoffice`,
-      "canal não registrado", "pelo sistema" e "usuário removido"; `TripOccurrences` migrado para a
+      "canal não registrado", "por <nome> pelo WhatsApp" e "usuário removido"; `TripOccurrences` migrado para a
       função única.
 - [ ] **T8 — `TripTimeline` no detalhe da viagem** (RF6). Carregando, vazio, erro, "carregar mais",
       filtro pela nota aberta; `occurredAt` e "registrado em" quando houver `recordedAt`. Decidir
@@ -96,9 +98,13 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T11 — Registrar o defeito fora do escopo**: entrega repetida do motorista sobre nota já
-      baixada grava evento novo (`report-document-delivery.use-case.ts:313-318`) — item em
-      `specs/PERGUNTAS-ABERTAS.md` ou `docs/SECURITY.md`/backlog equivalente, com data.
+- [ ] **T11 — Registrar os defeitos fora do escopo**, com data, em `specs/PERGUNTAS-ABERTAS.md` (ou
+      backlog equivalente): (1) entrega repetida do motorista sobre nota já baixada grava evento novo
+      (`report-document-delivery.use-case.ts:313-318`); (2) `close` aceita `cancelled → completed`
+      (`trip.use-case.ts:106` não passa por `checkTripTransition`); (3) `dispatch`,
+      `markRoutePlanned`, `markCancelled` e `close` escrevem sem guarda de origem, com a precondição
+      lida fora da transação — o evento pode registrar uma transição proibida (ADR-0068
+      "Consequências").
 
 ## Prompt de execução
 
@@ -111,6 +117,6 @@ T10 → designer model=opus, com prints ao usuário · T11 → executor model=ha
 Cada task fecha com typecheck + lint + testes da app (integração da API com
 --env-file=../../.env.test) + teste novo listado no package.json + commit isolado, evidência em
 evidence.md.
-Pare e pergunte antes de: consulta a produção (T1), deploy em produção, migration destrutiva,
+Pare e pergunte antes de: deploy em produção, migration destrutiva,
 qualquer [NEEDS CLARIFICATION].
 ```
