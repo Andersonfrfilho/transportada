@@ -226,6 +226,9 @@ import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizz
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { readTripActionSnapshot } from './trips/application/read-trip-action-snapshot.use-case.js'
 import { readTripActionSnapshot as readTripActionSnapshotQuery } from './trips/infrastructure/trip-action-snapshot.query.js'
+import { readTripFieldDeliveryDocuments as readTripFieldDeliveryDocumentsQuery } from './trips/infrastructure/trip-field-delivery-documents.query.js'
+import { readFieldDeliveryDocuments } from './trips/application/read-field-delivery-documents.use-case.js'
+import { createTripFieldDeliveryDocumentsRoutes } from './trips/presentation/trip-field-delivery-documents.routes.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
@@ -2458,6 +2461,16 @@ function createApplicationRoutes({
     ...createTripFieldDeliverySettingsRoutes({
       readCanhotoOcrEnabled: (input) =>
         deliveryProofSettingsRepository.readCanhotoOcrEnabled(input),
+    }),
+    ...createTripFieldDeliveryDocumentsRoutes({
+      readFieldDeliveryDocuments: (input) =>
+        readFieldDeliveryDocuments({
+          ...input,
+          repository: {
+            readTripFieldDeliveryDocuments: (query) =>
+              readTripFieldDeliveryDocumentsQuery(database, query),
+          },
+        }),
     }),
     ...createMeTripRoutes({
       startFieldTrip: (input) =>
