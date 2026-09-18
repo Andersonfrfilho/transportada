@@ -156,7 +156,13 @@ export function fakeAttachmentStorage(
   }
 }
 
-export function wireOccurrenceRoute(database: TestDatabase) {
+export function wireOccurrenceRoute(
+  database: TestDatabase,
+  options: {
+    readonly logger?: { warn(event: string, meta?: Record<string, unknown>): void }
+  } = {},
+) {
+  const logger = options.logger ?? { warn() {} }
   const sent: { dedupeKey: string; recipientUserId: string }[] = []
   const uploads: { objectId: string; objectKey: string }[] = []
   const routes = createTripFieldOfficeOccurrenceRoutes({
@@ -171,11 +177,11 @@ export function wireOccurrenceRoute(database: TestDatabase) {
         },
         notifications: {
           notifier: createOccurrenceNotifier({
-            logger: { warn() {} },
+            logger,
             queryable: database.db,
             send: async (notice) => void sent.push(notice),
           }),
-          logger: { warn() {} },
+          logger,
           readLabels: (query) => readOccurrenceLabelsForDocuments(database.db, query),
         },
         unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db),
