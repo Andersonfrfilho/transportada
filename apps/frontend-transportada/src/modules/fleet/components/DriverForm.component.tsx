@@ -17,7 +17,6 @@ import { useDriverAddressLookup } from '../hooks/useDriverAddressLookup.hook'
 import { useDriverForm } from '../hooks/useDriverForm.hook'
 import { useDriverLinkedAddress } from '../hooks/useDriverLinkedAddress.hook'
 import { useDriverUniqueness } from '../hooks/useDriverUniqueness.hook'
-import { useDriverScoreQuery } from '../queries/useDriverScore.query'
 import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
   FleetDriverBody,
@@ -43,7 +42,7 @@ import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
 import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
-import { DriverScoreBadge } from './DriverScoreBadge.component'
+import { DriverScoreSection } from './DriverScoreSection.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
 import { InvalidFieldsHint } from './InvalidFieldsHint.component'
@@ -96,8 +95,6 @@ export function DriverForm({
     vehicles: { isReady: vehicles.isReady, links: vehicles.links, replace: vehicles.replace },
     ...(driver === undefined ? {} : { driver }),
   })
-  /** Spec 157 RF10: só a ficha de um motorista já cadastrado lê a nota — nunca no formulário de criação. */
-  const scoreQuery = useDriverScoreQuery({ driverId: driver?.id })
   const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const companyLookup = useCompanyLookup({ patch: form.patch })
   const linkedAddress = useDriverLinkedAddress({ patch: form.patch, state: form.state })
@@ -123,40 +120,7 @@ export function DriverForm({
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{driver === undefined ? t('newDriver') : t('editDriver')}</h2>
 
-      {driver === undefined ? null : (
-        <fieldset className={styles.fieldGroup}>
-          <legend>{t('driverScoreSectionTitle')}</legend>
-          <p className={styles.hint}>{t('driverScoreSectionHint')}</p>
-          <DriverScoreBadge score={scoreQuery.data?.score ?? null} />
-          <p>{t('driverPenaltiesTitle')}</p>
-          {scoreQuery.data === undefined || scoreQuery.data.penalties.length === 0 ? (
-            <p className={styles.hint}>{t('driverPenaltiesEmpty')}</p>
-          ) : (
-            <table className={styles.fleetTable}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('penaltyColumn.documentNumber')}</th>
-                  <th scope="col">{t('penaltyColumn.deliveredAt')}</th>
-                  <th scope="col">{t('penaltyColumn.reason')}</th>
-                  <th scope="col">{t('penaltyColumn.points')}</th>
-                  <th scope="col">{t('penaltyColumn.expiresAt')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scoreQuery.data.penalties.map((penalty) => (
-                  <tr key={`${penalty.tripDocumentId}-${penalty.reason}`}>
-                    <td>{penalty.documentNumber}</td>
-                    <td>{new Date(penalty.deliveredAt).toLocaleDateString('pt-BR')}</td>
-                    <td>{t(`penaltyReason.${penalty.reason}`)}</td>
-                    <td>{penalty.points}</td>
-                    <td>{new Date(penalty.expiresAt).toLocaleDateString('pt-BR')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </fieldset>
-      )}
+      {driver === undefined ? null : <DriverScoreSection driverId={driver.id} />}
 
       <fieldset className={styles.fieldGroup}>
         <legend>{t('driverIdentityLegend')}</legend>

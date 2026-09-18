@@ -453,7 +453,7 @@
     "save": "Salvar configuração",
     "title": "Comprovante de entrega",
     "punctuality": {
-      "hint": "Spec 157: como a foto obrigatória do motorista pesa na nota dele — janela de horário, raio do local e os pontos que descem.",
+      "hint": "Como a foto obrigatória do motorista pesa na nota dele: janela de horário, raio do local e os pontos que descem.",
       "latePenaltyPoints": "Pontos por foto fora do prazo ou longe do local",
       "missingAfterHours": "Horas até considerar a foto ausente",
       "missingPenaltyPoints": "Pontos por foto obrigatória ausente",

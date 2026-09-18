@@ -137,7 +137,9 @@
 }
 
 /* Spec 157 RF10, ADR-0068 §7: a nota do motorista — mesmo molde do statusBadge, cor por faixa. */
+/* `justify-self`: dentro do fieldset da ficha o selo esticava na largura toda. */
 .driverScoreBadge {
+  justify-self: start;
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   font-family: var(--font-utility);
@@ -162,6 +164,39 @@
 .driverScoreBadgeMuted {
   color: var(--color-slate);
   font-style: italic;
+}
+
+.penaltyTitle {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.penaltyList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.penaltyItem {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.penaltyHeadline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.penaltyPoints {
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  white-space: nowrap;
 }
 
 .rowActions {

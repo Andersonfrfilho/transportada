@@ -337,7 +337,7 @@
     "save": "Save configuration",
     "title": "Delivery proof",
     "punctuality": {
-      "hint": "Spec 157: how the driver's required photo weighs on their score — time window, location radius and the points it costs.",
+      "hint": "How the driver's required photo weighs on their score: time window, location radius and the points deducted.",
       "latePenaltyPoints": "Points for a late or far photo",
       "missingAfterHours": "Hours before a photo counts as missing",
       "missingPenaltyPoints": "Points for a missing required photo",

@@ -170,8 +170,8 @@ export function TripRouteAssemblyPanel({
               /** RF11: a nota ao lado do nome — primeira linha da descrição da opção. */
               const scoreLabel =
                 driver.score === null
-                  ? tFleet('driverScore.none')
-                  : tFleet('driverScore.value', { score: driver.score })
+                  ? tFleet('driverScore.optionNone')
+                  : tFleet('driverScore.option', { score: driver.score })
               return {
                 ...option,
                 description:

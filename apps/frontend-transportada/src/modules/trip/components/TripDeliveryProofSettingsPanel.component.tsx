@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -60,6 +60,8 @@ export function TripDeliveryProofSettingsPanel({
   showError,
 }: TripDeliveryProofSettingsPanelProps) {
   const { t } = useTranslation('trip')
+  /** O erro de faixa é anunciado junto do campo pelo leitor de tela (`aria-describedby`). */
+  const punctualityErrorIdPrefix = useId()
   const [draft, setDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
   const [overrideTaxId, setOverrideTaxId] = useState('')
   const [overrideDraft, setOverrideDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
@@ -167,10 +169,12 @@ export function TripDeliveryProofSettingsPanel({
           const range = DELIVERY_PROOF_PUNCTUALITY_RANGES[field]
           const value = punctualityDraft[field] ?? String(punctualityGeneral[field])
           const isInvalid = !isDeliveryProofPunctualityValue(field, punctualityFieldValue(field))
+          const errorId = `${punctualityErrorIdPrefix}-${field}`
           return (
             <label key={field}>
               <span className={styles.hint}>{t(`deliveryProofSettings.punctuality.${field}`)}</span>
               <input
+                {...(isInvalid ? { 'aria-describedby': errorId } : {})}
                 aria-invalid={isInvalid}
                 disabled={!canManage || isSaving}
                 max={range.max}
@@ -183,7 +187,7 @@ export function TripDeliveryProofSettingsPanel({
                 }}
               />
               {isInvalid ? (
-                <span className={styles.alert} role="alert">
+                <span className={styles.alert} id={errorId} role="alert">
                   {t('deliveryProofSettings.punctuality.rangeError', {
                     max: range.max,
                     min: range.min,

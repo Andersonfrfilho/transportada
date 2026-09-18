@@ -849,8 +849,10 @@
   "vehiclesTitle": "Vehicles",
   "versionConflict": "The record changed in another session. Reload the page before saving.",
   "driverScore": {
-    "none": "No history",
-    "value": "{{score}}/100"
+    "none": "No score",
+    "option": "Score {{score}} of 100",
+    "optionNone": "No score yet",
+    "value": "{{score}} of 100"
   },
   "driverScoreColumn": "Score",
   "driverScoreSectionTitle": "Driver score",
@@ -861,11 +863,6 @@
     "late_proof": "Photo past the deadline or far from the location",
     "missing_proof": "Required photo never arrived"
   },
-  "penaltyColumn": {
-    "deliveredAt": "Delivery",
-    "documentNumber": "Invoice",
-    "expiresAt": "Expires",
-    "points": "Points",
-    "reason": "Reason"
-  }
+  "penaltyPoints": "−{{points}} points",
+  "penaltyMeta": "Invoice {{documentNumber}} · delivered on {{deliveredAt}} · expires on {{expiresAt}}"
 }

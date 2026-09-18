@@ -881,8 +881,10 @@
   "vehiclesTitle": "Veículos",
   "versionConflict": "O cadastro foi alterado em outra sessão. Recarregue a página antes de salvar.",
   "driverScore": {
-    "none": "Sem histórico",
-    "value": "{{score}}/100"
+    "none": "Sem nota",
+    "option": "Nota {{score}} de 100",
+    "optionNone": "Sem nota ainda",
+    "value": "{{score}} de 100"
   },
   "driverScoreColumn": "Nota",
   "driverScoreSectionTitle": "Nota do motorista",
@@ -893,11 +895,6 @@
     "late_proof": "Foto fora do prazo ou longe do local",
     "missing_proof": "Foto obrigatória não chegou"
   },
-  "penaltyColumn": {
-    "deliveredAt": "Entrega",
-    "documentNumber": "Nota fiscal",
-    "expiresAt": "Expira em",
-    "points": "Pontos",
-    "reason": "Motivo"
-  }
+  "penaltyPoints": "−{{points}} pontos",
+  "penaltyMeta": "Nota fiscal {{documentNumber}} · entregue em {{deliveredAt}} · expira em {{expiresAt}}"
 }
