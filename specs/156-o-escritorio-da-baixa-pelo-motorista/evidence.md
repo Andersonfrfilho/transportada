@@ -1586,3 +1586,74 @@ mockado no recorte) — fica para quando houver ambiente com Keycloak/seed dispo
 - `bun run --cwd apps/frontend-transportada test` → `4359 pass · 0 fail`, 37145 `expect()`,
   29 arquivos (+21 em relação à T8, os quatro contratos novos desta task).
 - `bun run --cwd apps/frontend-transportada build` → build limpo, PWA gerado, sem erro.
+
+## T10
+
+**Escopo:** `canhotoIdentification.service.ts` (D6, aceite 6) — função pura que classifica a foto do
+canhoto contra a nota pedida no passo, a seleção do lote e as notas da viagem. Nenhuma chamada de
+rede, nenhuma gravação: a foto **sugere**, quem confirma é a pessoa (ADR-0067 §4).
+
+### Decisões tomadas nesta task
+
+- **Formato da chave no código de barras:** o código de barras da DANFE é Code128, sempre numérico
+  (o próprio gerador do produto, `code128.service.ts`, assume Code128-C). Por isso a validação usa
+  `^\d{44}$`, diferente do `NFE_ACCESS_KEY_PATTERN` alfanumérico de `nfeAccessKey.service.ts`
+  (usado para QR/link colado, onde o CNPJ do emitente pode ter letra desde a IN RFB 2229/2024). São
+  dois formatos de entrada distintos com a mesma origem de dado — mantidos em módulos separados de
+  propósito, para não misturar a régua do link colado com a do código impresso.
+- **Dígito verificador:** reimplementado o módulo 11 (pesos 2→9, direita para a esquerda) em vez de
+  importar `@adatechnology/fiscal-provider` — o bundle do frontend não carrega o pacote (mesma razão
+  já registrada em `nfeAccessKey.service.ts`). Conferido manualmente com chaves geradas em Python
+  usando o mesmo algoritmo do `SefazTaxId.ts` do pacote, para garantir que o cálculo bate.
+- **`onTripNotSelected` (a decisão pendente que a task pedia para registrar):** nota que pertence à
+  viagem mas está fora do lote marcado **bloqueia**, com o `documentId` da nota encontrada — nunca é
+  incluída sozinha na seleção. Só `otherSelected` oferece trocar, e troca só acontece **dentro** do
+  que já está marcado. Justificativa: o assistente decidir incluir uma nota nova no lote a partir de
+  uma foto seria o mesmo "decidir sozinho" que a ADR-0067 §4 proíbe para o próprio registro da
+  entrega — a composição do lote é decisão de quem está operando, não da leitura da foto.
+- **Rótulo da nota fora da viagem:** reaproveita `tripDocumentLabel` (já usado na listagem de
+  entregas, `tripDocument.service.ts`) para montar "número/série" a partir do que a chave revelou,
+  em vez de duplicar a formatação — mesmo texto que a pessoa já vê em qualquer outra tela do
+  produto.
+
+### TDD
+
+Contrato escrito antes: `test/trip/canhoto-identification.contract.ts`, importado por
+`test/trip.contract.test.ts` (arquivo já na lista do `package.json`, nenhuma entrada nova
+necessária ali). Rodado isolado antes da implementação — falhava com `Cannot find module
+'@/modules/trip/shared/canhotoIdentification.service'` (arquivo ainda não existia) — e voltou verde
+depois de `src/modules/trip/shared/canhotoIdentification.service.ts` escrito.
+
+Cobertura:
+
+- **Classificação por texto** (sem imagem): chave da nota pedida (`matched`), chave de outra nota da
+  seleção (`otherSelected`), chave de nota fora da viagem (`notOnTrip`, com `documentLabel`
+  `"99999/1"`), chave de nota da viagem fora da seleção (`onTripNotSelected`), dígito verificador
+  errado (`unreadable`), modelo 65/NFC-e (`unreadable`), lixo sem formato de chave (`unreadable`),
+  ausência de código — canhoto destacado sem código de barras (`unreadable`), e
+  `parseNfeAccessKeyFromBarcode` extraindo número/série sem zero à esquerda.
+- **Fixtures de imagem sintética de DANFE**, passando pelo `decodeBarcodeFrame` real (zxing): legível
+  da nota pedida, de outra nota da seleção, de nota fora da viagem, e canhoto sem código de barras
+  (quadro em branco). `@zxing/library` 0.23.0 (versão instalada) não expõe `Code128Writer` — só
+  leitores —, então o fixture (`test/fixtures/canhotoBarcodeFrame.fixture.ts`) reaproveita o
+  gerador manual que **já existe no produto**, `encodeCode128C` de `code128.service.ts` (usado hoje
+  para desenhar o código de barras na tela/romaneio), convertendo as larguras em módulos que ele
+  devolve para um `Uint8ClampedArray` de luminância (`BarcodeFrame`), sem depender de PNG nem de
+  canvas — determinístico e sem I/O.
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro (um ajuste no meio do caminho: `new
+Array(n).fill(x)` tipava `any[]` sob `@typescript-eslint/no-unsafe-assignment`; trocado por
+  `Array.from<number>({ length: n }).fill(x)` no fixture).
+- `bun run --cwd apps/frontend-transportada test` → `4376 pass · 0 fail`, 37169 `expect()`,
+  29 arquivos (mesma contagem de arquivo da T9 — o contrato novo entrou dentro de `trip.contract.test.ts`
+  via `import`, não como entrada nova do `package.json`) + `test:hooks` `5 pass · 0 fail`.
+
+### Arquivos
+
+- `apps/frontend-transportada/src/modules/trip/shared/canhotoIdentification.service.ts` (novo)
+- `apps/frontend-transportada/test/trip/canhoto-identification.contract.ts` (novo)
+- `apps/frontend-transportada/test/fixtures/canhotoBarcodeFrame.fixture.ts` (novo)
+- `apps/frontend-transportada/test/trip.contract.test.ts` (import acrescentado)

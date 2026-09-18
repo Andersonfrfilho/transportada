@@ -94,7 +94,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T10 — `canhotoIdentification.service.ts`**: função pura com fixtures de DANFE (código de
+- [x] **T10 — `canhotoIdentification.service.ts`**: função pura com fixtures de DANFE (código de
       barras legível, de outra nota, de fora da viagem e sem código). Contrato antes (aceite 6).
 - [ ] **T11 — `FieldDeliveryWizard`**: preview da câmera com a faixa da nota, captura, envio de
       arquivo, conferência, pular e "Entregue em". Serve para **uma** nota (ação da linha) e para
