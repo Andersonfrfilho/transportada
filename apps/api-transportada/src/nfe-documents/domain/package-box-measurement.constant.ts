@@ -38,3 +38,9 @@ export type PackageBoxMeasurementWarning = (typeof PACKAGE_BOX_MEASUREMENT_WARNI
  */
 export const MARGIN_RELIABLE_MM = 10
 export const MARGIN_UNRELIABLE_MM = 30
+
+/**
+ * O teto da exportação do que falta medir. Não é paginação: é o limite de segurança de uma resposta
+ * só, e o cliente não o afrouxa. A maior empresa medida tinha 663 caixas — quinze vezes de folga.
+ */
+export const PACKAGE_BOX_PENDING_EXPORT_MAX_ITEMS = 10_000

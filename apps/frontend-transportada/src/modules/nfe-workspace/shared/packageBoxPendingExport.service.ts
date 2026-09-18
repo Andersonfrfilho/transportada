@@ -6,19 +6,48 @@ import {
   escapeCsvField,
 } from '@/modules/shared/csv.service'
 
-import type { PackageBox } from './packageBoxClient.service'
+import {
+  PackageBoxRequestError,
+  type PackageBox,
+  type PackageBoxPendingExport,
+} from './packageBoxClient.service'
+
+const TOO_MANY_REQUESTS_STATUS = 429
+
+/** O arquivo sai em um dos dois formatos — é também o botão que mostra "Preparando…". */
+export type PackageBoxPendingExportFormat = 'csv' | 'xlsx'
+
+/** O que a aba diz depois do clique. `idle` também é "baixou inteiro": nada a avisar. */
+export type PackageBoxPendingExportFeedback =
+  | Readonly<{ kind: 'empty' }>
+  | Readonly<{ kind: 'failed' }>
+  | Readonly<{ kind: 'idle' }>
+  | Readonly<{ kind: 'preparing' }>
+  | Readonly<{ kind: 'rateLimited' }>
+  | Readonly<{ kind: 'truncated'; total: number }>
 
 /**
- * ⚠️ `GET /nfe-package-boxes` não tem paginação por cursor — só um teto de itens por chamada
- * (`MAX_LIMIT` em `package-box.schema.ts`, API). Passar o teto aqui é o máximo que a API de hoje
- * entrega numa chamada só; uma empresa com mais de 200 caixas pendentes exigiria um endpoint com
- * paginação de verdade para o arquivo cobrir 100% da fila — fora do escopo desta tarefa.
+ * ⚠️ O 429 tem mensagem própria: "falhou" manda clicar de novo na hora, e cada clique antes da
+ * janela virar só adia a próxima exportação que passaria.
  */
-export const PACKAGE_BOX_PENDING_EXPORT_LIMIT = 200
-
-/** A API não pagina esta lista: bater no teto é o único sinal de que ficou caixa de fora. */
-export function isPackageBoxPendingExportTruncated(count: number): boolean {
-  return count >= PACKAGE_BOX_PENDING_EXPORT_LIMIT
+export function resolvePackageBoxPendingExportFeedback(
+  input: Readonly<{
+    error: unknown
+    isPending: boolean
+    result: PackageBoxPendingExport | undefined
+  }>,
+): PackageBoxPendingExportFeedback {
+  if (input.isPending) return { kind: 'preparing' }
+  if (input.error instanceof PackageBoxRequestError) {
+    return input.error.status === TOO_MANY_REQUESTS_STATUS
+      ? { kind: 'rateLimited' }
+      : { kind: 'failed' }
+  }
+  if (input.error !== null && input.error !== undefined) return { kind: 'failed' }
+  if (input.result === undefined) return { kind: 'idle' }
+  if (input.result.items.length === 0) return { kind: 'empty' }
+  if (input.result.truncated) return { kind: 'truncated', total: input.result.items.length }
+  return { kind: 'idle' }
 }
 
 /** A ordem da lista é a ordem das colunas do arquivo. */

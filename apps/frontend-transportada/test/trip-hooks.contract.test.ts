@@ -3,3 +3,4 @@
 import './trip-hooks/route-assembly-draft.contract'
 import './trip-hooks/quick-create-draft.contract'
 import './trip-hooks/draft-lifecycle.contract'
+import './trip-hooks/package-box-pending-export.contract'

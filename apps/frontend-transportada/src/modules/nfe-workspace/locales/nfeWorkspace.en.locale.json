@@ -599,7 +599,11 @@
         "commercialUnit": "Packaging",
         "transportedVolumes": "Pending quantity"
       },
-      "truncated": "The file holds the {{limit}} pending boxes that move the most — there are more boxes to measure beyond them."
+      "truncated": "The file holds the first {{total, number}} pending boxes in the queue — there are more boxes to measure beyond them.",
+      "preparing": "Preparing…",
+      "empty": "There are no pending boxes to export.",
+      "failed": "The file could not be prepared. Try again.",
+      "rateLimited": "Too many exports in a row. Try again in a few minutes."
     }
   },
   "addressCorrection": {

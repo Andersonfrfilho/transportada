@@ -129,6 +129,12 @@ export type PackageBoxMeasurementInput = Readonly<{
   widthMm: number
 }>
 
+/** Tudo o que falta medir, na ordem da fila; `truncated` diz que a API cortou no teto dela. */
+export type PackageBoxPendingExport = Readonly<{
+  items: readonly PackageBox[]
+  truncated: boolean
+}>
+
 type ClientDependencies = Readonly<{
   apiUrl: string
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -138,13 +144,13 @@ type ClientDependencies = Readonly<{
 export type PackageBoxClient = Readonly<{
   listBoxes: (
     input?: Readonly<{
-      /** A API aceita até `MAX_LIMIT` (200, `package-box.schema.ts`); sem isto ela usa 50. */
-      limit?: number
       scanned?: string
       search?: string
       status?: PackageBoxStatusFilter
     }>,
   ) => Promise<PackageBoxQueue>
+  /** O arquivo da aba Caixas: nunca a busca/etiqueta da fila, e sem a janela de 50 da tela. */
+  listPendingExport: () => Promise<PackageBoxPendingExport>
   /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
   getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
   /** Spec 155 (G003, D9): sob demanda — nunca acompanha a fila de 50 linhas. */
@@ -208,13 +214,20 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       /** A etiqueta vai crua: reduzir DUN-14 a GTIN-13 é decisão da API, não da tela. */
       if (input?.scanned) url.searchParams.set('scanned', input.scanned)
       if (input?.status !== undefined) url.searchParams.set('status', input.status)
-      if (input?.limit !== undefined) url.searchParams.set('limit', String(input.limit))
 
       const response = await dependencies.fetch(url, {
         headers: { authorization: await authorization() },
       })
       if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
+    },
+    async listPendingExport(): Promise<PackageBoxPendingExport> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/pending-export`,
+        { headers: { authorization: await authorization() } },
+      )
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_PENDING_EXPORT_FAILED')
+      return packageBoxPendingExportFromApi(await response.json())
     },
     async getMeasurementSettings(): Promise<Readonly<{ cameraMeasurementEnabled: boolean }>> {
       const response = await dependencies.fetch(
@@ -282,6 +295,23 @@ export function packageBoxQueueFromApi(body: unknown): PackageBoxQueue {
     items,
     totalVolumes: isNumber(totalVolumes) ? totalVolumes : 0,
   }
+}
+
+/**
+ * ⚠️ Sem `truncated` booleano o corpo é recusado, nunca lido como "não cortou": arquivo cortado
+ * sem o aviso parece a fila inteira, e é exatamente o que a rota existe para não fazer.
+ */
+function packageBoxPendingExportFromApi(body: unknown): PackageBoxPendingExport {
+  if (
+    !isRecord(body) ||
+    !isRecord(body.data) ||
+    !Array.isArray(body.data.items) ||
+    !body.data.items.every(isPackageBox) ||
+    typeof body.data.truncated !== 'boolean'
+  ) {
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_PENDING_EXPORT_MALFORMED' })
+  }
+  return { items: body.data.items, truncated: body.data.truncated }
 }
 
 function isPackageBox(value: unknown): value is PackageBox {

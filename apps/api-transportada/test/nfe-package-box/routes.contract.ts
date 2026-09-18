@@ -20,11 +20,12 @@ function routeOf(method: string, pathname: string) {
 }
 
 describe('as rotas da medição de caixa (spec 085 G005, spec 155 G003/G004)', () => {
-  test('publica a fila, o interruptor, a gravação da medida, as irmãs e a réplica', () => {
+  test('publica a fila, a exportação, o interruptor, a gravação da medida, as irmãs e a réplica', () => {
     expect(ROUTES.map((route) => `${route.method} ${route.pathname}`).sort()).toEqual([
       'GET /nfe-package-boxes',
       'GET /nfe-package-boxes/:id/siblings',
       'GET /nfe-package-boxes/measurement-settings',
+      'GET /nfe-package-boxes/pending-export',
       'POST /nfe-package-boxes/:id/replicate',
       'PUT /nfe-package-boxes/:id',
     ])
@@ -36,15 +37,16 @@ describe('as rotas da medição de caixa (spec 085 G005, spec 155 G003/G004)', (
    * do interruptor (spec 152 D14) e para as duas rotas novas da spec 155: é o conferente que decide
    * a família e replica, não quem administra configurações.
    */
-  test('as cinco pedem cargo.measure no escopo da empresa', () => {
+  test('as seis pedem cargo.measure no escopo da empresa', () => {
     for (const route of ROUTES) {
       expect(route.policy).toEqual({ permission: 'cargo.measure', scope: 'company' })
     }
   })
 
-  test('a fila, o interruptor e as irmãs são leitura; a medida e a réplica são escrita', () => {
+  test('a fila, a exportação, o interruptor e as irmãs são leitura; a medida e a réplica são escrita', () => {
     expect(routeOf('GET', '/nfe-package-boxes')).toBeDefined()
     expect(routeOf('GET', '/nfe-package-boxes/measurement-settings')).toBeDefined()
+    expect(routeOf('GET', '/nfe-package-boxes/pending-export')).toBeDefined()
     expect(routeOf('GET', '/nfe-package-boxes/:id/siblings')).toBeDefined()
     expect(routeOf('PUT', '/nfe-package-boxes/:id')).toBeDefined()
     expect(routeOf('POST', '/nfe-package-boxes/:id/replicate')).toBeDefined()

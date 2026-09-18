@@ -44,6 +44,12 @@ o padrão de `contractor-mail`. Fica pendente, fora do escopo da revisão de seg
 CSP × `data:`, injeção de fórmula em CSV, a validação de margem de `camera_adjusted`, a lista de
 rotas do separador e a negociação de `Accept-Encoding`).
 
+**Atualização 2026-09-18:** a rota nova `GET /nfe-package-boxes/pending-export` (a exportação do que
+falta medir, até 10 000 caixas numa resposta) já nasceu com teto por usuário em memória
+(`package-box-pending-export.rate-limit.ts`, 10 a cada 5 min). As quatro acima continuam pendentes.
+⚠️ O balde é em memória: vale **por réplica** (com N réplicas o teto real é N × 10) e **zera a cada
+deploy/restart** — é contenção de abuso casual, não garantia; garantia exige o balde no Postgres.
+
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
 ### 2026-09-16 — foto congelada da medida pela câmera quebrava sob a CSP real (T14 item 1, fechado)

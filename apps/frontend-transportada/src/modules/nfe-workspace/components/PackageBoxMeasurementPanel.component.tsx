@@ -31,11 +31,12 @@ import {
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
 import {
-  PACKAGE_BOX_PENDING_EXPORT_LIMIT,
   buildPackageBoxPendingExportCsv,
   buildPackageBoxPendingExportSheetData,
   PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE,
   packageBoxPendingExportFileName,
+  type PackageBoxPendingExportFeedback,
+  type PackageBoxPendingExportFormat,
   type PackageBoxPendingExportLabels,
 } from '../shared/packageBoxPendingExport.service'
 import {
@@ -68,12 +69,14 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
-  /** Export de "tudo o que falta medir" — sempre a fila inteira, independente da busca da tela. */
+  /**
+   * Export de "tudo o que falta medir" — sempre a fila inteira, independente da busca da tela, e
+   * buscada só no clique (`usePackageBoxPendingExport`).
+   */
   pendingExport: Readonly<{
-    boxes: readonly PackageBox[]
-    failed: boolean
-    isTruncated: boolean
-    loading: boolean
+    feedback: PackageBoxPendingExportFeedback
+    prepare: (format: PackageBoxPendingExportFormat) => Promise<readonly PackageBox[] | undefined>
+    preparingFormat: PackageBoxPendingExportFormat | undefined
   }>
   /**
    * Spec 155 (G004, D5): quem grava a réplica confirmada pelo diálogo. `onSuccess` fecha o diálogo
@@ -353,11 +356,10 @@ export function PackageBoxMeasurementPanel({
     return new Date().toISOString().slice(0, 10)
   }
 
-  function handleExportPendingCsv(): void {
-    const csv = buildPackageBoxPendingExportCsv({
-      boxes: pendingExport.boxes,
-      labels: pendingExportLabels(),
-    })
+  async function handleExportPendingCsv(): Promise<void> {
+    const boxes = await pendingExport.prepare('csv')
+    if (boxes === undefined) return
+    const csv = buildPackageBoxPendingExportCsv({ boxes, labels: pendingExportLabels() })
     saveArchiveFile({
       blob: new Blob([csv], { type: PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE }),
       fileName: packageBoxPendingExportFileName({ extension: 'csv', today: todayIsoDate() }),
@@ -365,8 +367,10 @@ export function PackageBoxMeasurementPanel({
   }
 
   async function handleExportPendingXlsx(): Promise<void> {
+    const boxes = await pendingExport.prepare('xlsx')
+    if (boxes === undefined) return
     const sheetData = buildPackageBoxPendingExportSheetData({
-      boxes: pendingExport.boxes,
+      boxes,
       labels: pendingExportLabels(),
     })
     const { default: writeExcelFile } = await import('write-excel-file/browser')
@@ -416,9 +420,8 @@ export function PackageBoxMeasurementPanel({
         </Button>
         <div className={styles.actions}>
           <Button
-            disabled={
-              pendingExport.loading || pendingExport.failed || pendingExport.boxes.length === 0
-            }
+            aria-busy={pendingExport.preparingFormat === 'xlsx'}
+            disabled={pendingExport.preparingFormat !== undefined}
             onClick={() => {
               void handleExportPendingXlsx()
             }}
@@ -426,31 +429,28 @@ export function PackageBoxMeasurementPanel({
             type="button"
             variant="ghost"
           >
-            <Icon name="download" />
-            {t('packageBoxes.pendingExport.xlsx')}
+            <Icon name={pendingExport.preparingFormat === 'xlsx' ? 'spinner' : 'download'} />
+            {pendingExport.preparingFormat === 'xlsx'
+              ? t('packageBoxes.pendingExport.preparing')
+              : t('packageBoxes.pendingExport.xlsx')}
           </Button>
           <Button
-            disabled={
-              pendingExport.loading || pendingExport.failed || pendingExport.boxes.length === 0
-            }
-            onClick={handleExportPendingCsv}
+            aria-busy={pendingExport.preparingFormat === 'csv'}
+            disabled={pendingExport.preparingFormat !== undefined}
+            onClick={() => {
+              void handleExportPendingCsv()
+            }}
             size="sm"
             type="button"
             variant="ghost"
           >
-            <Icon name="download" />
-            {t('packageBoxes.pendingExport.csv')}
+            <Icon name={pendingExport.preparingFormat === 'csv' ? 'spinner' : 'download'} />
+            {pendingExport.preparingFormat === 'csv'
+              ? t('packageBoxes.pendingExport.preparing')
+              : t('packageBoxes.pendingExport.csv')}
           </Button>
         </div>
-        {/*
-          ⚠️ O arquivo com teto não pode parecer completo: sem este aviso, a empresa com mais
-          caixas pendentes que o teto baixaria uma lista cortada achando que é a fila inteira.
-        */}
-        {pendingExport.isTruncated ? (
-          <p className={styles.hint} role="status">
-            {t('packageBoxes.pendingExport.truncated', { limit: PACKAGE_BOX_PENDING_EXPORT_LIMIT })}
-          </p>
-        ) : null}
+        <PendingExportNotice feedback={pendingExport.feedback} t={t as Translate} />
       </header>
 
       {/*
@@ -856,5 +856,33 @@ function PackageBoxRow({
         </div>
       )}
     </li>
+  )
+}
+
+/**
+ * ⚠️ O arquivo cortado não pode parecer completo: sem o aviso, a empresa com mais caixas pendentes
+ * que o teto da API baixaria uma lista cortada achando que é a fila inteira. Falha e 429 são
+ * `alert`; o resto é `status`.
+ */
+function PendingExportNotice({
+  feedback,
+  t,
+}: Readonly<{ feedback: PackageBoxPendingExportFeedback; t: Translate }>) {
+  if (feedback.kind === 'idle' || feedback.kind === 'preparing') return null
+  if (feedback.kind === 'failed' || feedback.kind === 'rateLimited') {
+    return (
+      /* Falha é erro, não informação: mesmo desenho dos erros de campo deste painel. */
+      <p className={styles.fieldError} role="alert">
+        <Icon name="alert" size="sm" />
+        {t(`packageBoxes.pendingExport.${feedback.kind}`)}
+      </p>
+    )
+  }
+  return (
+    <p className={styles.hint} role="status">
+      {feedback.kind === 'truncated'
+        ? t('packageBoxes.pendingExport.truncated', { total: feedback.total })
+        : t('packageBoxes.pendingExport.empty')}
+    </p>
   )
 }

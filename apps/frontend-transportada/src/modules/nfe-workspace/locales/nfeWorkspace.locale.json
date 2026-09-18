@@ -773,7 +773,11 @@
         "commercialUnit": "Embalagem",
         "transportedVolumes": "Quantidade pendente"
       },
-      "truncated": "O arquivo traz as {{limit}} caixas pendentes que mais rodam — há mais caixas por medir além delas."
+      "truncated": "O arquivo traz as {{total, number}} primeiras caixas pendentes da fila — há mais caixas por medir além delas.",
+      "preparing": "Preparando…",
+      "empty": "Não há caixas pendentes para exportar.",
+      "failed": "Não foi possível preparar o arquivo. Tente de novo.",
+      "rateLimited": "Muitas exportações seguidas. Tente de novo em alguns minutos."
     }
   },
   "addressCorrection": {

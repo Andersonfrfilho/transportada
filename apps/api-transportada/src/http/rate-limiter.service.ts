@@ -38,7 +38,8 @@ export type RateLimiter = Readonly<{
   consume: (input: { readonly key: string; readonly policy: RateLimitPolicy }) => RateLimitOutcome
 }>
 
-type Bucket = { count: number; windowStartedAt: number }
+/** `windowMs` é do balde: a varredura mede cada um pela janela da rota que o criou. */
+type Bucket = { count: number; windowMs: number; windowStartedAt: number }
 
 /** Acima disto, cada `consume()` aproveita para varrer baldes expirados antes de crescer mais. */
 const SWEEP_THRESHOLD_ENTRIES = 10_000
@@ -53,21 +54,21 @@ const SWEEP_THRESHOLD_ENTRIES = 10_000
 export function createRateLimiter(): RateLimiter {
   const buckets = new Map<string, Bucket>()
 
-  function sweepExpired(now: number, maxWindowMs: number): void {
+  function sweepExpired(now: number): void {
     if (buckets.size < SWEEP_THRESHOLD_ENTRIES) return
     for (const [key, bucket] of buckets) {
-      if (now - bucket.windowStartedAt >= maxWindowMs) buckets.delete(key)
+      if (now - bucket.windowStartedAt >= bucket.windowMs) buckets.delete(key)
     }
   }
 
   return {
     consume({ key, policy }): RateLimitOutcome {
       const now = Date.now()
-      sweepExpired(now, policy.windowMs)
+      sweepExpired(now)
       const existing = buckets.get(key)
 
       if (existing === undefined || now - existing.windowStartedAt >= policy.windowMs) {
-        buckets.set(key, { count: 1, windowStartedAt: now })
+        buckets.set(key, { count: 1, windowMs: policy.windowMs, windowStartedAt: now })
         return { allowed: true }
       }
 

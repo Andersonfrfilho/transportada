@@ -1,46 +1,60 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
-import { createPackageBoxClient } from '../shared/packageBoxClient.service'
 import {
-  isPackageBoxPendingExportTruncated,
-  PACKAGE_BOX_PENDING_EXPORT_LIMIT,
+  createPackageBoxClient,
+  type PackageBox,
+  type PackageBoxPendingExport,
+} from '../shared/packageBoxClient.service'
+import {
+  resolvePackageBoxPendingExportFeedback,
+  type PackageBoxPendingExportFormat,
 } from '../shared/packageBoxPendingExport.service'
 
-const PACKAGE_BOX_PENDING_EXPORT_QUERY_KEY = 'nfe-package-boxes-pending-export'
-
-function createClient() {
+function loadPendingExportFromApi(): Promise<PackageBoxPendingExport> {
   return createPackageBoxClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request, init) => fetch(request, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
-  })
+  }).listPendingExport()
 }
 
 /**
  * A lista para exportar é sempre "tudo o que falta medir" — nunca a busca/etiqueta da fila
- * interativa (`usePackageBoxQueue`), que existe para medir uma caixa de cada vez. Consulta própria,
- * com o teto documentado da API (`PACKAGE_BOX_PENDING_EXPORT_LIMIT`).
+ * interativa (`usePackageBoxQueue`). ⚠️ **Busca só no clique**, nunca ao abrir a aba: a rota tem teto
+ * de 10 pedidos a cada 5 min por usuário e devolve a empresa inteira, então consulta automática
+ * (abertura, foco da janela, `staleTime`) gastava o teto e baixava megabytes que ninguém pediu — e
+ * ainda entregava o arquivo de antes da última medida.
+ *
+ * `loadPendingExport` existe para o teste de hook trocar a rede por um falso.
  */
 export function usePackageBoxPendingExport(
-  input: Readonly<{ companyId?: string; enabled: boolean }>,
+  input: Readonly<{ loadPendingExport?: () => Promise<PackageBoxPendingExport> }> = {},
 ) {
-  const client = createClient()
-
-  const query = useQuery({
-    enabled: input.enabled && input.companyId !== undefined,
-    queryFn: () => client.listBoxes({ limit: PACKAGE_BOX_PENDING_EXPORT_LIMIT, status: 'pending' }),
-    queryKey: [PACKAGE_BOX_PENDING_EXPORT_QUERY_KEY, input.companyId] as const,
+  const loadPendingExport = input.loadPendingExport ?? loadPendingExportFromApi
+  // O formato só vai como variável da mutação: é ele que diz qual botão mostra "Preparando…".
+  const mutation = useMutation<PackageBoxPendingExport, Error, PackageBoxPendingExportFormat>({
+    mutationFn: () => loadPendingExport(),
   })
 
   return {
-    boxes: query.data?.items ?? [],
-    failed: query.isError,
-    isTruncated: isPackageBoxPendingExportTruncated(query.data?.items.length ?? 0),
-    loading: query.isLoading,
+    feedback: resolvePackageBoxPendingExportFeedback({
+      error: mutation.error,
+      isPending: mutation.isPending,
+      result: mutation.data,
+    }),
+    preparingFormat: mutation.isPending ? mutation.variables : undefined,
+    /** As caixas para o arquivo, ou `undefined` quando não há o que baixar (falha, 429, vazio). */
+    async prepare(
+      format: PackageBoxPendingExportFormat,
+    ): Promise<readonly PackageBox[] | undefined> {
+      // A falha já fica em `mutation.error` e vira aviso na tela: aqui só não há arquivo.
+      const result = await mutation.mutateAsync(format).catch(() => undefined)
+      return result === undefined || result.items.length === 0 ? undefined : result.items
+    },
   }
 }
 

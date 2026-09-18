@@ -558,6 +558,24 @@ controla se a câmera está ligada na aba **Caixas** — com a função desligad
 interruptor. Export do histórico por período: `GET /nfe-package-box-measurements?from=&to=&cursor=`
 (`settings.manage`, `perPage ≤ 100`) para validação com caixas reais (spec 152 T15).
 
+**Exportar o que falta medir:** `GET /nfe-package-boxes/pending-export` (`cargo.measure`, sem
+parâmetro nenhum) devolve `{ data: { items, truncated } }` — **todas** as caixas pendentes da empresa
+do token, com os mesmos campos de `GET /nfe-package-boxes`. É a mesma fila: o use case
+`export-pending-package-boxes` chama `createListPackageBoxes` com `status: pending`, então a ordem
+(o que mais roda, desempate pelo id — também no `ORDER BY` do SQL, para o corte do `LIMIT` ser o
+começo da fila) não tem segunda implementação. Teto de segurança do servidor
+`PACKAGE_BOX_PENDING_EXPORT_MAX_ITEMS` (10 000, `domain/package-box-measurement.constant.ts`), sem
+parâmetro do cliente para afrouxá-lo: busca teto + 1 e `truncated` só é `true` quando havia mais que
+o teto. Consultas fixas (a fila e as caixas da empresa para o contador de família), sem N+1. Teto de
+requisição por usuário em memória (`package-box-pending-export.rate-limit.ts`, 10 a cada 5 min). No
+frontend é o "Baixar Excel/CSV" da aba **Caixas**, e ⚠️ a busca acontece **só no clique**
+(`useMutation` em `usePackageBoxPendingExport`) — consulta automática ao abrir a aba gastava o teto
+de requisições e baixava a empresa inteira sem ninguém pedir. O botão clicado mostra "Preparando…";
+o aviso de arquivo cortado vem de `truncated` (nunca da contagem de itens), e o 429 tem mensagem
+própria ("muitas exportações seguidas"). O limitador em memória (`rate-limiter.service.ts`) varre
+cada balde pela janela **dele** (`Bucket.windowMs`): antes, a varredura disparada por uma rota de
+janela curta apagava os baldes das rotas de janela longa e zerava o teto delas.
+
 **Replicar medida entre variações da mesma caixa (spec 155):** `GET /nfe-package-boxes/:id/siblings`
 (`cargo.measure`) lista irmãs por família — `(emitente, prefixo da descrição até o último dígito, uCom)`
 é replicável (sabores diferentes da mesma caixa física). Mesmo emitente + cProd são agrupadas só na tela

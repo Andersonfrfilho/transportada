@@ -281,11 +281,8 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canMeasureCargo && activeTab === 'boxes',
   })
-  /** Export do que falta medir — sempre a fila inteira (teto da API), nunca a busca da fila interativa. */
-  const packageBoxPendingExport = usePackageBoxPendingExport({
-    ...(companyId === undefined ? {} : { companyId }),
-    enabled: canMeasureCargo && activeTab === 'boxes',
-  })
+  /** Export do que falta medir — a fila inteira, buscada só no clique de baixar. */
+  const packageBoxPendingExport = usePackageBoxPendingExport()
   /**
    * Spec 152 D14: leitura própria de `cargo.measure` — quem mede não tem `settings.manage`, então
    * não reaproveita `cargoSettings` (aquela é a leitura do painel de configuração).

@@ -547,6 +547,7 @@ import { DrizzleNfeDocumentEventRepository } from './nfe-documents/infrastructur
 import { createListNfeDocumentEvents } from './nfe-documents/application/list-nfe-document-events.use-case'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
 import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
+import { createExportPendingPackageBoxes } from './nfe-documents/application/export-pending-package-boxes.use-case'
 import { createListPackageBoxSiblings } from './nfe-documents/application/list-package-box-siblings.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
 import { createReplicatePackageBoxMeasurement } from './nfe-documents/application/replicate-package-box-measurement.use-case'
@@ -3217,6 +3218,9 @@ function createApplicationRoutes({
     }),
     ...createPackageBoxRoutes({
       cameraMeasurementSettings: cameraMeasurementSettingsRepository,
+      exportPendingPackageBoxes: createExportPendingPackageBoxes({
+        listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
+      }),
       listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
       listPackageBoxSiblings: createListPackageBoxSiblings({ repository: packageBoxRepository }),
       measurePackageBox: createMeasurePackageBox({

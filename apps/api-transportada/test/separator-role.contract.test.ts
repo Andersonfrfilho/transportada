@@ -121,6 +121,8 @@ describe('separator role contract', () => {
       'GET /nfe-package-boxes',
       'GET /nfe-package-boxes/:id/siblings',
       'GET /nfe-package-boxes/measurement-settings',
+      // A exportação do que falta medir é a mesma fila, inteira — a mesma cargo.measure.
+      'GET /nfe-package-boxes/pending-export',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela

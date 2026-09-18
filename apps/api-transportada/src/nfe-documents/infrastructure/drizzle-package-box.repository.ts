@@ -170,8 +170,11 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
        * 663 caixas e `limit=50`, a tela abria com as órfãs e as doze que cobrem um quarto dos
        * volumes ficavam fora da página — a política reordena o que recebeu, não o que o `LIMIT` já
        * cortou.
+       *
+       * O desempate pelo id é o mesmo de `buildMeasurementQueue`: sem ele, caixas empatadas na borda
+       * do `LIMIT` entravam ou saíam ao acaso, e a exportação cortada não era o começo da fila.
        */
-      .orderBy(sql`coalesce(${transported.volumes}, 0) desc`)
+      .orderBy(sql`coalesce(${transported.volumes}, 0) desc`, nfePackageBoxes.id)
       .limit(input.limit)
 
     /**
