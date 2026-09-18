@@ -225,6 +225,7 @@ import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo
 import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
   createListTripOccurrenceFeedUseCase,
@@ -721,6 +722,7 @@ export function bootstrap(): Bun.Server<undefined> {
     registerOccurrence: (input) =>
       registerDriverOccurrence({
         ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         repository: {
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
@@ -729,9 +731,19 @@ export function bootstrap(): Bun.Server<undefined> {
         },
       }),
     reportDelivery: (input) =>
-      reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+      reportDocumentDelivery({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
     reportReturn: (input) =>
-      reportDocumentReturn({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+      reportDocumentReturn({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
     resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
   })
   /**

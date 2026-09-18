@@ -2,6 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import {
+  TRIP_FIELD_CHANNELS,
+  type TripFieldChannel,
+} from '../domain/trip-field-channel.constant.js'
 
 export const FIELD_TRIP_TARGET_KIND = { driver: 'driver', trip: 'trip' } as const
 
@@ -44,9 +48,13 @@ export type ResolvedTripFieldTarget = {
 /**
  * Como um caso de uso de campo chega à viagem: pelo motorista logado (a forma de sempre) ou pelo
  * alvo que o escritório resolveu. Os dois nunca andam juntos.
+ *
+ * ADR-0067 §2: `channel` só existe na variante do motorista — o WhatsApp o informa (`'whatsapp'`);
+ * ausente, é `'driver_app'` (o PWA). O escritório não manda `channel`: ele sempre é `'office'`,
+ * porque é o próprio `target` resolvido que o entrega.
  */
 export type FieldTripLocator =
-  | { readonly driverId: string; readonly target?: never }
+  | { readonly channel?: TripFieldChannel; readonly driverId: string; readonly target?: never }
   | { readonly driverId?: never; readonly target: ResolvedTripFieldTarget }
 
 export function toFieldTripTarget(locator: FieldTripLocator): FieldTripTarget {
@@ -55,4 +63,30 @@ export function toFieldTripTarget(locator: FieldTripLocator): FieldTripTarget {
   }
 
   return { driverId: locator.driverId, kind: FIELD_TRIP_TARGET_KIND.driver }
+}
+
+/** ADR-0067 §2: quem gravou o registro de campo, e em nome de qual motorista. */
+export type FieldAuthorship = {
+  readonly channel: TripFieldChannel
+  readonly onBehalfOfDriverId: string | null
+}
+
+/**
+ * A autoria não é escolha de quem grava — ela nasce de **como** a viagem foi achada.
+ * `{ target }` só existe para o escritório (`resolveFieldTripTarget`), então é sempre `'office'`,
+ * com o motorista efetivo já resolvido. `{ driverId }` é o motorista: `'whatsapp'` quando o
+ * localizador o diz, senão `'driver_app'`.
+ */
+export function deriveFieldAuthorship(locator: FieldTripLocator): FieldAuthorship {
+  if (locator.target !== undefined) {
+    return {
+      channel: TRIP_FIELD_CHANNELS.office,
+      onBehalfOfDriverId: locator.target.onBehalfOfDriverId,
+    }
+  }
+
+  return {
+    channel: locator.channel ?? TRIP_FIELD_CHANNELS.driverApp,
+    onBehalfOfDriverId: null,
+  }
 }

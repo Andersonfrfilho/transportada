@@ -364,6 +364,8 @@ export async function assertTripConstraints(
   await assertFieldExecutionConstraints({
     companyId,
     database,
+    driverId,
+    otherCompanyId,
     tripDocumentId: liveTripDocumentId,
     tripId,
     userId,
@@ -424,11 +426,13 @@ async function assertLiveManifestConstraint(input: {
 async function assertFieldExecutionConstraints(input: {
   readonly companyId: string
   readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
   readonly tripDocumentId: string
   readonly tripId: string
   readonly userId: string
 }): Promise<void> {
-  const { companyId, database, tripDocumentId, tripId, userId } = input
+  const { companyId, database, driverId, otherCompanyId, tripDocumentId, tripId, userId } = input
   const stopId = crypto.randomUUID()
 
   await database`
@@ -508,6 +512,16 @@ async function assertFieldExecutionConstraints(input: {
     'trip_field_reports_company_key_unique',
   )
 
+  await assertFieldChannelConstraints({
+    companyId,
+    database,
+    driverId,
+    otherCompanyId,
+    stopId,
+    tripDocumentId,
+    userId,
+  })
+
   // A parada apagada leva o que aconteceu nela; o que não pode é sobrar evento órfão
   await database`delete from trip_stops where id = ${stopId}`
   const orphanEvents = await database<
@@ -518,4 +532,105 @@ async function assertFieldExecutionConstraints(input: {
       (select count(*) from trip_stop_occurrences where stop_id = ${stopId}) as occurrences
   `
   expect(orphanEvents[0]).toEqual({ events: '0', occurrences: '0' })
+}
+
+/**
+ * ADR-0067 §2 (spec 156 T4): a autoria do registro de campo — canal, e o motorista em nome de quem
+ * o escritório registrou. As seis tabelas repetem o mesmo par de `check`s; aqui a prova cobre as
+ * três formas que os nomes tomam (`trip_stop_events` com `recorded_at`, `trip_document_occurrences`
+ * sem ela, `trip_field_reports` como a chave de idempotência) e a FK composta uma vez, porque o
+ * `(company_id, on_behalf_of_driver_id) -> fleet_drivers` é idêntico nas seis.
+ */
+async function assertFieldChannelConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
+  readonly stopId: string
+  readonly tripDocumentId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, driverId, otherCompanyId, stopId, tripDocumentId, userId } = input
+  const otherCompanyDriverId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id)
+    values (${otherCompanyDriverId}, ${otherCompanyId}, 'Motorista De Outra Empresa', '22233344455')
+  `
+
+  // Canal fora da lista fechada, nas três formas de tabela (com e sem `recorded_at`).
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, channel)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_stop_events_channel_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id, channel)
+      values (${companyId}, 'canal-invalido', 'deliver', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_field_reports_channel_check',
+  )
+
+  // `channel = 'office'` sem `on_behalf_of_driver_id` — o CHECK de implicação (ADR-0067 §2).
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, channel)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office')
+    `,
+    '23514',
+    'trip_stop_events_office_driver_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_document_occurrences (
+        company_id, trip_document_id, stage, occurrence_type_id, actor_user_id, channel
+      )
+      values (
+        ${companyId}, ${tripDocumentId}, 'delivery', ${crypto.randomUUID()}, ${userId}, 'office'
+      )
+    `,
+    '23514',
+    'trip_document_occurrences_office_driver_check',
+  )
+
+  // FK composta: o motorista em nome de quem se registra nunca é de outra empresa (mesma empresa
+  // do evento) — reprovada mesmo com `channel = 'office'` satisfeito por um id que existe, só que
+  // no tenant errado.
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (
+        company_id, stop_id, kind, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office', ${otherCompanyDriverId})
+    `,
+    '23503',
+    'trip_stop_events_company_driver_fk',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (
+        company_id, idempotency_key, operation, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (
+        ${companyId}, 'chave-fk-outra-empresa', 'deliver', ${userId}, 'office', ${otherCompanyDriverId}
+      )
+    `,
+    '23503',
+    'trip_field_reports_company_driver_fk',
+  )
+
+  // O caminho feliz: canal `office` com o motorista da própria empresa grava normalmente.
+  const [officeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_stop_events (
+      company_id, stop_id, kind, actor_user_id, channel, on_behalf_of_driver_id
+    )
+    values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office', ${driverId})
+    returning id
+  `
+  expect(officeEvent?.id).toBeDefined()
 }

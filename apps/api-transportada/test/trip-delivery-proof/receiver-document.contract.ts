@@ -250,6 +250,7 @@ describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
   const BASE = {
     actorUserId: ACTOR_USER_ID,
     attachmentKey: '',
+    authorship: { channel: 'driver_app' as const, onBehalfOfDriverId: null },
     companyId: COMPANY_ID,
     eventId: EVENT_ID,
     id: PROOF_ID,

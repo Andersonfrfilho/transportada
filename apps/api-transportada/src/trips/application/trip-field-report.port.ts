@@ -3,9 +3,11 @@
  */
 import { TripFieldReportKeyReusedError } from '../domain/trip.error.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
+import type { FieldAuthorship } from './field-trip-target.types.js'
 
 export type FieldReportGuardInput = {
   readonly actorUserId: string
+  readonly authorship: FieldAuthorship
   readonly companyId: string
   readonly idempotencyKey: string
   readonly operation: string
@@ -28,6 +30,7 @@ export async function withFieldReport<TResult extends { readonly id: string }>(
 ): Promise<TResult> {
   const claim = await input.transaction.claim({
     actorUserId: input.actorUserId,
+    authorship: input.authorship,
     companyId: input.companyId,
     idempotencyKey: input.idempotencyKey,
     operation: input.operation,

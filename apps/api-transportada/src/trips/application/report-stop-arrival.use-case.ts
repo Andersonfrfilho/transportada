@@ -4,7 +4,11 @@
 import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import { TripStopNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
-import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
+import {
+  deriveFieldAuthorship,
+  toFieldTripTarget,
+  type FieldTripLocator,
+} from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const ARRIVE_OPERATION = 'stop.arrive'
@@ -32,10 +36,13 @@ export type ReportStopArrivalResult = { readonly id: string }
 export async function reportStopArrival(
   input: ReportStopArrivalInput,
 ): Promise<ReportStopArrivalResult> {
+  const authorship = deriveFieldAuthorship(input)
+
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
       {
         actorUserId: input.actorUserId,
+        authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
         operation: ARRIVE_OPERATION,
@@ -86,6 +93,7 @@ export async function reportStopArrival(
 
         return transaction.recordEvent({
           actorUserId: input.actorUserId,
+          authorship,
           companyId: input.companyId,
           documentId: null,
           kind: 'arrived',

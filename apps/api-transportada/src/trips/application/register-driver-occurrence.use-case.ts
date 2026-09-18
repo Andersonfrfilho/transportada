@@ -13,7 +13,9 @@ import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import {
+  deriveFieldAuthorship,
   toFieldTripTarget,
+  type FieldAuthorship,
   type FieldTripLocator,
   type FieldTripTarget,
 } from './field-trip-target.types.js'
@@ -37,6 +39,7 @@ export type DriverOccurrencePort = {
   }): Promise<readonly { readonly code: string; readonly description: string }[]>
   saveOccurrence(input: {
     readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
     readonly note: string
@@ -106,6 +109,7 @@ export async function registerDriverOccurrence(
 
   const saved = await input.repository.saveOccurrence({
     actorUserId: input.actorUserId,
+    authorship: deriveFieldAuthorship(input),
     companyId: input.companyId,
     documentId: input.documentId,
     note: input.note,

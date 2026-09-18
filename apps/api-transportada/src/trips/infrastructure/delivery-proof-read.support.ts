@@ -39,7 +39,7 @@ import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
-import type { FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -204,6 +204,11 @@ export async function saveTripOccurrence(
   queryable: TripQueryable,
   input: {
     readonly actorUserId: string
+    /**
+     * ADR-0067 §2: ausente para o fluxo do galpão (`registerTripOccurrence`, separação), que não
+     * tem `FieldTripTarget` — o `channel` grava o padrão da coluna (`driver_app`).
+     */
+    readonly authorship?: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
     readonly note: string
@@ -237,6 +242,12 @@ export async function saveTripOccurrence(
       productCode: input.productCode,
       stage: input.stage,
       tripDocumentId: input.documentId,
+      ...(input.authorship === undefined
+        ? {}
+        : {
+            channel: input.authorship.channel,
+            onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+          }),
     })
     .returning()
   if (saved === undefined) return null

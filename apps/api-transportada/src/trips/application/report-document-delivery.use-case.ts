@@ -16,7 +16,11 @@ import type {
   DriverFieldReportUnitOfWork,
   ReportedLocation,
 } from './driver-field-report.port.js'
-import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
+import {
+  deriveFieldAuthorship,
+  toFieldTripTarget,
+  type FieldTripLocator,
+} from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const DELIVER_OPERATION = 'document.deliver'
@@ -105,11 +109,13 @@ type RunOutcomeParams = {
 
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
   const { action, input, kind, operation, settle } = params
+  const authorship = deriveFieldAuthorship(input)
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
       {
         actorUserId: input.actorUserId,
+        authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
         operation,
@@ -149,6 +155,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         if (!alreadySettled) await settle(transaction, input.documentId)
         const event = await transaction.recordEvent({
           actorUserId: input.actorUserId,
+          authorship,
           companyId: input.companyId,
           documentId: input.documentId,
           kind,

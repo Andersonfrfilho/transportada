@@ -20,7 +20,9 @@ import {
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
 import {
+  deriveFieldAuthorship,
   toFieldTripTarget,
+  type FieldAuthorship,
   type FieldTripLocator,
   type FieldTripTarget,
 } from './field-trip-target.types.js'
@@ -79,6 +81,7 @@ export type DeliveryProofPort = {
   saveProof(input: {
     readonly actorUserId: string
     readonly attachmentKey: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly eventId: string
     readonly id: string
@@ -183,6 +186,7 @@ export async function attachDeliveryProof(
   return input.repository.saveProof({
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
+    authorship: deriveFieldAuthorship(input),
     companyId: input.companyId,
     eventId,
     id: proofId,

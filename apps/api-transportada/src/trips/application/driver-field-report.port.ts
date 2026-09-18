@@ -7,7 +7,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
-import type { FieldTripTarget } from './field-trip-target.types.js'
+import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -47,6 +47,8 @@ export type FieldReportClaim = {
 export type DriverFieldReportTransactionPort = {
   claim(input: {
     readonly actorUserId: string
+    /** ADR-0067 §2: gravada mesmo na reserva da chave — a linha de idempotência também é registro de campo. */
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly idempotencyKey: string
     readonly operation: string
@@ -115,6 +117,7 @@ export type DriverFieldReportTransactionPort = {
 
   recordEvent(input: {
     readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string | null
     readonly kind: TripStopEventKind
@@ -124,6 +127,7 @@ export type DriverFieldReportTransactionPort = {
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly description: string
     /** ADR-0057 §3: `null` é não aferida — parada sem coordenada, ou posição que nunca fixou. */

@@ -5,7 +5,11 @@ import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { TripDocumentNotReachableError, TripStopNotReachableError } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
-import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
+import {
+  deriveFieldAuthorship,
+  toFieldTripTarget,
+  type FieldTripLocator,
+} from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const OCCURRENCE_OPERATION = 'stop.occurrence'
@@ -69,10 +73,13 @@ export type ReportStopOccurrenceResult = { readonly id: string }
 export async function reportStopOccurrence(
   input: ReportStopOccurrenceInput,
 ): Promise<ReportStopOccurrenceResult> {
+  const authorship = deriveFieldAuthorship(input)
+
   const recorded = await input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
       {
         actorUserId: input.actorUserId,
+        authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
         operation: OCCURRENCE_OPERATION,
@@ -98,6 +105,7 @@ export async function reportStopOccurrence(
         return transaction.recordOccurrence({
           actorUserId: input.actorUserId,
           attachmentObjectId: input.attachmentObjectId,
+          authorship,
           companyId: input.companyId,
           description: input.description,
           distanceMeters: input.distanceMeters,

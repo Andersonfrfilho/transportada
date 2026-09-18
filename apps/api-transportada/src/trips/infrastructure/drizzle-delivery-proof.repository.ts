@@ -18,7 +18,7 @@ import {
   trips,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
-import type { FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import {
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
@@ -196,9 +196,11 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         .values({
           actorUserId: input.actorUserId,
           attachmentKey: input.attachmentKey,
+          channel: input.authorship.channel,
           companyId: input.companyId,
           id: input.id,
           kind: input.kind,
+          onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
           objectId: input.objectId,
           receiverDocumentEnvelope: input.receiverDocumentEnvelope,
           receiverDocumentMasked: input.receiverDocumentMasked,
@@ -235,6 +237,7 @@ type SaveProofInput = {
   readonly actorUserId: string
   /** Spec 082 (revisão, item 5): chave de idempotência do anexo. Vazio quando o app não a manda. */
   readonly attachmentKey: string
+  readonly authorship: FieldAuthorship
   readonly companyId: string
   readonly eventId: string
   readonly id: string
@@ -258,7 +261,9 @@ export function buildProofUpsertSet(input: SaveProofInput) {
   const base = {
     actorUserId: input.actorUserId,
     attachmentKey: input.attachmentKey,
+    channel: input.authorship.channel,
     objectId: input.objectId,
+    onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
     receiverName: input.receiverName,
   }
   /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */

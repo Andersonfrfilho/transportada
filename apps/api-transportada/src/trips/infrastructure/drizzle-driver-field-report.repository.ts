@@ -21,7 +21,7 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
-import type { FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 
@@ -57,6 +57,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
    */
   public async claim(input: {
     readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly idempotencyKey: string
     readonly operation: string
@@ -65,8 +66,10 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .insert(tripFieldReports)
       .values({
         actorUserId: input.actorUserId,
+        channel: input.authorship.channel,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         operation: input.operation,
       })
       .onConflictDoNothing({
@@ -362,10 +365,12 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         accuracyMeters: input.location?.accuracyMeters ?? null,
         actorUserId: input.actorUserId,
         capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
+        channel: input.authorship.channel,
         companyId: input.companyId,
         kind: input.kind,
         latitude: input.location?.latitude ?? null,
         longitude: input.location?.longitude ?? null,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
       })
@@ -384,9 +389,11 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .values({
         actorUserId: input.actorUserId,
         attachmentObjectId: input.attachmentObjectId,
+        channel: input.authorship.channel,
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
