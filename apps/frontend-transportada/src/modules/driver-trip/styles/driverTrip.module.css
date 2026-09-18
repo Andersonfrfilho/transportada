@@ -588,6 +588,13 @@
   width: 100%;
 }
 
+/* Spec 157 RF12: aviso antes de entregar — cor de alerta suave (copper), nunca a de recusa. */
+.proofPendingWarning {
+  color: var(--color-copper);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .proofFieldError {
   color: var(--color-alert);
 }

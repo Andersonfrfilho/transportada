@@ -66,6 +66,15 @@ export function DriverProfilePage({ onOpenQueue, queuedCount, snapshot }: Driver
       </section>
 
       <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('profile.scoreTitle')}</h2>
+        <p className={styles.profileMeta} role="status">
+          {snapshot?.score === undefined || snapshot.score === null
+            ? t('profile.scoreNone')
+            : t('profile.score', { score: snapshot.score })}
+        </p>
+      </section>
+
+      <section className={styles.profileCard}>
         <h2 className={styles.profileSectionTitle}>{t('profile.queueTitle')}</h2>
         <p className={styles.profileMeta} role="status">
           {queuedCount > 0 ? t('queued', { count: queuedCount }) : t('profile.queueEmpty')}

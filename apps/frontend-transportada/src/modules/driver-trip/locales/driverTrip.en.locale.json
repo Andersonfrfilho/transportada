@@ -110,7 +110,10 @@
     },
     "signOut": "Sign out",
     "vehicleTitle": "Trip vehicle",
-    "whatsappTitle": "WhatsApp"
+    "whatsappTitle": "WhatsApp",
+    "score": "{{score}} of 100",
+    "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
+    "scoreTitle": "Your score"
   },
   "progress": {
     "label": "{{resolved}} of {{total}} stops resolved"
@@ -151,5 +154,20 @@
   "stopTitle": "Stop {{sequence}}",
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
-  "vehicle": "Vehicle {{plate}}"
+  "vehicle": "Vehicle {{plate}}",
+  "proofPendingWarning": "Photo required for this delivery. Take it now, on site — attaching it later or far from here may cost points on your score. The delivery is already recorded.",
+  "pendingProofs": {
+    "attach": "Attach proof",
+    "back": "Back",
+    "empty": "No pending photos. You are all caught up.",
+    "open": "Pending photos",
+    "outcome": {
+      "away": "Recorded far from the location — may have cost points on your score.",
+      "late": "Recorded past the deadline — may have cost points on your score.",
+      "late_and_away": "Recorded past the deadline and far from the location — may have cost points on your score.",
+      "not_required": "Recorded.",
+      "on_time": "Recorded on time and on site."
+    },
+    "title": "Pending photos"
+  }
 }

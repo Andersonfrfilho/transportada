@@ -14,6 +14,7 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
+import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
@@ -25,7 +26,11 @@ import type {
   DriverReturnReason,
 } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
-import { findCurrentStop, isAwaitingDispatch } from '../shared/driverTripView.service'
+import {
+  findCurrentStop,
+  isAwaitingDispatch,
+  listProofPendingDocuments,
+} from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -40,6 +45,8 @@ export function DriverTripWorkspacePage() {
   const [section, setSection] = useState<DriverSection>('trip')
   /** Spec 082 D7: a tela de pendentes abre por cima da seção corrente — banner e Perfil chegam nela. */
   const [isQueueOpen, setIsQueueOpen] = useState(false)
+  /** Spec 157 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
+  const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
@@ -143,6 +150,31 @@ export function DriverTripWorkspacePage() {
     )
   }
 
+  function handleProof(input: DriverProofAttachment): void {
+    setAttachmentLimit(undefined)
+    void driverTrip
+      .attachProof(input)
+      .then((outcome) => {
+        if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
+      })
+      .catch(() => setProofFailed(true))
+  }
+
+  if (isPendingProofsOpen) {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverPendingProofsPage
+          onBack={() => setIsPendingProofsOpen(false)}
+          onProof={handleProof}
+          proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
+          snapshot={snapshot}
+        />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
+
   if (section === 'profile') {
     return (
       <div className={styles.moduleShell}>
@@ -191,6 +223,7 @@ export function DriverTripWorkspacePage() {
   }
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
+  const proofPendingCount = listProofPendingDocuments(snapshot).length
 
   return (
     <div className={styles.moduleShell}>
@@ -229,6 +262,17 @@ export function DriverTripWorkspacePage() {
           <p className={styles.alert} role="alert">
             {t('eventLimitCount')}
           </p>
+        ) : null}
+
+        {/* Spec 157 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
+        {proofPendingCount > 0 ? (
+          <button
+            className={styles.queueBannerButton}
+            type="button"
+            onClick={() => setIsPendingProofsOpen(true)}
+          >
+            {t('pendingProofs.open')} ({proofPendingCount})
+          </button>
         ) : null}
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
@@ -313,17 +357,7 @@ export function DriverTripWorkspacePage() {
                     location,
                   }))
                 }
-                onProof={(input: DriverProofAttachment) => {
-                  setAttachmentLimit(undefined)
-                  void driverTrip
-                    .attachProof(input)
-                    .then((outcome) => {
-                      if (outcome === 'count-limit' || outcome === 'size-limit') {
-                        setAttachmentLimit(outcome)
-                      }
-                    })
-                    .catch(() => setProofFailed(true))
-                }}
+                onProof={handleProof}
                 occurrenceTypes={occurrenceTypes}
                 onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                 onDocumentOccurrence={(input: {

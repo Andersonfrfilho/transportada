@@ -1,5 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverTrip, DriverTripDocument, DriverTripStop } from './driverTrip.types'
+import type {
+  DriverDeliveryProofSettings,
+  DriverTrip,
+  DriverTripDocument,
+  DriverTripSnapshot,
+  DriverTripStop,
+} from './driverTrip.types'
 
 /** Entregue e devolvida saíram do eixo do campo: não há mais o que tocar nelas. */
 const SETTLED_STATUSES = ['delivered', 'returned']
@@ -40,6 +46,39 @@ export function findOccurrencePhotoDocument(stop: DriverTripStop): DriverTripDoc
 
 export function countPendingDocuments(stop: DriverTripStop): number {
   return stop.documents.filter((document) => !isDocumentSettled(document)).length
+}
+
+/** Spec 157 RF12: a nota que o card avisa — foto obrigatória e ainda não entregue. */
+export function isProofPendingWarningDue(input: {
+  readonly document: DriverTripDocument
+  readonly stopProofSettings: DriverDeliveryProofSettings | null
+}): boolean {
+  const proofSettings = input.document.deliveryProof ?? input.stopProofSettings
+  return proofSettings?.photo === 'required' && !isDocumentSettled(input.document)
+}
+
+export type ProofPendingEntry = Readonly<{
+  document: DriverTripDocument
+  stopLabel: string
+  tripId: string
+}>
+
+/**
+ * Spec 157 RF12: a lista da tela "fotos pendentes" — toda nota entregue sem a foto obrigatória, em
+ * qualquer viagem do snapshot. A ordem é a mesma da viagem/parada, sem reordenar por urgência.
+ */
+export function listProofPendingDocuments(
+  snapshot: DriverTripSnapshot | undefined,
+): readonly ProofPendingEntry[] {
+  if (snapshot === undefined) return []
+
+  return snapshot.trips.flatMap((trip) =>
+    trip.stops.flatMap((stop) =>
+      stop.documents
+        .filter((document) => document.proofPending)
+        .map((document) => ({ document, stopLabel: stop.label, tripId: trip.id })),
+    ),
+  )
 }
 
 /**

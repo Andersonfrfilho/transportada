@@ -90,13 +90,55 @@ describe('a fila offline com anexos (D6)', () => {
     expect(attachmentStore.entries().get('chave-1')?.[0]?.attachmentKey).toBe('anexo-1')
   })
 
-  it('sem evento na fila, devolve event-not-queued e não grava nada', async () => {
+  /**
+   * Spec 157 (revisão D6, aceite 8): sem evento de entrega na fila — a nota já foi entregue em outra
+   * sessão, ou o anexo é enviado em lote pela tela de pendentes — o anexo entra do mesmo jeito, com
+   * uma chave própria do documento em vez da chave do evento.
+   */
+  it('sem evento na fila (nota já entregue), grava numa chave própria do documento', async () => {
     const store = createMemoryQueue()
     const attachmentStore = createMemoryAttachments()
 
     const result = await enqueueAttachment({ attachment: photo(), attachmentStore, store })
 
-    expect(result).toEqual({ accepted: false, reason: 'event-not-queued' })
+    expect(result).toEqual({ accepted: true, eventKey: 'document:document-1' })
+    expect(attachmentStore.entries().get('document:document-1')).toHaveLength(1)
+  })
+
+  /** Aceite 8: nota já entregue, sem rede o anexo fica na fila e sobe quando ela volta. */
+  it('nota já entregue: sem rede o anexo fica na fila, e sobe quando ela volta', async () => {
+    const store = createMemoryQueue()
+    const attachmentStore = createMemoryAttachments()
+    await enqueueAttachment({ attachment: photo(), attachmentStore, store })
+
+    const offline = await drainQueueWithAttachments({
+      attachmentStore,
+      send: () => Promise.resolve({ kind: 'sent' }),
+      sendAttachment: () => Promise.resolve({ kind: 'failed-network' }),
+      store,
+    })
+    expect(offline).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 0,
+      sent: 0,
+    })
+    expect(attachmentStore.entries().get('document:document-1')).toHaveLength(1)
+
+    const online = await drainQueueWithAttachments({
+      attachmentStore,
+      send: () => Promise.resolve({ kind: 'sent' }),
+      sendAttachment: () => Promise.resolve({ kind: 'sent', punctuality: 'late' }),
+      store,
+    })
+    expect(online).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [{ documentId: 'document-1', punctuality: 'late' }],
+      rejected: 0,
+      remaining: 0,
+      sent: 0,
+    })
     expect(attachmentStore.entries().size).toBe(0)
   })
 
@@ -160,7 +202,13 @@ describe('a fila offline com anexos (D6)', () => {
     })
 
     expect(sentAttachments).toEqual(['anexo-1'])
-    expect(result).toEqual({ attachmentsRejected: 0, rejected: 0, remaining: 0, sent: 1 })
+    expect(result).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [{ documentId: 'document-1' }],
+      rejected: 0,
+      remaining: 0,
+      sent: 1,
+    })
     expect(store.items()).toHaveLength(0)
     expect(attachmentStore.entries().size).toBe(0)
   })
@@ -185,7 +233,13 @@ describe('a fila offline com anexos (D6)', () => {
       store,
     })
 
-    expect(first).toEqual({ attachmentsRejected: 0, rejected: 0, remaining: 0, sent: 1 })
+    expect(first).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 0,
+      sent: 1,
+    })
     expect(store.items()).toHaveLength(0)
     expect(attachmentStore.entries().get('chave-1')).toHaveLength(1)
 
@@ -223,7 +277,13 @@ describe('a fila offline com anexos (D6)', () => {
       store,
     })
 
-    expect(first).toEqual({ attachmentsRejected: 1, rejected: 0, remaining: 0, sent: 1 })
+    expect(first).toEqual({
+      attachmentsRejected: 1,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 0,
+      sent: 1,
+    })
     expect(store.items()).toHaveLength(0)
     expect(attachmentStore.entries().get('chave-1')?.[0]?.rejectionCause).toBe(
       '413 PROOF_FILE_TOO_LARGE',
@@ -263,7 +323,13 @@ describe('a fila offline com anexos (D6)', () => {
       store,
     })
 
-    expect(result).toEqual({ attachmentsRejected: 0, rejected: 1, remaining: 1, sent: 0 })
+    expect(result).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 1,
+      remaining: 1,
+      sent: 0,
+    })
     expect(store.items()[0]?.rejectionCause).toBe('409 TRIP_DOCUMENT_NOT_REACHABLE')
   })
 
@@ -296,7 +362,13 @@ describe('a fila offline com anexos (D6)', () => {
       store,
     })
     expect(sent).toEqual(['chave-2', 'chave-1'])
-    expect(manual).toEqual({ attachmentsRejected: 0, rejected: 0, remaining: 0, sent: 1 })
+    expect(manual).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 0,
+      sent: 1,
+    })
   })
 
   it('falha de rede no evento para a drenagem e preserva a ordem dos seguintes', async () => {
@@ -318,7 +390,13 @@ describe('a fila offline com anexos (D6)', () => {
     })
 
     expect(attempted).toEqual(['chave-1'])
-    expect(result).toEqual({ attachmentsRejected: 0, rejected: 0, remaining: 2, sent: 0 })
+    expect(result).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 2,
+      sent: 0,
+    })
     expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['chave-1', 'chave-2'])
   })
 
@@ -337,7 +415,13 @@ describe('a fila offline com anexos (D6)', () => {
       store,
     })
 
-    expect(result).toEqual({ attachmentsRejected: 0, rejected: 0, remaining: 1, sent: 1 })
+    expect(result).toEqual({
+      attachmentsRejected: 0,
+      attachmentsSent: [],
+      rejected: 0,
+      remaining: 1,
+      sent: 1,
+    })
     expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['chave-1'])
   })
 

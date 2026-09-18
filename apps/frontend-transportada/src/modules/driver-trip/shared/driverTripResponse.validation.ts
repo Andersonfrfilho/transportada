@@ -39,6 +39,22 @@ function readOptionalText(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
+/**
+ * Spec 157 RF1: campo novo do canal do motorista. Ausente (snapshot antigo em cache) vira `false` —
+ * o mesmo espírito de `readOptionalText`, nunca quebra a tela por um campo que ainda não chegou.
+ */
+function readProofPending(value: unknown): boolean {
+  return value === true
+}
+
+/** ADR-0068 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
+function readDriverScore(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100
+    ? value
+    : null
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
@@ -55,6 +71,7 @@ function toDocument(value: unknown): DriverTripDocument {
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),
+    proofPending: readProofPending(value.proofPending),
     recipientName: readOptionalText(value.recipientName),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
@@ -150,5 +167,9 @@ export function toDriverTripSnapshot(payload: unknown): DriverTripSnapshot {
     throw new DriverTripResponseError()
   }
 
-  return { isRegisteredDriver: data.isRegisteredDriver, trips: data.trips.map(toTrip) }
+  return {
+    isRegisteredDriver: data.isRegisteredDriver,
+    score: readDriverScore(data.score),
+    trips: data.trips.map(toTrip),
+  }
 }

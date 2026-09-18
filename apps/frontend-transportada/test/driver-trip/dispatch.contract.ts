@@ -24,7 +24,9 @@ function createCapturingClient(requests: Request[]) {
     fetch: (input) => {
       requests.push(input as Request)
       return Promise.resolve(
-        new Response('{"data":{}}', { headers: { 'content-type': 'application/json' } }),
+        new Response('{"data":{"id":"proof-1","punctuality":"not_required"}}', {
+          headers: { 'content-type': 'application/json' },
+        }),
       )
     },
     getAccessToken: () => Promise.resolve('token'),
@@ -123,11 +125,14 @@ describe('a fila offline no hook (revisão 082)', () => {
     expect(mutacao).toInclude('isDrainingRef.current = false')
   })
 
-  /** 4b: a chave do anexo nasce na captura e vai nos dois caminhos — fila e multipart direto. */
-  it('a chave do anexo nasce na captura e acompanha o multipart direto', () => {
+  /**
+   * Spec 157 (revisão D6): a chave do anexo nasce na captura e acompanha o envio pela drenagem —
+   * não existe mais rota multipart direta fora da fila (aceite 8: sempre fila, mesmo nota entregue).
+   */
+  it('a chave do anexo nasce na captura e acompanha o envio pela fila', () => {
     expect(hook).toInclude('const attachmentKey = createIdempotencyKey()')
-    expect(hook).toInclude('attachProof({ ...input, attachmentKey })')
     expect(hook).toInclude('attachmentKey: attachment.attachmentKey')
+    expect(hook).not.toInclude('event-not-queued')
   })
 
   /** 5: o teto tipado da fila de eventos chega à tela como recusa anunciada, no locale. */

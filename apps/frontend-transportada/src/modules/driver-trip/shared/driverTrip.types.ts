@@ -13,6 +13,8 @@ export type DriverTripDocument = Readonly<{
   grossWeight: string
   id: string
   number: string
+  /** Spec 157 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
+  proofPending: boolean
   recipientName: string
   returnReason: string | null
   separationStatus: string
@@ -76,8 +78,24 @@ export type DriverTrip = Readonly<{
 
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
+  /** Spec 157 RF2/RF9, ADR-0068 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
+  score: number | null
   trips: readonly DriverTrip[]
 }>
+
+/**
+ * ⚠️ Cópia por valor de `ProofPunctuality` (`delivery-proof-punctuality.policy.ts`, ADR-0068 §3-4).
+ * `not_required` nunca aparece na resposta de `/proof` para foto obrigatória; ela existe do lado da
+ * API para nota sem exigência — o app não recebe esse valor nesta rota.
+ */
+export const PROOF_PUNCTUALITY_VALUES = [
+  'not_required',
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+] as const
+export type ProofPunctuality = (typeof PROOF_PUNCTUALITY_VALUES)[number]
 
 /** ⚠️ Cópia por valor de `driver-return-reason.policy.ts`; a paridade é assertada por contrato. */
 export const DRIVER_RETURN_REASONS = [

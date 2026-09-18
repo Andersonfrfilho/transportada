@@ -65,6 +65,21 @@
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "pendingProofs": {
+    "attach": "Anexar comprovante",
+    "back": "Voltar",
+    "empty": "Nenhuma foto pendente. Está tudo em dia.",
+    "open": "Fotos pendentes",
+    "outcome": {
+      "away": "Registrada longe do local — pode ter tirado pontos da sua nota.",
+      "late": "Registrada fora do prazo — pode ter tirado pontos da sua nota.",
+      "late_and_away": "Registrada fora do prazo e longe do local — pode ter tirado pontos da sua nota.",
+      "not_required": "Registrada.",
+      "on_time": "Registrada em dia e no local."
+    },
+    "title": "Fotos pendentes"
+  },
+  "proofPendingWarning": "Foto obrigatória para esta entrega. Tire agora, no local — anexar depois ou longe daqui pode tirar pontos da sua nota. A entrega já está registrada.",
   "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceKind": {
@@ -96,6 +111,9 @@
       "driver": "Motorista",
       "unknown": "Sem papel de campo"
     },
+    "score": "{{score}} de 100",
+    "scoreNone": "Sem nota ainda — nenhuma entrega com foto obrigatória nos últimos 90 dias.",
+    "scoreTitle": "Sua nota",
     "signOut": "Sair",
     "vehicleTitle": "Veículo da viagem",
     "whatsappTitle": "WhatsApp"

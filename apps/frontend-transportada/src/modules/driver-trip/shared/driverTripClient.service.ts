@@ -7,6 +7,7 @@ import type {
   DriverOccurrenceType,
   DriverOccurrenceTypesResult,
   DriverTripSnapshot,
+  ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
@@ -57,14 +58,20 @@ export type DriverTripClient = Readonly<{
    * e está declarado como pendência em vez de resolvido pela metade.
    */
   attachProof: (input: {
+    /** Spec 157 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
+    accuracyMeters?: number
     /** Idempotência POR ANEXO: gerada na captura e reenviada igual — o servidor não duplica o blob. */
     attachmentKey?: string
+    /** ISO — referência de horário da RF5; sem ele, a API usa o recebimento no servidor. */
+    capturedAt?: string
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    latitude?: number
+    longitude?: number
     receiverDocument?: string
     receiverName?: string
-  }) => Promise<void>
+  }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
   /**
    * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
    * trajeto. Fora de `dispatched`/`in_transit` a API recusa as escritas de campo — este é o botão
@@ -137,13 +144,20 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
+      if (input.latitude !== undefined) form.set('latitude', String(input.latitude))
+      if (input.longitude !== undefined) form.set('longitude', String(input.longitude))
+      if (input.accuracyMeters !== undefined) {
+        form.set('accuracyMeters', String(input.accuracyMeters))
+      }
+      if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
 
-      await request({
+      const payload = await request({
         dependencies,
         form,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
       })
+      return toProofAttachResult(payload)
     },
     async dispatchTrip(input) {
       await request({
@@ -262,6 +276,29 @@ async function requestFile(
     blob: await response.blob(),
     fileName: readFileName(response.headers.get('content-disposition'), input.fallbackFileName),
   }
+}
+
+const PROOF_PUNCTUALITY_VALUES = ['not_required', 'on_time', 'late', 'away', 'late_and_away']
+
+function toProofAttachResult(
+  payload: unknown,
+): Readonly<{ id: string; punctuality: ProofPunctuality }> {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw new DriverTripResponseError()
+
+  const record = data as Record<string, unknown>
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.punctuality !== 'string' ||
+    !PROOF_PUNCTUALITY_VALUES.includes(record.punctuality)
+  ) {
+    throw new DriverTripResponseError()
+  }
+
+  return { id: record.id, punctuality: record.punctuality as ProofPunctuality }
 }
 
 function readFileName(disposition: string | null, fallback: string): string {

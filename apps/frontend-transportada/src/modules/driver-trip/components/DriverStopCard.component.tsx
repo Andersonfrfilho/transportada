@@ -279,6 +279,12 @@ function DocumentRow({
   return (
     <li className={styles.document}>
       <span>{document.recipientName}</span>
+      {/* Spec 157 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
+      {proofSettings?.photo === 'required' ? (
+        <p className={styles.proofPendingWarning} role="status">
+          {t('proofPendingWarning')}
+        </p>
+      ) : null}
       <div className={styles.actions}>
         <Button onClick={() => onDeliver(document.id)} type="button">
           <Icon name="check" />
@@ -371,7 +377,7 @@ function DocumentRow({
   )
 }
 
-type DeliveryProofSectionProps = Readonly<{
+export type DeliveryProofSectionProps = Readonly<{
   documentId: string
   onProof: (input: DriverProofAttachment) => void
   proofSettings: DriverDeliveryProofSettings | null
@@ -381,8 +387,15 @@ type DeliveryProofSectionProps = Readonly<{
  * Spec 082 T053: o formulário do comprovante é o que a configuração manda — `off` não renderiza,
  * `required` bloqueia o anexo com mensagem **no campo** (todos de uma vez), e o documento do
  * recebedor entra mascarado e sobe canônico. Sem canvas/pointer, a assinatura cai para a foto.
+ *
+ * Spec 157 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
+ * a mesma validação, sem uma segunda implementação divergindo calada.
  */
-function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryProofSectionProps) {
+export function DeliveryProofSection({
+  documentId,
+  onProof,
+  proofSettings,
+}: DeliveryProofSectionProps) {
   const { t } = useTranslation('driverTrip')
   const plan = resolveProofFormPlan(proofSettings)
   const [receiverName, setReceiverName] = useState('')
