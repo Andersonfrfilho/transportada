@@ -998,3 +998,22 @@ o predicado é redundante-mas-seguro nesta versão do Postgres e protege índice
   `trip-*`.
 - `bun run --cwd apps/frontend-transportada test`: **19 pass, 0 fail** — contrato da API não mudou
   (formato de `TripTimelineItem` inalterado; só o cursor opaco, que o frontend nunca desserializa).
+
+### Fechamento da T9 (orquestrador)
+
+- **Security-reviewer (Opus): APROVADO COM CORREÇÕES.** M1 (cursor forjado → 500) corrigido em
+  `83da0d8c`. B1 (agregação de nomes/nota/motivo para `finance` e separador) e B2 (ator sem FK de
+  membership) registrados como aceites em `docs/SECURITY.md` (2026-09-18).
+- **Code-reviewer (Opus): REPROVADO → APROVADO** na revalidação de `83da0d8c`. Os sete itens
+  (cursor em µs, `ORDER BY` desc, cursor forjado, evento sem linha atualizada, comentário do
+  recálculo, divisão do arquivo, predicado indexável) conferidos por caminho:linha. Restam dois
+  BAIXOS aceitos: `trip-timeline-stop.query.ts` e `trip-timeline-document.query.ts` com ~235 linhas
+  (duas fontes coesas cada) e `localeCompare` sobre chave ASCII de tamanho fixo.
+- **D8:** texto da spec emendado ("antes no tempo" = acima na lista do mais recente para o mais
+  antigo); o código não mudou.
+- **Documentação viva:** `apps/api-transportada/CLAUDE.md` (escritor único, trava, canais, regra D3,
+  cursor), `apps/frontend-transportada/CLAUDE.md` (`TripTimeline`, frase de autoria única,
+  `eventTimeline.*` ≠ `timeline.*`), `docs/spec/domain-model.md` (`trip_status_events`, canais,
+  `ON_DELIVERY_ROUTE`, que faltava) e nota da exceção da trava no recálculo na ADR-0068 §2.
+- **Auditoria §15:** sem N+1 (seis consultas em `Promise.all`, uma por fonte), I/O assíncrono,
+  predicado indexável por `occurred_at`; logs sem PII (nenhum log novo); nenhum 500 com stack.

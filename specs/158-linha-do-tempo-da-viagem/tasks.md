@@ -80,7 +80,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T9 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA em `/trips/:id/timeline`,
+- [x] **T9 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA em `/trips/:id/timeline`,
       campos proibidos, PII em log) e auditoria do code-standart §15 (N+1, índices). Atualizar
       `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e
       `docs/spec/domain-model.md` (`trip_status_events`, `backoffice`).

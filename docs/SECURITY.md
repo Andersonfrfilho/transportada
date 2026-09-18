@@ -35,6 +35,27 @@ desligado, essa parte do histórico some da ficha (as entregas novas não depend
 **Origem:** spec 159, revisão T11 (achados de segurança sobre posição e tenant). Registrado em
 2026-09-18.
 
+### 2026-09-18 — a linha do tempo junta nomes, motivo de devolução e nota de ocorrência numa leitura só
+
+**Onde:** `GET /trips/:id/timeline` (spec 158), política `TRIP_FIELD_READ_POLICY` (`fleet.read` ou
+`trip.report-on-behalf`).
+
+**Achado (B1 da revisão da T9):** o `finance` e o separador passam a ver, numa lista só, o nome de
+quem registrou cada evento, o do motorista em nome de quem o escritório agiu, o motivo de devolução
+e o texto livre da ocorrência — que pode trazer dado pessoal de destinatário digitado no campo. Cada
+campo já saía para a mesma política em `GET /trips/:id` e em `…/documents/:documentId/occurrences`;
+a diferença é de agregação, não de alcance. Do motorista só sai o nome (spec 156 D11).
+
+**Decisão:** aceito. A resposta nunca traz id de usuário, recebedor, coordenada, chave de storage
+nem XML (aceite 8, validador estrito no front), e a nota não vai ao portal do contratante.
+
+**Achado relacionado (B2):** `trip_status_events.actor_user_id` não tem FK de membership (ADR-0068
+§1, para não travar a remoção de usuário). O ator vem sempre do contexto autenticado e o canal é
+decidido na composição, nunca pelo cliente; a leitura só resolve nome por membership escopado pela
+empresa. Aceito, com o risco residual de um escritor futuro gravar id errado sem erro do banco.
+
+**Dono:** time da API. **Origem:** revisão de segurança da T9 da spec 158.
+
 ### 2026-09-16 — chave de envio do Resend e senha do SMTP expostas em conversa
 
 **Onde:** worker de produção no Railway — `RESEND_API_KEY` (referenciada da chave que o operador

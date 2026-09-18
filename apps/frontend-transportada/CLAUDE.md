@@ -101,6 +101,11 @@ engano:
   carga da viagem e da proposta, só com `trip.manage` e viagem não despachada. Mover/trocar esperam a
   planta do destino (`runReviewChange`) e só gravam com ela; na proposta o botão marca e o aceite
   leva `releaseUnplacedFromLayoutIds`. Contrato: `test/trip/review-queue.contract.ts`.
+- **A linha do tempo da viagem** (spec 158) é `TripTimeline` sobre `useTripTimeline` (cursor, `GET
+/trips/:id/timeline`, `canReadTrip`). A frase de autoria é **uma** função,
+  `resolveFieldAuthorshipText` (`fieldAuthorship.service.ts`, namespace `authorship.*`), usada também
+  por `TripOccurrences` — frase nova de canal entra ali, nunca no componente. O namespace
+  `eventTimeline.*` não é `timeline.*` (este é a linha da rota do dia, spec 110).
 - O roteirizador tem teto de paradas e marca a qualidade da otimização (`optimizationQuality`);
   10 mil paradas numa instância só segue fora de alcance (memória da matriz).
 

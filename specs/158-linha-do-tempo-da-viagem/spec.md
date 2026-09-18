@@ -90,8 +90,11 @@ parada a que se refere e a frase de autoria do canal: "por <usuária> (escritór
   agora cobre também o operador (ADR-0068 §3). `TripOccurrences` e a linha do tempo usam a mesma
   função.
 - **D8 — Ordem**: `(occurredAt desc, prioridade do kind, id desc)`. O evento de status causado pela
-  chegada ou pela entrega usa o mesmo `now` do caso de uso, e a prioridade põe a chegada antes da
-  troca de status que ela provoca, e a entrega antes da conclusão da viagem.
+  chegada ou pela entrega usa o mesmo `now` do caso de uso, e a prioridade põe a chegada **antes no
+  tempo** que a troca de status que ela provoca, e a entrega antes da conclusão da viagem. Numa lista
+  do mais recente para o mais antigo, isso quer dizer que o efeito aparece **acima** da causa
+  (`TRIP_TIMELINE_KIND_PRIORITY`, maior = mais acima; tudo decrescente, como o cursor exige).
+  _(Texto emendado na revisão da T9: a redação anterior foi lida como "acima".)_
 
 ## Histórias priorizadas
 

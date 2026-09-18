@@ -86,7 +86,8 @@ occurred_at timestamptz not null default now(), recorded_at timestamptz not null
     `dispatch` insere `trip_dispatch_snapshots` antes do update): dois despachos simultâneos
     virariam deadlock. E a ordem atual (notas → viagem) é mantida.
   - Nos `recalculateTripStatus`, a trava da viagem vem **antes** da leitura do tally de notas, que
-    hoje pode vir defasado.
+    hoje pode vir defasado — única exceção ao "imediatamente antes do `UPDATE`". A ordem
+    notas → viagem continua: o `UPDATE` da nota e o evento dela já rodaram em `applyTransition`.
   - `markRoutePlanned` e `updateStatus`, hoje fora de transação, passam a rodar numa (update +
     evento). O retry de `start-field-trip.use-case.ts:119-136` continua: cada tentativa é uma
     transação própria.

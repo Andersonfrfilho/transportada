@@ -157,6 +157,17 @@ exceções) sai no `GET`/`PUT /company-settings/delivery-proof` (`settings.manag
 opcional e ausente não mexe). O escritório lê **só** o interruptor em `GET
 /trips/field-delivery-settings` (`trip.report-on-behalf`, rota exata antes de `/trips/:id`).
 
+**Toda troca de `trips.status` grava `trip_status_events`** (spec 158, ADR-0068): um só escritor,
+`recordTripStatusChange`, na mesma transação e só quando mudou; `SELECT … FOR NO KEY UPDATE`
+**imediatamente antes** do `UPDATE trips` (nunca `FOR UPDATE`: deadlock com o `FOR KEY SHARE` das
+inserções com FK para `trips`). Canal decidido na composição: web `backoffice`, WhatsApp do operador
+`whatsapp`, motorista `driver_app`, escritório em nome do motorista `office`. Contrato estático
+`test/trip-schema/trip-status-writers.contract.ts` reprova `update(trips)` com `status` sem o evento.
+⚠️ Em `trip_document_events`, `channel = 'driver_app'` é **canal não registrado** (histórico anterior,
+ADR-0068 §4). `GET /trips/:id/timeline` (`TRIP_FIELD_READ_POLICY`) junta seis fontes com cursor
+`(occurred_at com µs em texto, prioridade do kind, id)`, **tudo decrescente** — o cursor por `Date`
+perdia itens gravados no mesmo `now()`.
+
 **Cancelar devolve a carga** (spec 102): `markCancelled` marca `released_at` nas notas ainda
 vinculadas na mesma transação do status — mas **libera é marcar, nunca apagar** a linha de
 `trip_documents` (é a prova histórica do que aconteceu), e `stop_id` **não** é zerado. Nota entregue
