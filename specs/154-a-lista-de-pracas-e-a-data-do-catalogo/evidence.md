@@ -2255,3 +2255,45 @@ Pasta: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transpo
 `05-reload-result`, `06-search-empty`, `07-reload-error-dialog`, `08-reload-error-panel`,
 `09-catalog-empty`, `10-stale-no-extract`, `11-deep-link-filtered`, `12-route-toll-summary`,
 `13-route-to-fleet`; medições em `before-report.json` / `after-report.json`.
+
+### T507 — pendências da revisão de design
+
+As quatro pendências da T506, uma por commit, cada uma com o teste escrito antes do conserto e o
+vermelho colado aqui. Prints fora do repositório, em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/`.
+
+#### Item 1 — tarifa com as casas que o número tem (#8 da T506)
+
+Decisão do usuário: não arredondar. A aba mostra **no mínimo duas e no máximo quatro** casas,
+cortando zero à direita além da segunda. Não precisou de função nova: `formatRateAmount`
+(`modules/shared/decimalAmount.service.ts`, `Intl` com `minimumFractionDigits: 2,
+maximumFractionDigits: 4`, lendo a string decimal sem passar por binário) já é o formatador de
+"fator com as casas que ele tem" da diária. `formatChargeOrUnknown` (`fleet/shared/
+tollBoothChargeFormat.service.ts`) troca `formatFuelPricePerUnit` (quatro casas fixas, via
+`Number`) por ele — é a função usada nos três valores de tarifa da linha (em uso manual, em uso com
+tag, tarifa do mapa). O campo de digitação do ajuste não mudou.
+
+Teste novo `test/fleet/toll-booth-charge-format.contract.tsx` (registrado em
+`test/fleet.contract.test.ts`): `14.7000 → R$ 14,70`, `13.9650 → R$ 13,965`, `4.2 → R$ 4,20`,
+`0.1234 → R$ 0,1234`, `null` → rótulo de desconhecida, e a linha renderizada
+(`renderToStaticMarkup`, i18n real) com `R$ 14,70`/`R$ 13,965` e sem `14,7000`/`13,9650`.
+
+```
+$ bun test ./test/fleet/toll-booth-charge-format.contract.tsx     # antes do conserto
+(fail) … > 14.7000 vira R$ 14,70
+(fail) … > 13.9650 vira R$ 13,965
+(fail) … > 4.2 vira R$ 4,20            Expected: "R$ 4,20"  Received: "R$ 4,2000"
+(fail) … > a linha da praça renderiza "R$ 14,70" e "R$ 13,965", nunca "14,7000"
+ 2 pass
+ 4 fail
+$ bun test ./test/fleet/toll-booth-charge-format.contract.tsx     # depois
+ 6 pass
+ 0 fail
+```
+
+Gates: `typecheck && lint && format:check && test && build` com exit 0 — contratos **4411 pass /
+0 fail**, `test:hooks` **14 pass / 0 fail**, build ✓.
+
+**Observação (fora de escopo, não mexido):** a aba de **combustível** continua com
+`formatFuelPricePerUnit` e quatro casas fixas ("R$ 5,8900"). Mesma decisão caberia lá, mas o
+usuário a deixou de fora desta tarefa.
