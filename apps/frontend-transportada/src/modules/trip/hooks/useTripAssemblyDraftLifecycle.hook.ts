@@ -90,7 +90,13 @@ export function useTripAssemblyDraftLifecycle<TDraft>(
       else if (isTouchedRef.current) latestRef.current.onRestoreDiscarded?.(request.draft)
       else apply()
     } catch {
-      /** Volta que falha deixa o formulário como está: vazio é melhor que preso em "retomando". */
+      /**
+       * Volta que falha deixa o formulário como está: vazio é melhor que preso em "retomando". ⚠️ A
+       * gravação seguinte apaga o rascunho, e o que só ele conhecia é encerrado antes — como no toque.
+       */
+      if (request.generation === generationRef.current) {
+        latestRef.current.onRestoreDiscarded?.(request.draft)
+      }
     }
     if (request.generation === generationRef.current) {
       setPhase({ kind: next, scopeKey: request.scopeKey })
