@@ -187,6 +187,14 @@ export function useRouteAssemblyDraft(input: RouteAssemblyDraftInput) {
     isUnsaved: lifecycle.isUnsaved,
     markTouched: lifecycle.markTouched,
     notice,
+    /** As sugestões do rascunho que a volta ainda não aplicou: apagá-lo sem recusá-las as deixa órfãs. */
+    readUnrestoredSuggestionIds: (): readonly string[] => {
+      const stored = lifecycle.readUnrestored()
+      if (stored === undefined) return []
+      return [stored.pendingSuggestionId, stored.proposal?.suggestionId].filter(
+        (suggestionId): suggestionId is string => typeof suggestionId === 'string',
+      )
+    },
     /** Uma nova proposta substitui a que não pôde ser relida. */
     releaseRetained: () => setRetained(null),
     retainedSuggestionId: retained?.proposal?.suggestionId,

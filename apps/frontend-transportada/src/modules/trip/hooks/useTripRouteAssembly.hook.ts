@@ -613,12 +613,16 @@ export function useTripRouteAssembly(
       setProposal(null)
       setIsOpen(true)
     },
-    /** "Limpar rascunho": a proposta em revisão, ou a guardada sem rede, é recusada no servidor. */
+    /**
+     * "Limpar rascunho": a proposta em revisão, a guardada sem rede e a que a volta ainda não
+     * aplicou são recusadas no servidor.
+     */
     discardDraft: () => {
       for (const suggestionId of new Set([
         proposal?.suggestion.id,
         assemblyDraft.retainedSuggestionId,
         pendingSuggestionId ?? undefined,
+        ...assemblyDraft.readUnrestoredSuggestionIds(),
       ])) {
         rejectOnServer(suggestionId)
       }

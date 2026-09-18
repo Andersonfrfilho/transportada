@@ -150,6 +150,15 @@ export function useTripAssemblyDraftLifecycle<TDraft>(
       generationRef.current += 1
       void runRestore({ draft: stored, generation: generationRef.current, scopeKey })
     },
+    /**
+     * O rascunho guardado que a volta ainda não aplicou — relendo as notas ou sem rede para isso.
+     * ⚠️ Quem apaga precisa dele: o que só ele conhece (a sugestão pedida) não está no estado ainda.
+     */
+    readUnrestored: (): TDraft | undefined =>
+      isCurrentScope &&
+      (phase.kind === DRAFT_PHASE.restoring || phase.kind === DRAFT_PHASE.unreachable)
+        ? storedRef.current
+        : undefined,
     /** A última gravação falhou (armazenamento bloqueado ou cheio): a tela avisa. */
     isUnsaved,
     /** O operador mexeu: uma restauração ainda a caminho não pode mais aplicar por cima. */

@@ -54,15 +54,36 @@ function readStoredPendingSuggestionId(storage: RecordingStorage): unknown {
   return envelope.draft?.pendingSuggestionId
 }
 
+/** A proposta que estava em revisão quando o operador saiu para medir. */
+const STORED_PROPOSAL = {
+  draftOrderDocumentIdsByVehicle: [],
+  draftStopMoves: [],
+  openVehicleId: null,
+  orderDocumentIdsByVehicle: [],
+  pendingRemovals: [],
+  releaseLayoutByVehicle: [],
+  routeChoiceByVehicle: [],
+  selectedVehicleIds: [VEHICLE_ID],
+  stopMoves: [],
+  suggestionId: 'suggestion-2',
+}
+
+type StoredSuggestion = Readonly<{
+  pendingSuggestionId: null | string
+  proposal: null | typeof STORED_PROPOSAL
+}>
+
 /** O pedido que ficou calculando quando o operador saiu para medir — gravado antes de a tela montar. */
-function seedStoredDraft(storage: RecordingStorage): null | string {
+function seedStoredDraft(
+  storage: RecordingStorage,
+  suggestion: StoredSuggestion = { pendingSuggestionId: 'suggestion-1', proposal: null },
+): null | string {
   writeTripAssemblyDraft({
     draft: {
       documentIds: [DOCUMENT.id],
       driverIds: [],
       isOpen: true,
-      pendingSuggestionId: 'suggestion-1',
-      proposal: null,
+      ...suggestion,
       vehicleIds: [VEHICLE_ID],
     },
     mode: TRIP_ASSEMBLY_DRAFT_MODE.automatic,
@@ -145,6 +166,8 @@ describe('rascunho da montagem automática no hook', () => {
     await waitFor(() => expect(rendered.result().assemblyDraft.isRestoring).toBe(true))
 
     act(() => rendered.result().discardDraft())
+    /** Só o rascunho guardado sabia dela: sem a recusa, ela ficava viva no servidor. */
+    expect(fakes.rejectedSuggestionIds).toEqual(['suggestion-1'])
     expect(storage.getItem(DRAFT_KEY)).toBeNull()
     const writesAfterClear = storage.writes.length
 
@@ -162,6 +185,32 @@ describe('rascunho da montagem automática no hook', () => {
     expect(rendered.result().pool).toEqual([])
     expect(rendered.result().assemblyDraft.hasDraft).toBe(false)
     expect(storage.writes.length).toBe(writesAfterClear)
+    expect(storage.getItem(DRAFT_KEY)).toBeNull()
+  })
+
+  test('"Limpar rascunho" durante a volta recusa a proposta guardada que ainda não foi relida', async () => {
+    seedStoredDraft(storage, { pendingSuggestionId: null, proposal: STORED_PROPOSAL })
+    fakes.loadDocuments = () => createDeferred<readonly TripCandidateDocument[]>().promise
+
+    hook = await renderAssembly()
+    const rendered = hook
+    await waitFor(() => expect(rendered.result().assemblyDraft.isRestoring).toBe(true))
+
+    act(() => rendered.result().discardDraft())
+    expect(fakes.rejectedSuggestionIds).toEqual(['suggestion-2'])
+    expect(storage.getItem(DRAFT_KEY)).toBeNull()
+  })
+
+  test('"Limpar rascunho" com as notas sem rede recusa a sugestão do rascunho guardado', async () => {
+    seedStoredDraft(storage)
+    fakes.loadDocuments = () => Promise.reject(new Error('NETWORK_DOWN'))
+
+    hook = await renderAssembly()
+    const rendered = hook
+    await waitFor(() => expect(rendered.result().assemblyDraft.isDocumentsUnreachable).toBe(true))
+
+    act(() => rendered.result().discardDraft())
+    expect(fakes.rejectedSuggestionIds).toEqual(['suggestion-1'])
     expect(storage.getItem(DRAFT_KEY)).toBeNull()
   })
 
