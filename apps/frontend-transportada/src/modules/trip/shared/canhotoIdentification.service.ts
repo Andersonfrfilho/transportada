@@ -8,12 +8,13 @@ import { tripDocumentLabel } from './tripDocument.service'
  * grava é a pessoa, confirmando o passo do assistente. Esta função é só a classificação; nenhuma
  * chamada de rede, nenhuma gravação.
  *
- * A chave impressa no código de barras da DANFE é Code 128, sempre numérica (o gerador do próprio
- * produto, `code128.service.ts`, também assume subconjunto C) — diferente do texto/QR que
- * `nfeAccessKey.service.ts` extrai, onde o CNPJ do emitente pode ter letra (IN RFB 2229/2024). Por
- * isso a validação aqui exige 44 dígitos, não o padrão alfanumérico daquele módulo.
+ * A chave impressa no código de barras da DANFE é Code 128 — hoje sempre numérica (subconjunto C),
+ * mas o CNPJ do emitente nas posições 7–20 passa a aceitar letra a partir de 01/07/2026 (IN RFB
+ * 2229/2024, NT 2024.002): quando isso acontece, a DANFE muda para o subconjunto B (alfanumérico)
+ * nesse trecho. O padrão aqui casa com `nfeAccessKey.service.ts` (`NFE_ACCESS_KEY_PATTERN`) —
+ * mesmo formato, chave inteira em vez de recorte de QR/link.
  */
-const ACCESS_KEY_DIGITS_PATTERN = /^\d{44}$/u
+const ACCESS_KEY_DIGITS_PATTERN = /^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/u
 const ACCESS_KEY_CHECK_DIGIT_INDEX = 43
 const ACCESS_KEY_MODEL_RANGE = [20, 22] as const
 const ACCESS_KEY_SERIES_RANGE = [22, 25] as const
@@ -23,6 +24,12 @@ const ZERO_CHAR_CODE = '0'.charCodeAt(0)
 const CHECK_DIGIT_WEIGHT_MIN = 2
 const CHECK_DIGIT_WEIGHT_MAX = 9
 
+/**
+ * NT 2024.002 (chave alfanumérica): o valor de cada caractere é o código ASCII menos o de `'0'` —
+ * dígito preserva o valor (`'0'..'9'` → 0–9), letra maiúscula vira 17–42 (`'A'..'Z'`). A conta
+ * já era genérica o bastante para letra sem mudar nada: só a validação de formato acima precisava
+ * deixar de exigir 44 dígitos.
+ */
 function charValue(character: string): number {
   return character.charCodeAt(0) - ZERO_CHAR_CODE
 }
@@ -102,9 +109,12 @@ function findDocumentByAccessKey(
   const byKey = documents.find((document) => document.accessKey === input.accessKey)
   if (byKey !== undefined) return { document: byKey, kind: 'found' }
 
+  /** Baixos (T15), mesma régua de R4 (`canhotoOcr.service.ts`): nota liberada não entra na conta
+   * de unicidade — ela já saiu do lote, e contá-la só produz ambiguidade artificial. */
   const candidates = documents.filter(
     (document) =>
       (document.accessKey ?? '') === '' &&
+      (document.releasedAt ?? null) === null &&
       normalizeDigits(document.nfeNumber) === input.parsed.number &&
       normalizeDigits(document.nfeSeries) === input.parsed.series,
   )

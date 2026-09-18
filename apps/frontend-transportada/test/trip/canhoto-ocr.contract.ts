@@ -75,6 +75,33 @@ describe('extractCanhotoNumberFromWords (ADR-0069 §3, R2)', () => {
     ]
     expect(extractCanhotoNumberFromWords(words)).toEqual({ number: '000123456', series: null })
   })
+
+  test('Baixos: "no" minúsculo (preposição comum) não casa como rótulo do número', () => {
+    const words: readonly CanhotoOcrWord[] = [
+      { confidence: 95, text: 'entregue' },
+      { confidence: 95, text: 'no' },
+      { confidence: 95, text: '000.123.456' },
+    ]
+    expect(extractCanhotoNumberFromWords(words)).toBeUndefined()
+  })
+
+  test('Baixos: "NO" maiúsculo (variação de OCR de "Nº") continua casando', () => {
+    const words: readonly CanhotoOcrWord[] = [
+      { confidence: 95, text: 'NO' },
+      { confidence: 95, text: '000.123.456' },
+    ]
+    expect(extractCanhotoNumberFromWords(words)).toEqual({ number: '000123456', series: null })
+  })
+
+  test('Baixos: considera todas as ocorrências do rótulo, não só a primeira', () => {
+    const words: readonly CanhotoOcrWord[] = [
+      { confidence: 95, text: 'Nº' },
+      { confidence: 95, text: 'cliente' },
+      { confidence: 95, text: 'Nº' },
+      { confidence: 95, text: '000.123.456' },
+    ]
+    expect(extractCanhotoNumberFromWords(words)).toEqual({ number: '000123456', series: null })
+  })
 })
 
 const DOC_455: CanhotoOcrTripDocument = {

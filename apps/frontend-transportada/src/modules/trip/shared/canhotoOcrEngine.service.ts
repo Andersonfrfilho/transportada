@@ -24,6 +24,20 @@ async function loadWorker(): Promise<Tesseract.Worker> {
   })
 }
 
+/** Baixos (T15): falha de carga ou de leitura também encerra o worker — reaproveitar um worker
+ * que quebrou no meio da leitura anterior faria a próxima tentativa herdar o mesmo estado ruim. */
+async function terminateWorker(): Promise<void> {
+  const previous = workerPromise
+  workerPromise = undefined
+  if (previous === undefined) return
+  try {
+    const worker = await previous
+    await worker.terminate()
+  } catch {
+    // worker já inválido — nada a encerrar
+  }
+}
+
 function flattenWords(page: Tesseract.Page): readonly CanhotoOcrWord[] {
   return (page.blocks ?? []).flatMap((block) =>
     block.paragraphs.flatMap((paragraph) =>
@@ -44,10 +58,12 @@ export async function recognizeCanhotoWords(
   try {
     if (workerPromise === undefined) workerPromise = loadWorker()
     const worker = await workerPromise
-    const { data } = await worker.recognize(image)
+    /** tesseract.js 7 desliga `blocks` por padrão (`output = { text: true }`) — sem isto,
+     * `data.blocks` nunca existe e `flattenWords` sempre devolve lista vazia. */
+    const { data } = await worker.recognize(image, {}, { blocks: true })
     return flattenWords(data)
   } catch {
-    workerPromise = undefined
+    await terminateWorker()
     return undefined
   }
 }

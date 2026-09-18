@@ -20,6 +20,8 @@ const NOT_ON_TRIP_KEY = '35240912345678000199550010000999991111122222'
 const ON_TRIP_NOT_SELECTED_KEY = '35240912345678000199550010000123471222233332'
 const MODEL_65_KEY = '35240912345678000199650010000123451876543215'
 const BAD_CHECK_DIGIT_KEY = '35240912345678000199550010000123451876543213'
+/** NT 2024.002 (IN RFB 2229/2024): CNPJ do emitente alfanumérico a partir de 01/07/2026. */
+const ALPHANUMERIC_CNPJ_KEY = '35240912ABC456780001550010000123451876543211'
 
 const REQUESTED_DOCUMENT: CanhotoTripDocument = {
   id: 'doc-requested',
@@ -102,6 +104,33 @@ describe('canhoto identification contract (spec 156 T10, ADR-0067 §4)', () => {
 
     test('parseNfeAccessKeyFromBarcode extrai número e série sem zeros à esquerda', () => {
       expect(parseNfeAccessKeyFromBarcode(REQUESTED_KEY)).toEqual({ number: '12345', series: '1' })
+    })
+
+    test('Baixos: CNPJ alfanumérico na chave (NT 2024.002) ainda é matched', () => {
+      expect(parseNfeAccessKeyFromBarcode(ALPHANUMERIC_CNPJ_KEY)).toEqual({
+        number: '12345',
+        series: '1',
+      })
+      expect(classify(ALPHANUMERIC_CNPJ_KEY)).toEqual({
+        documentId: REQUESTED_DOCUMENT.id,
+        status: 'matched',
+      })
+    })
+
+    test('Baixos: nota liberada não entra na contagem de ambiguidade por número/série', () => {
+      const releasedDuplicate: CanhotoTripDocument = {
+        id: 'doc-released-duplicate',
+        nfeNumber: REQUESTED_DOCUMENT.nfeNumber ?? null,
+        nfeSeries: REQUESTED_DOCUMENT.nfeSeries ?? null,
+        releasedAt: '2026-09-01T00:00:00.000Z',
+      }
+      const result = classifyCanhotoDocument({
+        expectedDocumentId: REQUESTED_DOCUMENT.id,
+        selectedDocumentIds: SELECTED_DOCUMENT_IDS,
+        text: REQUESTED_KEY,
+        tripDocuments: [...TRIP_DOCUMENTS, releasedDuplicate],
+      })
+      expect(result).toEqual({ documentId: REQUESTED_DOCUMENT.id, status: 'matched' })
     })
   })
 
