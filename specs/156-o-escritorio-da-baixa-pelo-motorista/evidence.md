@@ -1365,9 +1365,23 @@ e a previsão de chegada.
 Sem as duas colunas, a tabela redistribui a largura sem buraco, e cabeçalho, ordenação e botão "Ver"
 seguem iguais aos da versão com dinheiro.
 
-Pendência explícita: o esqueleto de carregamento (`TripsTableSkeleton`) ainda desenha as seis
-colunas, então quem não tem `trip.financials` vê por um instante dois cabeçalhos que somem quando a
-lista chega. O esqueleto não recebe permissão hoje. É salto de layout, não vazamento de valor.
+O esqueleto de carregamento (`TripsTableSkeleton`) ficou como pendência na primeira entrega e foi
+fechado em seguida, na mesma L6a:
+
+- Ele desenhava as seis colunas para todo mundo e, além disso, só **cinco** células por linha
+  contra **sete** cabeçalhos: as duas colunas de dinheiro tinham entrado na tabela sem célula no
+  esqueleto. Isso é anterior à L6.
+- Agora ele recebe `columns` e desenha uma célula por coluna. Com a lista pedida, recebe o
+  `table.columns` do `useTripTable`. No esqueleto de página inteira, que aparece antes de o
+  `/auth/me` responder, recebe `visibleTripColumns({ canReadFinancials: false })`: sem saber a
+  permissão, não anuncia coluna de dinheiro. Quem tem `trip.financials` vê as duas aparecerem quando
+  a tela carrega.
+- Contrato em `amount-columns.contract.ts` (falhou antes do conserto): a página não usa mais
+  `TRIP_COLUMN_KEYS`, os dois esqueletos recebem as colunas, e cabeçalho e células mapeiam a mesma
+  lista.
+- Prints `prints/l6-trip-list-skeleton-viewer.png` (4 colunas + ações, 5 células) e
+  `prints/l6-trip-list-skeleton-finance.png` (6 + ações, 7 células), com a lista mockada pendurada.
+- `make check` → exit 0: API `6512 pass`, frontend `4377 pass` mais `7 pass` dos hooks, 0 falhas.
 
 ## T9
 

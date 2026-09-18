@@ -16,6 +16,10 @@ import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripRe
 import type { Trip, TripAmounts } from '../../src/modules/trip/shared/trip.types'
 
 const TABLE = new URL('../../src/modules/trip/components/TripTable.component.tsx', import.meta.url)
+const WORKSPACE_PAGE = new URL(
+  '../../src/modules/trip/pages/TripWorkspace.page.tsx',
+  import.meta.url,
+)
 const TABLE_HOOK = new URL('../../src/modules/trip/hooks/useTripTable.hook.ts', import.meta.url)
 
 function tripOf(id: string, amounts: TripAmounts | null): Trip {
@@ -163,5 +167,22 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
       amountsOf(),
     )
     expect(() => adapters.tripListFromApi(page({ ...withoutAmounts, amounts: {} }))).toThrow()
+  })
+
+  /**
+   * O esqueleto desenhava as seis colunas para todo mundo — e só cinco células por linha, porque as
+   * duas de dinheiro entraram sem célula. Ele segue as colunas da tabela real: com a lista pedida, as
+   * do `useTripTable`; antes de saber a permissão, as sem dinheiro, para nunca anunciar o que a
+   * pessoa pode não ter.
+   */
+  it('desenha o esqueleto pelas mesmas colunas, uma célula por cabeçalho', () => {
+    const page = readFileSync(WORKSPACE_PAGE, 'utf8')
+
+    expect(page).not.toContain('TRIP_COLUMN_KEYS')
+    expect(page).toContain('<TripsTableSkeleton columns={table.columns} />')
+    expect(page).toContain(
+      '<TripsTableSkeleton columns={visibleTripColumns({ canReadFinancials: false })} />',
+    )
+    expect(page.match(/columns\.map\(\(column\) =>/g)?.length).toBe(2)
   })
 })

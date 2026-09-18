@@ -36,12 +36,22 @@ import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { navigateToTrip } from '../shared/tripRoute.service'
-import { TRIP_COLUMN_KEYS } from '../shared/tripTable.service'
+import { type TripColumnKey, visibleTripColumns } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
 // Mesma grade da TripTable real (colunas + ação) — reaproveitado pelo gate de página e pelo gate
-// da própria tabela para não trocar de forma entre os dois esqueletos.
-function TripsTableSkeleton() {
+// da própria tabela para não trocar de forma entre os dois esqueletos. As colunas vêm de fora: sem
+// `trip.financials` a tabela não tem as de dinheiro, e o esqueleto não pode anunciá-las (spec 156 L6).
+type TripsTableSkeletonProps = Readonly<{ columns: readonly TripColumnKey[] }>
+
+function renderSkeletonCell(column: TripColumnKey) {
+  if (column === 'vehicleId') return <Skeleton variant="text" width="65%" />
+  if (column === 'status') return <Skeleton height="1.4rem" width="5rem" />
+
+  return <Skeleton variant="text" width="75%" />
+}
+
+function TripsTableSkeleton({ columns }: TripsTableSkeletonProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -49,7 +59,7 @@ function TripsTableSkeleton() {
       <table className={styles.dataTable}>
         <thead>
           <tr>
-            {TRIP_COLUMN_KEYS.map((column) => (
+            {columns.map((column) => (
               <th key={column} scope="col">
                 {t(`columns.${column}`)}
               </th>
@@ -60,18 +70,9 @@ function TripsTableSkeleton() {
         <tbody>
           {Array.from({ length: 4 }, (_, index) => (
             <tr key={index}>
-              <td>
-                <Skeleton variant="text" width="65%" />
-              </td>
-              <td>
-                <Skeleton height="1.4rem" width="5rem" />
-              </td>
-              <td>
-                <Skeleton variant="text" width="75%" />
-              </td>
-              <td>
-                <Skeleton variant="text" width="75%" />
-              </td>
+              {columns.map((column) => (
+                <td key={column}>{renderSkeletonCell(column)}</td>
+              ))}
               <td>
                 <Skeleton height="var(--field-height-compact)" width="4rem" />
               </td>
@@ -117,7 +118,8 @@ function TripWorkspacePageSkeleton() {
           <Skeleton variant="text" width="6rem" />
           <Skeleton variant="text" width="8rem" />
         </div>
-        <TripsTableSkeleton />
+        {/* Antes de saber a permissão, as colunas sem dinheiro — nunca anunciar o que pode faltar. */}
+        <TripsTableSkeleton columns={visibleTripColumns({ canReadFinancials: false })} />
       </div>
     </SkeletonGroup>
   )
@@ -415,7 +417,7 @@ export function TripWorkspacePage() {
                     <Skeleton variant="text" width="6rem" />
                     <Skeleton variant="text" width="8rem" />
                   </div>
-                  <TripsTableSkeleton />
+                  <TripsTableSkeleton columns={table.columns} />
                 </SkeletonGroup>
               ) : null}
               {table.tripsQuery.isError ? (
