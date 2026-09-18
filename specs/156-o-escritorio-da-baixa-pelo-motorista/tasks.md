@@ -31,8 +31,8 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 - [ ] **T2 🧠 — ADR-0067 "o escritório dá baixa em nome do motorista"** (conferir o próximo número
       livre em `origin/staging`). Registra D1, D3, D4 e D6. Ao fechar, acrescenta
-      `trip.report-on-behalf` em `authorization.policy.ts` para `admin` e `operator` (conferir a
-      pendência D1 com o usuário) e o contrato negativo para `separator`, `driver` e `viewer`.
+      `trip.report-on-behalf` em `authorization.policy.ts` para `admin`, `operator` e `finance`
+      (D1 confirmada) e o contrato negativo para `separator`, `driver` e `viewer`.
 - [ ] **T3 🧠 — `FieldTripTarget` nas portas de campo.** Refatora `start-field-trip`,
       `report-document-delivery`, `attach-delivery-proof`, `register-driver-occurrence` e
       `report-stop-occurrence`, junto com os repositórios, para receber o alvo. Gate: os contratos de
@@ -122,6 +122,6 @@ revisão final T15 → code-reviewer + security-reviewer model=opus ·
 T16 revisão de design e usabilidade → designer model=opus, com prints ao usuário.
 Cada task fecha com typecheck + lint + testes da app (integração da API com --env-file=../../.env.test)
 + teste novo listado no package.json + commit isolado, evidência em evidence.md.
-Pare e pergunte antes de: fechar a T2 sem a confirmação de D1 (operator recebe a permissão?), deploy
+Pare e pergunte antes de: deploy
 em produção, migration destrutiva, qualquer [NEEDS CLARIFICATION].
 ```

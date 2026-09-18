@@ -39,17 +39,18 @@ motorista <nome>".
 
 ## Usuários
 
-- **Administrativo/gerencial** (`admin`, `operator`) com `trip.report-on-behalf`: resolve a baixa que
+- **Administrativo/gerencial** (`admin`, `operator`, `finance`) com `trip.report-on-behalf`: resolve a baixa que
   ficou pendente, normalmente dias depois e com o maço de canhotos na mesa.
 - **Motorista** (`driver`, `aggregate`): nada muda para ele; continua com `trip.report` e as rotas `/me`.
 - **Separador** (`separator`): continua sem reportar entrega; não recebe a permissão nova.
 
 ## Decisões
 
-- **D1 — Permissão nova `trip.report-on-behalf`**, dada a `admin` e `operator`. Não reusa
+- **D1 — Permissão nova `trip.report-on-behalf`**, dada a `admin`, `operator` e `finance`. Não reusa
   `trip.manage`, porque o separador tem essa permissão e não reporta entrega. Também não reusa
   `trip.report`, porque ela abre as rotas `/me` do motorista. _(Decisão do usuário: "permissão nova
-  para a parte gerencial".)_ ⚠️ Confirmar se `operator` entra junto com `admin` — ver "Pendências".
+  para a parte gerencial".)_ Perfis confirmados pelo usuário em 2026-09-18: `admin`, `operator` e `finance` (o canhoto às
+  vezes chega junto da cobrança).
 - **D2 — As rotas do escritório espelham as do motorista**, com o `tripId` no caminho em vez da
   "viagem atual". Os casos de uso são os mesmos. O que muda é **como a viagem é encontrada**: pelo
   motorista (rotas `/me`) ou pela viagem da empresa (rotas `/trips/:id`). Não se cria um segundo
@@ -127,6 +128,4 @@ motorista <nome>".
 
 ## Pendências
 
-- ⚠️ **D1 — `operator` recebe a permissão?** O rascunho diz que sim, porque o atendente é quem
-  resolve a baixa. Se só `admin` deve receber, a mudança é de uma linha na T2. Isso não bloqueia a
-  execução, mas precisa estar confirmado antes da T2.
+Nenhuma. D1 confirmada em 2026-09-18.
