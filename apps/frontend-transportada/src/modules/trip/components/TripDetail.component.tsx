@@ -10,6 +10,7 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
@@ -204,6 +205,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * não ter carregado, e `''` é um id que nunca resolve, o que é exatamente o que se quer aqui.
    */
   const routeSuggestion = useRouteSuggestion({ tripId: workspace.trip?.id ?? '' })
+  /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
+  const fieldDelivery = useFieldDelivery({
+    invalidate: workspace.invalidateFieldDeliveryEffects,
+    reportFieldDelivery: workspace.controller.reportFieldDelivery,
+    tripId: workspace.trip?.id ?? '',
+  })
   const isSlowLoad = useSlowLoadNotice({
     delayMs: SLOW_LOAD_NOTICE_DELAY_MS,
     isPending: workspace.status === 'loading',
@@ -680,13 +687,14 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       />
 
       {/*
-       * Spec 156 T11: o envio é da T12 (`useFieldDelivery`, concorrência limitada e repetição do
-       * que falhar) — `onSubmit` aqui só fecha o assistente, sem chamar a API. `dispatchedAt` é
-       * `null` porque `GET /trips/:id` ainda não expõe `trip_dispatch_snapshots.dispatched_at`
-       * (pendência registrada no `evidence.md` da T11); a régua do futuro continua valendo, e a
-       * API segue sendo quem decide de fato.
+       * Spec 156 T12: o envio de verdade (`useFieldDelivery`, instanciado acima — concorrência
+       * limitada, retentativa só das falhas). `dispatchedAt` é `null` porque `GET /trips/:id`
+       * ainda não expõe `trip_dispatch_snapshots.dispatched_at` (pendência registrada no
+       * `evidence.md` da T11); a régua do futuro continua valendo, e a API segue sendo quem
+       * decide de fato.
        */}
       <FieldDeliveryWizard
+        defaultDriverId={officeDriverId ?? ''}
         dispatchedAt={null}
         documents={buildFieldDeliveryWizardDocuments({
           documentIds: fieldDeliveryDocumentIds ?? [],
@@ -694,10 +702,24 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           stops: trip.stops,
         })}
         drivers={trip.drivers}
+        fieldDelivery={fieldDelivery}
         hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
         isOpen={fieldDeliveryDocumentIds !== null}
+        /**
+         * Spec 156 T12, achado ao ligar o envio de verdade: `useReducer` só roda o inicializador
+         * (`createInitialFieldDeliveryWizardState`) uma vez, na primeira montagem — e o assistente
+         * fica sempre montado (só `isOpen` esconde). Sem a `key`, a primeira nota marcada nesta
+         * sessão via a lista vazia com que o componente nasceu (a viagem ainda nem tinha
+         * carregado), e todo "Dar baixa" seguinte reabria o **mesmo** estado congelado: "Enviar 0
+         * nota" mesmo com 5 notas marcadas. Trocar a `key` a cada lote força o React a desmontar e
+         * remontar — o único jeito de o inicializador rodar de novo com a lista certa.
+         */
+        key={
+          fieldDeliveryDocumentIds === null
+            ? 'field-delivery-closed'
+            : fieldDeliveryDocumentIds.join(',')
+        }
         onClose={() => setFieldDeliveryDocumentIds(null)}
-        onSubmit={() => setFieldDeliveryDocumentIds(null)}
         tripDocuments={trip.documents.map((document) => ({
           id: document.id,
           ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),

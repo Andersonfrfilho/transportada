@@ -386,7 +386,11 @@
     "vehicleNotFound": "Vehicle not found.",
     "withoutDriver": "This trip has no driver — assign one before reporting on their behalf.",
     "occurrenceTypeNotField": "This occurrence type belongs to the warehouse, not the road — pick a road type.",
-    "documentNotReachable": "Some selected document does not belong to this trip."
+    "documentNotReachable": "Some selected document does not belong to this trip.",
+    "documentAlreadySettled": "This document was already delivered or returned.",
+    "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
+    "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
+    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -795,6 +799,7 @@
     "close": "Close",
     "closeConfirm": "Leave without sending",
     "closeMessage": "Photos already taken in this session will be lost.",
+    "closeSendingMessage": "Sending is still in progress — leaving now does not cancel documents already sent.",
     "closeTitle": "Leave the assistant?",
     "confirm": "Confirm",
     "deliveredAtError": {
@@ -817,6 +822,17 @@
     "recipientUnknown": "Recipient not informed",
     "retake": "Retake photo",
     "reviewImageAlt": "Captured proof photo",
+    "sendAlreadySettled": "Was already delivered",
+    "sendDelivered": "Delivered",
+    "sendPending": "Waiting to send",
+    "sendRetry": "Try again ({{count}})",
+    "sendSending": "Sending…",
+    "sendSummaryAlreadySettled": "{{count}} document was already delivered",
+    "sendSummaryAlreadySettled_other": "{{count}} documents were already delivered",
+    "sendSummaryDelivered": "{{count}} document delivered",
+    "sendSummaryDelivered_other": "{{count}} documents delivered",
+    "sendSummaryFailed": "{{count}} document failed",
+    "sendSummaryFailed_other": "{{count}} documents failed",
     "skip": "Skip document",
     "stepProgress": "Document {{current}} of {{total}}",
     "targetLabel": "This photo is for document",

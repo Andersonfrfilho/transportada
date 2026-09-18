@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useReducer, useState, type ReactNode } from 'react'
+import { useEffect, useReducer, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import type { FieldDeliveryController } from '../hooks/useFieldDelivery.hook'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
 import {
   collectFieldDeliveryDrafts,
@@ -14,24 +15,31 @@ import {
   currentFieldDeliveryDocument,
   fieldDeliveryWizardReducer,
   isFieldDeliveryWizardFinished,
-  type FieldDeliveryDraft,
   type FieldDeliveryWizardDocument,
 } from '../shared/fieldDeliveryWizard.service'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
 import { FieldDeliveryCaptureStep } from './FieldDeliveryCaptureStep.component'
 import { FieldDeliveryFinishedStep } from './FieldDeliveryFinishedStep.component'
 import { FieldDeliveryReviewStep } from './FieldDeliveryReviewStep.component'
+import { FieldDeliverySendStep } from './FieldDeliverySendStep.component'
 import { FieldDeliveryWizardHeader } from './FieldDeliveryWizardHeader.component'
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryWizardProps = Readonly<{
+  /**
+   * Spec 156 T8b/T12: o motorista já escolhido no painel da viagem (`officeDriverId`) — o mesmo
+   * seletor único que `FieldOccurrenceDialog` usa. O assistente só pré-preenche com ele; ainda dá
+   * para trocar aqui dentro, porque um lote pode precisar de outro motorista da tripulação.
+   */
+  defaultDriverId: string
   dispatchedAt: null | string
   documents: readonly FieldDeliveryWizardDocument[]
   drivers: readonly Readonly<{ driverId: string; driverName: string }>[]
+  /** Spec 156 T12: quem envia de verdade — o assistente só chama `submit`/`retryFailed`. */
+  fieldDelivery: FieldDeliveryController
   hasMultipleDrivers: boolean
   isOpen: boolean
   onClose: () => void
-  onSubmit: (drafts: readonly FieldDeliveryDraft[]) => void
   tripDocuments: readonly CanhotoTripDocument[]
 }>
 
@@ -47,26 +55,49 @@ const TITLE_ID = 'field-delivery-wizard-title'
  * repetição do que falhar — é a T12 (`useFieldDelivery`). Aqui o `onSubmit` só fecha o assistente.
  */
 export function FieldDeliveryWizard({
+  defaultDriverId,
   dispatchedAt,
   documents,
   drivers,
+  fieldDelivery,
   hasMultipleDrivers,
   isOpen,
   onClose,
-  onSubmit,
   tripDocuments,
 }: FieldDeliveryWizardProps) {
   const { t } = useTranslation('trip')
   const [state, dispatch] = useReducer(fieldDeliveryWizardReducer, documents, (initialDocuments) =>
     createInitialFieldDeliveryWizardState(initialDocuments),
   )
-  const [driverId, setDriverId] = useState('')
+  const [driverId, setDriverId] = useState(defaultDriverId)
+  /**
+   * O `key` do chamador (`TripDetail`) já remonta o assistente a cada lote novo — mas o efeito
+   * cobre o caso de alguém reusar este componente sem essa `key` no futuro, mesmo padrão defensivo
+   * do `FieldOccurrenceDialog` (T8b).
+   */
+  useEffect(() => {
+    if (isOpen) setDriverId(defaultDriverId)
+  }, [defaultDriverId, isOpen])
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false)
   const hasCaptures = Object.keys(state.drafts).length > 0
+  /** Spec 156 T12: já existe um envio desta sessão — mostra o resultado em vez da lista a enviar. */
+  const hasSubmitted = Object.keys(fieldDelivery.statusByDocumentId).length > 0
 
+  function finishClose(): void {
+    fieldDelivery.reset()
+    onClose()
+  }
+
+  /**
+   * Confirmação só quando fechar custa alguma coisa: envio em andamento (o pedido explícito da
+   * T12), ou fotos tiradas que **ainda não foram enviadas**. Depois que o lote termina — sucesso,
+   * já entregue ou falha —, os rascunhos já foram para a API (ou o usuário já viu o resultado e
+   * pode tentar de novo); barrar o fechamento aqui de novo seria confirmar duas vezes a mesma
+   * saída.
+   */
   function requestClose(): void {
-    if (hasCaptures) setIsCloseConfirmOpen(true)
-    else onClose()
+    if (fieldDelivery.isSubmitting || (hasCaptures && !hasSubmitted)) setIsCloseConfirmOpen(true)
+    else finishClose()
   }
 
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose: requestClose })
@@ -80,11 +111,20 @@ export function FieldDeliveryWizard({
 
   function renderBody(): ReactNode {
     if (isFinished) {
+      if (hasSubmitted) {
+        return (
+          <FieldDeliverySendStep
+            documents={state.documents}
+            fieldDelivery={fieldDelivery}
+            onRequestClose={requestClose}
+          />
+        )
+      }
       return (
         <FieldDeliveryFinishedStep
           documents={state.documents}
           drafts={collectFieldDeliveryDrafts(state)}
-          onSubmit={onSubmit}
+          onSubmit={fieldDelivery.submit}
         />
       )
     }
@@ -166,11 +206,15 @@ export function FieldDeliveryWizard({
         confirmLabel={t('fieldDelivery.closeConfirm')}
         isOpen={isCloseConfirmOpen}
         isSubmitting={false}
-        message={t('fieldDelivery.closeMessage')}
+        message={t(
+          fieldDelivery.isSubmitting
+            ? 'fieldDelivery.closeSendingMessage'
+            : 'fieldDelivery.closeMessage',
+        )}
         onCancel={() => setIsCloseConfirmOpen(false)}
         onConfirm={() => {
           setIsCloseConfirmOpen(false)
-          onClose()
+          finishClose()
         }}
         title={t('fieldDelivery.closeTitle')}
       />

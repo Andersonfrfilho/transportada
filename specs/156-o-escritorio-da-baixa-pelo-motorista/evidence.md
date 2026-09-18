@@ -2212,3 +2212,196 @@ nesta sessão.
 - `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` (textos)
 - `apps/frontend-transportada/src/modules/trip/locales/trip.en.locale.json` (textos)
 - `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t11-*.png` (5 novos)
+
+## T12
+
+**Escopo:** `useFieldDelivery.hook.ts` (D5, D9; aceites 5, 7, 8, 9, 12) — o envio de verdade do
+`FieldDeliveryWizard` (T11): uma chamada `POST .../field-delivery` por nota, concorrência 3, a
+própria `Idempotency-Key` por nota (gerada uma vez, reusada em qualquer retentativa), falha
+parcial sem travar o resto, "tentar de novo" só nas falhas, 409 `DOCUMENT_ALREADY_SETTLED` tratado
+como "já estava entregue" (informativo, não erro vermelho), e invalidação da viagem ao fim do
+lote. Smoke Playwright com câmera simulada para o aceite 5.
+
+### Dois defeitos de produção achados ao ligar o envio (nenhum é desta task, os dois bloqueavam)
+
+Nenhuma decisão nova de domínio — os dois são bugs de mecânica React/TanStack Query, achados só
+porque esta foi a primeira vez que alguém exercitou o fluxo real (T7/T8/T11 tinham cobertura de
+unidade e prints estáticos, nunca o app de ponta a ponta com dado de verdade). Registrados aqui
+porque bloqueavam a própria entrega da T12, e a correção de cada um está isolada num arquivo só:
+
+1. **`GET /trips/:id/allowed-actions` disparava com `documentIds`/`stopIds` vazios e ficava presa
+   nisso para sempre** (`useTripAllowedActions.hook.ts`/`useTripWorkspace.hook.ts`). A consulta é
+   `enabled` assim que a permissão chega, no mesmo instante em que a consulta da viagem também
+   começa — então, na primeira montagem, `documentIds`/`stopIds` ainda são `[]` (a viagem não
+   carregou). `parseTripAllowedActions` recusa (`RESPONSE_INVALID`, fail-closed) qualquer id da
+   resposta que não esteja na lista que a consulta _pediu_, e como o app usa `retry: false` e a
+   `queryKey` não leva os ids, a consulta nunca tenta de novo com a lista certa. Reproduzido no
+   smoke: com `allowed-actions` liberando `fieldDelivery` para 5 notas reais, nenhum botão de
+   baixa do escritório aparecia (nem por nota, nem em lote), sem erro visível na tela. Corrigido
+   com uma condição a mais em `useTripWorkspace.hook.ts`: `canRead: controller.canReadTrips &&
+tripQuery.data !== undefined` — a consulta de ações permitidas passa a esperar a viagem
+   carregar, e as duas deixam de disparar juntas com a lista vazia. Efeito colateral aceitável: as
+   duas consultas ficam sequenciais só nesta tela (era isso ou trocar a `queryKey`, que exigiria
+   tocar `useTripAllowedActions.hook.ts` e a invalidação em mais lugares).
+2. **`FieldDeliveryWizard` ficava com a lista de notas da primeira montagem para sempre**
+   (`useReducer(fieldDeliveryWizardReducer, documents, init)` em
+   `FieldDeliveryWizard.component.tsx`). O componente é montado uma vez só (`isOpen` só escondia
+   via `return null`), e o `init` lazy do `useReducer` roda **uma vez na vida do componente** — na
+   primeira renderização, quando `fieldDeliveryDocumentIds` ainda é `null` e a lista é vazia. Todo
+   "Dar baixa" seguinte reabria o mesmo estado congelado: a tela pulava direto para "Enviar 0
+   nota", mesmo com 5 notas marcadas. Corrigido com uma `key` em `TripDetail.component.tsx`
+   (`fieldDeliveryDocumentIds === null ? 'field-delivery-closed' : fieldDeliveryDocumentIds.join(',')`)
+   — o React desmonta e remonta o assistente a cada lote novo, e o inicializador roda de novo com
+   a lista certa. Sem essa correção a T11 nunca teria funcionado de ponta a ponta em produção,
+   fora de um teste de unidade que já constrói o estado direto.
+
+### Decisões desta task
+
+- **`useFieldDelivery` recebe `reportFieldDelivery` e `invalidate` como funções, não client/
+  companyId/tripId crus.** O hook não sabe nada de `TripClient`, `TripController` ou da forma da
+  `queryKey` da viagem — quem chama (`TripDetail`, via `workspace.controller.reportFieldDelivery`
+  e a nova `workspace.invalidateFieldDeliveryEffects`) já resolve a permissão e a invalidação.
+  Isso mantém o hook puramente sobre "enviar o lote e guardar o status por nota", testável com uma
+  função falsa, e evita duplicar a forma da `queryKey` da viagem (`[TRIP_QUERY_KEY, companyId,
+tripId]`) num segundo arquivo — duplicar essa forma seria o mesmo risco de drift que o comentário
+  de `MUTATION_EFFECT_QUERY_KEYS` já registra para outro caso.
+- **A fila de envio é um serviço puro** (`fieldDeliverySend.service.ts`,
+  `runFieldDeliverySendBatch`): concorrência 3 por fila com workers, `send` nunca lança (quem
+  chama já converteu qualquer rejeição em `{ kind: 'failed', code }`), testável sem DOM nem rede.
+  O hook (`useFieldDelivery.hook.ts`) só guarda estado React por nota e faz a chamada de verdade —
+  mesma separação que a T11 já usava para a máquina de passos.
+- **Idempotency-Key por `documentId`, num `useRef`, nunca limpa durante a sessão do lote** —
+  mesmo padrão de `resolveFieldReportKey` em `useTripWorkspace.hook.ts` (T8), só que por nota em
+  vez de por escopo textual. `retryFailed` chama `submit` de novo com os mesmos drafts, e
+  `resolveIdempotencyKey` devolve a mesma chave porque o `Record` nunca é limpo por nota
+  individual — só o `reset()` inteiro (ao fechar o assistente) apaga todas.
+- **409 `DOCUMENT_ALREADY_SETTLED` nunca chega a `status: 'failed'`.** `sendDraft` converte
+  `result.alreadySettled` em `{ kind: 'alreadySettled' }` antes de qualquer coisa chegar ao
+  orquestrador — o "erro" nem existe do ponto de vista da fila, é um dos dois desfechos de
+  sucesso possíveis (aceite 12).
+- **Mensagem de erro por código reusa `resolveTripFeedbackKey`/`trip.feedback.*`** (o catálogo já
+  usado pelo resto da viagem, T8), em vez de uma segunda tabela de mensagens só para esta tela.
+  Só quatro chaves novas em `feedback.*` (`documentAlreadySettled`, `deliveredAtInFuture`,
+  `deliveredAtBeforeDispatch`, `deliveryProofPhotoRequired`) — as duas de `deliveredAt` já
+  existiam como texto em `fieldDelivery.deliveredAtError.*` (validação client-side, T11); as novas
+  são para o erro **do servidor** na tela de resultado, propositalmente um catálogo textual
+  diferente do client-side (mesmo código, contexto diferente).
+- **Fechar com envio em andamento pede confirmação; fechar depois de terminado, não.** A pergunta
+  original de "fechar com envio em andamento pede confirmação" tocou o mesmo `requestClose` que já
+  perguntava por causa de `hasCaptures` (rascunhos tirados nesta sessão, T11) — sem ajuste, fechar
+  DEPOIS de um envio bem sucedido perguntaria de novo à toa (os rascunhos já foram enviados, não há
+  o que perder). `requestClose` passou a pedir confirmação só quando `isSubmitting` **ou**
+  (`hasCaptures` **e não** `hasSubmitted`) — sessão em andamento ou fotos que nunca foram enviadas.
+
+### TDD
+
+- `test/trip/field-delivery-send.contract.ts` (puro, sem DOM): concorrência nunca passa de 3
+  mesmo com 5 notas em fila; lote menor que a concorrência processa tudo; uma falha no meio não
+  impede as outras quatro de terminarem (aceite 7); lote vazio nunca chama `send`.
+- `test/trip/field-delivery-error-mapping.contract.ts`: os quatro códigos novos
+  (`DOCUMENT_ALREADY_SETTLED`, `DELIVERED_AT_IN_FUTURE`, `DELIVERED_AT_BEFORE_DISPATCH`,
+  `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED`) têm texto nos dois idiomas via `resolveTripFeedbackKey`.
+- `test/trip-hooks/field-delivery.contract.ts` (`renderHook`/`act`, `test:hooks`): a
+  `Idempotency-Key` de uma nota que falha e depois é reenviada é a mesma nas duas chamadas; falha
+  parcial não impede as outras notas, e `retryFailed` só reenvia a que falhou (a contagem de
+  chamadas das que já tinham dado certo não muda); 409 `alreadySettled` nunca aparece como
+  `failed`; `invalidate` é chamado **uma vez** ao fim do lote inteiro, não por nota; `reset` limpa
+  o status para a próxima sessão. Todos escritos e rodados vermelhos antes da implementação do
+  hook (`Cannot find module`), depois verdes.
+- Smoke Playwright (aceite 5), `test/field-delivery.smoke.spec.ts`: 5 notas selecionadas em lote
+  (checkbox "selecionar todas" da parada), pula a primeira, fotografa e confirma as outras 4 com
+  câmera simulada (`--use-fake-device-for-media-stream` + `--use-fake-ui-for-media-stream` +
+  `--use-file-for-fake-video-capture`, apontando para um Y4M gerado em
+  `test/fixtures/fieldDeliveryBarcodeVideo.helper.ts` a partir da fixture de DANFE da T10 —
+  `buildAccessKeyBarcodeFrame`, colado no centro de um quadro 640×480 cinza), envia o lote, uma
+  nota falha de rede na primeira tentativa (`route.abort('failed')`) e é a única reenviada no
+  "tentar de novo" com a **mesma** `Idempotency-Key` das duas chamadas (asserção no corpo
+  multipart e no cabeçalho). Contrato de teste: 5 chamadas HTTP no total (4 notas × 1, mais o
+  retry da que falhou), `deliveredAt` presente em todas, `Idempotency-Key` presente em todas e
+  estável na que repetiu.
+
+**⚠️ `--use-fake-ui-for-media-stream` é obrigatório, não só `permissions: ['camera']` do
+Playwright.** Medido isolado (script fora do test runner, mesmo `chromium.launch`): só
+`--use-fake-device-for-media-stream` + `context.grantPermissions(['camera'])` faz
+`getUserMedia` recusar com `NotSupportedError` neste ambiente (macOS, Chrome for Testing
+1243); acrescentar `--use-fake-ui-for-media-stream` (que pula o próprio diálogo de permissão do
+Chrome, uma camada abaixo do que o CDP concede) resolve — confirmado também sem a flag de vídeo
+customizado, então não é o Y4M gerado que causava o erro.
+
+### Revisão de design (web.md §15)
+
+Com o CSS de produção real (`bun run --cwd apps/frontend-transportada build` + `bun run preview`)
+e o mesmo `chromium` do Playwright do smoke (não um `python3 -m http.server` estático como T8/T9/
+T11 usaram — aqui o fluxo precisa da API mockada de verdade para o estado de envio existir), tema
+escuro forçado por `data-theme="dark"`, 1280×720 e 375×900:
+
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t12-send-partial-failure-desktop.png` e
+  `-mobile.png` — 3 entregues, 1 falhou (mensagem "Não foi possível falar com a API." — o
+  `REQUEST_FAILED` genérico, porque a falha simulada foi de rede, não um código de negócio), botão
+  "Tentar de novo (1)" e "Fechar" lado a lado.
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t12-send-success-desktop.png` e
+  `-mobile.png` — as 4 entregues depois do retry, só o botão "Fechar".
+
+Conferido contra a T11 (`t11-capture-desktop.png` etc.): mesma moldura de diálogo (borda
+`--color-slate`, fundo `--color-asphalt`), a lista reaproveita exatamente `finishedList`/
+`finishedListItem` (T11), os dois botões novos (`sendStatusDelivered`/`sendStatusFailed`) só
+adicionam cor de texto (`--color-ready`/`--color-alert`, os mesmos tokens de estado que o resto do
+produto usa para verde/vermelho) e o ícone (`check`/`alert`) — nada de primitivo cru. Sem scroll
+horizontal em 375px. Nenhum achado de design novo nesta task (T11 já tinha corrigido o botão
+solto esticando 100%; a linha de status desta task reaproveita a faixa `captureActions` para os
+botões, mesma correção).
+
+### Gates
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bun run --cwd apps/frontend-transportada test` → `4412 pass · 0 fail`
+  (9 a mais que a T11: 4 de `field-delivery-send.contract.ts`, 5 de
+  `field-delivery-error-mapping.contract.ts`) + `test:hooks` `10 pass · 0 fail` (5 a mais:
+  `field-delivery.contract.ts`).
+- `bun run --cwd apps/frontend-transportada build` → build limpo, PWA gerado, sem erro.
+- `bun run --cwd apps/frontend-transportada smoke` (`playwright test`, Chrome for Testing 1243,
+  servidores de API e frontend buildados do zero) → **53 pass · 0 fail** — os 52 testes já
+  existentes de `responsive.smoke.spec.ts` (nenhuma regressão das duas correções de mecânica
+  acima) mais o novo `field-delivery.smoke.spec.ts`.
+
+### Arquivos
+
+- `apps/frontend-transportada/src/modules/trip/shared/fieldDeliverySend.service.ts` (novo) — fila
+  pura de envio (concorrência, `FieldDeliverySendOutcome`/`FieldDeliverySendStatus`).
+- `apps/frontend-transportada/src/modules/trip/hooks/useFieldDelivery.hook.ts` (novo) — o hook em
+  si: `Idempotency-Key` por nota, `submit`/`retryFailed`/`reset`, invalidação ao fim do lote.
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliverySendStep.component.tsx`
+  (novo) — a tela final: resumo por status, lista por nota, "tentar de novo" só com falha.
+- `apps/frontend-transportada/src/modules/trip/components/FieldDeliveryWizard.component.tsx`
+  (alterado) — troca `onSubmit` provisório por `fieldDelivery` (prop), mostra
+  `FieldDeliverySendStep` depois do envio, `requestClose` considera `isSubmitting`, `key` no
+  `TripDetail` corrige o `useReducer` congelado (achado acima).
+- `apps/frontend-transportada/src/modules/trip/components/TripDetail.component.tsx` (alterado) —
+  instancia `useFieldDelivery`, passa `fieldDelivery` e a `key` corretiva ao wizard.
+- `apps/frontend-transportada/src/modules/trip/hooks/useTripWorkspace.hook.ts` (alterado) —
+  `reportFieldDelivery` no `TripController` (gated por `canReportOnBehalf`),
+  `invalidateFieldDeliveryEffects`, e a correção do achado 1 (`canRead` de `allowed-actions`
+  espera `tripQuery.data`).
+- `apps/frontend-transportada/src/modules/trip/shared/tripClient.service.ts` (alterado) —
+  `reportFieldDelivery` (multipart, `POST .../field-delivery`).
+- `apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts` (alterado) —
+  guard e adaptador do envelope de `field-delivery`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.types.ts` (alterado) —
+  `ReportFieldDeliveryInput`/`ReportFieldDeliveryResult`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts` (alterado) —
+  `REPORT_FIELD_DELIVERY_RESULT_KEYS`, quatro entradas novas em `TRIP_FEEDBACK_KEY_BY_ERROR`.
+- `apps/frontend-transportada/src/modules/trip/styles/fieldDeliveryWizard.module.css` (alterado) —
+  `sendStatusDelivered`/`sendStatusFailed`/`sendStatusNeutral`.
+- `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` /
+  `trip.en.locale.json` (alterados) — textos de `fieldDelivery.send*`, `closeSendingMessage`, e as
+  quatro chaves novas de `feedback.*`.
+- `apps/frontend-transportada/test/trip/field-delivery-send.contract.ts`,
+  `test/trip/field-delivery-error-mapping.contract.ts`,
+  `test/trip-hooks/field-delivery.contract.ts` (novos, TDD acima) +
+  `test/trip.contract.test.ts`/`test/trip-hooks.contract.test.ts` (imports acrescentados).
+- `apps/frontend-transportada/test/fixtures/fieldDeliveryBarcodeVideo.helper.ts`,
+  `test/field-delivery-smoke.helper.ts`, `test/field-delivery.smoke.spec.ts` (novos, smoke).
+- `apps/frontend-transportada/playwright.config.ts` (alterado) — `testMatch` passa a ser uma
+  lista (`responsive.smoke.spec.ts` + `field-delivery.smoke.spec.ts`).
+- `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t12-send-*.png` (4 novos).

@@ -111,7 +111,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       arquivo, conferência, pular e "Entregue em". Serve para **uma** nota (ação da linha) e para
       **várias** (ação em massa em `TripStateActions`). Imagem reduzida antes do envio. Seletor de
       motorista só quando a viagem tem mais de um.
-- [ ] **T12 — `useFieldDelivery`**: envia com concorrência 3, mostra o resultado de cada nota e
+- [x] **T12 — `useFieldDelivery`**: envia com concorrência 3, mostra o resultado de cada nota e
       repete só as que falharam (aceites 5 e 7). Smoke Playwright da entrega em massa com câmera
       simulada (`--use-fake-device-for-media-stream` com a imagem da fixture).
 

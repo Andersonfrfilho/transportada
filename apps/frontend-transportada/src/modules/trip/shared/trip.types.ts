@@ -688,6 +688,29 @@ export type RegisterFieldOccurrencesInput = TripFieldActionTarget &
 /** O que `POST .../arrive` e `POST .../occurrences` devolvem — o id do recurso criado. */
 export type FieldReportIdResult = Readonly<{ id: string }>
 
+/**
+ * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota, com
+ * a própria `Idempotency-Key` (T6/T11 evidence: multipart, mesmo `delivery-proof.schema.ts`).
+ */
+export type ReportFieldDeliveryInput = TripFieldActionTarget &
+  Readonly<{
+    deliveredAt: string
+    documentId: string
+    idempotencyKey: string
+    imageBlob: Blob
+    receiverDocument?: string
+    receiverName?: string
+  }>
+
+/** O envelope de `field-delivery`: `alreadySettled` é 409 tratado como sucesso informativo (D3). */
+export type ReportFieldDeliveryResult = Readonly<{
+  alreadySettled: boolean
+  id: string
+  proofId: string
+  stopCompleted: boolean
+  tripCompleted: boolean
+}>
+
 export type ReadTripAllowedActionsInput = Readonly<{
   documentIds: readonly string[]
   stopIds: readonly string[]

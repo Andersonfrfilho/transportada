@@ -54,6 +54,8 @@ import type {
   ReadTripAllowedActionsInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportFieldDeliveryInput,
+  ReportFieldDeliveryResult,
   ReportStopArrivalInput,
   ReportStopOccurrenceInput,
   ScannedNfeDocument,
@@ -262,6 +264,12 @@ export type TripClient = Readonly<{
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
   ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  /**
+   * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota,
+   * multipart, com a própria `Idempotency-Key` (T6 evidence: `deliveredAt`, `receiverName`,
+   * `receiverDocument`, `driverId` opcionais, `file` sempre presente nesta tela).
+   */
+  reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
@@ -491,6 +499,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/documents/field-occurrences`,
       })
       return adapters.fieldOccurrenceBatchResultFromApi(readEnvelopeData(response))
+    },
+    async reportFieldDelivery(input) {
+      const form = new FormData()
+      form.set('deliveredAt', input.deliveredAt)
+      form.set('file', input.imageBlob)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+      if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
+      if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-delivery`,
+      })
+      return adapters.reportFieldDeliveryResultFromApi(readEnvelopeData(response))
     },
     async readTripAllowedActions(input) {
       const response = await authorizedRequest({

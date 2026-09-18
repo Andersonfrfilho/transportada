@@ -90,11 +90,26 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */
   TRIP_WITHOUT_DRIVER: 'withoutDriver',
+  /** Spec 156 T6/T12 (aceite 12): baixa repetida do escritório — informativo, não erro vermelho. */
+  DOCUMENT_ALREADY_SETTLED: 'documentAlreadySettled',
+  /** Spec 156 T6/T12 (aceite 8): "Entregue em" fora da janela aceita pelo servidor. */
+  DELIVERED_AT_IN_FUTURE: 'deliveredAtInFuture',
+  DELIVERED_AT_BEFORE_DISPATCH: 'deliveredAtBeforeDispatch',
+  /** Spec 156 T6/T12 (aceite 9): a empresa exige foto e o escritório não anexou nenhuma. */
+  TRIP_DELIVERY_PROOF_PHOTO_REQUIRED: 'deliveryProofPhotoRequired',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
 export const FIELD_TRIP_STEP_RESULT_KEYS = ['changed', 'status'] as const
 export const FIELD_REPORT_ID_RESULT_KEYS = ['id'] as const
+/** Spec 156 T12: o envelope de `POST .../field-delivery` — ver `evidence.md` T6. */
+export const REPORT_FIELD_DELIVERY_RESULT_KEYS = [
+  'alreadySettled',
+  'id',
+  'proofId',
+  'stopCompleted',
+  'tripCompleted',
+] as const
 
 export const TRIP_KEYS = [
   /** Quem dirige: a listagem nomeia o motorista, e o UUID do veículo não dizia nem isso. */

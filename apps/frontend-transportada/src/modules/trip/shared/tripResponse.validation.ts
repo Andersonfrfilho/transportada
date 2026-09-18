@@ -65,6 +65,7 @@ import {
   TRIP_CARGO_LAYOUT_POLL_KEYS,
   TRIP_OCCURRENCE_OPTIONAL_KEYS,
   FIELD_OCCURRENCE_TYPE_KEYS,
+  REPORT_FIELD_DELIVERY_RESULT_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -84,6 +85,7 @@ import type {
   FieldReportIdResult,
   FieldTripStepResult,
   PlanTripRouteResult,
+  ReportFieldDeliveryResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
   LinkTripDocumentsBatchResult,
@@ -411,6 +413,18 @@ function isFieldReportIdResult(value: unknown): value is FieldReportIdResult {
   return hasExactKeys(value, FIELD_REPORT_ID_RESULT_KEYS) && isString(value.id)
 }
 
+/** Spec 156 T6/T12: `POST .../field-delivery` — comprovante gravado na mesma transação. */
+function isReportFieldDeliveryResult(value: unknown): value is ReportFieldDeliveryResult {
+  return (
+    hasExactKeys(value, REPORT_FIELD_DELIVERY_RESULT_KEYS) &&
+    isBoolean(value.alreadySettled) &&
+    isString(value.id) &&
+    isString(value.proofId) &&
+    isBoolean(value.stopCompleted) &&
+    isBoolean(value.tripCompleted)
+  )
+}
+
 function isTransitionResult(value: unknown): value is TransitionTripDocumentResult {
   if (!hasExactKeys(value, TRANSITION_RESULT_KEYS)) return false
   return isDocument(value.document) && isOneOf(value.tripStatus, TRIP_STATUS)
@@ -673,6 +687,16 @@ export function createTripResponseAdapters() {
     fieldReportIdResultFromApi(input: unknown): FieldReportIdResult {
       if (!isFieldReportIdResult(input)) throw invalid()
       return { id: input.id }
+    },
+    reportFieldDeliveryResultFromApi(input: unknown): ReportFieldDeliveryResult {
+      if (!isReportFieldDeliveryResult(input)) throw invalid()
+      return {
+        alreadySettled: input.alreadySettled,
+        id: input.id,
+        proofId: input.proofId,
+        stopCompleted: input.stopCompleted,
+        tripCompleted: input.tripCompleted,
+      }
     },
     fieldTripStepResultFromApi(input: unknown): FieldTripStepResult {
       if (!isFieldTripStepResult(input)) throw invalid()

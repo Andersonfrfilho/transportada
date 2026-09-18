@@ -57,6 +57,8 @@ import type {
   RegisterFieldOccurrencesInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportFieldDeliveryInput,
+  ReportFieldDeliveryResult,
   ReportStopArrivalInput,
   ReportStopOccurrenceInput,
   ScannedNfeDocument,
@@ -114,6 +116,8 @@ export type TripController = Readonly<{
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
   ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
+  reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
@@ -208,6 +212,8 @@ export function createTripController(
       canReportOnBehalf ? input.client.readFieldOccurrenceTypes() : forbidden(),
     registerFieldOccurrences: (body) =>
       canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
+    reportFieldDelivery: (body) =>
+      canReportOnBehalf ? input.client.reportFieldDelivery(body) : forbidden(),
     readRouteGeometry: (body) =>
       canReadTripFleetDetails ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>
@@ -409,9 +415,25 @@ export function useTripWorkspace(
       query.state.data?.state === 'incomplete' ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
   })
 
-  /** Spec 156 T8: `GET /trips/:id/allowed-actions`, em rota própria (t7-design §2.6, ressalva M1). */
+  /**
+   * Spec 156 T8: `GET /trips/:id/allowed-actions`, em rota própria (t7-design §2.6, ressalva M1).
+   *
+   * ⚠️ **Spec 156 T12, achado no smoke da entrega em massa.** A chave desta consulta
+   * (`useTripAllowedActions.hook.ts`) não leva `documentIds`/`stopIds`, e `parseTripAllowedActions`
+   * recusa (`RESPONSE_INVALID`, fail-closed) qualquer id que não esteja na lista que ela recebeu.
+   * Sem o `tripQuery.data !== undefined` aqui, as duas consultas disparam **juntas** assim que a
+   * permissão chega: `documentIds`/`stopIds` ainda são `[]` (a viagem não carregou), a função que a
+   * consulta chama já fica presa a esse `[]` para sempre (o padrão do app é `retry: false`, e a
+   * chave não muda quando a viagem chega), e a resposta real do servidor — com os ids de verdade —
+   * é sempre recusada. Reproduzido: com `allowed-actions` liberando `fieldDelivery` para 5 notas
+   * reais, nenhum botão de baixa do escritório aparecia, nem por nota nem em lote, sem erro visível
+   * na tela (é exatamente o "falha fechada" que o comentário do hook já previa — só que disparando
+   * sempre, não só na resposta malformada). Esperar a viagem carregar antes de perguntar torna as
+   * duas consultas sequenciais só nesta tela (custo aceitável: é uma consulta rápida, e closed by
+   * design já tolerava não ter capacidade nenhuma até a viagem chegar).
+   */
   const fieldActionCapabilities = useTripAllowedActions({
-    canRead: controller.canReadTrips,
+    canRead: controller.canReadTrips && tripQuery.data !== undefined,
     client,
     documentIds: tripQuery.data?.documents.map((document) => document.id) ?? [],
     stopIds: tripQuery.data?.stops.map((stop) => stop.id) ?? [],
@@ -429,6 +451,19 @@ export function useTripWorkspace(
   async function invalidateDocumentLink(): Promise<void> {
     await invalidate()
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+  }
+
+  /**
+   * Spec 156 T12: a baixa em massa muda o estado das notas/paradas (viagem), o que pode entregar
+   * (allowed-actions) e, no caso da nota já ter ocorrência registrada, a lista de ocorrências —
+   * `useFieldDelivery` chama isto ao fim do lote inteiro, não a cada nota.
+   */
+  function invalidateFieldDeliveryEffects(): Promise<void> {
+    return Promise.all([
+      invalidate(),
+      queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+      queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] }),
+    ]).then(() => undefined)
   }
 
   const createMutation = useMutation({ mutationFn: controller.createTrip, onSuccess: invalidate })
@@ -651,6 +686,7 @@ export function useTripWorkspace(
     fieldOccurrenceTypesQuery,
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
+    invalidateFieldDeliveryEffects,
     reportStopArrivalMutation,
     reportStopOccurrenceMutation,
     routeGeometryQuery,

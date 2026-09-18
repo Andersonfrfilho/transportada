@@ -508,7 +508,11 @@
     "vehicleNotFound": "Veículo não encontrado.",
     "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório.",
     "occurrenceTypeNotField": "Este tipo de ocorrência é do galpão, não da rua — escolha um tipo de rua.",
-    "documentNotReachable": "Alguma nota selecionada não pertence a esta viagem."
+    "documentNotReachable": "Alguma nota selecionada não pertence a esta viagem.",
+    "documentAlreadySettled": "Esta nota já estava entregue ou devolvida.",
+    "deliveredAtInFuture": "\"Entregue em\" não pode ser no futuro.",
+    "deliveredAtBeforeDispatch": "\"Entregue em\" não pode ser antes do despacho da viagem.",
+    "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -984,6 +988,7 @@
     "close": "Fechar",
     "closeConfirm": "Sair sem enviar",
     "closeMessage": "As fotos já tiradas nesta sessão serão perdidas.",
+    "closeSendingMessage": "O envio ainda está em andamento — sair agora não cancela as notas já enviadas.",
     "closeTitle": "Sair do assistente?",
     "confirm": "Confirmar",
     "deliveredAtError": {
@@ -1006,6 +1011,17 @@
     "recipientUnknown": "Destinatário não informado",
     "retake": "Tirar outra foto",
     "reviewImageAlt": "Foto do canhoto capturada",
+    "sendAlreadySettled": "Já estava entregue",
+    "sendDelivered": "Entregue",
+    "sendPending": "Aguardando envio",
+    "sendRetry": "Tentar de novo ({{count}})",
+    "sendSending": "Enviando…",
+    "sendSummaryAlreadySettled": "{{count}} nota já estava entregue",
+    "sendSummaryAlreadySettled_other": "{{count}} notas já estavam entregues",
+    "sendSummaryDelivered": "{{count}} nota entregue",
+    "sendSummaryDelivered_other": "{{count}} notas entregues",
+    "sendSummaryFailed": "{{count}} nota falhou",
+    "sendSummaryFailed_other": "{{count}} notas falharam",
     "skip": "Pular nota",
     "stepProgress": "Nota {{current}} de {{total}}",
     "targetLabel": "Esta foto é da nota",
