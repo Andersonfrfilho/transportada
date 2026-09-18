@@ -864,6 +864,7 @@
     "cameraDenied": "Camera denied — upload the proof file instead.",
     "cameraLabel": "Camera for the delivery proof",
     "cameraUnavailable": "Camera unavailable on this device — upload the proof file instead.",
+    "captureFailed": "Could not process the photo. Try capturing again.",
     "capture": "Capture",
     "close": "Close",
     "closeConfirm": "Leave without sending",

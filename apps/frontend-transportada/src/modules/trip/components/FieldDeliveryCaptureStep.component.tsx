@@ -57,6 +57,10 @@ export function FieldDeliveryCaptureStep({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false)
+  /** M13e (spec 156 T15): falha na captura (canvas indisponível, encode, arquivo ilegível) virava
+   * rejeição não tratada — silenciosa no console, sem nada na tela. Agora é aviso, e a pessoa pode
+   * tentar de novo sem sair do passo. */
+  const [captureError, setCaptureError] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (cameraStatus !== 'ready') return undefined
@@ -71,6 +75,7 @@ export function FieldDeliveryCaptureStep({
   ): Promise<void> {
     if (width === 0 || height === 0 || isProcessing) return
     setIsProcessing(true)
+    setCaptureError(undefined)
     try {
       const capture = await captureFieldDeliveryPhoto({
         ...(accessKeyDataAvailable === undefined ? {} : { accessKeyDataAvailable }),
@@ -83,6 +88,8 @@ export function FieldDeliveryCaptureStep({
         width,
       })
       onCapture(capture)
+    } catch {
+      setCaptureError(t('fieldDelivery.captureFailed'))
     } finally {
       setIsProcessing(false)
     }
@@ -96,8 +103,13 @@ export function FieldDeliveryCaptureStep({
 
   async function handleFileSelected(file: File | undefined): Promise<void> {
     if (file === undefined) return
-    const image = await loadImageFromFile(file)
-    await runCapture(image, image.naturalWidth, image.naturalHeight)
+    setCaptureError(undefined)
+    try {
+      const image = await loadImageFromFile(file)
+      await runCapture(image, image.naturalWidth, image.naturalHeight)
+    } catch {
+      setCaptureError(t('fieldDelivery.captureFailed'))
+    }
   }
 
   const showCamera = cameraStatus !== 'denied' && cameraStatus !== 'unavailable'
@@ -132,6 +144,12 @@ export function FieldDeliveryCaptureStep({
           {cameraStatus === 'denied'
             ? t('fieldDelivery.cameraDenied')
             : t('fieldDelivery.cameraUnavailable')}
+        </p>
+      )}
+
+      {captureError === undefined ? null : (
+        <p className={styles.notice} role="alert">
+          {captureError}
         </p>
       )}
 

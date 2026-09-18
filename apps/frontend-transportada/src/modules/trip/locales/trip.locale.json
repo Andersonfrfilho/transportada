@@ -1053,6 +1053,7 @@
     "cameraDenied": "Câmera negada — envie o arquivo do canhoto.",
     "cameraLabel": "Câmera para o canhoto",
     "cameraUnavailable": "Câmera indisponível neste aparelho — envie o arquivo do canhoto.",
+    "captureFailed": "Não foi possível processar a foto. Tente capturar de novo.",
     "capture": "Capturar",
     "close": "Fechar",
     "closeConfirm": "Sair sem enviar",
