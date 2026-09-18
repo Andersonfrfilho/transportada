@@ -2449,17 +2449,17 @@ inexistente); integração `canhoto-ocr-flag` 0/5; contrato do frontend 0/6.
 
 **Gates (2026-09-18):**
 
-| Gate                 | Comando                                                                                                                                                                                      | Resultado                         |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| typecheck            | `bun run typecheck` (raiz)                                                                                                                                                                   | exit 0                            |
-| lint                 | `bun run lint` (raiz)                                                                                                                                                                        | exit 0                            |
-| formato              | `bunx prettier --check .`                                                                                                                                                                    | exit 0                            |
-| contrato API         | `bun --env-file=../../.env.test test --timeout 120000` (com `DRIZZLE_TEST_DATABASE_URL`)                                                                                                     | 6570 pass, 1 fail (abaixo)        |
-| integração API       | `bun --env-file=../../.env.test run test:integration` (as três URLs de banco no Postgres nativo)                                                                                             | 421 pass, 9 fail, 0 skip (abaixo) |
-| integração nova      | `canhoto-ocr-flag.integration.ts` + `trip-field-office.integration.ts`                                                                                                                       | 21 pass, 0 fail, 0 skip           |
-| db:test              | `bun --env-file=../../.env.test run db:test`                                                                                                                                                 | 96 pass, 1 fail (abaixo)          |
-| migration + rollback | script descartável: migra tudo → grava linha ligada → `rollback.sql` (coluna e journal somem, linha fica) → reaplica (volta `false`) → cadeia inteira de rollbacks pós-identidade → reaplica | ok                                |
-| frontend             | `bun run test`                                                                                                                                                                               | 4489 + 19 pass, 0 fail            |
+| Gate                 | Comando                                                                                                                                                                                      | Resultado                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| typecheck            | `bun run typecheck` (raiz)                                                                                                                                                                   | exit 0                                                                                                                                                                              |
+| lint                 | `bun run lint` (raiz)                                                                                                                                                                        | exit 0                                                                                                                                                                              |
+| formato              | `bunx prettier --check .`                                                                                                                                                                    | exit 0                                                                                                                                                                              |
+| contrato API         | `bun --env-file=../../.env.test test --timeout 120000` (com `DRIZZLE_TEST_DATABASE_URL`)                                                                                                     | 6570 pass, 1 fail — `Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration` (`23001` onde espera `23503`, Postgres 18 nativo; abaixo) |
+| integração API       | `bun --env-file=../../.env.test run test:integration` (as três URLs de banco no Postgres nativo)                                                                                             | 421 pass, 9 fail, 0 skip (abaixo)                                                                                                                                                   |
+| integração nova      | `canhoto-ocr-flag.integration.ts` + `trip-field-office.integration.ts`                                                                                                                       | 21 pass, 0 fail, 0 skip                                                                                                                                                             |
+| db:test              | `bun --env-file=../../.env.test run db:test`                                                                                                                                                 | 96 pass, 1 fail (abaixo)                                                                                                                                                            |
+| migration + rollback | script descartável: migra tudo → grava linha ligada → `rollback.sql` (coluna e journal somem, linha fica) → reaplica (volta `false`) → cadeia inteira de rollbacks pós-identidade → reaplica | ok                                                                                                                                                                                  |
+| frontend             | `bun run test`                                                                                                                                                                               | 4489 + 19 pass, 0 fail                                                                                                                                                              |
 
 Ambiente: o Postgres do `.env.test` (65432, Docker) não respondia e o MinIO (59000) também não. A
 integração rodou num Postgres 18 nativo descartável (127.0.0.1:65437, `initdb` no scratchpad). As
@@ -2483,3 +2483,22 @@ Arquivos: `docs/adr/0069-…md` (novo); API — `src/database/company-delivery-p
 `src/modules/trip/queries/useFieldDeliverySettings.query.ts` (novo),
 `test/trip/field-delivery-settings.contract.ts` (novo). Sem tela tocada: nada a revisar de design nesta
 task (o painel e o selo são da T14).
+
+**Validação do architect: APROVADO COM RESSALVAS — emendas em `b1653f25` e `e08a59b2`.**
+
+- `b1653f25` (código): `classifyCanhotoDocument` casava pela primeira nota com o mesmo número e
+  série — dois emitentes com `77777/1` na mesma viagem davam a nota errada. Agora a chave inteira
+  decide quando a nota a traz (`CanhotoTripDocument.accessKey`); sem ela, número e série só valem com
+  uma candidata, nota com outra chave fica de fora, e ambiguidade é `unreadable` (escolha manual).
+  Contrato `test/trip/canhoto-identification-ambiguity.contract.ts`: 4 vermelhos antes, verdes depois.
+  ⚠️ `TripDocumentDetail` (`GET /trips/:id`) **não traz** a chave de acesso nem o CNPJ do emitente —
+  conferido no tipo e no `serializeTripDocumentDetail` da API. Hoje o caminho que roda em produção é o
+  de número e série com unicidade (a ambiguidade cai no manual, que é seguro); o casamento pela chave
+  passa a valer quando a leitura da viagem expuser `accessKey` por nota e o `TripDetail` repassá-la ao
+  assistente — pendência para a T14/T15. Gates: `bun run typecheck` exit 0, `bun run lint` exit 0,
+  frontend `bun run test` 4493 + 19 pass, 0 fail.
+- `e08a59b2` (docs): ADR-0069 emendada com R1–R4, R7 e R8; `plan.md` e `tasks.md` (T14) apontam para
+  o §3; `spec.md` D6 registra que o OCR é exceção ao bloqueio; T14 ganhou R1, R2, R3, R4, R7 e R8 como
+  itens explícitos; `docs/SECURITY.md` registra `GET /trips/field-delivery-settings` sem `rateLimit`
+  (2026-09-18).
+- R6: a falha do contrato da API acima está nomeada na tabela de gates.
