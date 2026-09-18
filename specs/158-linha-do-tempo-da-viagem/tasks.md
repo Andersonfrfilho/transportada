@@ -89,7 +89,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` (agente `designer`)
 
-- [ ] **T10 — Revisão de design e usabilidade** (web.md §15): a seção comparada com os vizinhos da
+- [x] **T10 — Revisão de design e usabilidade** (web.md §15): a seção comparada com os vizinhos da
       tela da viagem (primitivo `shadcn/ui`, contraste do texto de autoria — achado da T9 da spec 156
       —, claro/escuro); leitura de uma viagem de 50 notas no celular (375 px); rótulos no vocabulário
       do escritório. Prints ao usuário.

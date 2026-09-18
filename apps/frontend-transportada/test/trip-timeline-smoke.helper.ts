@@ -39,36 +39,40 @@ function timelineItem(input: {
   }
 }
 
-/** Os oito `kind`s do D5, um por item — a primeira página, servida sem `cursor`. */
+/**
+ * Os oito `kind`s do D5, um por item, **do mais recente para o mais antigo** — a ordem que a API
+ * devolve (D4). Spec 158 T10: o mock estava em ordem crescente e o print de T8 mostrava 08:00 no
+ * topo; o componente não reordena, então o mock é que tem de refletir a API.
+ */
 const FIRST_PAGE_ITEMS = [
-  timelineItem({ id: 'evt-1', kind: 'trip.dispatched', occurredAt: '2026-09-18T08:00:00.000Z' }),
-  timelineItem({
-    id: 'evt-2',
-    kind: 'trip.status_changed',
-    occurredAt: '2026-09-18T08:05:00.000Z',
-  }),
-  timelineItem({ id: 'evt-3', kind: 'stop.arrived', occurredAt: '2026-09-18T08:10:00.000Z' }),
-  timelineItem({
-    id: 'evt-4',
-    kind: 'document.delivered',
-    occurredAt: '2026-09-18T08:15:00.000Z',
-  }),
-]
-
-/** A segunda página, servida quando o cliente manda `cursor=page-2` — o "carregar mais". */
-const SECOND_PAGE_ITEMS = [
-  timelineItem({ id: 'evt-5', kind: 'document.returned', occurredAt: '2026-09-18T08:20:00.000Z' }),
-  timelineItem({ id: 'evt-6', kind: 'stop.occurrence', occurredAt: '2026-09-18T08:25:00.000Z' }),
-  timelineItem({
-    id: 'evt-7',
-    kind: 'document.occurrence',
-    occurredAt: '2026-09-18T08:30:00.000Z',
-  }),
   timelineItem({
     id: 'evt-8',
     kind: 'document.status_changed',
     occurredAt: '2026-09-18T08:35:00.000Z',
   }),
+  timelineItem({
+    id: 'evt-7',
+    kind: 'document.occurrence',
+    occurredAt: '2026-09-18T08:30:00.000Z',
+  }),
+  timelineItem({ id: 'evt-6', kind: 'stop.occurrence', occurredAt: '2026-09-18T08:25:00.000Z' }),
+  timelineItem({ id: 'evt-5', kind: 'document.returned', occurredAt: '2026-09-18T08:20:00.000Z' }),
+]
+
+/** A segunda página (mais antiga), servida quando o cliente manda `cursor=page-2`. */
+const SECOND_PAGE_ITEMS = [
+  timelineItem({
+    id: 'evt-4',
+    kind: 'document.delivered',
+    occurredAt: '2026-09-18T08:15:00.000Z',
+  }),
+  timelineItem({ id: 'evt-3', kind: 'stop.arrived', occurredAt: '2026-09-18T08:10:00.000Z' }),
+  timelineItem({
+    id: 'evt-2',
+    kind: 'trip.status_changed',
+    occurredAt: '2026-09-18T08:05:00.000Z',
+  }),
+  timelineItem({ id: 'evt-1', kind: 'trip.dispatched', occurredAt: '2026-09-18T08:00:00.000Z' }),
 ]
 
 async function fulfillJson(route: Route, body: unknown): Promise<void> {

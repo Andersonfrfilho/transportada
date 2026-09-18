@@ -1017,3 +1017,70 @@ o predicado é redundante-mas-seguro nesta versão do Postgres e protege índice
   `ON_DELIVERY_ROUTE`, que faltava) e nota da exceção da trava no recálculo na ADR-0068 §2.
 - **Auditoria §15:** sem N+1 (seis consultas em `Promise.all`, uma por fonte), I/O assíncrono,
   predicado indexável por `occurred_at`; logs sem PII (nenhum log novo); nenhum 500 com stack.
+
+## T10
+
+Revisão de design e usabilidade (web.md §15) da seção "Linha do tempo" — agente `designer`.
+
+**Achados e decisões**
+
+1. **Ordem (05:00 no topo).** Era o mock do smoke, em ordem crescente; o componente não reordena
+   (confere a ordem da API, D4). Mock corrigido para mais-recente-primeiro e o smoke agora afirma que
+   os `datetime` dos `<li>` vêm em ordem decrescente depois do "Carregar mais".
+2. **Barra lateral aberta no print de 375 px.** Artefato do print, não defeito do shell: o smoke de T8
+   carregava a página em 1280 e redimensionava para 375; `.application-sidebar` recolhe com
+   `transform` + `transition: 180ms`, e o screenshot de elemento pegava a transição no meio.
+   `sidebarOpen` nasce `false` em `main.tsx`. Os prints de T10 carregam a página já no tamanho e tema
+   do print, e o smoke afirma `getBoundingClientRect().right <= 0` da barra no celular — passou.
+   Shell intocado.
+3. **Títulos.** `trip.status_changed` ganha título por transição (`eventTimeline.itemTitle.tripStatus.*`:
+   "Rota iniciada", "Carga conferida — em trânsito", "Viagem concluída", "Viagem cancelada",
+   "Roteiro planejado", "Separação iniciada", "Carregamento iniciado", "Viagem despachada", "Viagem
+   voltou para rascunho"); `document.status_changed` segue o molde "Nota 456/1 entregue"
+   (`documentStatus.*`: "Nota 456/1 separada/carregada/devolvida/entregue/voltou para pendente").
+   Situação desconhecida pelo bundle cai no genérico ("Situação da viagem alterada (não informada)" /
+   "Nota X — não informada") — nunca o código cru. Contrato antes (4 vermelhos → verdes) em
+   `test/trip/timeline-view.contract.ts`.
+4. **Autoria.** O cinza `color-mix(slate 90%, white 10%)` **clareava** o texto no tema claro e reprovava
+   o AA; trocado por `var(--color-slate)` puro. Contraste medido (WCAG, texto 0,8 rem):
+
+   | Tema   | Fundo                | Antes  | Depois |
+   | ------ | -------------------- | ------ | ------ |
+   | escuro | `#1c2b33` (graphite) | 6,20   | 5,55   |
+   | escuro | `#10222c` (asphalt)  | 6,95   | 6,22   |
+   | claro  | `#fbf9f5` (graphite) | 4,23 ✗ | 5,27   |
+   | claro  | `#f2efe9` (asphalt)  | 3,88 ✗ | 4,83   |
+
+   Marcadores (não texto, ≥ 3:1): alerta 4,87/5,12, pronto 5,58/4,78, cobre 5,24/4,99 (escuro/claro).
+   Hierarquia: título forte (0,95 rem, 700) e uma linha discreta com horário · autoria (· registrado
+   em, quando há). "registrado por … (escritório)" virou "por … (escritório) pelo motorista …" — o
+   mesmo "por" de `backoffice`/`notRegistered`; a frase é a única do D7, então `TripOccurrences` herda
+   a mudança (nenhum contrato dependia do texto antigo).
+
+5. **Cartões.** Troca do cartão com borda cheia por trilho vertical com marcador por evento, parente de
+   `cteIssuance .timelineItem` (borda à esquerda) sem o fundo por item. Tom do marcador por
+   `resolveTripTimelineTone` (contrato novo): verde para entrega/conclusão, vermelho para
+   devolução/ocorrência/cancelamento, cobre para andamento — a devolução se acha no meio de 50 notas.
+   Semântica `<ol>`/`<li>`/`<time dateTime>` mantida.
+6. **Estados.** Carregando: `Skeleton` na forma do item (sem o cartão). Erro: `role="alert"` + "Tentar
+   de novo". Vazio: dica em `--color-slate` (AA nos dois temas). "Carregar mais" e "Tentar de novo"
+   com `min-height: var(--touch-target)` (44 px — o smoke mede a caixa do botão), desabilitado durante
+   o fetch e a `<ol>` com `aria-busy`. Filtro "Só esta nota" é o primitivo `Checkbox` (teclado e
+   foco do design system). Itens não são interativos — nada a focar dentro da lista.
+7. **50 notas no celular.** Sem cartão, cada evento ocupa ~4 linhas (título, horário, autoria que
+   quebra em 2) contra ~6 do cartão com padding. No celular horário e autoria empilham (o separador
+   "·" ficava órfão no começo da linha quebrada — só aparece a partir de 40 rem); nomes longos
+   quebram com `overflow-wrap: anywhere`.
+
+**Gates**
+
+- `bun run typecheck` (raiz) — exit 0; `bun run lint` — exit 0; `bun run format:check` — "All matched
+  files use Prettier code style!".
+- `bun run --cwd apps/frontend-transportada test` — exit 0, 4600 pass / 0 fail.
+- `bun run --cwd apps/frontend-transportada build` — exit 0.
+- `PLAYWRIGHT_TEST_MATCH=trip-timeline.smoke.spec.ts bun run smoke` — 5 passed (fluxo + 4 prints).
+
+**Prints**
+
+- `prints/t10-timeline-desktop-light.png`, `prints/t10-timeline-desktop-dark.png` (1280 px)
+- `prints/t10-timeline-mobile-light.png`, `prints/t10-timeline-mobile-dark.png` (375 px)

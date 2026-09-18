@@ -1,12 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 158 T8 (RF6): a seção "Linha do tempo" no detalhe da viagem — os oito `kind`s do D5 na
- * primeira página, e "carregar mais" trazendo a segunda com `nextCursor: null`.
+ * Spec 158 T8 (RF6) / T10: a seção "Linha do tempo" no detalhe da viagem — os oito `kind`s do D5 em
+ * duas páginas, do mais recente para o mais antigo, e os prints da revisão de design (1280 e 375,
+ * claro e escuro), cada um de uma carga nova da página no tamanho e tema do print.
  */
 import { mkdirSync } from 'node:fs'
 
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { mockTripWorkspaceApi, TRIP_ID } from './trip-smoke.helper'
@@ -18,8 +19,21 @@ const PRINTS_DIRECTORY = new URL(
 )
 mkdirSync(PRINTS_DIRECTORY, { recursive: true })
 
-test('a linha do tempo mostra os oito tipos de evento e carrega mais', async ({ page }) => {
-  await page.setViewportSize({ height: 900, width: 1280 })
+const AUTHORSHIP = 'por Marina Alves (escritório) pelo motorista João Pereira'
+
+const VIEWPORTS = {
+  desktop: { height: 900, width: 1280 },
+  mobile: { height: 812, width: 375 },
+} as const
+
+type Theme = 'dark' | 'light'
+
+async function openTripTimeline(
+  input: Readonly<{ page: Page; theme: Theme; viewport: keyof typeof VIEWPORTS }>,
+): Promise<Readonly<{ failures: () => readonly unknown[]; section: Locator }>> {
+  const { page } = input
+  await page.setViewportSize(VIEWPORTS[input.viewport])
+  await page.emulateMedia({ colorScheme: input.theme })
   const api = await mockTripWorkspaceApi({
     mode: 'all-authorized',
     page,
@@ -38,41 +52,62 @@ test('a linha do tempo mostra os oito tipos de evento e carrega mais', async ({ 
   }, TRIP_ID)
 
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-
   const section = page.getByRole('region', { name: 'Linha do tempo' })
   await expect(section).toBeVisible()
+  return { failures: api.failures, section }
+}
 
-  await expect(section.getByText('Viagem despachada')).toBeVisible()
-  await expect(section.getByText('Situação alterada para Em rota de entrega')).toBeVisible()
-  await expect(section.getByText('Chegada na parada 1')).toBeVisible()
-  await expect(section.getByText('Nota 456/1 entregue')).toBeVisible()
-  await expect(
-    section.getByText('registrado por Marina Alves (escritório) pelo motorista João Pereira'),
-  ).toHaveCount(4)
+test('a linha do tempo mostra os oito tipos de evento, do mais recente, e carrega mais', async ({
+  page,
+}) => {
+  const { failures, section } = await openTripTimeline({ page, theme: 'dark', viewport: 'desktop' })
+
+  await expect(section.getByText('Nota 456/1 separada')).toBeVisible()
+  await expect(section.getByText('Ocorrência em Nota 456/1: Avaria')).toBeVisible()
+  await expect(section.getByText('Ocorrência: Avaria')).toBeVisible()
+  await expect(section.getByText('Nota 456/1 devolvida')).toBeVisible()
+  await expect(section.getByText(AUTHORSHIP, { exact: true })).toHaveCount(4)
 
   const loadMore = section.getByRole('button', { name: 'Carregar mais' })
-  await expect(loadMore).toBeVisible()
+  const loadMoreBox = await loadMore.boundingBox()
+  expect(loadMoreBox?.height ?? 0).toBeGreaterThanOrEqual(44)
   await loadMore.click()
 
-  await expect(section.getByText('Nota 456/1 devolvida')).toBeVisible()
-  await expect(section.getByText('Ocorrência: Avaria')).toBeVisible()
-  await expect(section.getByText('Ocorrência em Nota 456/1: Avaria')).toBeVisible()
-  await expect(section.getByText('Nota 456/1 — Separada')).toBeVisible()
+  await expect(section.getByText('Nota 456/1 entregue')).toBeVisible()
+  await expect(section.getByText('Chegada na parada 1')).toBeVisible()
+  await expect(section.getByText('Rota iniciada')).toBeVisible()
+  await expect(section.getByText('Viagem despachada')).toBeVisible()
   await expect(section.getByRole('button', { name: 'Carregar mais' })).toHaveCount(0)
   await expect(section.getByText('Motivo da devolução: Cliente ausente')).toBeVisible()
   await expect(section.getByText('Caixa amassada')).toHaveCount(2)
 
-  await section.scrollIntoViewIfNeeded()
-  await section.screenshot({
-    path: new URL('t8-timeline-desktop.png', PRINTS_DIRECTORY).pathname,
-  })
+  const times = await section
+    .locator('li time')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('datetime') ?? ''))
+  expect(times).toEqual([...times].sort().reverse())
 
-  await page.setViewportSize({ height: 812, width: 375 })
-  await expect(section).toBeVisible()
-  await section.scrollIntoViewIfNeeded()
-  await section.screenshot({
-    path: new URL('t8-timeline-mobile.png', PRINTS_DIRECTORY).pathname,
-  })
-
-  expect(api.failures()).toEqual([])
+  expect(failures()).toEqual([])
 })
+
+for (const viewport of ['desktop', 'mobile'] as const) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`print da linha do tempo — ${viewport} ${theme}`, async ({ page }) => {
+      const { failures, section } = await openTripTimeline({ page, theme, viewport })
+      await section.getByRole('button', { name: 'Carregar mais' }).click()
+      await expect(section.getByText('Viagem despachada')).toBeVisible()
+
+      if (viewport === 'mobile') {
+        const sidebarRight = await page
+          .locator('.application-sidebar')
+          .evaluate((node) => node.getBoundingClientRect().right)
+        expect(sidebarRight).toBeLessThanOrEqual(0)
+      }
+
+      await section.scrollIntoViewIfNeeded()
+      await section.screenshot({
+        path: new URL(`t10-timeline-${viewport}-${theme}.png`, PRINTS_DIRECTORY).pathname,
+      })
+      expect(failures()).toEqual([])
+    })
+  }
+}

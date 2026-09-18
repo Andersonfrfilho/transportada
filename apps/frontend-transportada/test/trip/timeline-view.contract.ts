@@ -4,6 +4,7 @@ import {
   filterTripTimelineItemsByDocumentId,
   removeDuplicateDispatchEvents,
   resolveTripTimelineTitle,
+  resolveTripTimelineTone,
 } from '../../src/modules/trip/shared/tripTimeline.service'
 import type { TripTimelineItem } from '../../src/modules/trip/shared/trip.types'
 
@@ -130,21 +131,28 @@ describe('filtro pela nota aberta (spec 158 T8)', () => {
   })
 })
 
-/** Spec 158 D6/T8: o título por `kind`, reaproveitando `status.*`/`separationStatus.*`. */
+/** Spec 158 D6/T8/T10: o título por `kind` e, nas mudanças de situação, por transição. */
 describe('título do item por kind (spec 158 T8)', () => {
   it('trip.dispatched', () => {
     const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.dispatched', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe('eventTimeline.itemTitle.dispatched')
   })
 
-  it('trip.status_changed reaproveita status.<toStatus>', () => {
+  it('trip.status_changed conhecido ganha título próprio por transição (spec 158 T10)', () => {
     const item: TripTimelineItem = {
       ...BASE_ITEM,
       kind: 'trip.status_changed',
       toStatus: 'on_delivery_route',
     }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
-      'eventTimeline.itemTitle.statusChanged(status=status.on_delivery_route)',
+      'eventTimeline.itemTitle.tripStatus.on_delivery_route',
+    )
+  })
+
+  it('trip.status_changed desconhecido cai no título genérico — nunca o código cru', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.statusChanged(status=eventTimeline.itemTitle.unknownStatus)',
     )
   })
 
@@ -220,10 +228,51 @@ describe('título do item por kind (spec 158 T8)', () => {
     )
   })
 
-  it('document.status_changed reaproveita separationStatus.<toStatus>', () => {
+  it('document.status_changed conhecido segue o molde "Nota X entregue" (spec 158 T10)', () => {
     const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed' }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
-      'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=separationStatus.separated)',
+      'eventTimeline.itemTitle.documentStatus.separated(document=eventTimeline.itemTitle.documentLabel(invoice=123/1))',
+    )
+  })
+
+  it('document.status_changed desconhecido cai no título genérico', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, kind: 'document.status_changed', toStatus: 'x' }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.documentStatusChanged(document=eventTimeline.itemTitle.documentLabel(invoice=123/1),status=eventTimeline.itemTitle.unknownStatus)',
+    )
+  })
+})
+
+/** Spec 158 T10: o marcador do trilho carrega o tom do fato — conclusão, problema ou andamento. */
+describe('tom do marcador por kind (spec 158 T10)', () => {
+  it('entrega e viagem concluída são conclusão', () => {
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.delivered' })).toBe('done')
+    expect(
+      resolveTripTimelineTone({ ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'completed' }),
+    ).toBe('done')
+  })
+
+  it('devolução, ocorrência e cancelamento são problema', () => {
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.returned' })).toBe('problem')
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.occurrence' })).toBe('problem')
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.occurrence' })).toBe('problem')
+    expect(
+      resolveTripTimelineTone({ ...BASE_ITEM, kind: 'trip.status_changed', toStatus: 'cancelled' }),
+    ).toBe('problem')
+    expect(
+      resolveTripTimelineTone({
+        ...BASE_ITEM,
+        kind: 'document.status_changed',
+        toStatus: 'returned',
+      }),
+    ).toBe('problem')
+  })
+
+  it('o resto é andamento', () => {
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'trip.dispatched' })).toBe('progress')
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.arrived' })).toBe('progress')
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.status_changed' })).toBe(
+      'progress',
     )
   })
 })

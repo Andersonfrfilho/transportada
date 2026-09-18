@@ -2,7 +2,15 @@
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { formatOccurrenceInvoice } from './tripOccurrenceFeed.service'
-import type { TripTimelineDocumentReference, TripTimelineItem } from './trip.types'
+import {
+  TRIP_DOCUMENT_SEPARATION_STATUS,
+  TRIP_STATUS,
+  type TripTimelineDocumentReference,
+  type TripTimelineItem,
+} from './trip.types'
+
+const KNOWN_TRIP_STATUSES: ReadonlySet<string> = new Set(TRIP_STATUS)
+const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 /**
  * Spec 158 D5/T8: `trip.dispatched` (fonte `trip_dispatch_snapshots`) e `trip.status_changed` com
@@ -47,21 +55,20 @@ function formatTripTimelineDocumentLabel(
 }
 
 /**
- * Spec 158 D6/T8: o título do item pelo `kind`. Reaproveita o vocabulário de status que o módulo já
- * tem (`status.*` de `trip.status_changed`, `separationStatus.*` de `document.status_changed`) — não
- * inventa rótulo novo onde já existe um.
+ * Spec 158 D6/T8/T10: o título do item pelo `kind` e, nas mudanças de situação, pela transição — no
+ * vocabulário do escritório ("Rota iniciada", "Nota 456/1 separada"), não "Situação alterada para
+ * <rótulo de status>". Situação que o bundle não conhece cai no título genérico, nunca no código cru.
  */
 export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): string {
   switch (item.kind) {
     case 'trip.dispatched':
       return t('eventTimeline.itemTitle.dispatched')
     case 'trip.status_changed':
-      return t('eventTimeline.itemTitle.statusChanged', {
-        status:
-          item.toStatus === null
-            ? t('eventTimeline.itemTitle.unknownStatus')
-            : t(`status.${item.toStatus}`),
-      })
+      return item.toStatus !== null && KNOWN_TRIP_STATUSES.has(item.toStatus)
+        ? t(`eventTimeline.itemTitle.tripStatus.${item.toStatus}`)
+        : t('eventTimeline.itemTitle.statusChanged', {
+            status: t('eventTimeline.itemTitle.unknownStatus'),
+          })
     case 'stop.arrived':
       return item.stop === null
         ? t('eventTimeline.itemTitle.stopArrivedUnknown')
@@ -90,12 +97,36 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
             : item.occurrence.typeName,
       })
     case 'document.status_changed':
-      return t('eventTimeline.itemTitle.documentStatusChanged', {
-        document: formatTripTimelineDocumentLabel(item.document, t),
-        status:
-          item.toStatus === null
-            ? t('eventTimeline.itemTitle.unknownStatus')
-            : t(`separationStatus.${item.toStatus}`),
-      })
+      return item.toStatus !== null && KNOWN_DOCUMENT_STATUSES.has(item.toStatus)
+        ? t(`eventTimeline.itemTitle.documentStatus.${item.toStatus}`, {
+            document: formatTripTimelineDocumentLabel(item.document, t),
+          })
+        : t('eventTimeline.itemTitle.documentStatusChanged', {
+            document: formatTripTimelineDocumentLabel(item.document, t),
+            status: t('eventTimeline.itemTitle.unknownStatus'),
+          })
   }
+}
+
+export type TripTimelineTone = 'done' | 'problem' | 'progress'
+
+const DONE_STATUSES: ReadonlySet<string> = new Set(['completed', 'delivered'])
+const PROBLEM_STATUSES: ReadonlySet<string> = new Set(['cancelled', 'returned'])
+
+/** Spec 158 T10: o tom do marcador no trilho — o olho acha a devolução numa lista de 50 notas. */
+export function resolveTripTimelineTone(item: TripTimelineItem): TripTimelineTone {
+  if (item.kind === 'document.delivered') return 'done'
+  if (
+    item.kind === 'document.returned' ||
+    item.kind === 'stop.occurrence' ||
+    item.kind === 'document.occurrence'
+  ) {
+    return 'problem'
+  }
+  const isStatusChange =
+    item.kind === 'trip.status_changed' || item.kind === 'document.status_changed'
+  if (!isStatusChange || item.toStatus === null) return 'progress'
+  if (DONE_STATUSES.has(item.toStatus)) return 'done'
+  if (PROBLEM_STATUSES.has(item.toStatus)) return 'problem'
+  return 'progress'
 }
