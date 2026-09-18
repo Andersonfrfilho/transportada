@@ -136,6 +136,34 @@
   color: var(--color-ready);
 }
 
+/* Spec 157 RF10, ADR-0068 §7: a nota do motorista — mesmo molde do statusBadge, cor por faixa. */
+.driverScoreBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.driverScoreBadgeReady {
+  border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
+  color: var(--color-ready);
+}
+
+.driverScoreBadgeNeutral {
+  color: var(--color-slate);
+}
+
+.driverScoreBadgeAlert {
+  border-color: color-mix(in srgb, var(--color-alert) 65%, transparent);
+  color: var(--color-alert);
+}
+
+.driverScoreBadgeMuted {
+  color: var(--color-slate);
+  font-style: italic;
+}
+
 .rowActions {
   display: flex;
   flex-wrap: wrap;

@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { FleetDriverDetail } from '../shared/fleet.types'
+import type { FleetDriverDetail, FleetDriverListItem } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
+import { DriverScoreBadge } from './DriverScoreBadge.component'
 
 type DriverListProps = Readonly<{
   canManageFleet: boolean
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   onEdit: (driver: FleetDriverDetail) => void
   onToggleStatus: (driver: FleetDriverDetail) => void
 }>
@@ -27,6 +28,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
             <th scope="col">{t('columnLinkedTaxId')}</th>
             <th scope="col">{t('columnLicense')}</th>
             <th scope="col">{t('columnAppAccess')}</th>
+            <th scope="col">{t('driverScoreColumn')}</th>
             <th scope="col">{t('columnStatus')}</th>
             {canManageFleet ? <th scope="col">{t('columnActions')}</th> : null}
           </tr>
@@ -39,6 +41,9 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
               <td>{driver.linkedTaxId === '' ? t('emptyValue') : driver.linkedTaxId}</td>
               <td>{driver.licenseNumber}</td>
               <td>{t(driver.membershipId === null ? 'appAccessOff' : 'appAccessOn')}</td>
+              <td>
+                <DriverScoreBadge score={driver.score} />
+              </td>
               <td>
                 <span
                   className={

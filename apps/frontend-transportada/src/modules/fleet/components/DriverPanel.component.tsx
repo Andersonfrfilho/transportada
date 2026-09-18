@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import type {
   FleetDriverDetail,
   FleetDriverFilters,
+  FleetDriverListItem,
   FleetDriverStatus,
 } from '../shared/fleet.types'
 import { cleanFleetFilters } from '../shared/fleetFilters.service'
@@ -19,7 +20,7 @@ import { FleetEmptyState } from './FleetEmptyState.component'
 import { FleetStatusHint } from './FleetStatusHint.component'
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 
-const DRIVER_COLUMN_COUNT = 6
+const DRIVER_COLUMN_COUNT = 7
 
 type DriverPanelProps = Readonly<{
   actions: Readonly<{
@@ -32,7 +33,7 @@ type DriverPanelProps = Readonly<{
     onChange: (value: FleetDriverFilters) => void
     value: FleetDriverFilters
   }>
-  view: Readonly<{ drivers?: readonly FleetDriverDetail[]; status: FleetViewStatus }>
+  view: Readonly<{ drivers?: readonly FleetDriverListItem[]; status: FleetViewStatus }>
 }>
 
 function DriverFilterBar({ filters }: Pick<DriverPanelProps, 'filters'>) {

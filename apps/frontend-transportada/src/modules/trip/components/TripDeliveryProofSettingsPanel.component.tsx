@@ -15,13 +15,19 @@ import {
 } from '@/modules/shared/taxId.service'
 
 import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   DEFAULT_DELIVERY_PROOF_SETTINGS,
   DELIVERY_PROOF_FIELD_MODES,
   DELIVERY_PROOF_FIELDS,
+  DELIVERY_PROOF_PUNCTUALITY_FIELDS,
+  DELIVERY_PROOF_PUNCTUALITY_RANGES,
+  isDeliveryProofPunctualityValue,
   mergeDeliveryProofSettings,
+  type CompanyDeliveryProofSettings,
   type DeliveryProofField,
   type DeliveryProofFieldMode,
   type DeliveryProofFieldSettings,
+  type DeliveryProofPunctualityField,
   type DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 import styles from '../styles/trip.module.css'
@@ -30,9 +36,9 @@ type TripDeliveryProofSettingsPanelProps = Readonly<{
   canManage: boolean
   isSaving: boolean
   onReplaceOverrides: (overrides: readonly DeliveryProofSettingsOverride[]) => void
-  onSaveSettings: (settings: DeliveryProofFieldSettings) => void
+  onSaveSettings: (settings: CompanyDeliveryProofSettings) => void
   overrides: readonly DeliveryProofSettingsOverride[]
-  settings: DeliveryProofFieldSettings | undefined
+  settings: CompanyDeliveryProofSettings | undefined
   showError: boolean
 }>
 
@@ -56,9 +62,14 @@ export function TripDeliveryProofSettingsPanel({
   const [draft, setDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
   const [overrideTaxId, setOverrideTaxId] = useState('')
   const [overrideDraft, setOverrideDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
+  /** RF7: os cinco parâmetros da nota — texto no campo, para deixar dígito parcial sem travar. */
+  const [punctualityDraft, setPunctualityDraft] = useState<
+    Partial<Record<DeliveryProofPunctualityField, string>>
+  >({})
 
   const general = settings ?? DEFAULT_DELIVERY_PROOF_SETTINGS
   const effective = mergeDeliveryProofSettings({ base: general, override: draft })
+  const punctualityGeneral = settings ?? DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS
 
   const modeOptions = DELIVERY_PROOF_FIELD_MODES.map((mode) => ({
     label: t(`deliveryProofSettings.modes.${mode}`),
@@ -70,8 +81,27 @@ export function TripDeliveryProofSettingsPanel({
     CPF_PATTERN.test(overrideTaxId) || CNPJ_PATTERN.test(overrideTaxId)
   const isOverrideDuplicated = overrides.some((override) => override.taxId === overrideTaxId)
 
+  function punctualityFieldValue(field: DeliveryProofPunctualityField): number {
+    const draftValue = punctualityDraft[field]
+    if (draftValue === undefined) return punctualityGeneral[field]
+    const parsed = Number(draftValue)
+    return Number.isFinite(parsed) ? parsed : punctualityGeneral[field]
+  }
+
+  const isPunctualityValid = DELIVERY_PROOF_PUNCTUALITY_FIELDS.every((field) =>
+    isDeliveryProofPunctualityValue(field, punctualityFieldValue(field)),
+  )
+
   function handleSaveSettings() {
-    onSaveSettings(effective)
+    if (!isPunctualityValid) return
+    onSaveSettings({
+      ...effective,
+      latePenaltyPoints: punctualityFieldValue('latePenaltyPoints'),
+      missingAfterHours: punctualityFieldValue('missingAfterHours'),
+      missingPenaltyPoints: punctualityFieldValue('missingPenaltyPoints'),
+      proofRadiusMeters: punctualityFieldValue('proofRadiusMeters'),
+      proofWindowMinutes: punctualityFieldValue('proofWindowMinutes'),
+    })
   }
 
   function handleAddOverride() {
@@ -129,8 +159,48 @@ export function TripDeliveryProofSettingsPanel({
         )}
       </div>
 
+      <h3 className={styles.hint}>{t('deliveryProofSettings.punctuality.title')}</h3>
+      <p className={styles.hint}>{t('deliveryProofSettings.punctuality.hint')}</p>
+      <div className={styles.fieldGrid}>
+        {DELIVERY_PROOF_PUNCTUALITY_FIELDS.map((field) => {
+          const range = DELIVERY_PROOF_PUNCTUALITY_RANGES[field]
+          const value = punctualityDraft[field] ?? String(punctualityGeneral[field])
+          const isInvalid = !isDeliveryProofPunctualityValue(field, punctualityFieldValue(field))
+          return (
+            <label key={field}>
+              <span className={styles.hint}>{t(`deliveryProofSettings.punctuality.${field}`)}</span>
+              <input
+                aria-invalid={isInvalid}
+                disabled={!canManage || isSaving}
+                max={range.max}
+                min={range.min}
+                type="number"
+                value={value}
+                onChange={(event) => {
+                  const raw = event.target.value
+                  setPunctualityDraft((current) => ({ ...current, [field]: raw }))
+                }}
+              />
+              {isInvalid ? (
+                <span className={styles.alert} role="alert">
+                  {t('deliveryProofSettings.punctuality.rangeError', {
+                    max: range.max,
+                    min: range.min,
+                  })}
+                </span>
+              ) : null}
+            </label>
+          )
+        })}
+      </div>
+
       {canManage ? (
-        <Button disabled={isSaving} onClick={handleSaveSettings} size="sm" type="button">
+        <Button
+          disabled={isSaving || !isPunctualityValid}
+          onClick={handleSaveSettings}
+          size="sm"
+          type="button"
+        >
           <Icon name="save" />
           {t('deliveryProofSettings.save')}
         </Button>

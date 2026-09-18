@@ -335,7 +335,17 @@
       "title": "Exceptions by recipient"
     },
     "save": "Save configuration",
-    "title": "Delivery proof"
+    "title": "Delivery proof",
+    "punctuality": {
+      "hint": "Spec 157: how the driver's required photo weighs on their score — time window, location radius and the points it costs.",
+      "latePenaltyPoints": "Points for a late or far photo",
+      "missingAfterHours": "Hours before a photo counts as missing",
+      "missingPenaltyPoints": "Points for a missing required photo",
+      "proofRadiusMeters": "Accepted radius from the stop (meters)",
+      "proofWindowMinutes": "Accepted time window (minutes)",
+      "rangeError": "Value between {{min}} and {{max}}.",
+      "title": "Driver score"
+    }
   },
   "destinationOrigin": {
     "delivery": "Delivery",

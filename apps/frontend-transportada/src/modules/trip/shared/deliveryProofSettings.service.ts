@@ -71,3 +71,67 @@ export function isDeliveryProofSettingsOverride(
 export function isFieldDeliverySettings(value: unknown): value is FieldDeliverySettings {
   return isRecord(value) && typeof value['canhotoOcrEnabled'] === 'boolean'
 }
+
+/** Spec 157 RF7, ADR-0068 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
+export const DELIVERY_PROOF_PUNCTUALITY_FIELDS = [
+  'proofWindowMinutes',
+  'proofRadiusMeters',
+  'latePenaltyPoints',
+  'missingPenaltyPoints',
+  'missingAfterHours',
+] as const
+export type DeliveryProofPunctualityField = (typeof DELIVERY_PROOF_PUNCTUALITY_FIELDS)[number]
+
+export type DeliveryProofPunctualitySettings = Readonly<
+  Record<DeliveryProofPunctualityField, number>
+>
+
+/** Faixas do RF7 — fora delas a API recusa com `400 invalidRequest`; o painel valida o mesmo antes. */
+export const DELIVERY_PROOF_PUNCTUALITY_RANGES: Readonly<
+  Record<DeliveryProofPunctualityField, Readonly<{ max: number; min: number }>>
+> = {
+  latePenaltyPoints: { max: 100, min: 0 },
+  missingAfterHours: { max: 168, min: 1 },
+  missingPenaltyPoints: { max: 100, min: 0 },
+  proofRadiusMeters: { max: 5000, min: 50 },
+  proofWindowMinutes: { max: 1440, min: 5 },
+}
+
+/** ADR-0068 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
+export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
+  latePenaltyPoints: 5,
+  missingAfterHours: 24,
+  missingPenaltyPoints: 10,
+  proofRadiusMeters: 300,
+  proofWindowMinutes: 60,
+}
+
+/** O corpo do `PUT/GET` geral: os quatro modos + os cinco parâmetros — a exceção por CNPJ não os carrega. */
+export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings
+
+export function isDeliveryProofPunctualityValue(
+  field: DeliveryProofPunctualityField,
+  value: number,
+): boolean {
+  const range = DELIVERY_PROOF_PUNCTUALITY_RANGES[field]
+  return Number.isInteger(value) && value >= range.min && value <= range.max
+}
+
+export function isDeliveryProofPunctualitySettings(
+  value: unknown,
+): value is DeliveryProofPunctualitySettings {
+  return (
+    isRecord(value) &&
+    DELIVERY_PROOF_PUNCTUALITY_FIELDS.every(
+      (field) =>
+        typeof value[field] === 'number' && isDeliveryProofPunctualityValue(field, value[field]),
+    )
+  )
+}
+
+export function isCompanyDeliveryProofSettings(
+  value: unknown,
+): value is CompanyDeliveryProofSettings {
+  return isDeliveryProofFieldSettings(value) && isDeliveryProofPunctualitySettings(value)
+}

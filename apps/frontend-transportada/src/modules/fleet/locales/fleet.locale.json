@@ -879,5 +879,25 @@
   "vehiclesEmptyHint": "Cadastre a placa, a capacidade e o proprietário de cada veículo — é isso que o MDF-e e o cálculo de frete leem.",
   "vehiclesEmptyTitle": "Nenhum veículo cadastrado",
   "vehiclesTitle": "Veículos",
-  "versionConflict": "O cadastro foi alterado em outra sessão. Recarregue a página antes de salvar."
+  "versionConflict": "O cadastro foi alterado em outra sessão. Recarregue a página antes de salvar.",
+  "driverScore": {
+    "none": "Sem histórico",
+    "value": "{{score}}/100"
+  },
+  "driverScoreColumn": "Nota",
+  "driverScoreSectionTitle": "Nota do motorista",
+  "driverScoreSectionHint": "A nota nasce das entregas com foto obrigatória nos últimos 90 dias — cada penalidade expira depois desse prazo.",
+  "driverPenaltiesEmpty": "Nenhuma penalidade vigente.",
+  "driverPenaltiesTitle": "Penalidades vigentes",
+  "penaltyReason": {
+    "late_proof": "Foto fora do prazo ou longe do local",
+    "missing_proof": "Foto obrigatória não chegou"
+  },
+  "penaltyColumn": {
+    "deliveredAt": "Entrega",
+    "documentNumber": "Nota fiscal",
+    "expiresAt": "Expira em",
+    "points": "Pontos",
+    "reason": "Motivo"
+  }
 }

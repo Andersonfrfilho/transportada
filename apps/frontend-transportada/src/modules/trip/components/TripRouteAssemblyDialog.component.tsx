@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 import { useSuggestionValuation } from '@/modules/routing/queries/useSuggestionValuation.query'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
@@ -19,7 +19,7 @@ import styles from '../styles/trip.module.css'
 
 type TripRouteAssemblyDialogProps = Readonly<{
   assembly: TripRouteAssemblyController
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   permissions: readonly string[]
   vehicles: readonly FleetVehicleDetail[]
 }>

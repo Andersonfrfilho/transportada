@@ -11,9 +11,10 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { sortDriversByScore } from '@/modules/fleet/shared/driverRecommendation.service'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
-import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
@@ -48,7 +49,7 @@ type TripQuickCreateDialogProps = Readonly<{
   permissions: readonly string[]
   /** Só as notas livres: nota já em viagem não é oferecida no lote, e não vira recusa em massa. */
   availableDocuments: readonly NfeDocumentListItem[]
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   quickCreate: TripQuickCreateController
   vehicles: readonly FleetVehicleDetail[]
 }>
@@ -118,7 +119,8 @@ export function TripQuickCreateDialog({
     isOpen: quickCreate.isOpen,
     onClose: quickCreate.close,
   })
-  const activeDrivers = drivers.filter((driver) => driver.status === 'active')
+  /** Spec 157 RF11, ADR-0068 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
+  const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
@@ -300,8 +302,8 @@ export function TripQuickCreateDialog({
                 clearAllLabel={t('creation.driversClearAll')}
                 emptyLabel={t('creation.driversNoMatch')}
                 onChange={quickCreate.setDriverIds}
-                options={activeDrivers.map((driver) =>
-                  buildDriverSelectOption({
+                options={activeDrivers.map((driver) => {
+                  const option = buildDriverSelectOption({
                     binding: bindingByDriverId.get(driver.id),
                     driver,
                     /**
@@ -313,8 +315,20 @@ export function TripQuickCreateDialog({
                       ? { tripVehicleId: quickCreate.vehicleId }
                       : {}),
                     vehicleById,
-                  }),
-                )}
+                  })
+                  /** RF11: a nota ao lado do nome — primeira linha da descrição da opção. */
+                  const scoreLabel =
+                    driver.score === null
+                      ? tFleet('driverScore.none')
+                      : tFleet('driverScore.value', { score: driver.score })
+                  return {
+                    ...option,
+                    description:
+                      option.description === undefined
+                        ? scoreLabel
+                        : `${scoreLabel} · ${option.description}`,
+                  }
+                })}
                 placeholder={t('creation.driversPlaceholder')}
                 removeLabel={t('creation.driversRemove')}
                 searchPlaceholder={t('creation.driversSearch')}

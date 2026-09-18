@@ -4,6 +4,8 @@ import {
   DRIVER_AVAILABILITY_KEYS,
   DRIVER_COVERAGE_KEYS,
   DRIVER_DETAIL_KEYS,
+  DRIVER_PENALTY_KEYS,
+  DRIVER_SCORE_RESULT_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
   DRIVER_VEHICLE_PAIR_KEYS,
   FLEET_CAPABILITY_KEYS,
@@ -31,13 +33,15 @@ import type {
   FleetDriverDetail,
   FleetDriverListItem,
   FleetDriverPage,
+  FleetDriverPenalty,
+  FleetDriverScoreResult,
   FleetDriverVehicleLink,
   FleetDriverVehiclePair,
   FleetVehicleCatalogResult,
   FleetVehicleDetail,
   FleetVehiclePage,
 } from './fleet.types'
-import { FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
+import { DRIVER_PENALTY_REASONS, FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
 import { VEHICLE_TYPES } from '@/modules/shared/vehicleType.constant'
 import type { VehicleReference } from './vehicleSuggestion.service'
 import {
@@ -245,6 +249,37 @@ function isDriver(value: unknown): value is FleetDriverDetail {
   )
 }
 
+/** ADR-0068 §7: nunca uma coordenada aqui — só o motivo, os pontos e as datas. */
+function isDriverPenalty(value: unknown): value is FleetDriverPenalty {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, DRIVER_PENALTY_KEYS) || !hasEveryKey(value, DRIVER_PENALTY_KEYS)) {
+    return false
+  }
+  return (
+    isString(value.deliveredAt) &&
+    isString(value.documentNumber) &&
+    isString(value.expiresAt) &&
+    Number.isInteger(value.points) &&
+    isOneOf(value.reason, DRIVER_PENALTY_REASONS) &&
+    isString(value.tripDocumentId)
+  )
+}
+
+function isDriverScoreResult(value: unknown): value is FleetDriverScoreResult {
+  if (!isRecord(value)) return false
+  if (
+    !hasOnlyKeys(value, DRIVER_SCORE_RESULT_KEYS) ||
+    !hasEveryKey(value, DRIVER_SCORE_RESULT_KEYS)
+  ) {
+    return false
+  }
+  return (
+    isDriverScore(value.score) &&
+    Array.isArray(value.penalties) &&
+    value.penalties.every(isDriverPenalty)
+  )
+}
+
 function isDriverVehiclePair(value: unknown): value is FleetDriverVehiclePair {
   if (!isRecord(value)) return false
   if (
@@ -392,6 +427,10 @@ export function createFleetResponseAdapters() {
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
       return readPage(input, scoredDriverFromApi)
+    },
+    driverScoreFromApi(input: unknown): FleetDriverScoreResult {
+      if (!isDriverScoreResult(input)) throw invalid()
+      return input
     },
     driverCoverageListFromApi(input: unknown): readonly FleetDriverCoverage[] {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()

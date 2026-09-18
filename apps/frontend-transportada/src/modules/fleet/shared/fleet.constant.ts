@@ -7,6 +7,10 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
+/** Spec 157 RF10: a nota e as penalidades vigentes de um motorista. */
+export function driverScorePath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/score`
+}
 /** Spec 093: o catálogo de referência de baú por tipo, que a ficha consulta para sugerir. */
 export const FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
@@ -51,6 +55,18 @@ export const FLEET_DRIVER_LOAD_LIMIT = 2000
 export const FREIGHT_REGION_LOAD_LIMIT = 2000
 
 export const DRIVER_AVAILABILITY_KEYS = ['emailTaken', 'licenseNumberTaken', 'taxIdTaken'] as const
+
+/** Spec 157 RF10, ADR-0068 §7: a ficha do motorista — nota e o porquê dela. Sem coordenada nenhuma. */
+export const DRIVER_PENALTY_KEYS = [
+  'deliveredAt',
+  'documentNumber',
+  'expiresAt',
+  'points',
+  'reason',
+  'tripDocumentId',
+] as const
+
+export const DRIVER_SCORE_RESULT_KEYS = ['penalties', 'score'] as const
 
 export const FREIGHT_REGION_CITY_KEYS = ['city', 'state'] as const
 

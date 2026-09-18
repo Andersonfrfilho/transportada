@@ -847,5 +847,25 @@
   "vehiclesEmptyHint": "Register the plate, the capacity and the owner of each vehicle — that is what the MDF-e and the freight calculation read.",
   "vehiclesEmptyTitle": "No vehicle registered",
   "vehiclesTitle": "Vehicles",
-  "versionConflict": "The record changed in another session. Reload the page before saving."
+  "versionConflict": "The record changed in another session. Reload the page before saving.",
+  "driverScore": {
+    "none": "No history",
+    "value": "{{score}}/100"
+  },
+  "driverScoreColumn": "Score",
+  "driverScoreSectionTitle": "Driver score",
+  "driverScoreSectionHint": "The score comes from deliveries with a required photo in the last 90 days — each penalty expires after that window.",
+  "driverPenaltiesEmpty": "No penalty in effect.",
+  "driverPenaltiesTitle": "Penalties in effect",
+  "penaltyReason": {
+    "late_proof": "Photo past the deadline or far from the location",
+    "missing_proof": "Required photo never arrived"
+  },
+  "penaltyColumn": {
+    "deliveredAt": "Delivery",
+    "documentNumber": "Invoice",
+    "expiresAt": "Expires",
+    "points": "Points",
+    "reason": "Reason"
+  }
 }

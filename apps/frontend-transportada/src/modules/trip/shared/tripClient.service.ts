@@ -84,10 +84,10 @@ import {
   DELIVERY_PROOF_OVERRIDES_PATH,
   DELIVERY_PROOF_SETTINGS_PATH,
   FIELD_DELIVERY_SETTINGS_PATH,
-  isDeliveryProofFieldSettings,
+  isCompanyDeliveryProofSettings,
   isDeliveryProofSettingsOverride,
   isFieldDeliverySettings,
-  type DeliveryProofFieldSettings,
+  type CompanyDeliveryProofSettings,
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
@@ -200,12 +200,12 @@ export type TripClient = Readonly<{
     input: Readonly<{ cursor: null | string; limit: number; tripId: string }>,
   ) => Promise<TripTimelinePage>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
-  readDeliveryProofSettings: () => Promise<DeliveryProofFieldSettings>
+  readDeliveryProofSettings: () => Promise<CompanyDeliveryProofSettings>
   /** Spec 156 T13: o assistente de baixa do escritório lê só o interruptor da leitura do canhoto. */
   readFieldDeliverySettings: () => Promise<FieldDeliverySettings>
   saveDeliveryProofSettings: (
-    input: DeliveryProofFieldSettings,
-  ) => Promise<DeliveryProofFieldSettings>
+    input: CompanyDeliveryProofSettings,
+  ) => Promise<CompanyDeliveryProofSettings>
   listDeliveryProofOverrides: () => Promise<readonly DeliveryProofSettingsOverride[]>
   replaceDeliveryProofOverrides: (
     input: Readonly<{ overrides: readonly DeliveryProofSettingsOverride[] }>,
@@ -693,7 +693,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_SETTINGS_PATH,
       })
       const data = readEnvelopeData(response)
-      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
     },
     async readFieldDeliverySettings() {
@@ -709,7 +709,12 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     async saveDeliveryProofSettings(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
+          latePenaltyPoints: input.latePenaltyPoints,
+          missingAfterHours: input.missingAfterHours,
+          missingPenaltyPoints: input.missingPenaltyPoints,
           photo: input.photo,
+          proofRadiusMeters: input.proofRadiusMeters,
+          proofWindowMinutes: input.proofWindowMinutes,
           receiverDocument: input.receiverDocument,
           receiverName: input.receiverName,
           signature: input.signature,
@@ -719,7 +724,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_SETTINGS_PATH,
       })
       const data = readEnvelopeData(response)
-      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
     },
     async listDeliveryProofOverrides() {

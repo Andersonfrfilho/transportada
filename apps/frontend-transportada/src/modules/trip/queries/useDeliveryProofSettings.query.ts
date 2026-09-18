@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type {
-  DeliveryProofFieldSettings,
+  CompanyDeliveryProofSettings,
   DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 
@@ -16,7 +16,7 @@ const DELIVERY_PROOF_OVERRIDES_QUERY_KEY = ['trip', 'delivery-proof-overrides'] 
  * cadastro existente.
  */
 export function useDeliveryProofSettingsQuery(input: Readonly<{ enabled: boolean }>) {
-  return useQuery<DeliveryProofFieldSettings>({
+  return useQuery<CompanyDeliveryProofSettings>({
     enabled: input.enabled,
     queryFn: () => getTripClient().readDeliveryProofSettings(),
     queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY,
@@ -34,7 +34,7 @@ export function useDeliveryProofOverridesQuery(input: Readonly<{ enabled: boolea
 export function useSaveDeliveryProofSettingsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (settings: DeliveryProofFieldSettings) =>
+    mutationFn: (settings: CompanyDeliveryProofSettings) =>
       getTripClient().saveDeliveryProofSettings(settings),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY })
