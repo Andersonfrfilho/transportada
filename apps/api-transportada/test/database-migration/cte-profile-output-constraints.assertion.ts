@@ -12,6 +12,7 @@ import { expectQueryToFail, migrationsDirectory } from './support.js'
 const OUTPUT_DOCUMENT_MIGRATION_SUFFIX = '_cte_profile_output_document'
 const CHECK_VIOLATION = '23514'
 const FOREIGN_KEY_VIOLATION = '23503'
+const RESTRICT_VIOLATION = '23001'
 
 export type CteProfileOutputProbe = Readonly<{
   connectionString: string
@@ -133,7 +134,7 @@ export async function assertCteProfileOutputConstraints(
   `
   await expectQueryToFail(
     database`delete from nfse_emission_profiles where id = ${ownNfseProfileId}`,
-    FOREIGN_KEY_VIOLATION,
+    RESTRICT_VIOLATION,
     'cte_emission_profiles_company_nfse_profile_fk',
   )
 

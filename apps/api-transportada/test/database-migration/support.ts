@@ -242,7 +242,7 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
 
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,
-  expectedSqlState: '23503' | '23505' | '23514' | '55000',
+  expectedSqlState: '23001' | '23503' | '23505' | '23514' | '55000',
   expectedConstraint?: string,
 ): Promise<void> {
   try {
