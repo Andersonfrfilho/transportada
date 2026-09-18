@@ -40,21 +40,21 @@ function row(input: {
 }
 
 describe('mergeTripTimeline (spec 158 T5, D8)', () => {
-  test('ordena por occurredAt desc; no empate, a prioridade menor do kind vem primeiro', () => {
+  test('ordena por occurredAt desc; no empate, a prioridade maior do kind vem primeiro', () => {
     const result = mergeTripTimeline({
       limit: 10,
       sources: [
         [row({ id: 'a', kind: 'document.occurrence', occurredAt: '2026-09-18T10:00:00.000Z' })],
-        // stop.occurrence (prioridade 5) vem antes de document.status_changed (prioridade 7).
+        // document.status_changed (prioridade 5) vem antes de stop.occurrence (prioridade 1).
         [row({ id: 'b', kind: 'stop.occurrence', occurredAt: '2026-09-18T12:00:00.000Z' })],
         [row({ id: 'c', kind: 'document.status_changed', occurredAt: '2026-09-18T12:00:00.000Z' })],
       ],
     })
 
-    expect(result.items.map((item) => item.id)).toEqual(['b', 'c', 'a'])
+    expect(result.items.map((item) => item.id)).toEqual(['c', 'b', 'a'])
   })
 
-  test('no mesmo occurredAt, a chegada (causa) vem acima da troca de status que ela provoca (efeito)', () => {
+  test('no mesmo occurredAt, a troca de status (efeito) vem acima da chegada que a provocou (causa)', () => {
     const sameInstant = '2026-09-18T13:00:00.000Z'
     const result = mergeTripTimeline({
       limit: 10,
@@ -64,10 +64,10 @@ describe('mergeTripTimeline (spec 158 T5, D8)', () => {
       ],
     })
 
-    expect(result.items.map((item) => item.id)).toEqual(['arrival', 'status'])
+    expect(result.items.map((item) => item.id)).toEqual(['status', 'arrival'])
   })
 
-  test('a entrega (causa) vem acima da conclusão da viagem (efeito) no mesmo instante', () => {
+  test('a conclusão da viagem (efeito) vem acima da entrega (causa) no mesmo instante', () => {
     const sameInstant = '2026-09-18T14:00:00.000Z'
     const result = mergeTripTimeline({
       limit: 10,
@@ -77,7 +77,7 @@ describe('mergeTripTimeline (spec 158 T5, D8)', () => {
       ],
     })
 
-    expect(result.items.map((item) => item.id)).toEqual(['delivered', 'completed'])
+    expect(result.items.map((item) => item.id)).toEqual(['completed', 'delivered'])
   })
 
   test('id desempata quando occurredAt e prioridade do kind coincidem', () => {

@@ -410,6 +410,76 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
     },
   )
 
+  testWithPostgres(
+    'aceite 7: empate de occurredAt entre fontes diferentes pagina na mesma ordem da página única',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+
+        // Cada instante tem um item de cada fonte: o cursor precisa atravessar a fronteira entre
+        // kinds, não só entre ids do mesmo kind.
+        const instants = Array.from(
+          { length: 40 },
+          (_unused, index) => new Date(2026, 8, 10, 8, index),
+        )
+        await database.db.insert(tripStopOccurrences).values(
+          instants.map((occurredAt, index) => ({
+            actorUserId: company.userId,
+            channel: 'driver_app' as const,
+            companyId: company.companyId,
+            createdAt: occurredAt,
+            description: `ocorrência ${index}`,
+            id: crypto.randomUUID(),
+            kind: 'long_wait' as const,
+            stopId,
+          })),
+        )
+        await database.db.insert(tripStatusEvents).values(
+          instants.map((occurredAt) => ({
+            actorUserId: company.userId,
+            channel: 'backoffice' as const,
+            companyId: company.companyId,
+            fromStatus: 'route_planned' as const,
+            id: crypto.randomUUID(),
+            occurredAt,
+            toStatus: 'separating' as const,
+            tripId,
+          })),
+        )
+
+        const singlePage = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 200,
+          tripId,
+        })
+        const { parseTripTimelineCursor } = await import(
+          '../../src/trips/infrastructure/trip-timeline.query.js'
+        )
+        const paged: string[] = []
+        let cursor: ReadTripTimelineParams['cursor'] = null
+        for (let page = 0; page < 10; page += 1) {
+          const result = await listTripTimeline(database.db, {
+            companyId: company.companyId,
+            cursor,
+            limit: 30,
+            tripId,
+          })
+          paged.push(...result.items.map((item) => item.id))
+          if (result.nextCursor === null) break
+          cursor = parseTripTimelineCursor(result.nextCursor)
+        }
+
+        expect(singlePage.items).toHaveLength(80)
+        expect(paged).toEqual(singlePage.items.map((item) => item.id))
+        // D8: no mesmo instante, a troca de status (efeito) fica acima do que não a causou.
+        expect(singlePage.items[0]?.kind).toBe('trip.status_changed')
+      })
+    },
+  )
+
   testWithPostgres('aceite 8: nenhuma chave proibida sai na resposta', async () => {
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)

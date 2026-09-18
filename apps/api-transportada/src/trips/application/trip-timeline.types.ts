@@ -23,22 +23,20 @@ export const TRIP_TIMELINE_KINDS = [
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
 /**
- * Spec 158 D8: desempate de `occurredAt` igual, do menor para o maior — quanto menor a prioridade,
- * mais acima o item aparece (a lista é `occurredAt desc`). A chegada e a entrega são a **causa** de
- * uma troca de status que usa o mesmo `now`; a causa fica acima do efeito. `trip.dispatched` é a
- * ação que leva ao `trip.status_changed` de despacho, pelo mesmo raciocínio. As três fontes sem
- * relação de causa (`stop.occurrence`, `document.occurrence`, `document.status_changed`) ficam por
- * último, na ordem em que a spec D5 as lista.
+ * Spec 158 D8: desempate de `occurredAt` igual — quanto **maior** a prioridade, mais acima o item
+ * aparece. Tudo é decrescente, como a tupla `(occurred_at, prioridade, id) < cursor` do SQL exige.
+ * A troca de status usa o mesmo `now` da chegada ou da entrega que a provocou; lida de cima para
+ * baixo, a lista mostra o efeito acima da causa, como em qualquer instante mais recente.
  */
 export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, number>> = {
   'stop.arrived': 0,
-  'document.delivered': 1,
-  'document.returned': 2,
-  'trip.dispatched': 3,
-  'trip.status_changed': 4,
-  'stop.occurrence': 5,
-  'document.occurrence': 6,
-  'document.status_changed': 7,
+  'stop.occurrence': 1,
+  'document.occurrence': 2,
+  'document.returned': 3,
+  'document.delivered': 4,
+  'document.status_changed': 5,
+  'trip.dispatched': 6,
+  'trip.status_changed': 7,
 }
 
 export type TripTimelineStopReference = {

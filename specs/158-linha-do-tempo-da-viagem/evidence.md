@@ -472,3 +472,26 @@ FKs compostas) — escrevê-la antes exigiria simular o schema à mão sem ganho
   fail**. p95 medido (50 notas, 80 `trip_document_events` + 120 `trip_document_occurrences` = 200
   eventos, 20 amostras): **2,84 ms** — bem abaixo do teto de 300 ms do RNF2 (ambiente local; sem
   rede até o banco).
+
+### Correção do orquestrador (T5): ordem do empate e cursor
+
+Na revisão da entrega do executor, dois defeitos ligados:
+
+- **Cursor inconsistente com a ordem.** O SQL de cada fonte corta por
+  `(occurred_at, prioridade, id) < cursor` — a tupla supõe as três colunas **decrescentes** —, mas
+  `compareTimelineRows` ordenava a prioridade **crescente**. Com `occurredAt` empatado entre fontes
+  diferentes, a página seguinte pulava ou repetia itens. O teste dos 250 eventos não pegou porque só
+  empatava itens do mesmo kind.
+- **D8 invertido.** Com a prioridade crescente, a chegada aparecia acima da troca de status que ela
+  provocou, numa lista do mais recente para o mais antigo.
+
+TDD: `trip-timeline.integration.ts` ganhou "empate de occurredAt entre fontes diferentes pagina na
+mesma ordem da página única" (40 instantes × 2 fontes, páginas de 30, comparado com a página única de 200) — **falhou** contra o código da T5 (7 pass, 1 fail). Correção: `TRIP_TIMELINE_KIND_PRIORITY`
+renumerado (maior = mais acima; `trip.status_changed` 7 … `stop.arrived` 0) e `compareTimelineRows`
+com a prioridade decrescente; os três unitários de ordem passaram a esperar o efeito acima da causa.
+
+- `bun test ./test/trip-application/trip-timeline-merge.contract.ts ./test/trip-schema/trip-timeline-query-tenant-safety.contract.ts`
+  — 15 pass, 0 fail.
+- `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres bun --env-file=../../.env.test test ./test/integration/trip-timeline.integration.ts --timeout 120000`
+  — 8 pass, 0 fail.
+- `bun run typecheck` e `bun run lint` na raiz — sem erros.

@@ -618,7 +618,7 @@ function compareTimelineRows(first: TripTimelineRow, second: TripTimelineRow): n
   const byTime = second.occurredAt.getTime() - first.occurredAt.getTime()
   if (byTime !== 0) return byTime
   const byPriority =
-    TRIP_TIMELINE_KIND_PRIORITY[first.kind] - TRIP_TIMELINE_KIND_PRIORITY[second.kind]
+    TRIP_TIMELINE_KIND_PRIORITY[second.kind] - TRIP_TIMELINE_KIND_PRIORITY[first.kind]
   if (byPriority !== 0) return byPriority
   // Desempate final por id, decrescente — o mesmo sentido do `order by ... id desc` de cada fonte.
   return first.id < second.id ? 1 : first.id > second.id ? -1 : 0
