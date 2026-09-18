@@ -18,6 +18,15 @@ const CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
   import.meta.url,
 )
+const CLIENT = new URL(
+  '../../src/modules/driver-trip/shared/driverTripClient.service.ts',
+  import.meta.url,
+)
+
+const PAGE = new URL(
+  '../../src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx',
+  import.meta.url,
+)
 
 function buildClient(response: Response) {
   const seen: Request[] = []
@@ -48,19 +57,16 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
       Response.json({ data: [{ id: 'a', name: 'Recebeu parte' }] }),
     )
 
-    expect(await client.listOccurrenceTypes()).toEqual([{ id: 'a', name: 'Recebeu parte' }])
+    expect(await client.listOccurrenceTypes()).toEqual({
+      status: 'loaded',
+      types: [{ id: 'a', name: 'Recebeu parte' }],
+    })
     expect(new URL(seen[0]?.url ?? '').pathname).toBe('/me/trips/current/occurrence-types')
-  })
-
-  it('corpo estranho vira lista vazia, e a entrega segue', async () => {
-    const { client } = buildClient(Response.json({ data: { unexpected: true } }))
-
-    expect(await client.listOccurrenceTypes()).toEqual([])
   })
 
   it('a nota tem como registrar a ocorrência', () => {
     expect(source).toInclude('onDocumentOccurrence')
-    expect(source).toInclude('occurrenceTypes.map(')
+    expect(source).toInclude('occurrenceTypes.types.map(')
   })
 
   /**
@@ -77,6 +83,96 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   /** Falhar aqui não muda o estado da nota, e o aviso diz isso. */
   it('avisa sem assustar quando o registro falha', () => {
     expect(driverTrip.documentOccurrenceFailed.toLowerCase()).toInclude('continua como estava')
+  })
+})
+
+/**
+ * Spec 157 (RF5/CA5). Antes, corpo estranho e recusa do servidor viravam `[]` do mesmo jeito que
+ * lista vazia de verdade, e o `.catch(() => undefined)` da página engolia o resto — o motorista via
+ * o painel sem opção nenhuma, sem saber se é falha ou se a empresa não cadastrou tipo de rua.
+ */
+describe('aviso quando a lista de tipos falha (spec 157 RF5)', () => {
+  const cardSource = readFileSync(CARD, 'utf8')
+  const pageSource = readFileSync(PAGE, 'utf8')
+  const clientSource = readFileSync(CLIENT, 'utf8')
+
+  it('resposta 500 vira estado de falha, sem lançar', async () => {
+    const { client } = buildClient(Response.json({ error: { code: 'INTERNAL' } }, { status: 500 }))
+
+    expect(await client.listOccurrenceTypes()).toEqual({ status: 'failed' })
+  })
+
+  it('corpo inválido vira estado de falha, sem lançar', async () => {
+    const { client } = buildClient(Response.json({ data: { unexpected: true } }))
+
+    expect(await client.listOccurrenceTypes()).toEqual({ status: 'failed' })
+  })
+
+  /** Sem sinal é o caso mais comum no campo: o `fetch` rejeita antes de haver resposta. */
+  it('rede caída vira estado de falha, sem lançar', async () => {
+    const client = createDriverTripClient({
+      apiUrl: 'https://api.test',
+      fetch: () => Promise.reject(new TypeError('Failed to fetch')),
+      getAccessToken: () => Promise.resolve('token-de-mentira'),
+    })
+
+    expect(await client.listOccurrenceTypes()).toEqual({ status: 'failed' })
+  })
+
+  /** Rede presa não pode deixar o painel carregando para sempre — o pedido tem teto. */
+  it('o pedido da lista tem teto de tempo', async () => {
+    const { client, seen } = buildClient(Response.json({ data: [] }))
+
+    await client.listOccurrenceTypes()
+
+    expect(seen[0]?.signal).toBeDefined()
+    expect(clientSource).toInclude('AbortSignal.timeout(')
+  })
+
+  it('item sem id ou nome em texto vira falha, não um botão vazio', async () => {
+    const { client } = buildClient(Response.json({ data: [{ id: 'a' }] }))
+
+    expect(await client.listOccurrenceTypes()).toEqual({ status: 'failed' })
+  })
+
+  it('lista vazia de verdade fica marcada como carregada, não como falha', async () => {
+    const { client } = buildClient(Response.json({ data: [] }))
+
+    expect(await client.listOccurrenceTypes()).toEqual({ status: 'loaded', types: [] })
+  })
+
+  it('a página não engole mais o erro com .catch(() => undefined)', () => {
+    expect(pageSource).not.toInclude('.catch(() => undefined)')
+  })
+
+  it('o painel mostra o aviso de falha com o botão de tentar de novo', () => {
+    expect(cardSource).toInclude('documentOccurrenceTypesFailed')
+    expect(cardSource).toInclude('documentOccurrenceTypesRetry')
+    expect(cardSource).toInclude('onRetryOccurrenceTypes')
+  })
+
+  /** O botão some ao tocar (vira carregando): o foco volta ao painel, não cai no `body`. */
+  it('tentar de novo devolve o foco ao painel da ocorrência', () => {
+    expect(cardSource).toInclude('occurrencePanelRef.current?.focus()')
+  })
+
+  it('o painel mostra o texto de lista vazia quando não há tipo cadastrado', () => {
+    expect(cardSource).toInclude('documentOccurrenceTypesEmpty')
+  })
+
+  it('o aviso de falha não assusta e diz que entregar e devolver continuam funcionando', () => {
+    const text = driverTrip.documentOccurrenceTypesFailed.toLowerCase()
+    expect(text).toInclude('entregar')
+    expect(text).toInclude('devolver')
+    expect(text).toInclude('continuam funcionando')
+  })
+
+  it('o texto de lista vazia orienta a falar com o escritório', () => {
+    expect(driverTrip.documentOccurrenceTypesEmpty.toLowerCase()).toInclude('escritório')
+  })
+
+  it('o botão de tentar de novo tem o rótulo padrão do produto', () => {
+    expect(driverTrip.documentOccurrenceTypesRetry).toBe('Tentar de novo')
   })
 })
 

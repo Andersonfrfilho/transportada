@@ -1229,6 +1229,59 @@ test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page 
   await assertNoHorizontalOverflow(page)
 })
 
+/**
+ * Spec 157 T4 (RF5/CA5): a falha na lista de tipos não podia mais virar `[]` silencioso — o painel
+ * avisa, "Tentar de novo" repete o pedido, e entregar/devolver nunca dependem disto.
+ */
+test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ occurrenceTypesFailures: 1, page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(
+    page.getByText('Não foi possível carregar os tipos de ocorrência agora.'),
+  ).toBeVisible()
+  // A falha na lista de tipos não trava o resto da parada.
+  for (const name of ['Entreguei', 'Não entreguei', 'Deu problema']) {
+    const action = page.getByRole('button', { exact: true, name })
+    await expect(action.first()).toBeVisible()
+    await expect(action.first()).toBeEnabled()
+  }
+
+  await page.getByRole('button', { name: 'Tentar de novo' }).click()
+  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/** Lista vazia de verdade (empresa sem tipo de rua ativo) tem texto próprio, não o de falha. */
+test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await page.route(/\/me\/trips\/current\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 })
+      return
+    }
+    await route.fulfill({
+      body: JSON.stringify({ data: [] }),
+      contentType: 'application/json',
+      status: 200,
+    })
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(
+    page.getByText('Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.'),
+  ).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
 /** A tela diz a verdade: sem sinal, o toque fica "aguardando envio" — nunca "enviado". */
 test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile)

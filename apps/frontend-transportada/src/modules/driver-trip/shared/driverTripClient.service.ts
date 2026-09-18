@@ -5,11 +5,14 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import type {
   DriverFieldReport,
   DriverOccurrenceType,
+  DriverOccurrenceTypesResult,
   DriverTripSnapshot,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
+/** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
+const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
 
 export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
@@ -78,8 +81,13 @@ export type DriverTripClient = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => Promise<void>
-  /** Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles. */
-  listOccurrenceTypes: () => Promise<readonly DriverOccurrenceType[]>
+  /**
+   * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
+   *
+   * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
+   * 'failed' }` — quem chama decide o aviso, e entregar/devolver não dependem disto (spec 157 RF5).
+   */
+  listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -158,19 +166,25 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
     },
     async listOccurrenceTypes() {
-      const body = await request({
-        dependencies,
-        method: 'GET',
-        path: `${CURRENT_TRIP_PATH}/occurrence-types`,
-      })
-
       /**
-       * ⚠️ Corpo estranho vira **lista vazia**, nunca exceção: sem tipo o botão fica sem opção, e o
-       * motorista segue entregando e devolvendo — que é o que não pode parar por causa de um
-       * cadastro que não carregou.
+       * ⚠️ Falha vira **estado**, nunca exceção: rede fora do ar, recusa do servidor e corpo
+       * inválido contam a mesma história para quem chama — "não sabemos os tipos agora" —, e é a
+       * tela que decide como avisar. Lista vazia de verdade (empresa sem tipo de rua ativo) é um
+       * fato diferente e chega como `{ status: 'loaded', types: [] }`.
        */
-      const data = (body as { readonly data?: unknown }).data
-      return Array.isArray(data) ? (data as readonly DriverOccurrenceType[]) : []
+      try {
+        const body = await request({
+          dependencies,
+          method: 'GET',
+          path: `${CURRENT_TRIP_PATH}/occurrence-types`,
+          signal: AbortSignal.timeout(OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS),
+        })
+        const data = (body as { readonly data?: unknown }).data
+        if (!Array.isArray(data) || !data.every(isDriverOccurrenceType)) return { status: 'failed' }
+        return { status: 'loaded', types: data }
+      } catch {
+        return { status: 'failed' }
+      }
     },
     async readManifestDamdfe(manifestId) {
       return requestFile({
@@ -286,6 +300,7 @@ async function request(
     idempotencyKey?: string
     method: 'GET' | 'POST'
     path: string
+    signal?: AbortSignal
   }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
@@ -297,6 +312,7 @@ async function request(
   if (input.body !== undefined) requestInit.body = input.body
   // O `content-type` do multipart carrega a fronteira, e só o próprio `fetch` sabe qual ela é.
   if (input.form !== undefined) requestInit.body = input.form
+  if (input.signal !== undefined) requestInit.signal = input.signal
 
   let response: Response
   try {
@@ -338,4 +354,10 @@ function readErrorCode(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return 'REQUEST_FAILED'
   const error = (payload as { readonly error?: { readonly code?: unknown } }).error
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
+}
+
+function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { readonly id?: unknown; readonly name?: unknown }
+  return typeof candidate.id === 'string' && typeof candidate.name === 'string'
 }

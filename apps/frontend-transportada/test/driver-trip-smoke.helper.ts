@@ -102,10 +102,17 @@ export type DriverTripApiMock = Readonly<{
 }>
 
 export async function mockDriverTripApi(
-  input: Readonly<{ isOffline?: boolean; page: Page }>,
+  input: Readonly<{
+    isOffline?: boolean
+    /** Spec 157 T4: as N primeiras chamadas à lista de tipos respondem 500 antes de acertar. */
+    occurrenceTypesFailures?: number
+    page: Page
+  }>,
 ): Promise<DriverTripApiMock> {
   const reports: Array<{ idempotencyKey: string; path: string }> = []
   let arrived = false
+  let occurrenceTypesCalls = 0
+  const occurrenceTypesFailures = input.occurrenceTypesFailures ?? 0
 
   await input.page.addInitScript(
     ({ identity, storageKey }) => {
@@ -137,6 +144,11 @@ export async function mockDriverTripApi(
   await input.page.route(/\/me\/trips\/current\/occurrence-types$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    occurrenceTypesCalls += 1
+    if (occurrenceTypesCalls <= occurrenceTypesFailures) {
+      await fulfillJson(route, { error: { code: 'INTERNAL' } }, 500)
       return
     }
     await fulfillJson(route, {

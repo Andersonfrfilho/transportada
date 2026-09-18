@@ -156,3 +156,16 @@ export type DriverOccurrenceType = Readonly<{
   id: string
   name: string
 }>
+
+/**
+ * Spec 157 (RF5): falha de rede/servidor e lista vazia de verdade são fatos diferentes — a
+ * primeira é "não sabemos", a segunda é "a empresa não cadastrou". `loading` só existe do lado da
+ * tela, antes da primeira resposta; o cliente HTTP nunca a devolve.
+ */
+export type DriverOccurrenceTypesResult =
+  | Readonly<{ status: 'failed' }>
+  | Readonly<{ status: 'loaded'; types: readonly DriverOccurrenceType[] }>
+
+export type DriverOccurrenceTypesState =
+  | Readonly<{ status: 'loading' }>
+  | DriverOccurrenceTypesResult

@@ -20,7 +20,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4 Aviso quando a lista de tipos falha (RF5, CA5) — `driverTripClient.service.ts`
+- [x] T4 Aviso quando a lista de tipos falha (RF5, CA5) — `driverTripClient.service.ts`
       (`listOccurrenceTypes` devolve estado `loaded | failed`, sem engolir o erro),
       `DriverTripWorkspace.page.tsx` (sai o `.catch(() => undefined)`; recarregar sob demanda),
       `DriverStopCard.component.tsx` (painel: aviso de falha + "Tentar de novo", texto de lista

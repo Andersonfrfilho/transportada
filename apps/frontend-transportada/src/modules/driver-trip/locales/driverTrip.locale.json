@@ -156,5 +156,9 @@
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
   "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
   "documentOccurrenceProduct": "Item",
+  "documentOccurrenceTypesEmpty": "Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.",
+  "documentOccurrenceTypesFailed": "Não foi possível carregar os tipos de ocorrência agora. Entregar e devolver continuam funcionando normalmente.",
+  "documentOccurrenceTypesLoading": "Carregando os tipos de ocorrência…",
+  "documentOccurrenceTypesRetry": "Tentar de novo",
   "documentOccurrenceWholeDocument": "A nota inteira"
 }

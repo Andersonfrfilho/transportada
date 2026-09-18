@@ -19,8 +19,8 @@ import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
-  DriverOccurrenceType,
   DriverOccurrenceKind,
+  DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
 } from '../shared/driverTrip.types'
@@ -57,10 +57,13 @@ export function DriverTripWorkspacePage() {
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
   /**
-   * Os tipos cadastrados pela empresa. Falhar aqui deixa a lista vazia e o botão sem opção — o
-   * motorista segue entregando e devolvendo, que é o que não pode parar.
+   * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
+   * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
+   * dependem disto.
    */
-  const [occurrenceTypes, setOccurrenceTypes] = useState<readonly DriverOccurrenceType[]>([])
+  const [occurrenceTypes, setOccurrenceTypes] = useState<DriverOccurrenceTypesState>({
+    status: 'loading',
+  })
   /** Spec 082 D2: uma leitura ao abrir — recusa vira `null`, e a distância só não aparece. */
   const [lastKnownLocation, setLastKnownLocation] = useState<DriverReportedLocation | null>(null)
 
@@ -78,14 +81,19 @@ export function DriverTripWorkspacePage() {
     let ativo = true
     void getDriverTripClient()
       .listOccurrenceTypes()
-      .then((types) => {
-        if (ativo) setOccurrenceTypes(types)
+      .then((result) => {
+        if (ativo) setOccurrenceTypes(result)
       })
-      .catch(() => undefined)
     return () => {
       ativo = false
     }
   }, [])
+
+  /** O card chama isto quando o motorista toca "Tentar de novo" — o cliente nunca lança. */
+  function handleRetryOccurrenceTypes(): void {
+    setOccurrenceTypes({ status: 'loading' })
+    void getDriverTripClient().listOccurrenceTypes().then(setOccurrenceTypes)
+  }
 
   const snapshot = driverTrip.snapshot
   const trip = snapshot?.trips[0]
@@ -317,6 +325,7 @@ export function DriverTripWorkspacePage() {
                     .catch(() => setProofFailed(true))
                 }}
                 occurrenceTypes={occurrenceTypes}
+                onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                 onDocumentOccurrence={(input: {
                   documentId: string
                   occurrenceTypeId: string

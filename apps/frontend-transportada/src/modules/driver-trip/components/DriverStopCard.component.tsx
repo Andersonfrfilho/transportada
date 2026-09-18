@@ -1,10 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
@@ -14,7 +15,7 @@ import {
   DRIVER_RETURN_REASONS,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceKind,
-  type DriverOccurrenceType,
+  type DriverOccurrenceTypesState,
   type DriverReportedLocation,
   type DriverReturnReason,
   type DriverTripDocument,
@@ -73,7 +74,7 @@ type DriverStopCardProps = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => void
-  occurrenceTypes: readonly DriverOccurrenceType[]
+  occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   /**
@@ -82,6 +83,8 @@ type DriverStopCardProps = Readonly<{
    */
   onOccurrencePhoto: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
+  onRetryOccurrenceTypes: () => void
   stop: DriverTripStop
 }>
 
@@ -97,6 +100,7 @@ export function DriverStopCard({
   onOccurrencePhoto,
   onProof,
   onReturn,
+  onRetryOccurrenceTypes,
   stop,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
@@ -193,6 +197,7 @@ export function DriverStopCard({
             onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
+            onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             stopProofSettings={stop.deliveryProof}
           />
         ))}
@@ -211,9 +216,10 @@ type DocumentRowProps = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => void
-  occurrenceTypes: readonly DriverOccurrenceType[]
+  occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  onRetryOccurrenceTypes: () => void
   stopProofSettings: DriverDeliveryProofSettings | null
 }>
 
@@ -225,11 +231,19 @@ function DocumentRow({
   onDocumentOccurrence,
   onProof,
   onReturn,
+  onRetryOccurrenceTypes,
   stopProofSettings,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
   const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
+  /** O botão "Tentar de novo" some ao ser tocado; o foco fica no painel, não cai no `body`. */
+  const occurrencePanelRef = useRef<HTMLFieldSetElement>(null)
+
+  function handleRetryOccurrenceTypes(): void {
+    onRetryOccurrenceTypes()
+    occurrencePanelRef.current?.focus()
+  }
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
 
@@ -289,28 +303,50 @@ function DocumentRow({
         </Button>
       </div>
       {openOccurrence ? (
-        <fieldset className={styles.occurrenceForm}>
+        <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
           <legend>{t('documentOccurrence')}</legend>
           <p>{t('documentOccurrenceHint')}</p>
-          {occurrenceTypes.map((occurrenceType) => (
-            <Button
-              key={occurrenceType.id}
-              onClick={() => {
-                onDocumentOccurrence({
-                  documentId: document.id,
-                  occurrenceTypeId: occurrenceType.id,
-                  /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
-                     nota do motorista ainda não carrega os produtos. */
-                  productCode: '',
-                })
-                setOpenDocumentOccurrence(false)
-              }}
-              type="button"
-              variant="ghost"
+          {occurrenceTypes.status === 'failed' ? (
+            <div>
+              <p className={styles.proofFieldError} role="alert">
+                {t('documentOccurrenceTypesFailed')}
+              </p>
+              <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
+                <Icon name="refresh" />
+                {t('documentOccurrenceTypesRetry')}
+              </Button>
+            </div>
+          ) : occurrenceTypes.status === 'loading' ? (
+            <SkeletonGroup
+              className={styles.occurrenceChips}
+              label={t('documentOccurrenceTypesLoading')}
             >
-              {occurrenceType.name}
-            </Button>
-          ))}
+              <Skeleton height="var(--control-height)" width="40%" />
+              <Skeleton height="var(--control-height)" width="55%" />
+            </SkeletonGroup>
+          ) : occurrenceTypes.types.length === 0 ? (
+            <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
+          ) : (
+            occurrenceTypes.types.map((occurrenceType) => (
+              <Button
+                key={occurrenceType.id}
+                onClick={() => {
+                  onDocumentOccurrence({
+                    documentId: document.id,
+                    occurrenceTypeId: occurrenceType.id,
+                    /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
+                       nota do motorista ainda não carrega os produtos. */
+                    productCode: '',
+                  })
+                  setOpenDocumentOccurrence(false)
+                }}
+                type="button"
+                variant="ghost"
+              >
+                {occurrenceType.name}
+              </Button>
+            ))
+          )}
         </fieldset>
       ) : null}
       {openReturn ? (
