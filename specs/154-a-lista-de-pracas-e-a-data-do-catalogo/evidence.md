@@ -2476,3 +2476,34 @@ Medições: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-tr
 
 Commits: item 1 `8b6f2628`, item 2 `9955a9aa`, item 3 `283ccd82`, item 4 no commit desta seção.
 Nenhum código da API foi tocado.
+
+#### T507, item 4 (continuação) — o mesmo plural no total do resumo e na opção de rota
+
+O item 4 corrigiu "1 praças sem tarifa conhecida" e registrou, sem corrigir, que a linha de cima do
+mesmo resumo ("Pedágio: … — 1 praças, …") tinha o mesmo defeito. A opção de rota ("… · 1 praças")
+também. O plural do i18next só dispara com a variável `count`, então `RouteTollSummary` e
+`TripAssemblyMap` passam `count` em vez de `boothCount`, e as chaves `assemblyMap.toll.summary` e
+`assemblyMap.routeOptions.option` ganham `_one` e `_zero` em pt.
+
+O resumo em inglês usava `{{axleCount}}`, variável que o código nunca passa — alinhado às variáveis do
+pt (`{{multiplier}}`) ao ganhar o `_one`.
+
+Vermelho, antes da correção:
+
+```
+$ cd apps/frontend-transportada && bun test ./test/trip.contract.test.ts
+
+(fail) plural de "praças" no total do resumo e na opção de rota (spec 154 T507, item 4) > o total do resumo diz "1 praça" com uma praça e "2 praças" com duas
+(fail) plural de "praças" no total do resumo e na opção de rota (spec 154 T507, item 4) > pt-BR: a opção de rota com 1 praça(s) vira "12.0 km · 30 min · 1 praça"
+(fail) plural de "praças" no total do resumo e na opção de rota (spec 154 T507, item 4) > pt-BR: a opção de rota com 2 praça(s) vira "12.0 km · 30 min · 2 praças"
+(fail) plural de "praças" no total do resumo e na opção de rota (spec 154 T507, item 4) > en: o total do resumo usa as mesmas variáveis do pt e nunca deixa placeholder cru
+ 1045 pass
+ 4 fail
+```
+
+Verde: `1049 pass · 0 fail`. Os smokes que conferem "3 praças" no resumo continuam valendo (plural).
+`typecheck`, `lint`, `format:check`, testes do frontend e build: exit 0.
+
+**Pendência registrada, fora desta spec:** o dicionário `trip.en.locale.json` está 157 chaves atrás
+do `trip.locale.json` (inclusive todo `assemblyMap.routeOptions`), e o i18n cai no pt quando falta a
+chave em inglês. Pede tarefa própria.

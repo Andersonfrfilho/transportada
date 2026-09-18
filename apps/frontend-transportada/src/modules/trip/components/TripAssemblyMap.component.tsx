@@ -723,7 +723,7 @@ export function TripAssemblyMap({
                         ? 'assemblyMap.routeOptions.optionWithoutToll'
                         : 'assemblyMap.routeOptions.option',
                       {
-                        boothCount: summary.boothCount ?? 0,
+                        count: summary.boothCount ?? 0,
                         distance: summary.distanceKilometres.toFixed(1),
                         duration: formatDuration(summary.minutes),
                       },

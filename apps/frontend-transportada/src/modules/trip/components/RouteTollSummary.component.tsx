@@ -49,9 +49,9 @@ export function RouteTollSummary({ canAdjustTollBooth, toll }: RouteTollSummaryP
             <Icon name="invoice" />
             <span>
               {t('assemblyMap.toll.summary', {
-                boothCount: toll.booths.length,
                 chargePerAxle: formatAmount(toll.chargePerAxle),
                 multiplier: toll.multiplierLabel,
+                count: toll.booths.length,
                 total: formatAmount(toll.total),
               })}
               {toll.tariffObservedOn === null

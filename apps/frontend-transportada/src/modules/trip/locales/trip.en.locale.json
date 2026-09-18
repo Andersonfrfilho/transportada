@@ -94,7 +94,8 @@
         "automatic": "Base: tag (automatic charge)",
         "manual": "Base: manual tariff"
       },
-      "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
+      "summary": "Toll: {{total}} — {{count}} booths, {{chargePerAxle}} base rate × {{multiplier}}",
+      "summary_one": "Toll: {{total}} — {{count}} booth, {{chargePerAxle}} base rate × {{multiplier}}",
       "tariff": " · tariff from {{month}}",
       "withoutCharge": "{{count}} booths without a known tariff",
       "withoutCharge_one": "{{count}} booth without a known tariff",
