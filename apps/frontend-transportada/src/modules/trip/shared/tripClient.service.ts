@@ -492,7 +492,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async reportStopArrival(input) {
       const response = await authorizedRequest({
-        ...officeDriverSelectionBody(input.driverId),
+        body: JSON.stringify({ arrivedAt: input.arrivedAt, driverId: input.driverId }),
         dependencies,
         idempotencyKey: input.idempotencyKey,
         method: 'POST',

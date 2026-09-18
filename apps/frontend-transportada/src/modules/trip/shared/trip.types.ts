@@ -708,7 +708,12 @@ export type StartFieldTripInput = TripFieldActionTarget
 export type FieldTripStepResult = Readonly<{ changed: boolean; status: TripStatus }>
 
 export type ReportStopArrivalInput = TripFieldActionTarget &
-  Readonly<{ idempotencyKey: string; stopId: string }>
+  Readonly<{
+    /** Spec 156 T15 A1: opcional, mesma janela de "Entregue em" (não futuro, não antes do despacho). */
+    arrivedAt?: string
+    idempotencyKey: string
+    stopId: string
+  }>
 
 /** ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS` da API — o bundle não carrega código de lá. */
 export const STOP_OCCURRENCE_KINDS = [

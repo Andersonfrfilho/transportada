@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  isRetryableFieldDeliveryFailure,
   isRetryableFieldDeliveryStatus,
   runFieldDeliverySendBatch,
   type FieldDeliverySendOutcome,
@@ -119,6 +120,32 @@ describe('isRetryableFieldDeliveryStatus (spec 156 T15, M13a)', () => {
   it('400 e 422 não são reenviáveis — recusa terminal do corpo enviado', () => {
     expect(isRetryableFieldDeliveryStatus(400)).toBe(false)
     expect(isRetryableFieldDeliveryStatus(422)).toBe(false)
+  })
+})
+
+describe('isRetryableFieldDeliveryFailure (spec 156 T15, correção pós-API)', () => {
+  it('TRIP_STATUS_WRITE_CONFLICT (409) é reenviável, mesmo sendo 409', () => {
+    expect(
+      isRetryableFieldDeliveryFailure({ code: 'TRIP_STATUS_WRITE_CONFLICT', status: 409 }),
+    ).toBe(true)
+  })
+
+  it('outro 409 (ex.: TRIP_DELIVERY_PROOF_ALREADY_CAPTURED) continua terminal', () => {
+    expect(
+      isRetryableFieldDeliveryFailure({
+        code: 'TRIP_DELIVERY_PROOF_ALREADY_CAPTURED',
+        status: 409,
+      }),
+    ).toBe(false)
+  })
+
+  it('sem o código especial, segue a régua de status de sempre', () => {
+    expect(isRetryableFieldDeliveryFailure({ code: 'DELIVERED_AT_IN_FUTURE', status: 400 })).toBe(
+      false,
+    )
+    expect(
+      isRetryableFieldDeliveryFailure({ code: 'TRIP_REQUEST_FAILED', status: undefined }),
+    ).toBe(true)
   })
 })
 

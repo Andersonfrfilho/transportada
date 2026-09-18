@@ -25,6 +25,20 @@ export function isRetryableFieldDeliveryStatus(status: number | undefined): bool
   return status >= 500
 }
 
+/**
+ * Spec 156 T15 (correção pós-API): `TRIP_STATUS_WRITE_CONFLICT` é 409 — status que
+ * `isRetryableFieldDeliveryStatus` sozinho trata como terminal, mas é exatamente o oposto (outra
+ * escrita ganhou a corrida; tentar de novo resolve). Único código que muda a decisão do status;
+ * `DOCUMENT_ALREADY_SETTLED`, também 409, nunca chega aqui como `failed` — vira `alreadySettled`
+ * antes (aceite 12).
+ */
+export function isRetryableFieldDeliveryFailure(
+  input: Readonly<{ code: string; status: number | undefined }>,
+): boolean {
+  if (input.code === 'TRIP_STATUS_WRITE_CONFLICT') return true
+  return isRetryableFieldDeliveryStatus(input.status)
+}
+
 export type FieldDeliverySendStatus =
   | FieldDeliverySendOutcome
   | Readonly<{ kind: 'pending' }>

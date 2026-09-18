@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import type { TripDetail } from '../shared/trip.types'
+import { TripArrivalDialog } from './TripArrivalDialog.component'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
 import {
   TripStopOccurrenceDialog,
@@ -23,7 +24,7 @@ export type TripFieldActionsProps = Readonly<{
   isConfirmLoadPending: boolean
   isOccurrencePending: boolean
   isStartRoutePending: boolean
-  onArrive: (input: { driverId?: string; stopId: string }) => void
+  onArrive: (input: { arrivedAt?: string; driverId?: string; stopId: string }) => void
   onConfirmLoad: (input: { driverId?: string }) => void
   onRegisterStopOccurrence: (
     input: TripStopOccurrenceSubmission & { driverId?: string; stopId: string },
@@ -64,6 +65,8 @@ export function TripFieldActions({
   const { t } = useTranslation('trip')
   const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
   const [occurrenceStopId, setOccurrenceStopId] = useState<null | string>(null)
+  /** Spec 156 T15 A1: `arrivedAt` opcional — o diálogo pergunta a hora antes de confirmar. */
+  const [arrivalStopId, setArrivalStopId] = useState<null | string>(null)
 
   if (!canReportOnBehalf) return null
 
@@ -141,7 +144,7 @@ export function TripFieldActions({
                 {capabilities.canStop(stop.id, 'arrive') ? (
                   <Button
                     disabled={isArrivePending}
-                    onClick={() => onArrive({ ...driverIdInput, stopId: stop.id })}
+                    onClick={() => setArrivalStopId(stop.id)}
                     size="sm"
                     type="button"
                     variant="secondary"
@@ -188,6 +191,23 @@ export function TripFieldActions({
           onRegisterStopOccurrence({ ...input, ...driverIdInput, stopId: occurrenceStop.id })
         }}
         stopDocuments={occurrenceStop?.documents ?? []}
+      />
+
+      {/**
+       * Spec 156 T15 A1: `dispatchedAt` ainda é `null` aqui pela mesma razão do assistente de baixa
+       * (`GET /trips/:id` não expõe `trip_dispatch_snapshots.dispatched_at`) — pendência já
+       * registrada no `evidence.md` da T11, a régua do futuro continua valendo.
+       */}
+      <TripArrivalDialog
+        dispatchedAt={null}
+        isOpen={arrivalStopId !== null}
+        isSubmitting={isArrivePending}
+        onClose={() => setArrivalStopId(null)}
+        onSubmit={(arrivedAt) => {
+          if (arrivalStopId === null) return
+          onArrive({ arrivedAt, ...driverIdInput, stopId: arrivalStopId })
+          setArrivalStopId(null)
+        }}
       />
     </div>
   )

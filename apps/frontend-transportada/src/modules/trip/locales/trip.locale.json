@@ -589,6 +589,15 @@
     "deliveredAtInFuture": "\"Entregue em\" não pode ser no futuro.",
     "deliveredAtBeforeDispatch": "\"Entregue em\" não pode ser antes do despacho da viagem.",
     "deliveryProofPhotoRequired": "Esta empresa exige foto do canhoto — anexe uma antes de enviar.",
+    "arrivedAtInFuture": "\"Chegou em\" não pode ser no futuro.",
+    "arrivedAtBeforeDispatch": "\"Chegou em\" não pode ser antes do despacho da viagem.",
+    "returnedAtInFuture": "\"Devolvido em\" não pode ser no futuro.",
+    "returnedAtBeforeDispatch": "\"Devolvido em\" não pode ser antes do despacho da viagem.",
+    "deliveryProofReceiverNameRequired": "Esta empresa exige o nome de quem recebeu — preencha antes de enviar.",
+    "deliveryProofAlreadyCaptured": "O motorista já enviou o comprovante desta entrega — o escritório não substitui.",
+    "statusWriteConflict": "A viagem mudou enquanto você agia. Recarregue e tente de novo.",
+    "deliveryProofTooLarge": "O arquivo é maior que o aceito pelo escritório.",
+    "deliveryProofUnsupportedType": "O arquivo precisa ser uma imagem.",
     "timelineCursorInvalid": "O cursor da linha do tempo é inválido."
   },
   "filters": {
@@ -1017,6 +1026,8 @@
   },
   "fieldActions": {
     "arrive": "Registrar chegada",
+    "arriveTitle": "Registrar chegada",
+    "arrivedAtLabel": "Chegou em",
     "confirmLoad": "Conferir carga",
     "driverLabel": "Em nome do motorista",
     "occurrence": "Registrar ocorrência",

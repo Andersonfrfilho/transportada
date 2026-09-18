@@ -467,6 +467,15 @@
     "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
     "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
     "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending.",
+    "arrivedAtInFuture": "\"Arrived at\" cannot be in the future.",
+    "arrivedAtBeforeDispatch": "\"Arrived at\" cannot be before the trip's dispatch.",
+    "returnedAtInFuture": "\"Returned at\" cannot be in the future.",
+    "returnedAtBeforeDispatch": "\"Returned at\" cannot be before the trip's dispatch.",
+    "deliveryProofReceiverNameRequired": "This company requires the receiver's name — fill it in before sending.",
+    "deliveryProofAlreadyCaptured": "The driver already sent the proof for this delivery — the office cannot replace it.",
+    "statusWriteConflict": "The trip changed while you were acting. Reload and try again.",
+    "deliveryProofTooLarge": "The file is larger than the office accepts.",
+    "deliveryProofUnsupportedType": "The file must be an image.",
     "timelineCursorInvalid": "The timeline cursor is invalid."
   },
   "filters": {
@@ -828,6 +837,8 @@
   },
   "fieldActions": {
     "arrive": "Report arrival",
+    "arriveTitle": "Report arrival",
+    "arrivedAtLabel": "Arrived at",
     "confirmLoad": "Confirm load",
     "driverLabel": "On behalf of driver",
     "occurrence": "Report occurrence",

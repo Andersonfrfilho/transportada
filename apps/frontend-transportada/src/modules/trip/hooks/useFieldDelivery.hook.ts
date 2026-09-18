@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 
 import {
-  isRetryableFieldDeliveryStatus,
+  isRetryableFieldDeliveryFailure,
   runFieldDeliverySendBatch,
   type FieldDeliverySendOutcome,
   type FieldDeliverySendStatus,
@@ -82,9 +82,12 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
       return { kind: result.alreadySettled ? 'alreadySettled' : 'delivered' }
     } catch (error) {
       const code = error instanceof Error ? error.message : 'REQUEST_FAILED'
-      /** M13a: só erro transitório (rede/5xx/429) é reenviável — 400/422 é recusa terminal do que
-       * foi enviado, e reenviar o mesmo corpo repete o mesmo erro. */
-      const retryable = isRetryableFieldDeliveryStatus(readTripRequestErrorStatus(error))
+      /** M13a: só erro transitório (rede/5xx/429, ou TRIP_STATUS_WRITE_CONFLICT) é reenviável —
+       * 400/422 é recusa terminal do que foi enviado, e reenviar o mesmo corpo repete o mesmo erro. */
+      const retryable = isRetryableFieldDeliveryFailure({
+        code,
+        status: readTripRequestErrorStatus(error),
+      })
       return { code, kind: 'failed', retryable }
     }
   }

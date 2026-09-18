@@ -99,6 +99,21 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   DELIVERED_AT_BEFORE_DISPATCH: 'deliveredAtBeforeDispatch',
   /** Spec 156 T6/T12 (aceite 9): a empresa exige foto e o escritório não anexou nenhuma. */
   TRIP_DELIVERY_PROOF_PHOTO_REQUIRED: 'deliveryProofPhotoRequired',
+  /** Spec 156 T15 A1: "Chegou em"/"Devolvido em" fora da janela aceita pelo servidor — mesma régua
+   * de `DELIVERED_AT_*`. */
+  ARRIVED_AT_IN_FUTURE: 'arrivedAtInFuture',
+  ARRIVED_AT_BEFORE_DISPATCH: 'arrivedAtBeforeDispatch',
+  RETURNED_AT_IN_FUTURE: 'returnedAtInFuture',
+  RETURNED_AT_BEFORE_DISPATCH: 'returnedAtBeforeDispatch',
+  /** Spec 156 T15: assinatura `required` exige o nome de quem recebeu, não só a foto. */
+  TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED: 'deliveryProofReceiverNameRequired',
+  /** Spec 156 T15 M1: o motorista já enviou o comprovante dele — o escritório não o substitui. */
+  TRIP_DELIVERY_PROOF_ALREADY_CAPTURED: 'deliveryProofAlreadyCaptured',
+  /** Spec 156 T15: outra escrita ganhou a corrida (start-route/confirm-load) — tentar de novo. */
+  TRIP_STATUS_WRITE_CONFLICT: 'statusWriteConflict',
+  /** Spec 156 T15: canhoto do escritório maior que o teto, ou bytes que não batem com uma imagem. */
+  TRIP_DELIVERY_PROOF_TOO_LARGE: 'deliveryProofTooLarge',
+  TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE: 'deliveryProofUnsupportedType',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
