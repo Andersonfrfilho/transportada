@@ -456,7 +456,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         const world = await seedDispatchedTrip(database)
         await database.db
           .insert(companyDeliveryProofSettings)
-          .values({ companyId: world.companyId, photo: 'required' })
+          // Spec 157 T11 (D1): a nota vale desde antes do NOW fixo desta suíte.
+          .values({
+            companyId: world.companyId,
+            photo: 'required',
+            scoreEffectiveSince: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+          })
         const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
         const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
         const reads = new DrizzleCurrentDriverTripRepository(database.db)
@@ -590,7 +595,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             unitOfWork,
           })
         }
-        const [firstDocumentId, secondDocumentId, lastDocumentId] = world.documentIds
+        const [firstDocumentId = '', secondDocumentId = '', lastDocumentId = ''] = world.documentIds
         await reportDocumentDelivery({
           ...context,
           documentId: firstDocumentId ?? '',

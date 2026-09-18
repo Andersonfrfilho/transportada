@@ -24,6 +24,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
         photoPosition: undefined,
         proofRadiusMeters: 300,
         proofWindowMinutes: 60,
+        missingAfterHours: 24,
         receivedAt: RECEIVED_AT,
         stopPosition: undefined,
       }),
@@ -38,6 +39,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
         photoPosition: undefined,
         proofRadiusMeters: 300,
         proofWindowMinutes: 60,
+        missingAfterHours: 24,
         receivedAt: RECEIVED_AT,
         stopPosition: undefined,
       }),
@@ -54,6 +56,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { accuracyMeters: 10, latitude: '-23.551430', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: STOP_POSITION,
     })
@@ -71,6 +74,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T14:00:05.000Z'),
       stopPosition: STOP_POSITION,
     })
@@ -88,6 +92,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: STOP_POSITION,
     })
@@ -105,6 +110,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: undefined,
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: STOP_POSITION,
     })
@@ -121,6 +127,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T15:00:05.000Z'),
       stopPosition: STOP_POSITION,
     })
@@ -138,6 +145,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: RECEIVED_AT,
       stopPosition: STOP_POSITION,
     })
@@ -156,6 +164,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: RECEIVED_AT,
       stopPosition: STOP_POSITION,
     })
@@ -174,6 +183,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: undefined,
     })
@@ -188,6 +198,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: undefined,
     })
@@ -205,6 +216,7 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: undefined,
     })
@@ -222,11 +234,75 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
       photoPosition: { accuracyMeters: 50, latitude: '-23.5534', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
+      missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
       stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('on_time')
+  })
+})
+
+/** Spec 157 T11: as duas brechas que a revisão achou no veredito da foto. */
+describe('antifraude do veredito (spec 157 T11, D3a e item 4)', () => {
+  /**
+   * D3a: o aparelho diz que tirou a foto na hora da entrega, mas ela chegou 30 h depois. O relógio
+   * dele só vale até `missingAfterHours` (24) antes do recebimento — a referência vira entrega + 6 h.
+   */
+  test('capturedAt antigo demais para o recebimento é limitado e vira late', () => {
+    const receivedAt = new Date(DELIVERED_AT.getTime() + 30 * 60 * 60 * 1000)
+
+    const result = classifyProofPunctuality({
+      capturedAt: DELIVERED_AT,
+      deliveredAt: DELIVERED_AT,
+      deliveryEventPosition: undefined,
+      missingAfterHours: 24,
+      photoMode: 'required',
+      photoPosition: STOP_POSITION,
+      proofRadiusMeters: 300,
+      proofWindowMinutes: 60,
+      receivedAt,
+      stopPosition: STOP_POSITION,
+    })
+
+    expect(result).toBe('late')
+  })
+
+  test('capturedAt dentro do prazo de envio continua valendo', () => {
+    const receivedAt = new Date(DELIVERED_AT.getTime() + 20 * 60 * 60 * 1000)
+
+    const result = classifyProofPunctuality({
+      capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
+      deliveredAt: DELIVERED_AT,
+      deliveryEventPosition: undefined,
+      missingAfterHours: 24,
+      photoMode: 'required',
+      photoPosition: STOP_POSITION,
+      proofRadiusMeters: 300,
+      proofWindowMinutes: 60,
+      receivedAt,
+      stopPosition: STOP_POSITION,
+    })
+
+    expect(result).toBe('on_time')
+  })
+
+  /** Item 4: precisão declarada de 5 km não transforma 2 km em "no local" — soma no máximo o raio. */
+  test('precisão enorme soma no máximo um raio', () => {
+    const result = classifyProofPunctuality({
+      capturedAt: new Date('2026-09-18T12:10:00.000Z'),
+      deliveredAt: DELIVERED_AT,
+      deliveryEventPosition: undefined,
+      missingAfterHours: 24,
+      photoMode: 'required',
+      photoPosition: { accuracyMeters: 5000, latitude: '-23.568', longitude: '-46.633308' },
+      proofRadiusMeters: 300,
+      proofWindowMinutes: 60,
+      receivedAt: new Date('2026-09-18T12:10:05.000Z'),
+      stopPosition: STOP_POSITION,
+    })
+
+    expect(result).toBe('away')
   })
 })
 

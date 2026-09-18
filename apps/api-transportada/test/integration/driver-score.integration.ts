@@ -88,11 +88,9 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
         deliveredAgo: 3 * DAY,
         photo: 'late',
       })
-      const missing = await seedDelivery(database, {
-        ...delivery,
-        channel: 'whatsapp',
-        deliveredAgo: 25 * HOUR,
-      })
+      const missing = await seedDelivery(database, { ...delivery, deliveredAgo: 25 * HOUR })
+      // Spec 157 T11 (D2): o WhatsApp não será liberado agora — fica fora da nota, como o escritório.
+      await seedDelivery(database, { ...delivery, channel: 'whatsapp', deliveredAgo: 26 * HOUR })
       await seedDelivery(database, { ...delivery, deliveredAgo: 3 * HOUR })
       await seedDelivery(database, { ...delivery, deliveredAgo: 91 * DAY })
       await seedDelivery(database, { ...delivery, deliveredAgo: 30 * HOUR, returned: true })
@@ -292,6 +290,32 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
     })
   })
 
+  /** Spec 157 T11 (D1): sem retroatividade — só entra a entrega a partir da ativação da nota. */
+  testWithPostgres('entrega anterior à ativação da nota não conta', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const driver = await seedDriver(database, company.companyId)
+      await database.db
+        .update(companyDeliveryProofSettings)
+        .set({ scoreEffectiveSince: new Date(NOW.getTime() - 2 * DAY) })
+        .where(eq(companyDeliveryProofSettings.companyId, company.companyId))
+      const delivery = { actorUserId: driver.userId, company }
+      await seedDelivery(database, { ...delivery, deliveredAgo: 3 * DAY })
+      const counted = await seedDelivery(database, { ...delivery, deliveredAgo: 30 * HOUR })
+
+      const result = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+        companyId: company.companyId,
+        driverId: driver.driverId,
+        now: NOW,
+      })
+
+      expect(result.score).toBe(90)
+      expect(result.penalties.map((penalty) => penalty.tripDocumentId)).toEqual([
+        counted.tripDocumentId,
+      ])
+    })
+  })
+
   /** Spec 157 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
   testWithPostgres('frota: a listagem traz a nota e a ficha de outra empresa é 404', async () => {
     await withDisposableDatabase(async (database) => {
@@ -337,7 +361,12 @@ async function seedCompany(database: TestDatabase): Promise<Company> {
   await database.db.insert(companies).values({ id: companyId, status: 'active' })
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
   await database.db.insert(userCompanyMemberships).values({ companyId, status: 'active', userId })
-  await database.db.insert(companyDeliveryProofSettings).values({ companyId, photo: 'required' })
+  // Spec 157 T11 (D1): a ativação da nota bem antes das entregas semeadas — o corte tem teste próprio.
+  await database.db.insert(companyDeliveryProofSettings).values({
+    companyId,
+    photo: 'required',
+    scoreEffectiveSince: new Date(NOW.getTime() - 200 * DAY),
+  })
   await database.db
     .insert(deliveryProofSettingOverrides)
     .values({ companyId, photo: 'optional', taxId: OVERRIDE_TAX_ID })

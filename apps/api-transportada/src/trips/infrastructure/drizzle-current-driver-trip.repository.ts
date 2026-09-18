@@ -285,13 +285,17 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const windowStart = new Date(
       input.now.getTime() - DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY,
     )
-    const [rows, accountUserId, proofSettings] = await Promise.all([
+    const [rows, accountUserId, proofSettings, effectiveSince] = await Promise.all([
       this.listLastDeliveries({ ...input, windowStart }),
       this.findDriverAccountUserId(input),
       this.readProofSettings({ companyId: input.companyId }),
+      this.readScoreEffectiveSince({ companyId: input.companyId }),
     ])
 
     return rows.flatMap((row) => {
+      const deliveredAt = row.capturedAt ?? row.recordedAt
+      // Spec 157 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
+      if (effectiveSince !== undefined && deliveredAt < effectiveSince) return []
       const isOwnDelivery =
         row.channel !== TRIP_FIELD_CHANNELS.office &&
         (row.reportedByDriverId === input.driverId ||
@@ -307,7 +311,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
       return [
         {
-          deliveredAt: (row.capturedAt ?? row.recordedAt).toISOString(),
+          deliveredAt: deliveredAt.toISOString(),
           deliveryProof,
           documentId: row.tripDocumentId,
           documentNumber: row.documentNumber ?? '',
@@ -318,6 +322,19 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         },
       ]
     })
+  }
+
+  /** Spec 157 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
+  private async readScoreEffectiveSince(input: {
+    readonly companyId: string
+  }): Promise<Date | undefined> {
+    const [record] = await this.database
+      .select({ scoreEffectiveSince: companyDeliveryProofSettings.scoreEffectiveSince })
+      .from(companyDeliveryProofSettings)
+      .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+      .limit(1)
+
+    return record?.scoreEffectiveSince
   }
 
   /** A conta ligada hoje ao cadastro — só para o evento antigo, sem `reported_by_driver_id`. */

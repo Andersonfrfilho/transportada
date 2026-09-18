@@ -5,7 +5,11 @@
  * pura, sem I/O — quem busca as entregas dos últimos 90 dias é o repositório
  * (`DrizzleDriverScoreRepository`).
  */
-import type { ProofPunctuality } from '../../trips/domain/delivery-proof-punctuality.policy.js'
+import { MILLISECONDS_PER_DAY, MILLISECONDS_PER_HOUR } from '../../shared/time.constant.js'
+import {
+  PROOF_PUNCTUALITY,
+  type ProofPunctuality,
+} from '../../trips/domain/delivery-proof-punctuality.policy.js'
 
 /** ADR-0068 §5: penalidade vigente por 90 dias, fixo — não é parâmetro de empresa. */
 export const DRIVER_SCORE_WINDOW_DAYS = 90
@@ -13,8 +17,12 @@ export const DRIVER_SCORE_WINDOW_DAYS = 90
 /** ADR-0068 §5: a nota nunca passa disso, mesmo sem nenhuma penalidade. */
 export const DRIVER_SCORE_MAXIMUM = 100
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
-const MILLISECONDS_PER_HOUR = 60 * 60 * 1000
+/** RF8: qualquer foto fora da regra pesa `latePenaltyPoints`, uma vez por entrega. */
+const OUT_OF_RULE_PUNCTUALITIES: ReadonlySet<ProofPunctuality> = new Set([
+  PROOF_PUNCTUALITY.late,
+  PROOF_PUNCTUALITY.away,
+  PROOF_PUNCTUALITY.lateAndAway,
+])
 
 export const DRIVER_PENALTY_REASON = {
   lateProof: 'late_proof',
@@ -55,6 +63,11 @@ export type ComputeDriverScoreParams = {
   readonly now: Date
   readonly settings: DriverScoreSettings
   readonly deliveries: readonly DriverScoreDelivery[]
+  /**
+   * Spec 157 T11 (decisão D1 do usuário, sem retroatividade): entrega anterior a este instante não
+   * entra na nota — nem penaliza, nem tira a nota de `null`. Ausente, não há corte.
+   */
+  readonly effectiveSince?: Date
 }
 
 export type DriverScoreResult = {
@@ -96,11 +109,7 @@ function buildPenalty(
     }
   }
 
-  const isLateProof =
-    delivery.photoPunctuality === 'late' ||
-    delivery.photoPunctuality === 'away' ||
-    delivery.photoPunctuality === 'late_and_away'
-  if (!isLateProof) return undefined
+  if (!OUT_OF_RULE_PUNCTUALITIES.has(delivery.photoPunctuality)) return undefined
 
   return {
     deliveredAt: delivery.deliveredAt,
@@ -113,14 +122,18 @@ function buildPenalty(
 }
 
 /**
- * RF8/RF9: só entregas com `photoMode = 'required'` (atual) e dentro dos 90 dias contam. Sem
+ * RF8/RF9: só entregas com `photoMode = 'required'` (atual), dentro dos 90 dias e desde a ativação
+ * da nota (`effectiveSince`) contam. Sem
  * nenhuma, a nota é `null` — sem histórico, não zero. Penalidades ordenadas da mais recente para a
  * mais antiga.
  */
 export function computeDriverScore(params: ComputeDriverScoreParams): DriverScoreResult {
+  const effectiveSince = params.effectiveSince?.getTime() ?? Number.NEGATIVE_INFINITY
   const evaluableDeliveries = params.deliveries.filter(
     (delivery) =>
-      delivery.photoMode === 'required' && isWithinWindow(delivery.deliveredAt, params.now),
+      delivery.photoMode === 'required' &&
+      isWithinWindow(delivery.deliveredAt, params.now) &&
+      delivery.deliveredAt.getTime() >= effectiveSince,
   )
 
   if (evaluableDeliveries.length === 0) return { penalties: [], score: null }

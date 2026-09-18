@@ -58,6 +58,8 @@ type DeliveryRow = {
 }
 
 type ScoreSettings = {
+  /** Spec 157 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
+  readonly effectiveSince: Date | undefined
   readonly lookup: ProofSettingsLookup
   readonly score: DriverScoreSettings
 }
@@ -99,6 +101,9 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
         driverId,
         computeDriverScore({
           deliveries: deliveriesByDriver.get(driverId) ?? [],
+          ...(settings.effectiveSince === undefined
+            ? {}
+            : { effectiveSince: settings.effectiveSince }),
           now: input.now,
           settings: settings.score,
         }),
@@ -136,7 +141,12 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
       .leftJoin(tripDeliveryProofs, on.photo)
       .where(
         and(
-          ne(lastDelivery.channel, TRIP_FIELD_CHANNELS.office),
+          /**
+           * Spec 157 T11 (decisão D2): só o app do motorista entra na nota. O escritório já é
+           * obrigado a mandar a foto na baixa, e o WhatsApp não será liberado agora — ele continua
+           * calculando `proofPending`, mas não pesa.
+           */
+          eq(lastDelivery.channel, TRIP_FIELD_CHANNELS.driverApp),
           ne(tripDocuments.separationStatus, RETURNED_DOCUMENT_STATUS),
           inArray(driverId, [...input.driverIds]),
         ),
@@ -162,6 +172,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
     const general = generalRows[0]
 
     return {
+      effectiveSince: general?.scoreEffectiveSince,
       lookup: {
         general: general ?? null,
         overridesByTaxId: new Map(overrideRows.map((row) => [row.taxId, row])),

@@ -311,6 +311,7 @@ async function classifyPhotoPunctuality(params: {
     capturedAt: input.upload.capturedAt,
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
+    missingAfterHours: punctualitySettings.missingAfterHours,
     photoMode: settings.photo,
     photoPosition: input.upload.position,
     proofRadiusMeters: punctualitySettings.proofRadiusMeters,

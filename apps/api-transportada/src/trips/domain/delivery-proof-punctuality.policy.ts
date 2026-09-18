@@ -8,6 +8,7 @@
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import type { DeliveryProofFieldMode } from './delivery-proof-settings.policy.js'
+import { MILLISECONDS_PER_HOUR, MILLISECONDS_PER_MINUTE } from '../../shared/time.constant.js'
 import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from './field-delivery-timing.policy.js'
 
 /** ADR-0068 §2: os cinco vereditos que uma foto de entrega pode receber. */
@@ -39,16 +40,29 @@ export type ClassifyProofPunctualityParams = {
   readonly deliveryEventPosition: Coordinate | undefined
   readonly proofWindowMinutes: number
   readonly proofRadiusMeters: number
+  /**
+   * Spec 157 T11 (decisão D3a): o relógio do aparelho só é aceito até este tanto antes do
+   * recebimento. É o mesmo prazo da foto ausente — foto que subiu depois dele não pode alegar ter
+   * sido tirada na hora da entrega.
+   */
+  readonly missingAfterHours: number
 }
 
 /**
  * RF5: o `capturedAt` do aparelho vale, mas só dentro de `[entrega − 2 min, recebimento + 2 min]` —
- * a mesma folga da baixa pelo escritório. Fora da faixa, ou ausente, a referência é o recebimento.
+ * a mesma folga da baixa pelo escritório. Ausente, a referência é o recebimento.
+ *
+ * Spec 157 T11 (D3a): o piso também nunca fica antes de `recebimento − missingAfterHours`. Sem isso,
+ * uma foto tirada dias depois, com o relógio do aparelho voltado para a hora da entrega, passava
+ * como pontual pela fila offline.
  */
 function resolveTimeReference(params: ClassifyProofPunctualityParams): Date {
   if (params.capturedAt === undefined) return params.receivedAt
 
-  const earliest = params.deliveredAt.getTime() - DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS
+  const earliest = Math.max(
+    params.deliveredAt.getTime() - DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS,
+    params.receivedAt.getTime() - params.missingAfterHours * MILLISECONDS_PER_HOUR,
+  )
   const latest = params.receivedAt.getTime() + DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS
   const clamped = Math.min(Math.max(params.capturedAt.getTime(), earliest), latest)
 
@@ -56,7 +70,7 @@ function resolveTimeReference(params: ClassifyProofPunctualityParams): Date {
 }
 
 function isLate(params: ClassifyProofPunctualityParams, timeReference: Date): boolean {
-  const windowMilliseconds = params.proofWindowMinutes * 60 * 1000
+  const windowMilliseconds = params.proofWindowMinutes * MILLISECONDS_PER_MINUTE
   return timeReference.getTime() - params.deliveredAt.getTime() > windowMilliseconds
 }
 
@@ -74,8 +88,12 @@ function isAway(params: ClassifyProofPunctualityParams): boolean {
   const distance = distanceInMetres(params.photoPosition, locationReference)
   if (distance === null) return false
 
-  const radius = params.proofRadiusMeters + (params.photoPosition.accuracyMeters ?? 0)
-  return distance > radius
+  /**
+   * Spec 157 T11 (item 4): a precisão declarada soma ao raio, mas no máximo um raio a mais — senão
+   * `accuracyMeters` enorme transformava qualquer lugar em "no local".
+   */
+  const accuracy = Math.min(params.photoPosition.accuracyMeters ?? 0, params.proofRadiusMeters)
+  return distance > params.proofRadiusMeters + accuracy
 }
 
 const LATE_PUNCTUALITIES: ReadonlySet<ProofPunctuality> = new Set([

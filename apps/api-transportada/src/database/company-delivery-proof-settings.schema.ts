@@ -65,6 +65,15 @@ export const companyDeliveryProofSettings = pgTable(
     latePenaltyPoints: integer('late_penalty_points').notNull().default(5),
     missingPenaltyPoints: integer('missing_penalty_points').notNull().default(10),
     missingAfterHours: integer('missing_after_hours').notNull().default(24),
+    /**
+     * Spec 157 T11 (decisão D1 do usuário, sem retroatividade): a nota do motorista só conta
+     * entrega a partir daqui. A migration grava o instante dela em toda linha existente e cria a
+     * linha de fábrica para empresa que ainda não tinha — empresa criada depois nasce sem entrega
+     * anterior à regra, e sem linha não há corte. O `PUT` da configuração nunca o altera.
+     */
+    scoreEffectiveSince: timestamp('score_effective_since', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

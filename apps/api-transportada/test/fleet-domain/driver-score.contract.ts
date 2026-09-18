@@ -175,4 +175,45 @@ describe('nota do motorista (spec 157 RF8-RF9)', () => {
     expect(result.score).toBe(100)
     expect(result.penalties).toHaveLength(0)
   })
+  /**
+   * Spec 157 T11 (decisão D1): sem retroatividade — a entrega anterior à ativação da nota não
+   * penaliza e não conta como histórico.
+   */
+  test('entrega anterior à ativação da nota não conta', () => {
+    const result = computeDriverScore({
+      deliveries: [
+        {
+          deliveredAt: hoursAgo(48),
+          documentNumber: '1009',
+          photoMode: 'required',
+          photoPunctuality: undefined,
+          tripDocumentId: 'doc-9',
+        },
+      ],
+      effectiveSince: hoursAgo(30),
+      now: NOW,
+      settings: SETTINGS,
+    })
+
+    expect(result).toEqual({ penalties: [], score: null })
+  })
+
+  test('entrega depois da ativação conta normalmente', () => {
+    const result = computeDriverScore({
+      deliveries: [
+        {
+          deliveredAt: hoursAgo(26),
+          documentNumber: '1010',
+          photoMode: 'required',
+          photoPunctuality: undefined,
+          tripDocumentId: 'doc-10',
+        },
+      ],
+      effectiveSince: hoursAgo(30),
+      now: NOW,
+      settings: SETTINGS,
+    })
+
+    expect(result.score).toBe(90)
+  })
 })
