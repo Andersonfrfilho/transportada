@@ -33,6 +33,7 @@ export type TripFieldOfficeOccurrenceDependencies = {
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly registerOccurrences: (input: {
     readonly actorUserId: string
+    readonly attachment: { readonly bytes: Uint8Array; readonly mimeType: string } | null
     readonly companyId: string
     readonly documentIds: readonly string[]
     readonly idempotencyKey: string
@@ -72,6 +73,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
      * `201` com uma ocorrência por nota, na ordem do pedido; `audit_logs` numa linha, com as notas.
      */
     defineRoute<{
+      readonly attachment: { readonly bytes: Uint8Array; readonly mimeType: string } | null
       readonly correlationId: string
       readonly documentIds: readonly string[]
       readonly driverId: string | undefined
@@ -90,6 +92,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
         })
         const result = await dependencies.registerOccurrences({
           actorUserId: context.scope.userId,
+          attachment: input.attachment,
           companyId: context.scope.companyId,
           documentIds: input.documentIds,
           idempotencyKey: input.idempotencyKey,
@@ -114,6 +117,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
       async parse({ correlationId, pathParameters, request }) {
         const body = await parseOfficeFieldOccurrencesRequest(request)
         return {
+          attachment: body.attachment,
           correlationId,
           documentIds: body.documentIds,
           driverId: body.driverId,

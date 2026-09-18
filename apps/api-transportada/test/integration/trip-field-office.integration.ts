@@ -114,14 +114,23 @@ function jsonRequest(input: { readonly body?: object; readonly idempotencyKey?: 
   })
 }
 
-/** Spec 156 T6: `field-delivery`/`field-proof` são multipart — sem `file`, a foto é "não veio". */
+/**
+ * Spec 156 T6/T7b: `field-delivery`/`field-proof`/`field-occurrences` são multipart — sem `file`, a
+ * foto é "não veio". Um valor em array (`documentIds` do lote) vira campos repetidos.
+ */
 function multipartRequest(input: {
-  readonly fields: Record<string, string>
+  readonly fields: Record<string, readonly string[] | string>
   readonly file?: { readonly bytes: Uint8Array; readonly mimeType: string }
   readonly idempotencyKey?: string
 }): Request {
   const form = new FormData()
-  for (const [key, value] of Object.entries(input.fields)) form.set(key, value)
+  for (const [key, value] of Object.entries(input.fields)) {
+    if (Array.isArray(value)) {
+      for (const item of value) form.append(key, item)
+    } else {
+      form.set(key, value as string)
+    }
+  }
   if (input.file !== undefined) {
     form.set('file', new File([input.file.bytes], 'canhoto.jpg', { type: input.file.mimeType }))
   }
@@ -597,8 +606,8 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
             context: fakeContext(company),
             correlationId: 'integration-occurrences',
             pathParameters: { id: trip.tripId },
-            request: jsonRequest({
-              body: { documentIds, note: 'Portão fechado', occurrenceTypeId: typeId },
+            request: multipartRequest({
+              fields: { documentIds, note: 'Portão fechado', occurrenceTypeId: typeId },
               idempotencyKey: 'lote-integracao',
             }),
           })
@@ -656,6 +665,100 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
   )
 
   testWithPostgres(
+    'T7b (D7 §3.5): a mesma foto para as N notas — um objeto só, reenvio não reenvia',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedDispatchSnapshot(database, company, trip, new Date('2026-09-18T06:30:00.000Z'))
+        const documentIds = [
+          trip.documentId,
+          await seedExtraDocument(database, company, trip, {
+            separationStatus: 'loaded',
+            stopId: trip.stopId,
+          }),
+          await seedExtraDocument(database, company, trip, {
+            separationStatus: 'loaded',
+            stopId: trip.stopId,
+          }),
+        ]
+        const typeId = await seedDeliveryOccurrenceType(database, company)
+        const { route, uploads } = wireOccurrenceRoute(database)
+        const photo = { bytes: new Uint8Array([1, 2, 3, 4]), mimeType: 'image/jpeg' }
+        const post = () =>
+          route.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-occurrences-attachment',
+            pathParameters: { id: trip.tripId },
+            request: multipartRequest({
+              fields: { documentIds, note: 'Cliente ausente', occurrenceTypeId: typeId },
+              file: photo,
+              idempotencyKey: 'lote-com-foto',
+            }),
+          })
+
+        const first = await post()
+        expect(first.status).toBe(201)
+        expect(uploads).toHaveLength(1)
+
+        const rows = await database.db
+          .select()
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.companyId, company.companyId))
+        expect(rows).toHaveLength(3)
+        const attachmentObjectIds = new Set(rows.map((row) => row.attachmentObjectId))
+        expect(attachmentObjectIds.size).toBe(1)
+        expect([...attachmentObjectIds][0]).not.toBeNull()
+
+        const attachmentObjects = await database.db
+          .select()
+          .from(storedObjects)
+          .where(
+            and(
+              eq(storedObjects.companyId, company.companyId),
+              eq(storedObjects.purpose, 'delivery_proof'),
+            ),
+          )
+        expect(attachmentObjects).toHaveLength(1)
+        expect(attachmentObjects[0]?.status).toBe('final')
+
+        const replay = await post()
+        expect(replay.status).toBe(201)
+        expect(uploads).toHaveLength(1)
+        expect(
+          await database.db
+            .select()
+            .from(storedObjects)
+            .where(
+              and(
+                eq(storedObjects.companyId, company.companyId),
+                eq(storedObjects.purpose, 'delivery_proof'),
+              ),
+            ),
+        ).toHaveLength(1)
+
+        let conflict: unknown
+        try {
+          await route.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-occurrences-attachment-conflict',
+            pathParameters: { id: trip.tripId },
+            request: multipartRequest({
+              fields: { documentIds, note: 'Cliente ausente', occurrenceTypeId: typeId },
+              file: { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' },
+              idempotencyKey: 'lote-com-foto',
+            }),
+          })
+        } catch (error) {
+          conflict = error
+        }
+        expect((conflict as { code?: string }).code).toBe('TRIP_FIELD_REPORT_KEY_REUSED')
+        expect(uploads).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres(
     'uma nota de outra viagem desfaz o lote inteiro (409, zero linhas)',
     async () => {
       await withDisposableDatabase(async (database) => {
@@ -671,8 +774,8 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
             context: fakeContext(company),
             correlationId: 'integration-occurrences-foreign',
             pathParameters: { id: trip.tripId },
-            request: jsonRequest({
-              body: {
+            request: multipartRequest({
+              fields: {
                 documentIds: [trip.documentId, otherTrip.documentId],
                 occurrenceTypeId: typeId,
               },
@@ -707,8 +810,8 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
           context: fakeContext(other),
           correlationId: 'integration-occurrences-other-company',
           pathParameters: { id: trip.tripId },
-          request: jsonRequest({
-            body: { documentIds: [trip.documentId], occurrenceTypeId: typeId },
+          request: multipartRequest({
+            fields: { documentIds: [trip.documentId], occurrenceTypeId: typeId },
             idempotencyKey: 'lote-outra-empresa',
           }),
         })
@@ -722,14 +825,40 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
   })
 })
 
+/**
+ * Spec 156 T7b: dublê de armazenamento, no molde do `storage` de `wireRoutes` — o MinIO local não
+ * é exercitado aqui, e um `sha256` fabricado basta: a impressão do lote (aceite "outro conteúdo")
+ * usa o hash dos bytes recebidos, calculado no caso de uso, não o que o dublê devolve.
+ */
+function fakeAttachmentStorage(uploads: { objectId: string; objectKey: string }[]): {
+  store(input: { readonly objectId: string; readonly objectKey: string }): Promise<{
+    readonly sha256: string
+  }>
+} {
+  let counter = 0
+  return {
+    async store(input) {
+      uploads.push({ objectId: input.objectId, objectKey: input.objectKey })
+      counter += 1
+      return { sha256: `${counter}`.padStart(64, '0') }
+    },
+  }
+}
+
 function wireOccurrenceRoute(database: TestDatabase) {
   const sent: { dedupeKey: string; recipientUserId: string }[] = []
+  const uploads: { objectId: string; objectKey: string }[] = []
   const routes = createTripFieldOfficeOccurrenceRoutes({
     audit: createDrizzleTripFieldOfficeAudit(database.db),
     listFieldOccurrenceTypes: async () => [],
     registerOccurrences: (input) =>
       registerOfficeDocumentOccurrences({
         ...input,
+        attachment: {
+          newObjectId: () => crypto.randomUUID(),
+          storage: fakeAttachmentStorage(uploads),
+          upload: input.attachment,
+        },
         notifications: {
           notifier: createOccurrenceNotifier({
             logger: { warn() {} },
@@ -744,7 +873,7 @@ function wireOccurrenceRoute(database: TestDatabase) {
   })
   const route = routes.find((candidate) => candidate.method === 'POST')
   if (route === undefined) throw new Error('route missing')
-  return { route, sent }
+  return { route, sent, uploads }
 }
 
 async function seedDeliveryOccurrenceType(

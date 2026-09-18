@@ -8,11 +8,21 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
+  DELIVERY_PROOF_MAX_BYTES,
+  isDeliveryProofMimeType,
+} from '../domain/delivery-proof.policy.js'
+import {
+  buildOccurrenceBatchAttachmentObjectKey,
   buildOccurrenceBatchItemKey,
   buildOccurrenceBatchOperation,
   OFFICE_OCCURRENCE_BATCH_ITEM_OPERATION,
+  sha256Hex,
 } from '../domain/occurrence-batch.policy.js'
-import { OccurrenceTypeNotFieldError, TripDocumentNotReachableError } from '../domain/trip.error.js'
+import {
+  OccurrenceTypeNotFieldError,
+  TripDeliveryProofRejectedError,
+  TripDocumentNotReachableError,
+} from '../domain/trip.error.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import {
   deriveFieldAuthorship,
@@ -45,6 +55,7 @@ export type OfficeOccurrenceBatchTransactionPort = Pick<
   }): Promise<readonly string[]>
   saveDocumentOccurrence(input: {
     readonly actorUserId: string
+    readonly attachmentObjectId?: string | null
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
@@ -60,6 +71,15 @@ export type OfficeOccurrenceBatchTransactionPort = Pick<
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<null | { readonly documentId: string; readonly id: string }>
+  /** T7b (D7 §3.5): grava o objeto único da foto do lote — chamado no máximo uma vez por lote. */
+  saveAttachmentObject(input: {
+    readonly companyId: string
+    readonly mimeType: string
+    readonly objectId: string
+    readonly objectKey: string
+    readonly sha256: string
+    readonly sizeBytes: number
+  }): Promise<void>
 }
 
 export type OfficeOccurrenceBatchUnitOfWork = {
@@ -77,8 +97,30 @@ export type OfficeOccurrenceNotificationsPort = {
   }): Promise<{ readonly documentLabel: string; readonly stopLabel: string }>
 }
 
+/** T7b, D9: mesmo teto e mesmos tipos aceitos do canhoto do escritório (`delivery-proof.policy.ts`). */
+export type OfficeOccurrenceAttachmentUpload = {
+  readonly bytes: Uint8Array
+  readonly mimeType: string
+}
+
+export type OfficeOccurrenceAttachment = {
+  readonly newObjectId: () => string
+  readonly storage: {
+    store(input: {
+      readonly bytes: Uint8Array
+      readonly companyId: string
+      readonly mimeType: string
+      readonly objectId: string
+      readonly objectKey: string
+    }): Promise<{ readonly sha256: string }>
+  }
+  readonly upload: OfficeOccurrenceAttachmentUpload | null
+}
+
 export type RegisterOfficeDocumentOccurrencesParams = {
   readonly actorUserId: string
+  /** Ausente/`upload: null` é o lote sem foto — o caso comum, e o único que a T7 já cobria. */
+  readonly attachment?: OfficeOccurrenceAttachment
   readonly companyId: string
   readonly documentIds: readonly string[]
   readonly idempotencyKey: string
@@ -114,10 +156,27 @@ type BatchOutcome = {
   readonly occurrenceType: OccurrenceTypeRecord | null
 }
 
+/**
+ * D9: mesmos limites do canhoto (`DELIVERY_PROOF_MAX_BYTES`, `isDeliveryProofMimeType`) — a foto do
+ * lote não é um segundo contrato de anexo, é o mesmo. Validado **fora** de qualquer reserva: um
+ * arquivo recusado nunca gasta a chave de idempotência do lote.
+ */
+function assertAttachmentUploadIsValid(upload: OfficeOccurrenceAttachmentUpload): void {
+  if (upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
+  if (!isDeliveryProofMimeType(upload.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+}
+
 export async function registerOfficeDocumentOccurrences(
   params: RegisterOfficeDocumentOccurrencesParams,
 ): Promise<RegisterOfficeDocumentOccurrencesResult> {
   const authorship = deriveFieldAuthorship({ target: params.target })
+  const upload = params.attachment?.upload ?? null
+  if (upload !== null) assertAttachmentUploadIsValid(upload)
+
   const outcome = await params.unitOfWork.execute((transaction) => {
     const context: BatchContext = { ...params, authorship, transaction }
     return withFieldReport<BatchOutcome>(
@@ -127,6 +186,7 @@ export async function registerOfficeDocumentOccurrences(
         companyId: params.companyId,
         idempotencyKey: params.idempotencyKey,
         operation: buildOccurrenceBatchOperation({
+          attachmentSha256: upload === null ? null : sha256Hex(upload.bytes),
           documentIds: params.documentIds,
           note: params.note,
           occurrenceTypeId: params.occurrenceTypeId,
@@ -144,7 +204,13 @@ export async function registerOfficeDocumentOccurrences(
   return { items: outcome.items.map(({ documentId, id }) => ({ documentId, id })) }
 }
 
-/** Ressalva A3: a validação mora **dentro** do `perform` — o reenvio não a refaz. */
+/**
+ * Ressalva A3: a validação mora **dentro** do `perform` — o reenvio não a refaz.
+ *
+ * T7b: o upload só acontece **depois** de tipo e alcance validarem — um lote fadado a 409/422 não
+ * gasta uma chamada de armazenamento. O objeto é gravado **uma vez**, antes do laço por nota, e
+ * cada `saveDocumentOccurrence` recebe o mesmo `objectId` (D7 §3.5: um arquivo, N referências).
+ */
 async function performBatch(context: BatchContext): Promise<BatchOutcome> {
   const occurrenceType = await context.transaction.findOccurrenceType({
     companyId: context.companyId,
@@ -170,8 +236,39 @@ async function performBatch(context: BatchContext): Promise<BatchOutcome> {
     throw new TripDocumentNotReachableError({ unreachableDocumentIds: unreachable })
   }
 
-  const items = await recordItems({ context, occurrenceType })
+  const attachmentObjectId = await persistBatchAttachment(context)
+  const items = await recordItems({ attachmentObjectId, context, occurrenceType })
   return { id: firstItemId(items), items, occurrenceType }
+}
+
+/** `null` quando o lote não trouxe foto. Uma única escrita em `stored_objects`, para o lote inteiro. */
+async function persistBatchAttachment(context: BatchContext): Promise<string | null> {
+  const { attachment } = context
+  if (attachment === undefined || attachment.upload === null) return null
+
+  const objectId = attachment.newObjectId()
+  const objectKey = buildOccurrenceBatchAttachmentObjectKey({
+    companyId: context.companyId,
+    objectId,
+    tripId: context.target.tripId,
+  })
+  const stored = await attachment.storage.store({
+    bytes: attachment.upload.bytes,
+    companyId: context.companyId,
+    mimeType: attachment.upload.mimeType,
+    objectId,
+    objectKey,
+  })
+  await context.transaction.saveAttachmentObject({
+    companyId: context.companyId,
+    mimeType: attachment.upload.mimeType,
+    objectId,
+    objectKey,
+    sha256: stored.sha256,
+    sizeBytes: attachment.upload.bytes.byteLength,
+  })
+
+  return objectId
 }
 
 /**
@@ -179,7 +276,7 @@ async function performBatch(context: BatchContext): Promise<BatchOutcome> {
  * Nunca `null` — `null` faria `withFieldReport` executar o lote de novo.
  */
 async function recallBatch(context: BatchContext): Promise<BatchOutcome> {
-  const items = await recordItems({ context, occurrenceType: null })
+  const items = await recordItems({ attachmentObjectId: null, context, occurrenceType: null })
   return { id: firstItemId(items), items, occurrenceType: null }
 }
 
@@ -188,6 +285,7 @@ async function recallBatch(context: BatchContext): Promise<BatchOutcome> {
  * pode nunca voltar. O lote tem no máximo `MAX_BATCH_DOCUMENTS` notas.
  */
 async function recordItems(input: {
+  readonly attachmentObjectId: string | null
   readonly context: BatchContext
   readonly occurrenceType: OccurrenceTypeRecord | null
 }): Promise<readonly BatchItemOutcome[]> {
@@ -199,11 +297,12 @@ async function recordItems(input: {
 }
 
 async function recordItem(input: {
+  readonly attachmentObjectId: string | null
   readonly context: BatchContext
   readonly documentId: string
   readonly occurrenceType: OccurrenceTypeRecord | null
 }): Promise<BatchItemOutcome> {
-  const { context, documentId, occurrenceType } = input
+  const { attachmentObjectId, context, documentId, occurrenceType } = input
   let createdNow = false
   const saved = await withFieldReport<{ readonly id: string }>(
     {
@@ -221,6 +320,7 @@ async function recordItem(input: {
       if (occurrenceType === null) throw new TripDocumentNotReachableError()
       const occurrence = await context.transaction.saveDocumentOccurrence({
         actorUserId: context.actorUserId,
+        attachmentObjectId,
         authorship: context.authorship,
         companyId: context.companyId,
         documentId,

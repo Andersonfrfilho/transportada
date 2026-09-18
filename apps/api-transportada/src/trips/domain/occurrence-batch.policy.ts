@@ -19,20 +19,42 @@ export const OFFICE_OCCURRENCE_BATCH_ITEM_OPERATION = 'office.document.occurrenc
 const BATCH_ITEM_KEY_PREFIX = 'batch:'
 
 export type BuildOccurrenceBatchOperationParams = {
+  readonly attachmentSha256?: string | null
   readonly documentIds: readonly string[]
   readonly note: string
   readonly occurrenceTypeId: string
   readonly onBehalfOfDriverId: string
 }
 
+/**
+ * T7b: a foto entra na impressão do lote — a mesma chave com outra foto (ou com foto onde antes
+ * não havia) é outro conteúdo, e cai no mesmo 409 `TRIP_FIELD_REPORT_KEY_REUSED` do texto trocado.
+ */
 export function buildOccurrenceBatchOperation(params: BuildOccurrenceBatchOperationParams): string {
   const fingerprint = JSON.stringify([
     params.occurrenceTypeId,
     params.note,
     params.onBehalfOfDriverId,
     params.documentIds.toSorted(),
+    params.attachmentSha256 ?? null,
   ])
   return `${OFFICE_OCCURRENCE_BATCH_OPERATION_PREFIX}${sha256(fingerprint)}`
+}
+
+/**
+ * T7b (D7 §3.5): a chave do objeto do anexo do lote — sem PII, só a viagem e um id opaco, no molde
+ * de `buildDeliveryProofObjectKey`.
+ */
+export function buildOccurrenceBatchAttachmentObjectKey(input: {
+  readonly companyId: string
+  readonly objectId: string
+  readonly tripId: string
+}): string {
+  return `tenants/${input.companyId}/trip-occurrence-attachments/${input.tripId}/${input.objectId}`
+}
+
+export function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex')
 }
 
 export type BuildOccurrenceBatchItemKeyParams = {

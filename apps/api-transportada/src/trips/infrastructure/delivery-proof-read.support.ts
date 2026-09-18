@@ -149,6 +149,13 @@ export async function listDocumentProducts(
   return rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }))
 }
 
+/** Spec 156 T7b: a localização crua do anexo — quem assina a URL é o chamador. */
+export type TripOccurrenceAttachmentLocation = {
+  readonly bucket: string
+  readonly mimeType: string
+  readonly objectKey: string
+}
+
 export async function listTripOccurrences(
   queryable: TripQueryable,
   input: {
@@ -156,9 +163,14 @@ export async function listTripOccurrences(
     readonly documentId: string
     readonly tripId: string
   },
-): Promise<readonly TripOccurrence[]> {
+): Promise<
+  readonly (TripOccurrence & { readonly attachment: TripOccurrenceAttachmentLocation | null })[]
+> {
   const rows = await queryable
     .select({
+      attachmentBucket: storedObjects.bucket,
+      attachmentMimeType: storedObjects.mimeType,
+      attachmentObjectKey: storedObjects.objectKey,
       createdAt: tripDocumentOccurrences.createdAt,
       id: tripDocumentOccurrences.id,
       note: tripDocumentOccurrences.note,
@@ -183,6 +195,13 @@ export async function listTripOccurrences(
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .leftJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.companyId, tripDocumentOccurrences.companyId),
+        eq(storedObjects.id, tripDocumentOccurrences.attachmentObjectId),
+      ),
+    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -192,7 +211,23 @@ export async function listTripOccurrences(
     )
     .orderBy(asc(tripDocumentOccurrences.createdAt))
 
-  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))
+  return rows.map((row) => ({
+    attachment:
+      row.attachmentBucket === null || row.attachmentObjectKey === null
+        ? null
+        : {
+            bucket: row.attachmentBucket,
+            mimeType: row.attachmentMimeType ?? '',
+            objectKey: row.attachmentObjectKey,
+          },
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+    note: row.note,
+    occurrenceTypeId: row.occurrenceTypeId,
+    productCode: row.productCode,
+    stage: row.stage,
+    typeName: row.typeName,
+  }))
 }
 
 /**
@@ -209,6 +244,8 @@ export async function saveTripOccurrence(
      * tem `FieldTripTarget` — o `channel` grava o padrão da coluna (`driver_app`).
      */
     readonly authorship?: FieldAuthorship
+    /** Spec 156 T7b: o objeto único da foto do lote, referenciado por cada nota. */
+    readonly attachmentObjectId?: string | null
     readonly companyId: string
     readonly documentId: string
     readonly note: string
@@ -236,6 +273,7 @@ export async function saveTripOccurrence(
     .insert(tripDocumentOccurrences)
     .values({
       actorUserId: input.actorUserId,
+      attachmentObjectId: input.attachmentObjectId ?? null,
       companyId: input.companyId,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,

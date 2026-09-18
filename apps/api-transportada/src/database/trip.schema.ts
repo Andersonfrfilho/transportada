@@ -1213,6 +1213,11 @@ export const tripDocumentOccurrences = pgTable(
       .default(TRIP_FIELD_CHANNELS.driverApp),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * Spec 156 T7b (D7 §3.5): a foto opcional do lote — um objeto só, referenciado pelas N linhas
+     * que o mesmo lote gravou. No molde de `trip_stop_occurrences.attachment_object_id`.
+     */
+    attachmentObjectId: uuid('attachment_object_id'),
   },
   (table) => [
     foreignKey({
@@ -1233,6 +1238,13 @@ export const tripDocumentOccurrences = pgTable(
       columns: [table.companyId, table.onBehalfOfDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
       name: 'trip_document_occurrences_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.attachmentObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrences_company_object_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

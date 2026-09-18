@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
+import { storedObjects } from '../../database/storage.schema.js'
 import { tripDocumentOccurrences, tripDocuments, trips } from '../../database/trip.schema.js'
 import type { FieldTripTarget } from '../application/field-trip-target.types.js'
 import type {
@@ -36,6 +37,7 @@ export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceB
         findDocumentOccurrence: (input) => findDocumentOccurrence(transaction, input),
         findOccurrenceType: (input) => findOccurrenceType(transaction, input),
         findReachableDocumentIds: (input) => findReachableDocumentIds(transaction, input),
+        saveAttachmentObject: (input) => saveOccurrenceAttachmentObject(transaction, input),
         saveDocumentOccurrence: (input) => saveTripOccurrence(transaction, input),
         settle: (input) => fieldReports.settle(input),
       })
@@ -91,4 +93,34 @@ export async function findDocumentOccurrence(
     .limit(1)
 
   return row ?? null
+}
+
+/**
+ * Spec 156 T7b (D7 §3.5): a foto do lote, no molde de `saveDeliveryProofWithinTransaction` — o
+ * mesmo objeto acaba referenciado por N linhas de `trip_document_occurrences`, então esta escrita
+ * acontece **uma vez** por lote, antes do laço por nota (`performBatch`).
+ */
+export async function saveOccurrenceAttachmentObject(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly mimeType: string
+    readonly objectId: string
+    readonly objectKey: string
+    readonly sha256: string
+    readonly sizeBytes: number
+  },
+): Promise<void> {
+  await queryable.insert(storedObjects).values({
+    bucket: 'fiscal',
+    companyId: input.companyId,
+    id: input.objectId,
+    mimeType: input.mimeType,
+    objectKey: input.objectKey,
+    provider: 's3',
+    purpose: 'delivery_proof',
+    sha256: input.sha256,
+    sizeBytes: BigInt(input.sizeBytes),
+    status: 'final',
+  })
 }

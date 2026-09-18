@@ -339,21 +339,21 @@ export async function listTripOccurrenceFeed(
   }
 }
 
+type OccurrenceAttachmentLocationRow = {
+  readonly bucket: string
+  readonly id: string
+  readonly mimeType: string
+  readonly objectKey: string
+}
+
 /**
- * Os anexos de uma ocorrência de parada, para a rota de presign. Ocorrência de nota não tem anexo,
- * e id que não é desta empresa devolve lista vazia — nunca 404, para não confirmar existência.
+ * Os anexos de uma ocorrência de parada, para a rota de presign. Id que não é desta empresa, ou que
+ * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência.
  */
-export async function listTripOccurrenceAttachmentLocations(
+async function listStopOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<
-  readonly {
-    readonly bucket: string
-    readonly id: string
-    readonly mimeType: string
-    readonly objectKey: string
-  }[]
-> {
+): Promise<readonly OccurrenceAttachmentLocationRow[]> {
   return queryable
     .select({
       bucket: storedObjects.bucket,
@@ -375,4 +375,47 @@ export async function listTripOccurrenceAttachmentLocations(
         eq(tripStopOccurrences.id, input.occurrenceId),
       ),
     )
+}
+
+/** Spec 156 T7b (D7 §3.5): a mesma leitura, para a foto opcional da ocorrência de nota (lote). */
+async function listDocumentOccurrenceAttachmentLocations(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly OccurrenceAttachmentLocationRow[]> {
+  return queryable
+    .select({
+      bucket: storedObjects.bucket,
+      id: tripDocumentOccurrences.id,
+      mimeType: storedObjects.mimeType,
+      objectKey: storedObjects.objectKey,
+    })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.companyId, tripDocumentOccurrences.companyId),
+        eq(storedObjects.id, tripDocumentOccurrences.attachmentObjectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+}
+
+/**
+ * A união das duas fontes de anexo (parada e nota, T7b) — um `occurrenceId` só existe numa delas,
+ * então nunca há duplicidade a desempatar.
+ */
+export async function listTripOccurrenceAttachmentLocations(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly OccurrenceAttachmentLocationRow[]> {
+  const [stopRows, documentRows] = await Promise.all([
+    listStopOccurrenceAttachmentLocations(queryable, input),
+    listDocumentOccurrenceAttachmentLocations(queryable, input),
+  ])
+  return [...stopRows, ...documentRows]
 }

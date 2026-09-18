@@ -208,34 +208,82 @@ export async function parseOfficeFieldProofRequest(request: Request): Promise<{
 }
 
 /**
- * Spec 156 T7.3 (D7): o lote de ocorrências. Sem `productCode` — no lote a ocorrência é sempre da
- * nota inteira, porque cada nota tem os seus itens. Nota repetida é engano do cliente, e recusado.
+ * Spec 156 T7.3/T7b (D7): o lote de ocorrências. Sem `productCode` — no lote a ocorrência é sempre
+ * da nota inteira, porque cada nota tem os seus itens. Nota repetida é engano do cliente, e
+ * recusado. Multipart desde a T7b: o `file` opcional é a mesma foto para as N notas (D7 §3.5,
+ * D9) — validado pelo mesmo teto e tipos do canhoto do escritório, no caso de uso.
  */
-const fieldOccurrencesSchema = z
-  .object({
-    documentIds: z
-      .array(z.uuid())
-      .min(1)
-      .max(MAX_BATCH_DOCUMENTS)
-      .refine((documentIds) => new Set(documentIds).size === documentIds.length),
-    driverId: z.uuid().optional(),
-    note: z.string().trim().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).default(''),
-    occurrenceTypeId: z.uuid(),
-  })
-  .strict()
+const fieldOccurrencesDocumentIdsSchema = z
+  .array(z.uuid())
+  .min(1)
+  .max(MAX_BATCH_DOCUMENTS)
+  .refine((documentIds) => new Set(documentIds).size === documentIds.length)
+
+const fieldOccurrencesNoteSchema = z.string().trim().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH)
+
+const FIELD_OCCURRENCES_DOCUMENT_IDS_FIELD = 'documentIds'
+const FIELD_OCCURRENCES_OCCURRENCE_TYPE_FIELD = 'occurrenceTypeId'
+const FIELD_OCCURRENCES_NOTE_FIELD = 'note'
+const FIELD_OCCURRENCES_DRIVER_ID_FIELD = 'driverId'
+const FIELD_OCCURRENCES_FILE_FIELD = 'file'
+
+export type OfficeFieldOccurrencesAttachment = {
+  readonly bytes: Uint8Array
+  readonly mimeType: string
+}
 
 export async function parseOfficeFieldOccurrencesRequest(request: Request): Promise<{
+  readonly attachment: OfficeFieldOccurrencesAttachment | null
   readonly documentIds: readonly string[]
   readonly driverId: string | undefined
   readonly note: string
   readonly occurrenceTypeId: string
 }> {
-  const body = await parseBody(fieldOccurrencesSchema, request)
+  let form: Awaited<ReturnType<Request['formData']>>
+  try {
+    form = await request.formData()
+  } catch {
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  }
+
+  const allowedFields = new Set([
+    FIELD_OCCURRENCES_DOCUMENT_IDS_FIELD,
+    FIELD_OCCURRENCES_OCCURRENCE_TYPE_FIELD,
+    FIELD_OCCURRENCES_NOTE_FIELD,
+    FIELD_OCCURRENCES_DRIVER_ID_FIELD,
+    FIELD_OCCURRENCES_FILE_FIELD,
+  ])
+  for (const key of form.keys())
+    if (!allowedFields.has(key)) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  const documentIdsRaw = form.getAll(FIELD_OCCURRENCES_DOCUMENT_IDS_FIELD)
+  if (documentIdsRaw.some((value) => typeof value !== 'string')) {
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  }
+  const documentIds = fieldOccurrencesDocumentIdsSchema.safeParse(documentIdsRaw)
+  if (!documentIds.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  const occurrenceTypeIdRaw = form.get(FIELD_OCCURRENCES_OCCURRENCE_TYPE_FIELD)
+  if (typeof occurrenceTypeIdRaw !== 'string' || !z.uuid().safeParse(occurrenceTypeIdRaw).success) {
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  }
+
+  const noteRaw = form.get(FIELD_OCCURRENCES_NOTE_FIELD)
+  if (noteRaw !== null && typeof noteRaw !== 'string') throw new ApiError(HTTP_ERROR.invalidRequest)
+  const note = fieldOccurrencesNoteSchema.safeParse((noteRaw ?? '').toString().trim())
+  if (!note.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  const file = form.get(FIELD_OCCURRENCES_FILE_FIELD)
+  if (file !== null && !(file instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
 
   return {
-    documentIds: body.documentIds,
-    driverId: body.driverId,
-    note: body.note,
-    occurrenceTypeId: body.occurrenceTypeId,
+    attachment:
+      file === null
+        ? null
+        : { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type },
+    documentIds: documentIds.data,
+    driverId: parseOptionalDriverId(form.get(FIELD_OCCURRENCES_DRIVER_ID_FIELD)),
+    note: note.data,
+    occurrenceTypeId: occurrenceTypeIdRaw,
   }
 }

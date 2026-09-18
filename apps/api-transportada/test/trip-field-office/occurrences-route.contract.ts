@@ -43,12 +43,31 @@ function context(
   }
 }
 
-function jsonRequest(input: { readonly body?: object; readonly idempotencyKey?: string }): Request {
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
+/**
+ * Spec 156 T7b: a rota do lote virou multipart (o `file` opcional é a foto, D7 §3.5/D9). Um campo
+ * `documentIds` por nota — é assim que um array chega numa `FormData`.
+ */
+function multipartRequest(input: {
+  readonly fields?: Record<string, readonly string[] | string>
+  readonly file?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  readonly idempotencyKey?: string
+}): Request {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(input.fields ?? {})) {
+    if (Array.isArray(value)) {
+      for (const item of value) form.append(key, item)
+    } else {
+      form.set(key, value as string)
+    }
+  }
+  if (input.file !== undefined) {
+    form.set('file', new File([input.file.bytes], 'foto.jpg', { type: input.file.mimeType }))
+  }
+  const headers: Record<string, string> = { 'x-forwarded-for': '203.0.113.7' }
   if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
   return new Request('http://localhost/trips/x/documents/field-occurrences', {
-    body: JSON.stringify(input.body ?? {}),
-    headers: { ...headers, 'x-forwarded-for': '203.0.113.7' },
+    body: form,
+    headers,
     method: 'POST',
   })
 }
@@ -140,8 +159,8 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
       context: context(),
       correlationId: 'c-2',
       pathParameters: { id: TRIP_ID },
-      request: jsonRequest({
-        body: { documentIds: [DOCUMENT_ID], note: ' Portão fechado ', occurrenceTypeId: TYPE_ID },
+      request: multipartRequest({
+        fields: { documentIds: [DOCUMENT_ID], note: ' Portão fechado ', occurrenceTypeId: TYPE_ID },
         idempotencyKey: 'lote-1',
       }),
     })
@@ -153,6 +172,7 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     expect(registered).toHaveLength(1)
     expect(registered[0]).toMatchObject({
       actorUserId: ACTOR_USER_ID,
+      attachment: null,
       companyId: COMPANY_ID,
       documentIds: [DOCUMENT_ID],
       idempotencyKey: 'lote-1',
@@ -172,12 +192,17 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
 
   it('POST valida o corpo na borda: vazio, mais de 50, repetido, campo a mais e sem chave → 400', async () => {
     const route = findRoute('POST')
-    const call = (body: object, idempotencyKey: string | null = 'lote-1') =>
+    const call = (
+      fields: Record<string, readonly string[] | string>,
+      idempotencyKey: string | null = 'lote-1',
+    ) =>
       route.execute({
         context: context(),
         correlationId: 'c-3',
         pathParameters: { id: TRIP_ID },
-        request: jsonRequest(idempotencyKey === null ? { body } : { body, idempotencyKey }),
+        request: multipartRequest(
+          idempotencyKey === null ? { fields } : { fields, idempotencyKey },
+        ),
       })
     const fiftyOne = Array.from({ length: 51 }, () => crypto.randomUUID())
 
@@ -194,5 +219,28 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     expect(
       await statusOf(call({ documentIds: [DOCUMENT_ID], occurrenceTypeId: TYPE_ID }, null)),
     ).toBe(400)
+  })
+
+  it('POST T7b: o `file` opcional vira o anexo do lote, e sem ele o anexo é null', async () => {
+    const { dependencies, registered } = buildDependencies()
+    const route = createTripFieldOfficeOccurrenceRoutes(dependencies).find(
+      (candidate) => candidate.method === 'POST',
+    )
+    const bytes = new Uint8Array([1, 2, 3])
+
+    const response = await route!.execute({
+      context: context(),
+      correlationId: 'c-4',
+      pathParameters: { id: TRIP_ID },
+      request: multipartRequest({
+        fields: { documentIds: [DOCUMENT_ID], occurrenceTypeId: TYPE_ID },
+        file: { bytes, mimeType: 'image/jpeg' },
+        idempotencyKey: 'lote-foto',
+      }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(registered[0]).toMatchObject({ attachment: { mimeType: 'image/jpeg' } })
+    expect((registered[0] as { attachment: { bytes: Uint8Array } }).attachment.bytes).toEqual(bytes)
   })
 })

@@ -6,7 +6,7 @@ import type { DeliveryProofView } from '../application/read-delivery-proof.use-c
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
-import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import type { TripOccurrenceWithAttachment } from '../application/register-trip-occurrence.use-case.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
@@ -355,7 +355,9 @@ type Dependencies = {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
   }
   readonly listTripOccurrences: {
-    execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
+    execute(
+      input: TenantInput<ReadDeliveryProofsRouteInput>,
+    ): Promise<readonly TripOccurrenceWithAttachment[]>
   }
   readonly listTripOccurrenceFeed: {
     execute(input: TenantInput<ListTripOccurrenceFeedInput>): Promise<TripOccurrenceFeedPage>

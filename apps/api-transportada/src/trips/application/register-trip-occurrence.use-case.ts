@@ -27,6 +27,20 @@ export type TripOccurrence = {
 }
 
 /**
+ * Spec 156 T7b: o que a leitura de ocorrências publica para o anexo — URL assinada de vida curta,
+ * pela mesma `anyPermission` da rota (D11), nunca bucket nem chave.
+ */
+export type TripOccurrenceAttachmentSummary = {
+  readonly downloadUrl: string
+  readonly expiresAt: string
+  readonly mimeType: string
+}
+
+export type TripOccurrenceWithAttachment = TripOccurrence & {
+  readonly attachment: TripOccurrenceAttachmentSummary | null
+}
+
+/**
  * O que o **registro** devolve: a ocorrência mais o e-mail pronto.
  *
  * ⚠️ O e-mail não entra em `TripOccurrence` porque a **listagem** não o tem — e não deveria ter:

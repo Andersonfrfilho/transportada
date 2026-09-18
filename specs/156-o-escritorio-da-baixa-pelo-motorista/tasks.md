@@ -67,7 +67,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       `GET …/documents/:documentId/occurrences`. Contratos: `finance` 200 nas cinco; 403 em
       `/fleet/drivers`, no feed e na geometria; `driverTaxId`/`driverEmail`/`driverPhone` nulos sem
       `fleet.read`, `driverName` presente (aceite 14). `opus`, validado com `architect`.
-- [ ] **T7b — Anexo da ocorrência em massa** (D7, decisão L3 da T7). Modelo: `sonnet`. Migration
+- [x] **T7b — Anexo da ocorrência em massa** (D7, decisão L3 da T7). Modelo: `sonnet`. Migration
       aditiva de `trip_document_occurrences.attachment_object_id`, com FK composta para
       `stored_objects` pela empresa, `snapshot.json` e `rollback.sql`. A rota `field-occurrences`
       aceita multipart com `file` opcional, validado pelo `delivery-proof.schema.ts`. Um objeto

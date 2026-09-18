@@ -1051,3 +1051,87 @@ occurrenceTypeId, note, driverId? }` e `Idempotency-Key` obrigatória. Responde 
   `Idempotency-Key` por abertura do diálogo. O 422 `OCCURRENCE_TYPE_NOT_FIELD` e o 409 com
   `details` (as notas inalcançáveis) precisam de texto na tela.
 - **T7b:** o anexo do lote (`tasks.md`).
+
+## T7b
+
+Anexo opcional da ocorrência em massa (D7 §3.5, decisão L3 da T7). A rota do lote
+(`POST /trips/:id/documents/field-occurrences`) virou multipart: `documentIds` (campos repetidos),
+`occurrenceTypeId`, `note`, `driverId?` e `file?`, validado pelo mesmo teto e tipos do canhoto do
+escritório (`delivery-proof.policy.ts`: `DELIVERY_PROOF_MAX_BYTES`, `isDeliveryProofMimeType`).
+
+**Migration aditiva:** `drizzle/20260918084711_trip_document_occurrence_attachment/` —
+`trip_document_occurrences.attachment_object_id uuid null`, com FK composta
+`(company_id, attachment_object_id)` para `stored_objects(company_id, id)`, no molde de
+`trip_stop_occurrences.attachment_object_id`. `snapshot.json` gerado por `db:generate`; `rollback.sql`
+escrito à mão (recusa se já houver linha com anexo). `purpose` reaproveitado: `delivery_proof` — é o
+mesmo tipo de fato (foto de comprovante de campo), evitando alterar o CHECK de `stored_objects` só
+para um rótulo novo.
+
+**Um objeto, N referências.** `register-office-document-occurrences.use-case.ts` ganhou
+`attachment?: OfficeOccurrenceAttachment` (`newObjectId`, `storage.store`, `upload`). O upload só
+acontece dentro de `performBatch`, **depois** de validar tipo e alcance — um lote fadado a 409/422
+nunca gasta uma chamada de armazenamento — e **antes** do laço por nota: `persistBatchAttachment`
+sobe o arquivo (`attachment.storage.store`, o mesmo `createDeliveryProofStorage` do canhoto) e grava
+`stored_objects` (`saveAttachmentObject`, status `final`) **uma vez**; o `objectId` resultante é
+passado a cada `saveDocumentOccurrence`. Segue o padrão já em produção do canhoto do escritório
+(`report-document-delivery.use-case.ts`, ADR-0067 §5 emenda: upload dentro da mesma transação do
+registro, não um lease/`pending` à parte) — o T7-design.md §3.5 listava o lease como hipótese "seria
+necessário"; a implementação reaproveitou o desenho já validado em produção em vez de introduzir um
+segundo mecanismo de upload sem uso hoje.
+
+**Idempotência do conteúdo.** `buildOccurrenceBatchOperation` (`occurrence-batch.policy.ts`) passou a
+incluir `sha256Hex(upload.bytes)` na impressão do lote — a mesma chave com outra foto (ou com foto
+onde antes não havia) é outro conteúdo, e cai no 409 `TRIP_FIELD_REPORT_KEY_REUSED` já existente,
+sem lógica nova de conflito. Reenvio com a mesma chave e a mesma foto não chama `storage.store` de
+novo (a `perform` nunca roda de novo — `recall` reconstrói pelas reservas).
+
+**Nome do objeto sem PII:** `buildOccurrenceBatchAttachmentObjectKey` —
+`tenants/<companyId>/trip-occurrence-attachments/<tripId>/<objectId>`, só ids opacos.
+
+**Leitura pela mesma `anyPermission` (D11).** `GET /trips/:id/documents/:documentId/occurrences`
+(`TRIP_FIELD_READ_POLICY`, a mesma das cinco rotas do `finance`) passou a embutir a URL assinada do
+anexo na própria resposta (`attachment: { downloadUrl, expiresAt, mimeType } | null`), reaproveitando
+`createDeliveryProofDownloadGateway` — **não** a rota genérica de anexos
+(`TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH`), que segue em `TRIP_READ_POLICY` (`fleet.read`) e deixaria
+o `finance` sem ver a própria foto. `delivery-proof-read.support.ts::listTripOccurrences` ganhou um
+`leftJoin` em `stored_objects` para isso. `listTripOccurrenceAttachmentLocations`
+(`trip-occurrence-feed.query.ts`) também passou a unir `trip_document_occurrences` — o design pedia
+isso no §3.5 ponto 3, para a rota genérica de anexos continuar servindo ocorrência de nota também
+(operador/admin, que têm `fleet.read`).
+
+**Vermelho → verde:**
+
+- `bun test ./test/driver-trip.contract.test.ts` sem o `saveAttachmentObject`/`attachment` no caso de
+  uso: falha de tipo (`Property 'saveAttachmentObject' is missing`) — TDD pelo compilador, já que a
+  mudança é de contrato de porta antes de comportamento.
+- Testes novos em `test/driver-trip/office-field-occurrences.contract.ts` (describe `T7b`): um objeto
+  só para N notas, lote sem foto grava `attachmentObjectId` nulo sem chamar o armazenamento, reenvio
+  não reenvia nem duplica, outra foto com a mesma chave → 409, foto grande demais e tipo não
+  suportado → 422 sem gastar a chave, lote inalcançável não sobe a foto.
+- `test/trip-field-office/occurrences-route.contract.ts`: a rota virou multipart (campo `documentIds`
+  repetido), incluindo o teste de que `file` vira `attachment` no caso de uso.
+- `test/integration/trip-field-office.integration.ts`: teste novo "T7b (D7 §3.5)" contra Postgres —
+  três notas com uma foto grava um `stored_objects` (`purpose: delivery_proof`, `status: final`)
+  referenciado pelas três linhas de `trip_document_occurrences`; reenvio não chama o dublê de upload
+  de novo nem duplica a linha; outra foto com a mesma chave responde
+  `TRIP_FIELD_REPORT_KEY_REUSED`. MinIO local não foi exercitado — dublê de armazenamento no molde do
+  `storage` de `wireRoutes` (mesmo usado por `field-delivery`/`field-proof` nesta suíte), registrado
+  aqui por instrução da task.
+
+**Gates:**
+
+- `bun run typecheck` (raiz) → exit 0, 0 `error TS`.
+- `bun run lint` (raiz) → exit 0, 0 erros.
+- `bunx prettier --check .` → limpo (fora do escopo: arquivos `.omc/state/*.json` pré-existentes).
+- De dentro de `apps/api-transportada`: `bun run test` → `6502 pass · 32 skip · 0 fail`, 22646
+  `expect()`, 180 arquivos (+8 em relação à T7.3).
+- `bun run db:check` → "Everything's fine". `db:generate` produziu
+  `20260918084711_trip_document_occurrence_attachment/` com `snapshot.json`; `rollback.sql` escrito à
+  mão. Migration + rollback testados: `DATABASE_URL=<...> bun --env-file=../../.env.test test
+--timeout 120000 ./test/database-migration.contract.test.ts` → `61 pass · 0 fail`, e
+  `test/database-migration/static-migration.contract.ts` atualizado com o novo diretório na lista
+  estática.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts` →
+  `16 pass · 0 fail`, 74 `expect()` (o lote da T7.3 continua verde, mais o teste novo do anexo).
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/local-identity-seed.integration.ts ./test/database-migration.contract.test.ts` →
+  `73 pass · 4 skip · 0 fail`.

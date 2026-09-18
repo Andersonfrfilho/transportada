@@ -13,6 +13,7 @@ import type { FieldReportClaim } from '../../src/trips/application/driver-field-
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import {
   registerOfficeDocumentOccurrences,
+  type OfficeOccurrenceAttachment,
   type OfficeOccurrenceBatchTransactionPort,
   type RegisterOfficeDocumentOccurrencesParams,
 } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
@@ -58,6 +59,7 @@ async function resolveTarget(): Promise<ResolvedTripFieldTarget> {
 }
 
 type SavedOccurrence = {
+  readonly attachmentObjectId: string | null
   readonly authorship: { readonly channel: string; readonly onBehalfOfDriverId: string | null }
   readonly documentId: string
   readonly id: string
@@ -65,6 +67,7 @@ type SavedOccurrence = {
 }
 
 type World = {
+  readonly attachmentUploads: { objectId: string }[]
   readonly claims: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly notified: { documentId: string; tripId: string }[]
   occurrenceType: OccurrenceTypeRecord | null
@@ -74,6 +77,7 @@ type World = {
 
 function buildWorld(): World {
   return {
+    attachmentUploads: [],
     claims: new Map(),
     notified: [],
     occurrenceType: DELIVERY_TYPE,
@@ -88,6 +92,7 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
     async execute(operation) {
       const claims = new Map(world.claims)
       const saved = [...world.saved]
+      const attachmentUploads = [...world.attachmentUploads]
       const transaction: OfficeOccurrenceBatchTransactionPort = {
         async claim(input): Promise<FieldReportClaim> {
           const existing = claims.get(input.idempotencyKey)
@@ -118,6 +123,7 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
         async saveDocumentOccurrence(input) {
           const id = crypto.randomUUID()
           saved.push({
+            attachmentObjectId: input.attachmentObjectId ?? null,
             authorship: input.authorship,
             documentId: input.documentId,
             id,
@@ -137,8 +143,12 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
           const found = saved.find((occurrence) => occurrence.id === input.occurrenceId)
           return found === undefined ? null : { documentId: found.documentId, id: found.id }
         },
+        async saveAttachmentObject(input) {
+          attachmentUploads.push({ objectId: input.objectId })
+        },
       }
       const result = await operation(transaction)
+      world.attachmentUploads.splice(0, world.attachmentUploads.length, ...attachmentUploads)
       world.claims.clear()
       for (const [key, value] of claims) world.claims.set(key, value)
       world.saved.splice(0, world.saved.length, ...saved)
@@ -189,6 +199,23 @@ function recordingNotifications(
     async readLabels() {
       return { documentLabel: 'NF 1', stopLabel: 'Centro' }
     },
+  }
+}
+
+let nextObjectId = 0
+
+/** T7b: dublê do `attachment` — `store` nunca toca o `World` fora de `saveAttachmentObject`. */
+function fakeAttachment(
+  upload: { readonly bytes: Uint8Array; readonly mimeType: string } | null,
+): OfficeOccurrenceAttachment {
+  return {
+    newObjectId: () => `object-${(nextObjectId += 1)}`,
+    storage: {
+      async store() {
+        return { sha256: 'a'.repeat(64) }
+      },
+    },
+    upload,
   }
 }
 
@@ -347,6 +374,85 @@ describe('ocorrência em massa do escritório (spec 156 D7, aceite 10)', () => {
 
     world.occurrenceType = null
     expect(await codeOf(register(world))).toBe('OCCURRENCE_TYPE_NOT_FIELD')
+  })
+})
+
+describe('T7b: o anexo opcional do lote (D7 §3.5)', () => {
+  const photo = { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' }
+
+  it('um objeto só, referenciado pelas N notas do lote', async () => {
+    const world = buildWorld()
+
+    await register(world, { attachment: fakeAttachment(photo) })
+
+    expect(world.attachmentUploads).toHaveLength(1)
+    const attachmentObjectIds = new Set(
+      world.saved.map((occurrence) => occurrence.attachmentObjectId),
+    )
+    expect(attachmentObjectIds.size).toBe(1)
+    expect([...attachmentObjectIds][0]).not.toBeNull()
+  })
+
+  it('lote sem foto grava attachmentObjectId nulo, e não chama o armazenamento', async () => {
+    const world = buildWorld()
+
+    await register(world)
+
+    expect(world.attachmentUploads).toEqual([])
+    expect(world.saved.every((occurrence) => occurrence.attachmentObjectId === null)).toBe(true)
+  })
+
+  it('reenvio da mesma chave e da mesma foto não reenvia nem duplica o objeto', async () => {
+    const world = buildWorld()
+    await register(world, { attachment: fakeAttachment(photo) })
+
+    await register(world, { attachment: fakeAttachment(photo) })
+
+    expect(world.attachmentUploads).toHaveLength(1)
+  })
+
+  it('a mesma chave com outra foto responde 409 TRIP_FIELD_REPORT_KEY_REUSED', async () => {
+    const world = buildWorld()
+    await register(world, { attachment: fakeAttachment(photo) })
+
+    const outroArquivo = { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' }
+    const code = await codeOf(register(world, { attachment: fakeAttachment(outroArquivo) }))
+
+    expect(code).toBe('TRIP_FIELD_REPORT_KEY_REUSED')
+    expect(world.attachmentUploads).toHaveLength(1)
+  })
+
+  it('foto grande demais responde 422 sem gastar a chave de idempotência', async () => {
+    const world = buildWorld()
+    const oversized = { bytes: new Uint8Array(2_000_001), mimeType: 'image/jpeg' }
+
+    const code = await codeOf(register(world, { attachment: fakeAttachment(oversized) }))
+
+    expect(code).toBe('TRIP_DELIVERY_PROOF_TOO_LARGE')
+    expect(world.claims.size).toBe(0)
+    expect(world.attachmentUploads).toEqual([])
+  })
+
+  it('tipo de arquivo não suportado responde 422', async () => {
+    const world = buildWorld()
+    const pdf = { bytes: new Uint8Array([1]), mimeType: 'application/pdf' }
+
+    expect(await codeOf(register(world, { attachment: fakeAttachment(pdf) }))).toBe(
+      'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE',
+    )
+  })
+
+  it('lote inalcançável não sobe a foto (upload só depois de tipo e alcance validarem)', async () => {
+    const world = buildWorld()
+
+    await expect(
+      register(world, {
+        attachment: fakeAttachment(photo),
+        documentIds: [...DOCUMENTS, FOREIGN_DOCUMENT],
+      }),
+    ).rejects.toBeInstanceOf(ApiError)
+
+    expect(world.attachmentUploads).toEqual([])
   })
 })
 

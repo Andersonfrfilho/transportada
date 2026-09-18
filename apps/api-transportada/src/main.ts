@@ -2575,9 +2575,15 @@ function createApplicationRoutes({
           companyId: input.companyId,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
+      /** Spec 156 T7b, D9: a mesma foto para as N notas — um `stored_objects` só, no molde do canhoto. */
       registerOccurrences: (input) =>
         registerOfficeDocumentOccurrences({
           ...input,
+          attachment: {
+            newObjectId: () => crypto.randomUUID(),
+            storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
+            upload: input.attachment,
+          },
           notifications: {
             notifier: occurrenceNotifier,
             readLabels: (query) => readOccurrenceLabels(database, query),
@@ -2627,13 +2633,39 @@ function createApplicationRoutes({
             },
           }),
       },
+      /**
+       * Spec 156 T7b: mesma `anyPermission` da leitura de ocorrências (D11) — o anexo do lote sai
+       * por URL assinada nesta resposta, sem uma segunda rota com política diferente.
+       */
       listTripOccurrences: {
-        execute: (input) =>
-          listTripOccurrences(database, {
+        execute: async (input) => {
+          const occurrences = await listTripOccurrences(database, {
             companyId: input.context.companyId,
             documentId: input.documentId,
             tripId: input.tripId,
-          }),
+          })
+          const downloads = createDeliveryProofDownloadGateway({ storage: storageGateway })
+
+          return Promise.all(
+            occurrences.map(async ({ attachment, ...occurrence }) => ({
+              ...occurrence,
+              attachment:
+                attachment === null
+                  ? null
+                  : await downloads
+                      .createDownloadUrl({
+                        bucket: attachment.bucket,
+                        fileName: `ocorrencia-${occurrence.id}`,
+                        objectKey: attachment.objectKey,
+                      })
+                      .then((download) => ({
+                        downloadUrl: download.url,
+                        expiresAt: download.expiresAt,
+                        mimeType: attachment.mimeType,
+                      })),
+            })),
+          )
+        },
       },
       listTripOccurrenceFeed: createListTripOccurrenceFeedUseCase({
         reader: {
