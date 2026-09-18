@@ -164,11 +164,20 @@ Frontend 245 pass · 0 fail · Ran 245 tests across 2 files
 - `bun run --cwd apps/frontend-transportada test` → exit 0, `4237 pass`, `0 fail`, 29 arquivos.
 - `prettier --check` nos arquivos tocados → limpo.
 
+### Validação do architect
+
+Validação do architect: APROVADO COM RESSALVAS — emendas aplicadas em `608c3d0e` (ADR-0067,
+spec, plan e tasks: baixa repetida com `DOCUMENT_ALREADY_SETTLED` e rota `field-proof`, vários
+motoristas com `DRIVER_NOT_ON_TRIP`, "Revisa: ADR-0058 §4", despacho por
+`trip_dispatch_snapshots.dispatched_at`, D8 como exceção à ADR-0057 §1, idempotência `office.` com
+`IDEMPOTENCY_KEY_REUSED`, 404 entre empresas com FK composta, leitura do `finance` por `anyPermission`
+em cinco rotas, T7 promovida a 🧠, T15 ampliada).
+
 ### Achados para as próximas tasks
 
 - ⚠️ **O `finance` recebe a permissão, mas não abre a viagem.** `GET /trips/:id` é `fleet.read`
-  (`TRIP_READ_POLICY` em `trip.routes.ts`), e o `finance` não tem `fleet.read`. Isso precisa de
-  decisão antes da T8. Registrado na ADR-0067, em Consequências.
+  (`TRIP_READ_POLICY` em `trip.routes.ts`), e o `finance` não tem `fleet.read`. Decidido na emenda:
+  `anyPermission` em cinco leituras (spec D11, T7).
 - ⚠️ **`recorded_at` não existe hoje.** A spec diz que a hora da gravação "continua gravada à parte",
   mas nas tabelas de campo só existe `occurred_at defaultNow()`. A ADR registra que a coluna é
   criada pela migration de autoria (T4).
