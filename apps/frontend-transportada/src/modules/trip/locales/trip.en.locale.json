@@ -96,7 +96,9 @@
       },
       "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
       "tariff": " · tariff from {{month}}",
-      "withoutCharge": "{{count}} booths without a known tariff"
+      "withoutCharge": "{{count}} booths without a known tariff",
+      "withoutCharge_one": "{{count}} booth without a known tariff",
+      "withoutCharge_zero": "{{count}} booths without a known tariff"
     },
     "totalAmount": "Invoice value: {{amount}}",
     "totalFreight": "Forecast freight: {{amount}}",

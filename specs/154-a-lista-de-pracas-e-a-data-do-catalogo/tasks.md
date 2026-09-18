@@ -73,6 +73,10 @@ Cada task: contrato vermelho → implementação → `bun run typecheck` + `bun 
 - [x] T506 Revisão do `web.md` §15 nas três telas (aba de pedágio, bloco de recarga, atalho da rota)
       contra as vizinhas, com prints desktop/celular e medição de alvo de toque, foco e contraste;
       consertos na mesma tarefa e pendências com motivo em `evidence.md`.
+- [x] T507 As quatro pendências da T506: tarifa com 2 a 4 casas na aba de pedágio, alvo de toque de
+      44px no calendário do campo de data da Frota, diálogos modais em tela cheia no celular (os 5 pares
+      fora do molde) e o plural de "praças sem tarifa conhecida" na rota — um commit por item, teste
+      antes, prints antes/depois em `evidence.md`.
 
 ## Parar e perguntar
 

@@ -2426,3 +2426,53 @@ Gates: exit 0 — contratos **4434 pass / 0 fail**, `test:hooks` **14 pass / 0 f
 Prints (página inteira, antes/depois, celular e desktop):
 `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/{before,after}-{mobile,desktop}-dialog-01-toll-reload.png`, `…-dialog-02-multi-vehicle.png`,
 `…-dialog-03-billing-bulk-cancel.png`.
+
+#### Item 4 — "1 praças sem tarifa conhecida" no resumo da rota (#19 da T506)
+
+`assemblyMap.toll.withoutCharge` (texto da spec 090) só tinha a forma plural. Ganhou `_one` e
+`_zero` em `trip.locale.json` e `trip.en.locale.json` — o `RouteTollSummary` já passava
+`count`, então o componente não mudou. O `_zero` existe porque a regra CLDR do português põe o 0 em
+`one` ("0 praça"); no resumo a linha nem aparece com 0, mas a chave fica certa para quem a reusar.
+
+Teste novo `test/trip/route-toll-without-charge-plural.contract.tsx` (registrado em
+`test/trip.contract.test.ts`): `t()` real em pt-BR e en para 0, 1 e 2 praças; o resumo
+renderizado com 1 e 2 praças desconhecidas; e com 0 a linha não sai.
+
+```
+$ bun test ./test/trip/route-toll-without-charge-plural.contract.tsx     # antes do conserto
+(fail) … > pt-BR: 1 vira "1 praça sem tarifa conhecida"     Received: "1 praças sem tarifa conhecida"
+(fail) … > en: 1 vira "1 booth without a known tariff"       Received: "1 booths without a known tariff"
+(fail) … > o resumo renderizado conta uma praça no singular e duas no plural
+ 5 pass
+ 3 fail
+$ bun test ./test/trip/route-toll-without-charge-plural.contract.tsx     # depois
+ 8 pass
+ 0 fail
+```
+
+(Com só o `_one` o caso 0 em pt-BR caiu para "0 praça sem tarifa conhecida" — foi o teste que
+mostrou a regra do CLDR e trouxe o `_zero`.)
+
+**Smoke:** `responsive.smoke.spec.ts` ("a montagem de viagem mostra o pedágio calculado…") passa a
+conferir `'1 praça sem tarifa conhecida'` com `exact: true` **e** que `'1 praças sem tarifa
+conhecida'` não aparece — mais apertado que antes, não mais frouxo. Rodado contra o build com
+`VITE_SMOKE_AUTH_BYPASS=true` no `vite preview`: **1 passed**.
+
+Gates: exit 0 — contratos **4442 pass / 0 fail**, `test:hooks` **14 pass / 0 fail**, build ✓.
+
+Print: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/{before,after}-{desktop,mobile}-route-toll-summary.png` — texto medido antes
+"1 praças sem tarifa conhecida", depois "1 praça sem tarifa conhecida".
+
+**Observação:** a linha de cima do mesmo resumo, `assemblyMap.toll.summary` ("… — {{boothCount}}
+praças, …"), tem o mesmo defeito numa rota com uma praça só ("1 praças"): a contagem entra como
+`boothCount`, não `count`, e por isso não pluraliza. Fora do escopo do item; fica registrada.
+
+#### Prints do item 1 e fechamento
+
+Aba de pedágio depois dos quatro itens (tarifa "R$ 14,70"/"R$ 13,96", calendário com 44px):
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/after-{desktop,mobile}-toll-01-full-list.png` … `-toll-06-search-empty.png`; o
+"antes" é o "depois" da T506, `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/after-{desktop,mobile}-01-full-list.png` ("R$ 14,7000").
+Medições: `/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-quirky-ptolemy-d856cd/bc214853-8c6a-4572-a20d-0041087981f5/scratchpad/review/shots/t507/before-report.json` e `after-report.json`.
+
+Commits: item 1 `8b6f2628`, item 2 `9955a9aa`, item 3 `283ccd82`, item 4 no commit desta seção.
+Nenhum código da API foi tocado.

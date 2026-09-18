@@ -123,7 +123,9 @@
       "statementWithoutCharge": "tarifa não conhecida — fora da soma",
       "summary": "Pedágio: {{total}} — {{boothCount}} praças, {{chargePerAxle}} de tarifa base × {{multiplier}}",
       "tariff": " · tarifa de {{month}}",
-      "withoutCharge": "{{count}} praças sem tarifa conhecida"
+      "withoutCharge": "{{count}} praças sem tarifa conhecida",
+      "withoutCharge_one": "{{count}} praça sem tarifa conhecida",
+      "withoutCharge_zero": "{{count}} praças sem tarifa conhecida"
     },
     "totalAmount": "Valor das notas: {{amount}}",
     "totalFreight": "Frete previsto: {{amount}}",

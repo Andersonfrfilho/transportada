@@ -1009,8 +1009,12 @@ test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem 
   /** ⚠️ A marca de estimativa nunca fica atrás de segunda condição — mesma trava da ocupação. */
   await expect(dialog.getByText('eixo estimado')).toBeVisible()
   await expect(dialog.getByText('Base: tarifa manual')).toBeVisible()
-  /** ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê. */
-  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toBeVisible()
+  /**
+   * ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê,
+   * no singular quando é uma só (spec 154 T507: "1 praças" era o texto da spec 090).
+   */
+  await expect(dialog.getByText('1 praça sem tarifa conhecida', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toHaveCount(0)
 
   /** Rota única: D2 proíbe o seletor — ofertar escolha onde não há uma ensina o operador errado. */
   await expect(dialog.getByText('Rotas alternativas')).toHaveCount(0)
