@@ -51,7 +51,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5 — `trip-timeline.query.ts`** (D5, D6, aceites 3, 5, 7, 8). Uma função por fonte, junções
+- [x] **T5 — `trip-timeline.query.ts`** (D5, D6, aceites 3, 5, 7, 8). Uma função por fonte, junções
       de ator/motorista no molde do feed, `mergeTripTimeline` com cursor. Contrato estático de tenant
       estendido a este arquivo; unitário do merge (empate e cursor); integração com 250 eventos e
       medição de p95. Ordem do D8 (empate entre chegada e troca de status no mesmo `now`) e o

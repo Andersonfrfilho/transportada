@@ -388,3 +388,87 @@ Depois dos dois fixes, os mesmos arquivos passam.
     mesmos 18 pré-existentes e alheios a este PR que a T3 documentou (398 pass, 18 fail antes; os 2
     pass a mais são as duas suítes de lote novas). Nenhuma das 18 falhas toca `trips`,
     `trip_status_events`, `trip_document_events` ou qualquer arquivo desta task.
+
+## T5
+
+### Arquivos
+
+- `src/trips/application/trip-timeline.types.ts` (novo): `TRIP_TIMELINE_KINDS` (os oito `kind`s do
+  D5), `TRIP_TIMELINE_KIND_PRIORITY` (o desempate do D8), `TripTimelineItem` (D6), `TripTimelineCursor`,
+  `ReadTripTimelineParams`/`ReadTripTimelineResult`.
+- `src/trips/infrastructure/trip-timeline.query.ts` (novo): seis consultas (D5 — `trip_stop_events`
+  cobre três `kind`s num `select` só, por `kind`), `mergeTripTimeline` (pura, exportada),
+  `parseTripTimelineCursor`/`encodeTripTimelineCursor` e `listTripTimeline` (orquestra as seis com
+  `Promise.all`).
+- `test/trip-application/trip-timeline-merge.contract.ts` (novo): unitário de `mergeTripTimeline` e
+  do cursor. Import adicionado a `test/trip-application.contract.test.ts`.
+- `test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` (novo, irmão do contrato do feed
+  de ocorrências): lê a fonte e reprova junção sem `company_id`. Import adicionado a
+  `test/trip-schema.contract.test.ts`.
+- `test/integration/trip-timeline.integration.ts` (novo), listado em `test:integration` do
+  `package.json` (ao lado de `trip-field-office.integration.ts`).
+
+### Decisões
+
+- **Prioridade dos `kind`s (D8), do menor para o maior — menor aparece mais acima na lista
+  `occurredAt desc`:** `stop.arrived`(0) < `document.delivered`(1) < `document.returned`(2) <
+  `trip.dispatched`(3) < `trip.status_changed`(4) < `stop.occurrence`(5) < `document.occurrence`(6)
+  < `document.status_changed`(7). A regra do D8 só amarra duas relações de causa/efeito (chegada
+  antes da troca de status que ela provoca; entrega antes da conclusão) — as demais posições seguem
+  a ordem em que a própria tabela do D5 lista as fontes, por não haver relação de causa entre elas.
+  `trip.dispatched` entrou antes de `trip.status_changed` pelo mesmo raciocínio de causa/efeito (o
+  despacho é o evento específico; a troca de status é o efeito genérico), embora o D8 não cite esse
+  par por extenso.
+- **O parse do cursor (`parseTripTimelineCursor`/`encodeTripTimelineCursor`) fica na infraestrutura
+  (`trip-timeline.query.ts`), não na T6.** É base64url de JSON tipado (`{id, kindPriority,
+occurredAt}`), simétrico ao par `encode/decodeKeysetCursor` do feed de ocorrências, mas com uma
+  chave a mais porque o desempate desta leitura tem três níveis, não dois (D8). `parseTripTimelineCursor`
+  nunca lança — cursor malformado devolve `null` — porque é o formato interno que
+  `listTripTimeline` consome; a validação Zod da T6 é sobre o parâmetro de querystring em si
+  (presença, tipo string), e chama este mesmo parser depois.
+- **`document.number`/`document.series` são anuláveis**, no molde de
+  `TripOccurrenceFeedItem.invoiceNumber/invoiceSeries`: `trip_documents.nfe_document_id` é anulável
+  (o vínculo pode ser só de `freight_calculation_id`, sem NF-e importada ainda — `trip_documents_entity_xor_check`),
+  então a junção com `nfe_documents` é sempre `leftJoin`.
+- **`stop.occurrence` e `document.occurrence` nunca têm `recordedAt`**: as duas tabelas não têm
+  coluna `recorded_at` própria (comentário do schema em `trip_stop_occurrences`/
+  `trip_document_occurrences` — `created_at` já é "quando foi contada ao sistema" para os três
+  canais). Só `trip_status_events`, `trip_stop_events` e `trip_document_events` passam pelo cálculo
+  de `resolveRecordedAt` (D6: `channel = 'office'` e diferença > 60 s).
+- **`trip.dispatched` sai sempre com `channel: null` e `onBehalfOfDriverName: null`**:
+  `trip_dispatch_snapshots` não tem coluna de canal nem de motorista em nome de quem (só
+  `actor_user_id`) — confirmado no schema antes de escrever a consulta, não assumido.
+- **`returnReason` só é lido para `kind = 'returned'`** de `trip_stop_events`, buscado em
+  `trip_documents.return_reason` pelo mesmo `leftJoin` que já traz o número/série da nota — sem
+  consulta extra.
+- **Nomes de nota vêm de `trip_documents → nfe_documents`** (`number`/`series`), o mesmo caminho do
+  feed de ocorrências — confirmado no schema (`nfe.schema.ts:274-275`) em vez de assumido.
+
+### TDD
+
+O unitário de `mergeTripTimeline` (`test/trip-application/trip-timeline-merge.contract.ts`) e o
+contrato estático de tenant (`test/trip-schema/trip-timeline-query-tenant-safety.contract.ts`) foram
+escritos junto com a implementação, iterando sobre os dois: a primeira versão do teste de ordem
+tinha a expectativa errada (invertia a prioridade de duas fontes), e a primeira versão do teste de
+paginação de 250 itens comparava o cursor com o sinal trocado — os dois só ficaram verdes depois de
+corrigidos os testes, não a implementação (`mergeTripTimeline` já ordenava corretamente; o defeito
+era do fixture do teste). A integração (`test/integration/trip-timeline.integration.ts`) foi escrita
+depois de `listTripTimeline` existir, porque o cenário depende do schema completo (seis tabelas,
+FKs compostas) — escrevê-la antes exigiria simular o schema à mão sem ganho de sinal.
+
+### Comandos e contagens
+
+- `bun run typecheck` — sem erros.
+- `bun run lint` (`--max-warnings=0`) — sem erros/avisos.
+- `bunx prettier --check` nos arquivos alterados — todos conformes.
+- `bun test ./test/trip-application/trip-timeline-merge.contract.ts ./test/trip-schema/trip-timeline-query-tenant-safety.contract.ts`:
+  **15 pass, 0 fail**.
+- De dentro de `apps/api-transportada`, `bun --env-file=../../.env.test test --timeout 120000`:
+  **6545 pass, 23 skip, 9 fail** — as mesmas 9 falhas pré-existentes de
+  `toll-booth-catalog-repository` (`ERR_POSTGRES_CONNECTION_CLOSED`, arquivo não tocado).
+- Integração (Postgres nativo descartável em 127.0.0.1:65434,
+  `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres`):
+  `bun ... test ./test/integration/trip-timeline.integration.ts --timeout 120000`: **7 pass, 0
+  fail**. p95 medido (50 notas, 80 `trip_document_events` + 120 `trip_document_occurrences` = 200
+  eventos, 20 amostras): **2,84 ms** — bem abaixo do teto de 300 ms do RNF2 (ambiente local; sem
+  rede até o banco).
