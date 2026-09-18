@@ -415,6 +415,29 @@ describe('a gravação do status é compare-and-set (spec 156 T3, R2)', () => {
     ])
   })
 
+  /**
+   * Spec 156 T15: as três voltas esgotadas sem gravar não são "nada mudou" — o toque não aconteceu,
+   * e `changed: false` mentia para quem clicou. 409 com código próprio, sem gravar.
+   */
+  it('esgotou as tentativas sem gravar: 409 TRIP_STATUS_WRITE_CONFLICT', async () => {
+    const world = buildStartRepository({
+      rereadStatus: 'dispatched',
+      updates: [false, false, false, false],
+    })
+
+    await expectApiError(
+      startFieldTrip({
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        repository: world.repository,
+        step: 'confirmLoad',
+        target: await resolveTarget('dispatched'),
+      }),
+      'TRIP_STATUS_WRITE_CONFLICT',
+    )
+    expect(world.updates).toHaveLength(3)
+  })
+
   it('a viagem sumiu entre a leitura e a gravação: TRIP_NOT_FOUND', async () => {
     const world = buildStartRepository({ updates: [false] })
 

@@ -5,6 +5,7 @@ import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import { TripStatusWriteConflictError } from '../domain/trip-field-office.error.js'
 import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
 import {
   buildOfficeAuditEntry,
@@ -124,9 +125,12 @@ async function applyFieldStep(params: ApplyFieldStepParams): Promise<StartFieldT
   if (transition.outcome === 'blocked') {
     throw new TripStateTransitionNotAllowedError(transition.reason)
   }
-  if (transition.outcome === 'unchanged' || params.attemptsLeft === 0) {
-    return { changed: false, tripId, tripStatus }
-  }
+  if (transition.outcome === 'unchanged') return { changed: false, tripId, tripStatus }
+  /**
+   * Spec 156 T15: esgotar as voltas sem gravar não é "nada mudou" — o toque não aconteceu, e
+   * `changed: false` diria a quem clicou que estava tudo certo.
+   */
+  if (params.attemptsLeft === 0) throw new TripStatusWriteConflictError()
 
   const authorship = deriveFieldAuthorship(input)
   const audit = buildOfficeAuditEntry({

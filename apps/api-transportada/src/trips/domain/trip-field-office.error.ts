@@ -77,3 +77,17 @@ export class TripDeliveryProofAlreadyCapturedError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 156 T15: conferir a carga ou iniciar o trajeto perdeu a corrida de gravação em todas as
+ * voltas (`startFieldTrip`). O toque não aconteceu — a tela pede para tentar de novo.
+ */
+export class TripStatusWriteConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_STATUS_WRITE_CONFLICT',
+      message: 'The trip status changed concurrently. Try again.',
+      status: 409,
+    })
+  }
+}
