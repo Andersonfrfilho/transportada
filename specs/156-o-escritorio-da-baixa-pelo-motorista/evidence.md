@@ -774,6 +774,7 @@ Decisões do líder:
 - `POST /trips/:id/documents/:documentId/occurrences` (`trip.manage`) aceita tipo de etapa de rua.
   `registerTripOccurrence` não confere a etapa, e a guarda descrita em `occurrence.policy.ts` não
   está ligada à rota.
+- Os dois últimos foram resolvidos na spec 157 (`specs/157-tipos-de-ocorrencia-por-etapa/`).
 
 ### T7.1 — `anyPermission` e o recorte do motorista
 

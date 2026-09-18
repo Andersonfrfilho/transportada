@@ -16,6 +16,7 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
@@ -66,6 +67,11 @@ const TRIP_MANIFEST_DAMDFE_PATH = `${TRIP_MANIFEST_PATH}/damdfe`
  * — e o recorte é o vínculo (`trip_drivers`), nunca permissão nova.
  */
 const TRIP_DISPATCH_PATH = `${API_ME_CURRENT_TRIP_PATH}/dispatch`
+/**
+ * Spec 157: os tipos de rua que o motorista escolhe. A lista da configuração é `settings.manage` e
+ * carrega os modelos de e-mail — ele recebia 403 ali, e o seletor ficava vazio em silêncio.
+ */
+const OCCURRENCE_TYPES_PATH = `${API_ME_CURRENT_TRIP_PATH}/occurrence-types`
 
 /**
  * `trip.read` lê a viagem própria e `trip.report` reporta o que aconteceu na rua. Nenhum dos dois é
@@ -90,6 +96,10 @@ export type MeTripDependencies = {
     readonly companyId: string
     readonly membershipId: string
   }) => Promise<FindCurrentDriverTripResult>
+  /** Só `id` e `name` dos tipos ativos de etapa `delivery` — a projeção da L2 da spec 156. */
+  readonly listFieldOccurrenceTypes: (input: {
+    readonly companyId: string
+  }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
     input: DriverActionInput & { readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
@@ -451,6 +461,20 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_OCCURRENCE_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        await resolveDriver(context.scope)
+        const types = await dependencies.listFieldOccurrenceTypes({
+          companyId: context.scope.companyId,
+        })
+
+        return jsonResponse({ body: { data: types }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPES_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{

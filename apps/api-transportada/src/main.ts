@@ -2470,6 +2470,12 @@ function createApplicationRoutes({
             }),
           linkage: currentDriverTripRepository,
         }),
+      /** Spec 157: a mesma projeção da lista do escritório (L2 da spec 156) — só rua, só id e nome. */
+      listFieldOccurrenceTypes: (input) =>
+        listFieldOccurrenceTypes({
+          companyId: input.companyId,
+          repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
+        }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
       readManifestXml: (input) => readMdfeDocument.readXmlDownload(input),

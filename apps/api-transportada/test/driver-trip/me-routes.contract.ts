@@ -9,6 +9,7 @@ import type {
   AuthenticatedContext,
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
+import { DriverNotRegisteredError } from '../../src/trips/domain/trip.error.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
 
@@ -21,6 +22,7 @@ const meRoutes = createMeTripRoutes({
   dispatchCurrentTrip: NOT_CALLED,
   registerDriverOccurrence: NOT_CALLED,
   findCurrentTrip: NOT_CALLED,
+  listFieldOccurrenceTypes: NOT_CALLED,
   reportArrival: NOT_CALLED,
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
@@ -139,5 +141,81 @@ describe('os dois toques que começam a viagem (ADR-0058)', () => {
     )) {
       expect(route.policy).toEqual({ permission: 'trip.report', scope: 'company' })
     }
+  })
+})
+
+/**
+ * Spec 157 RF1: o motorista lista os tipos de rua sem `settings.manage`. A rota de configuração
+ * carrega os modelos de e-mail e respondia 403 a ele — o seletor ficava vazio em silêncio.
+ */
+describe('os tipos de ocorrência do motorista (spec 157)', () => {
+  const PATH = '/me/trips/current/occurrence-types'
+  const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
+
+  function request() {
+    return {
+      context: companyContext(['driver']),
+      correlationId: 'c-1',
+      pathParameters: {},
+      request: new Request(`http://localhost${PATH}`),
+    }
+  }
+
+  function buildRoutes(input: { readonly driverId: string | null }) {
+    const asked: string[] = []
+    const routes = createMeTripRoutes({
+      attachProof: NOT_CALLED,
+      dispatchCurrentTrip: NOT_CALLED,
+      findCurrentTrip: NOT_CALLED,
+      listFieldOccurrenceTypes: async ({ companyId }) => {
+        asked.push(companyId)
+        return [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }]
+      },
+      readManifestXml: NOT_CALLED,
+      registerDriverOccurrence: NOT_CALLED,
+      renderManifestDamdfe: NOT_CALLED,
+      reportArrival: NOT_CALLED,
+      reportDelivery: NOT_CALLED,
+      reportOccurrence: NOT_CALLED,
+      reportReturn: NOT_CALLED,
+      resolveDriverId: async () => input.driverId,
+      startFieldTrip: NOT_CALLED,
+    })
+    const route = routes.find(
+      (candidate) => candidate.method === 'GET' && candidate.pathname === PATH,
+    )
+    return { asked, route }
+  }
+
+  it('existe na árvore do motorista, pede trip.report, e o papel driver a alcança', () => {
+    const { route } = buildRoutes({ driverId: 'driver' })
+
+    expect(route?.policy).toEqual({ permission: 'trip.report', scope: 'company' })
+    expect(() =>
+      new AuthorizationService().authorize(companyContext(['driver']), route?.policy),
+    ).not.toThrow()
+  })
+
+  it('devolve só id e nome, com a empresa do token', async () => {
+    const { asked, route } = buildRoutes({ driverId: 'driver' })
+
+    const response = await route?.execute(request())
+
+    expect(response?.status).toBe(200)
+    expect(await response?.json()).toEqual({
+      data: [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }],
+    })
+    expect(asked).toEqual([COMPANY_ID])
+  })
+
+  it('conta sem cadastro de motorista recebe o mesmo erro das outras rotas /me', async () => {
+    const { asked, route } = buildRoutes({ driverId: null })
+
+    const error = await Promise.resolve(route?.execute(request())).catch(
+      (caught: unknown) => caught,
+    )
+
+    expect(error).toBeInstanceOf(DriverNotRegisteredError)
+    expect(asked).toEqual([])
   })
 })
