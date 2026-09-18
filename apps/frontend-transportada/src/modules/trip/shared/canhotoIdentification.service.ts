@@ -65,6 +65,11 @@ export function parseNfeAccessKeyFromBarcode(candidate: string): ParsedNfeAccess
 
 /** Nota da viagem só com o que a classificação precisa — nunca o `TripDocumentDetail` inteiro. */
 export type CanhotoTripDocument = Readonly<{
+  /**
+   * A chave inteira, quando quem monta a lista a tem. Número e série não bastam: dois emitentes
+   * numeram cada um a sua série, e a mesma viagem pode levar `77777/1` de dois fornecedores.
+   */
+  accessKey?: null | string
   id: string
   nfeNumber?: null | string
   nfeSeries?: null | string
@@ -75,15 +80,32 @@ function normalizeDigits(value: null | string | undefined): string {
   return trimmed === '' ? '' : String(Number(trimmed))
 }
 
+type AccessKeyLookup =
+  | Readonly<{ document: CanhotoTripDocument; kind: 'found' }>
+  | Readonly<{ kind: 'ambiguous' }>
+  | Readonly<{ kind: 'absent' }>
+
+/**
+ * A chave inteira decide quando a nota a traz. Sem ela, número e série só identificam se houver
+ * **uma** candidata — nota que traz outra chave já está descartada, e mais de uma candidata é
+ * leitura inconclusiva, nunca a primeira da lista.
+ */
 function findDocumentByAccessKey(
   documents: readonly CanhotoTripDocument[],
-  parsed: ParsedNfeAccessKey,
-): CanhotoTripDocument | undefined {
-  return documents.find(
+  input: Readonly<{ accessKey: string; parsed: ParsedNfeAccessKey }>,
+): AccessKeyLookup {
+  const byKey = documents.find((document) => document.accessKey === input.accessKey)
+  if (byKey !== undefined) return { document: byKey, kind: 'found' }
+
+  const candidates = documents.filter(
     (document) =>
-      normalizeDigits(document.nfeNumber) === parsed.number &&
-      normalizeDigits(document.nfeSeries) === parsed.series,
+      (document.accessKey ?? '') === '' &&
+      normalizeDigits(document.nfeNumber) === input.parsed.number &&
+      normalizeDigits(document.nfeSeries) === input.parsed.series,
   )
+  const [only] = candidates
+  if (only === undefined) return { kind: 'absent' }
+  return candidates.length === 1 ? { document: only, kind: 'found' } : { kind: 'ambiguous' }
 }
 
 /** Mesmo rótulo "número/série" da listagem (`tripDocumentLabel`) — a nota fora da viagem não tem
@@ -129,9 +151,12 @@ export function classifyCanhotoDocument({
   const parsed = candidate === '' ? undefined : parseNfeAccessKeyFromBarcode(candidate)
   if (parsed === undefined) return { status: 'unreadable' }
 
-  const document = findDocumentByAccessKey(tripDocuments, parsed)
-  if (document === undefined)
+  const lookup = findDocumentByAccessKey(tripDocuments, { accessKey: candidate, parsed })
+  if (lookup.kind === 'ambiguous') return { status: 'unreadable' }
+  if (lookup.kind === 'absent') {
     return { documentLabel: formatAccessKeyLabel(parsed), status: 'notOnTrip' }
+  }
+  const document = lookup.document
   if (document.id === expectedDocumentId) return { documentId: document.id, status: 'matched' }
   if (selectedDocumentIds.includes(document.id)) {
     return { documentId: document.id, status: 'otherSelected' }
