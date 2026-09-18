@@ -34,7 +34,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       livre em `origin/staging`). Registra D1, D3, D4 e D6. Ao fechar, acrescenta
       `trip.report-on-behalf` em `authorization.policy.ts` para `admin`, `operator` e `finance`
       (D1 confirmada) e o contrato negativo para `separator`, `driver` e `viewer`.
-- [ ] **T3 🧠 — `FieldTripTarget` nas portas de campo.** Refatora `start-field-trip`,
+- [x] **T3 🧠 — `FieldTripTarget` nas portas de campo.** Refatora `start-field-trip`,
       `report-document-delivery`, `attach-delivery-proof`, `register-driver-occurrence` e
       `report-stop-occurrence`, junto com os repositórios, para receber o alvo. Gate: os contratos de
       `/me/trips` e do WhatsApp rodam verdes **sem edição**. Contratos novos: alvo `trip` de outra

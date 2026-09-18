@@ -118,17 +118,44 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     return record === undefined ? null : { tripId: record.tripId, tripStatus: record.status }
   }
 
-  /** O `where` leva `company_id` junto do id: viagem de outra empresa é ausência, nunca escrita. */
+  public async readStatus(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<TripStatus | null> {
+    const [record] = await this.database
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+
+    return record?.status ?? null
+  }
+
+  /**
+   * O `where` leva `company_id` junto do id: viagem de outra empresa é ausência, nunca escrita. E
+   * leva o status que a decisão leu (compare-and-set): a viagem que concluiu entre a leitura e a
+   * gravação não regride para `in_transit`.
+   */
   public async updateStatus(input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly expectedStatus: TripStatus
     readonly tripId: string
     readonly tripStatus: TripStatus
-  }): Promise<void> {
-    await this.database
+  }): Promise<boolean> {
+    const updated = await this.database
       .update(trips)
       .set({ status: input.tripStatus })
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.id, input.tripId),
+          eq(trips.status, input.expectedStatus),
+        ),
+      )
+      .returning({ id: trips.id })
+
+    return updated.length > 0
   }
 
   public async listActiveTrips(input: {

@@ -16,16 +16,16 @@ import type {
   DriverFieldReportUnitOfWork,
   ReportedLocation,
 } from './driver-field-report.port.js'
+import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const DELIVER_OPERATION = 'document.deliver'
 const RETURN_OPERATION = 'document.return'
 
-export type ReportDocumentOutcomeInput = {
+export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
   readonly documentId: string
-  readonly driverId: string
   readonly idempotencyKey: string
   readonly location: ReportedLocation | null
   readonly now: Date
@@ -119,7 +119,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         const document = await transaction.findDocumentForDriver({
           companyId: input.companyId,
           documentId: input.documentId,
-          driverId: input.driverId,
+          target: toFieldTripTarget(input),
         })
         /**
          * Confirmação enfileirada de uma nota que o escritório desvinculou. O código é estável e a

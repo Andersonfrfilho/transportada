@@ -14,16 +14,17 @@ import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDeliveryProofs,
   tripDocuments,
-  tripDrivers,
   tripStopEvents,
   trips,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
+import type { FieldTripTarget } from '../application/field-trip-target.types.js'
 import {
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -41,14 +42,15 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public constructor(private readonly database: Database) {}
 
   /**
-   * O comprovante prende no **evento de entrega deste motorista**, não na nota: é o que separa "o
-   * canhoto desta entrega" de "um arquivo qualquer ligado a uma nota". A viagem já concluída entra
-   * na lista de propósito — o motorista fotografa o canhoto depois de fechar a última parada.
+   * O comprovante prende no **evento de entrega da viagem do alvo** (o motorista logado, ou a viagem
+   * que o escritório resolveu — spec 156), não na nota: é o que separa "o canhoto desta entrega" de
+   * "um arquivo qualquer ligado a uma nota". A viagem já concluída entra na lista de propósito — o
+   * motorista fotografa o canhoto depois de fechar a última parada.
    */
   public async findDeliveryEventId(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<string | null> {
     const [record] = await this.database
       .select({ id: tripStopEvents.id })
@@ -64,16 +66,12 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         trips,
         and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
       )
-      .innerJoin(
-        tripDrivers,
-        and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-      )
       .where(
         and(
           eq(tripStopEvents.companyId, input.companyId),
           eq(tripStopEvents.tripDocumentId, input.documentId),
           eq(tripStopEvents.kind, 'delivered'),
-          eq(tripDrivers.driverId, input.driverId),
+          fieldTripTargetCondition(input.target),
           inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
         ),
       )

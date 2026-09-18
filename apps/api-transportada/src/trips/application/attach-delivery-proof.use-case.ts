@@ -19,6 +19,11 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import {
+  toFieldTripTarget,
+  type FieldTripLocator,
+  type FieldTripTarget,
+} from './field-trip-target.types.js'
 
 export type DeliveryProofUpload = {
   /**
@@ -50,11 +55,11 @@ export type DeliveryProofStoragePort = {
 }
 
 export type DeliveryProofPort = {
-  /** `null` quando a nota não é de uma viagem ativa deste motorista, ou não foi entregue por ele. */
+  /** `null` quando a nota não é da viagem do alvo, ou não tem entrega registrada nela. */
   findDeliveryEventId(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<string | null>
   /**
    * ADR-0057 §1: a configuração resolvida (geral + exceção pelo CNPJ do destinatário da nota).
@@ -89,11 +94,10 @@ export type DeliveryProofPort = {
   }): Promise<{ readonly id: string }>
 }
 
-export type AttachDeliveryProofInput = {
+export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
   readonly documentId: string
-  readonly driverId: string
   readonly newObjectId: () => string
   readonly newProofId: () => string
   readonly repository: DeliveryProofPort
@@ -141,7 +145,7 @@ export async function attachDeliveryProof(
   const eventId = await input.repository.findDeliveryEventId({
     companyId: input.companyId,
     documentId: input.documentId,
-    driverId: input.driverId,
+    target: toFieldTripTarget(input),
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
 

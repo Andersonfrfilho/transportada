@@ -187,3 +187,94 @@ em cinco rotas, T7 promovida a 🧠, T15 ampliada).
   (`isFieldOnlyUser` segue olhando só `trip.report`), `separator-role.contract.test.ts` (nenhuma rota
   nova). `apps/api-transportada/CLAUDE.md` e `docs/ai-context/` ficam para a T15, que já tem essa
   atualização no escopo.
+
+## T3
+
+Desenho em `t3-design.md`. Validação do architect: **APROVADO COM RESSALVAS** (R1–R7), todas
+incorporadas ao desenho (§0) e à implementação. Decisões do líder:
+
+- Os erros seguem o padrão de `trip.error.ts`, sem criar `codes.ts`.
+- A idempotência reusa 409 `TRIP_FIELD_REPORT_KEY_REUSED`, com o ator na comparação. Isso fica
+  para a T6.
+- O alvo `trip` não leva `companyId`.
+
+### Vermelho → verde
+
+1. **R1, antes do refactor**, contra o código antigo:
+   `bun test ./test/field-trip-target.contract.test.ts` → `3 pass · 0 fail`.
+   ⚠️ O Bun não checa tipos. O dublê desse contrato já nasceu com `readStatus` e `updateStatus → true`
+   (a forma pós-R2), o que é inerte no código antigo. Por isso ele não precisou de edição depois, e o
+   `tsc` o valida no estado final.
+2. **Contratos novos de unidade**, antes da implementação: `error: Cannot find module
+'../../src/trips/application/resolve-field-trip-target.use-case.js'` → `0 pass · 1 fail · 1
+   error`.
+3. **Integração nova**, antes da implementação: o mesmo `Cannot find module` → `0 pass · 1 fail · 1
+error`.
+4. **Depois**:
+   - `bun test ./test/field-trip-target.contract.test.ts` → `24 pass · 0 fail`, 55 expects. Cobrem
+     R1, a política (position 1, `DRIVER_NOT_ON_TRIP`, `TRIP_WITHOUT_DRIVER`), o resolvedor (404
+     sem 403, o `companyId` do contexto, e R7 sem `driverId`), o alvo que chega às seis portas, o
+     compare-and-set com a corrida perdida (R2) e os `@ts-expect-error` de R3 e R4.
+   - Integração, de dentro de `apps/api-transportada`, com
+     `bun --env-file=../../.env.test test --timeout 120000`, **arquivo por arquivo, nenhum pulou**:
+
+```
+field-trip-target.integration.ts               5 pass · 0 fail · 0 skip
+me-trip.integration.ts                         6 pass · 0 fail · 0 skip
+whatsapp-driver-flow-actions.integration.ts    1 pass · 0 fail · 0 skip
+```
+
+A integração nova prende:
+
+- `findTripCrew`: outra empresa e `tripId` inexistente dão `null` (R6). Viagem sem tripulação dá
+  `drivers: []` e 422 `TRIP_WITHOUT_DRIVER`. A tripulação sai ordenada por `position`, e o padrão é
+  a position 1.
+- Parada de outra viagem da mesma empresa → 404 `TRIP_STOP_NOT_REACHABLE`. Nota de outra viagem
+  da mesma empresa → **409 `TRIP_DOCUMENT_NOT_REACHABLE`** (R5).
+- Nenhuma das quatro consultas com alvo `trip` atravessa a empresa.
+- O comprovante alcança a entrega da viagem alvo já `completed`.
+- A corrida da R2: a viagem vira `completed` entre a leitura e a gravação, responde 409
+  `STATE_TRANSITION_NOT_ALLOWED` e continua `completed`.
+
+### Gate central: nenhum teste existente editado
+
+`git diff --stat -- apps/api-transportada/test` → **vazio**. Em `test/` só há arquivos novos:
+
+```
+?? apps/api-transportada/test/field-trip-target.contract.test.ts
+?? apps/api-transportada/test/field-trip-target/   (start-field-trip-driver, resolve, use-cases)
+?? apps/api-transportada/test/integration/field-trip-target.integration.ts
+```
+
+`src/main.ts`, `me-trip.routes.ts` e `register-driver-flow-actions.ts` **não mudaram**: as
+ligações repassam `{ ...input }` com `driverId`, que casa com a variante do motorista do
+`FieldTripLocator`. Os dois entrypoints novos estão em `"test"` e em `"test:integration"` do
+`package.json`.
+
+### Gates
+
+- `bun run typecheck` (raiz) → exit 0, sem `error TS`.
+- `bun run lint` (raiz) → exit 0, `0` ocorrências de "error" no log.
+- `bun run --cwd apps/api-transportada test` → exit 0, `6402 pass · 32 skip · 0 fail`, 6434
+  testes em 178 arquivos. São +24 em relação à T2 (6378): exatamente os contratos novos. Os 32
+  pulos são os mesmos da T2 (integração sem `.env.test`) e nenhum deles é arquivo novo. A
+  integração que importa foi rodada à parte, acima, com `.env.test`.
+- `prettier --check` nos arquivos tocados → limpo.
+
+### `exists` no lugar do `inner join`
+
+Não rodei `EXPLAIN`. O `exists` filtra `trip_drivers` por `(company_id, trip_id, driver_id)`, que é
+exatamente o unique `trip_drivers_company_trip_driver_unique`: a busca é por índice, com no máximo
+uma linha. O resultado é igual ao do join de antes, e `me-trip.integration.ts` (incluindo "a viagem
+de uma empresa não alcança o motorista de outra") e a integração do WhatsApp passaram sem edição.
+
+### Para as próximas tasks
+
+- **T5:** o `:id` passa por `parseUuidPathIdentifier` antes de `resolveFieldTripTarget`. A rota
+  chama o resolvedor e depois o caso de uso com `{ target }`. O `onBehalfOfDriverId` do alvo
+  resolvido é o que vai para `audit_logs`.
+- **T4:** a autoria deriva do localizador. `{ target }` vira `office` + `onBehalfOfDriverId`, e
+  `{ driverId }` vira `driver_app` ou `whatsapp`.
+- **T6:** o `DOCUMENT_ALREADY_SETTLED` entra em `runOutcome`, logo depois de
+  `checkTripDocumentTransition`, só com `input.target !== undefined` (`t3-design.md` §8). O ator
+  entra na comparação de `withFieldReport`.

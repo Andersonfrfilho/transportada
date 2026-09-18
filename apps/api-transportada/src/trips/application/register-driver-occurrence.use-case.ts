@@ -12,6 +12,11 @@
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import {
+  toFieldTripTarget,
+  type FieldTripLocator,
+  type FieldTripTarget,
+} from './field-trip-target.types.js'
 import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
 
 export type DriverOccurrencePort = {
@@ -19,11 +24,11 @@ export type DriverOccurrencePort = {
     readonly companyId: string
     readonly occurrenceTypeId: string
   }): Promise<null | OccurrenceTypeRecord>
-  /** `null` quando a nota não é de uma viagem ativa deste motorista — inalcançável, não proibida. */
+  /** `null` quando a nota não é de uma viagem ativa do alvo — inalcançável, não proibida. */
   findReachableDocument(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<null | { readonly tripId: string }>
   listDocumentProducts(input: {
     readonly companyId: string
@@ -43,11 +48,10 @@ export type DriverOccurrencePort = {
   }): Promise<null | TripOccurrence>
 }
 
-export type RegisterDriverOccurrenceInput = {
+export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
   readonly documentId: string
-  readonly driverId: string
   readonly note: string
   readonly occurrenceTypeId: string
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
@@ -86,7 +90,7 @@ export async function registerDriverOccurrence(
   const reachable = await input.repository.findReachableDocument({
     companyId: input.companyId,
     documentId: input.documentId,
-    driverId: input.driverId,
+    target: toFieldTripTarget(input),
   })
   if (reachable === null) throw new TripDocumentNotReachableError()
 

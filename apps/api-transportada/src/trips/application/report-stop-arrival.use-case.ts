@@ -4,15 +4,15 @@
 import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import { TripStopNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
+import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const ARRIVE_OPERATION = 'stop.arrive'
 const DISPATCHED_STATUS = 'dispatched'
 
-export type ReportStopArrivalInput = {
+export type ReportStopArrivalInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
-  readonly driverId: string
   readonly idempotencyKey: string
   readonly location: ReportedLocation | null
   readonly now: Date
@@ -44,8 +44,8 @@ export async function reportStopArrival(
       async () => {
         const stop = await transaction.findStopForDriver({
           companyId: input.companyId,
-          driverId: input.driverId,
           stopId: input.stopId,
+          target: toFieldTripTarget(input),
         })
         if (stop === null) throw new TripStopNotReachableError()
 

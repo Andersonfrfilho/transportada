@@ -7,6 +7,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { FieldTripTarget } from './field-trip-target.types.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -56,15 +57,19 @@ export type DriverFieldReportTransactionPort = {
     readonly resultId: string
   }): Promise<void>
 
+  /**
+   * Spec 156 T3: o nome ficou do tempo em que só o motorista chegava aqui. O alvo diz como achar a
+   * viagem — pelo motorista logado ou pela viagem que o escritório resolveu.
+   */
   findStopForDriver(input: {
     readonly companyId: string
-    readonly driverId: string
     readonly stopId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverStopReference | null>
   findDocumentForDriver(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverDocumentReference | null>
 
   markStopArrived(input: {

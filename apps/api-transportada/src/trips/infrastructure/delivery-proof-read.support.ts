@@ -38,6 +38,8 @@ import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import type { FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -372,10 +374,11 @@ export async function readOccurrenceLabels(
 }
 
 /**
- * Spec 079: a nota que **este motorista** está levando agora.
+ * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
+ * nota da viagem que ele resolveu.
  *
- * ⚠️ O recorte é o mesmo de `findDeliveryEventId`: junção com `trip_drivers` e viagem em estado
- * ativo. Nota de outra viagem — ou de viagem que já fechou — responde `null`, e o caso de uso a
+ * ⚠️ O recorte é o mesmo de `findDeliveryEventId`: o alvo (`fieldTripTargetCondition`) e viagem em
+ * estado ativo. Nota de outra viagem — ou de viagem que já fechou — responde `null`, e o caso de uso a
  * trata como inalcançável. É a consulta que estreita o `trip.report` da empresa inteira para a
  * carga que ele tem nas mãos; a permissão sozinha não estreita nada.
  */
@@ -384,7 +387,7 @@ export async function findDriverReachableDocument(
   input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   },
 ): Promise<null | { readonly tripId: string }> {
   const [row] = await queryable
@@ -394,15 +397,11 @@ export async function findDriverReachableDocument(
       trips,
       and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
     )
-    .innerJoin(
-      tripDrivers,
-      and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-    )
     .where(
       and(
         eq(tripDocuments.companyId, input.companyId),
         eq(tripDocuments.id, input.documentId),
-        eq(tripDrivers.driverId, input.driverId),
+        fieldTripTargetCondition(input.target),
         inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
       ),
     )

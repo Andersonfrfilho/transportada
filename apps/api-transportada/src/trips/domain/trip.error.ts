@@ -64,6 +64,28 @@ export class TripNotFoundError extends ApiError {
   }
 }
 
+/** ADR-0067 §2: o escritório registra em nome de um motorista, e a viagem não tem nenhum. */
+export class TripWithoutDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_WITHOUT_DRIVER',
+      message: 'The trip has no driver to report on behalf of.',
+      status: 422,
+    })
+  }
+}
+
+/** ADR-0067 §2: o motorista escolhido precisa estar na tripulação desta viagem. */
+export class DriverNotOnTripError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_NOT_ON_TRIP',
+      message: 'The chosen driver is not part of this trip crew.',
+      status: 422,
+    })
+  }
+}
+
 /** Spec 145 T11: planta de outra empresa responde igual à inexistente — nunca confirma que existe. */
 export class TripCargoLayoutNotFoundError extends ApiError {
   public constructor() {

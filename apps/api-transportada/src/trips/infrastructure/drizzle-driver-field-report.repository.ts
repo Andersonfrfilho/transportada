@@ -6,7 +6,6 @@ import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-or
 
 import {
   tripDocuments,
-  tripDrivers,
   tripFieldReports,
   tripStopEvents,
   tripStopOccurrences,
@@ -22,7 +21,9 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
+import type { FieldTripTarget } from '../application/field-trip-target.types.js'
 import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -113,8 +114,8 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
 
   public async findStopForDriver(input: {
     readonly companyId: string
-    readonly driverId: string
     readonly stopId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverStopReference | null> {
     const [record] = await this.transaction
       .select({
@@ -129,15 +130,11 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         trips,
         and(eq(trips.companyId, tripStops.companyId), eq(trips.id, tripStops.tripId)),
       )
-      .innerJoin(
-        tripDrivers,
-        and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-      )
       .where(
         and(
           eq(tripStops.companyId, input.companyId),
           eq(tripStops.id, input.stopId),
-          eq(tripDrivers.driverId, input.driverId),
+          fieldTripTargetCondition(input.target),
           inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
         ),
       )
@@ -153,7 +150,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
   public async findDocumentForDriver(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverDocumentReference | null> {
     const [record] = await this.transaction
       .select({
@@ -167,15 +164,11 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         trips,
         and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
       )
-      .innerJoin(
-        tripDrivers,
-        and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-      )
       .where(
         and(
           eq(tripDocuments.companyId, input.companyId),
           eq(tripDocuments.id, input.documentId),
-          eq(tripDrivers.driverId, input.driverId),
+          fieldTripTargetCondition(input.target),
           isNull(tripDocuments.releasedAt),
         ),
       )

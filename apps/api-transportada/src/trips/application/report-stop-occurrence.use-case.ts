@@ -5,6 +5,7 @@ import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { TripDocumentNotReachableError, TripStopNotReachableError } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
+import { toFieldTripTarget, type FieldTripLocator } from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 const OCCURRENCE_OPERATION = 'stop.occurrence'
@@ -33,7 +34,7 @@ export type StopOccurrenceNotifierPort = {
   }): Promise<void>
 }
 
-export type ReportStopOccurrenceInput = {
+export type ReportStopOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly attachmentObjectId: string | null
   readonly companyId: string
@@ -41,7 +42,6 @@ export type ReportStopOccurrenceInput = {
   /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
   readonly distanceMeters: number | null
   readonly documentId: string | null
-  readonly driverId: string
   readonly idempotencyKey: string
   readonly kind: TripStopOccurrenceKind
   readonly stopId: string
@@ -81,8 +81,8 @@ export async function reportStopOccurrence(
       async () => {
         const stop = await transaction.findStopForDriver({
           companyId: input.companyId,
-          driverId: input.driverId,
           stopId: input.stopId,
+          target: toFieldTripTarget(input),
         })
         if (stop === null) throw new TripStopNotReachableError()
 
@@ -90,7 +90,7 @@ export async function reportStopOccurrence(
           const document = await transaction.findDocumentForDriver({
             companyId: input.companyId,
             documentId: input.documentId,
-            driverId: input.driverId,
+            target: toFieldTripTarget(input),
           })
           if (document === null) throw new TripDocumentNotReachableError()
         }
