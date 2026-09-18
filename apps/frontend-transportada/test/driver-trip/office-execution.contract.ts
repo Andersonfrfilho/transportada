@@ -5,9 +5,14 @@ import { isTripOnTheRoad, TRIP_ON_THE_ROAD_REFETCH_MS } from '@/modules/trip/sha
 
 describe('o escritório vê a viagem andar', () => {
   /** Só na rua: repetir a consulta numa viagem em rascunho é bater no servidor por nada. */
-  it('repete a consulta apenas nas duas fases em que o motorista reporta', () => {
+  /**
+   * Spec 156 T15: a primeira nota fechada leva a viagem a `on_delivery_route` (ADR-0058 §3) — é
+   * justamente enquanto o motorista entrega o resto que o painel precisa continuar consultando.
+   */
+  it('repete a consulta nas três fases em que o motorista reporta', () => {
     expect(isTripOnTheRoad('dispatched')).toBe(true)
     expect(isTripOnTheRoad('in_transit')).toBe(true)
+    expect(isTripOnTheRoad('on_delivery_route')).toBe(true)
 
     for (const status of [
       'draft',

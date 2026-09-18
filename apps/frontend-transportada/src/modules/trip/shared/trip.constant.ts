@@ -402,9 +402,19 @@ export const CARGO_LAYOUT_POLL_CEILING_MS = 1_080_000
 /** Passada essa espera, o selo avisa que viagem grande leva minutos — antes disso seria alarme à toa. */
 export const CARGO_LAYOUT_SLOW_NOTICE_MS = 120_000
 
-/** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
+/**
+ * As fases em que o motorista está reportando — as mesmas de `TRIP_ON_ROAD_STATUSES` da API. Fora
+ * delas não há o que atualizar sozinho. `on_delivery_route` entra desde a spec 156: a primeira nota
+ * fechada leva a viagem para lá (ADR-0058 §3), e o resto das entregas acontece nessa fase.
+ */
+const TRIP_ON_THE_ROAD_STATUSES: ReadonlySet<string> = new Set([
+  'dispatched',
+  'in_transit',
+  'on_delivery_route',
+])
+
 export function isTripOnTheRoad(status: string | undefined): boolean {
-  return status === 'dispatched' || status === 'in_transit'
+  return status !== undefined && TRIP_ON_THE_ROAD_STATUSES.has(status)
 }
 
 /** Spec 145 T13 (D4): quanto dura o deslize da planta anterior para a nova — o CSS usa o mesmo. */
