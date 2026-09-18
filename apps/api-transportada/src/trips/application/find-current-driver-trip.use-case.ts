@@ -34,6 +34,11 @@ export type DriverTripDocument = {
   readonly grossWeight: string
   readonly id: string
   readonly number: string
+  /**
+   * ADR-0068 §1, spec 157 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
+   * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
+   */
+  readonly proofPending: boolean
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
   readonly returnReason: string | null

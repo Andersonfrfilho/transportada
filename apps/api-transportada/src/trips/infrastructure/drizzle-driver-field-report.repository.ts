@@ -546,6 +546,26 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return record?.id ?? null
   }
 
+  public async findProofExistsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<boolean> {
+    const [record] = await this.transaction
+      .select({ id: tripDeliveryProofs.id })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+      .limit(1)
+
+    return record !== undefined
+  }
+
   public async recordOccurrence(
     input: Parameters<DriverFieldReportTransactionPort['recordOccurrence']>[0],
   ) {

@@ -90,6 +90,17 @@ export type ReportDocumentOutcomeInput = FieldTripLocator & {
 export type ReportDocumentDeliveryInput = ReportDocumentOutcomeInput & {
   /** Spec 156 T6: só o canal `office` manda isto — o motorista anexa depois, por rota própria. */
   readonly proof?: OfficeDeliveryProofAttachment
+  /**
+   * ADR-0068 §1, spec 157 RF1/RF2: a configuração resolvida da nota — usada só para saber se a
+   * foto é obrigatória (`proofPending`), não para gravar nada. Os três canais de produção mandam a
+   * mesma porta que já usam para resolver o comprovante
+   * (`DeliveryProofPort.resolveProofFieldSettings`). Opcional para não quebrar chamador que não
+   * precisa de `proofPending` (ex.: teste de outra regra) — sem ela, o campo sai sempre `false`.
+   */
+  readonly resolveProofSettings?: (input: {
+    readonly companyId: string
+    readonly documentId: string
+  }) => Promise<DeliveryProofFieldSettings>
 }
 
 export type ReportDocumentReturnInput = ReportDocumentOutcomeInput & {
@@ -105,6 +116,11 @@ export type ReportDocumentOutcomeResult = {
   readonly id: string
   /** `null` quando não veio comprovante (motorista, ou escritório sem foto obrigatória). */
   readonly proofId: string | null
+  /**
+   * ADR-0068 §1, spec 157 RF1/RF2: a entrega **nunca** é recusada por falta de foto — este campo
+   * diz que ela ainda não chegou, para a tela avisar sem bloquear. Sempre `false` num `return`.
+   */
+  readonly proofPending: boolean
   /** Para a tela do motorista saber que a parada fechou sem precisar recarregar a viagem inteira. */
   readonly stopCompleted: boolean
   readonly tripCompleted: boolean
@@ -121,6 +137,9 @@ export async function reportDocumentDelivery(
     input,
     operation: DELIVER_OPERATION,
     ...(input.proof === undefined ? {} : { proof: input.proof }),
+    ...(input.resolveProofSettings === undefined
+      ? {}
+      : { resolveProofSettings: input.resolveProofSettings }),
     settle: (transaction, documentId) =>
       transaction.markDocumentDelivered({
         at: input.now,
@@ -162,6 +181,11 @@ type RunOutcomeParams = {
   readonly operation: string
   /** Spec 156 T6: só a entrega do escritório manda isto. */
   readonly proof?: OfficeDeliveryProofAttachment
+  /** ADR-0068 §1, spec 157: só `document.deliver` a usa — `document.return` nunca fica pendente. */
+  readonly resolveProofSettings?: (input: {
+    readonly companyId: string
+    readonly documentId: string
+  }) => Promise<DeliveryProofFieldSettings>
   readonly settle: (
     transaction: DriverFieldReportTransactionPort,
     documentId: string,
@@ -255,8 +279,40 @@ async function persistOfficeDeliveryProof(input: {
   return proofResult.id
 }
 
+/**
+ * ADR-0068 §1, spec 157 RF1/RF2: pendente = entrega (nunca `return`), foto obrigatória resolvida, e
+ * nenhuma foto anexada ao evento. Sem `resolveProofSettings` (nenhum canal deixa de mandar hoje, mas
+ * a função é pura sobre `RunOutcomeParams`) o campo é `false` — nunca bloqueia por falta dele.
+ */
+async function resolveProofPendingFlag(params: {
+  readonly companyId: string
+  readonly documentId: string
+  readonly eventId: string
+  readonly kind: 'delivered' | 'returned'
+  readonly resolveProofSettings?: (input: {
+    readonly companyId: string
+    readonly documentId: string
+  }) => Promise<DeliveryProofFieldSettings>
+  readonly transaction: DriverFieldReportTransactionPort
+}): Promise<boolean> {
+  if (params.kind !== 'delivered' || params.resolveProofSettings === undefined) return false
+
+  const settings = await params.resolveProofSettings({
+    companyId: params.companyId,
+    documentId: params.documentId,
+  })
+  if (settings.photo !== 'required') return false
+
+  const hasPhoto = await params.transaction.findProofExistsForEvent({
+    companyId: params.companyId,
+    eventId: params.eventId,
+    kind: 'photo',
+  })
+  return !hasPhoto
+}
+
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
-  const { action, input, kind, operation, proof, settle } = params
+  const { action, input, kind, operation, proof, resolveProofSettings, settle } = params
   const authorship = deriveFieldAuthorship(input)
   const isOffice = 'target' in input && input.target !== undefined
 
@@ -364,8 +420,16 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
               tripId: document.tripId,
             })
           : false
+        const proofPending = await resolveProofPendingFlag({
+          companyId: input.companyId,
+          documentId: input.documentId,
+          eventId: event.id,
+          kind,
+          ...(resolveProofSettings === undefined ? {} : { resolveProofSettings }),
+          transaction,
+        })
 
-        return { alreadySettled, id: event.id, proofId, stopCompleted, tripCompleted }
+        return { alreadySettled, id: event.id, proofId, proofPending, stopCompleted, tripCompleted }
       },
       async (eventId) => {
         const event = await transaction.findEventById({ companyId: input.companyId, eventId })
@@ -380,12 +444,21 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
                 eventId: event.id,
                 kind: 'photo',
               })
+        const proofPending = await resolveProofPendingFlag({
+          companyId: input.companyId,
+          documentId: input.documentId,
+          eventId: event.id,
+          kind,
+          ...(resolveProofSettings === undefined ? {} : { resolveProofSettings }),
+          transaction,
+        })
 
         // O reenvio devolve o mesmo evento; o que a parada e a viagem fizeram já está feito.
         return {
           alreadySettled: true,
           id: event.id,
           proofId,
+          proofPending,
           stopCompleted: false,
           tripCompleted: false,
         }

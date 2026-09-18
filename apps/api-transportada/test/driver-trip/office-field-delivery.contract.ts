@@ -326,6 +326,49 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
 
     expect(result.alreadySettled).toBe(false)
     expect(result.proofId).toBeNull()
+    expect(result.proofPending).toBe(false)
+  })
+
+  /**
+   * Spec 157 T6, ADR-0068 §1: com `photo = 'required'` e sem foto anexada, a resposta avisa
+   * `proofPending: true` — a entrega **continua aceita** (aceite 1). Ampliação do teste acima.
+   */
+  it('com photo = required e sem foto, proofPending é true — a entrega continua aceita', async () => {
+    const world = buildWorld()
+
+    const result = await reportDocumentDelivery({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      driverId: DRIVER_ID,
+      idempotencyKey: 'driver-field-delivery-photo-required',
+      location: null,
+      now: new Date(NOW.getTime() + 10 * 60 * 1000),
+      resolveProofSettings: async () => REQUIRED_PHOTO_SETTINGS,
+      unitOfWork: world.unitOfWork,
+    })
+
+    expect(result.alreadySettled).toBe(false)
+    expect(result.proofId).toBeNull()
+    expect(result.proofPending).toBe(true)
+  })
+
+  it('com photo = optional, proofPending é sempre false', async () => {
+    const world = buildWorld()
+
+    const result = await reportDocumentDelivery({
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      driverId: DRIVER_ID,
+      idempotencyKey: 'driver-field-delivery-photo-optional',
+      location: null,
+      now: new Date(NOW.getTime() + 10 * 60 * 1000),
+      resolveProofSettings: async () => OPTIONAL_SETTINGS,
+      unitOfWork: world.unitOfWork,
+    })
+
+    expect(result.proofPending).toBe(false)
   })
 })
 

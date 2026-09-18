@@ -438,6 +438,105 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
+   * Spec 157 T6, ADR-0068 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
+   * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
+   * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).
+   */
+  testWithPostgres(
+    'proofPending avisa sem bloquear, no /deliver e no snapshot (spec 157)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const resolveProofSettings = (settings: { companyId: string; documentId: string }) =>
+          deliveryProofRepository.resolveProofFieldSettings(settings)
+
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: 'chegada-proof-pending',
+          location: LOCATION,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+
+        // 1. Entrega sem foto: aceita de qualquer jeito, e avisa que a foto ainda não chegou.
+        const delivery = await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[0] ?? '',
+          idempotencyKey: 'entrega-proof-pending',
+          location: LOCATION,
+          now: NOW,
+          resolveProofSettings,
+          unitOfWork,
+        })
+        expect(delivery.proofPending).toBe(true)
+
+        const beforePhoto = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          repository: reads,
+        })
+        const documentBeforePhoto = beforePhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(documentBeforePhoto?.proofPending).toBe(true)
+
+        // 2. A foto chega em lote, depois — e o aviso some, sem ninguém ter recusado nada.
+        let objectCounter = 0
+        await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[0] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: NOW,
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage: { store: async () => ({ sha256: `${(objectCounter += 1)}`.padStart(64, '0') }) },
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: NOW,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+
+        const afterPhoto = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          repository: reads,
+        })
+        const documentAfterPhoto = afterPhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(documentAfterPhoto?.proofPending).toBe(false)
+
+        // 3. A segunda nota da mesma parada, ainda não entregue: nunca pendente antes da entrega.
+        const pendingBeforeDelivery = afterPhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+        expect(pendingBeforeDelivery?.proofPending).toBe(false)
+      })
+    },
+  )
+
+  /**
    * O filtro de tenant, exercitado: o motorista da outra empresa **não** enxerga esta viagem, e a
    * parada dela não é alcançável por ele. Contrato com dublê passaria com o `where` errado.
    */

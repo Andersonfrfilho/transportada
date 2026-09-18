@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
@@ -9,7 +9,14 @@ import {
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import {
+  tripDeliveryProofs,
+  tripDocuments,
+  tripDrivers,
+  tripStopEvents,
+  tripStops,
+  trips,
+} from '../../database/trip.schema.js'
 import { tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import type {
@@ -217,15 +224,22 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
      * três. Nota sem volume importado é caso normal — a NF-e é dado de terceiro, e nós não a
      * preenchemos.
      */
-    const volumesByDocument = await this.sumVolumes({
-      companyId: input.companyId,
-      nfeDocumentIds: documentRows
-        .map((row) => row.nfeDocumentId)
-        .filter((documentId): documentId is string => documentId !== null),
-    })
+    const [volumesByDocument, photoPresenceByDocument] = await Promise.all([
+      this.sumVolumes({
+        companyId: input.companyId,
+        nfeDocumentIds: documentRows
+          .map((row) => row.nfeDocumentId)
+          .filter((documentId): documentId is string => documentId !== null),
+      }),
+      this.listDeliveryPhotoPresence({
+        companyId: input.companyId,
+        documentIds: documentRows.map((row) => row.id),
+      }),
+    ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
         ...row,
+        hasDeliveryPhoto: photoPresenceByDocument.get(row.id) ?? false,
         volumes: volumesByDocument.get(row.nfeDocumentId ?? '') ?? null,
       })),
       (row) => row.stopId,
@@ -406,6 +420,47 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     }
   }
 
+  /**
+   * ADR-0068 §1, spec 157 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
+   * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
+   * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
+   */
+  private async listDeliveryPhotoPresence(input: {
+    readonly companyId: string
+    readonly documentIds: readonly string[]
+  }): Promise<Map<string, boolean>> {
+    if (input.documentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .selectDistinctOn([tripStopEvents.tripDocumentId], {
+        hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
+        tripDocumentId: tripStopEvents.tripDocumentId,
+      })
+      .from(tripStopEvents)
+      .leftJoin(
+        tripDeliveryProofs,
+        and(
+          eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
+          eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
+          eq(tripDeliveryProofs.kind, 'photo'),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.kind, 'delivered'),
+          inArray(tripStopEvents.tripDocumentId, [...input.documentIds]),
+        ),
+      )
+      .orderBy(tripStopEvents.tripDocumentId, desc(tripStopEvents.createdAt))
+
+    return new Map(
+      rows.flatMap((row) =>
+        row.tripDocumentId === null ? [] : [[row.tripDocumentId, row.hasPhoto] as const],
+      ),
+    )
+  }
+
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
       .select({
@@ -500,6 +555,7 @@ type VolumeTotals = { readonly grossWeight: string; readonly quantity: string }
 type DocumentRow = {
   readonly accessKey: string | null
   readonly deliveredAt: Date | null
+  readonly hasDeliveryPhoto: boolean
   readonly id: string
   readonly number: string | null
   readonly recipientName: string | null
@@ -543,18 +599,26 @@ function toDriverDocument(
   row: DocumentRow,
   proofSettings: ProofSettingsLookup,
 ): DriverTripDocument {
+  // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
+  // escrita do comprovante, via `resolveProofSettingsForRecipient`.
+  const deliveryProof = resolveProofSettingsForRecipient({
+    lookup: proofSettings,
+    recipientTaxId: row.recipientTaxId ?? '',
+  })
+
   return {
     accessKey: row.accessKey ?? '',
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
-    // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
-    // escrita do comprovante, via `resolveProofSettingsForRecipient`.
-    deliveryProof: resolveProofSettingsForRecipient({
-      lookup: proofSettings,
-      recipientTaxId: row.recipientTaxId ?? '',
-    }),
+    deliveryProof,
     grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
     number: row.number ?? '',
+    /**
+     * ADR-0068 §1, spec 157 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
+     * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
+     */
+    proofPending:
+      row.deliveredAt !== null && deliveryProof.photo === 'required' && !row.hasDeliveryPhoto,
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,

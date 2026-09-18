@@ -87,4 +87,66 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
 
     expect(result.trips.map((trip) => trip.id)).toEqual(['trip-1', 'trip-2'])
   })
+
+  /**
+   * Spec 157 T6, ADR-0068 §1: `proofPending` é calculado pelo repositório (SQL contra o evento de
+   * entrega — ver `test/integration/me-trip.integration.ts`); o caso de uso só repassa o documento
+   * como o repositório o devolveu, sem tocar no campo.
+   */
+  it('repassa proofPending do documento sem recalcular nada', async () => {
+    const repository = buildRepository({
+      trips: [
+        {
+          id: 'trip-1',
+          manifest: null,
+          status: 'dispatched',
+          stops: [
+            {
+              arrivedAt: null,
+              completedAt: null,
+              deliveryWindowEnd: null,
+              deliveryWindowStart: null,
+              documents: [
+                {
+                  accessKey: '',
+                  deliveredAt: '2026-09-18T12:00:00.000Z',
+                  deliveryProof: {
+                    photo: 'required',
+                    receiverDocument: 'off',
+                    receiverName: 'optional',
+                    signature: 'optional',
+                  },
+                  grossWeight: '0',
+                  id: 'document-1',
+                  number: '1',
+                  proofPending: true,
+                  recipientName: 'Destinatario 1',
+                  returnReason: null,
+                  separationStatus: 'delivered',
+                  series: '1',
+                  totalAmount: '0',
+                  volumeCount: '0',
+                },
+              ],
+              id: 'stop-1',
+              label: 'Centro, 100',
+              latitude: null,
+              longitude: null,
+              schedule: null,
+              sequence: 1,
+            },
+          ],
+          vehiclePlate: 'GCQ8E47',
+        },
+      ],
+    })
+
+    const result = await findCurrentDriverTrip({
+      companyId: COMPANY_ID,
+      membershipId: MEMBERSHIP_ID,
+      repository,
+    })
+
+    expect(result.trips[0]?.stops[0]?.documents[0]?.proofPending).toBe(true)
+  })
 })

@@ -728,6 +728,7 @@ export function bootstrap(): Bun.Server<undefined> {
    */
   const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
+  const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({ ...input, repository: whatsappDriverTripRepository }),
@@ -749,6 +750,8 @@ export function bootstrap(): Bun.Server<undefined> {
         ...input,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         now: new Date(),
+        resolveProofSettings: (settings) =>
+          whatsappDeliveryProofRepository.resolveProofFieldSettings(settings),
         unitOfWork: whatsappDriverFieldReports,
       }),
     reportReturn: (input) =>
@@ -2499,7 +2502,13 @@ function createApplicationRoutes({
       reportArrival: (input) =>
         reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       reportDelivery: (input) =>
-        reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+        reportDocumentDelivery({
+          ...input,
+          now: new Date(),
+          resolveProofSettings: (settings) =>
+            deliveryProofRepository.resolveProofFieldSettings(settings),
+          unitOfWork: driverFieldReports,
+        }),
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
@@ -2576,6 +2585,8 @@ function createApplicationRoutes({
             upload: input.proof,
           },
           recordedAt: new Date(),
+          resolveProofSettings: (settings) =>
+            deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
       reportOccurrence: (input) =>

@@ -40,8 +40,9 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
       `test/driver-trip/delivery-proof.contract.ts` (casos 3/4, 400 de par incompleto, `attachmentKey`
       repetida não reclassifica, foto substituída leva a nova pontualidade) + integração em
       `me-trip.integration.ts`.
-- [ ] **T6** `/deliver` devolve `proofPending`; snapshot com `proofPending` por documento e `score`.
-      Aceite: casos 1/2; teste `:310` da `office-field-delivery` ampliado.
+- [x] **T6** `/deliver` devolve `proofPending`; snapshot com `proofPending` por documento (`score` fica
+      para a T7 — porta definida, sem implementação falsa). Aceite: casos 1/2; teste `:310` da
+      `office-field-delivery` ampliado.
 - [ ] **T7 🧠** `DrizzleDriverScoreRepository` (uma consulta, sem N+1) + integração com o caso 5 contra
       Postgres real, contrato negativo de tenant e `EXPLAIN`.
 

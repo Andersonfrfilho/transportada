@@ -16,6 +16,8 @@ export type FieldReportState = {
   readonly events: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
   readonly proofsByAttachmentKey: Map<string, string>
+  /** ADR-0068 §1, spec 157 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
+  readonly proofsByEventKind: Set<string>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
@@ -32,6 +34,7 @@ export function createFieldReportState(
     events: new Map(),
     occurrences: new Map(),
     proofsByAttachmentKey: new Map(),
+    proofsByEventKind: new Set(),
     reports: new Map(),
     stops: new Map(),
     stopCompletes: false,
@@ -124,6 +127,7 @@ export function createFieldReportUnitOfWork(
     findOccurrenceById: async (input) => state.occurrences.get(input.occurrenceId) ?? null,
     saveDeliveryProofWithinTransaction: async (input) => {
       state.calls.push(`saveDeliveryProofWithinTransaction:${input.eventId}:${input.kind}`)
+      state.proofsByEventKind.add(`${input.eventId}:${input.kind}`)
       if (input.attachmentKey.length > 0) {
         state.proofsByAttachmentKey.set(
           `${input.eventId}:${input.kind}:${input.attachmentKey}`,
@@ -135,6 +139,8 @@ export function createFieldReportUnitOfWork(
     findProofIdByAttachmentKeyWithinTransaction: async (input) =>
       state.proofsByAttachmentKey.get(`${input.eventId}:${input.kind}:${input.attachmentKey}`) ??
       null,
+    findProofExistsForEvent: async (input) =>
+      state.proofsByEventKind.has(`${input.eventId}:${input.kind}`),
   }
 
   return { execute: (operation) => operation(transaction), state }

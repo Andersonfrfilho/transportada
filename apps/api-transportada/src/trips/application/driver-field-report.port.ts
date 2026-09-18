@@ -196,6 +196,15 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<string | null>
+  /**
+   * ADR-0068 §1, spec 157 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
+   * para `proofPending` na resposta e no snapshot compartilharem a mesma leitura.
+   */
+  findProofExistsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<boolean>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null

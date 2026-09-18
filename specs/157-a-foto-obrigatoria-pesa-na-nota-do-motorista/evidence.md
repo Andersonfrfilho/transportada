@@ -214,3 +214,77 @@ Desvios da spec: nenhum nas regras RF3-RF6. Decisão registrada (não desvio): o
 posição, em vez de classificar — RF8 já exclui entregas do canal `office` da nota, então a
 classificação ali seria trabalho sem efeito observável; o `field-proof` do escritório (rota separada,
 usada quando a foto sobe depois da entrega) continua classificando normalmente.
+
+## T6 — `/deliver` devolve `proofPending`; snapshot com `proofPending` por documento
+
+Arquivos:
+
+- `apps/api-transportada/src/trips/application/report-document-delivery.use-case.ts` —
+  `ReportDocumentOutcomeResult` ganha `proofPending: boolean` (sempre `false` num `return`,
+  RF1/RF2); `ReportDocumentDeliveryInput` ganha `resolveProofSettings` opcional (a porta que os três
+  canais de produção já usam para resolver o comprovante — opcional só para não quebrar chamador que
+  não precisa do campo, nunca bloqueia por ausência: sem ela, `proofPending` sai `false`).
+  `resolveProofPendingFlag` (nova função pura sobre `RunOutcomeParams`) calcula: só em
+  `document.deliver` (nunca em `return`), `photo` resolvido `required`, e nenhuma foto no evento —
+  computado tanto no caminho de sucesso quanto no replay idempotente (a fila offline reenvia a mesma
+  chave, e o segundo toque precisa recalcular, não reaproveitar a primeira resposta — a foto pode ter
+  chegado entre os dois toques).
+- `apps/api-transportada/src/trips/application/driver-field-report.port.ts` +
+  `.../infrastructure/drizzle-driver-field-report.repository.ts` — novo
+  `findProofExistsForEvent(companyId, eventId, kind)` na transação, usado só para `proofPending`
+  (existência, não o proofId — mesma leitura que `saveDeliveryProofWithinTransaction` já grava).
+- `apps/api-transportada/src/main.ts` — os três canais (`createMeTripRoutes` do motorista,
+  `createTripFieldOfficeRoutes` do escritório, `createDriverWhatsAppFlowActions` do WhatsApp) passam
+  `resolveProofSettings: (settings) => <repositório>.resolveProofFieldSettings(settings)`; novo
+  `whatsappDeliveryProofRepository` (a instância do WhatsApp nasce antes de `deliveryProofRepository`
+  no arquivo, então ganhou a própria, no mesmo molde de `whatsappDriverTripRepository`).
+- `apps/api-transportada/src/trips/infrastructure/drizzle-current-driver-trip.repository.ts` — novo
+  `listDeliveryPhotoPresence` (uma consulta por lista de documentos, `selectDistinctOn` no
+  `trip_document_id` ordenado por `created_at desc` — pega o **último** evento `delivered`, `left
+join` na foto do evento); `toDriverDocument` calcula `proofPending = deliveredAt !== null &&
+deliveryProof.photo === 'required' && !hasDeliveryPhoto`.
+- `apps/api-transportada/src/trips/application/find-current-driver-trip.use-case.ts` —
+  `DriverTripDocument` ganha `proofPending: boolean`.
+- `apps/api-transportada/src/fleet/application/driver-score.port.ts` (novo) — `DriverScorePort`
+  (`readScores`/`readPenalties`) definida para a T7 implementar (`DrizzleDriverScoreRepository`).
+  **`score` não entra no snapshot nesta task** — nenhuma implementação real existe ainda, e a
+  instrução foi explícita: nada de stub falso. `FindCurrentDriverTripResult` continua sem `score`;
+  fica para a T7 acoplar a porta ao caso de uso e à rota.
+- `apps/api-transportada/test/driver-trip/office-field-delivery.contract.ts` — o teste `:313` ("o
+  caminho do motorista continua sem validar deliveredAt nem exigir foto") ganhou
+  `expect(result.proofPending).toBe(false)`; dois novos testes: `photo = required` sem foto →
+  `proofPending: true` **e a entrega continua aceita** (aceite 1), `photo = optional` →
+  `proofPending` sempre `false`.
+- `apps/api-transportada/test/driver-trip/field-report.contract.ts` (ampliado) — o reenvio da mesma
+  `idempotencyKey` recalcula `proofPending` (não reaproveita a primeira resposta), simulando a foto
+  chegando entre os dois toques.
+- `apps/api-transportada/test/driver-trip/current-trip.contract.ts` (ampliado) — o caso de uso
+  repassa `proofPending` do documento tal como o repositório o devolveu, sem recalcular (a conta em
+  si é SQL, provada só em integração).
+- `apps/api-transportada/test/integration/me-trip.integration.ts` (novo teste) — contra Postgres
+  real: `/deliver` sem foto com `photo = required` → `proofPending: true`, aceito (201, não 422); o
+  mesmo documento no snapshot também `proofPending: true`; a foto chega depois (rota separada) e o
+  snapshot vira `proofPending: false`; a segunda nota da mesma parada, ainda não entregue, nunca fica
+  pendente antes da entrega.
+
+Comandos e resultado:
+
+```
+$ bun run typecheck                                        # raiz, todas as apps — 0 erros
+$ bun run lint                                              # raiz, todas as apps — 0 erros
+$ bun test                                                   # apps/api-transportada, suíte completa
+ 6538 pass / 32 skip / 0 fail / 22722 expect() calls — 180 arquivos
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/me-trip.integration.ts
+ 8 pass / 0 fail / 43 expect() calls   # apps/api-transportada, banco do docker-compose (65432)
+```
+
+Banco usado: o mesmo Postgres do `docker-compose.yml` da raiz (65432), já saudável neste worktree.
+Nenhum teste pulou.
+
+Desvios/pendências para a T7: `score` (nota do motorista) fica inteiramente fora desta task, por
+decisão explícita do prompt — só a porta (`DriverScorePort`) foi definida. A T7 precisa: implementar
+`DrizzleDriverScoreRepository` (uma consulta por empresa+lista de motoristas, sem N+1, `EXPLAIN` na
+integração), acoplar `readScores`/`readPenalties` ao `find-current-driver-trip.use-case.ts`
+(`score: number | null` na raiz de `FindCurrentDriverTripResult`, não por viagem — é atributo do
+motorista) e passar a implementação real em `main.ts`. Nenhum `DriverTripDocument`/`DriverTrip`
+existente foi tocado além de `proofPending`.

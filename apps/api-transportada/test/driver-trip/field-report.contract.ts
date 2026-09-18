@@ -236,6 +236,36 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
       'TRIP_FIELD_REPORT_KEY_REUSED',
     )
   })
+
+  /**
+   * Spec 157 T6, ADR-0068 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
+   * `proofPending` de novo, na mesma leitura — não fica preso ao valor da primeira resposta.
+   */
+  it('o reenvio da mesma chave recalcula proofPending, não reaproveita a primeira resposta', async () => {
+    const world = buildDocumentWorld()
+    const resolveProofSettings = async () => ({
+      photo: 'required' as const,
+      receiverDocument: 'off' as const,
+      receiverName: 'optional' as const,
+      signature: 'optional' as const,
+    })
+
+    const first = await reportDocumentDelivery({
+      ...deliveryInput(world, 'chave-com-foto-obrigatoria'),
+      resolveProofSettings,
+    })
+    expect(first.proofPending).toBe(true)
+
+    // A foto chega depois, pela fila — e o segundo toque da mesma chave já não está mais pendente.
+    world.state.proofsByEventKind.add(`${first.id}:photo`)
+    const second = await reportDocumentDelivery({
+      ...deliveryInput(world, 'chave-com-foto-obrigatoria'),
+      resolveProofSettings,
+    })
+
+    expect(second.id).toBe(first.id)
+    expect(second.proofPending).toBe(false)
+  })
 })
 
 describe('entreguei e não entreguei', () => {
