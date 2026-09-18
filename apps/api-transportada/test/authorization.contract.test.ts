@@ -63,6 +63,8 @@ describe('authorization contract', () => {
       'trip.read',
       'trip.manage',
       'trip.report',
+      // ADR-0067: o escritório dá baixa pelo motorista, sem abrir as rotas `/me` do campo
+      'trip.report-on-behalf',
       'trip.financials',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
@@ -103,11 +105,13 @@ describe('authorization contract', () => {
         'nfse.cancel',
         'nfse.read',
         'trip.manage',
+        'trip.report-on-behalf',
         'trip.financials',
         'cargo.measure',
       ],
       finance: [
         'cte.read',
+        'trip.report-on-behalf',
         'trip.financials',
         'billing.create',
         'billing.cancel',
@@ -159,6 +163,7 @@ describe('authorization contract', () => {
         'nfse.manage',
         'nfse.read',
         'trip.manage',
+        'trip.report-on-behalf',
         /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
         'trip.financials',
         'cargo.measure',
@@ -230,8 +235,8 @@ describe('authorization contract', () => {
     }
   })
 
-  // `trip.report` é do campo — o que o motorista reporta da própria viagem, e ninguém do escritório
-  // reporta entrega por ele. `trip.manage` é o escritório: montar a viagem, vincular nota, marcar
+  // `trip.report` é do campo — o que o motorista reporta da própria viagem pelas rotas `/me`. O
+  // escritório dá baixa por ele com outra permissão (ADR-0067), nunca com esta. `trip.manage` é o escritório: montar a viagem, vincular nota, marcar
   // entrega, encerrar. Ela nasceu para tirar `fleet.manage` dessas cinco rotas, que também apaga
   // veículo e motorista.
   test('keeps the delivery report exclusive to the field roles', () => {
@@ -249,6 +254,45 @@ describe('authorization contract', () => {
 
     for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
       expect(resolveCompanyPermissions([role]).has('trip.read')).toBe(false)
+    }
+  })
+
+  /**
+   * ADR-0067 (spec 156 D1): o escritório dá baixa **em nome do motorista** com permissão própria.
+   * Não é `trip.manage`, porque o separador a tem e não reporta entrega; não é `trip.report`, porque
+   * ela abre as rotas `/me` do motorista.
+   */
+  test('grants the office delivery report on behalf of the driver only to the office roles', () => {
+    for (const role of ['company-admin', 'operator', 'finance'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.report-on-behalf')).toBe(true)
+    }
+
+    for (const role of [
+      'separator',
+      'driver',
+      'aggregate',
+      'viewer',
+      'fiscal',
+      'contractor',
+      'automation',
+    ] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.report-on-behalf')).toBe(false)
+    }
+  })
+
+  test('does not hand the office delivery report to whoever manages or reports the trip', () => {
+    const separator = resolveCompanyPermissions(['separator'])
+    expect(separator.has('trip.manage')).toBe(true)
+    expect(separator.has('trip.report-on-behalf')).toBe(false)
+
+    for (const role of ['driver', 'aggregate'] as const) {
+      const permissions = resolveCompanyPermissions([role])
+      expect(permissions.has('trip.report')).toBe(true)
+      expect(permissions.has('trip.report-on-behalf')).toBe(false)
+    }
+
+    for (const role of ['company-admin', 'operator', 'finance'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.report')).toBe(false)
     }
   })
 

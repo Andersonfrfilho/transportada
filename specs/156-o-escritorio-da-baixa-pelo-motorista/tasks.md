@@ -29,7 +29,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` 🧠 (validar com `architect` antes de fechar)
 
-- [ ] **T2 🧠 — ADR-0067 "o escritório dá baixa em nome do motorista"** (conferir o próximo número
+- [x] **T2 🧠 — ADR-0067 "o escritório dá baixa em nome do motorista"** (conferir o próximo número
       livre em `origin/staging`). Registra D1, D3, D4 e D6. Ao fechar, acrescenta
       `trip.report-on-behalf` em `authorization.policy.ts` para `admin`, `operator` e `finance`
       (D1 confirmada) e o contrato negativo para `separator`, `driver` e `viewer`.

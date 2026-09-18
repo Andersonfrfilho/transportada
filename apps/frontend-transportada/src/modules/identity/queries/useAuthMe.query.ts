@@ -59,6 +59,8 @@ const COMPANY_PERMISSIONS = [
   'trip.read',
   'trip.manage',
   'trip.report',
+  /** ADR-0067: o escritório dá baixa pelo motorista, sem abrir as rotas `/me` do campo. */
+  'trip.report-on-behalf',
   /** Spec 061 D4: dinheiro tem permissão própria — margem e custo não são `trip.manage`. */
   'trip.financials',
   /**

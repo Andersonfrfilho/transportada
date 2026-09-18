@@ -373,6 +373,10 @@
         "label": "Reportar entrega",
         "where": "Do campo: marcar entrega, devolução e posição da parada."
       },
+      "trip.report-on-behalf": {
+        "label": "Report on behalf of the driver",
+        "where": "From the office, on the trip screen: record delivery, return, arrival and occurrence on the driver's behalf."
+      },
       "trip.financials": {
         "label": "Ver dinheiro da viagem",
         "where": "Custo, margem e o valor pago ao motorista."
