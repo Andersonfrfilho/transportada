@@ -12,7 +12,7 @@ import type {
   OfficeOccurrenceBatchUnitOfWork,
 } from '../application/register-office-document-occurrences.use-case.js'
 import { findOccurrenceType, saveTripOccurrence } from './delivery-proof-read.support.js'
-import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
+import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportTransaction } from './drizzle-driver-field-report.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -71,7 +71,7 @@ export async function findReachableDocumentIds(
         inArray(tripDocuments.id, [...input.documentIds]),
         isNull(tripDocuments.releasedAt),
         fieldTripTargetCondition(input.target),
-        inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
       ),
     )
 

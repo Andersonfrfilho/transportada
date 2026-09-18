@@ -47,7 +47,12 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * deixaria uma das duas aceitar viagem que a outra recusa, sem nada falhar.
  */
 /** O comprovante anexa à viagem que saiu, inclusive à que já acabou. */
-export const ACTIVE_TRIP_STATUSES = TRIP_DISPATCHED_STATUSES
+/**
+ * Spec 156 T15: a viagem que já saiu do barracão — inclusive concluída, porque o comprovante e a
+ * ocorrência chegam depois da última entrega. (Era `ACTIVE_TRIP_STATUSES`, nome que outros dois
+ * repositórios usavam com sentidos diferentes.)
+ */
+export const PROOF_REACHABLE_TRIP_STATUSES = TRIP_DISPATCHED_STATUSES
 
 export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public constructor(private readonly database: Database) {}
@@ -83,7 +88,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           eq(tripStopEvents.tripDocumentId, input.documentId),
           eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
           fieldTripTargetCondition(input.target),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
         ),
       )
       .orderBy(desc(tripStopEvents.createdAt))

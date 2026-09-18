@@ -43,7 +43,7 @@ import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
+import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -563,7 +563,7 @@ export async function findDriverReachableDocument(
         eq(tripDocuments.id, input.documentId),
         isNull(tripDocuments.releasedAt),
         fieldTripTargetCondition(input.target),
-        inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
       ),
     )
     .limit(1)

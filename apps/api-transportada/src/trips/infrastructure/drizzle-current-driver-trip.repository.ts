@@ -64,7 +64,7 @@ import { recordTripStatusChange } from './trip-status-event.persistence.js'
  *
  * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
  */
-const ACTIVE_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
+const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
@@ -134,7 +134,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDrivers.companyId, input.companyId),
           eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
         ),
       )
       .orderBy(asc(trips.createdAt))
@@ -220,7 +220,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDrivers.companyId, input.companyId),
           eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
         ),
       )
       .orderBy(asc(trips.createdAt))

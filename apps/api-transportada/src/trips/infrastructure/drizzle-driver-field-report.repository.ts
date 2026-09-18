@@ -28,7 +28,11 @@ import type {
 } from '../application/driver-field-report.port.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
-import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
+import {
+  DELIVERED_DOCUMENT_STATUS,
+  DELIVERED_EVENT_KIND,
+  RETURNED_DOCUMENT_STATUS,
+} from '../domain/delivery-event.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
   deriveTripStatus,
@@ -44,15 +48,14 @@ import { recordTripStatusChange } from './trip-status-event.persistence.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
-/** As duas fases em que a viagem está na rua. Fora delas o motorista não tem o que reportar. */
 /** Reportar acontece na rua, e a rua inclui o trajeto iniciado (ADR-0058). */
-const ACTIVE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
+const FIELD_REPORTABLE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
 
 /** ADR-0058 §3: o único passo que a baixa de uma nota deriva — concluir é pelas paradas. */
 const TRIP_ON_DELIVERY_ROUTE_STATUS = 'on_delivery_route' satisfies TripStatus
 
 /** Nota entregue ou devolvida saiu do eixo do campo — é o que faz a parada poder fechar. */
-const SETTLED_DOCUMENT_STATUSES = ['delivered', 'returned'] as const
+const SETTLED_DOCUMENT_STATUSES = [DELIVERED_DOCUMENT_STATUS, RETURNED_DOCUMENT_STATUS] as const
 
 export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnitOfWork {
   public constructor(private readonly database: Database) {}
@@ -167,7 +170,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           eq(tripStops.companyId, input.companyId),
           eq(tripStops.id, input.stopId),
           fieldTripTargetCondition(input.target),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...FIELD_REPORTABLE_TRIP_STATUSES]),
         ),
       )
       .limit(1)
@@ -451,7 +454,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .for('no key update')
       .limit(1)
     if (tripRow === undefined) return false
-    if (!(ACTIVE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status)) return false
+    if (!(FIELD_REPORTABLE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status)) return false
 
     const completed = await this.transaction
       .update(trips)

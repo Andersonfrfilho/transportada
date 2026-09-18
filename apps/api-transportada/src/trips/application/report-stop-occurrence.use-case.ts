@@ -79,8 +79,8 @@ export async function reportStopOccurrence(
   const authorship = deriveFieldAuthorship(input)
 
   const recorded = await input.unitOfWork.execute(async (transaction) =>
-    withFieldReport(
-      {
+    withFieldReport({
+      guard: {
         actorUserId: input.actorUserId,
         authorship,
         companyId: input.companyId,
@@ -88,7 +88,7 @@ export async function reportStopOccurrence(
         operation: resolveFieldReportOperation({ locator: input, operation: OCCURRENCE_OPERATION }),
         transaction,
       },
-      async () => {
+      perform: async () => {
         const stop = await transaction.findStopForDriver({
           companyId: input.companyId,
           stopId: input.stopId,
@@ -129,9 +129,9 @@ export async function reportStopOccurrence(
           stopId: input.stopId,
         })
       },
-      (occurrenceId) =>
+      recall: (occurrenceId) =>
         transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId }),
-    ),
+    }),
   )
 
   /**

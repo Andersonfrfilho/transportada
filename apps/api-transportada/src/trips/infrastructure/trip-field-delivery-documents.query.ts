@@ -12,15 +12,9 @@ import { alias } from 'drizzle-orm/pg-core'
 
 import { freightCalculations, nfeDocuments } from '../../database/database.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
+import type { TripFieldDeliveryDocument } from '../application/trip-field-delivery-documents.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
-export type TripFieldDeliveryDocument = {
-  readonly accessKey: string | null
-  readonly id: string
-  readonly nfeNumber: string | null
-  readonly nfeSeries: string | null
-  readonly releasedAt: string | null
-}
 
 /** Mesmo alias de `drizzle-trip.repository.ts`: a nota chega pelo vínculo direto ou por cálculo de frete. */
 const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight_field_delivery')

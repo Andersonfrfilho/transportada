@@ -8,7 +8,7 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
-import { OFFICE_REPORT_POLICY } from './trip-field-office.routes.js'
+import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 
 export const TRIP_FIELD_DELIVERY_SETTINGS_PATH = `${API_TRIPS_PATH}/field-delivery-settings`
 

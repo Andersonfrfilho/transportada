@@ -55,8 +55,8 @@ export async function reportStopArrival(
   const isOffice = input.target !== undefined
 
   return input.unitOfWork.execute(async (transaction) =>
-    withFieldReport(
-      {
+    withFieldReport({
+      guard: {
         actorUserId: input.actorUserId,
         authorship,
         companyId: input.companyId,
@@ -64,7 +64,7 @@ export async function reportStopArrival(
         operation: resolveFieldReportOperation({ locator: input, operation: ARRIVE_OPERATION }),
         transaction,
       },
-      async () => {
+      perform: async () => {
         const stop = await transaction.findStopForDriver({
           companyId: input.companyId,
           stopId: input.stopId,
@@ -120,8 +120,8 @@ export async function reportStopArrival(
           stopId: input.stopId,
         })
       },
-      (eventId) => transaction.findEventById({ companyId: input.companyId, eventId }),
-    ),
+      recall: (eventId) => transaction.findEventById({ companyId: input.companyId, eventId }),
+    }),
   )
 }
 

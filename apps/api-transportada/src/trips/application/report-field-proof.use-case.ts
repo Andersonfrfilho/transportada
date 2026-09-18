@@ -59,8 +59,8 @@ export async function reportFieldProof(
   return runWithStoredObjectCleanup({
     operation: (storage) =>
       input.unitOfWork.execute((transaction) =>
-        withFieldReport(
-          {
+        withFieldReport({
+          guard: {
             actorUserId: input.actorUserId,
             authorship,
             companyId: input.companyId,
@@ -68,7 +68,7 @@ export async function reportFieldProof(
             operation: FIELD_PROOF_OPERATION,
             transaction,
           },
-          async () => {
+          perform: async () => {
             const event = await transaction.findDeliveryEventForProof({
               companyId: input.companyId,
               documentId: input.documentId,
@@ -100,8 +100,8 @@ export async function reportFieldProof(
 
             return persisted
           },
-          async (resultId) => ({ id: resultId, replacedObjectId: null }),
-        ),
+          recall: async (resultId) => ({ id: resultId, replacedObjectId: null }),
+        }),
       ),
     storage: input.attachment.storage,
   })

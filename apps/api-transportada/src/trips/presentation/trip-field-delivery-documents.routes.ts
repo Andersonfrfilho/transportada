@@ -10,8 +10,8 @@
 import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
-import type { TripFieldDeliveryDocument } from '../infrastructure/trip-field-delivery-documents.query.js'
-import { OFFICE_REPORT_POLICY } from './trip-field-office.routes.js'
+import type { TripFieldDeliveryDocument } from '../application/trip-field-delivery-documents.types.js'
+import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 
 export const TRIP_FIELD_DELIVERY_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/field-delivery-documents`
 

@@ -2,13 +2,13 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 156 T7.3: a ocorrência do escritório em nome do motorista — a lista de tipos de rua (L2) e o
- * lote (D7, aceite 10). Arquivo próprio para `trip-field-office.routes.ts` não crescer mais; a
- * política, o caminho e a resolução do alvo são os mesmos de lá.
+ * lote (D7, aceite 10). A política, o caminho e a resolução do alvo são os de
+ * `trip-field-office.support.ts`.
  */
 import { resolveClientIp } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
-import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
+import { API_TRIPS_PATH } from '../../shared/api.constant.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
 import type { ResolvedTripFieldTarget } from '../application/field-trip-target.types.js'
 import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
@@ -18,8 +18,9 @@ import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
   OFFICE_REPORT_POLICY,
   OFFICE_TRIP_PATH,
+  officeJsonResponse,
   resolveOfficeTarget,
-} from './trip-field-office.routes.js'
+} from './trip-field-office.support.js'
 import { parseOfficeFieldOccurrencesRequest } from './office-field-occurrences.schema.js'
 
 const OFFICE_FIELD_OCCURRENCE_TYPES_PATH = `${API_TRIPS_PATH}/occurrence-types/field`
@@ -55,13 +56,6 @@ export type TripFieldOfficeOccurrenceDependencies = {
   readonly targets: FieldTripTargetPort
 }
 
-function jsonResponse(input: { readonly body: object; readonly status: number }): Response {
-  return new Response(JSON.stringify(input.body), {
-    headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
-    status: input.status,
-  })
-}
-
 export function createTripFieldOfficeOccurrenceRoutes(
   dependencies: TripFieldOfficeOccurrenceDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
@@ -72,7 +66,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
         })
-        return jsonResponse({ body: { data: types }, status: 200 })
+        return officeJsonResponse({ body: { data: types }, status: 200 })
       },
       method: 'GET',
       parse: () => undefined,
@@ -118,7 +112,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
           target,
         })
 
-        return jsonResponse({ body: { data: { items: result.items } }, status: 201 })
+        return officeJsonResponse({ body: { data: { items: result.items } }, status: 201 })
       },
       method: 'POST',
       async parse({ correlationId, pathParameters, request }) {

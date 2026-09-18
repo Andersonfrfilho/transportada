@@ -5,7 +5,7 @@
  * pela chave inteira — mesmo molde de `read-trip-action-snapshot.use-case.ts`.
  */
 import { TripNotFoundError } from '../domain/trip.error.js'
-import type { TripFieldDeliveryDocument } from '../infrastructure/trip-field-delivery-documents.query.js'
+import type { TripFieldDeliveryDocument } from './trip-field-delivery-documents.types.js'
 
 export type FieldDeliveryDocumentsPort = {
   readTripFieldDeliveryDocuments(input: {

@@ -39,11 +39,18 @@ export type FieldReportGuardInput = {
  * idempotente" carimbaria uma coordenada nova sobre a entrega de vinte minutos atrás — e a
  * coordenada é justamente a prova de onde ela aconteceu.
  */
+export type WithFieldReportParams<TResult extends { readonly id: string }> = {
+  readonly guard: FieldReportGuardInput
+  /** O efeito — só roda quando esta transação reservou a chave, ou o reenvio não achou o resultado. */
+  readonly perform: () => Promise<TResult>
+  /** O reenvio: o resultado que a chave já liquidou. `null` executa `perform` de novo. */
+  readonly recall: (resultId: string) => Promise<TResult | null>
+}
+
 export async function withFieldReport<TResult extends { readonly id: string }>(
-  input: FieldReportGuardInput,
-  perform: () => Promise<TResult>,
-  recall: (resultId: string) => Promise<TResult | null>,
+  params: WithFieldReportParams<TResult>,
 ): Promise<TResult> {
+  const { guard: input, perform, recall } = params
   const claim = await input.transaction.claim({
     actorUserId: input.actorUserId,
     authorship: input.authorship,
