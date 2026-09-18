@@ -221,6 +221,15 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly eventId: string
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 157 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
+   * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).
+   */
+  findLatestEventForDocument(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly kind: TripStopEventKind
+  }): Promise<{ readonly id: string } | null>
   findOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string

@@ -34,8 +34,10 @@ import {
   tripDocuments,
   tripDrivers,
   tripStatusEvents,
+  tripStopEvents,
   tripStops,
 } from '../../src/database/trip.schema.js'
+import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import type {
   AuthenticatedContext,
@@ -430,6 +432,76 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
             }),
           }),
         ).rejects.toMatchObject({ code: 'DOCUMENT_ALREADY_SETTLED', status: 409 })
+      })
+    },
+  )
+
+  /**
+   * Spec 157 T11 (ALTO 3): o escritório dá baixa com o canhoto, e a fila offline do motorista
+   * reenvia o `deliver` depois. O no-op não pode gravar um `delivered` novo sem foto — ele viraria o
+   * "último" evento da nota, esconderia o canhoto e deixaria a nota pendente (e penalizável).
+   */
+  testWithPostgres(
+    'baixa do escritório com foto + deliver repetido do motorista: sem evento novo, sem pendência',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: company.companyId, photo: 'required' })
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const [, , , , deliverRoute] = wireRoutes(database)
+        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
+
+        const officeResponse = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-office-then-driver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana' },
+            file: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-delivery-before-driver-replay',
+          }),
+        })
+        expect(officeResponse.status).toBe(201)
+        const officeBody = (await officeResponse.json()) as { data: { id: string } }
+
+        const replay = await reportDocumentDelivery({
+          actorUserId: driverUserId,
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          driverId: company.firstDriverId,
+          idempotencyKey: 'fila-offline-do-motorista',
+          location: null,
+          now: new Date('2026-09-18T11:00:00.000Z'),
+          resolveProofSettings: (settings) => deliveryProofs.resolveProofFieldSettings(settings),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+        })
+
+        expect(replay).toMatchObject({
+          alreadySettled: true,
+          id: officeBody.data.id,
+          proofPending: false,
+        })
+        const deliveredEvents = await database.db
+          .select({ id: tripStopEvents.id })
+          .from(tripStopEvents)
+          .where(
+            and(
+              eq(tripStopEvents.companyId, company.companyId),
+              eq(tripStopEvents.kind, 'delivered'),
+            ),
+          )
+        expect(deliveredEvents).toHaveLength(1)
+
+        const score = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+          companyId: company.companyId,
+          driverId: company.firstDriverId,
+          now: new Date('2026-09-20T12:00:00.000Z'),
+        })
+        expect(score).toEqual({ penalties: [], score: null })
       })
     },
   )
@@ -1077,6 +1149,23 @@ async function seedTrip(
   })
 
   return { documentId, stopId, tripId }
+}
+
+/** Liga o cadastro de motorista a uma conta — é assim que a nota acha o motorista do evento. */
+async function linkDriverMembership(
+  database: TestDatabase,
+  company: Company,
+  driverId: string,
+): Promise<string> {
+  const userId = crypto.randomUUID()
+  const membershipId = crypto.randomUUID()
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId: company.companyId, id: membershipId, status: 'active', userId })
+  await database.db.update(fleetDrivers).set({ membershipId }).where(eq(fleetDrivers.id, driverId))
+
+  return userId
 }
 
 /**

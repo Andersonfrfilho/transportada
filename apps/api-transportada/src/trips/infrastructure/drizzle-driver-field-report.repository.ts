@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -17,6 +17,7 @@ import {
   type TripDeliveryProofKind,
   type TripDocumentSeparationStatus,
   type TripStatus,
+  type TripStopEventKind,
 } from '../../database/trip.schema.js'
 import type {
   DriverDocumentReference,
@@ -597,6 +598,28 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .where(
         and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)),
       )
+      .limit(1)
+
+    return event ?? null
+  }
+
+  /** Mesmo desempate da nota do motorista e do snapshot: `created_at` e depois `id`. */
+  public async findLatestEventForDocument(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly kind: TripStopEventKind
+  }) {
+    const [event] = await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.tripDocumentId, input.documentId),
+          eq(tripStopEvents.kind, input.kind),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
       .limit(1)
 
     return event ?? null

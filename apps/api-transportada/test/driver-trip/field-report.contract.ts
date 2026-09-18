@@ -331,6 +331,31 @@ describe('entreguei e não entreguei', () => {
     expect(world.state.calls).not.toContain(`markDocumentDelivered:${DOCUMENT_ID}`)
   })
 
+  /**
+   * Spec 157 T11 (ALTO 3): o no-op não grava um `delivered` novo — senão o evento repetido vira o
+   * "último" da nota, sem foto, e esconde a foto que já estava no evento verdadeiro (nota e
+   * `proofPending` passavam a ler o evento errado).
+   */
+  it('nota já entregue devolve o evento existente, sem gravar outro', async () => {
+    const world = buildDocumentWorld({ separationStatus: 'delivered' })
+    world.state.latestEvents.set(`${DOCUMENT_ID}:delivered`, { id: 'event-existente' })
+
+    const result = await reportDocumentDelivery(deliveryInput(world, 'chave-repetida'))
+
+    expect(result).toMatchObject({ alreadySettled: true, id: 'event-existente' })
+    expect(world.state.calls).not.toContain('recordEvent:delivered:no-gps')
+  })
+
+  /** Nota entregue sem evento nenhum (dado legado): o no-op ainda precisa de um id para a chave. */
+  it('nota já entregue sem evento anterior grava um, como antes', async () => {
+    const world = buildDocumentWorld({ separationStatus: 'delivered' })
+
+    const result = await reportDocumentDelivery(deliveryInput(world, 'chave-legado'))
+
+    expect(result.alreadySettled).toBe(true)
+    expect(world.state.calls).toContain('recordEvent:delivered:no-gps')
+  })
+
   /** Viagem cancelada com o motorista na rua: a confirmação é recusada com o motivo, não engolida. */
   it('viagem cancelada recusa a confirmação com o estado como motivo', async () => {
     const world = buildDocumentWorld({ tripStatus: 'cancelled' })

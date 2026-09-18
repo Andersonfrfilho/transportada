@@ -381,18 +381,32 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         if (alreadySettled && isOffice) throw new TripDocumentAlreadySettledError()
 
         if (!alreadySettled) await settle(transaction, input.documentId)
-        const event = await transaction.recordEvent({
-          actorUserId: input.actorUserId,
-          authorship,
-          companyId: input.companyId,
-          documentId: input.documentId,
-          kind,
-          location: input.location,
-          ...(isOffice
-            ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-            : {}),
-          stopId: document.stopId,
-        })
+        /**
+         * Spec 157 T11: o no-op devolve o evento que já existe. Gravar outro fazia o reenvio virar o
+         * "último" `delivered` da nota — sem foto — e esconder a foto do evento verdadeiro da nota
+         * do motorista e do `proofPending`.
+         */
+        const existingEvent = alreadySettled
+          ? await transaction.findLatestEventForDocument({
+              companyId: input.companyId,
+              documentId: input.documentId,
+              kind,
+            })
+          : null
+        const event =
+          existingEvent ??
+          (await transaction.recordEvent({
+            actorUserId: input.actorUserId,
+            authorship,
+            companyId: input.companyId,
+            documentId: input.documentId,
+            kind,
+            location: input.location,
+            ...(isOffice
+              ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
+              : {}),
+            stopId: document.stopId,
+          }))
 
         const proofId =
           proof === undefined

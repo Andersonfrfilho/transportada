@@ -14,6 +14,8 @@ export type FieldReportState = {
   readonly dispatchedAtByTripId: Map<string, Date>
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
+  /** Spec 157 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
+  readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
   readonly proofsByAttachmentKey: Map<string, string>
   /** ADR-0068 §1, spec 157 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
@@ -32,6 +34,7 @@ export function createFieldReportState(
     dispatchedAtByTripId: new Map(),
     documents: new Map(),
     events: new Map(),
+    latestEvents: new Map(),
     occurrences: new Map(),
     proofsByAttachmentKey: new Map(),
     proofsByEventKind: new Set(),
@@ -115,8 +118,12 @@ export function createFieldReportUnitOfWork(
       state.calls.push(`recordEvent:${input.kind}:${input.location === null ? 'no-gps' : 'gps'}`)
       const event = { id: nextIdentifier('event') }
       state.events.set(event.id, event)
+      if (input.documentId !== null)
+        state.latestEvents.set(`${input.documentId}:${input.kind}`, event)
       return event
     },
+    findLatestEventForDocument: async (input) =>
+      state.latestEvents.get(`${input.documentId}:${input.kind}`) ?? null,
     recordOccurrence: async (input) => {
       state.calls.push(`recordOccurrence:${input.kind}`)
       const occurrence = { id: nextIdentifier('occurrence') }
