@@ -1391,16 +1391,55 @@
   align-items: flex-start;
   gap: var(--space-1);
   height: auto;
-  padding: var(--space-2) var(--space-3);
+  min-width: 15rem;
+  padding: var(--space-3);
   text-align: left;
   white-space: normal;
 }
 
-/* "mais rápida"/"mais barata": discreta, como a marca de estimativa ao lado do peso. */
+/*
+ * ⚠️ A escolhida é borda e fundo **translúcido** de cobre, nunca cobre sólido: sobre o sólido o
+ * texto e o selo sumiam. Mesmo desenho dos chips da planta de carga (`.cargoStopChip`).
+ */
+.routeOption[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
+  box-shadow: inset 0 0 0 1px var(--color-copper);
+}
+
+.routeOption[aria-pressed='true'] svg {
+  color: var(--color-copper);
+}
+
+.routeOptionHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: var(--control-height-compact);
+}
+
+/* O total é o que decide a escolha — é a linha que o olho acha primeiro. */
+.routeOptionTotal {
+  color: var(--color-fog);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.routeOptionFacts {
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+  font-size: 0.85rem;
+}
+
+/* "mais rápida"/"mais barata": selo com contraste próprio, legível em qualquer fundo do cartão. */
 .routeOptionBadge {
-  color: var(--color-slate);
-  font-size: 0.72rem;
-  font-style: italic;
+  background: color-mix(in srgb, var(--color-fog) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fog) 30%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0 var(--space-2);
 }
 
 /*
@@ -1916,7 +1955,7 @@
   align-items: center;
   background: color-mix(in srgb, var(--color-asphalt) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-copper);
   display: flex;
   font-size: 0.8rem;
@@ -2862,7 +2901,7 @@
   align-self: flex-start;
   background: color-mix(in srgb, var(--color-copper) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-copper);
   display: inline-flex;
   font-size: 0.8rem;

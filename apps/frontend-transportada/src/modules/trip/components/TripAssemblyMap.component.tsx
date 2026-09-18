@@ -592,11 +592,47 @@ export function TripAssemblyMap({
                   className={styles.routeOption}
                   onClick={() => setSelectedOptionIndex(index)}
                   type="button"
-                  variant={index === boundedOptionIndex ? 'default' : 'secondary'}
+                  /*
+                   * ⚠️ Sempre `secondary`: o cobre sólido do `default` apagava o texto e o selo. A
+                   * escolha é marcada pelo `aria-pressed` no CSS, como os chips da planta de carga.
+                   */
+                  variant="secondary"
                 >
-                  {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
-                  {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
-                  <span>
+                  <span className={styles.routeOptionHeader}>
+                    {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
+                    {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
+                    {/*
+                      ⚠️ Quando a mesma rota vence as duas contas isso é informação, não bug (caso
+                      medido de Campinas) — uma marca só, nunca as duas empilhadas dizendo a mesma
+                      coisa duas vezes.
+                    */}
+                    {summary.isBestOfBoth ? (
+                      <span className={styles.routeOptionBadge}>
+                        {t('assemblyMap.routeOptions.fastestAndCheapest')}
+                      </span>
+                    ) : (
+                      <>
+                        {summary.isFastest ? (
+                          <span className={styles.routeOptionBadge}>
+                            {t('assemblyMap.routeOptions.fastest')}
+                          </span>
+                        ) : null}
+                        {summary.isCheapest ? (
+                          <span className={styles.routeOptionBadge}>
+                            {t('assemblyMap.routeOptions.cheapest')}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </span>
+                  {summary.totalCost === null ? null : (
+                    <span className={styles.routeOptionTotal}>
+                      {t('assemblyMap.routeOptions.total', {
+                        amount: formatAmount(summary.totalCost),
+                      })}
+                    </span>
+                  )}
+                  <span className={styles.routeOptionFacts}>
                     {/*
                       ⚠️ Sem pedágio calculado a linha diz que **não sabe**, nunca "0 praças" —
                       zero ali seria uma afirmação, na linha em que a rota é escolhida.
@@ -612,36 +648,6 @@ export function TripAssemblyMap({
                       },
                     )}
                   </span>
-                  {summary.totalCost === null ? null : (
-                    <span>
-                      {t('assemblyMap.routeOptions.total', {
-                        amount: formatAmount(summary.totalCost),
-                      })}
-                    </span>
-                  )}
-                  {/*
-                    ⚠️ Quando a mesma rota vence as duas contas isso é informação, não bug (caso
-                    medido de Campinas) — uma marca só, nunca as duas empilhadas dizendo a mesma
-                    coisa duas vezes.
-                  */}
-                  {summary.isBestOfBoth ? (
-                    <span className={styles.routeOptionBadge}>
-                      {t('assemblyMap.routeOptions.fastestAndCheapest')}
-                    </span>
-                  ) : (
-                    <>
-                      {summary.isFastest ? (
-                        <span className={styles.routeOptionBadge}>
-                          {t('assemblyMap.routeOptions.fastest')}
-                        </span>
-                      ) : null}
-                      {summary.isCheapest ? (
-                        <span className={styles.routeOptionBadge}>
-                          {t('assemblyMap.routeOptions.cheapest')}
-                        </span>
-                      ) : null}
-                    </>
-                  )}
                 </Button>
               </li>
             ))}
