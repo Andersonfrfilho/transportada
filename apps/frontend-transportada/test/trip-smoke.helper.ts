@@ -477,6 +477,29 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [] })
   })
+  // Spec 158: o detalhe da viagem sempre lê a linha do tempo; smoke que precisa de itens registra
+  // `mockTripTimelineApi` por cima (o mais recente vence no Playwright).
+  await input.page.route(/\/trips\/[^/]+\/timeline(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: { items: [], nextCursor: null } })
+  })
+  await input.page.route(/\/trips\/occurrence-types\/field$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+  await input.page.route(/\/view-preferences(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: null })
+  })
   await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
