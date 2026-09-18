@@ -50,7 +50,7 @@ import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure
 import { createDrizzleTripFieldOfficeAudit } from '../../src/trips/infrastructure/drizzle-trip-field-office-audit.gateway.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
 import { registerOfficeDocumentOccurrences } from '../../src/trips/application/register-office-document-occurrences.use-case.js'
-import { readOccurrenceLabels } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { readOccurrenceLabelsForDocuments } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from '../../src/trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { createOccurrenceNotifier } from '../../src/trips/infrastructure/occurrence-notifier.gateway.js'
 import { createTripFieldOfficeOccurrenceRoutes } from '../../src/trips/presentation/trip-field-office-occurrence.routes.js'
@@ -177,7 +177,8 @@ export function wireOccurrenceRoute(database: TestDatabase) {
             queryable: database.db,
             send: async (notice) => void sent.push(notice),
           }),
-          readLabels: (query) => readOccurrenceLabels(database.db, query),
+          logger: { warn() {} },
+          readLabels: (query) => readOccurrenceLabelsForDocuments(database.db, query),
         },
         unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db),
       }),

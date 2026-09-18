@@ -92,13 +92,21 @@ export type OfficeOccurrenceBatchUnitOfWork = {
   ): Promise<TResult>
 }
 
+export type OccurrenceLabels = { readonly documentLabel: string; readonly stopLabel: string }
+
+/** Rótulo ausente vira lacuna no template: melhor aviso com buraco do que nenhum aviso. */
+const EMPTY_OCCURRENCE_LABELS: OccurrenceLabels = { documentLabel: '', stopLabel: '' }
+
 export type OfficeOccurrenceNotificationsPort = {
+  /** Spec 156 T15 M10: a falha depois do commit vira aviso no log — só ids opacos, nunca rótulo. */
+  readonly logger: { warn(event: string, meta?: Record<string, unknown>): void }
   readonly notifier: OccurrenceNotifierPort | undefined
+  /** Spec 156 T15 M10: os rótulos do lote numa leitura só. Nota sem linha fica fora do mapa. */
   readLabels(input: {
     readonly companyId: string
-    readonly documentId: string
+    readonly documentIds: readonly string[]
     readonly tripId: string
-  }): Promise<{ readonly documentLabel: string; readonly stopLabel: string }>
+  }): Promise<ReadonlyMap<string, OccurrenceLabels>>
 }
 
 /** T7b, D9: mesmo teto e mesmos tipos aceitos do canhoto do escritório (`delivery-proof.policy.ts`). */
@@ -358,9 +366,12 @@ function firstItemId(items: readonly BatchItemOutcome[]): string {
 }
 
 /**
- * Um aviso por nota **criada nesta chamada**, depois do commit e fora da transação — por isso o
- * `Promise.all`. A regra (tipo com aviso ligado, destinatário, falha engolida) é a de
- * `notifyOccurrence`, sem cópia. Os avisos vão para quem despachou a viagem (ressalva M4).
+ * Um aviso por nota **criada nesta chamada**, depois do commit e fora da transação. A regra (tipo
+ * com aviso ligado, destinatário, falha do envio engolida) é a de `notifyOccurrence`, sem cópia. Os
+ * avisos vão para quem despachou a viagem (ressalva M4).
+ *
+ * Spec 156 T15 M10: os rótulos saem de uma leitura só, e a falha dela (ou de qualquer passo daqui)
+ * não vira 500 — as ocorrências já estão gravadas, e o reenvio da mesma chave não avisaria de novo.
  */
 async function notifyCreated(input: {
   readonly outcome: BatchOutcome
@@ -370,18 +381,21 @@ async function notifyCreated(input: {
   if (occurrenceType === null) return
 
   const { params } = input
-  await Promise.all(
-    input.outcome.items
-      .filter((item) => item.createdNow)
-      .map(async (item) =>
+  const created = input.outcome.items.filter((item) => item.createdNow)
+  if (created.length === 0) return
+
+  try {
+    const labels = await params.notifications.readLabels({
+      companyId: params.companyId,
+      documentIds: created.map((item) => item.documentId),
+      tripId: params.target.tripId,
+    })
+    await Promise.all(
+      created.map((item) =>
         notifyOccurrence({
           companyId: params.companyId,
           notificationParameters: {
-            ...(await params.notifications.readLabels({
-              companyId: params.companyId,
-              documentId: item.documentId,
-              tripId: params.target.tripId,
-            })),
+            ...(labels.get(item.documentId) ?? EMPTY_OCCURRENCE_LABELS),
             documentId: item.documentId,
             occurrenceType: '',
             tripId: params.target.tripId,
@@ -390,5 +404,12 @@ async function notifyCreated(input: {
           occurrenceType,
         }),
       ),
-  )
+    )
+  } catch (error) {
+    params.notifications.logger.warn('trip_office_occurrences_notification_failed', {
+      companyId: params.companyId,
+      reason: error instanceof Error ? error.message : 'unknown',
+      tripId: params.target.tripId,
+    })
+  }
 }

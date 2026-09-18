@@ -414,6 +414,68 @@ export async function listDeliveryContacts(
 }
 
 /**
+ * Spec 156 T15 M10: os rótulos das N notas de um lote do escritório, numa consulta só — o lote
+ * chamava `readOccurrenceLabels` uma vez por nota. Mesma regra de rótulo ausente (string vazia).
+ */
+export async function readOccurrenceLabelsForDocuments(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentIds: readonly string[]
+    readonly tripId: string
+  },
+): Promise<ReadonlyMap<string, { readonly documentLabel: string; readonly stopLabel: string }>> {
+  if (input.documentIds.length === 0) return new Map()
+
+  const rows = await queryable
+    .select({
+      documentId: tripDocuments.id,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      stopLabel: tripStops.label,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
+      tripStops,
+      and(eq(tripStops.companyId, tripDocuments.companyId), eq(tripStops.id, tripDocuments.stopId)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.id, [...input.documentIds]),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+
+  return new Map(
+    rows.map((row) => [
+      row.documentId,
+      {
+        documentLabel: formatDocumentLabel({ number: row.nfeNumber, series: row.nfeSeries }),
+        stopLabel: row.stopLabel ?? '',
+      },
+    ]),
+  )
+}
+
+function formatDocumentLabel(input: {
+  readonly number: string | null
+  readonly series: string | null
+}): string {
+  const number = input.number ?? ''
+  const series = input.series ?? ''
+  if (number === '') return ''
+  return series === '' ? number : `${number}/${series}`
+}
+
+/**
  * Os rótulos que o aviso da ocorrência imprime. **Uma consulta**, e só quando alguém registra uma
  * ocorrência — ação manual, nunca em laço.
  *

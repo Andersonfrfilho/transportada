@@ -3,3 +3,4 @@
  */
 import './composition/anonymous-routes.contract.js'
 import './composition/money-decimal-pattern.contract.js'
+import './composition/office-stop-occurrence.contract.js'

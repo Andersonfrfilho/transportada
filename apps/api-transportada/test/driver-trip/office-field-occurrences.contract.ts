@@ -168,14 +168,13 @@ async function register(
     idempotencyKey: 'lote-1',
     note: 'Portão fechado',
     notifications: {
+      logger: { warn() {} },
       notifier: {
         async notify() {
           throw new Error('o caso de uso notifica pelo notifyOccurrence, com parâmetros')
         },
       },
-      async readLabels() {
-        return { documentLabel: 'NF 1', stopLabel: 'Centro' }
-      },
+      readLabels: async (input) => labelsFor(input.documentIds),
     },
     occurrenceTypeId: TYPE_ID,
     target: await resolveTarget(),
@@ -188,6 +187,7 @@ function recordingNotifications(
   world: World,
 ): RegisterOfficeDocumentOccurrencesParams['notifications'] {
   return {
+    logger: { warn() {} },
     notifier: {
       async notify(input) {
         world.notified.push({
@@ -196,10 +196,14 @@ function recordingNotifications(
         })
       },
     },
-    async readLabels() {
-      return { documentLabel: 'NF 1', stopLabel: 'Centro' }
-    },
+    readLabels: async (input) => labelsFor(input.documentIds),
   }
+}
+
+function labelsFor(documentIds: readonly string[]) {
+  return new Map(
+    documentIds.map((documentId) => [documentId, { documentLabel: 'NF 1', stopLabel: 'Centro' }]),
+  )
 }
 
 let nextObjectId = 0
@@ -269,18 +273,57 @@ describe('ocorrência em massa do escritório (spec 156 D7, aceite 10)', () => {
 
     const result = await register(world, {
       notifications: {
+        logger: { warn() {} },
         notifier: {
           async notify() {
             throw new Error('fila fora do ar')
           },
         },
-        async readLabels() {
-          return { documentLabel: 'NF 1', stopLabel: 'Centro' }
-        },
+        readLabels: async (input) => labelsFor(input.documentIds),
       },
     })
 
     expect(result.items).toHaveLength(3)
+  })
+
+  it('M10: os rótulos do lote saem de uma leitura só, com as N notas', async () => {
+    const world = buildWorld()
+    const reads: (readonly string[])[] = []
+
+    await register(world, {
+      notifications: {
+        ...recordingNotifications(world),
+        readLabels: async (input) => {
+          reads.push(input.documentIds)
+          return labelsFor(input.documentIds)
+        },
+      },
+    })
+
+    expect(reads).toEqual([[...DOCUMENTS]])
+    expect(world.notified).toHaveLength(3)
+  })
+
+  it('M10: a leitura dos rótulos que falha depois do commit vira aviso no log, não erro', async () => {
+    const world = buildWorld()
+    const warnings: { event: string; meta: Record<string, unknown> | undefined }[] = []
+
+    const result = await register(world, {
+      notifications: {
+        logger: { warn: (event, meta) => void warnings.push({ event, meta }) },
+        notifier: recordingNotifications(world).notifier,
+        readLabels: () => Promise.reject(new Error('pool esgotado')),
+      },
+    })
+
+    expect(result.items).toHaveLength(3)
+    expect(world.saved).toHaveLength(3)
+    expect(warnings).toEqual([
+      {
+        event: 'trip_office_occurrences_notification_failed',
+        meta: { companyId: COMPANY_ID, reason: 'pool esgotado', tripId: TRIP_ID },
+      },
+    ])
   })
 
   it('o reenvio com a mesma chave devolve os mesmos ids e não avisa de novo', async () => {

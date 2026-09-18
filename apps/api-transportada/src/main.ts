@@ -250,6 +250,7 @@ import {
   listOccurrenceTypes,
   listTripOccurrences,
   readOccurrenceLabels,
+  readOccurrenceLabelsForDocuments,
   readOccurrenceTemplateValues,
   saveOccurrenceType,
   saveTripOccurrence,
@@ -1781,6 +1782,24 @@ function createApplicationRoutes({
   const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
     envelopeProvider,
   })
+  /**
+   * Spec 082 D8, spec 060 D4c: o que vem depois da ocorrência de parada — o aviso do motivo tipado
+   * pelo trilho `notification.v1` que já existe (o `sendNotification` enfileira no RabbitMQ e o
+   * worker renderiza; motivo sem template grava e segue) e a sugestão de cobrança. O motorista e o
+   * escritório em nome dele usam os mesmos dois (spec 156 T15 M5).
+   */
+  const stopOccurrenceFollowUp = {
+    notifier: createStopOccurrenceNotifier({
+      logger,
+      queryable: database,
+      send: (params) =>
+        notifications.useCases.sendNotification.execute({
+          ...params,
+          locale: NOTIFICATION_DEFAULT_LOCALE,
+        } as never),
+    }),
+    suggestCharges: suggestDeliveryCharges,
+  }
   /** Spec 156 T6/T15: o canhoto do escritório, igual em `field-delivery` e `field-proof`. */
   const officeDeliveryProofAttachment = {
     newObjectId: () => crypto.randomUUID(),
@@ -2559,22 +2578,8 @@ function createApplicationRoutes({
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
+          ...stopOccurrenceFollowUp,
           attachmentObjectId: null,
-          /**
-           * Spec 082 D8: o aviso do motivo tipado sai pelo trilho `notification.v1` que já
-           * existe — o `sendNotification` do módulo enfileira no RabbitMQ e o worker consome e
-           * renderiza. Nenhuma fila nova; motivo sem template grava e segue.
-           */
-          notifier: createStopOccurrenceNotifier({
-            logger,
-            queryable: database,
-            send: (params) =>
-              notifications.useCases.sendNotification.execute({
-                ...params,
-                locale: NOTIFICATION_DEFAULT_LOCALE,
-              } as never),
-          }),
-          suggestCharges: suggestDeliveryCharges,
           unitOfWork: driverFieldReports,
         }),
       reportReturn: (input) =>
@@ -2623,9 +2628,11 @@ function createApplicationRoutes({
             deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
+      /** Spec 156 T15 M5: o mesmo aviso e a mesma sugestão de cobrança da ocorrência do motorista. */
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
+          ...stopOccurrenceFollowUp,
           attachmentObjectId: null,
           unitOfWork: driverFieldReports,
         }),
@@ -2658,8 +2665,9 @@ function createApplicationRoutes({
             upload: input.attachment,
           },
           notifications: {
+            logger,
             notifier: occurrenceNotifier,
-            readLabels: (query) => readOccurrenceLabels(database, query),
+            readLabels: (query) => readOccurrenceLabelsForDocuments(database, query),
           },
           unitOfWork: officeOccurrenceBatches,
         }),
