@@ -163,7 +163,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus` (agente `designer`)
 
-- [ ] **T16 — Revisão de design e usabilidade** (web.md §15). Percorrer de ponta a ponta, no desktop
+- [x] **T16 — Revisão de design e usabilidade** (web.md §15). Percorrer de ponta a ponta, no desktop
       (o escritório com o maço de canhotos) e no celular (375 px): - **Design**: cada componente novo (`TripFieldActions`, `FieldDeliveryWizard`, faixa da nota
       sobre a câmera, `FieldOccurrenceDialog`, autoria na linha do tempo) comparado com os vizinhos
       da tela da viagem: primitivo do `shadcn/ui`, altura, borda, contraste em cada estado, claro e
