@@ -330,7 +330,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   })
 
   /**
-   * Spec 159 T5 (ADR-0069 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
+   * Spec 159 T5 (ADR-0070 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
    * verdade — a query de `findDeliveryContext` (join `trip_stop_events`+`trip_stops`) e a de
    * `resolveProofPunctualitySettings` são o que um contrato com dublê não prova.
    */
@@ -445,7 +445,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
-   * Spec 159 T6, ADR-0069 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
+   * Spec 159 T6, ADR-0070 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
    * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
    * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).
    */

@@ -161,7 +161,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }
 
   /**
-   * ADR-0069 §3-5, spec 159 RF7: os parâmetros de pontualidade da configuração geral. Ausência de
+   * ADR-0070 §3-5, spec 159 RF7: os parâmetros de pontualidade da configuração geral. Ausência de
    * linha (ou empresa que nunca salvou o painel) cai na fábrica — mesmo molde de
    * `resolveProofFieldSettings` acima.
    */
@@ -184,7 +184,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }
 
   /**
-   * ADR-0069 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
+   * ADR-0070 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
    * ainda que rara).
    */
@@ -338,13 +338,13 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 }
 
 type SaveProofInput = {
-  /** ADR-0069 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */
+  /** ADR-0070 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */
   readonly accuracyMeters: string | null
   readonly actorUserId: string
   /** Spec 082 (revisão, item 5): chave de idempotência do anexo. Vazio quando o app não a manda. */
   readonly attachmentKey: string
   readonly authorship: FieldAuthorship
-  /** ADR-0069 §3: o que o aparelho diz ter tirado a foto. `null` quando ele não manda. */
+  /** ADR-0070 §3: o que o aparelho diz ter tirado a foto. `null` quando ele não manda. */
   readonly capturedAt: Date | null
   readonly companyId: string
   readonly eventId: string
@@ -355,7 +355,7 @@ type SaveProofInput = {
   readonly mimeType: string
   readonly objectId: string
   readonly objectKey: string
-  /** ADR-0069 §2: o veredito já classificado — `not_required` para assinatura e para foto opcional. */
+  /** ADR-0070 §2: o veredito já classificado — `not_required` para assinatura e para foto opcional. */
   readonly punctuality: ProofPunctuality
   readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
   readonly receiverDocumentMasked: string

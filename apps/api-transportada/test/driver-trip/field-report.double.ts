@@ -18,7 +18,7 @@ export type FieldReportState = {
   readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
   readonly proofsByAttachmentKey: Map<string, string>
-  /** ADR-0069 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
+  /** ADR-0070 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>

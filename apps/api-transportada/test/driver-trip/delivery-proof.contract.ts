@@ -235,7 +235,7 @@ describe('o comprovante da entrega', () => {
   })
 
   /**
-   * Spec 159, aceite 3-4 (ADR-0069 §2-4): a pontualidade da foto é gravada e viaja na resposta. Os
+   * Spec 159, aceite 3-4 (ADR-0070 §2-4): a pontualidade da foto é gravada e viaja na resposta. Os
    * casos completos de `classifyProofPunctuality` já estão em
    * `test/trip-delivery-proof/punctuality.contract.ts` (T2) — aqui só se prova que o caso de uso
    * junta as peças certas (settings da nota, contexto do evento, `capturedAt`/posição do upload).

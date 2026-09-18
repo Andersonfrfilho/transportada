@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0069 §5-6, spec 159 T6/T7: a porta que a T7 implementa (`DrizzleDriverScoreRepository`, uma
+ * ADR-0070 §5-6, spec 159 T6/T7: a porta que a T7 implementa (`DrizzleDriverScoreRepository`, uma
  * consulta por empresa e lista de motoristas, sem N+1). Definida aqui já na T6 para o snapshot do
  * motorista (`find-current-driver-trip.use-case.ts`) e as rotas da frota (T8) dependerem da forma,
  * não da implementação.

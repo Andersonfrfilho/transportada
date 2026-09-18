@@ -238,7 +238,7 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
   })
 
   /**
-   * Spec 159 T6, ADR-0069 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
+   * Spec 159 T6, ADR-0070 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
    * `proofPending` de novo, na mesma leitura — não fica preso ao valor da primeira resposta.
    */
   it('o reenvio da mesma chave recalcula proofPending, não reaproveita a primeira resposta', async () => {

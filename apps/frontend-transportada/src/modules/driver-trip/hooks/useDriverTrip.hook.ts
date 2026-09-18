@@ -269,7 +269,7 @@ export function useDriverTrip(
    * Spec 159 (T11, item 6): a foto grava no IndexedDB **antes** de esperar o GPS, não depois — o
    * `getCurrentPosition` pode levar até 8 s, e a foto só em memória durante essa espera some se o
    * motorista fechar o app no meio. A posição chega em seguida, atualizando o mesmo anexo; se a
-   * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0069
+   * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0070
    * §4) — nunca perdida.
    */
   async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {

@@ -1,4 +1,4 @@
-# ADR-0069 — A foto obrigatória do motorista não recusa a entrega, pesa na nota
+# ADR-0070 — A foto obrigatória do motorista não recusa a entrega, pesa na nota
 
 - **Status:** aceita
 - **Data:** 2026-09-18

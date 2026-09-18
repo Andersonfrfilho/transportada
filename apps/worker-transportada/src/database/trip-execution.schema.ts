@@ -18,7 +18,7 @@ export const tripStopEvents = pgTable('trip_stop_events', {
 })
 
 /**
- * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0069 §4) — só as colunas que o
+ * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0070 §4) — só as colunas que o
  * expurgo lê e apaga. `captured_at` fica: é o horário declarado da foto, que a auditoria da
  * pontualidade ainda lê, e sem a posição ele já não localiza ninguém.
  */

@@ -330,7 +330,7 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
   })
 
   /**
-   * Spec 159 T6, ADR-0069 §1: com `photo = 'required'` e sem foto anexada, a resposta avisa
+   * Spec 159 T6, ADR-0070 §1: com `photo = 'required'` e sem foto anexada, a resposta avisa
    * `proofPending: true` — a entrega **continua aceita** (aceite 1). Ampliação do teste acima.
    */
   it('com photo = required e sem foto, proofPending é true — a entrega continua aceita', async () => {

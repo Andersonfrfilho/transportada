@@ -230,7 +230,7 @@ aconteceu**; quem for escrever leitor para um desses campos precisa abrir o enve
 confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
-**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0069, spec 159):
+**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0070, spec 159):
 `DrizzleDriverScoreRepository` lê numa consulta só o último `delivered` de cada nota nos 90 dias (só
 `channel = 'driver_app'`, nota não devolvida, desde `score_effective_since` — sem retroatividade) das
 notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motorista do evento é

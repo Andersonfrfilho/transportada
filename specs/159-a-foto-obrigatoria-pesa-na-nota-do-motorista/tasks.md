@@ -18,7 +18,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 
 ## Fase 0
 
-- [x] **T1 🧠 ADR-0069** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
+- [x] **T1 🧠 ADR-0070** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
       Registra a decisão do usuário, a exceção ao 422 da ADR-0067 para o canal do motorista, RF5/RF6/RF8,
       e que foto sem posição conta como longe. Aceite: arquivo em `docs/adr/`, ADR-0057 e ADR-0067 citadas.
 

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0069 §7, spec 159 RF10 (T8): a nota do motorista na frota — ao lado de cada item da listagem
+ * ADR-0070 §7, spec 159 RF10 (T8): a nota do motorista na frota — ao lado de cada item da listagem
  * (uma leitura de nota por página, nunca uma por motorista) e na ficha, com as penalidades vigentes.
  */
 import { FleetDriverNotFoundError } from '../domain/fleet.error.js'

@@ -119,7 +119,7 @@ describe('expurgo da coordenada de entrega', () => {
     })
   })
   /**
-   * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0069 §4) é dado de localização
+   * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0070 §4) é dado de localização
    * como a do evento — cai no mesmo corte de 90 dias, em lotes, contada à parte.
    */
   test('apaga a posição vencida da foto do comprovante no mesmo corte', async () => {

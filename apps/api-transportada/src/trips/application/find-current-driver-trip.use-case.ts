@@ -36,7 +36,7 @@ export type DriverTripDocument = {
   readonly id: string
   readonly number: string
   /**
-   * ADR-0069 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
+   * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
    */
   readonly proofPending: boolean
@@ -149,7 +149,7 @@ export type FindCurrentDriverTripResult = {
   readonly isRegisteredDriver: boolean
   /** Spec 159 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
   readonly pendingProofs: readonly DriverPendingProof[]
-  /** ADR-0069 §6, spec 159 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
+  /** ADR-0070 §6, spec 159 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
   readonly score: number | null
   readonly trips: readonly DriverTrip[]
 }

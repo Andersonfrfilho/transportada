@@ -48,7 +48,7 @@ function readProofPending(value: unknown): boolean {
   return value === true
 }
 
-/** ADR-0069 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
+/** ADR-0070 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
 function readDriverScore(value: unknown): number | null {
   if (value === null || value === undefined) return null
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100

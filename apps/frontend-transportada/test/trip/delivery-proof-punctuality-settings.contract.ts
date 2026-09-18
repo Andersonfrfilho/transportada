@@ -36,7 +36,7 @@ function validSettings(overrides: Partial<Record<string, number>> = {}) {
 }
 
 /**
- * Spec 159 RF7, ADR-0069 §7: os cinco parâmetros da nota do motorista, junto do comprovante —
+ * Spec 159 RF7, ADR-0070 §7: os cinco parâmetros da nota do motorista, junto do comprovante —
  * `proofWindowMinutes` (5-1440), `proofRadiusMeters` (50-5000), `latePenaltyPoints` (0-100),
  * `missingPenaltyPoints` (0-100), `missingAfterHours` (1-168).
  */

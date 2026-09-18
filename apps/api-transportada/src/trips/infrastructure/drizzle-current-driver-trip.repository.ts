@@ -607,7 +607,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * ADR-0069 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
+   * ADR-0070 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
    * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
    * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
    */
@@ -806,7 +806,7 @@ function toDriverDocument(
     id: row.id,
     number: row.number ?? '',
     /**
-     * ADR-0069 §1, spec 159 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
+     * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
      * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
      */
     proofPending:

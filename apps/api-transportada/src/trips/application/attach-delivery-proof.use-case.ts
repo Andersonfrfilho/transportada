@@ -46,11 +46,11 @@ export type DeliveryProofUpload = {
    */
   readonly attachmentKey: string
   readonly bytes: Uint8Array
-  /** ADR-0069 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
+  /** ADR-0070 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
   readonly capturedAt: Date | undefined
   readonly kind: TripDeliveryProofKind
   readonly mimeType: string
-  /** ADR-0069 §4, spec 159 RF3/RF6: onde o aparelho leu a posição ao tirar a foto. */
+  /** ADR-0070 §4, spec 159 RF3/RF6: onde o aparelho leu a posição ao tirar a foto. */
   readonly position: ProofPosition | undefined
   /**
    * ADR-0057 §3 (revisa ADR-0045 §7): o documento de quem recebeu, na forma canônica. Vazio é o
@@ -86,12 +86,12 @@ export type DeliveryProofPort = {
     readonly companyId: string
     readonly documentId: string
   }): Promise<DeliveryProofFieldSettings>
-  /** ADR-0069 §3-5, spec 159 RF7: os parâmetros de pontualidade da empresa — geral, sem exceção. */
+  /** ADR-0070 §3-5, spec 159 RF7: os parâmetros de pontualidade da empresa — geral, sem exceção. */
   resolveProofPunctualitySettings(input: {
     readonly companyId: string
   }): Promise<DeliveryProofPunctualitySettings>
   /**
-   * ADR-0069 §5, spec 159 RF5/RF6: o que `classifyProofPunctuality` precisa do evento de entrega —
+   * ADR-0070 §5, spec 159 RF5/RF6: o que `classifyProofPunctuality` precisa do evento de entrega —
    * quando aconteceu e onde (evento e parada). Lido pelo `eventId` já resolvido, não pela nota.
    */
   findDeliveryContext(input: { readonly companyId: string; readonly eventId: string }): Promise<{
@@ -145,7 +145,7 @@ export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly documentId: string
   readonly newObjectId: () => string
   readonly newProofId: () => string
-  /** ADR-0069 §3, spec 159 RF5: quando o servidor recebeu a foto — referência sem `capturedAt`. */
+  /** ADR-0070 §3, spec 159 RF5: quando o servidor recebeu a foto — referência sem `capturedAt`. */
   readonly now: Date
   readonly repository: DeliveryProofPort
   /** Sela o documento em envelope A256GCM, com AAD amarrado ao `proofId`. */
@@ -275,7 +275,7 @@ export async function attachDeliveryProof(
 }
 
 /**
- * ADR-0069 §2-6, spec 159 RF4-RF6: só a foto do motorista entra na nota — a assinatura grava
+ * ADR-0070 §2-6, spec 159 RF4-RF6: só a foto do motorista entra na nota — a assinatura grava
  * `not_required` de propósito (RF4). Spec 159 T11 (ALTO 2): a foto do escritório (`field-proof`,
  * canal `office`) também — ela não classifica, e a fusão com a anterior
  * (`mergeProofPunctuality`) preserva o que a foto do motorista já tinha gravado: o canhoto do

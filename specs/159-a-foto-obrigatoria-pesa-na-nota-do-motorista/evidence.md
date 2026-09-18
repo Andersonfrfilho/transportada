@@ -1,8 +1,8 @@
 # Spec 159 — Evidência
 
-## T1 — ADR-0069
+## T1 — ADR-0070
 
-Arquivo `docs/adr/0069-a-foto-obrigatoria-do-motorista-pesa-na-nota.md` já existia no worktree antes
+Arquivo `docs/adr/0070-a-foto-obrigatoria-do-motorista-pesa-na-nota.md` já existia no worktree antes
 desta sessão (aceita, cita ADR-0057 e ADR-0067 §5 emenda 2). Marcada como concluída junto do commit
 da T2.
 
@@ -560,7 +560,7 @@ via o atalho no topo).
 
 Decisões do usuário (2026-09-18): D1 sem retroatividade, D2 WhatsApp fora da nota, D3a relógio do
 aparelho com prazo, D3b substituta fica com a pior pontualidade, D4 penalidades seguem `fleet.read`.
-Registradas em `spec.md` (RF2–RF9, RF13, casos extremos) e em ADR-0069 (emenda 2026-09-18). Teste
+Registradas em `spec.md` (RF2–RF9, RF13, casos extremos) e em ADR-0070 (emenda 2026-09-18). Teste
 escrito antes da correção em cada item.
 
 | #      | Achado                                                                  | Correção                                                                                                                                                                                                                                                                                                                                                                              | Teste                                                                                                                                                                                                             | Commit                 |
@@ -678,7 +678,7 @@ E, sem numeração própria na lista original mas cobertos junto:
 
 - Foto grava no IndexedDB **antes** de esperar o GPS (até 8 s) — a posição chega depois e atualiza o
   mesmo anexo por `attachmentKey` (`applyAttachmentLocation`); se a drenagem subir antes da posição
-  resolver, a foto vai sem ela e conta como longe (ADR-0069 §4), nunca perdida.
+  resolver, a foto vai sem ela e conta como longe (ADR-0070 §4), nunca perdida.
   `test/driver-trip/offline-attachments.contract.ts` — `52e21880`.
 - `TripDeliveryProofSettingsPanel`: campo numérico vazio não vira `0` silencioso
   (`resolvePunctualityFieldValue` trata string vazia como `NaN`, reprovando

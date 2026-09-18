@@ -72,7 +72,7 @@ export function isFieldDeliverySettings(value: unknown): value is FieldDeliveryS
   return isRecord(value) && typeof value['canhotoOcrEnabled'] === 'boolean'
 }
 
-/** Spec 159 RF7, ADR-0069 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
+/** Spec 159 RF7, ADR-0070 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
 export const DELIVERY_PROOF_PUNCTUALITY_FIELDS = [
   'proofWindowMinutes',
   'proofRadiusMeters',
@@ -97,7 +97,7 @@ export const DELIVERY_PROOF_PUNCTUALITY_RANGES: Readonly<
   proofWindowMinutes: { max: 1440, min: 5 },
 }
 
-/** ADR-0069 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
+/** ADR-0070 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
 export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
   latePenaltyPoints: 5,
   missingAfterHours: 24,

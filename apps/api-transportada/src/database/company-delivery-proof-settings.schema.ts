@@ -56,7 +56,7 @@ export const companyDeliveryProofSettings = pgTable(
      */
     canhotoOcrEnabled: boolean('canhoto_ocr_enabled').notNull().default(false),
     /**
-     * ADR-0069 §3-5, spec 159 RF7: parâmetros da nota do motorista — só na configuração geral, a
+     * ADR-0070 §3-5, spec 159 RF7: parâmetros da nota do motorista — só na configuração geral, a
      * exceção por CNPJ (`deliveryProofSettingOverrides` abaixo) não os carrega, porque a regra é da
      * empresa, não do destinatário.
      */

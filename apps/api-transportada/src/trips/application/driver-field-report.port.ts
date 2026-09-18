@@ -171,7 +171,7 @@ export type DriverFieldReportTransactionPort = {
    * reabre o objeto no bucket: quem chama já subiu os bytes antes de entrar na transação.
    */
   saveDeliveryProofWithinTransaction(input: {
-    /** ADR-0069 §4: `null` no canal `office` — spec 159 T5, o canhoto não classifica pontualidade. */
+    /** ADR-0070 §4: `null` no canal `office` — spec 159 T5, o canhoto não classifica pontualidade. */
     readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
@@ -186,7 +186,7 @@ export type DriverFieldReportTransactionPort = {
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
-    /** ADR-0069 §6: o canal `office` não entra na nota — grava sempre `not_required`. */
+    /** ADR-0070 §6: o canal `office` não entra na nota — grava sempre `not_required`. */
     readonly punctuality: TripDeliveryProofPunctuality
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
@@ -202,7 +202,7 @@ export type DriverFieldReportTransactionPort = {
     readonly kind: TripDeliveryProofKind
   }): Promise<string | null>
   /**
-   * ADR-0069 §1, spec 159 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
+   * ADR-0070 §1, spec 159 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
    * para `proofPending` na resposta e no snapshot compartilharem a mesma leitura.
    */
   findProofExistsForEvent(input: {

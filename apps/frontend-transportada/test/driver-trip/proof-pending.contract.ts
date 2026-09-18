@@ -173,7 +173,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
   })
 
   /**
-   * Spec 159 (T11, item 3, ADR-0069 D3a/D3b): tirar a foto de novo não melhora a pontualidade, e a
+   * Spec 159 (T11, item 3, ADR-0070 D3a/D3b): tirar a foto de novo não melhora a pontualidade, e a
    * foto que sobe muito depois conta como tardia mesmo com o relógio do aparelho dizendo outra
    * hora — o aviso tem de dizer isso em linguagem simples.
    */

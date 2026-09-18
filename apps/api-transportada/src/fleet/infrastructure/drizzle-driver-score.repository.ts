@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0069 §5-6, spec 159 RF8-RF10 (T7): busca e agrupa as entregas que pesam na nota do
+ * ADR-0070 §5-6, spec 159 RF8-RF10 (T7): busca e agrupa as entregas que pesam na nota do
  * motorista. A regra (quais penalizam, quantos pontos, `null` sem histórico) mora em
  * `computeDriverScore`; aqui só se lê o banco — uma consulta de entregas para a lista inteira de
  * motoristas (sem N+1) e as duas leituras de configuração da empresa, em paralelo.

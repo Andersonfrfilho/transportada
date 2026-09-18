@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 159 T4 (ADR-0069 §2-5): os parâmetros de pontualidade em
+-- Desfaz a spec 159 T4 (ADR-0070 §2-5): os parâmetros de pontualidade em
 -- `company_delivery_proof_settings` e a posição + o veredito da foto em
 -- `trip_delivery_proofs`. Migration puramente aditiva — nenhum dado de negócio anterior depende
 -- destas colunas, e por isso o rollback não precisa de guarda de dado, só desfazer o DDL.

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 159 T7, ADR-0069 §5-6 — a nota do motorista contra Postgres de verdade. A regra de pontos é
+ * Spec 159 T7, ADR-0070 §5-6 — a nota do motorista contra Postgres de verdade. A regra de pontos é
  * provada em `test/driver-score/*` sem banco; aqui se prova o **SQL**: o último evento por nota, o
  * recorte de canal e de janela, a ligação do motorista pelo vínculo, a exceção por CNPJ e o tenant
  * em todas as tabelas do join. Contrato com dublê passa com `where` errado — este não.

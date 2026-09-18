@@ -22,7 +22,7 @@ const RECEIVER_DOCUMENT_FIELD = 'receiverDocument'
 const ATTACHMENT_KEY_FIELD = 'attachmentKey'
 const ATTACHMENT_KEY_MAX_LENGTH = 128
 const RECEIVER_NAME_MAX_LENGTH = 120
-/** ADR-0069 §2-4, spec 159 RF3: onde e quando a foto foi tirada — os quatro campos são opcionais. */
+/** ADR-0070 §2-4, spec 159 RF3: onde e quando a foto foi tirada — os quatro campos são opcionais. */
 const LATITUDE_FIELD = 'latitude'
 const LONGITUDE_FIELD = 'longitude'
 const ACCURACY_METERS_FIELD = 'accuracyMeters'

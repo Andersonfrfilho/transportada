@@ -9,7 +9,7 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
 `latitude`, `longitude`, `accuracyMeters`, `capturedAt`) e a nota do motorista que deriva deles
-(ADR-0069); `frontend-transportada`, fila offline de anexos do PWA (IndexedDB).
+(ADR-0070); `frontend-transportada`, fila offline de anexos do PWA (IndexedDB).
 
 **O que é (risco aceito):** a pontualidade da foto (`on_time`/`late`/`away`) sai de dados que o
 **cliente declara**. Um aparelho adulterado pode mandar a coordenada da parada e um `capturedAt`

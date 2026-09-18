@@ -96,7 +96,7 @@ export type ReportDocumentDeliveryInput = ReportDocumentOutcomeInput & {
   /** Spec 156 T6: só o canal `office` manda isto — o motorista anexa depois, por rota própria. */
   readonly proof?: OfficeDeliveryProofAttachment
   /**
-   * ADR-0069 §1, spec 159 RF1/RF2: a configuração resolvida da nota — usada só para saber se a
+   * ADR-0070 §1, spec 159 RF1/RF2: a configuração resolvida da nota — usada só para saber se a
    * foto é obrigatória (`proofPending`), não para gravar nada. Os três canais de produção mandam a
    * mesma porta que já usam para resolver o comprovante
    * (`DeliveryProofPort.resolveProofFieldSettings`). Opcional para não quebrar chamador que não
@@ -122,7 +122,7 @@ export type ReportDocumentOutcomeResult = {
   /** `null` quando não veio comprovante (motorista, ou escritório sem foto obrigatória). */
   readonly proofId: string | null
   /**
-   * ADR-0069 §1, spec 159 RF1/RF2: a entrega **nunca** é recusada por falta de foto — este campo
+   * ADR-0070 §1, spec 159 RF1/RF2: a entrega **nunca** é recusada por falta de foto — este campo
    * diz que ela ainda não chegou, para a tela avisar sem bloquear. Sempre `false` num `return`.
    */
   readonly proofPending: boolean
@@ -186,7 +186,7 @@ type RunOutcomeParams = {
   readonly operation: string
   /** Spec 156 T6: só a entrega do escritório manda isto. */
   readonly proof?: OfficeDeliveryProofAttachment
-  /** ADR-0069 §1, spec 159: só `document.deliver` a usa — `document.return` nunca fica pendente. */
+  /** ADR-0070 §1, spec 159: só `document.deliver` a usa — `document.return` nunca fica pendente. */
   readonly resolveProofSettings?: (input: {
     readonly companyId: string
     readonly documentId: string
@@ -255,7 +255,7 @@ async function persistOfficeDeliveryProof(input: {
    */
   const proofResult = await transaction.saveDeliveryProofWithinTransaction({
     /**
-     * ADR-0069 §6, spec 159 T5: a entrega do escritório não entra na nota do motorista (RF8) — o
+     * ADR-0070 §6, spec 159 T5: a entrega do escritório não entra na nota do motorista (RF8) — o
      * canhoto grava `not_required`, sem posição nem `capturedAt`, em vez de reclassificar aqui.
      */
     accuracyMeters: null,
@@ -284,7 +284,7 @@ async function persistOfficeDeliveryProof(input: {
 }
 
 /**
- * ADR-0069 §1, spec 159 RF1/RF2: pendente = entrega (nunca `return`), foto obrigatória resolvida, e
+ * ADR-0070 §1, spec 159 RF1/RF2: pendente = entrega (nunca `return`), foto obrigatória resolvida, e
  * nenhuma foto anexada ao evento. Sem `resolveProofSettings` (nenhum canal deixa de mandar hoje, mas
  * a função é pura sobre `RunOutcomeParams`) o campo é `false` — nunca bloqueia por falta dele.
  */

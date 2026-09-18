@@ -1183,7 +1183,7 @@ export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
 
 /**
- * ADR-0069 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
+ * ADR-0070 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
  * `PROOF_PUNCTUALITY` de `trips/domain/delivery-proof-punctuality.policy.ts`, pelo mesmo motivo do
  * `TRIP_FIELD_CHANNELS` acima — importar `trips/domain` daqui puxaria a árvore do módulo para dentro
  * do fechamento de imports do pre-deploy (`test/database-migration/pre-deploy.contract.ts`).
@@ -1240,7 +1240,7 @@ export const tripDeliveryProofs = pgTable(
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /**
-     * ADR-0069 §2-4, spec 159 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
+     * ADR-0070 §2-4, spec 159 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
      * motorista. Anuláveis pelo mesmo motivo da posição do evento de entrega (ADR-0045 §3): a
      * recusa não bloqueia, e sem posição a foto conta como longe (`classifyProofPunctuality`).
      */
@@ -1249,7 +1249,7 @@ export const tripDeliveryProofs = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
-     * ADR-0069 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
+     * ADR-0070 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
      * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
      */
     punctuality: varchar('punctuality', { length: 16 })

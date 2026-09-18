@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0069 §2-4, spec 159 RF4-RF6: a foto obrigatória do motorista nunca recusa a entrega — ela
+ * ADR-0070 §2-4, spec 159 RF4-RF6: a foto obrigatória do motorista nunca recusa a entrega — ela
  * classifica a pontualidade da foto para a nota (`fleet/domain/driver-score.policy.ts`). Regra pura,
  * sem I/O; quem lê `trip_stops`/`trip_stop_events`/`trip_delivery_proofs` é o repositório.
  */
@@ -12,7 +12,7 @@ import { MILLISECONDS_PER_HOUR, MILLISECONDS_PER_MINUTE } from '../../shared/tim
 import { REQUIRED_PROOF_FIELD_MODE } from './delivery-event.constant.js'
 import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from './field-delivery-timing.policy.js'
 
-/** ADR-0069 §2: os cinco vereditos que uma foto de entrega pode receber. */
+/** ADR-0070 §2: os cinco vereditos que uma foto de entrega pode receber. */
 export const PROOF_PUNCTUALITY = {
   away: 'away',
   lateAndAway: 'late_and_away',
