@@ -3,7 +3,12 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
+import type {
+  AuthenticatedContext,
+  CompanyContext,
+} from '../../src/identity/domain/tenant-context.js'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes.js'
 import { createTripRoutes } from '../../src/trips/presentation/trip.routes.js'
 
@@ -25,6 +30,28 @@ const meRoutes = createMeTripRoutes({
   resolveDriverId: NOT_CALLED,
   startFieldTrip: NOT_CALLED,
 })
+
+function companyContext(roles: CompanyContext['roles']): AuthenticatedContext<CompanyContext> {
+  return {
+    identity: {
+      companyIdClaim: '00000000-0000-4000-8000-000000000002',
+      externalIdentityId: '00000000-0000-4000-8000-000000000004',
+      issuer: 'https://issuer.test',
+      platformAdmin: false,
+      serviceAccount: false,
+      subject: 'driver',
+      userId: '00000000-0000-4000-8000-000000000001',
+    },
+    scope: {
+      companyId: '00000000-0000-4000-8000-000000000002',
+      kind: 'company',
+      membershipId: '00000000-0000-4000-8000-000000000003',
+      permissions: resolveCompanyPermissions(roles),
+      roles,
+      userId: '00000000-0000-4000-8000-000000000001',
+    },
+  }
+}
 
 const officeRoutes = createTripRoutes(
   new Proxy({} as never, { get: () => ({ execute: NOT_CALLED }) }),
@@ -51,13 +78,17 @@ describe('as rotas do campo', () => {
    * escritório abre. A checagem é sobre a política declarada, não sobre uma lista de caminhos que
    * alguém teria de lembrar de atualizar.
    */
+  /**
+   * Spec 156 T7 (L1): a decisão é lida pelo `authorize` real, não por `policy.permission` — cinco
+   * leituras passaram a `anyPermission` (D11), e ali não existe permissão única para comparar.
+   */
   it('o papel driver não alcança nenhuma rota de viagem do escritório', () => {
-    const driverPermissions = resolveCompanyPermissions(['driver'])
+    const authorization = new AuthorizationService()
+    const driverContext = companyContext(['driver'])
 
     for (const route of officeRoutes) {
-      const permission = route.policy?.permission
-      expect(permission).toBeDefined()
-      expect(driverPermissions.has(permission as never)).toBe(false)
+      expect(route.policy).toBeDefined()
+      expect(() => authorization.authorize(driverContext, route.policy)).toThrow()
     }
   })
 

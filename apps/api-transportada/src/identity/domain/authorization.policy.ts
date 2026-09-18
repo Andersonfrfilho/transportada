@@ -262,10 +262,31 @@ export type MembershipAuthorizationPolicy = {
   readonly scope: 'company'
 }
 
+/**
+ * Spec 156 D11 (ADR-0067): "qualquer uma de". Só em leitura — o roteador recusa no boot em outro
+ * método — e só onde a decisão está escrita. Pelo menos duas: com uma, é `CompanyAuthorizationPolicy`.
+ */
+export type CompanyAnyPermissionPolicy = {
+  readonly anyPermission: readonly [CompanyPermission, CompanyPermission, ...CompanyPermission[]]
+  /** Sem permissão única: quem lê `policy.permission` numa lista de rotas recebe `undefined`. */
+  readonly permission?: never
+  readonly scope: 'company'
+}
+
 export type RouteAuthorizationPolicy =
   | CompanyAuthorizationPolicy
+  | CompanyAnyPermissionPolicy
   | MembershipAuthorizationPolicy
   | PlatformAuthorizationPolicy
+
+export type GrantsAnyPermissionParams = {
+  readonly granted: ReadonlySet<CompanyPermission>
+  readonly required: readonly CompanyPermission[]
+}
+
+export function grantsAnyPermission({ granted, required }: GrantsAnyPermissionParams): boolean {
+  return required.some((permission) => granted.has(permission))
+}
 
 export type CompanyPermissionSources = {
   /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */

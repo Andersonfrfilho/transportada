@@ -750,3 +750,107 @@ TDD: os oito testes novos de `office-field-delivery.contract.ts` e o novo `descr
 antes das mudanças em `report-document-delivery.use-case.ts`/`report-field-proof.use-case.ts`/
 `trip-field-office.routes.ts` (módulo/rota inexistente ou comportamento antigo sem
 `DOCUMENT_ALREADY_SETTLED`/validação de `deliveredAt`/foto obrigatória).
+
+## T7
+
+Desenho em `t7-design.md`. O `architect` **aprovou com ressalvas**, e todas as ressalvas estão no
+§0 do desenho: M1 (`allowed-actions` em rota própria), A1, A2, A3, M2, M3, M4 e B1–B6.
+
+Decisões do líder:
+
+- **L1.** `me-routes.contract.ts` passa a usar o `authorize` real.
+- **L2.** A rota `GET /trips/occurrence-types/field` foi aprovada.
+- **L3.** O anexo do lote vira a **T7b** (`tasks.md`).
+- **L4.** Tipo de separação no lote responde 422 `OCCURRENCE_TYPE_NOT_FIELD`.
+- **L5.** O `finance` continua sem o feed.
+
+### Achados anteriores à spec, que viraram tarefas separadas (L6)
+
+- `GET /trips` publica `amounts` (receita e soma das notas) sem o recorte de `trip.financials`. Quem
+  tem `fleet.read` vê esses valores, inclusive `separator` e `viewer`. Toca a ADR-0049 §6.
+- O PWA do motorista lista os tipos de ocorrência por `GET /company-settings/occurrence-types`, que
+  exige `settings.manage`. Ele recebe 403, e a lista aparece vazia sem aviso
+  (`driverTripClient.service.ts:164`).
+- `POST /trips/:id/documents/:documentId/occurrences` (`trip.manage`) aceita tipo de etapa de rua.
+  `registerTripOccurrence` não confere a etapa, e a guarda descrita em `occurrence.policy.ts` não
+  está ligada à rota.
+
+### T7.1 — `anyPermission` e o recorte do motorista
+
+**Arquivos:**
+
+- `src/identity/domain/authorization.policy.ts`: a variante `CompanyAnyPermissionPolicy`, que exige
+  pelo menos duas permissões, e a função pura `grantsAnyPermission`.
+- `src/identity/application/authorization.service.ts`: o ramo `anyPermission`.
+- `src/http/router.service.ts`: `assertAnyPermissionRoutesAreReads`, que derruba o boot se
+  `anyPermission` aparecer fora de `GET`.
+- `src/trips/presentation/trip.routes.ts`:
+  - `TRIP_FIELD_READ_POLICY`, com `['fleet.read', 'trip.report-on-behalf']`, em `GET /trips`,
+    `GET /trips/:id`, `GET /trips/:id/stops`, `GET …/proof` e `GET …/occurrences` (o `POST` do
+    mesmo caminho continua `trip.manage`).
+  - Em `serializeTripDetail`, `canReadDriverContact` passou a ser obrigatório, e as três chamadas
+    (detalhe, `POST /trips` e `POST /trips/:id/close`) o calculam com
+    `TRIP_READ_POLICY.permission` (M3).
+- `src/trips/domain/trip-permission.constant.ts` (**novo**): `TRIP_REPORT_ON_BEHALF_PERMISSION`. A
+  permissão aparecia como literal em três lugares, e o gateway de auditoria e as rotas do escritório
+  passaram a importar a constante.
+- Frontend: `trip.types.ts` e `tripResponse.validation.ts` aceitam `driverTaxId: null`. E-mail e
+  telefone já aceitavam `null` na validação e agora aceitam também no tipo.
+- `docs/adr/0067-*.md`: a emenda da T7 (o recorte no serializador e `allowed-actions` em rota
+  própria).
+- `tasks.md`: a T7b.
+
+**Testes novos:**
+
+- `test/trip-field-office/finance-read.contract.ts`:
+  - `anyPermission` passa com qualquer uma das permissões e recusa sem nenhuma, a automação e o
+    escopo de plataforma. Um `@ts-expect-error` prova que uma permissão só não compila.
+  - A guarda de boot.
+  - A lista **exaustiva** do que o `finance` alcança em viagem, frota, revisão e escritório.
+  - 403 em `/fleet/drivers`, no feed, nos anexos do feed, na geometria (as duas rotas), em
+    produtos, agendamento, prontidão fiscal e histórico de endereço.
+  - `operator`, `separator` e `viewer` seguem alcançando as cinco leituras, e o `driver` não alcança
+    nenhuma.
+  - As cinco respondem 200 ao `finance`, pelo `route.execute` depois do `authorize`.
+- `test/trip-http/driver-redaction.contract.ts`:
+  - O `finance` recebe 200 com o nome e sem CPF, e-mail e telefone.
+  - **Aceite 14:** o corpo não contém o CPF, o e-mail nem o telefone da fixture em lugar nenhum.
+  - Com `fleet.read`, a ficha sai como antes.
+  - Só com `trip.financials`, a resposta continua 403.
+- Frontend `test/trip/driver-contact-redacted.contract.ts`: aceita os três campos nulos, recusa CPF
+  com tipo errado e recusa o motorista sem nome.
+
+**Testes existentes alterados, e por quê:**
+
+- `test/driver-trip/me-routes.contract.ts` (L1/B6): "o papel `driver` não alcança nenhuma rota de
+  viagem do escritório" lia `route.policy?.permission`, que é `undefined` nas cinco rotas com
+  `anyPermission`. O teste agora pergunta ao `AuthorizationService` real, com o contexto do papel
+  `driver`, e mantém `expect(route.policy).toBeDefined()`. A intenção é a mesma, e o teste ficou
+  mais forte.
+- `test/trip-domain/driver-contact.contract.ts`: é um teste que lê o texto do código-fonte. Ele
+  procurava `driverEmail: driver.driverEmail`, e agora procura a forma com o recorte.
+- `separator-role.contract.test.ts` **não foi editado** e continua verde: a lista exaustiva do
+  separador ficou idêntica.
+
+**Vermelho → verde** (os novos arquivos contra o `src` sem a T7.1):
+
+- `bun test ./test/trip-field-office.contract.test.ts ./test/trip-http.contract.test.ts
+./test/driver-trip.contract.test.ts` → `129 pass · 2 fail · 1 error`. O erro é
+  `grantsAnyPermission` inexistente, e as falhas são o recorte e o 403 do `finance`.
+- Com a T7.1: `155 pass · 0 fail`.
+- Frontend `bun test ./test/trip.contract.test.ts`: antes `973 pass · 1 fail` ("aceita CPF, e-mail e
+  telefone nulos"), depois `974 pass · 0 fail`.
+
+**Gates:**
+
+- `bun run typecheck` (raiz, 6 apps) → exit 0, com 0 `error TS`.
+- `bun run lint` (raiz) → exit 0, com 0 erros.
+- `bunx prettier --check .` → limpo.
+- `bun run --cwd apps/api-transportada test` → `6453 pass · 32 skip · 0 fail`, 22512 `expect()`,
+  179 arquivos. São +16 em relação à T6. Os 32 pulos são os mesmos de antes (integração sem
+  `.env.test`).
+- `bun run --cwd apps/frontend-transportada test` → `4321 pass · 0 fail`, 29 arquivos.
+- De dentro de `apps/api-transportada`, com
+  `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-field-office.integration.ts
+./test/integration/trip-detail-query-count.integration.ts ./test/integration/me-trip.integration.ts
+./test/integration/trip-repository.integration.ts` → `19 pass · 0 fail · 0 skip`, 153 `expect()`.

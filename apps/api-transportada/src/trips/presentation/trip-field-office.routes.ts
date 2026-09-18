@@ -36,6 +36,7 @@ import type {
 } from '../application/report-document-delivery.use-case.js'
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
   parseOfficeDriverSelection,
@@ -70,7 +71,10 @@ const OFFICE_AUDIT_ACTION = {
  * e ele não reporta entrega), nem `trip.report` (é a chave das rotas `/me`, que acham a viagem
  * pelo vínculo do motorista logado).
  */
-const OFFICE_REPORT_POLICY = { permission: 'trip.report-on-behalf', scope: 'company' } as const
+const OFFICE_REPORT_POLICY = {
+  permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
+  scope: 'company',
+} as const
 
 type OfficeContextInput = {
   readonly actorUserId: string

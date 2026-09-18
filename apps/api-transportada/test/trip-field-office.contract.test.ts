@@ -6,3 +6,4 @@
  */
 import './trip-field-office/policy.contract.js'
 import './trip-field-office/routes.contract.js'
+import './trip-field-office/finance-read.contract.js'

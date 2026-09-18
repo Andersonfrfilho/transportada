@@ -37,11 +37,14 @@ describe('o contato do motorista na viagem', () => {
     expect(block).toContain('driverPhone')
   })
 
-  /** O contato chega ao corpo servido: campo que o serializador não lista não existe para a tela. */
+  /**
+   * O contato chega ao corpo servido: campo que o serializador não lista não existe para a tela.
+   * Spec 156 D11: e chega só a quem tem `fleet.read` — o recorte mora no mesmo serializador.
+   */
   test('o serializador publica o contato', async () => {
     const source = await readApplicationFile(ROUTES_PATH)
 
-    expect(source).toContain('driverEmail: driver.driverEmail')
-    expect(source).toContain('driverPhone: driver.driverPhone')
+    expect(source).toContain('driverEmail: input.canReadDriverContact ? driver.driverEmail : null')
+    expect(source).toContain('driverPhone: input.canReadDriverContact ? driver.driverPhone : null')
   })
 })

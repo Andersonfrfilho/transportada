@@ -213,6 +213,16 @@ nota errada custa uma cobrança contestada.
   `driverName` continua. `/fleet/drivers`, o feed e a geometria continuam só com `fleet.read`. Isso
   entra na T7, que passa a ser 🧠. No frontend, a T8 troca `TRIP_READ_PERMISSION` por
   `canReadTrip(permissions)`, e o detalhe funciona sem `useFleet`.
+  - **Emenda da T7 (2026-09-18).** O recorte fica no serializador do detalhe: `canReadDriverContact`
+    é obrigatório e vem de `fleet.read`. Os nulos só chegam a quem antes recebia 403, então nenhum
+    leitor antigo quebra. Mesmo assim, o validador do frontend passou a aceitar `null` nos três
+    campos, no mesmo commit. A variante `anyPermission` só existe em `GET`: o roteador derruba o
+    boot se ela aparecer em outro método.
+  - **A lista de ações permitidas não entra no detalhe (spec 156 D10).** Ela é uma rota própria,
+    `GET /trips/:id/allowed-actions`, com a mesma `anyPermission`. O validador do detalhe no
+    frontend recusa chave desconhecida, e uma aba com bundle antigo cairia em "Indisponível" se o
+    detalhe ganhasse uma chave nova. A rota nova não tem esse risco, e dispensa a promoção em duas
+    etapas.
 - O relatório de pontualidade passa a usar `delivered_at`, não `recorded_at`. É o número certo, mas
   ele muda para as viagens com baixa retroativa, e a mudança é registrada no `evidence.md` da spec.
 - Nenhum log leva a imagem do canhoto, o documento de quem recebeu ou o nome do destinatário

@@ -256,7 +256,8 @@ function isDriverLine(value: unknown): value is TripDriverLine {
     isAbsentOrNullableString(value.driverPhone) &&
     isString(value.driverId) &&
     isString(value.driverName) &&
-    isString(value.driverTaxId) &&
+    /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` — o nome continua. */
+    isNullableString(value.driverTaxId) &&
     isUnsignedInteger(value.position)
   )
 }

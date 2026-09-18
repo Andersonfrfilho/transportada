@@ -45,12 +45,13 @@ export type TripDriverLine = Readonly<{
    * Contato **corrente** do motorista, da ficha da frota — vazio quando ela não tem. Nome e CPF
    * continuam sendo o retrato de quando a viagem foi montada.
    */
-  driverEmail?: string
+  driverEmail?: string | null
   driverId: string
   driverName: string
-  driverTaxId: string
+  /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` (e-mail e telefone também). */
+  driverTaxId: string | null
   position: number
-  driverPhone?: string
+  driverPhone?: string | null
 }>
 
 /** A origem do número de receita: realizado, previsto pela parametrização, ou sem regra cadastrada. */

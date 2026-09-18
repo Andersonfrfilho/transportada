@@ -6,6 +6,7 @@
 | 1    | T2 🧠 (ADR), T3 🧠         | `opus` (validar com `architect`) | `fable`             |
 | 2    | T4, T5, T6                 | `sonnet`                         | `opus`              |
 | 2    | T7 🧠                      | `opus` (validar com `architect`) | `fable`             |
+| 2    | T7b                        | `sonnet`                         | `opus`              |
 | 3    | T8, T9                     | `sonnet`                         | `opus`              |
 | 4    | T10, T11, T12              | `sonnet`                         | `opus`              |
 | 5    | T13 🧠, T14                | `opus` / `sonnet`                | `fable` / `opus`    |
@@ -66,6 +67,13 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       `GET …/documents/:documentId/occurrences`. Contratos: `finance` 200 nas cinco; 403 em
       `/fleet/drivers`, no feed e na geometria; `driverTaxId`/`driverEmail`/`driverPhone` nulos sem
       `fleet.read`, `driverName` presente (aceite 14). `opus`, validado com `architect`.
+- [ ] **T7b — Anexo da ocorrência em massa** (D7, decisão L3 da T7). Modelo: `sonnet`. Migration
+      aditiva de `trip_document_occurrences.attachment_object_id`, com FK composta para
+      `stored_objects` pela empresa, `snapshot.json` e `rollback.sql`. A rota `field-occurrences`
+      aceita multipart com `file` opcional, validado pelo `delivery-proof.schema.ts`. Um objeto
+      guardado serve às N ocorrências do lote, e o upload vem antes da transação, com lease. O feed
+      (`listTripOccurrenceAttachmentLocations`) passa a ler também o anexo da ocorrência de nota.
+      Desenho em `t7-design.md` §3.5.
 
 ## Fase 3 — Tela: ações de campo
 

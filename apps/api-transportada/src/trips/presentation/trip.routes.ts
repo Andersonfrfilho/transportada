@@ -20,7 +20,9 @@ import type {
   RegisteredOccurrence,
 } from '../application/register-trip-occurrence.use-case.js'
 
+import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
 import type { AutomaticManifestResult } from '../../mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
@@ -238,6 +240,15 @@ const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
  */
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
+/**
+ * Spec 156 D11 (ADR-0067): o `finance` dá baixa (`trip.report-on-behalf`) e precisa abrir a viagem
+ * sem ganhar `fleet.read`, que é a ficha de todos os motoristas (CPF, CNH, PIX, endereço). Só nestas
+ * leituras; feed, geometria, produtos, agendamento e prontidão fiscal continuam `fleet.read`.
+ */
+const TRIP_FIELD_READ_POLICY = {
+  anyPermission: [TRIP_READ_POLICY.permission, TRIP_REPORT_ON_BEHALF_PERMISSION],
+  scope: 'company',
+} as const satisfies CompanyAnyPermissionPolicy
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
 /** Spec 079: ligar o aviso é configuração da empresa, e configuração é `settings.manage`. */
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -500,7 +511,7 @@ export function createTripRoutes(
       method: 'GET',
       parse: ({ request }) => parseTripList(new URL(request.url)),
       pathname: API_TRIPS_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<{
       readonly correlationId: string
@@ -862,6 +873,7 @@ export function createTripRoutes(
         return jsonResponse({
           body: {
             data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
               canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
               trip: served,
             }),
@@ -875,7 +887,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DETAIL_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<Omit<CreateTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -883,6 +895,7 @@ export function createTripRoutes(
         return jsonResponse({
           body: {
             data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
               canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
               trip,
             }),
@@ -966,6 +979,7 @@ export function createTripRoutes(
         return jsonResponse({
           body: {
             data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
               canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
               trip,
             }),
@@ -1044,7 +1058,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_PROOF_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     /**
      * Spec 079: a linha da estrada, para o mapa deixar de ligar as paradas em reta.
@@ -1128,7 +1142,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     /** A listagem da empresa inteira: mesma permissão da leitura de viagem (TRIP_READ_POLICY). */
     defineRoute<Omit<ListTripOccurrenceFeedInput, 'context'>>({
@@ -1314,7 +1328,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_STOPS_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<Omit<ReorderStopsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -1500,6 +1514,8 @@ function serializeTrip(trip: Trip): object {
 }
 
 function serializeTripDetail(input: {
+  /** Spec 156 D11: CPF, e-mail e telefone do motorista são ficha de frota — só com `fleet.read`. */
+  readonly canReadDriverContact: boolean
   readonly canReadFinancials: boolean
   readonly trip: TripDetail
 }): object {
@@ -1514,11 +1530,11 @@ function serializeTripDetail(input: {
       serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
     ),
     drivers: trip.drivers.map((driver) => ({
-      driverEmail: driver.driverEmail,
+      driverEmail: input.canReadDriverContact ? driver.driverEmail : null,
       driverId: driver.driverId,
       driverName: driver.driverName,
-      driverPhone: driver.driverPhone,
-      driverTaxId: driver.driverTaxId,
+      driverPhone: input.canReadDriverContact ? driver.driverPhone : null,
+      driverTaxId: input.canReadDriverContact ? driver.driverTaxId : null,
       position: driver.position,
     })),
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */

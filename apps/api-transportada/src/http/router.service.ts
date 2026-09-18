@@ -194,6 +194,7 @@ export function createRouter({
   userPictureExistence,
 }: CreateRouterParams): HttpRouter {
   assertMembershipRoutesUnderMe(routes)
+  assertAnyPermissionRoutesAreReads(routes)
   assertPostgresRateLimitHasStore({ rateLimitWindows, routes })
   const moduleCandidates = toModuleCandidates(moduleRouters)
   const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
@@ -316,6 +317,23 @@ function assertMembershipRoutesUnderMe(routes: readonly RegisteredRouterRoute[])
 
   const signatures = misplaced.map((route) => `${route.method} ${route.pathname}`).join(', ')
   throw new Error(`membership policy outside ${OWN_DATA_PATH_PREFIX}: ${signatures}`)
+}
+
+const READ_METHOD = 'GET'
+
+/**
+ * Spec 156 D11: "qualquer uma de" foi decidida para leitura. Numa escrita ela seria o jeito mais
+ * silencioso de alargar quem escreve — então rota assim fora de `GET` derruba o boot.
+ */
+function assertAnyPermissionRoutesAreReads(routes: readonly RegisteredRouterRoute[]): void {
+  const misplaced = routes.filter(
+    (route) =>
+      route.policy !== undefined && 'anyPermission' in route.policy && route.method !== READ_METHOD,
+  )
+  if (misplaced.length === 0) return
+
+  const signatures = misplaced.map((route) => `${route.method} ${route.pathname}`).join(', ')
+  throw new Error(`anyPermission policy outside ${READ_METHOD}: ${signatures}`)
 }
 
 export function defineAnonymousRoute<TInput>(
