@@ -4,10 +4,9 @@
  * O rascunho da montagem automática exercitado pelo hook de verdade, com storage em memória e
  * cliente falso — as duas corridas que as funções puras não alcançam.
  */
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { act } from 'react'
 
-import type { TripCandidateDocument } from '@/modules/trip/shared/trip.types'
 import {
   buildTripAssemblyDraftKey,
   TRIP_ASSEMBLY_DRAFT_MODE,
@@ -19,12 +18,11 @@ import {
   buildSuggestion,
   createDeferred,
   createRecordingStorage,
-  createUnexpectedTripClient,
   installSessionStorage,
-  type FakeTripClient,
   type RecordingStorage,
 } from '../fixtures/tripAssemblyHooks.fixture'
 import { renderHook, settle, waitFor, type RenderedHook } from './renderHook.helper'
+import { resetTripHookFakes, tripHookFakes as fakes } from './tripClientMocks.helper'
 
 const SCOPE = { companyId: 'company-1', userId: 'user-1' } as const
 const VEHICLE_ID = 'vehicle-1'
@@ -34,35 +32,6 @@ const DRAFT_KEY = buildTripAssemblyDraftKey({
   scope: SCOPE,
 })
 
-const fakes: {
-  loadDocuments: () => Promise<readonly TripCandidateDocument[]>
-  rejectedSuggestionIds: string[]
-  tripClient: FakeTripClient
-} = {
-  loadDocuments: () => Promise.resolve([DOCUMENT]),
-  rejectedSuggestionIds: [],
-  tripClient: createUnexpectedTripClient(),
-}
-
-/** A troca é feita antes de importar o hook: ele tem de nascer já apontando para os falsos. */
-const workspaceHook = await import('@/modules/trip/hooks/useTripWorkspace.hook')
-void mock.module('@/modules/trip/hooks/useTripWorkspace.hook', () => ({
-  ...workspaceHook,
-  getTripClient: () => fakes.tripClient,
-}))
-const suggestionHook = await import('@/modules/routing/hooks/useRouteSuggestion.hook')
-void mock.module('@/modules/routing/hooks/useRouteSuggestion.hook', () => ({
-  ...suggestionHook,
-  getRouteSuggestionClient: () => ({
-    rejectMultiVehicle: ({ suggestionId }: Readonly<{ suggestionId: string }>) => {
-      fakes.rejectedSuggestionIds.push(suggestionId)
-      return Promise.resolve(undefined)
-    },
-  }),
-}))
-void mock.module('@/modules/trip/shared/availableTripDocuments.service', () => ({
-  loadAvailableTripDocuments: () => fakes.loadDocuments(),
-}))
 const { useTripRouteAssembly } = await import('@/modules/trip/hooks/useTripRouteAssembly.hook')
 
 function renderAssembly() {
@@ -91,9 +60,7 @@ describe('rascunho da montagem automática no hook', () => {
   beforeEach(() => {
     storage = createRecordingStorage()
     installSessionStorage(storage)
-    fakes.loadDocuments = () => Promise.resolve([DOCUMENT])
-    fakes.rejectedSuggestionIds = []
-    fakes.tripClient = createUnexpectedTripClient()
+    resetTripHookFakes([DOCUMENT])
   })
 
   afterEach(() => {

@@ -165,6 +165,7 @@ e rodado por `bun run test:hooks` — que o `test` chama no fim, **em processo p
 ⚠️ Não registre o DOM no processo dos contratos nem mova a suíte para a lista principal: o
 `window` global muda o que eles medem (`resolveTripAssemblyDraftStorage` decide por `typeof
 window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSuggestionClient`,
-`loadAvailableTripDocuments`) vale para o processo inteiro. `renderHook`/`waitFor` são os de
+`loadAvailableTripDocuments`) vale para o processo inteiro — por isso ele é feito uma vez só, em
+`test/trip-hooks/tripClientMocks.helper.ts`, e cada suíte reconfigura `tripHookFakes`. `renderHook`/`waitFor` são os de
 `test/trip-hooks/renderHook.helper.ts`, sobre `react-dom/client` + `act` — sem
 `@testing-library/*`. Storage em memória e cliente falso: `test/fixtures/tripAssemblyHooks.fixture.ts`.
