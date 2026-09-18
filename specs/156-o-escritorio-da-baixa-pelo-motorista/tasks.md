@@ -152,7 +152,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T15 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA nas rotas `/trips/:id`,
+- [x] **T15 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA nas rotas `/trips/:id`,
       upload, PII nos logs) e auditoria do code-standart §15. Atualizar `CLAUDE.md` da API e do
       frontend, e `docs/spec/domain-model.md` (que também está desatualizado quanto a
       `ON_DELIVERY_ROUTE`). Corrigir no `apps/api-transportada/CLAUDE.md` a frase de que nenhuma rota

@@ -2659,3 +2659,29 @@ TripDeliveryProofSettingsPanel,TripDetail}.component.tsx`, `src/modules/trip/pag
 `test/trip/{canhoto-ocr,delivery-proof-settings-panel}.contract.ts`,
 `test/shared/canhoto-ocr-assets.contract.ts` (novos/tocados, no `package.json`). Prints em
 `specs/156-o-escritorio-da-baixa-pelo-motorista/prints/t14-*.png`.
+
+## T15 — revisão final (código + segurança)
+
+Revisões `code-reviewer` e `security-reviewer` (opus) em 2026-09-18: REQUEST CHANGES (1 crítico, 5 altos)
+e risco MÉDIO sem bloqueio de produção. Correções em duas frentes paralelas:
+
+- API: `t15-api-evidence.md` (16 commits; C1, A1, A2, M1–M11, rate limit, bytes, índices, docs).
+- Frontend: `t15-frontend-evidence.md` (11 commits; A3, A4, M7, M13, códigos novos, `arrivedAt`).
+- Verificação independente (`verifier`, opus): PASS, 0 bloqueadores, rodando os testes de novo sobre
+  `397e66d7` — 161 contratos do escritório, 48 + 34 de integração em Postgres descartável, 97 de
+  migration, 4649 + 25 do frontend, sonda do OCR com motor real.
+- Regressão achada pelo verificador e corrigida: `isTripOnTheRoad` sem `on_delivery_route` parava o
+  polling do painel depois da primeira baixa (`c0ec5542`, contrato em `office-execution.contract.ts`).
+- Deploy de staging reprovava desde a T11/T12 e foi destravado: regex `(?i:…)` recusada pelo build da
+  CI (`bd09e3aa`, contrato que barra a sintaxe), prettier em 3 arquivos, `migration-test` que o
+  `56bce3c0` de outra sessão amarrou ao Postgres 18 (`ee04d64a`, aceita 23001 ou 23503) e smoke
+  autenticado estourando o prazo pela compressão do OCR no `predev` (`c1afec0f`, `43b60df7`).
+- Fora da spec, viraram tarefas separadas: cobranças do cliente abertas a `trip.read`, varredura de
+  objetos órfãos, vulnerabilidades do `bun audit`, IP de auditoria forjável (`docs/SECURITY.md`).
+
+## T16 — revisão de design e usabilidade
+
+Evidência completa em `t16-evidence.md`: 21 defeitos corrigidos, teclado do assistente de ponta a
+ponta, 10 notas sem rolagem (23 cliques; teclado 2 cliques + 21 Enter), 68 prints (desktop 1280 e
+celular 375, claro e escuro) e 30 de "antes". Pendências registradas lá (checkbox do design system
+com 20×24 px no celular, campo nativo de data e hora, foto na ocorrência de parada depende da API).
