@@ -137,7 +137,12 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       câmera; o que acontece ao negar a câmera, sem código de barras, com canhoto de outra nota, com
       falha parcial no envio; os estados vazio, carregando e erro; foco e teclado no assistente
       (Enter captura, Esc sai sem perder as fotos já tiradas, com confirmação); alvo de toque ≥ 44
-      px; textos no vocabulário do escritório. - Achados corrigidos na própria task ou registrados no `evidence.md` com decisão. Fecha com os
+      px; textos no vocabulário do escritório. - Achados já vistos nos prints das tasks anteriores
+      (conferir e corrigir): borda cor de cobre do painel "Ações de campo" diferente do cinza do
+      vizinho "Ações da viagem" (T8); textarea "Observação" com fundo cinza diferente dos selects do
+      mesmo diálogo (T9); "nota(s)" em vez de plural de verdade (T9); texto de autoria na linha do
+      tempo com contraste baixo (T9); ocorrência de parada pelo escritório sem foto (T8 — a rota da
+      T5 é JSON; decidir se entra multipart como no motorista). - Achados corrigidos na própria task ou registrados no `evidence.md` com decisão. Fecha com os
       prints (desktop e celular) enviados ao usuário.
 
 ## Prompt de execução
