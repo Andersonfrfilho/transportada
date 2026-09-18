@@ -13,6 +13,8 @@ import type {
 
 export const DELIVERED_EVENT_KIND = 'delivered' satisfies TripStopEventKind
 export const DELIVERED_DOCUMENT_STATUS = 'delivered' satisfies TripDocumentSeparationStatus
+export const RETURNED_EVENT_KIND = 'returned' satisfies TripStopEventKind
+export const RETURNED_DOCUMENT_STATUS = 'returned' satisfies TripDocumentSeparationStatus
 export const PHOTO_PROOF_KIND = 'photo' satisfies TripDeliveryProofKind
 /** A parte da NF-e que recebe a entrega — é o CNPJ dela que resolve a exceção do comprovante. */
 export const RECIPIENT_PARTICIPANT_ROLE = 'recipient'

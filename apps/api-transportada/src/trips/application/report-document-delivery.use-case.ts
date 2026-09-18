@@ -9,9 +9,13 @@ import {
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 import {
+  DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
   PHOTO_PROOF_KIND,
+  RETURNED_DOCUMENT_STATUS,
+  RETURNED_EVENT_KIND,
   REQUIRED_PROOF_FIELD_MODE,
 } from '../domain/delivery-event.constant.js'
 import {
@@ -43,6 +47,15 @@ import {
   type FieldTripLocator,
 } from './field-trip-target.types.js'
 import { withFieldReport } from './trip-field-report.port.js'
+
+/**
+ * ADR-0067 §2 (emenda): o escritório não herda o no-op do motorista — dias depois, uma segunda baixa
+ * sobre a mesma nota seria uma entrega fantasma na linha do tempo. O caso real ("falta só o
+ * canhoto") é `field-proof`, que não passa por aqui.
+ */
+function isSettledDocumentStatus(status: TripDocumentSeparationStatus): boolean {
+  return status === DELIVERED_DOCUMENT_STATUS || status === RETURNED_DOCUMENT_STATUS
+}
 
 const DELIVER_OPERATION = 'document.deliver'
 const RETURN_OPERATION = 'document.return'
@@ -178,14 +191,14 @@ export async function reportDocumentReturn(
         reason: input.reason,
       }),
     action: TRIP_DOCUMENT_ACTION.return,
-    kind: 'returned',
+    kind: RETURNED_EVENT_KIND,
   })
 }
 
 type RunOutcomeParams = {
   readonly action: TripDocumentAction
   readonly input: ReportDocumentOutcomeInput
-  readonly kind: 'delivered' | 'returned'
+  readonly kind: typeof DELIVERED_EVENT_KIND | typeof RETURNED_EVENT_KIND
   readonly operation: string
   /** Spec 156 T6: só a entrega do escritório manda isto. */
   readonly proof?: OfficeDeliveryProofAttachment
@@ -359,6 +372,15 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         }
 
         /**
+         * Spec 156 T15 M6: no canal `office`, nota já fechada — entregue **ou** devolvida — é 409
+         * antes de qualquer outra conferência. Sem isto, a data fora da janela ou a transição
+         * bloqueada respondiam no lugar, e a tela não sabia que era só "essa nota já foi baixada".
+         */
+        if (isOffice && isSettledDocumentStatus(document.separationStatus)) {
+          throw new TripDocumentAlreadySettledError()
+        }
+
+        /**
          * ADR-0067 §3: só o escritório manda "quando aconteceu" — o motorista sempre reporta agora.
          * A janela é contra o relógio do servidor e contra o despacho congelado da viagem.
          */
@@ -392,13 +414,6 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           throw new TripStateTransitionNotAllowedError(transition.reason)
         }
         const alreadySettled = transition.outcome === 'unchanged'
-
-        /**
-         * ADR-0067 §2 (emenda): o escritório não herda o no-op do motorista — dias depois, uma
-         * segunda baixa sobre a mesma nota seria uma entrega fantasma na linha do tempo. O caso
-         * real ("falta só o canhoto") é `field-proof`, que não passa por aqui.
-         */
-        if (alreadySettled && isOffice) throw new TripDocumentAlreadySettledError()
 
         if (!alreadySettled) await settle(transaction, input.documentId)
         /**

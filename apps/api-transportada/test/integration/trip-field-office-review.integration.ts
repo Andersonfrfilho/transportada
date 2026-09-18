@@ -274,3 +274,66 @@ describe('a hora informada pelo escritório (T15 A1, M9, aceite 8)', () => {
     },
   )
 })
+
+describe('nota já fechada no canal office (T15 M6)', () => {
+  testWithPostgres(
+    'M6: entregar nota devolvida responde 409 DOCUMENT_ALREADY_SETTLED antes da janela e da transição',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedDispatchSnapshot(database, company, trip, new Date('2026-09-17T08:00:00.000Z'))
+        const returnedDocumentId = await seedExtraDocument(database, company, trip, {
+          returnReason: 'recipient_absent',
+          separationStatus: 'returned',
+          stopId: trip.stopId,
+        })
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await expect(
+          deliverRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-m6-deliver',
+            pathParameters: { documentId: returnedDocumentId, id: trip.tripId },
+            request: multipartRequest({
+              fields: { deliveredAt: '2026-09-16T09:00:00.000Z' },
+              idempotencyKey: 'review-m6-deliver',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'DOCUMENT_ALREADY_SETTLED', status: 409 })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'M6: devolver nota entregue responde 409 DOCUMENT_ALREADY_SETTLED, mesmo com hora fora da janela',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const [, , , , deliverRoute, returnRoute] = wireRoutes(database)
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-m6-first',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'review-m6-first',
+          }),
+        })
+
+        await expect(
+          returnRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'review-m6-return',
+            pathParameters: { documentId: trip.documentId, id: trip.tripId },
+            request: jsonRequest({
+              body: { reason: 'recipient_absent', returnedAt: '2026-09-16T07:00:00.000Z' },
+              idempotencyKey: 'review-m6-return',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'DOCUMENT_ALREADY_SETTLED', status: 409 })
+      })
+    },
+  )
+})
