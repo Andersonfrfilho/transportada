@@ -1,14 +1,15 @@
 # Spec 156 — Tarefas
 
-| fase | tasks              | modelo recomendado               | fallback se der 429 |
-| ---- | ------------------ | -------------------------------- | ------------------- |
-| 0    | T1                 | `sonnet`                         | `opus`              |
-| 1    | T2 🧠 (ADR), T3 🧠 | `opus` (validar com `architect`) | `fable`             |
-| 2    | T4, T5, T6, T7     | `sonnet`                         | `opus`              |
-| 3    | T8, T9             | `sonnet`                         | `opus`              |
-| 4    | T10, T11, T12      | `sonnet`                         | `opus`              |
-| 5    | T13 🧠, T14        | `opus` / `sonnet`                | `fable` / `opus`    |
-| 6    | T15 (revisão)      | `opus`                           | `fable`             |
+| fase | tasks                      | modelo recomendado               | fallback se der 429 |
+| ---- | -------------------------- | -------------------------------- | ------------------- |
+| 0    | T1                         | `sonnet`                         | `opus`              |
+| 1    | T2 🧠 (ADR), T3 🧠         | `opus` (validar com `architect`) | `fable`             |
+| 2    | T4, T5, T6, T7             | `sonnet`                         | `opus`              |
+| 3    | T8, T9                     | `sonnet`                         | `opus`              |
+| 4    | T10, T11, T12              | `sonnet`                         | `opus`              |
+| 5    | T13 🧠, T14                | `opus` / `sonnet`                | `fable` / `opus`    |
+| 6    | T15 (revisão)              | `opus`                           | `fable`             |
+| 7    | T16 (design e usabilidade) | `opus` (`designer`)              | `fable`             |
 
 Cada task fecha com typecheck (`bun run typecheck`), lint (`bun run lint`), os testes da app
 alterada, o arquivo de teste novo listado no `package.json` da app, a evidência em `evidence.md` e um
@@ -91,9 +92,24 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 > 🤖 Modelo: `opus`
 
 - [ ] **T15 — Revisão final**: `code-reviewer` + `security-reviewer` (BOLA nas rotas `/trips/:id`,
-      upload, PII nos logs), auditoria do code-standart §15, revisão de design comparando com os
-      vizinhos da tela da viagem e print ao usuário. Atualizar `CLAUDE.md` da API e do frontend, e
-      `docs/spec/domain-model.md` (que também está desatualizado quanto a `ON_DELIVERY_ROUTE`).
+      upload, PII nos logs) e auditoria do code-standart §15. Atualizar `CLAUDE.md` da API e do
+      frontend, e `docs/spec/domain-model.md` (que também está desatualizado quanto a
+      `ON_DELIVERY_ROUTE`).
+
+## Fase 7 — Revisão de design e usabilidade
+
+> 🤖 Modelo: `opus` (agente `designer`)
+
+- [ ] **T16 — Revisão de design e usabilidade** (web.md §15). Percorrer de ponta a ponta, no desktop
+      (o escritório com o maço de canhotos) e no celular (375 px): - **Design**: cada componente novo (`TripFieldActions`, `FieldDeliveryWizard`, faixa da nota
+      sobre a câmera, `FieldOccurrenceDialog`, autoria na linha do tempo) comparado com os vizinhos
+      da tela da viagem: primitivo do `shadcn/ui`, altura, borda, contraste em cada estado, claro e
+      escuro. - **Usabilidade**: quantos toques custa dar baixa em 10 notas; a faixa da nota lida sobre a
+      câmera; o que acontece ao negar a câmera, sem código de barras, com canhoto de outra nota, com
+      falha parcial no envio; os estados vazio, carregando e erro; foco e teclado no assistente
+      (Enter captura, Esc sai sem perder as fotos já tiradas, com confirmação); alvo de toque ≥ 44
+      px; textos no vocabulário do escritório. - Achados corrigidos na própria task ou registrados no `evidence.md` com decisão. Fecha com os
+      prints (desktop e celular) enviados ao usuário.
 
 ## Prompt de execução
 
@@ -102,7 +118,8 @@ contrato/aceite vem **antes** da implementação em toda task de código.
 spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 0 → executor model=sonnet · Fase 1 (T2, T3 🧠) → opus, validado por architect antes de
 implementar · Fases 2, 3 e 4 → executor model=sonnet · T13 🧠 → opus · T14 → executor model=sonnet ·
-revisão final T15 → code-reviewer + security-reviewer model=opus.
+revisão final T15 → code-reviewer + security-reviewer model=opus ·
+T16 revisão de design e usabilidade → designer model=opus, com prints ao usuário.
 Cada task fecha com typecheck + lint + testes da app (integração da API com --env-file=../../.env.test)
 + teste novo listado no package.json + commit isolado, evidência em evidence.md.
 Pare e pergunte antes de: fechar a T2 sem a confirmação de D1 (operator recebe a permissão?), deploy
