@@ -204,23 +204,26 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     }
   }
 
-  /** ADR-0067 §3: `null` quando a viagem nunca foi despachada — um único snapshot por viagem. */
-  public async findDispatchedAt(input: {
+  /** ADR-0067 §3, spec 156 T15 M9: o despacho congelado, ou a criação da viagem sem ele. */
+  public async findInformedTimeWindowStart(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<Date | null> {
     const [record] = await this.transaction
-      .select({ dispatchedAt: tripDispatchSnapshots.dispatchedAt })
-      .from(tripDispatchSnapshots)
-      .where(
+      .select({ createdAt: trips.createdAt, dispatchedAt: tripDispatchSnapshots.dispatchedAt })
+      .from(trips)
+      .leftJoin(
+        tripDispatchSnapshots,
         and(
-          eq(tripDispatchSnapshots.companyId, input.companyId),
-          eq(tripDispatchSnapshots.tripId, input.tripId),
+          eq(tripDispatchSnapshots.companyId, trips.companyId),
+          eq(tripDispatchSnapshots.tripId, trips.id),
         ),
       )
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
       .limit(1)
 
-    return record?.dispatchedAt ?? null
+    if (record === undefined) return null
+    return record.dispatchedAt ?? record.createdAt
   }
 
   public async markStopArrived(input: {

@@ -2593,11 +2593,13 @@ function createApplicationRoutes({
           upload: { ...input.proof, capturedAt: undefined, kind: 'photo', position: undefined },
         }),
       audit: tripFieldOfficeAudit,
+      /** Spec 156 T15 A1: a hora informada é a da chegada; a da gravação vai em `recordedAt`. */
       reportArrival: (input) =>
         reportStopArrival({
           ...input,
           location: null,
-          now: new Date(),
+          now: input.arrivedAt,
+          recordedAt: new Date(),
           unitOfWork: driverFieldReports,
         }),
       /**

@@ -14,7 +14,10 @@ import {
   PHOTO_PROOF_KIND,
   REQUIRED_PROOF_FIELD_MODE,
 } from '../domain/delivery-event.constant.js'
-import { assertDeliveredAtWithinWindow } from '../domain/field-delivery-timing.policy.js'
+import {
+  assertInformedTimeWithinWindow,
+  FIELD_INFORMED_TIME,
+} from '../domain/field-delivery-timing.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
   TripDeliveryProofPhotoRequiredError,
@@ -360,14 +363,17 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
          * A janela é contra o relógio do servidor e contra o despacho congelado da viagem.
          */
         if (isOffice) {
-          const dispatchedAt = await transaction.findDispatchedAt({
-            companyId: input.companyId,
-            tripId: document.tripId,
-          })
-          assertDeliveredAtWithinWindow({
-            deliveredAt: input.now,
-            dispatchedAt,
+          assertInformedTimeWithinWindow({
+            informedAt: input.now,
+            kind:
+              kind === DELIVERED_EVENT_KIND
+                ? FIELD_INFORMED_TIME.delivered
+                : FIELD_INFORMED_TIME.returned,
             now: input.recordedAt ?? new Date(),
+            windowStart: await transaction.findInformedTimeWindowStart({
+              companyId: input.companyId,
+              tripId: document.tripId,
+            }),
           })
         }
 

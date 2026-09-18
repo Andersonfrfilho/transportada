@@ -504,6 +504,8 @@ async function seedTrip(
 
   await database.db.insert(trips).values({
     companyId: company.companyId,
+    /** Spec 156 T15 M9: sem despacho congelado, a hora informada não pode ser anterior a isto. */
+    createdAt: new Date('2026-09-17T00:00:00.000Z'),
     id: tripId,
     status: options.status ?? 'in_transit',
     vehicleId: company.vehicleId,

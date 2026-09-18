@@ -84,10 +84,11 @@ export type DriverFieldReportTransactionPort = {
     readonly target: FieldTripTarget
   }): Promise<DriverDocumentReference | null>
   /**
-   * Spec 156 T6, ADR-0067 §3: a fonte de "quando a viagem despachou", congelada em
-   * `trip_dispatch_snapshots`. `null` quando a viagem nunca foi despachada.
+   * Spec 156 T6, ADR-0067 §3: o início da janela da hora informada — o despacho congelado em
+   * `trip_dispatch_snapshots`, e, sem ele (viagem legada), a criação da viagem (T15 M9). `null` só
+   * quando a viagem não existe na empresa.
    */
-  findDispatchedAt(input: {
+  findInformedTimeWindowStart(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<Date | null>

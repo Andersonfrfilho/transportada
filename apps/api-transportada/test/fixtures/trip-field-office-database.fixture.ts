@@ -232,7 +232,8 @@ export function wireRoutes(database: TestDatabase) {
       reportStopArrival({
         ...input,
         location: null,
-        now: new Date('2026-09-18T13:00:00.000Z'),
+        now: input.arrivedAt,
+        recordedAt: new Date(),
         unitOfWork: driverFieldReports,
       }),
     reportDelivery: (input) =>
@@ -305,6 +306,8 @@ export async function seedTrip(
 
   await database.db.insert(trips).values({
     companyId: company.companyId,
+    /** Spec 156 T15 M9: sem despacho congelado, a janela da hora informada começa aqui. */
+    createdAt: new Date('2026-09-17T00:00:00.000Z'),
     id: tripId,
     status,
     vehicleId: company.vehicleId,

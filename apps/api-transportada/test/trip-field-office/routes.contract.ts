@@ -264,6 +264,7 @@ describe('a chegada do escritório (spec 156 T5)', () => {
     expect(arrivalCalls).toEqual([
       {
         actorUserId: ACTOR_USER_ID,
+        arrivedAt: expect.any(Date),
         companyId: COMPANY_ID,
         idempotencyKey: 'office-arrive-1',
         stopId: STOP_ID,

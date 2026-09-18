@@ -53,7 +53,28 @@ const occurrenceSchema = z
   })
   .strict()
 
-/** `confirm-load`, `start-route` e `arrive`: corpo vazio ou só o motorista escolhido. */
+const arrivalSchema = z
+  .object({
+    /** Spec 156 T15 A1: quando a chegada aconteceu; ausente é agora (ADR-0067 §3). */
+    arrivedAt: z.iso.datetime().optional(),
+    driverId: z.uuid().optional(),
+  })
+  .strict()
+
+/** `POST .../stops/:stopId/arrive`: corpo vazio, o motorista escolhido e/ou a hora da chegada. */
+export async function parseOfficeArrivalRequest(request: Request): Promise<{
+  readonly arrivedAt: Date | undefined
+  readonly driverId: string | undefined
+}> {
+  const body = await parseOptionalBody(arrivalSchema, request)
+
+  return {
+    arrivedAt: body.arrivedAt === undefined ? undefined : parseDeliveredAt(body.arrivedAt),
+    driverId: body.driverId,
+  }
+}
+
+/** `confirm-load` e `start-route`: corpo vazio ou só o motorista escolhido. */
 export async function parseOfficeDriverSelection(
   request: Request,
 ): Promise<{ readonly driverId: string | undefined }> {

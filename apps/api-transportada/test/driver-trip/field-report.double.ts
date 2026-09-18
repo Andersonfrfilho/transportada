@@ -92,7 +92,8 @@ export function createFieldReportUnitOfWork(
     },
     findStopForDriver: async (input) => state.stops.get(input.stopId) ?? null,
     findDocumentForDriver: async (input) => state.documents.get(input.documentId) ?? null,
-    findDispatchedAt: async (input) => state.dispatchedAtByTripId.get(input.tripId) ?? null,
+    findInformedTimeWindowStart: async (input) =>
+      state.dispatchedAtByTripId.get(input.tripId) ?? null,
     markStopArrived: async (input) => {
       state.calls.push(`markStopArrived:${input.stopId}`)
       const stop = state.stops.get(input.stopId)

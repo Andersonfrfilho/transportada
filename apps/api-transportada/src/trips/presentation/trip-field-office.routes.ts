@@ -39,6 +39,7 @@ import type { ReportStopOccurrenceResult } from '../application/report-stop-occu
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
+  parseOfficeArrivalRequest,
   parseOfficeDriverSelection,
   parseOfficeFieldDeliveryRequest,
   parseOfficeFieldProofRequest,
@@ -93,6 +94,8 @@ export type TripFieldOfficeDependencies = {
   readonly audit: TripFieldOfficeAuditPort
   readonly reportArrival: (
     input: OfficeContextInput & {
+      /** ADR-0067 §3, spec 156 T15 A1: quando a chegada aconteceu, já validada contra a janela. */
+      readonly arrivedAt: Date
       readonly idempotencyKey: string
       readonly stopId: string
       readonly target: ResolvedTripFieldTarget
@@ -225,6 +228,7 @@ export function createTripFieldOfficeRoutes(
       }),
     ),
     defineRoute<{
+      readonly arrivedAt: Date
       readonly correlationId: string
       readonly driverId: string | undefined
       readonly idempotencyKey: string
@@ -241,6 +245,7 @@ export function createTripFieldOfficeRoutes(
         })
         const result = await dependencies.reportArrival({
           actorUserId: context.scope.userId,
+          arrivedAt: input.arrivedAt,
           companyId: context.scope.companyId,
           idempotencyKey: input.idempotencyKey,
           stopId: input.stopId,
@@ -260,8 +265,9 @@ export function createTripFieldOfficeRoutes(
       },
       method: 'POST',
       async parse({ correlationId, pathParameters, request }) {
-        const body = await parseOfficeDriverSelection(request)
+        const body = await parseOfficeArrivalRequest(request)
         return {
+          arrivedAt: body.arrivedAt ?? new Date(),
           correlationId,
           driverId: body.driverId,
           idempotencyKey: parseIdempotencyKey(request),
