@@ -7,7 +7,7 @@
  * é 1..200, padrão 100 — diferente do teto de 100 de `readPaging`, por isso não reaproveitado.
  */
 import { invalidRequest, readListQuery } from '../../http/request-parsing.service.js'
-import { parseTripTimelineCursor } from '../infrastructure/trip-timeline.query.js'
+import { parseTripTimelineCursor } from '../application/trip-timeline-cursor.service.js'
 import type { TripTimelineCursor } from '../application/trip-timeline.types.js'
 import { TripTimelineCursorInvalidError } from '../domain/trip.error.js'
 

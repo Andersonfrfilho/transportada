@@ -867,3 +867,134 @@ a linha do tempo, não sobre o shell), registrado aqui para uma task própria.
   `mockTripWorkspaceApi` padrão sem produtos/comprovante). O filtro no cliente já está coberto, sem
   ambiguidade, por `filterTripTimelineItemsByDocumentId` em `timeline-view.contract.ts` — decisão de
   não duplicar em E2E o que a unidade já prova.
+
+## T9
+
+### Correções da revisão (T9)
+
+Sete itens da revisão T9 do orquestrador, cada um com teste que falhava antes (TDD) e passou depois.
+`trip-timeline.query.ts` (753 linhas) virou orquestrador (108 linhas) + `trip-timeline-cursor.service.ts`,
+`trip-timeline-merge.service.ts` (`application/`) + `trip-timeline-condition.helper.ts`,
+`trip-timeline-status.query.ts`, `trip-timeline-stop.query.ts`, `trip-timeline-document.query.ts`
+(`infrastructure/`).
+
+**1. [CRÍTICO] Cursor perdia microssegundos.** `occurred_at` é `timestamptz` (µs); o cursor saía de
+`Date.toISOString()` (ms). Quando várias linhas compartilham o mesmo `now()` de transação com
+microssegundos não-zero, a comparação `(occurred_at, prioridade, id) < cursor` passava a excluir,
+na página seguinte, toda linha com o mesmo instante do cursor mas microssegundos maiores — a tupla
+inteira comparava falso porque o primeiro componente (`occurred_at`) já não batia.
+
+- Teste que falhava antes: `test/integration/trip-timeline.integration.ts` — "T9 item crítico: 150
+  trip_document_events no mesmo now() de banco não perdem os 50 da página 2" (insere 150 linhas num
+  único `INSERT`, todas com `defaultNow()` — o mesmo `now()` real de banco, com microssegundos do
+  relógio) e "T9 item crítico: troca de status e evento de nota gravados no mesmo now() não se
+  perdem entre páginas" (`database.db.transaction` com `tripStatusEvents` + `tripDocumentEvents`).
+  Rodados contra a versão anterior do código (cursor em `Date`): a página 2 vinha vazia/incompleta.
+  Reproduzido também isolado, direto no Postgres (tabela descartável, 150 linhas com o mesmo
+  `now()`): cursor construído como o código antigo fazia (`new Date(occurred_at).toISOString()`,
+  milissegundos) devolve **0** linhas na condição `< cursor` para a página 2 (deveriam sobrar 50);
+  o mesmo cursor como texto de microssegundos (`to_char`, o formato novo) devolve as **50** linhas
+  corretas.
+- Correção: `TripTimelineCursor.occurredAt` passou de `Date` para `string` — o mesmo texto com
+  microssegundos que `formatTimelineTimestampKey` (`to_char(... 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+  molde de `drizzle-nfe-document.repository.ts`) produz. Cada fonte agora seleciona
+  `occurredAtKey` (esse texto) além de `occurredAt` (`Date`, só para exibição); `mergeTripTimeline`
+  compara por `occurredAtKey` (lexicográfico, equivalente ao cronológico no formato fixo), e o
+  próximo cursor é codificado a partir de `last.occurredAtKey`, nunca de `last.occurredAt`.
+- Contagem: `trip-timeline-merge.contract.ts` ganhou 1 teste (µs desempata por chave, não por
+  `Date.getTime()`); `trip-timeline.integration.ts` ganhou 2 testes contra Postgres real.
+
+**2. [ALTO] `ORDER BY` com prioridade `asc`.** `timelineOrderExpression` ordenava
+`occurredAt desc, prioridade asc, id desc`, enquanto o keyset (`<`) e o merge em memória tratam
+prioridade maior como "vem primeiro" (decrescente). O `limit + 1` de cada fonte cortava os itens de
+**menor** prioridade no instante, então uma página pequena que cruzasse esse empate divergia da
+leitura em página única.
+
+- Teste que falhava antes: "T9 item alto: empate de trip_stop_events (arrived/delivered/returned)
+  atravessa página igual à página única" (`trip-timeline.integration.ts`, `limit: 1`) — comparado
+  contra a versão anterior (`asc`), a ordem paginada divergia da página única.
+- Correção: `timelineOrderExpression` para `desc` na prioridade
+  (`trip-timeline-condition.helper.ts`).
+
+**3. [MÉDIO segurança] Cursor forjado → 500.** `parseTripTimelineCursor` aceitava qualquer `id`
+string e qualquer `kindPriority` inteiro; um `id` não-uuid ou uma prioridade fora da tabela
+estourariam no `::uuid`/`::int` do SQL, virando 500 em vez de 400.
+
+- Teste que falhava antes (rejeitado só depois do fix): `trip-timeline-merge.contract.ts` — dois
+  casos "T9 item 3" (id não-uuid, `kindPriority: 999`) — e `timeline.contract.ts` (rota) — "T9 item
+  3: 400 TRIP_TIMELINE_CURSOR_INVALID para cursor forjado".
+- Correção: `parseTripTimelineCursor` valida `id` contra regex de uuid, `kindPriority` contra
+  `Object.values(TRIP_TIMELINE_KIND_PRIORITY)` e `occurredAt` contra o formato exato de
+  microssegundos, devolvendo `null` (→ 400 `TRIP_TIMELINE_CURSOR_INVALID` na rota) para qualquer
+  desvio.
+
+**4. [MÉDIO] `drizzle-trip-route.repository.ts`.** `markRoutePlanned`, `markCancelled` e `dispatch`
+gravavam `recordTripStatusChange` mesmo quando o `UPDATE` de `trips` não afetava linha nenhuma
+(`updated === undefined`, corrida com outra transação), usando `updated?.status ?? '<alvo>'` como
+status "adivinhado" — evento de transição gravado sem transição real.
+
+- Correção: as três seguem o molde de `DrizzleTripRepository.close`
+  (`if (closed === undefined) return null`) — `if (updated === undefined) return tripRow.status`
+  (ou `{ tripStatus: tripRow.status }` no `dispatch`), sem gravar evento.
+- Coberto pelos testes de corrida já existentes de `trip-lifecycle.integration.ts` (rodados abaixo,
+  sem regressão); a corrida em si (linha desaparecendo entre o `SELECT ... FOR NO KEY UPDATE` e o
+  `UPDATE`, dentro da mesma trava) não tem cenário determinístico de teste — a trava a torna
+  praticamente inatingível em produção, mas o `?? '<alvo>'` era incorreto por construção.
+
+**5. [MÉDIO] Comentário errado.** `drizzle-trip-document.repository.ts` (~L222) e
+`drizzle-trip-document-batch.repository.ts` (~L187) diziam que a trava antes do tally é "o inverso
+da ordem notas → viagem", mas o `UPDATE` da nota e o evento já foram gravados por `applyTransition`
+antes de `recalculateTripStatus` ser chamado — a ordem "notas → viagem" continua preservada. Texto
+corrigido nos dois arquivos: a trava vem antes do tally de propósito (a decisão depende do tally que
+ainda vai ser lido), não "imediatamente antes do UPDATE" da viagem.
+
+**6. [MÉDIO] Arquivo de 753 linhas, apresentação importando infraestrutura.** Ver o parágrafo acima
+de contagem de linhas. `trip-timeline.schema.ts` (rota) passou a importar `parseTripTimelineCursor`
+de `application/trip-timeline-cursor.service.ts`, não mais de `infrastructure/trip-timeline.query.ts`.
+`test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` agora concatena o código-fonte dos
+quatro arquivos de infraestrutura (`trip-timeline.query.ts` + os três `trip-timeline-*.query.ts`)
+antes de varrer — nenhum escapa. `trip-timeline.query.ts` caiu de 753 para 108 linhas;
+`trip-timeline-status.query.ts` 166, `trip-timeline-cursor.service.ts` 61,
+`trip-timeline-merge.service.ts` 71, `trip-timeline-condition.helper.ts` 73 linhas — dentro do teto.
+`trip-timeline-stop.query.ts` (236) e `trip-timeline-document.query.ts` (235) ficam pouco acima de
+~200: cada um tem duas fontes relacionadas (D5: `trip_stop_events` cobre três `kind`s), e os três
+nomes de arquivo (`status`/`stop`/`document`) foram pedidos explicitamente pelo orquestrador — divididos
+mais fundo (uma fonte por arquivo) fugiria do nome pedido; registrado aqui como desvio consciente do
+teto de ~200 linhas do padrão de código.
+
+**7. [MÉDIO perf] Predicado indexável.** Acrescentado `occurred_at <= <instante do cursor>`
+(`timelineIndexablePredicate`) em cada fonte, ao lado do keyset da tupla. EXPLAIN (Postgres 18,
+`trip_status_events`, índice `trip_status_events_company_trip_occurred_at_idx` em
+`(company_id, trip_id, occurred_at)`, 41 viagens × 300 eventos = 12.300 linhas na empresa): o
+planejador já usava `Index Only Scan Backward` **mesmo sem** o predicado extra — Postgres 18
+empurra a comparação de tupla `(occurred_at, prioridade, id) < (cursor)` para dentro do índice
+quando `occurred_at` é a primeira coluna variável depois das igualdades (`company_id`, `trip_id`).
+Com o predicado, o plano permanece `Index Only Scan Backward` (mesmo índice, `Heap Fetches: 101`,
+`Buffers: shared hit=8`), agora com a condição extra explícita em `Index Cond`. Nenhuma regressão;
+o predicado é redundante-mas-seguro nesta versão do Postgres e protege índices menos favoráveis
+(ex.: `trip_document_events_company_document_occurred_idx`, cuja segunda coluna não é `trip_id`).
+
+### Gates (T9)
+
+- `bun run typecheck` (raiz, 6 apps): sem erros, antes e depois do `prettier --write`.
+- `bun run lint` (raiz, 6 apps): sem erros/avisos.
+- `bunx prettier --check` nos arquivos alterados: 3 arquivos precisaram de `--write` (quebras de
+  linha, sem mudança de lógica) — limpo depois.
+- `bun --env-file=../../.env.test test --timeout 120000` (api-transportada, contrato): **6575 pass,
+  23 skip, 0 fail** (era o mesmo padrão antes da task — nenhuma das 9 falhas pré-existentes de
+  `toll-booth-catalog-repository` citadas no pedido apareceu; ambiente atual não as reproduz).
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test
+./test/integration/trip-timeline.integration.ts --timeout 120000`: **13 pass, 0 fail** (3 testes
+  novos T9 inclusos).
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test
+./test/integration/trip-lifecycle.integration.ts ./test/integration/trip-field-office.integration.ts
+./test/integration/me-trip.integration.ts
+./test/integration/whatsapp-operator-flow-actions.integration.ts --timeout 120000`: **28 pass,
+  0 fail**.
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test run test:integration` (suíte
+  inteira, 81 arquivos): **435 pass, 8 fail** — as 8 falhas são todas em
+  `toll-booth-reload.integration.ts` (`ObjectStorageError: Object storage is unavailable`, MinIO
+  fora do ar neste ambiente) — infraestrutura, sem relação com esta task; nenhuma falha em
+  `trip-*`.
+- `bun run --cwd apps/frontend-transportada test`: **19 pass, 0 fail** — contrato da API não mudou
+  (formato de `TripTimelineItem` inalterado; só o cursor opaco, que o frontend nunca desserializa).

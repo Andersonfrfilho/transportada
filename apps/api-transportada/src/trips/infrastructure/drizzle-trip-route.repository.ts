@@ -89,7 +89,7 @@ export class DrizzleTripRouteRepository
         .set({ status: 'route_planned', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ status: trips.status })
-      const nextStatus = updated?.status ?? 'route_planned'
+      if (updated === undefined) return tripRow.status
 
       await recordTripStatusChange(transaction, {
         actorUserId: input.actorUserId,
@@ -97,11 +97,11 @@ export class DrizzleTripRouteRepository
         companyId: input.companyId,
         fromStatus: tripRow.status,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
-        toStatus: nextStatus,
+        toStatus: updated.status,
         tripId: input.tripId,
       })
 
-      return nextStatus
+      return updated.status
     })
   }
 
@@ -237,7 +237,7 @@ export class DrizzleTripRouteRepository
         .set({ status: 'cancelled', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ status: trips.status })
-      const nextStatus = updated?.status ?? 'cancelled'
+      if (updated === undefined) return tripRow.status
 
       await recordTripStatusChange(transaction, {
         actorUserId: input.actorUserId,
@@ -245,11 +245,11 @@ export class DrizzleTripRouteRepository
         companyId: input.companyId,
         fromStatus: tripRow.status,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
-        toStatus: nextStatus,
+        toStatus: updated.status,
         tripId: input.tripId,
       })
 
-      return nextStatus
+      return updated.status
     })
   }
 
@@ -378,7 +378,7 @@ async function dispatch(
     .set({ status: 'dispatched', updatedAt: sql`now()` })
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .returning({ status: trips.status })
-  const nextStatus = updated?.status ?? 'dispatched'
+  if (updated === undefined) return { tripStatus: tripRow.status }
 
   await recordTripStatusChange(transaction, {
     actorUserId: input.actorUserId,
@@ -386,11 +386,11 @@ async function dispatch(
     companyId: input.companyId,
     fromStatus: tripRow.status,
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
-    toStatus: nextStatus,
+    toStatus: updated.status,
     tripId: input.tripId,
   })
 
-  return { tripStatus: nextStatus }
+  return { tripStatus: updated.status }
 }
 
 /**

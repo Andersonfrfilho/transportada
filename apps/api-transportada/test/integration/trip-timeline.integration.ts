@@ -490,6 +490,200 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
     },
   )
 
+  testWithPostgres(
+    'T9 item crítico: 150 trip_document_events no mesmo now() de banco não perdem os 50 da página 2',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        // Defeito corrigido: `occurred_at` é `timestamptz` (microssegundos); o cursor saía de
+        // `Date.toISOString()` (milissegundos) e a comparação `(occurred_at, ...) < cursor`
+        // excluía, na página seguinte, toda linha com o mesmo instante do cursor mas
+        // microssegundos maiores — exatamente 150 eventos gravados num único INSERT, todos com o
+        // `now()` (defaultNow) da mesma transação implícita, real com microssegundos do relógio.
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+
+        const rows = Array.from({ length: 150 }, () => ({
+          actorUserId: company.userId,
+          channel: 'backoffice' as const,
+          companyId: company.companyId,
+          fromStatus: 'loaded' as const,
+          id: crypto.randomUUID(),
+          toStatus: 'delivered' as const,
+          tripDocumentId: documentId,
+        }))
+        await database.db.insert(tripDocumentEvents).values(rows)
+
+        const page1 = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        expect(page1.items).toHaveLength(100)
+        expect(page1.nextCursor).not.toBeNull()
+
+        const { parseTripTimelineCursor } = await import(
+          '../../src/trips/infrastructure/trip-timeline.query.js'
+        )
+        const page2 = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: parseTripTimelineCursor(page1.nextCursor),
+          limit: 100,
+          tripId,
+        })
+
+        expect(page2.items).toHaveLength(50)
+        expect(page2.nextCursor).toBeNull()
+        const seen = new Set([...page1.items, ...page2.items].map((item) => item.id))
+        expect(seen.size).toBe(150)
+        expect(seen).toEqual(new Set(rows.map((row) => row.id)))
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T9 item crítico: troca de status e evento de nota gravados no mesmo now() não se perdem entre páginas',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+
+        const statusIds = Array.from({ length: 10 }, () => crypto.randomUUID())
+        const documentEventIds = Array.from({ length: 10 }, () => crypto.randomUUID())
+        // Uma única transação: os vinte eventos compartilham exatamente o mesmo `now()` de banco.
+        await database.db.transaction(async (transaction) => {
+          await transaction.insert(tripStatusEvents).values(
+            statusIds.map((id) => ({
+              actorUserId: company.userId,
+              channel: 'backoffice' as const,
+              companyId: company.companyId,
+              fromStatus: 'route_planned' as const,
+              id,
+              toStatus: 'separating' as const,
+              tripId,
+            })),
+          )
+          await transaction.insert(tripDocumentEvents).values(
+            documentEventIds.map((id) => ({
+              actorUserId: company.userId,
+              channel: 'backoffice' as const,
+              companyId: company.companyId,
+              fromStatus: 'loaded' as const,
+              id,
+              toStatus: 'delivered' as const,
+              tripDocumentId: documentId,
+            })),
+          )
+        })
+
+        const seen: string[] = []
+        const { parseTripTimelineCursor } = await import(
+          '../../src/trips/infrastructure/trip-timeline.query.js'
+        )
+        let cursor: ReadTripTimelineParams['cursor'] = null
+        for (let page = 0; page < 5; page += 1) {
+          const result = await listTripTimeline(database.db, {
+            companyId: company.companyId,
+            cursor,
+            limit: 8,
+            tripId,
+          })
+          seen.push(...result.items.map((item) => item.id))
+          if (result.nextCursor === null) break
+          cursor = parseTripTimelineCursor(result.nextCursor)
+        }
+
+        expect(seen).toHaveLength(20)
+        expect(new Set(seen)).toEqual(new Set([...statusIds, ...documentEventIds]))
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T9 item alto: empate de trip_stop_events (arrived/delivered/returned) atravessa página igual à página única',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        // Item 2 (T9): o SQL das fontes ordenava a prioridade `asc`, o inverso do keyset/merge
+        // (`desc`) — o `limit + 1` de cada fonte cortava os itens de menor prioridade no instante,
+        // e uma página pequena que cruzasse o empate divergia da leitura em página única.
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const stopId = await seedStop(database, company, tripId, 1)
+        const documentId = await seedTripDocument(database, company, tripId, stopId)
+
+        const sameInstant = new Date('2026-09-18T09:00:00.000Z')
+        await database.db.insert(tripStopEvents).values([
+          {
+            actorUserId: company.userId,
+            channel: 'driver_app',
+            companyId: company.companyId,
+            createdAt: sameInstant,
+            id: crypto.randomUUID(),
+            kind: 'arrived',
+            stopId,
+          },
+          {
+            actorUserId: company.userId,
+            channel: 'driver_app',
+            companyId: company.companyId,
+            createdAt: sameInstant,
+            id: crypto.randomUUID(),
+            kind: 'delivered',
+            stopId,
+            tripDocumentId: documentId,
+          },
+          {
+            actorUserId: company.userId,
+            channel: 'driver_app',
+            companyId: company.companyId,
+            createdAt: sameInstant,
+            id: crypto.randomUUID(),
+            kind: 'returned',
+            stopId,
+            tripDocumentId: documentId,
+          },
+        ])
+
+        const singlePage = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        const { parseTripTimelineCursor } = await import(
+          '../../src/trips/infrastructure/trip-timeline.query.js'
+        )
+        const paged: string[] = []
+        let cursor: ReadTripTimelineParams['cursor'] = null
+        for (let page = 0; page < 5; page += 1) {
+          const result = await listTripTimeline(database.db, {
+            companyId: company.companyId,
+            cursor,
+            limit: 1,
+            tripId,
+          })
+          paged.push(...result.items.map((item) => item.id))
+          if (result.nextCursor === null) break
+          cursor = parseTripTimelineCursor(result.nextCursor)
+        }
+
+        expect(paged).toEqual(singlePage.items.map((item) => item.id))
+        // D8: maior prioridade primeiro — `stop.arrived` (0) < `stop.occurrence`(1) <
+        // `document.occurrence` < `document.returned` < `document.delivered`. Maior valor primeiro.
+        expect(singlePage.items.map((item) => item.kind)).toEqual([
+          'document.delivered',
+          'document.returned',
+          'stop.arrived',
+        ])
+      })
+    },
+  )
+
   testWithPostgres('aceite 8: nenhuma chave proibida sai na resposta', async () => {
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)

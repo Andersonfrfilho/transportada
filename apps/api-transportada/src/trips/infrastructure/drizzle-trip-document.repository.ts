@@ -218,9 +218,10 @@ async function insertEvent(
  * ADR-0043 §1: consequência aritmética do estado das notas, calculada na mesma transação da
  * escrita da nota. Um `UPDATE` só acontece quando a derivação muda algo.
  *
- * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem **antes** da leitura do tally de notas — o
- * inverso da ordem "notas → viagem" das demais escritas, porque aqui a decisão depende do tally
- * que ainda vai ser lido.
+ * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem **antes** da leitura do tally de notas, de
+ * propósito — não "imediatamente antes do UPDATE" da viagem, porque a decisão depende do tally
+ * que ainda vai ser lido. A ordem "notas → viagem" das demais escritas continua preservada:
+ * `applyTransition` já gravou o UPDATE e o evento da nota antes de chamar esta função.
  */
 async function recalculateTripStatus(
   transaction: TripTransaction,

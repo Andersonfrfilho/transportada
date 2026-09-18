@@ -185,8 +185,9 @@ function timestampPatchFor(toStatus: TripDocumentBatchWriteInput['items'][number
 }
 
 /**
- * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem antes da leitura do tally de notas — mesma
- * ordem invertida do `recalculateTripStatus` de `drizzle-trip-document.repository.ts`.
+ * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem antes da leitura do tally de notas, de
+ * propósito — mesmo `recalculateTripStatus` de `drizzle-trip-document.repository.ts`; a ordem
+ * "notas → viagem" das demais escritas continua preservada.
  */
 async function recalculateTripStatus(
   transaction: TripTransaction,

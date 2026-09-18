@@ -60,7 +60,7 @@ describe('createReadTripTimelineUseCase (spec 158 T6)', () => {
     const cursor = {
       id: TRIP_ID,
       kindPriority: 0,
-      occurredAt: new Date('2026-09-18T00:00:00.000Z'),
+      occurredAt: '2026-09-18T00:00:00.000000Z',
     }
     const result = await useCase.execute({
       context: { companyId: COMPANY_ID },

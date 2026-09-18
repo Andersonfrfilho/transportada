@@ -80,15 +80,21 @@ export type TripTimelineItem = {
 }
 
 /**
- * Cursor tipado, nunca serializado cru: `parseTripTimelineCursor`/`encodeTripTimelineCursor` (na
- * infraestrutura, junto de `mergeTripTimeline`) fazem base64url de JSON. A validação Zod do valor
- * que chega pela querystring é da T6 (rota) — aqui o parse já assume um cursor bem formado, porque
- * quem o produziu foi esta mesma leitura, na página anterior.
+ * Cursor tipado, nunca serializado cru: `parseTripTimelineCursor`/`encodeTripTimelineCursor`
+ * (`trip-timeline-cursor.service.ts`) fazem base64url de JSON. A validação Zod do valor que chega
+ * pela querystring é da T6 (rota) — aqui o parse já assume um cursor bem formado, porque quem o
+ * produziu foi esta mesma leitura, na página anterior.
+ *
+ * `occurredAt` é **texto com microssegundos** (`YYYY-MM-DDTHH:mm:ss.SSSSSSZ`, UTC), nunca `Date` —
+ * `Date` só guarda milissegundos, e `occurred_at` é `timestamptz` com microssegundos. Um cursor em
+ * `Date` arredonda o instante para baixo e a comparação `(occurred_at, prioridade, id) < cursor`
+ * passa a excluir, na página seguinte, linhas com o mesmo instante do cursor mas microssegundos
+ * maiores — o caso de vários eventos gravados no mesmo `now()` de uma transação (T9).
  */
 export type TripTimelineCursor = {
   readonly id: string
   readonly kindPriority: number
-  readonly occurredAt: Date
+  readonly occurredAt: string
 }
 
 export type ReadTripTimelineParams = {

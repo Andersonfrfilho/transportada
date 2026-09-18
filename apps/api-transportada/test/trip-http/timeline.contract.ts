@@ -97,7 +97,7 @@ describe('GET /trips/:id/timeline (spec 158 T6)', () => {
     const cursor = {
       id: '00000000-0000-4000-8000-000000000123',
       kindPriority: 3,
-      occurredAt: new Date('2026-09-18T12:00:00.000Z'),
+      occurredAt: '2026-09-18T12:00:00.000000Z',
     }
     const encodedCursor = encodeTripTimelineCursor(cursor)
     const route = findTimelineRoute({
@@ -133,6 +133,42 @@ describe('GET /trips/:id/timeline (spec 158 T6)', () => {
         request: new Request(`http://localhost${PATH}?cursor=not-a-valid-cursor`),
       }),
     ).rejects.toMatchObject({ code: 'TRIP_TIMELINE_CURSOR_INVALID', status: 400 })
+  })
+
+  test('T9 item 3: 400 TRIP_TIMELINE_CURSOR_INVALID para cursor forjado (id não-uuid, kindPriority fora da tabela) — nunca 500', async () => {
+    const route = findTimelineRoute({
+      async execute() {
+        return { items: [], nextCursor: null }
+      },
+    })
+
+    const forgedId = Buffer.from(
+      JSON.stringify({
+        id: "'; drop table trips; --",
+        kindPriority: 1,
+        occurredAt: '2026-09-18T12:00:00.000000Z',
+      }),
+      'utf8',
+    ).toString('base64url')
+    const forgedPriority = Buffer.from(
+      JSON.stringify({
+        id: '00000000-0000-4000-8000-000000000123',
+        kindPriority: 999,
+        occurredAt: '2026-09-18T12:00:00.000000Z',
+      }),
+      'utf8',
+    ).toString('base64url')
+
+    for (const cursor of [forgedId, forgedPriority]) {
+      await expect(
+        route.execute({
+          context: companyContext(new Set(['fleet.read'])),
+          correlationId: 'timeline-contract',
+          pathParameters: { id: TRIP_ID },
+          request: new Request(`http://localhost${PATH}?cursor=${cursor}`),
+        }),
+      ).rejects.toMatchObject({ code: 'TRIP_TIMELINE_CURSOR_INVALID', status: 400 })
+    }
   })
 
   test('400 para limit fora de 1..200 (0 e 201)', async () => {

@@ -1,19 +1,27 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 158 T5, aceite 5: a linha do tempo une seis consultas, e cada degrau tem de carregar o
- * tenant — o mesmo cuidado de `occurrence-feed-query-tenant-safety.contract.ts`, no mesmo molde:
- * lê a fonte, porque uma assinatura que aceitasse junção simples compilaria e passaria em todo
- * teste de caminho feliz.
+ * Spec 158 T5, aceite 5 (T9 correção do orquestrador): a linha do tempo une seis consultas, e cada
+ * degrau tem de carregar o tenant — o mesmo cuidado de `occurrence-feed-query-tenant-safety.
+ * contract.ts`, no mesmo molde: lê a fonte, porque uma assinatura que aceitasse junção simples
+ * compilaria e passaria em todo teste de caminho feliz. As seis consultas hoje moram em quatro
+ * arquivos (orquestrador + status + stop + document); este contrato varre todos — arquivo novo que
+ * escape dele não é pego por nenhum outro teste.
  */
 import { describe, expect, test } from 'bun:test'
 
 import { readFileSync } from 'node:fs'
 
-const QUERY_SOURCE = readFileSync(
-  new URL('../../src/trips/infrastructure/trip-timeline.query.ts', import.meta.url),
-  'utf8',
-)
+const TIMELINE_SOURCE_FILES = [
+  '../../src/trips/infrastructure/trip-timeline.query.ts',
+  '../../src/trips/infrastructure/trip-timeline-status.query.ts',
+  '../../src/trips/infrastructure/trip-timeline-stop.query.ts',
+  '../../src/trips/infrastructure/trip-timeline-document.query.ts',
+] as const
+
+const QUERY_SOURCE = TIMELINE_SOURCE_FILES.map((path) =>
+  readFileSync(new URL(path, import.meta.url), 'utf8'),
+).join('\n')
 
 describe('tenant safety da linha do tempo da viagem (spec 158 T5)', () => {
   test('as seis consultas ancoram a empresa no where', () => {
