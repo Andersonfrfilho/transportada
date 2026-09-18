@@ -9,6 +9,11 @@ import {
   TRIP_DOCUMENT_REVIEWS_PATH,
   TRIP_FIELD_OCCURRENCE_TYPES_PATH,
 } from './trip.constant'
+import {
+  isFieldDeliveryOcrDocumentsResponse,
+  TRIP_FIELD_DELIVERY_DOCUMENTS_PATH,
+  type FieldDeliveryOcrDocument,
+} from './fieldDeliveryOcrDocuments.service'
 import { createTripReviewAdapters } from './tripReview.validation'
 import type {
   TripDocumentReview,
@@ -88,6 +93,7 @@ import {
   isDeliveryProofSettingsOverride,
   isFieldDeliverySettings,
   type CompanyDeliveryProofSettings,
+  type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
@@ -203,8 +209,20 @@ export type TripClient = Readonly<{
   readDeliveryProofSettings: () => Promise<CompanyDeliveryProofSettings>
   /** Spec 156 T13: o assistente de baixa do escritório lê só o interruptor da leitura do canhoto. */
   readFieldDeliverySettings: () => Promise<FieldDeliverySettings>
+  /** Spec 156 T14: a chave de acesso de cada nota, para o OCR do canhoto casar pela chave inteira. */
+  readFieldDeliveryDocuments: (
+    input: Readonly<{ tripId: string }>,
+  ) => Promise<readonly FieldDeliveryOcrDocument[]>
   saveDeliveryProofSettings: (
     input: CompanyDeliveryProofSettings,
+  ) => Promise<CompanyDeliveryProofSettings>
+  /**
+   * Spec 156 T14, ADR-0069 §6: liga/desliga o interruptor. O `PUT` exige os quatro modos sempre —
+   * só os cinco parâmetros de pontualidade e o interruptor são opcionais (ausente não mexe) — por
+   * isso o corpo carrega os quatro modos correntes junto do `canhotoOcrEnabled` novo.
+   */
+  saveCanhotoOcrEnabled: (
+    input: DeliveryProofFieldSettings & Readonly<{ canhotoOcrEnabled: boolean }>,
   ) => Promise<CompanyDeliveryProofSettings>
   listDeliveryProofOverrides: () => Promise<readonly DeliveryProofSettingsOverride[]>
   replaceDeliveryProofOverrides: (
@@ -706,6 +724,17 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       if (!isFieldDeliverySettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
     },
+    async readFieldDeliveryDocuments(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: TRIP_FIELD_DELIVERY_DOCUMENTS_PATH(input.tripId),
+      })
+      const data = readEnvelopeData(response)
+      if (!isFieldDeliveryOcrDocumentsResponse(data))
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data.documents
+    },
     async saveDeliveryProofSettings(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
@@ -715,6 +744,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           photo: input.photo,
           proofRadiusMeters: input.proofRadiusMeters,
           proofWindowMinutes: input.proofWindowMinutes,
+          receiverDocument: input.receiverDocument,
+          receiverName: input.receiverName,
+          signature: input.signature,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async saveCanhotoOcrEnabled(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          canhotoOcrEnabled: input.canhotoOcrEnabled,
+          photo: input.photo,
           receiverDocument: input.receiverDocument,
           receiverName: input.receiverName,
           signature: input.signature,

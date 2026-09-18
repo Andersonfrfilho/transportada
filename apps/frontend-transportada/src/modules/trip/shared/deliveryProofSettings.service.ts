@@ -106,9 +106,13 @@ export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctuali
   proofWindowMinutes: 60,
 }
 
-/** O corpo do `PUT/GET` geral: os quatro modos + os cinco parâmetros — a exceção por CNPJ não os carrega. */
+/**
+ * O corpo do `PUT/GET` geral: os quatro modos + os cinco parâmetros + o interruptor da leitura do
+ * canhoto (spec 156 T14, ADR-0069 §6) — a exceção por CNPJ não carrega nenhum dos dois.
+ */
 export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
-  DeliveryProofPunctualitySettings
+  DeliveryProofPunctualitySettings &
+  Readonly<{ canhotoOcrEnabled: boolean }>
 
 export function isDeliveryProofPunctualityValue(
   field: DeliveryProofPunctualityField,
@@ -146,8 +150,17 @@ export function isDeliveryProofPunctualitySettings(
   )
 }
 
+/**
+ * Spec 156 T14, ADR-0069 §6: o interruptor da leitura do canhoto entra na mesma verificação — a
+ * API sempre o devolve junto dos quatro modos e dos cinco parâmetros de pontualidade.
+ */
 export function isCompanyDeliveryProofSettings(
   value: unknown,
 ): value is CompanyDeliveryProofSettings {
-  return isDeliveryProofFieldSettings(value) && isDeliveryProofPunctualitySettings(value)
+  return (
+    isDeliveryProofFieldSettings(value) &&
+    isDeliveryProofPunctualitySettings(value) &&
+    isRecord(value) &&
+    typeof value['canhotoOcrEnabled'] === 'boolean'
+  )
 }
