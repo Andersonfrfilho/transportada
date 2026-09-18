@@ -63,6 +63,15 @@ describe('os artefatos do OCR do canhoto (ADR-0069 §2)', () => {
     )
   })
 
+  /**
+   * Medido: `tesseract.js` é CommonJS, e sem `manualChunks` o Rollup funde `createWorker` inteiro
+   * no chunk de `TripDetail.page` (quem só abre uma viagem baixaria o motor de OCR de graça).
+   */
+  test('tesseract.js ganha manualChunks — nunca funde no chunk de quem chama import()', () => {
+    expect(viteConfig).toContain("id.includes('/node_modules/tesseract.js/')")
+    expect(viteConfig).toContain("'tesseract-ocr'")
+  })
+
   test('fica fora do precache do Workbox e ganha CacheFirst próprio', () => {
     expect(viteConfig).toContain("'**/canhoto-ocr/**'")
     expect(viteConfig).toContain("const CANHOTO_OCR_CACHE_NAME = 'transportada-canhoto-ocr'")

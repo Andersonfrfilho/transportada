@@ -244,6 +244,16 @@ export default defineConfig({
           chunkInfo.moduleIds.some((id) => id.includes('vendor/opencv/opencv.js'))
             ? `${OPENCV_CHUNK_PREFIX}[hash].js`
             : 'assets/[name]-[hash].js',
+        /**
+         * Spec 156 T14, ADR-0069 §2: `tesseract.js` é CommonJS (`"type": "commonjs"`), e o Rollup
+         * funde módulo CJS só alcançado por `import()` dinâmico no chunk de quem chama, em vez de
+         * separar (medido: sem isto, `createWorker` inteiro ia parar em `TripDetail.page`, e todo
+         * mundo que abre uma viagem baixava o Tesseract). `manualChunks` força o pacote inteiro
+         * para um chunk próprio, que só é buscado quando `canhotoOcrEngine.service.ts` chama
+         * `import('tesseract.js')` — nunca no bundle inicial nem no de `TripDetail`.
+         */
+        manualChunks: (id) =>
+          id.includes('/node_modules/tesseract.js/') ? 'tesseract-ocr' : undefined,
       },
     },
   },

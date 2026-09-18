@@ -117,6 +117,21 @@ spec 152. O cliente (T14) pede uma vez por abertura do assistente, com o cache d
 
 **Origem:** validação do architect sobre a T13 da spec 156 (R8). Registrado em 2026-09-18.
 
+### 2026-09-18 — `GET /trips/:id/field-delivery-documents` sem rate limit (spec 156 T14)
+
+**Onde:** `api-transportada`, `trips/presentation/trip-field-delivery-documents.routes.ts`.
+
+**O que é:** a leitura da chave de acesso das notas da viagem, para o OCR do canhoto casar pela
+chave inteira (ADR-0069 §3), não declara `rateLimit`. Mesmo perfil da rota de configuração acima:
+autenticada, `trip.report-on-behalf` na empresa do contexto, só leitura (nunca grava), sem custo
+externo — o risco é abuso por usuário autenticado, e a resposta é limitada às notas de uma viagem.
+
+**O que falta:** entrar no mesmo lote de decisão de `scope`/`maxRequests`/`windowSeconds` das rotas
+da spec 152 e da rota de configuração acima. O cliente (T14) pede uma vez por abertura do
+assistente do escritório, com o cache do TanStack Query.
+
+**Origem:** spec 156 T14 (ADR-0069 §2/§3, R8). Registrado em 2026-09-18.
+
 ### 2026-09-16 — foto congelada da medida pela câmera quebrava sob a CSP real (T14 item 1, fechado)
 
 **Onde:** `frontend-transportada`, `components/ui/useBoxDimensionScanner.hook.ts` e
