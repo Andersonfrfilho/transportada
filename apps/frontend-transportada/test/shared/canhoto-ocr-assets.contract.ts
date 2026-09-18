@@ -28,6 +28,14 @@ describe('os artefatos do OCR do canhoto (ADR-0069 §2)', () => {
     expect(manifest.scripts.predev).toContain('assets:canhoto-ocr')
   })
 
+  /** O `vite dev` não serve `.br`/`.gz`: comprimir no predev só estourava o prazo do `make smoke`. */
+  test('o dev pula a compressão e o build nunca pula', () => {
+    expect(manifest.scripts.predev).toContain('assets:canhoto-ocr:dev')
+    expect(manifest.scripts['assets:canhoto-ocr:dev']).toContain('--skip-compression')
+    expect(manifest.scripts['assets:canhoto-ocr']).not.toContain('--skip-compression')
+    expect(manifest.scripts.prebuild).not.toContain('assets:canhoto-ocr:dev')
+  })
+
   /** As três dependências entram com versão exata — conferidas pelo lockfile, nunca por range. */
   test('tesseract.js, tesseract.js-core e @tesseract.js-data/eng são versão exata', () => {
     expect(manifest.dependencies['tesseract.js']).toBe('7.0.0')

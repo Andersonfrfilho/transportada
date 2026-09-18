@@ -18,8 +18,9 @@
     "typecheck": "tsc --noEmit",
     "assets:background-removal": "bun run scripts/fetch-background-removal.ts",
     "assets:canhoto-ocr": "bun run scripts/fetch-canhoto-ocr.ts",
+    "assets:canhoto-ocr:dev": "bun run scripts/fetch-canhoto-ocr.ts --skip-compression",
     "prebuild": "bun run assets:background-removal && bun run assets:canhoto-ocr",
-    "predev": "bun run assets:background-removal && bun run scripts/fetch-canhoto-ocr.ts --skip-compression"
+    "predev": "bun run assets:background-removal && bun run assets:canhoto-ocr:dev"
   },
   "dependencies": {
     "@adatechnology/document-intake": "0.1.0",
