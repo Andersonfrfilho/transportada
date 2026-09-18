@@ -858,6 +858,13 @@ export const tripStopEvents = pgTable(
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /**
+     * Spec 157 T11: o cadastro de motorista que reportou pelo app ou pelo WhatsApp, gravado no
+     * evento. A nota do motorista deixa de depender do vínculo atual (`actor_user_id` →
+     * membership → `fleet_drivers.membership_id`): desligar o acesso ao app não apaga o histórico
+     * dele. Evento anterior a esta coluna segue resolvido pelo vínculo.
+     */
+    reportedByDriverId: uuid('reported_by_driver_id'),
+    /**
      * ADR-0067 §3: hoje `created_at` faz os dois papéis (quando aconteceu e quando foi gravado). A
      * baixa retroativa do escritório muda `created_at` para a hora da entrega e grava aqui a hora
      * real do registro.
@@ -897,6 +904,13 @@ export const tripStopEvents = pgTable(
       columns: [table.companyId, table.onBehalfOfDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
       name: 'trip_stop_events_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.reportedByDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_stop_events_company_reported_by_driver_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

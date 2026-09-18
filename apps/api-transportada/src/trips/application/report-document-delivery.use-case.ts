@@ -405,6 +405,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
             ...(isOffice
               ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
               : {}),
+            ...(input.driverId === undefined ? {} : { reportedByDriverId: input.driverId }),
             stopId: document.stopId,
           }))
 

@@ -269,6 +269,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(events).toHaveLength(5)
       expect(events.filter((event) => event.latitude !== null)).toHaveLength(2)
       expect(events.filter((event) => event.kind === 'returned')).toHaveLength(1)
+      // Spec 157 T11: o motorista que reportou fica no evento, não só no vínculo da conta
+      expect(
+        events.filter((event) => event.kind !== 'arrived').map((event) => event.reportedByDriverId),
+      ).toEqual([world.driverId, world.driverId, world.driverId])
 
       const occurrences = await database.db
         .select()

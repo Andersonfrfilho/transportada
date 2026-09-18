@@ -268,6 +268,7 @@ describe('Drizzle migrations', () => {
       '20260918105116_delivery_proof_punctuality',
       '20260918115535_driver_score_delivered_index',
       '20260918122304_trip_status_events',
+      '20260918132305_driver_score_reported_by_driver',
       '20260918142214_delivery_proof_canhoto_ocr',
     ])
 

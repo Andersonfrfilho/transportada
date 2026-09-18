@@ -158,6 +158,11 @@ export type DriverFieldReportTransactionPort = {
     readonly occurredAt?: Date
     /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
     readonly recordedAt?: Date
+    /**
+     * Spec 157 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
+     * daqui, não do vínculo atual da conta. Ausente no escritório (ele usa `onBehalfOfDriverId`).
+     */
+    readonly reportedByDriverId?: string
     readonly stopId: string
   }): Promise<{ readonly id: string }>
   /**

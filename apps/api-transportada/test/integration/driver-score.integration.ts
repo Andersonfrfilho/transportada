@@ -9,6 +9,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -70,6 +71,7 @@ type DeliveryInput = {
   readonly onBehalfOfDriverId?: string
   readonly photo?: TripDeliveryProofPunctuality
   readonly recipientTaxId?: string
+  readonly reportedByDriverId?: string
   readonly returned?: boolean
 }
 
@@ -222,6 +224,74 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
     })
   })
 
+  /**
+   * Spec 157 T11 (item 14): o motorista do evento é gravado nele (`reported_by_driver_id`). Desligar
+   * o acesso ao app (`fleet_drivers.membership_id = null`) não apaga o histórico dele. O evento
+   * antigo, sem a coluna, segue resolvido pelo vínculo — e esse some com o vínculo (limitação
+   * registrada na evidência da T11).
+   */
+  testWithPostgres('o histórico sobrevive ao desligamento do acesso ao app', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const driver = await seedDriver(database, company.companyId)
+      const recorded = await seedDelivery(database, {
+        actorUserId: driver.userId,
+        company,
+        deliveredAgo: 25 * HOUR,
+        reportedByDriverId: driver.driverId,
+      })
+      await seedDelivery(database, { actorUserId: driver.userId, company, deliveredAgo: 26 * HOUR })
+      await database.db
+        .update(fleetDrivers)
+        .set({ membershipId: null })
+        .where(eq(fleetDrivers.id, driver.driverId))
+
+      const result = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+        companyId: company.companyId,
+        driverId: driver.driverId,
+        now: NOW,
+      })
+
+      expect(result.score).toBe(90)
+      expect(result.penalties.map((penalty) => penalty.tripDocumentId)).toEqual([
+        recorded.tripDocumentId,
+      ])
+    })
+  })
+
+  /**
+   * Spec 157 T11 (item 7): o pré-filtro por motorista acha a nota pela entrega dele, mas o "último
+   * evento" continua sendo o da nota — se o escritório refez a baixa depois, ela sai da nota dele.
+   */
+  testWithPostgres('última entrega do escritório tira a nota do motorista', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const driver = await seedDriver(database, company.companyId)
+      const delivery = await seedDelivery(database, {
+        actorUserId: driver.userId,
+        company,
+        deliveredAgo: 50 * HOUR,
+        reportedByDriverId: driver.driverId,
+      })
+      await seedEvent(database, {
+        actorUserId: company.userId,
+        channel: 'office',
+        company,
+        deliveredAgo: 40 * HOUR,
+        onBehalfOfDriverId: driver.driverId,
+        tripDocumentId: delivery.tripDocumentId,
+      })
+
+      const scores = await new DrizzleDriverScoreRepository(database.db).readScores({
+        companyId: company.companyId,
+        driverIds: [driver.driverId],
+        now: NOW,
+      })
+
+      expect(scores.get(driver.driverId)).toBeNull()
+    })
+  })
+
   /** Spec 157 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
   testWithPostgres('frota: a listagem traz a nota e a ficha de outra empresa é 404', async () => {
     await withDisposableDatabase(async (database) => {
@@ -356,6 +426,7 @@ async function seedEvent(
     kind: 'delivered',
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     recordedAt: at,
+    reportedByDriverId: input.reportedByDriverId ?? null,
     stopId: input.company.stopId,
     tripDocumentId: input.tripDocumentId,
   })

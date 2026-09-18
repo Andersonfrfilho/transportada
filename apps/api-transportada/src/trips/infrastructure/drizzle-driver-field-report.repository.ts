@@ -458,6 +458,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         longitude: input.location?.longitude ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
+        reportedByDriverId: input.reportedByDriverId ?? null,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
       })

@@ -7,7 +7,8 @@
  * motoristas (sem N+1) e as duas leituras de configuração da empresa, em paralelo.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   companyDeliveryProofSettings,
@@ -106,14 +107,15 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
   }
 
   /**
-   * O motorista do evento é `on_behalf_of_driver_id` ou o cadastro de frota ligado ao vínculo de
-   * `actor_user_id` — a mesma ligação `fleet_drivers.membership_id` que resolve a conta logada em
-   * `/me/trips/current`. Toda tabela do join carrega o `company_id` do contexto.
+   * O motorista do evento é `on_behalf_of_driver_id` (escritório), `reported_by_driver_id` (app e
+   * WhatsApp, gravado no evento — spec 157 T11) ou, no evento anterior a essa coluna, o cadastro de
+   * frota ligado ao vínculo de `actor_user_id`. Toda tabela do join carrega o `company_id` do
+   * contexto.
    */
   private async listDeliveries(input: ReadScoresInput): Promise<readonly DeliveryRow[]> {
     const lastDelivery = buildLastDeliverySubquery({ database: this.database, ...input })
     const on = buildTenantJoinConditions({ companyId: input.companyId, lastDelivery })
-    const driverId = sql<string>`coalesce(${lastDelivery.onBehalfOfDriverId}, ${fleetDrivers.id})`
+    const driverId = sql<string>`coalesce(${lastDelivery.onBehalfOfDriverId}, ${lastDelivery.reportedByDriverId}, ${fleetDrivers.id})`
 
     return this.database
       .select({
@@ -174,12 +176,12 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
  * outro evento, e só o mais recente conta). O recorte de canal e de motorista fica **fora** do
  * `distinct on`: se a última entrega foi do escritório, a nota sai da nota do motorista, mesmo que
  * um evento anterior tenha sido dele.
+ *
+ * Spec 157 T11 (item 7): o `distinct on` só roda sobre as notas que têm **alguma** entrega dos
+ * motoristas pedidos na janela (`buildRequestedDriverDocuments`) — a ficha de um motorista não
+ * varre mais a empresa inteira, e o "último evento" continua sendo o da nota, de qualquer autor.
  */
-function buildLastDeliverySubquery(input: {
-  readonly companyId: string
-  readonly database: Database
-  readonly now: Date
-}) {
+function buildLastDeliverySubquery(input: ReadScoresInput & { readonly database: Database }) {
   const windowStart = new Date(
     input.now.getTime() - DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY,
   )
@@ -192,6 +194,7 @@ function buildLastDeliverySubquery(input: {
       eventId: tripStopEvents.id,
       onBehalfOfDriverId: tripStopEvents.onBehalfOfDriverId,
       recordedAt: tripStopEvents.recordedAt,
+      reportedByDriverId: tripStopEvents.reportedByDriverId,
       tripDocumentId: tripStopEvents.tripDocumentId,
     })
     .from(tripStopEvents)
@@ -200,10 +203,57 @@ function buildLastDeliverySubquery(input: {
         eq(tripStopEvents.companyId, input.companyId),
         eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
         gte(sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`, windowStart),
+        inArray(
+          tripStopEvents.tripDocumentId,
+          buildRequestedDriverDocuments({ ...input, windowStart }),
+        ),
       ),
     )
     .orderBy(tripStopEvents.tripDocumentId, desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
     .as('last_delivery')
+}
+
+/**
+ * As notas com entrega de um dos motoristas pedidos na janela — pela mesma atribuição da leitura
+ * (`on_behalf_of_driver_id`, `reported_by_driver_id` ou, no evento antigo sem nenhum dos dois, a
+ * conta ligada ao cadastro). Tenant em todas as tabelas.
+ */
+function buildRequestedDriverDocuments(
+  input: ReadScoresInput & { readonly database: Database; readonly windowStart: Date },
+) {
+  const driverEvent = alias(tripStopEvents, 'driver_delivery')
+  const driverIds = [...input.driverIds]
+  const driverAccounts = input.database
+    .select({ userId: userCompanyMemberships.userId })
+    .from(fleetDrivers)
+    .innerJoin(
+      userCompanyMemberships,
+      and(
+        eq(userCompanyMemberships.companyId, input.companyId),
+        eq(userCompanyMemberships.id, fleetDrivers.membershipId),
+      ),
+    )
+    .where(and(eq(fleetDrivers.companyId, input.companyId), inArray(fleetDrivers.id, driverIds)))
+
+  return input.database
+    .select({ tripDocumentId: driverEvent.tripDocumentId })
+    .from(driverEvent)
+    .where(
+      and(
+        eq(driverEvent.companyId, input.companyId),
+        eq(driverEvent.kind, DELIVERED_EVENT_KIND),
+        gte(sql`coalesce(${driverEvent.capturedAt}, ${driverEvent.recordedAt})`, input.windowStart),
+        or(
+          inArray(driverEvent.onBehalfOfDriverId, driverIds),
+          inArray(driverEvent.reportedByDriverId, driverIds),
+          and(
+            isNull(driverEvent.onBehalfOfDriverId),
+            isNull(driverEvent.reportedByDriverId),
+            inArray(driverEvent.actorUserId, driverAccounts),
+          ),
+        ),
+      ),
+    )
 }
 
 type LastDeliverySubquery = ReturnType<typeof buildLastDeliverySubquery>
