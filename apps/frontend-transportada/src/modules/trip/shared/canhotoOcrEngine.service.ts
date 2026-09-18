@@ -48,9 +48,29 @@ function flattenWords(page: Tesseract.Page): readonly CanhotoOcrWord[] {
   )
 }
 
+/** M13d (spec 156 T15): teto de tempo para a leitura — um worker preso (aparelho fraco, imagem
+ * grande) não pode travar "Capturar"/"Pular" pra sempre; o passo segue sem a sugestão. */
+export const CANHOTO_OCR_TIMEOUT_MS = 15_000
+
+/** Exportado só para o teste de `raceAgainstTimeout` (T15) — o worker real não roda em `bun test`. */
+export const OCR_TIMEOUT = Symbol('canhoto-ocr-timeout')
+
+export function raceAgainstTimeout<TValue>(
+  promise: Promise<TValue>,
+  timeoutMs: number,
+): Promise<TValue | typeof OCR_TIMEOUT> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<typeof OCR_TIMEOUT>((resolve) => {
+    timer = setTimeout(() => resolve(OCR_TIMEOUT), timeoutMs)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 /**
  * R8 — erro de carga do motor ou de leitura vira `undefined` (escolha manual), nunca trava o
  * passo: a foto do canhoto já está capturada, e o resto do assistente segue funcionando sem OCR.
+ * M13d: o mesmo vale para a leitura que nunca termina — o teto de tempo garante que o passo sempre
+ * volta, com ou sem sugestão.
  */
 export async function recognizeCanhotoWords(
   image: Tesseract.ImageLike,
@@ -60,8 +80,16 @@ export async function recognizeCanhotoWords(
     const worker = await workerPromise
     /** tesseract.js 7 desliga `blocks` por padrão (`output = { text: true }`) — sem isto,
      * `data.blocks` nunca existe e `flattenWords` sempre devolve lista vazia. */
-    const { data } = await worker.recognize(image, {}, { blocks: true })
-    return flattenWords(data)
+    const result = await raceAgainstTimeout(
+      worker.recognize(image, {}, { blocks: true }),
+      CANHOTO_OCR_TIMEOUT_MS,
+    )
+    if (result === OCR_TIMEOUT) {
+      // Worker preso — encerra em vez de deixá-lo terminando por trás para a próxima leitura herdar.
+      await terminateWorker()
+      return undefined
+    }
+    return flattenWords(result.data)
   } catch {
     await terminateWorker()
     return undefined
