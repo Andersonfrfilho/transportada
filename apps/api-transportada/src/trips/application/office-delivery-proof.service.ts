@@ -10,8 +10,9 @@ import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
 import {
   buildDeliveryProofObjectKey,
-  DELIVERY_PROOF_MAX_BYTES,
   isDeliveryProofMimeType,
+  matchesDeliveryProofSignature,
+  OFFICE_PROOF_MAX_BYTES,
 } from '../domain/delivery-proof.policy.js'
 import {
   maskTaxId,
@@ -59,15 +60,22 @@ export type OfficeProofPersistResult = {
   readonly replacedObjectId: string | null
 }
 
-/** Teto e tipos do canhoto, conferidos antes de abrir a transação — arquivo recusado não gasta chave. */
+/**
+ * Teto, tipo e assinatura de bytes do arquivo do escritório (canhoto e foto do lote), conferidos
+ * antes de abrir a transação — arquivo recusado não gasta chave (spec 156 T15 M7, seg B2).
+ */
 export function assertOfficeUploadAccepted(upload: {
   readonly bytes: Uint8Array
   readonly mimeType: string
 }): void {
-  if (upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
+  if (upload.bytes.byteLength > OFFICE_PROOF_MAX_BYTES) {
     throw new TripDeliveryProofRejectedError('TOO_LARGE')
   }
-  if (!isDeliveryProofMimeType(upload.mimeType)) {
+  const { mimeType } = upload
+  if (!isDeliveryProofMimeType(mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+  if (!matchesDeliveryProofSignature({ bytes: upload.bytes, mimeType })) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
 }

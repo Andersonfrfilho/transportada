@@ -820,7 +820,7 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
         ]
         const typeId = await seedDeliveryOccurrenceType(database, company)
         const { route, uploads } = wireOccurrenceRoute(database)
-        const photo = { bytes: new Uint8Array([1, 2, 3, 4]), mimeType: 'image/jpeg' }
+        const photo = { bytes: JPEG_BYTES, mimeType: 'image/jpeg' }
         const post = () =>
           route.execute({
             context: fakeContext(company),
@@ -881,7 +881,7 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
             pathParameters: { id: trip.tripId },
             request: multipartRequest({
               fields: { documentIds, note: 'Cliente ausente', occurrenceTypeId: typeId },
-              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              file: { bytes: new Uint8Array([...JPEG_BYTES, 9]), mimeType: 'image/jpeg' },
               idempotencyKey: 'lote-com-foto',
             }),
           })

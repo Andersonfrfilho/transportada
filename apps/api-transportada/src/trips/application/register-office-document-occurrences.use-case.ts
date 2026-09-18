@@ -8,21 +8,13 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import {
-  DELIVERY_PROOF_MAX_BYTES,
-  isDeliveryProofMimeType,
-} from '../domain/delivery-proof.policy.js'
-import {
   buildOccurrenceBatchAttachmentObjectKey,
   buildOccurrenceBatchItemKey,
   buildOccurrenceBatchOperation,
   OFFICE_OCCURRENCE_BATCH_ITEM_OPERATION,
   sha256Hex,
 } from '../domain/occurrence-batch.policy.js'
-import {
-  OccurrenceTypeNotFieldError,
-  TripDeliveryProofRejectedError,
-  TripDocumentNotReachableError,
-} from '../domain/trip.error.js'
+import { OccurrenceTypeNotFieldError, TripDocumentNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import {
   deriveFieldAuthorship,
@@ -37,6 +29,7 @@ import {
   type OccurrenceTypeRecord,
   type TripOccurrence,
 } from './register-trip-occurrence.use-case.js'
+import { assertOfficeUploadAccepted } from './office-delivery-proof.service.js'
 import {
   runWithStoredObjectCleanup,
   type RemovableObjectStoragePort,
@@ -165,26 +158,16 @@ type BatchOutcome = {
   readonly occurrenceType: OccurrenceTypeRecord | null
 }
 
-/**
- * D9: mesmos limites do canhoto (`DELIVERY_PROOF_MAX_BYTES`, `isDeliveryProofMimeType`) — a foto do
- * lote não é um segundo contrato de anexo, é o mesmo. Validado **fora** de qualquer reserva: um
- * arquivo recusado nunca gasta a chave de idempotência do lote.
- */
-function assertAttachmentUploadIsValid(upload: OfficeOccurrenceAttachmentUpload): void {
-  if (upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
-    throw new TripDeliveryProofRejectedError('TOO_LARGE')
-  }
-  if (!isDeliveryProofMimeType(upload.mimeType)) {
-    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
-  }
-}
-
 export async function registerOfficeDocumentOccurrences(
   params: RegisterOfficeDocumentOccurrencesParams,
 ): Promise<RegisterOfficeDocumentOccurrencesResult> {
   const authorship = deriveFieldAuthorship({ target: params.target })
   const upload = params.attachment?.upload ?? null
-  if (upload !== null) assertAttachmentUploadIsValid(upload)
+  /**
+   * D9: os mesmos limites do canhoto do escritório — a foto do lote não é um segundo contrato de
+   * anexo. Validado **fora** de qualquer reserva: um arquivo recusado não gasta a chave do lote.
+   */
+  if (upload !== null) assertOfficeUploadAccepted(upload)
 
   const runBatch = (storage: RemovableObjectStoragePort | undefined) =>
     params.unitOfWork.execute((transaction) => {

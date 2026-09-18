@@ -40,10 +40,12 @@ import type { ReportStopOccurrenceResult } from '../application/report-stop-occu
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
-  parseOfficeArrivalRequest,
-  parseOfficeDriverSelection,
   parseOfficeFieldDeliveryRequest,
   parseOfficeFieldProofRequest,
+} from './office-field-delivery.schema.js'
+import {
+  parseOfficeArrivalRequest,
+  parseOfficeDriverSelection,
   parseOfficeFieldReturnRequest,
   parseOfficeStopOccurrenceRequest,
 } from './trip-field-office.schema.js'
@@ -66,6 +68,25 @@ const OFFICE_AUDIT_ACTION = {
   proof: 'trip_field_office.document_proof',
   return: 'trip_field_office.document_return',
   startRoute: 'trip_field_office.start_route',
+} as const
+
+/**
+ * Spec 156 T15 (seg M2): as escritas do escritório contam no Postgres, entre réplicas, por empresa
+ * e usuário (`scope` é o balde). A baixa de nota aguenta o maço de canhotos (concorrência 3 no
+ * cliente); as ações de viagem e parada são poucas por viagem.
+ */
+const OFFICE_TRIP_RATE_LIMIT = {
+  maxRequests: 120,
+  scope: 'trip-field-office-trip',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const OFFICE_DOCUMENT_RATE_LIMIT = {
+  maxRequests: 300,
+  scope: 'trip-field-office-documents',
+  store: 'postgres',
+  windowSeconds: 300,
 } as const
 
 /**
@@ -223,6 +244,7 @@ export function createTripFieldOfficeRoutes(
         pathname:
           step === FIELD_TRIP_STEP.confirmLoad ? OFFICE_CONFIRM_LOAD_PATH : OFFICE_START_ROUTE_PATH,
         policy: OFFICE_REPORT_POLICY,
+        rateLimit: OFFICE_TRIP_RATE_LIMIT,
       }),
     ),
     defineRoute<{
@@ -272,6 +294,7 @@ export function createTripFieldOfficeRoutes(
       },
       pathname: OFFICE_STOP_ARRIVE_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_TRIP_RATE_LIMIT,
     }),
     defineRoute<{
       readonly correlationId: string
@@ -329,6 +352,7 @@ export function createTripFieldOfficeRoutes(
       },
       pathname: OFFICE_STOP_OCCURRENCES_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_TRIP_RATE_LIMIT,
     }),
     defineRoute<{
       readonly correlationId: string
@@ -391,6 +415,7 @@ export function createTripFieldOfficeRoutes(
       },
       pathname: OFFICE_DOCUMENT_DELIVER_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_DOCUMENT_RATE_LIMIT,
     }),
     defineRoute<{
       readonly correlationId: string
@@ -452,6 +477,7 @@ export function createTripFieldOfficeRoutes(
       },
       pathname: OFFICE_DOCUMENT_RETURN_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_DOCUMENT_RATE_LIMIT,
     }),
     /**
      * Anexa a uma entrega **já feita** (ADR-0067 §2): não cria evento, não muda `delivered_at`.
@@ -506,6 +532,7 @@ export function createTripFieldOfficeRoutes(
       },
       pathname: OFFICE_DOCUMENT_PROOF_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_DOCUMENT_RATE_LIMIT,
     }),
   ]
 }

@@ -446,7 +446,8 @@ describe('ocorrência em massa do escritório (spec 156 D7, aceite 10)', () => {
 })
 
 describe('T7b: o anexo opcional do lote (D7 §3.5)', () => {
-  const photo = { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' }
+  /** JPEG mínimo: a assinatura `FF D8 FF` que o escritório confere (spec 156 T15 seg B2). */
+  const photo = { bytes: new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]), mimeType: 'image/jpeg' }
 
   it('um objeto só, referenciado pelas N notas do lote', async () => {
     const world = buildWorld()
@@ -483,7 +484,10 @@ describe('T7b: o anexo opcional do lote (D7 §3.5)', () => {
     const world = buildWorld()
     await register(world, { attachment: fakeAttachment(photo) })
 
-    const outroArquivo = { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' }
+    const outroArquivo = {
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 9, 9, 9]),
+      mimeType: 'image/jpeg',
+    }
     const code = await codeOf(register(world, { attachment: fakeAttachment(outroArquivo) }))
 
     expect(code).toBe('TRIP_FIELD_REPORT_KEY_REUSED')

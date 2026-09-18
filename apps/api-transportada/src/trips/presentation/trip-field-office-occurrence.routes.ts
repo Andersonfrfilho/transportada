@@ -20,11 +20,22 @@ import {
   OFFICE_TRIP_PATH,
   resolveOfficeTarget,
 } from './trip-field-office.routes.js'
-import { parseOfficeFieldOccurrencesRequest } from './trip-field-office.schema.js'
+import { parseOfficeFieldOccurrencesRequest } from './office-field-occurrences.schema.js'
 
 const OFFICE_FIELD_OCCURRENCE_TYPES_PATH = `${API_TRIPS_PATH}/occurrence-types/field`
 const OFFICE_DOCUMENT_OCCURRENCES_PATH = `${OFFICE_TRIP_PATH}/documents/field-occurrences`
 const OFFICE_OCCURRENCES_AUDIT_ACTION = 'trip_field_office.document_occurrences'
+
+/**
+ * Spec 156 T15 (seg M2): o lote é a escrita mais cara do escritório — N ocorrências e N avisos por
+ * chamada —, então o balde mais duro, no Postgres, por empresa e usuário.
+ */
+const OFFICE_OCCURRENCES_RATE_LIMIT = {
+  maxRequests: 30,
+  scope: 'trip-field-office-occurrences',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
 
 export type TripFieldOfficeOccurrenceDependencies = {
   readonly listFieldOccurrenceTypes: (input: {
@@ -126,6 +137,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
       },
       pathname: OFFICE_DOCUMENT_OCCURRENCES_PATH,
       policy: OFFICE_REPORT_POLICY,
+      rateLimit: OFFICE_OCCURRENCES_RATE_LIMIT,
     }),
   ]
 }

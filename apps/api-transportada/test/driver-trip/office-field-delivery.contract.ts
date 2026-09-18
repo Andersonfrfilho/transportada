@@ -138,7 +138,7 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
         settings: OPTIONAL_SETTINGS,
         upload: {
           attachmentKey: '',
-          bytes: new Uint8Array([1, 2, 3]),
+          bytes: JPEG_BYTES,
           mimeType: 'image/jpeg',
           receiverDocument: '',
           receiverName: 'João da Silva',
@@ -275,7 +275,7 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
           settings: OPTIONAL_SETTINGS,
           upload: {
             attachmentKey: 'attachment-1',
-            bytes: new Uint8Array([1, 2, 3]),
+            bytes: JPEG_BYTES,
             mimeType: 'image/jpeg',
             receiverDocument: '',
             receiverName: 'João da Silva',
