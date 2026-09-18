@@ -1919,3 +1919,90 @@ Contratos escritos e verificados antes/durante a implementação:
 - Revisão de design (web.md §15) do seletor de motorista novo e do `TripReturnReasonDialog` fica
   para a T16 (revisão final de design e usabilidade da spec) — este ambiente não tem Keycloak/API
   para renderizar a tela autenticada (mesma limitação registrada na T8).
+
+### Revisão do code-reviewer (opus) — correções
+
+A primeira rodada da T8b.2 foi reprovada. Rebase sobre `origin/staging` (18 commits à frente,
+conflito em 9 arquivos — a T9, `be7e069c`, mexeu nos mesmos componentes) resolvido preservando os
+dois lados; depois `bun install --frozen-lockfile` e um segundo rebase (mais 6 commits, sem
+conflito). Dois commits mantidos (T8b.1/T8b.2) mais um terceiro, `fix(trips): correções da revisão
+da T8b`, com as correções abaixo.
+
+**Bloqueantes:**
+
+1. `test/separator-role.contract.test.ts`: `createTripFieldOfficeRoutes`/
+   `createTripFieldOfficeOccurrenceRoutes` entraram em `reachableRoutes`, para a lista exaustiva
+   **provar** a ausência das rotas com autoria, não só presumi-la por elas nunca terem sido
+   testadas. Teste novo exercita `AuthorizationService.authorize` de verdade contra a
+   `OFFICE_REPORT_POLICY` exportada da rota, com o contexto real do `separator`. Mutante local
+   (trocar `TRIP_REPORT_ON_BEHALF_PERMISSION` por `'trip.manage'` em `OFFICE_REPORT_POLICY`)
+   confirmado derrubando os dois testes — revertido, não commitado.
+2. "Devolver" em massa: falha parcial parava de ser visível atrás de um `selection.clear()` cego.
+   `useTripDocumentSelection.hook.ts` ganhou `replace()`; `handleBatchReturn` em
+   `TripDetail.component.tsx` lê o resultado por nota de `batchFieldReturnMutation`, mantém
+   selecionadas só as que falharam e mostra `stateActions.batchReturnPartialFailure` (locale
+   pt-BR/en) com o motivo da primeira falha, mapeado por `TRIP_FEEDBACK_KEY_BY_ERROR`.
+   `selection.clear()` só roda quando todas as notas passam. Achado durante a correção:
+   `tripFieldActionQueue.service.ts` lia `error.code`, mas `requestError` (`tripClient.service.ts`)
+   grava o código em `error.message` — toda falha caía em `'UNKNOWN'` antes desta correção; é bug
+   real, não só o que o revisor pediu.
+
+**Importantes:**
+
+4/5. Um seletor de motorista só: `TripFieldActions.component.tsx` perdeu o `useState` próprio —
+recebe `selectedDriverId`/`onSelectDriverId` de `TripDetail`, que também os usa para
+`field-delivery`/`field-return` da lista e do lote. `officeDriverId` só aceita o id escolhido
+quando ele está em `trip.drivers` da viagem **atual** (`isSelectedDriverOnTrip`); senão cai em
+`resolveDefaultOnBehalfDriverId` — a página não remonta ao trocar de viagem, e um id da viagem
+anterior sobreviveria sem essa checagem. 6. Testes novos: `test/trip/client-and-controller.contract.ts` ganhou `fieldReturnDocument`
+exercitado contra servidor sintético real (URL `/field-return`, corpo `{ reason }`, header
+`idempotency-key`); `test/trip/field-action-queue.contract.ts` (novo) cobre `runFieldActionQueue`
+— lista vazia, concorrência máxima respeitada, ordem do resultado preservada mesmo com item mais
+lento no meio, falha isolada não derruba as irmãs, erro que não é `Error` vira `'UNKNOWN'`;
+`test/trip/field-action-capabilities.contract.ts` ganhou `selectFieldReturnableDocumentIds`
+(extraída de `tripFieldActions.service.ts` — nem `TripStateActions` nem `TripDetail` têm suíte de
+render, então o filtro do lote vive numa função pura testável). 7. `trip-lifecycle.use-case.ts`: `batchStatus` estreitado de `TripDocumentAction` (4 valores) para
+`'load' | 'separate'`; `returnReason` removido tanto do `batchStatus` quanto do helper genérico
+`document()` — nenhum dos dois consumidores restantes (`separate`, `load`) o usa. O motor
+genérico (`transitionTripDocumentsBatch`/`transitionTripDocument`) não foi tocado — continua
+aceitando os 4 valores no nível de domínio, que é vocabulário da máquina de estados, não da
+superfície HTTP.
+
+**Menores:** cabeçalho de copyright restaurado em `state-gates.contract.ts` (tinha sido apagado
+numa reescrita anterior); comentário de `trip.fixture.ts:5` corrigido (`operator` **tem**
+`trip.report-on-behalf`); comentário de `delivery-proof-read.support.ts` não iguala mais o recorte
+de `findDriverReachableDocument` ao de `findDeliveryEventId` (que não filtra `released_at` de
+propósito — comprovante de entrega já feita continua válido após a nota ser liberada; não mudei
+`findDeliveryEventId`, só o comentário que mentia sobre ela); `TripReturnReasonDialog` reseta o
+motivo a cada abertura (`useEffect` em `isOpen`) e trocou `value as DriverReturnReason` por
+`isDriverReturnReason`, type guard; título do `test/trip-field-office/policy.contract.ts` corrigido
+de "as quatro" para "as sete" (o teste já afirmava `toHaveLength(7)`, só o texto estava desatualizado).
+
+### Gates (pós-rebase e correções)
+
+- `git fetch && git rebase origin/staging` → dois rebases (18 + 6 commits), sem conflito no
+  segundo. SHAs finais: `ee9fb102` (T8b.1), `d5e382e6` (T8b.2), `b022d03f` (correções da revisão).
+- `bun install --frozen-lockfile` → sem mudança de lockfile.
+- `bun run typecheck` (raiz, 6 apps) → exit 0, sem `error TS`.
+- `bun run lint` (raiz, 6 apps) → exit 0, sem saída de erro.
+- `bunx prettier --check .` (raiz) → `All matched files use Prettier code style!`.
+- `bun run --cwd apps/frontend-transportada test` → `4397 pass · 0 fail`, 37198 `expect()`, mais
+  `bun run test:hooks` → `10 pass · 0 fail`.
+- API, contrato (`bun --env-file=../../.env.test test --timeout 120000`, dentro de
+  `apps/api-transportada`) → `6546 pass · 1 fail · 23158 expect()`. A falha
+  (`Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal
+migration`) é diferença de versão do Postgres nativo descartável (18.4) contra o esperado pelo
+  projeto — `SQLSTATE` `23001` em vez de `23503` numa constraint — e não toca nada de `trips`.
+- API, integração (`bun --env-file=../../.env.test run test:integration`) → o Docker local estava
+  fora do ar (`Cannot connect to the Docker daemon`); rodado contra Postgres nativo descartável
+  (`initdb`/`pg_ctl` em `65433`, `max_connections=400` — o padrão de 100 esgotava sob os 414 testes
+  concorrentes e produzia dezenas de "Connection closed" espúrios; com 400, o número de falhas caiu
+  de 161 para 18 e ficou estável). Resultado: `396 pass · 18 fail · 3059 expect()`. As 18 falhas são
+  todas de infraestrutura fora do escopo da T8b, confirmadas por não tocarem nenhum arquivo de
+  `trips`/`field-office`: 6 de `database-availability.integration.ts` (spec 137, dependem de
+  `statement_timeout`/config de pool do Postgres do Docker, que o nativo não replica) e testes de
+  isolamento de tenant/`auth-me` fechando conexão sob carga; 8 de object storage indisponível
+  (MinIO também estava no Docker parado — `cte archive gateway`, extrato/recarga de pedágio spec
+  154); 1 da mesma diferença de `SQLSTATE` do Postgres do teste de contrato acima.
+  **Os seis arquivos de integração da T8b, rodados isolados e dentro da rodada cheia, deram
+  `34 pass · 0 fail · 0 skip`** — nenhum skip, nenhuma falha, nos dois modos.
