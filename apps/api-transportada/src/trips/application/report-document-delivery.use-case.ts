@@ -439,6 +439,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         const stopCompleted = await transaction.completeStopIfSettled({
           at: input.now,
           companyId: input.companyId,
+          fillMissingArrival: isOffice,
           stopId: document.stopId,
         })
         const tripCompleted = stopCompleted

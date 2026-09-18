@@ -347,27 +347,51 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
    * A parada fecha quando nenhuma nota dela está mais pendente — entregue ou devolvida dá no mesmo
    * para a parada. `completed_at is null` no filtro é o que torna a operação repetível: a segunda
    * chamada não devolve `true` de novo, e a tela não anuncia duas vezes que a parada fechou.
+   *
+   * Spec 156 T15 M3: a hora é a da última nota que **aconteceu**, não a da última digitada — a baixa
+   * retroativa do escritório chega fora de ordem. C1: sem chegada registrada, o canal `office`
+   * preenche `arrived_at` com a primeira hora da parada (o CHECK exige chegada antes de fechar).
    */
   public async completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
+    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean> {
+    const stopDocuments = and(
+      eq(tripDocuments.companyId, input.companyId),
+      eq(tripDocuments.stopId, input.stopId),
+      isNull(tripDocuments.releasedAt),
+    )
     const pending = this.transaction
       .select({ id: tripDocuments.id })
       .from(tripDocuments)
       .where(
         and(
-          eq(tripDocuments.companyId, input.companyId),
-          eq(tripDocuments.stopId, input.stopId),
-          isNull(tripDocuments.releasedAt),
+          stopDocuments,
           notInArray(tripDocuments.separationStatus, [...SETTLED_DOCUMENT_STATUSES]),
         ),
       )
+    const lastSettledAt = this.transaction
+      .select({
+        at: sql`max(greatest(${tripDocuments.deliveredAt}, ${tripDocuments.returnedAt}))`,
+      })
+      .from(tripDocuments)
+      .where(stopDocuments)
+    const firstSettledAt = this.transaction
+      .select({ at: sql`min(least(${tripDocuments.deliveredAt}, ${tripDocuments.returnedAt}))` })
+      .from(tripDocuments)
+      .where(stopDocuments)
 
     const completed = await this.transaction
       .update(tripStops)
-      .set({ completedAt: input.at, updatedAt: input.at })
+      .set({
+        ...(input.fillMissingArrival
+          ? { arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${input.at})` }
+          : {}),
+        completedAt: sql`coalesce((${lastSettledAt}), ${input.at})`,
+        updatedAt: input.at,
+      })
       .where(
         and(
           eq(tripStops.companyId, input.companyId),
@@ -429,12 +453,20 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
     if (completed.length === 0) return false
 
+    /** Spec 156 T15 M3: a viagem fecha na hora em que a última parada fechou, não na digitação. */
+    const [lastStop] = await this.transaction
+      .select({
+        completedAt: sql<Date | null>`max(${tripStops.completedAt})`.mapWith(tripStops.completedAt),
+      })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
     await recordTripStatusChange(this.transaction, {
       actorUserId: input.actorUserId,
       channel: input.authorship.channel,
       companyId: input.companyId,
       fromStatus: tripRow.status,
-      occurredAt: input.at,
+      occurredAt: lastStop?.completedAt ?? input.at,
       onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
       toStatus: 'completed',
       tripId: input.tripId,

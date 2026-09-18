@@ -128,10 +128,19 @@ export type DriverFieldReportTransactionPort = {
     readonly documentId: string
     readonly reason: string
   }): Promise<void>
-  /** Fecha a parada quando nenhuma nota dela está mais pendente. Devolve se fechou. */
+  /**
+   * Fecha a parada quando nenhuma nota dela está mais pendente. Devolve se fechou. `completed_at` é
+   * o maior `delivered_at`/`returned_at` das notas da parada (spec 156 T15 M3), com `at` como
+   * reserva para nota antiga sem a hora gravada.
+   */
   completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
+    /**
+     * Spec 156 T15 C1: o escritório dá baixa sem chegada registrada — o motorista não tocou em
+     * "cheguei". A chegada vira a menor hora de entrega/devolução da parada, só se estiver vazia.
+     */
+    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean>
   /** Fecha a viagem quando a última parada fechou (spec 056 D1). Devolve se fechou. */
