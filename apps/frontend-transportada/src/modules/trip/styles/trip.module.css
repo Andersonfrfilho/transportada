@@ -308,6 +308,14 @@
   background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
 }
 
+/* O seletor "Em nome do motorista" saía com a fonte do corpo — mesmo rótulo de `.fieldGrid label`. */
+.actionForm label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
 .actionActions {
   display: flex;
   flex-wrap: wrap;
@@ -315,6 +323,9 @@
 }
 
 .mdfeGateOverlay {
+  /* Portal fora de `.tripShell`: sem isto o botão compacto do diálogo ficava com 38px no celular. */
+  --control-height-compact: var(--touch-target);
+
   position: fixed;
   z-index: 40;
   inset: 0;
@@ -327,6 +338,8 @@
 
 .mdfeGateDialog {
   display: grid;
+  /* Tela cheia no celular: sem isto as linhas do grid se esticavam e abriam vãos entre os campos. */
+  align-content: start;
   gap: var(--space-4);
   width: 100%;
   height: 100%;
@@ -361,6 +374,27 @@
   border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-fog);
   font-family: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+/* "Chegou em" e a distância da ocorrência de parada saíam crus: 21px e o fundo do navegador. */
+.mdfeGateDialog label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.mdfeGateDialog input:not([type='file'], [type='checkbox'], [type='radio']) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
@@ -440,6 +474,8 @@
   }
 
   .mdfeGateOverlay {
+    --control-height-compact: var(--field-height-compact);
+
     padding: var(--space-4);
   }
 

@@ -49,14 +49,15 @@ export function TripStopOccurrenceDialog({
 }: TripStopOccurrenceDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
-  const [kind, setKind] = useState<StopOccurrenceKind>(STOP_OCCURRENCE_KINDS[0])
+  /** T16: começa vazio — pré-marcar o primeiro tipo gravava "cobrança inesperada" por descuido. */
+  const [kind, setKind] = useState<'' | StopOccurrenceKind>('')
   const [description, setDescription] = useState('')
   const [documentId, setDocumentId] = useState('')
   const [distance, setDistance] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
-    setKind(STOP_OCCURRENCE_KINDS[0])
+    setKind('')
     setDescription('')
     setDocumentId('')
     setDistance('')
@@ -64,7 +65,10 @@ export function TripStopOccurrenceDialog({
 
   if (!isOpen) return null
 
+  const canSubmit = kind !== '' && !isSubmitting
+
   function handleSubmit(): void {
+    if (kind === '') return
     onSubmit({
       description: description.trim(),
       distanceMeters: parseDistance(distance),
@@ -104,6 +108,7 @@ export function TripStopOccurrenceDialog({
               label: t(`fieldActions.occurrenceKind.${value}`),
               value,
             }))}
+            placeholder={t('fieldActions.occurrenceKindPlaceholder')}
             value={kind}
           />
         </label>
@@ -129,6 +134,8 @@ export function TripStopOccurrenceDialog({
           {t('fieldActions.occurrenceDescriptionLabel')}
           <textarea onChange={(event) => setDescription(event.target.value)} value={description} />
         </label>
+        {/* A rota do escritório para a parada é JSON (T5): a foto vai pela ocorrência da nota. */}
+        <p className={styles.hint}>{t('fieldActions.occurrencePhotoHint')}</p>
 
         <label>
           {t('fieldActions.occurrenceDistanceLabel')}
@@ -145,7 +152,7 @@ export function TripStopOccurrenceDialog({
             <Icon name="close" />
             {t('mdfeGate.close')}
           </Button>
-          <Button disabled={isSubmitting} onClick={handleSubmit} size="sm" type="button">
+          <Button disabled={!canSubmit} onClick={handleSubmit} size="sm" type="button">
             <Icon name="check" />
             {t('fieldActions.occurrenceSubmit')}
           </Button>

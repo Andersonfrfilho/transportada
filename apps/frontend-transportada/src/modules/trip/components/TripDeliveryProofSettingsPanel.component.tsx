@@ -251,20 +251,23 @@ export function TripDeliveryProofSettingsPanel({
           )}
         </p>
         {canManage ? (
-          <Button
-            disabled={isTogglingCanhotoOcr}
-            onClick={() => onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)}
-            size="sm"
-            type="button"
-            variant={canhotoOcrEnabled === true ? 'secondary' : 'default'}
-          >
-            <Icon name="power" />
-            {t(
-              canhotoOcrEnabled === true
-                ? 'deliveryProofSettings.canhotoOcr.disable'
-                : 'deliveryProofSettings.canhotoOcr.enable',
-            )}
-          </Button>
+          /* T16: solto no grid do painel o botão esticava à largura toda — mesma faixa das ações. */
+          <div className={styles.actionActions}>
+            <Button
+              disabled={isTogglingCanhotoOcr}
+              onClick={() => onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)}
+              size="sm"
+              type="button"
+              variant={canhotoOcrEnabled === true ? 'secondary' : 'default'}
+            >
+              <Icon name="power" />
+              {t(
+                canhotoOcrEnabled === true
+                  ? 'deliveryProofSettings.canhotoOcr.disable'
+                  : 'deliveryProofSettings.canhotoOcr.enable',
+              )}
+            </Button>
+          </div>
         ) : null}
       </section>
 
