@@ -64,7 +64,7 @@ function fakeDependencies(initial: CompanyDeliveryProofSettings | null) {
 }
 
 async function callRoute(input: {
-  readonly body?: CompanyDeliveryProofSettings
+  readonly body?: Partial<CompanyDeliveryProofSettings>
   readonly dependencies: DeliveryProofSettingsDependencies
   readonly method: 'GET' | 'PUT'
 }): Promise<Response> {
@@ -123,6 +123,47 @@ describe('delivery proof punctuality settings (spec 157 T4, ADR-0068 §3-5)', ()
 
     const getResponse = await callRoute({ dependencies, method: 'GET' })
     expect(await readData(getResponse)).toEqual(VALID_BODY)
+  })
+
+  /**
+   * Spec 157 T11 (item 6): o `PUT` que não manda os cinco parâmetros novos — o painel antigo, ou um
+   * cliente que só troca o modo da foto — mantém o que estava gravado, nunca volta ao padrão.
+   */
+  test('PUT without the punctuality params keeps the stored ones', async () => {
+    const dependencies = fakeDependencies(VALID_BODY)
+    const modesOnly = {
+      photo: 'optional',
+      receiverDocument: 'off',
+      receiverName: 'optional',
+      signature: 'required',
+    } as const
+
+    const response = await callRoute({ body: modesOnly, dependencies, method: 'PUT' })
+
+    expect(response.status).toBe(200)
+    expect(await readData(response)).toEqual({ ...VALID_BODY, ...modesOnly })
+  })
+
+  test('PUT with only some punctuality params keeps the others (defaults without a row)', async () => {
+    const dependencies = fakeDependencies(null)
+
+    const response = await callRoute({
+      body: {
+        photo: 'required',
+        proofRadiusMeters: 800,
+        receiverDocument: 'off',
+        receiverName: 'optional',
+        signature: 'optional',
+      },
+      dependencies,
+      method: 'PUT',
+    })
+
+    expect(await readData(response)).toEqual({
+      ...DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
+      photo: 'required',
+      proofRadiusMeters: 800,
+    })
   })
 
   test('proofWindowMinutes accepts 5..1440 and refuses outside', async () => {

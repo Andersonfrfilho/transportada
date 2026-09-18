@@ -28,7 +28,79 @@ const LONGITUDE_FIELD = 'longitude'
 const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
 
-const capturedAtSchema = z.iso.datetime()
+/**
+ * Spec 157 T11 (itens 4 e 10): texto com teto e forma decimal **antes** de virar número — `Number()`
+ * sozinho aceita `1e2`, `Infinity` e string de mil dígitos. A precisão declarada tem teto: acima de
+ * 10 km o aparelho não sabe onde está, e o número só serviria para inflar o raio.
+ */
+const COORDINATE_TEXT_MAX_LENGTH = 24
+const ACCURACY_TEXT_MAX_LENGTH = 24
+const PROOF_ACCURACY_MAX_METERS = 10_000
+/** Até 17 casas: é o que `String(number)` de um `double` do GPS do navegador produz. */
+const SIGNED_DECIMAL_PATTERN = /^-?\d{1,3}(\.\d{1,17})?$/u
+const UNSIGNED_DECIMAL_PATTERN = /^\d{1,5}(\.\d{1,17})?$/u
+
+function decimalText(input: { readonly maxLength: number; readonly pattern: RegExp }) {
+  return z.string().max(input.maxLength).regex(input.pattern).transform(Number)
+}
+
+const proofLocationSchema = z
+  .object({
+    accuracyMeters: decimalText({
+      maxLength: ACCURACY_TEXT_MAX_LENGTH,
+      pattern: UNSIGNED_DECIMAL_PATTERN,
+    })
+      .pipe(z.number().min(0).max(PROOF_ACCURACY_MAX_METERS))
+      .optional(),
+    capturedAt: z.iso.datetime().optional(),
+    latitude: decimalText({
+      maxLength: COORDINATE_TEXT_MAX_LENGTH,
+      pattern: SIGNED_DECIMAL_PATTERN,
+    })
+      .pipe(z.number().min(-90).max(90))
+      .optional(),
+    longitude: decimalText({
+      maxLength: COORDINATE_TEXT_MAX_LENGTH,
+      pattern: SIGNED_DECIMAL_PATTERN,
+    })
+      .pipe(z.number().min(-180).max(180))
+      .optional(),
+  })
+  /** RF3: meia coordenada é dado que mente — as duas juntas, ou nenhuma. */
+  .refine((location) => (location.latitude === undefined) === (location.longitude === undefined))
+
+type ProofLocation = {
+  readonly capturedAt: Date | undefined
+  readonly position: ProofPosition | undefined
+}
+
+/** Campo ausente ou vazio é "não veio" — o app sem permissão de localização é o caso normal. */
+function readOptionalField(form: Awaited<ReturnType<Request['formData']>>, name: string): unknown {
+  const value = form.get(name)
+  return value === null || value === '' ? undefined : value
+}
+
+function parseProofLocation(form: Awaited<ReturnType<Request['formData']>>): ProofLocation {
+  const parsed = proofLocationSchema.safeParse({
+    accuracyMeters: readOptionalField(form, ACCURACY_METERS_FIELD),
+    capturedAt: readOptionalField(form, CAPTURED_AT_FIELD),
+    latitude: readOptionalField(form, LATITUDE_FIELD),
+    longitude: readOptionalField(form, LONGITUDE_FIELD),
+  })
+  if (!parsed.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  const { accuracyMeters, capturedAt, latitude, longitude } = parsed.data
+  const position =
+    latitude === undefined || longitude === undefined
+      ? undefined
+      : {
+          latitude: latitude.toFixed(7),
+          longitude: longitude.toFixed(7),
+          ...(accuracyMeters === undefined ? {} : { accuracyMeters }),
+        }
+
+  return { capturedAt: capturedAt === undefined ? undefined : new Date(capturedAt), position }
+}
 
 function isProofKind(value: unknown): value is TripDeliveryProofKind {
   return (
@@ -64,68 +136,18 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     throw new ApiError(HTTP_ERROR.invalidRequest)
   }
 
+  const location = parseProofLocation(form)
+
   return {
     attachmentKey: typeof attachmentKey === 'string' ? attachmentKey : '',
     bytes: new Uint8Array(await file.arrayBuffer()),
-    capturedAt: parseCapturedAt(form.get(CAPTURED_AT_FIELD)),
+    capturedAt: location.capturedAt,
     kind,
     mimeType: file.type,
-    position: parsePosition(form),
+    position: location.position,
     receiverDocument: parseReceiverDocument(form.get(RECEIVER_DOCUMENT_FIELD)),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
   }
-}
-
-/** RF3: `capturedAt` é opcional, mas quando vem precisa ser um `datetime` ISO válido. */
-function parseCapturedAt(value: unknown): Date | undefined {
-  if (value === null) return undefined
-  if (typeof value !== 'string' || value.length === 0) return undefined
-
-  const parsed = capturedAtSchema.safeParse(value)
-  if (!parsed.success) throw new ApiError(HTTP_ERROR.invalidRequest)
-
-  return new Date(parsed.data)
-}
-
-/**
- * RF3: `latitude`/`longitude` são um par — a metade sozinha é dado que mente, e é recusada. As duas
- * ausentes é o caso normal (o app sem permissão de localização, ou o aparelho sem sinal).
- */
-function parsePosition(form: Awaited<ReturnType<Request['formData']>>): ProofPosition | undefined {
-  const latitudeRaw = form.get(LATITUDE_FIELD)
-  const longitudeRaw = form.get(LONGITUDE_FIELD)
-  const hasLatitude = typeof latitudeRaw === 'string' && latitudeRaw.length > 0
-  const hasLongitude = typeof longitudeRaw === 'string' && longitudeRaw.length > 0
-  if (!hasLatitude && !hasLongitude) return undefined
-  if (!hasLatitude || !hasLongitude) throw new ApiError(HTTP_ERROR.invalidRequest)
-
-  const latitude = Number(latitudeRaw)
-  const longitude = Number(longitudeRaw)
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw new ApiError(HTTP_ERROR.invalidRequest)
-  }
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new ApiError(HTTP_ERROR.invalidRequest)
-  }
-
-  const accuracyMeters = parseAccuracyMeters(form.get(ACCURACY_METERS_FIELD))
-
-  return {
-    latitude: latitude.toFixed(7),
-    longitude: longitude.toFixed(7),
-    ...(accuracyMeters === undefined ? {} : { accuracyMeters }),
-  }
-}
-
-function parseAccuracyMeters(value: unknown): number | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined
-
-  const accuracyMeters = Number(value)
-  if (!Number.isFinite(accuracyMeters) || accuracyMeters < 0) {
-    throw new ApiError(HTTP_ERROR.invalidRequest)
-  }
-
-  return accuracyMeters
 }
 
 /** Vazio é o caso de fábrica; presente, ele precisa ser CPF ou CNPJ na forma canônica. */

@@ -18,10 +18,16 @@ import {
   tripStopEvents,
   tripStops,
   trips,
+  type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.error.js'
+import {
+  DELIVERED_EVENT_KIND,
+  RECIPIENT_PARTICIPANT_ROLE,
+} from '../domain/delivery-event.constant.js'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   resolveProofSettingsForRecipient,
@@ -75,7 +81,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         and(
           eq(tripStopEvents.companyId, input.companyId),
           eq(tripStopEvents.tripDocumentId, input.documentId),
-          eq(tripStopEvents.kind, 'delivered'),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
           fieldTripTargetCondition(input.target),
           inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
         ),
@@ -102,7 +108,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         and(
           eq(nfeParticipants.companyId, tripDocuments.companyId),
           eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
-          eq(nfeParticipants.role, 'recipient'),
+          eq(nfeParticipants.role, RECIPIENT_PARTICIPANT_ROLE),
         ),
       )
       .where(
@@ -212,7 +218,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
       )
       .limit(1)
 
-    if (record === undefined) throw new Error('TRIP_STOP_EVENT_NOT_FOUND')
+    if (record === undefined) throw new DeliveryProofEventVanishedError()
 
     return {
       deliveredAt: record.capturedAt ?? record.recordedAt,
@@ -229,7 +235,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     readonly attachmentKey: string
     readonly companyId: string
     readonly eventId: string
-    readonly kind: 'photo' | 'signature'
+    readonly kind: TripDeliveryProofKind
   }): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality } | null> {
     const [record] = await this.database
       .select({ id: tripDeliveryProofs.id, punctuality: tripDeliveryProofs.punctuality })
@@ -251,7 +257,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public async findProofPunctuality(input: {
     readonly companyId: string
     readonly eventId: string
-    readonly kind: 'photo' | 'signature'
+    readonly kind: TripDeliveryProofKind
   }): Promise<ProofPunctuality | null> {
     const [record] = await this.database
       .select({ punctuality: tripDeliveryProofs.punctuality })
@@ -343,7 +349,7 @@ type SaveProofInput = {
   readonly companyId: string
   readonly eventId: string
   readonly id: string
-  readonly kind: 'photo' | 'signature'
+  readonly kind: TripDeliveryProofKind
   readonly latitude: string | null
   readonly longitude: string | null
   readonly mimeType: string

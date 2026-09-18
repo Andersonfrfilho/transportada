@@ -6,6 +6,7 @@
  * (`DrizzleDriverScoreRepository`).
  */
 import { MILLISECONDS_PER_DAY, MILLISECONDS_PER_HOUR } from '../../shared/time.constant.js'
+import { REQUIRED_PROOF_FIELD_MODE } from '../../trips/domain/delivery-event.constant.js'
 import {
   PROOF_PUNCTUALITY,
   type ProofPunctuality,
@@ -131,7 +132,7 @@ export function computeDriverScore(params: ComputeDriverScoreParams): DriverScor
   const effectiveSince = params.effectiveSince?.getTime() ?? Number.NEGATIVE_INFINITY
   const evaluableDeliveries = params.deliveries.filter(
     (delivery) =>
-      delivery.photoMode === 'required' &&
+      delivery.photoMode === REQUIRED_PROOF_FIELD_MODE &&
       isWithinWindow(delivery.deliveredAt, params.now) &&
       delivery.deliveredAt.getTime() >= effectiveSince,
   )

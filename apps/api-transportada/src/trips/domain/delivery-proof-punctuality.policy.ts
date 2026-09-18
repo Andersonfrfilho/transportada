@@ -9,6 +9,7 @@ import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import type { DeliveryProofFieldMode } from './delivery-proof-settings.policy.js'
 import { MILLISECONDS_PER_HOUR, MILLISECONDS_PER_MINUTE } from '../../shared/time.constant.js'
+import { REQUIRED_PROOF_FIELD_MODE } from './delivery-event.constant.js'
 import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from './field-delivery-timing.policy.js'
 
 /** ADR-0068 §2: os cinco vereditos que uma foto de entrega pode receber. */
@@ -133,7 +134,7 @@ export function mergeProofPunctuality(params: MergeProofPunctualityParams): Proo
 }
 
 export function classifyProofPunctuality(params: ClassifyProofPunctualityParams): ProofPunctuality {
-  if (params.photoMode !== 'required') return PROOF_PUNCTUALITY.notRequired
+  if (params.photoMode !== REQUIRED_PROOF_FIELD_MODE) return PROOF_PUNCTUALITY.notRequired
 
   const timeReference = resolveTimeReference(params)
   const late = isLate(params, timeReference)

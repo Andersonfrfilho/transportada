@@ -29,6 +29,7 @@ import {
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -286,7 +287,7 @@ async function classifyUploadPunctuality(params: {
   readonly input: AttachDeliveryProofInput
   readonly settings: DeliveryProofFieldSettings
 }): Promise<ProofPunctuality> {
-  if (params.input.upload.kind !== 'photo') return PROOF_PUNCTUALITY.notRequired
+  if (params.input.upload.kind !== PHOTO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
   if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return PROOF_PUNCTUALITY.notRequired
 
   return classifyPhotoPunctuality(params)

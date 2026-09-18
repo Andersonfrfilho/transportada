@@ -20,7 +20,26 @@ import * as Sentry from '@sentry/bun'
  * termina em `cookie` (o `s` quebra o casamento por sufixo) e `ip_address` é PII
  * pela LGPD sem ter forma reconhecível.
  */
-const SENTRY_EXTRA_REDACTED_KEYS = ['cookies', 'ip_address'] as const
+const SENTRY_EXTRA_REDACTED_KEYS = ['cookies', 'ip_address', 'params'] as const
+
+/**
+ * Spec 157 T11 (item 9): `DrizzleQueryError` escreve os parâmetros da consulta na própria mensagem
+ * (`Failed query: <sql>\nparams: <valores>`), e o redator por chave não os vê. O SQL fica — é ele
+ * que agrupa o erro —, os valores (coordenada, nome, documento) não.
+ */
+const QUERY_PARAMS_PATTERN = /\nparams: [\s\S]*$/u
+const QUERY_PARAMS_REPLACEMENT = '\nparams: [REDACTED]'
+
+function scrubQueryParams(value: unknown): unknown {
+  if (typeof value === 'string')
+    return value.replace(QUERY_PARAMS_PATTERN, QUERY_PARAMS_REPLACEMENT)
+  if (Array.isArray(value)) return value.map(scrubQueryParams)
+  if (typeof value !== 'object' || value === null) return value
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, scrubQueryParams(entry)]),
+  )
+}
 
 /** Sem drenar no desligamento gracioso o último evento morre na fila do SDK. */
 const SENTRY_FLUSH_TIMEOUT_MILLISECONDS = 2_000
@@ -60,7 +79,9 @@ type CreateErrorTrackerParams = {
 }
 
 export function scrubSentryEvent(event: SentryEvent): SentryEvent {
-  return redactMeta(event, { extraKeys: [...SENTRY_EXTRA_REDACTED_KEYS] })
+  const redacted = redactMeta(event, { extraKeys: [...SENTRY_EXTRA_REDACTED_KEYS] })
+
+  return scrubQueryParams(redacted) as SentryEvent
 }
 
 const DISABLED_TRACKER: ErrorTracker = {

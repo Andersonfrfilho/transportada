@@ -9,6 +9,11 @@ import {
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import {
+  DELIVERED_EVENT_KIND,
+  PHOTO_PROOF_KIND,
+  REQUIRED_PROOF_FIELD_MODE,
+} from '../domain/delivery-event.constant.js'
 import { assertDeliveredAtWithinWindow } from '../domain/field-delivery-timing.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
@@ -147,7 +152,7 @@ export async function reportDocumentDelivery(
         documentId,
       }),
     action: TRIP_DOCUMENT_ACTION.deliver,
-    kind: 'delivered',
+    kind: DELIVERED_EVENT_KIND,
   })
 }
 
@@ -203,16 +208,15 @@ async function persistOfficeDeliveryProof(input: {
   readonly eventId: string
   readonly proof: OfficeDeliveryProofAttachment
   readonly reportInput: ReportDocumentOutcomeInput
+  /** Resolvida antes da transação (`resolveOutcomeProofSettings`). */
+  readonly settings: DeliveryProofFieldSettings
   readonly transaction: DriverFieldReportTransactionPort
 }): Promise<string | null> {
-  const { authorship, companyId, eventId, proof, reportInput, transaction } = input
-  const settings = await proof.resolveSettings({
-    companyId,
-    documentId: reportInput.documentId,
-  })
+  const { authorship, companyId, eventId, proof, reportInput, settings, transaction } = input
 
   if (proof.upload === null) {
-    if (settings.photo === 'required') throw new TripDeliveryProofPhotoRequiredError()
+    if (settings.photo === REQUIRED_PROOF_FIELD_MODE)
+      throw new TripDeliveryProofPhotoRequiredError()
     return null
   }
 
@@ -228,7 +232,7 @@ async function persistOfficeDeliveryProof(input: {
       attachmentKey: proof.upload.attachmentKey,
       companyId,
       eventId,
-      kind: 'photo',
+      kind: PHOTO_PROOF_KIND,
     })
     if (existingId !== null) return existingId
   }
@@ -262,7 +266,7 @@ async function persistOfficeDeliveryProof(input: {
     companyId,
     eventId,
     id: proofId,
-    kind: 'photo',
+    kind: PHOTO_PROOF_KIND,
     latitude: null,
     longitude: null,
     mimeType: proof.upload.mimeType,
@@ -286,35 +290,45 @@ async function persistOfficeDeliveryProof(input: {
  */
 async function resolveProofPendingFlag(params: {
   readonly companyId: string
-  readonly documentId: string
   readonly eventId: string
-  readonly kind: 'delivered' | 'returned'
-  readonly resolveProofSettings?: (input: {
-    readonly companyId: string
-    readonly documentId: string
-  }) => Promise<DeliveryProofFieldSettings>
+  /** `undefined` num `return`, ou quando o canal não mandou `resolveProofSettings`. */
+  readonly pendingSettings: DeliveryProofFieldSettings | undefined
   readonly transaction: DriverFieldReportTransactionPort
 }): Promise<boolean> {
-  if (params.kind !== 'delivered' || params.resolveProofSettings === undefined) return false
-
-  const settings = await params.resolveProofSettings({
-    companyId: params.companyId,
-    documentId: params.documentId,
-  })
-  if (settings.photo !== 'required') return false
+  if (params.pendingSettings?.photo !== REQUIRED_PROOF_FIELD_MODE) return false
 
   const hasPhoto = await params.transaction.findProofExistsForEvent({
     companyId: params.companyId,
     eventId: params.eventId,
-    kind: 'photo',
+    kind: PHOTO_PROOF_KIND,
   })
   return !hasPhoto
 }
 
+/**
+ * Spec 157 T11 (item 5): a configuração do comprovante é lida **antes** de abrir a transação da
+ * entrega. As duas portas leem pelo pool — chamadas lá dentro, cada baixa segurava uma conexão na
+ * transação e pedia outra ao pool, e sob carga as duas esperas se somavam.
+ */
+async function resolveOutcomeProofSettings(params: RunOutcomeParams): Promise<{
+  readonly officeSettings: DeliveryProofFieldSettings | undefined
+  readonly pendingSettings: DeliveryProofFieldSettings | undefined
+}> {
+  const { input, kind, proof, resolveProofSettings } = params
+  const query = { companyId: input.companyId, documentId: input.documentId }
+  const officeSettings = proof === undefined ? undefined : await proof.resolveSettings(query)
+  if (kind !== DELIVERED_EVENT_KIND || resolveProofSettings === undefined) {
+    return { officeSettings, pendingSettings: undefined }
+  }
+
+  return { officeSettings, pendingSettings: officeSettings ?? (await resolveProofSettings(query)) }
+}
+
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
-  const { action, input, kind, operation, proof, resolveProofSettings, settle } = params
+  const { action, input, kind, operation, proof, settle } = params
   const authorship = deriveFieldAuthorship(input)
   const isOffice = 'target' in input && input.target !== undefined
+  const { officeSettings, pendingSettings } = await resolveOutcomeProofSettings(params)
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
@@ -410,7 +424,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           }))
 
         const proofId =
-          proof === undefined
+          proof === undefined || officeSettings === undefined
             ? null
             : await persistOfficeDeliveryProof({
                 authorship,
@@ -418,6 +432,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
                 eventId: event.id,
                 proof,
                 reportInput: input,
+                settings: officeSettings,
                 transaction,
               })
 
@@ -437,10 +452,8 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           : false
         const proofPending = await resolveProofPendingFlag({
           companyId: input.companyId,
-          documentId: input.documentId,
           eventId: event.id,
-          kind,
-          ...(resolveProofSettings === undefined ? {} : { resolveProofSettings }),
+          pendingSettings,
           transaction,
         })
 
@@ -457,14 +470,12 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
                 attachmentKey: proof.upload.attachmentKey,
                 companyId: input.companyId,
                 eventId: event.id,
-                kind: 'photo',
+                kind: PHOTO_PROOF_KIND,
               })
         const proofPending = await resolveProofPendingFlag({
           companyId: input.companyId,
-          documentId: input.documentId,
           eventId: event.id,
-          kind,
-          ...(resolveProofSettings === undefined ? {} : { resolveProofSettings }),
+          pendingSettings,
           transaction,
         })
 

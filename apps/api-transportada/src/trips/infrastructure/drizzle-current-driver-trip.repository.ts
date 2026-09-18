@@ -41,6 +41,7 @@ import {
   DELIVERED_EVENT_KIND,
   PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
+  REQUIRED_PROOF_FIELD_MODE,
 } from '../domain/delivery-event.constant.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
@@ -307,7 +308,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         lookup: proofSettings,
         recipientTaxId: row.recipientTaxId ?? '',
       })
-      if (deliveryProof.photo !== 'required') return []
+      if (deliveryProof.photo !== REQUIRED_PROOF_FIELD_MODE) return []
 
       return [
         {
@@ -809,7 +810,9 @@ function toDriverDocument(
      * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
      */
     proofPending:
-      row.deliveredAt !== null && deliveryProof.photo === 'required' && !row.hasDeliveryPhoto,
+      row.deliveredAt !== null &&
+      deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
+      !row.hasDeliveryPhoto,
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,

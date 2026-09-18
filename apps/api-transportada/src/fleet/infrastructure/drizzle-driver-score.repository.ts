@@ -29,6 +29,12 @@ import {
   type ProofSettingsLookup,
 } from '../../trips/domain/delivery-proof-settings.policy.js'
 import type { DriverScorePort } from '../application/driver-score.port.js'
+import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
+import {
+  DELIVERED_EVENT_KIND,
+  PHOTO_PROOF_KIND,
+  RECIPIENT_PARTICIPANT_ROLE,
+} from '../../trips/domain/delivery-event.constant.js'
 import {
   computeDriverScore,
   DRIVER_SCORE_WINDOW_DAYS,
@@ -39,11 +45,7 @@ import {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-const DELIVERED_EVENT_KIND = 'delivered'
-const PHOTO_PROOF_KIND = 'photo'
-const RECIPIENT_ROLE = 'recipient'
 const RETURNED_DOCUMENT_STATUS = 'returned'
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 
 type ReadScoresInput = Parameters<DriverScorePort['readScores']>[0]
 
@@ -297,7 +299,7 @@ function buildTenantJoinConditions(input: {
     recipient: and(
       eq(nfeParticipants.companyId, companyId),
       eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
-      eq(nfeParticipants.role, RECIPIENT_ROLE),
+      eq(nfeParticipants.role, RECIPIENT_PARTICIPANT_ROLE),
     ),
     tripDocument: and(
       eq(tripDocuments.companyId, companyId),

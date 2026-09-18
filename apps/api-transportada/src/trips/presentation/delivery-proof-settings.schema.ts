@@ -44,13 +44,16 @@ export const deliveryProofPunctualitySettingsSchema = z
  * O corpo do `PUT` da configuração geral: os quatro modos + os cinco parâmetros da nota do
  * motorista (ADR-0068). A exceção por CNPJ continua com `deliveryProofSettingsSchema` sozinho.
  *
+ * Spec 157 T11 (item 6): os cinco parâmetros são opcionais — o que não veio mantém o valor gravado
+ * (ou o padrão, sem linha). Obrigatórios, o painel antigo em cache levava `400` ao salvar os modos.
+ *
  * ADR-0069 §6: o interruptor da leitura do canhoto é da configuração geral, nunca da exceção, e é
  * opcional — ausente é "não mexe".
  */
 export const companyDeliveryProofSettingsSchema = z
   .object({
     ...deliveryProofSettingsSchema.shape,
-    ...deliveryProofPunctualitySettingsSchema.shape,
+    ...deliveryProofPunctualitySettingsSchema.partial().shape,
     canhotoOcrEnabled: z.boolean().optional(),
   })
   .strict()
