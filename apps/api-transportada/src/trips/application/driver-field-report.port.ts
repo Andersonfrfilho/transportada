@@ -110,6 +110,8 @@ export type DriverFieldReportTransactionPort = {
   }): Promise<void>
   markTripInTransit(input: {
     readonly actorUserId: string
+    /** ADR-0068 §"Consequências": o `trip_status_events` da chegada usa o mesmo `now` do `trip_stop_event`. */
+    readonly at: Date
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
@@ -134,6 +136,8 @@ export type DriverFieldReportTransactionPort = {
   /** Fecha a viagem quando a última parada fechou (spec 056 D1). Devolve se fechou. */
   completeTripIfSettled(input: {
     readonly actorUserId: string
+    /** ADR-0068 §"Consequências": o `trip_status_events` da entrega usa o mesmo `now` do caso de uso. */
+    readonly at: Date
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string

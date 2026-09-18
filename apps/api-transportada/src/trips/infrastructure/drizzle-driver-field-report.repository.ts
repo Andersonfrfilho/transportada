@@ -277,6 +277,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
   public async markTripInTransit(input: {
     readonly actorUserId: string
+    readonly at: Date
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
@@ -300,6 +301,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       channel: input.authorship.channel,
       companyId: input.companyId,
       fromStatus: 'dispatched',
+      occurredAt: input.at,
       onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
       toStatus: 'in_transit',
       tripId: input.tripId,
@@ -386,6 +388,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
    */
   public async completeTripIfSettled(input: {
     readonly actorUserId: string
+    readonly at: Date
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
@@ -430,6 +433,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       channel: input.authorship.channel,
       companyId: input.companyId,
       fromStatus: tripRow.status,
+      occurredAt: input.at,
       onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
       toStatus: 'completed',
       tripId: input.tripId,

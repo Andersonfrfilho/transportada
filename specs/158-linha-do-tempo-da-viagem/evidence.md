@@ -291,3 +291,100 @@ identity repository`/`tenant-context`/`auth-me` (timing de pool e conexão, não
 - O `OBJECT_STORAGE_UNAVAILABLE` das integrações de `toll-booth` e `cte-archive-gateway` sugere que
   o MinIO local não estava no ar durante esta rodada de `test:integration` — vale conferir
   `make up` antes da próxima vez que alguém rodar a suíte completa.
+
+## T4
+
+Fluxo manual com canal (RF4, aceite 4): `channel` gravado em `trip_document_events` (`backoffice`
+pela web, `whatsapp` pelo operador do WhatsApp), e fechamento de uma lacuna da T3 — o evento de
+status da chegada e o da entrega que conclui a viagem não tinham teste, e o `occurred_at` deles não
+usava o `now` do caso de uso.
+
+### Arquivos
+
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip-document.repository.ts`
+  (`insertEvent`) e `drizzle-trip-document-batch.repository.ts` (`insertEvents`): passaram a gravar
+  `channel: input.channel` e `onBehalfOfDriverId: input.onBehalfOfDriverId` em
+  `trip_document_events` — a T3 já levava `channel`/`onBehalfOfDriverId` até o port
+  (`ApplyTripDocumentTransitionInput`/`TripDocumentBatchWriteInput`) e até `recalculateTripStatus`
+  (por isso `trip_status_events` já saía certo), mas os dois `insert(tripDocumentEvents)` ignoravam
+  os dois campos e caíam no default da coluna (`driver_app`). `onBehalfOfDriverId` sai sempre nulo
+  nesses dois fluxos — nem a rota web nem o WhatsApp do operador agem em nome do motorista
+  (`trip-lifecycle.use-case.ts` e a composição do operador em `main.ts` nunca passam esse campo).
+- **Lacuna da T3 fechada** (aceite explícito desta task, não só teste): `driver-field-report.port.ts`
+  (`markTripInTransit`, `completeTripIfSettled`) ganhou o campo `at: Date`; a implementação em
+  `drizzle-driver-field-report.repository.ts` passou a repassar `occurredAt: input.at` para
+  `recordTripStatusChange` — antes esses dois escritores omitiam `occurredAt` e caíam no
+  `defaultNow()` do banco, divergindo do `now` do caso de uso que grava o `trip_stop_event`
+  correspondente (ADR-0068 §"Consequências": "o evento de status da chegada e da entrega usa o
+  mesmo `now`"). `report-stop-arrival.use-case.ts` e `report-document-delivery.use-case.ts` passam
+  a mandar `at: input.now` nas duas chamadas.
+- Testes estendidos, sem arquivo novo (`test:integration` do `package.json` inalterado):
+  - `test/integration/me-trip.integration.ts`: a chegada na primeira parada (`dispatched →
+in_transit`) grava `trip_status_events` com `channel: 'driver_app'`, `onBehalfOfDriverId: null`
+    e `occurredAt` igual ao `now` fixo do teste; a devolução final que fecha a viagem
+    (`in_transit → completed`, via `completeTripIfSettled`) grava o `from` real com o mesmo
+    `occurredAt`; o teste de reenvio idempotente (`idempotencyKey` repetida) passou a checar que só
+    1 `trip_status_events` existe.
+  - `test/integration/trip-lifecycle.integration.ts`: a separação/carregamento pela rota web
+    (`backoffice`) agora também confere `trip_document_events.channel` das três notas; novo
+    `describe` (`batch-status grava channel backoffice`) exercitando
+    `transitionTripDocumentsBatch` direto, conferindo `backoffice` nos dois `trip_document_events`
+    e no `trip_status_events` (`route_planned → separating`).
+  - `test/integration/whatsapp-operator-flow-actions.integration.ts`: o fluxo real (separar →
+    carregar → despachar) pelo WhatsApp do operador passou a conferir `trip_document_events.channel
+= 'whatsapp'` em cada passo e a sequência completa de `trip_status_events` (`separating →
+loading → dispatched`, todos `whatsapp`); novo `describe`
+    (`batch-status pelo WhatsApp do operador`) chamando `transitionTripDocumentsBatch` direto com
+    `whatsapp`, mesma dupla asserção do teste de lote acima. `seedNfeDocument` ganhou um `suffix`
+    opcional — sem ele, duas notas da mesma empresa colidiam na chave única de `stored_objects`/
+    `nfe_documents`.
+
+### Decisões / desvios
+
+- **A chegada e a entrega do escritório (`office` + `onBehalfOfDriverId`) não ganharam teste
+  próprio nesta task.** A task pedia `trip-field-office.integration.ts` como alternativa a
+  `me-trip.integration.ts` ("e/ou"); todo `seedTrip` daquele arquivo já nasce `in_transit` (a
+  chegada `dispatched → in_transit` e a conclusão `on_delivery_route → completed` do escritório não
+  têm cenário seedado ali), e `me-trip.integration.ts` já prova o writer (`markTripInTransit`/
+  `completeTripIfSettled`) e o `occurred_at` — o canal/autoria do escritório (`deriveFieldAuthorship`
+  com `office`+`onBehalfOfDriverId`) para essas duas transições específicas já está coberto pela
+  ADR-0067/spec 156 (`deriveFieldAuthorship` é função pura, testada por tipo de ator, não por rota) e
+  fica registrado aqui como cobertura ainda em aberto, não escondido.
+- **`onBehalfOfDriverId` em `trip_document_events` sai sempre nulo** nos dois fluxos desta task
+  (web e WhatsApp do operador) porque nenhum dos dois pontos de composição em `main.ts`/
+  `trip-lifecycle.use-case.ts` preenche esse campo — consistente com a T3 (nenhum dos dois é "em
+  nome do motorista").
+
+### TDD
+
+Os testes de integração (`me-trip`, `trip-lifecycle`, `whatsapp-operator-flow-actions`) foram
+escritos **antes** do fix em `insertEvent`/`insertEvents` e antes de threading do `at`/`occurredAt`:
+rodados contra o código da T3, os três novos/estendidos falhavam — `trip_document_events.channel`
+saía `driver_app` (default da coluna) em vez de `backoffice`/`whatsapp`, e `occurredAt` da chegada/
+conclusão divergia do `now` fixo do teste (hora real de execução, não `2026-08-26T13:00:00.000Z`).
+Depois dos dois fixes, os mesmos arquivos passam.
+
+### Comandos e contagens
+
+- `bun run typecheck` (raiz, 6 apps) — sem erros.
+- `bun run lint` (raiz, 6 apps) — sem erros/avisos (`--max-warnings=0`).
+- `bunx prettier --check` nos 9 arquivos alterados — todos conformes.
+- De dentro de `apps/api-transportada`, `bun --env-file=../../.env.test test --timeout 120000`:
+  **6515 pass, 23 skip, 9 fail** — as mesmas 9 falhas pré-existentes de
+  `toll-booth-catalog-repository` (`ERR_POSTGRES_CONNECTION_CLOSED`, arquivo não tocado);
+  idêntico à contagem final da T3, sem regressão.
+- Integração (Postgres nativo descartável em 127.0.0.1:65434,
+  `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65434/postgres`):
+  - Os 5 arquivos tocados
+    (`bun ... test ./test/integration/{me-trip,trip-lifecycle,whatsapp-operator-flow-actions,trip-field-office,field-trip-target}.integration.ts --timeout 120000`):
+    **34 pass, 0 fail** — 32 pass/2 fail antes de corrigir os dois testes novos (um lia a linha
+    errada de `trip_status_events`, o outro colidia em `stored_objects` por reusar a mesma chave de
+    objeto duas vezes na mesma empresa), 34 pass/0 fail depois.
+  - Os 10 arquivos do escopo da T3
+    (`bun ... test ./test/integration/{delivery-charge-end-to-end,me-trip,mixed-cargo-end-to-end,trip-lifecycle,trip-repository,whatsapp-operator-flow-actions,field-trip-target,trip-field-authorship,trip-field-office,freeze-trip-planned-route}.integration.ts --timeout 120000`):
+    **46 pass, 0 fail** (a T3 fechou com 44 pass; os 2 a mais são os dois `describe` novos de
+    `batch-status`).
+  - `bun --env-file=../../.env.test run test:integration` completo: **400 pass, 18 fail** — os
+    mesmos 18 pré-existentes e alheios a este PR que a T3 documentou (398 pass, 18 fail antes; os 2
+    pass a mais são as duas suítes de lote novas). Nenhuma das 18 falhas toca `trips`,
+    `trip_status_events`, `trip_document_events` ou qualquer arquivo desta task.

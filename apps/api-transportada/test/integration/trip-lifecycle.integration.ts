@@ -4,7 +4,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -21,6 +21,7 @@ import {
 } from '../../src/database/database.schema.js'
 import {
   tripDispatchSnapshots,
+  tripDocumentEvents,
   tripStatusEvents,
   tripStops,
 } from '../../src/database/trip.schema.js'
@@ -28,7 +29,9 @@ import { cancelTrip } from '../../src/trips/application/cancel-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
+import { transitionTripDocumentsBatch } from '../../src/trips/application/transition-trip-documents-batch.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { DrizzleTripDocumentBatchRepository } from '../../src/trips/infrastructure/drizzle-trip-document-batch.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
@@ -277,6 +280,20 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           },
         ])
 
+        /**
+         * Spec 158 T4: separar/carregar pela rota web grava `channel: 'backoffice'` em
+         * `trip_document_events`, para as três notas — nunca o `driver_app` do default da coluna.
+         */
+        const documentEvents = await database.db
+          .select({ channel: tripDocumentEvents.channel, toStatus: tripDocumentEvents.toStatus })
+          .from(tripDocumentEvents)
+          .where(eq(tripDocumentEvents.tripDocumentId, linkedA.id))
+          .orderBy(asc(tripDocumentEvents.occurredAt))
+        expect(documentEvents).toEqual([
+          { channel: 'backoffice', toStatus: 'separated' },
+          { channel: 'backoffice', toStatus: 'loaded' },
+        ])
+
         const afterDispatch = new Map(
           (
             await database.db
@@ -434,6 +451,86 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
       expect(events).toHaveLength(1)
     })
   })
+})
+
+/** Spec 158 T4, aceite 4: `batch-status` grava `channel: 'backoffice'` nos dois eventos, o mesmo
+ *  canal do `separate`/`load` de um documento só. */
+describe('batch-status grava channel backoffice (spec 158 T4)', () => {
+  testWithPostgres(
+    'separar em lote grava trip_document_events e trip_status_events com backoffice',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+        const tripRepository = new DrizzleTripRepository(database.db)
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+        const batchRepository = new DrizzleTripDocumentBatchRepository(database.db)
+
+        const documentAId = await seedNfeDocumentWithRecipient(database, {
+          companyId,
+          postalCode: '14010100',
+          suffix: '5',
+          userId,
+        })
+        const documentBId = await seedNfeDocumentWithRecipient(database, {
+          companyId,
+          postalCode: '14010100',
+          suffix: '6',
+          userId,
+        })
+
+        const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+        const linkedA = await tripRepository.linkDocument({
+          companyId,
+          freightCalculationId: null,
+          nfeDocumentId: documentAId,
+          tripId: trip.id,
+        })
+        const linkedB = await tripRepository.linkDocument({
+          companyId,
+          freightCalculationId: null,
+          nfeDocumentId: documentBId,
+          tripId: trip.id,
+        })
+        await planTripRoute({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          repository: routeRepository,
+          tripId: trip.id,
+        })
+
+        const result = await transitionTripDocumentsBatch({
+          action: 'separate',
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          documentIds: [linkedA.id, linkedB.id],
+          repository: batchRepository,
+          tripId: trip.id,
+        })
+        expect(result.tripStatus).toBe('separating')
+
+        const documentEvents = await database.db
+          .select({ channel: tripDocumentEvents.channel })
+          .from(tripDocumentEvents)
+          .where(eq(tripDocumentEvents.companyId, companyId))
+        expect(documentEvents).toEqual([{ channel: 'backoffice' }, { channel: 'backoffice' }])
+
+        const [statusEvent] = await database.db
+          .select()
+          .from(tripStatusEvents)
+          .where(
+            and(eq(tripStatusEvents.tripId, trip.id), eq(tripStatusEvents.toStatus, 'separating')),
+          )
+        expect(statusEvent).toMatchObject({
+          channel: 'backoffice',
+          fromStatus: 'route_planned',
+          onBehalfOfDriverId: null,
+          toStatus: 'separating',
+        })
+      })
+    },
+  )
 })
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>

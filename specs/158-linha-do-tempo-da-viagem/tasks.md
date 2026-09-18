@@ -44,7 +44,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       `trip-status-event.persistence.ts`; start-route do motorista e do escritório, chegada, e os
       demais escritores da lista da T1, na mesma transação e só com `changed=true`. Contrato
       estático do aceite 9 **antes**.
-- [ ] **T4 — Fluxo manual com canal** (RF4, aceite 4). `backoffice` pela web, `whatsapp` pelo
+- [x] **T4 — Fluxo manual com canal** (RF4, aceite 4). `backoffice` pela web, `whatsapp` pelo
       operador, em `trip_document_events` e `trip_status_events`. Integração conferindo o canal.
 
 ## Fase 3 — Leitura

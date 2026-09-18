@@ -11,7 +11,7 @@ import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -26,7 +26,13 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { tripDocuments, tripStops, trips } from '../../src/database/trip.schema.js'
+import {
+  tripDocumentEvents,
+  tripDocuments,
+  tripStatusEvents,
+  tripStops,
+  trips,
+} from '../../src/database/trip.schema.js'
 import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import { TenantContextService } from '../../src/identity/application/tenant-context.service.js'
@@ -226,6 +232,16 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
         .where(eq(tripDocuments.id, world.documentId))
       expect(separated?.separationStatus).toBe('separated')
 
+      /**
+       * Spec 158 T4, aceite 4: o operador pelo WhatsApp grava `channel: 'whatsapp'` em
+       * `trip_document_events` — nunca `driver_app`, o default da coluna.
+       */
+      const [separateEvent] = await db
+        .select({ channel: tripDocumentEvents.channel })
+        .from(tripDocumentEvents)
+        .where(eq(tripDocumentEvents.tripDocumentId, world.documentId))
+      expect(separateEvent).toEqual({ channel: 'whatsapp' })
+
       await scenario.receive({
         from: world.phone,
         interactive: { button_reply: { id: 'load', title: '📥 Carregar' }, type: 'button_reply' },
@@ -245,6 +261,12 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
         .from(tripDocuments)
         .where(eq(tripDocuments.id, world.documentId))
       expect(loaded?.separationStatus).toBe('loaded')
+
+      const loadEvents = await db
+        .select({ channel: tripDocumentEvents.channel })
+        .from(tripDocumentEvents)
+        .where(eq(tripDocumentEvents.tripDocumentId, world.documentId))
+      expect(loadEvents).toEqual([{ channel: 'whatsapp' }, { channel: 'whatsapp' }])
 
       await scenario.receive({
         from: world.phone,
@@ -278,6 +300,22 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
       const [dispatchedTrip] = await db.select().from(trips).where(eq(trips.id, world.tripId))
       expect(dispatchedTrip?.status).toBe('dispatched')
 
+      /**
+       * Spec 158 T4: todas as transições de status pelo WhatsApp do operador — a separação e o
+       * carregamento (via `recalculateTripStatus`) e o despacho (via `DrizzleTripRouteRepository`)
+       * — gravam `whatsapp` em `trip_status_events`, nunca `driver_app`.
+       */
+      const statusEvents = await db
+        .select({ channel: tripStatusEvents.channel, toStatus: tripStatusEvents.toStatus })
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, world.tripId))
+        .orderBy(asc(tripStatusEvents.occurredAt))
+      expect(statusEvents).toEqual([
+        { channel: 'whatsapp', toStatus: 'separating' },
+        { channel: 'whatsapp', toStatus: 'loading' },
+        { channel: 'whatsapp', toStatus: 'dispatched' },
+      ])
+
       /** Viagem despachada não é mais "do armazém" — some da próxima listagem. */
       const remaining = await listWarehouseTrips({
         companyId: world.companyId,
@@ -286,6 +324,94 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
       expect(remaining).toHaveLength(0)
     },
   )
+})
+
+/**
+ * Spec 158 T4, aceite 4: o `batchTransition` que o menu de ações do WhatsApp usa para separar/
+ * carregar várias notas de uma vez grava `channel: 'whatsapp'` nos dois eventos, mesmo canal do
+ * caminho de uma nota só acima.
+ */
+describe('batch-status pelo WhatsApp do operador grava channel whatsapp (spec 158 T4)', () => {
+  testWithPostgres('separar duas notas em lote grava whatsapp nos dois eventos', async () => {
+    const db = requireDatabase()
+    const companyId = crypto.randomUUID()
+    const userId = crypto.randomUUID()
+    const vehicleId = crypto.randomUUID()
+    const tripId = crypto.randomUUID()
+    const stopId = crypto.randomUUID()
+
+    await db.insert(companies).values({ id: companyId, status: 'active' })
+    await db.insert(identityUsers).values({ id: userId, status: 'active' })
+    await db
+      .insert(userCompanyMemberships)
+      .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
+    await db.insert(fleetVehicles).values({
+      companyId,
+      id: vehicleId,
+      plate: 'ABC1D25',
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    })
+    await db.insert(trips).values({ companyId, id: tripId, status: 'route_planned', vehicleId })
+    await db.insert(tripStops).values({
+      addressKey: '3550308|01001000|batch',
+      companyId,
+      id: stopId,
+      label: 'Centro, 100',
+      sequence: 1n,
+      tripId,
+    })
+    const documentAId = crypto.randomUUID()
+    const documentBId = crypto.randomUUID()
+    await db.insert(tripDocuments).values([
+      {
+        companyId,
+        id: documentAId,
+        nfeDocumentId: await seedNfeDocument(db, { companyId, suffix: 'batch-a', userId }),
+        separationStatus: 'pending',
+        stopId,
+        tripId,
+      },
+      {
+        companyId,
+        id: documentBId,
+        nfeDocumentId: await seedNfeDocument(db, { companyId, suffix: 'batch-b', userId }),
+        separationStatus: 'pending',
+        stopId,
+        tripId,
+      },
+    ])
+
+    const batchRepository = new DrizzleTripDocumentBatchRepository(db)
+    const result = await transitionTripDocumentsBatch({
+      action: 'separate',
+      actorUserId: userId,
+      channel: TRIP_FIELD_CHANNELS.whatsapp,
+      companyId,
+      documentIds: [documentAId, documentBId],
+      repository: batchRepository,
+      tripId,
+    })
+    expect(result.tripStatus).toBe('separating')
+
+    const documentEvents = await db
+      .select({ channel: tripDocumentEvents.channel })
+      .from(tripDocumentEvents)
+      .where(eq(tripDocumentEvents.companyId, companyId))
+    expect(documentEvents).toEqual([{ channel: 'whatsapp' }, { channel: 'whatsapp' }])
+
+    const [statusEvent] = await db
+      .select()
+      .from(tripStatusEvents)
+      .where(eq(tripStatusEvents.tripId, tripId))
+    expect(statusEvent).toMatchObject({
+      channel: 'whatsapp',
+      fromStatus: 'route_planned',
+      onBehalfOfDriverId: null,
+      toStatus: 'separating',
+    })
+  })
 })
 
 type SeededWorld = {
@@ -346,19 +472,27 @@ async function seedRoutePlannedTripWithOneDocument(db: Database): Promise<Seeded
 
 async function seedNfeDocument(
   db: Database,
-  input: { readonly companyId: string; readonly userId: string },
+  input: { readonly companyId: string; readonly suffix?: string; readonly userId: string },
 ): Promise<string> {
   const importId = crypto.randomUUID()
   const documentId = crypto.randomUUID()
   const xmlObjectId = crypto.randomUUID()
   const sha = '8'.repeat(64)
+  /** Chave do objeto e access key têm de ser únicas por empresa — chamadas do mesmo teste passam
+   *  `suffix`; sem ele (só um documento por empresa) cai no valor fixo histórico. */
+  const suffix = input.suffix ?? 't016'
+  const accessKeyDigits = documentId
+    .replaceAll('-', '')
+    .replace(/[a-z]/g, (letter) => String(letter.charCodeAt(0) % 10))
+    .padEnd(43, '0')
+    .slice(0, 43)
 
   await db.insert(storedObjects).values({
     bucket: 'integration',
     companyId: input.companyId,
     id: xmlObjectId,
     mimeType: 'application/xml',
-    objectKey: 'nfe/t016.xml',
+    objectKey: `nfe/${suffix}.xml`,
     provider: 's3',
     purpose: 'nfe_document',
     sha256: sha,
@@ -367,17 +501,17 @@ async function seedNfeDocument(
   })
   await db.insert(nfeImports).values({
     companyId: input.companyId,
-    correlationId: 'correlation-t016',
+    correlationId: `correlation-${suffix}`,
     id: importId,
-    idempotencyKey: 't016',
-    requestFingerprint: 'fingerprint-t016',
+    idempotencyKey: suffix,
+    requestFingerprint: `fingerprint-${suffix}`,
     requestedByUserId: input.userId,
     source: 'upload',
     status: 'completed',
   })
   await db.insert(nfeDocuments).values({
-    accessKey: `2${'1'.repeat(43)}`,
-    authorizationProtocol: 'protocol-t016',
+    accessKey: `2${accessKeyDigits}`,
+    authorizationProtocol: `protocol-${suffix}`,
     companyId: input.companyId,
     createdByUserId: input.userId,
     freightValue: '0.0000',

@@ -158,9 +158,11 @@ async function insertEvents(
     await transaction.insert(tripDocumentEvents).values(
       writtenDocumentIds.map((documentId) => ({
         actorUserId: input.actorUserId,
+        channel: input.channel,
         companyId: input.companyId,
         fromStatus: fromStatusByDocumentId.get(documentId) ?? null,
         note: input.note,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus,
         tripDocumentId: documentId,
       })),

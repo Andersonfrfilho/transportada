@@ -349,6 +349,7 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
         const tripCompleted = stopCompleted
           ? await transaction.completeTripIfSettled({
               actorUserId: input.actorUserId,
+              at: input.now,
               authorship,
               companyId: input.companyId,
               tripId: document.tripId,

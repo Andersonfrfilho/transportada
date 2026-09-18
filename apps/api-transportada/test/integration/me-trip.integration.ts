@@ -32,6 +32,7 @@ import {
   tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStopEvents,
   tripStopOccurrences,
   tripStops,
@@ -141,6 +142,25 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       })
       expect(await readTripStatus(database, world.tripId)).toBe('in_transit')
 
+      /**
+       * Spec 158 T4 (lacuna da T3): a chegada na primeira parada leva `dispatched → in_transit`
+       * por `markTripInTransit` (report-stop-arrival.use-case.ts) — canal/autoria de
+       * `deriveFieldAuthorship` (motorista: `driver_app`, sem `onBehalfOfDriverId`) e
+       * `occurred_at` igual ao `now` do caso de uso (ADR-0068 §"Consequências").
+       */
+      const [arrivalStatusEvent] = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, world.tripId))
+      expect(arrivalStatusEvent).toMatchObject({
+        actorUserId: world.userId,
+        channel: 'driver_app',
+        fromStatus: 'dispatched',
+        onBehalfOfDriverId: null,
+        toStatus: 'in_transit',
+      })
+      expect(arrivalStatusEvent?.occurredAt.toISOString()).toBe(NOW.toISOString())
+
       const [shiftedSecond] = await database.db
         .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt })
         .from(tripStops)
@@ -213,6 +233,25 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(returned).toMatchObject({ stopCompleted: true, tripCompleted: true })
       expect(await readTripStatus(database, world.tripId)).toBe('completed')
 
+      /**
+       * Spec 158 T4 (lacuna da T3): a devolução que fecha a última parada conclui a viagem por
+       * `completeTripIfSettled` (report-document-delivery.use-case.ts), com o `from` real
+       * (`in_transit` — este motorista nunca passa por `on_delivery_route`) e `occurred_at` igual
+       * ao `now` do caso de uso.
+       */
+      const [completionStatusEvent] = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.toStatus, 'completed'))
+      expect(completionStatusEvent).toMatchObject({
+        actorUserId: world.userId,
+        channel: 'driver_app',
+        fromStatus: 'in_transit',
+        onBehalfOfDriverId: null,
+        toStatus: 'completed',
+      })
+      expect(completionStatusEvent?.occurredAt.toISOString()).toBe(NOW.toISOString())
+
       // 6. O que ficou gravado: a coordenada onde havia, e nada onde não havia
       const events = await database.db
         .select()
@@ -267,6 +306,14 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .from(tripStopEvents)
         .where(eq(tripStopEvents.companyId, world.companyId))
       expect(events).toHaveLength(1)
+
+      /** Spec 158 T4: repetir a chegada não grava um segundo `trip_status_events`. */
+      const statusEvents = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, world.tripId))
+      expect(statusEvents).toHaveLength(1)
+      expect(statusEvents[0]).toMatchObject({ fromStatus: 'dispatched', toStatus: 'in_transit' })
     })
   })
 
