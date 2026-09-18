@@ -83,6 +83,37 @@
   gap: var(--space-1);
 }
 
+/*
+ * ⚠️ O campo de texto usa o mesmo desenho das outras telas (`userAdministration`): sem isto o input
+ * nativo saía menor, claro e com borda arredondada ao lado do `Select` do design system.
+ */
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input::placeholder {
+  color: var(--color-slate);
+}
+
+.field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.field input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
 .table {
   border-collapse: collapse;
   width: 100%;
@@ -263,5 +294,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.75rem;
+  gap: var(--space-3);
+}
+
+.costEntryForm > .field {
+  flex: 1 1 10rem;
+}
+
+/* A descrição é o campo de texto livre: fica com a largura que sobrar na fileira. */
+.costEntryForm > .costEntryDescriptionField {
+  flex: 3 1 16rem;
 }

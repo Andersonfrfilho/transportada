@@ -51,6 +51,11 @@ linha reprova o contrato daquela regra.
 Texto pt-BR em `*.locale.json` vai **acentuado** — `locale-accents.contract.ts` varre e falha com
 forma sem acento (`nao`, `possivel`, …).
 
+**Toda tarefa que toca a tela fecha com revisão de design contra a própria página** (`web.md` §15):
+o elemento tocado é comparado com os vizinhos da mesma tela (campo com campo, botão com botão), o
+contraste é conferido no estado normal e no selecionado, e um print vai para o usuário como prova.
+Primitivo cru ao lado de um do design system é defeito da tarefa, não pendência de outra.
+
 ## Configuração perto do efeito
 
 Painel de configuração mora na tela onde o efeito aparece, nunca numa tela central de

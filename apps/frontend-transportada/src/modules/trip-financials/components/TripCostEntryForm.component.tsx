@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 
 import { AMOUNT_MAX_SCALE, maskTypedAmount } from '@/modules/shared/decimalAmount.service'
 
@@ -68,7 +69,7 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
           value={fields.kind}
         />
       </label>
-      <label className={styles.field}>
+      <label className={cn(styles.field, styles.costEntryDescriptionField)}>
         {t('costEntries.description')}
         <input
           maxLength={TRIP_COST_ENTRY_DESCRIPTION_MAX_LENGTH}
