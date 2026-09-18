@@ -718,6 +718,9 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        * decide de fato.
        */}
       <FieldDeliveryWizard
+        /** M13c: só considera a chave "disponível" com a consulta resolvida com sucesso — pendente
+         * ou com erro não pode se passar por "nenhuma nota tem chave". */
+        accessKeyDataAvailable={fieldDeliveryDocumentsQuery.isSuccess}
         canhotoOcrEnabled={canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false}
         defaultDriverId={officeDriverId ?? ''}
         dispatchedAt={null}

@@ -96,18 +96,30 @@ type AccessKeyLookup =
   | Readonly<{ document: CanhotoTripDocument; kind: 'found' }>
   | Readonly<{ kind: 'ambiguous' }>
   | Readonly<{ kind: 'absent' }>
+  | Readonly<{ kind: 'unknown' }>
 
 /**
  * A chave inteira decide quando a nota a traz. Sem ela, número e série só identificam se houver
  * **uma** candidata — nota que traz outra chave já está descartada, e mais de uma candidata é
  * leitura inconclusiva, nunca a primeira da lista.
+ *
+ * M13c (spec 156 T15): `accessKeyDataAvailable: false` (consulta de `field-delivery-documents`
+ * ainda pendente ou com erro) faz o casamento por número/série **esperar** — sem a chave de
+ * verdade, "nenhuma nota carrega chave" pode só significar "a resposta não chegou ainda", e casar
+ * só por número/série nesse instante arrisca um `matched` errado (duas notas de emitentes
+ * diferentes podem repetir número/série). `unknown` cai no manual, nunca em `matched`.
  */
 function findDocumentByAccessKey(
   documents: readonly CanhotoTripDocument[],
-  input: Readonly<{ accessKey: string; parsed: ParsedNfeAccessKey }>,
+  input: Readonly<{
+    accessKey: string
+    accessKeyDataAvailable: boolean
+    parsed: ParsedNfeAccessKey
+  }>,
 ): AccessKeyLookup {
   const byKey = documents.find((document) => document.accessKey === input.accessKey)
   if (byKey !== undefined) return { document: byKey, kind: 'found' }
+  if (!input.accessKeyDataAvailable) return { kind: 'unknown' }
 
   /** Baixos (T15), mesma régua de R4 (`canhotoOcr.service.ts`): nota liberada não entra na conta
    * de unicidade — ela já saiu do lote, e contá-la só produz ambiguidade artificial. */
@@ -149,6 +161,13 @@ export type CanhotoIdentificationResult =
   | Readonly<{ status: 'unreadable' }>
 
 export type ClassifyCanhotoDocumentParams = Readonly<{
+  /**
+   * M13c (spec 156 T15): `false` enquanto `field-delivery-documents` ainda não respondeu (ou
+   * respondeu com erro) — o casamento por número/série espera a chave em vez de arriscar um
+   * `matched` sem saber se alguma nota carrega a mesma chave. Default `true`: quem não passa este
+   * campo continua com o comportamento de sempre.
+   */
+  accessKeyDataAvailable?: boolean
   expectedDocumentId: string
   selectedDocumentIds: readonly string[]
   text: string | null
@@ -157,6 +176,7 @@ export type ClassifyCanhotoDocumentParams = Readonly<{
 
 /** Pura: recebe o texto já decodificado, nunca chama a câmera nem o zxing. Testável sem imagem. */
 export function classifyCanhotoDocument({
+  accessKeyDataAvailable = true,
   expectedDocumentId,
   selectedDocumentIds,
   text,
@@ -166,8 +186,12 @@ export function classifyCanhotoDocument({
   const parsed = candidate === '' ? undefined : parseNfeAccessKeyFromBarcode(candidate)
   if (parsed === undefined) return { status: 'unreadable' }
 
-  const lookup = findDocumentByAccessKey(tripDocuments, { accessKey: candidate, parsed })
-  if (lookup.kind === 'ambiguous') return { status: 'unreadable' }
+  const lookup = findDocumentByAccessKey(tripDocuments, {
+    accessKey: candidate,
+    accessKeyDataAvailable,
+    parsed,
+  })
+  if (lookup.kind === 'ambiguous' || lookup.kind === 'unknown') return { status: 'unreadable' }
   if (lookup.kind === 'absent') {
     return { documentLabel: formatAccessKeyLabel(parsed), status: 'notOnTrip' }
   }
@@ -180,6 +204,7 @@ export function classifyCanhotoDocument({
 }
 
 export type IdentifyCanhotoFrameParams = Readonly<{
+  accessKeyDataAvailable?: boolean
   expectedDocumentId: string
   frame: BarcodeFrame
   selectedDocumentIds: readonly string[]
@@ -189,12 +214,14 @@ export type IdentifyCanhotoFrameParams = Readonly<{
 /** Decodifica o quadro e delega a classificação — a decodificação fica isolada aqui para o
  * contrato de cima poder rodar sem `BarcodeFrame` nenhum. */
 export function identifyCanhotoFromFrame({
+  accessKeyDataAvailable,
   expectedDocumentId,
   frame,
   selectedDocumentIds,
   tripDocuments,
 }: IdentifyCanhotoFrameParams): CanhotoIdentificationResult {
   return classifyCanhotoDocument({
+    ...(accessKeyDataAvailable === undefined ? {} : { accessKeyDataAvailable }),
     expectedDocumentId,
     selectedDocumentIds,
     text: decodeBarcodeFrame(frame),

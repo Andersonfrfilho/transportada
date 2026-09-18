@@ -117,6 +117,33 @@ describe('canhoto identification contract (spec 156 T10, ADR-0067 §4)', () => {
       })
     })
 
+    test('M13c: sem a chave carregada, número/série não decide sozinho — cai no manual', () => {
+      const result = classifyCanhotoDocument({
+        accessKeyDataAvailable: false,
+        expectedDocumentId: REQUESTED_DOCUMENT.id,
+        selectedDocumentIds: SELECTED_DOCUMENT_IDS,
+        text: REQUESTED_KEY,
+        tripDocuments: TRIP_DOCUMENTS,
+      })
+      expect(result).toEqual({ status: 'unreadable' })
+    })
+
+    test('M13c: chave inteira decide mesmo sem accessKeyDataAvailable — exata sempre vale', () => {
+      const documentsWithKey: readonly CanhotoTripDocument[] = [
+        { ...REQUESTED_DOCUMENT, accessKey: REQUESTED_KEY },
+        OTHER_SELECTED_DOCUMENT,
+        ON_TRIP_NOT_SELECTED_DOCUMENT,
+      ]
+      const result = classifyCanhotoDocument({
+        accessKeyDataAvailable: false,
+        expectedDocumentId: REQUESTED_DOCUMENT.id,
+        selectedDocumentIds: SELECTED_DOCUMENT_IDS,
+        text: REQUESTED_KEY,
+        tripDocuments: documentsWithKey,
+      })
+      expect(result).toEqual({ documentId: REQUESTED_DOCUMENT.id, status: 'matched' })
+    })
+
     test('Baixos: nota liberada não entra na contagem de ambiguidade por número/série', () => {
       const releasedDuplicate: CanhotoTripDocument = {
         id: 'doc-released-duplicate',

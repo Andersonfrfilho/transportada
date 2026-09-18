@@ -26,6 +26,8 @@ import { FieldDeliveryWizardHeader } from './FieldDeliveryWizardHeader.component
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryWizardProps = Readonly<{
+  /** M13c: `false` enquanto a chave de acesso das notas não chegou (consulta pendente/erro). */
+  accessKeyDataAvailable?: boolean
   /** Spec 156 T14, ADR-0069 §6: interruptor da empresa — erro na leitura dele cai em `false` (R8). */
   canhotoOcrEnabled: boolean
   /**
@@ -57,6 +59,7 @@ const TITLE_ID = 'field-delivery-wizard-title'
  * repetição do que falhar — é a T12 (`useFieldDelivery`). Aqui o `onSubmit` só fecha o assistente.
  */
 export function FieldDeliveryWizard({
+  accessKeyDataAvailable,
   canhotoOcrEnabled,
   defaultDriverId,
   dispatchedAt,
@@ -170,6 +173,7 @@ export function FieldDeliveryWizard({
 
     return (
       <FieldDeliveryCaptureStep
+        {...(accessKeyDataAvailable === undefined ? {} : { accessKeyDataAvailable })}
         canhotoOcrEnabled={canhotoOcrEnabled}
         document={currentDocument}
         onCapture={(capture) => dispatch({ capture, kind: 'photoCaptured' })}

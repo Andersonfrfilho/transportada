@@ -22,6 +22,8 @@ import { FieldDeliveryNoteBanner } from './FieldDeliveryNoteBanner.component'
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryCaptureStepProps = Readonly<{
+  /** M13c: `false` enquanto a chave de acesso das notas não chegou — repassado à identificação. */
+  accessKeyDataAvailable?: boolean
   /** Spec 156 T14, ADR-0069 §6: interruptor da empresa — erro na leitura dele cai em `false` (R8). */
   canhotoOcrEnabled: boolean
   document: FieldDeliveryWizardDocument
@@ -40,6 +42,7 @@ export type FieldDeliveryCaptureStepProps = Readonly<{
  * "capturing" (o pai desmonta ao trocar de passo), então a trilha para sozinha ao sair.
  */
 export function FieldDeliveryCaptureStep({
+  accessKeyDataAvailable,
   canhotoOcrEnabled,
   document,
   onCapture,
@@ -70,6 +73,7 @@ export function FieldDeliveryCaptureStep({
     setIsProcessing(true)
     try {
       const capture = await captureFieldDeliveryPhoto({
+        ...(accessKeyDataAvailable === undefined ? {} : { accessKeyDataAvailable }),
         canhotoOcrEnabled,
         expectedDocumentId: document.documentId,
         height,

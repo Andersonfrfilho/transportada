@@ -75,6 +75,9 @@ function captureLuminanceFrame(
 }
 
 export type CaptureFieldDeliveryPhotoParams = Readonly<{
+  /** M13c: `false` enquanto a chave de acesso das notas ainda não chegou (consulta pendente ou com
+   * erro) — repassado para `identifyCanhotoFromFrame` esperar em vez de casar só por número/série. */
+  accessKeyDataAvailable?: boolean
   /**
    * Spec 156 T14, ADR-0069 §3: só roda depois do código de barras falhar, e só quando a empresa
    * ligou o interruptor — a leitura sob demanda nunca compete com o caminho comum (código legível).
@@ -100,6 +103,7 @@ export type CaptureFieldDeliveryPhotoParams = Readonly<{
  * número lido para a pessoa comparar antes de confirmar (ADR-0067 §4).
  */
 export async function captureFieldDeliveryPhoto({
+  accessKeyDataAvailable,
   canhotoOcrEnabled,
   expectedDocumentId,
   height,
@@ -116,7 +120,13 @@ export async function captureFieldDeliveryPhoto({
   const identification: CanhotoIdentificationResult =
     frame === undefined
       ? { status: 'unreadable' }
-      : identifyCanhotoFromFrame({ expectedDocumentId, frame, selectedDocumentIds, tripDocuments })
+      : identifyCanhotoFromFrame({
+          ...(accessKeyDataAvailable === undefined ? {} : { accessKeyDataAvailable }),
+          expectedDocumentId,
+          frame,
+          selectedDocumentIds,
+          tripDocuments,
+        })
   const imageBlob =
     frameCanvas === undefined
       ? await reduceFieldDeliveryImageToJpeg(source, { height, width })
