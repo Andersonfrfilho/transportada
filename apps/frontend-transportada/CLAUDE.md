@@ -154,3 +154,17 @@ parâmetro dedicado `FLEET_TOLL_BOOTH_PARAMETER = 'tollBoothSearch'`.
 Histórico completo (contratos de catálogo/recarregamento/navegação, caso extremo de catálogo vazio,
 validação do deep link):
 `docs/ai-context/frontend-transportada.md` (spec 154 T204–T303, T401).
+
+## Testes de hook com DOM
+
+Os contratos rodam **sem DOM**. Hook que só se prova montado (corrida entre efeito, mutation e
+storage) vai para `test/trip-hooks/*.contract.ts`, importado por `test/trip-hooks.contract.test.ts`
+e rodado por `bun run test:hooks` — que o `test` chama no fim, **em processo próprio**, com o
+`@happy-dom/global-registrator` do `test/trip-hooks/dom.preload.ts`.
+
+⚠️ Não registre o DOM no processo dos contratos nem mova a suíte para a lista principal: o
+`window` global muda o que eles medem (`resolveTripAssemblyDraftStorage` decide por `typeof
+window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSuggestionClient`,
+`loadAvailableTripDocuments`) vale para o processo inteiro. `renderHook`/`waitFor` são os de
+`test/trip-hooks/renderHook.helper.ts`, sobre `react-dom/client` + `act` — sem
+`@testing-library/*`. Storage em memória e cliente falso: `test/fixtures/tripAssemblyHooks.fixture.ts`.
