@@ -146,14 +146,12 @@ describe('readTripFieldDeliveryDocuments contra o Postgres (spec 156 T14, ADR-00
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)
       const tripId = crypto.randomUUID()
-      await database.db
-        .insert(trips)
-        .values({
-          companyId: company.companyId,
-          id: tripId,
-          status: 'in_transit',
-          vehicleId: company.vehicleId,
-        })
+      await database.db.insert(trips).values({
+        companyId: company.companyId,
+        id: tripId,
+        status: 'in_transit',
+        vehicleId: company.vehicleId,
+      })
 
       const loadedDocumentId = crypto.randomUUID()
       const loadedNfeDocumentId = await seedNfeDocument(database, company, {
@@ -205,14 +203,12 @@ describe('readTripFieldDeliveryDocuments contra o Postgres (spec 156 T14, ADR-00
       const company = await seedCompany(database)
       const otherCompany = await seedCompany(database)
       const tripId = crypto.randomUUID()
-      await database.db
-        .insert(trips)
-        .values({
-          companyId: company.companyId,
-          id: tripId,
-          status: 'in_transit',
-          vehicleId: company.vehicleId,
-        })
+      await database.db.insert(trips).values({
+        companyId: company.companyId,
+        id: tripId,
+        status: 'in_transit',
+        vehicleId: company.vehicleId,
+      })
 
       const documents = await readTripFieldDeliveryDocuments(database.db, {
         companyId: otherCompany.companyId,

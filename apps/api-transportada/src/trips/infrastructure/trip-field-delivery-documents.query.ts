@@ -15,7 +15,6 @@ import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type { TripFieldDeliveryDocument } from '../application/trip-field-delivery-documents.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
-
 /** Mesmo alias de `drizzle-trip.repository.ts`: a nota chega pelo vínculo direto ou por cálculo de frete. */
 const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight_field_delivery')
 

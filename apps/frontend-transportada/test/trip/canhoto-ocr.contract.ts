@@ -237,3 +237,15 @@ describe('identifyCanhotoNumber (extração + casamento numa chamada)', () => {
     ).toEqual({ status: 'manual' })
   })
 })
+
+describe('sintaxe de regex aceita pelo build da CI', () => {
+  test('nenhum módulo usa modificador embutido (?i:…), que o Rollup/Workbox da CI recusa', async () => {
+    const sources = new Bun.Glob('src/**/*.{ts,tsx}')
+    const offenders: string[] = []
+    for await (const path of sources.scan({ cwd: import.meta.dir + '/../..' })) {
+      const text = await Bun.file(`${import.meta.dir}/../../${path}`).text()
+      if (/\(\?[imsx-]+:/u.test(text.replace(/\/\*[\s\S]*?\*\//gu, ''))) offenders.push(path)
+    }
+    expect(offenders).toEqual([])
+  })
+})

@@ -454,7 +454,8 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .for('no key update')
       .limit(1)
     if (tripRow === undefined) return false
-    if (!(FIELD_REPORTABLE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status)) return false
+    if (!(FIELD_REPORTABLE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status))
+      return false
 
     const completed = await this.transaction
       .update(trips)

@@ -19,10 +19,12 @@ const NUMBER_TOKEN_PATTERN = /^\d{3}\.\d{3}\.\d{3}$/u
  * Baixos (T15): sem a flag `i` global — o `N` do rótulo é sempre exigido maiúsculo (o DANFE nunca
  * imprime o rótulo em minúsculo). Isso barra a preposição comum "no" sem barrar a leitura real do
  * OCR: `Nº` costuma sair do motor como `No` (`N` maiúsculo, `o` minúsculo, típico do jeito que o
- * glifo `º` é reconhecido) ou `NO` — as duas cobertas pelo grupo `(?i:O)`, cuja insensibilidade a
- * caixa vale só para essa letra, nunca para o `N` que a antecede.
+ * glifo `º` é reconhecido) ou `NO` — as duas cobertas por `[Oo]`, que aceita as duas caixas só
+ * nessa letra, nunca no `N` que a antecede. Classes em vez de modificador embutido `(?i:…)`: o
+ * build da CI (Rollup/Workbox) recusa a sintaxe como "Invalid group".
  */
-const NUMBER_LABEL_PATTERN = /^N[º°]\.?$|^N(?i:O)\.?$|^(?i:NUMERO)$|^N(?i:[ÚU]MERO)$/u
+const NUMBER_LABEL_PATTERN =
+  /^N[º°]\.?$|^N[Oo]\.?$|^[Nn][Uu][Mm][Ee][Rr][Oo]$|^N[ÚUúu][Mm][Ee][Rr][Oo]$/u
 const SERIES_LABEL_PATTERN = /^S[ÉE]RIE:?$/iu
 const SERIES_DIGITS_PATTERN = /^\d{1,3}$/u
 
