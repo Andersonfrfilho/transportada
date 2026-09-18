@@ -11,7 +11,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20260918134113_delivery_proof_location_purge_index';
+    WHERE "name" = '20260918140500_delivery_proof_location_purge_index';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

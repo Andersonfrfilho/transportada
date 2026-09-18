@@ -11,7 +11,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20260918115535_driver_score_delivered_index';
+    WHERE "name" = '20260918140200_driver_score_delivered_index';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN
