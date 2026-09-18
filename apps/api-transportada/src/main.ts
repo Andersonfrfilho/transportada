@@ -1781,6 +1781,19 @@ function createApplicationRoutes({
   const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
     envelopeProvider,
   })
+  /** Spec 156 T6/T15: o canhoto do escritório, igual em `field-delivery` e `field-proof`. */
+  const officeDeliveryProofAttachment = {
+    newObjectId: () => crypto.randomUUID(),
+    newProofId: () => crypto.randomUUID(),
+    resolveSettings: (settings: { readonly companyId: string; readonly documentId: string }) =>
+      deliveryProofRepository.resolveProofFieldSettings(settings),
+    sealDocument: (seal: {
+      readonly companyId: string
+      readonly proofId: string
+      readonly receiverDocument: string
+    }) => deliveryProofDocumentSecrets.encrypt(seal),
+    storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
+  }
   const contractorMailRepository = new DrizzleContractorMailRepository(database)
   const contractorMailCredentialSecretService = createContractorMailCredentialSecretService({
     envelopeProvider,
@@ -2569,28 +2582,20 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createTripFieldOfficeRoutes({
-      /** Spec 156 T6: sem `Idempotency-Key` própria — o unique `(company, stop_event, kind)` reusa `office.document.proof`. */
+      /**
+       * Spec 156 T6/T15 M2: reserva da chave (`office.document.proof`), evento, upload e comprovante
+       * numa transação só. O canhoto do escritório não classifica pontualidade (spec 159 T11).
+       */
       attachProof: (input) =>
         reportFieldProof({
           actorUserId: input.actorUserId,
+          attachment: officeDeliveryProofAttachment,
           companyId: input.companyId,
           documentId: input.documentId,
           idempotencyKey: input.idempotencyKey,
-          newObjectId: () => crypto.randomUUID(),
-          newProofId: () => crypto.randomUUID(),
-          now: new Date(),
-          repository: deliveryProofRepository,
-          sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
-          storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
           target: input.target,
           unitOfWork: driverFieldReports,
-          /**
-           * Spec 159 T11: o `field-proof` do escritório não colhe posição/`capturedAt` e **não**
-           * classifica — a foto grava `not_required`, fundida com a do motorista que ela substitui
-           * (`mergeProofPunctuality`). O filtro de canal da nota olha o evento de entrega, não a
-           * foto; sem isto o canhoto contaria como `away` na entrega do motorista.
-           */
-          upload: { ...input.proof, capturedAt: undefined, kind: 'photo', position: undefined },
+          upload: input.proof,
         }),
       audit: tripFieldOfficeAudit,
       /** Spec 156 T15 A1: a hora informada é a da chegada; a da gravação vai em `recordedAt`. */
@@ -2612,15 +2617,7 @@ function createApplicationRoutes({
           ...input,
           location: null,
           now: input.deliveredAt,
-          proof: {
-            newObjectId: () => crypto.randomUUID(),
-            newProofId: () => crypto.randomUUID(),
-            resolveSettings: (settings) =>
-              deliveryProofRepository.resolveProofFieldSettings(settings),
-            sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
-            storage: createDeliveryProofStorage({ bucket: storageBucket, storage: storageGateway }),
-            upload: input.proof,
-          },
+          proof: { ...officeDeliveryProofAttachment, upload: input.proof },
           recordedAt: new Date(),
           resolveProofSettings: (settings) =>
             deliveryProofRepository.resolveProofFieldSettings(settings),

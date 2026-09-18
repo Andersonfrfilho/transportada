@@ -1,17 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
-
-import {
-  buildDeliveryProofObjectKey,
-  DELIVERY_PROOF_MAX_BYTES,
-  isDeliveryProofMimeType,
-} from '../domain/delivery-proof.policy.js'
-import {
-  maskTaxId,
-  type DeliveryProofFieldSettings,
-} from '../domain/delivery-proof-settings.policy.js'
+import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import { assertOfficeProofMeetsSettings } from '../domain/office-delivery-proof.policy.js'
 import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 import {
@@ -28,7 +18,6 @@ import {
 } from '../domain/field-delivery-timing.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import {
-  TripDeliveryProofRejectedError,
   TripDocumentAlreadySettledError,
   TripDocumentNotReachableError,
   TripStateTransitionNotAllowedError,
@@ -49,6 +38,16 @@ import {
   type FieldAuthorship,
   type FieldTripLocator,
 } from './field-trip-target.types.js'
+import {
+  assertOfficeUploadAccepted,
+  persistOfficeProof,
+  type OfficeDeliveryProofAttachment,
+  type OfficeDeliveryProofUpload,
+} from './office-delivery-proof.service.js'
+import {
+  runWithStoredObjectCleanup,
+  type RemovableObjectStoragePort,
+} from './stored-object-cleanup.service.js'
 import { withFieldReport } from './trip-field-report.port.js'
 
 /**
@@ -63,42 +62,6 @@ function isSettledDocumentStatus(status: TripDocumentSeparationStatus): boolean 
 const DELIVER_OPERATION = 'document.deliver'
 const RETURN_OPERATION = 'document.return'
 
-/**
- * Spec 156 T6, D9: o comprovante que o escritório sobe junto com a entrega, na mesma transação.
- * `kind` é sempre `'photo'` para o canal `office` — quem colhe assinatura é o motorista.
- */
-export type OfficeDeliveryProofUpload = {
-  readonly attachmentKey: string
-  readonly bytes: Uint8Array
-  readonly mimeType: string
-  readonly receiverDocument: string
-  readonly receiverName: string
-}
-
-export type OfficeDeliveryProofAttachment = {
-  readonly newObjectId: () => string
-  readonly newProofId: () => string
-  readonly resolveSettings: (input: {
-    readonly companyId: string
-    readonly documentId: string
-  }) => Promise<DeliveryProofFieldSettings>
-  readonly sealDocument: (input: {
-    readonly companyId: string
-    readonly proofId: string
-    readonly receiverDocument: string
-  }) => Promise<SecretEnvelopeV1>
-  readonly storage: {
-    store(input: {
-      readonly bytes: Uint8Array
-      readonly companyId: string
-      readonly mimeType: string
-      readonly objectId: string
-      readonly objectKey: string
-    }): Promise<{ readonly sha256: string }>
-  }
-  readonly upload: OfficeDeliveryProofUpload | null
-}
-
 export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
@@ -111,9 +74,14 @@ export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly unitOfWork: DriverFieldReportUnitOfWork
 }
 
+/** Spec 156 T6: o canhoto que o escritório sobe junto com a entrega — `null` quando não veio. */
+export type OfficeDeliveryProofInput = OfficeDeliveryProofAttachment & {
+  readonly upload: OfficeDeliveryProofUpload | null
+}
+
 export type ReportDocumentDeliveryInput = ReportDocumentOutcomeInput & {
   /** Spec 156 T6: só o canal `office` manda isto — o motorista anexa depois, por rota própria. */
-  readonly proof?: OfficeDeliveryProofAttachment
+  readonly proof?: OfficeDeliveryProofInput
   /**
    * ADR-0070 §1, spec 159 RF1/RF2: a configuração resolvida da nota — usada só para saber se a
    * foto é obrigatória (`proofPending`), não para gravar nada. Os três canais de produção mandam a
@@ -204,7 +172,7 @@ type RunOutcomeParams = {
   readonly kind: typeof DELIVERED_EVENT_KIND | typeof RETURNED_EVENT_KIND
   readonly operation: string
   /** Spec 156 T6: só a entrega do escritório manda isto. */
-  readonly proof?: OfficeDeliveryProofAttachment
+  readonly proof?: OfficeDeliveryProofInput
   /** ADR-0070 §1, spec 159: só `document.deliver` a usa — `document.return` nunca fica pendente. */
   readonly resolveProofSettings?: (input: {
     readonly companyId: string
@@ -217,90 +185,37 @@ type RunOutcomeParams = {
 }
 
 /**
- * ADR-0067 §5 (emenda 2026-09-18): sela o canhoto **dentro** da transação da entrega — se o
- * anexo for recusado, a entrega inteira desfaz, e não fica uma nota "entregue" sem o comprovante
- * que a configuração exige.
+ * ADR-0067 §5 (emenda 2026-09-18): o canhoto entra **dentro** da transação da entrega — se o anexo
+ * for recusado, a entrega inteira desfaz, e não fica uma nota "entregue" sem o comprovante que a
+ * configuração exige.
  */
-async function persistOfficeDeliveryProof(input: {
+async function persistDeliveryProof(input: {
+  readonly actorUserId: string
   readonly authorship: FieldAuthorship
   readonly companyId: string
   readonly eventId: string
-  readonly proof: OfficeDeliveryProofAttachment
-  readonly reportInput: ReportDocumentOutcomeInput
+  readonly proof: OfficeDeliveryProofInput
   /** Resolvida antes da transação (`resolveOutcomeProofSettings`). */
   readonly settings: DeliveryProofFieldSettings
+  readonly storage: RemovableObjectStoragePort
   readonly transaction: DriverFieldReportTransactionPort
 }): Promise<string | null> {
-  const { authorship, companyId, eventId, proof, reportInput, settings, transaction } = input
+  const { upload } = input.proof
+  assertOfficeProofMeetsSettings({ receiver: upload, settings: input.settings })
+  if (upload === null) return null
+  assertOfficeUploadAccepted(upload)
 
-  assertOfficeProofMeetsSettings({ receiver: proof.upload, settings })
-  if (proof.upload === null) return null
-
-  if (proof.upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
-    throw new TripDeliveryProofRejectedError('TOO_LARGE')
-  }
-  if (!isDeliveryProofMimeType(proof.upload.mimeType)) {
-    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
-  }
-
-  if (proof.upload.attachmentKey.length > 0) {
-    const existingId = await transaction.findProofIdByAttachmentKeyWithinTransaction({
-      attachmentKey: proof.upload.attachmentKey,
-      companyId,
-      eventId,
-      kind: PHOTO_PROOF_KIND,
-    })
-    if (existingId !== null) return existingId
-  }
-
-  const objectId = proof.newObjectId()
-  const objectKey = buildDeliveryProofObjectKey({ companyId, eventId, objectId })
-  const stored = await proof.storage.store({
-    bytes: proof.upload.bytes,
-    companyId,
-    mimeType: proof.upload.mimeType,
-    objectId,
-    objectKey,
+  const persisted = await persistOfficeProof({
+    actorUserId: input.actorUserId,
+    attachment: input.proof,
+    authorship: input.authorship,
+    companyId: input.companyId,
+    eventId: input.eventId,
+    storage: input.storage,
+    transaction: input.transaction,
+    upload,
   })
-
-  const proofId = proof.newProofId()
-  /**
-   * Spec 156 T15 A2 (ADR-0067 §5): o documento que o escritório digita passa pelo mesmo envelope e
-   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro.
-   */
-  const { receiverDocument } = proof.upload
-  const receiverDocumentEnvelope =
-    receiverDocument.length === 0
-      ? null
-      : await proof.sealDocument({ companyId, proofId, receiverDocument })
-  const proofResult = await transaction.saveDeliveryProofWithinTransaction({
-    /**
-     * ADR-0070 §6, spec 159 T5: a entrega do escritório não entra na nota do motorista (RF8) — o
-     * canhoto grava `not_required`, sem posição nem `capturedAt`, em vez de reclassificar aqui.
-     */
-    accuracyMeters: null,
-    actorUserId: reportInput.actorUserId,
-    attachmentKey: proof.upload.attachmentKey,
-    authorship,
-    capturedAt: null,
-    companyId,
-    eventId,
-    id: proofId,
-    kind: PHOTO_PROOF_KIND,
-    latitude: null,
-    longitude: null,
-    mimeType: proof.upload.mimeType,
-    objectId,
-    objectKey,
-    punctuality: 'not_required',
-    receiverDocumentEnvelope,
-    receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
-    receiverName: proof.upload.receiverName.trim(),
-    sha256: stored.sha256,
-    sizeBytes: proof.upload.bytes.byteLength,
-  })
-
-  return proofResult.id
+  return persisted.id
 }
 
 /**
@@ -344,11 +259,30 @@ async function resolveOutcomeProofSettings(params: RunOutcomeParams): Promise<{
   return { officeSettings, pendingSettings: officeSettings ?? (await resolveProofSettings(query)) }
 }
 
+/**
+ * Spec 156 T15: o canhoto sobe dentro da transação; se ela desfizer depois do upload, o objeto sai
+ * do bucket (`runWithStoredObjectCleanup`). Sem canhoto, a transação corre como sempre correu.
+ */
 async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutcomeResult> {
-  const { action, input, kind, operation, proof, settle } = params
+  const settings = await resolveOutcomeProofSettings(params)
+  if (params.proof === undefined) return runOutcomeTransaction({ params, settings })
+
+  return runWithStoredObjectCleanup({
+    operation: (storage) => runOutcomeTransaction({ params, settings, storage }),
+    storage: params.proof.storage,
+  })
+}
+
+async function runOutcomeTransaction(context: {
+  readonly params: RunOutcomeParams
+  readonly settings: Awaited<ReturnType<typeof resolveOutcomeProofSettings>>
+  readonly storage?: RemovableObjectStoragePort
+}): Promise<ReportDocumentOutcomeResult> {
+  const { action, input, kind, operation, proof, settle } = context.params
+  const { officeSettings, pendingSettings } = context.settings
+  const { storage } = context
   const authorship = deriveFieldAuthorship(input)
   const isOffice = 'target' in input && input.target !== undefined
-  const { officeSettings, pendingSettings } = await resolveOutcomeProofSettings(params)
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport(
@@ -449,15 +383,16 @@ async function runOutcome(params: RunOutcomeParams): Promise<ReportDocumentOutco
           }))
 
         const proofId =
-          proof === undefined || officeSettings === undefined
+          proof === undefined || officeSettings === undefined || storage === undefined
             ? null
-            : await persistOfficeDeliveryProof({
+            : await persistDeliveryProof({
+                actorUserId: input.actorUserId,
                 authorship,
                 companyId: input.companyId,
                 eventId: event.id,
                 proof,
-                reportInput: input,
                 settings: officeSettings,
+                storage,
                 transaction,
               })
 

@@ -8,6 +8,7 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../../src/trips/application/driver-field-report.port.js'
+import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 
 export type FieldReportState = {
   readonly calls: string[]
@@ -20,6 +21,8 @@ export type FieldReportState = {
   readonly proofsByAttachmentKey: Map<string, string>
   /** ADR-0070 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>
+  /** Spec 156 T15 M1: `eventId:kind` → canal e objeto do comprovante gravado. */
+  readonly proofDetailsByEventKind: Map<string, { channel: TripFieldChannel; objectId: string }>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
@@ -38,6 +41,7 @@ export function createFieldReportState(
     occurrences: new Map(),
     proofsByAttachmentKey: new Map(),
     proofsByEventKind: new Set(),
+    proofDetailsByEventKind: new Map(),
     reports: new Map(),
     stops: new Map(),
     stopCompletes: false,
@@ -136,6 +140,10 @@ export function createFieldReportUnitOfWork(
     saveDeliveryProofWithinTransaction: async (input) => {
       state.calls.push(`saveDeliveryProofWithinTransaction:${input.eventId}:${input.kind}`)
       state.proofsByEventKind.add(`${input.eventId}:${input.kind}`)
+      state.proofDetailsByEventKind.set(`${input.eventId}:${input.kind}`, {
+        channel: input.authorship.channel,
+        objectId: input.objectId,
+      })
       if (input.attachmentKey.length > 0) {
         state.proofsByAttachmentKey.set(
           `${input.eventId}:${input.kind}:${input.attachmentKey}`,
@@ -147,6 +155,10 @@ export function createFieldReportUnitOfWork(
     findProofIdByAttachmentKeyWithinTransaction: async (input) =>
       state.proofsByAttachmentKey.get(`${input.eventId}:${input.kind}:${input.attachmentKey}`) ??
       null,
+    findDeliveryEventForProof: async (input) =>
+      state.latestEvents.get(`${input.documentId}:delivered`) ?? null,
+    findProofForEvent: async (input) =>
+      state.proofDetailsByEventKind.get(`${input.eventId}:${input.kind}`) ?? null,
     findProofExistsForEvent: async (input) =>
       state.proofsByEventKind.has(`${input.eventId}:${input.kind}`),
   }

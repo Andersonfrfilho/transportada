@@ -14,6 +14,8 @@ export type TripFieldOfficeAuditInput = {
   /** `security.md` §10: ator, alvo, IP e timestamp — o IP viaja em `metadata`, sem coluna própria. */
   readonly ipAddress: string
   readonly onBehalfOfDriverId: string
+  /** Spec 156 T15 M1: o objeto do canhoto do escritório que o `field-proof` substituiu. */
+  readonly replacedObjectId?: string | null
   readonly tripId: string
 }
 

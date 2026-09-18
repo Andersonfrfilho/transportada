@@ -16,7 +16,7 @@ import {
 import { ApiError } from '../../src/shared/api.error.js'
 import {
   reportDocumentDelivery,
-  type OfficeDeliveryProofAttachment,
+  type OfficeDeliveryProofInput,
 } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportFieldProof } from '../../src/trips/application/report-field-proof.use-case.js'
@@ -66,16 +66,34 @@ function buildWorld() {
   return { unitOfWork: createFieldReportUnitOfWork(state), state }
 }
 
+/** Um JPEG mínimo: a assinatura de bytes `FF D8 FF` (spec 156 T15 seg B2). */
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+
+/** Dublê do bucket que conta o que subiu e o que a limpeza de órfãos apagou (spec 156 T15). */
+function trackingStorage() {
+  const stored: string[] = []
+  const removed: string[] = []
+  return {
+    remove: async (input: { readonly objectKey: string }) => void removed.push(input.objectKey),
+    removed,
+    store: async (input: { readonly objectKey: string }) => {
+      stored.push(input.objectKey)
+      return { sha256: 'a'.repeat(64) }
+    },
+    stored,
+  }
+}
+
 function buildProof(input: {
   readonly settings: DeliveryProofFieldSettings
-  readonly upload: OfficeDeliveryProofAttachment['upload']
-}): OfficeDeliveryProofAttachment {
+  readonly upload: OfficeDeliveryProofInput['upload']
+}): OfficeDeliveryProofInput {
   return {
     newObjectId: () => 'object-1',
     newProofId: () => 'proof-1',
     resolveSettings: async () => input.settings,
     sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
-    storage: { store: async () => ({ sha256: 'a'.repeat(64) }) },
+    storage: trackingStorage(),
     upload: input.upload,
   }
 }
@@ -372,173 +390,186 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
   })
 })
 
-describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 T6)', () => {
-  it('não cria evento nem muda delivered_at — só substitui pelo unique (company, stop_event, kind)', async () => {
-    const world = buildWorld()
-    const delivery = await reportDocumentDelivery({
+describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 T6, T15 M1/M2)', () => {
+  async function deliverWithoutProof(world: ReturnType<typeof buildWorld>, key: string) {
+    return reportDocumentDelivery({
       actorUserId: ACTOR_USER_ID,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
-      idempotencyKey: 'office-field-delivery-for-proof',
+      idempotencyKey: key,
       location: null,
       now: new Date('2026-09-18T12:00:00.000Z'),
       recordedAt: NOW,
       target: await resolveTarget(),
       unitOfWork: world.unitOfWork,
     })
+  }
 
-    const proof = await reportFieldProof({
+  function fieldProofInput(input: {
+    readonly key: string
+    readonly storage?: ReturnType<typeof trackingStorage>
+    readonly unitOfWork: Parameters<typeof reportFieldProof>[0]['unitOfWork']
+  }) {
+    return {
       actorUserId: ACTOR_USER_ID,
+      attachment: {
+        ...buildProof({ settings: OPTIONAL_SETTINGS, upload: null }),
+        newObjectId: () => 'object-new',
+        newProofId: () => 'proof-new',
+        storage: input.storage ?? trackingStorage(),
+      },
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
-      idempotencyKey: 'office-field-proof-1',
-      newObjectId: () => 'object-2',
-      newProofId: () => 'proof-2',
-      now: NOW,
-      repository: {
-        findDeliveryEventId: async () => delivery.id,
-        findDeliveryContext: async () => ({
-          deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
-          deliveryEventPosition: undefined,
-          stopPosition: undefined,
-        }),
-        findProofIdByAttachmentKey: async () => null,
-        findProofPunctuality: async () => null,
-        resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
-        resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
-        saveProof: async (input) => ({ id: input.id }),
-      },
-      sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
-      storage: { store: async () => ({ sha256: 'b'.repeat(64) }) },
-      target: await resolveTarget(),
-      unitOfWork: world.unitOfWork,
+      idempotencyKey: input.key,
+      unitOfWork: input.unitOfWork,
       upload: {
         attachmentKey: '',
-        bytes: new Uint8Array([1]),
-        capturedAt: undefined,
-        kind: 'photo',
-        position: undefined,
+        bytes: JPEG_BYTES,
         mimeType: 'image/jpeg',
         receiverDocument: '',
         receiverName: 'João da Silva',
       },
+    }
+  }
+
+  it('M2: reserva, evento e comprovante na mesma transação — sem evento novo, sem porta do pool', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'office-field-delivery-for-proof')
+
+    const proof = await reportFieldProof({
+      ...fieldProofInput({ key: 'office-field-proof-1', unitOfWork: world.unitOfWork }),
+      target: await resolveTarget(),
     })
 
-    expect(proof.id).toBe('proof-2')
+    expect(proof).toEqual({ id: 'proof-new', replacedObjectId: null })
     expect(world.state.events.size).toBe(1)
+    expect(world.state.calls).toContain(`saveDeliveryProofWithinTransaction:${delivery.id}:photo`)
+    expect(world.state.reports.get('office-field-proof-1')).toMatchObject({
+      operation: 'office.document.proof',
+      resultId: 'proof-new',
+    })
   })
 
-  /**
-   * Spec 159 T11 (ALTO 2): o canhoto do escritório não classifica — nem penaliza o motorista (a foto
-   * de escritório não tem posição, e contaria como `away`), nem lava a foto dele fora da regra. A
-   * pontualidade que já estava no evento fica; sem foto anterior, `not_required`.
-   */
-  it.each([
-    ['late', 'late'],
-    ['away', 'away'],
-    [null, 'not_required'],
-  ] as const)(
-    'foto do escritório sobre anterior %s grava %s, sem ler a configuração da nota',
-    async (previous, expected) => {
-      const world = buildWorld()
-      const delivery = await reportDocumentDelivery({
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        documentId: DOCUMENT_ID,
-        idempotencyKey: `office-field-delivery-before-${String(previous)}`,
-        location: null,
-        now: new Date('2026-09-18T12:00:00.000Z'),
-        recordedAt: NOW,
-        target: await resolveTarget(),
-        unitOfWork: world.unitOfWork,
-      })
-      const saved: string[] = []
+  it('M1: o comprovante do motorista não é substituído — 409 TRIP_DELIVERY_PROOF_ALREADY_CAPTURED', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-office-proof')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const storage = trackingStorage()
 
-      const proof = await reportFieldProof({
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        documentId: DOCUMENT_ID,
-        idempotencyKey: `office-field-proof-over-${String(previous)}`,
-        newObjectId: () => 'object-4',
-        newProofId: () => 'proof-4',
-        now: NOW,
-        repository: {
-          findDeliveryEventId: async () => delivery.id,
-          findDeliveryContext: () => Promise.reject(new Error('OFFICE_PROOF_MUST_NOT_CLASSIFY')),
-          findProofIdByAttachmentKey: async () => null,
-          findProofPunctuality: async () => previous,
-          resolveProofFieldSettings: async () => ({ ...OPTIONAL_SETTINGS, photo: 'required' }),
-          resolveProofPunctualitySettings: () =>
-            Promise.reject(new Error('OFFICE_PROOF_MUST_NOT_CLASSIFY')),
-          saveProof: async (input) => {
-            saved.push(input.punctuality)
-            return { id: input.id }
-          },
-        },
-        sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
-        storage: { store: async () => ({ sha256: 'd'.repeat(64) }) },
+    await expectApiError(
+      reportFieldProof({
+        ...fieldProofInput({
+          key: 'office-proof-over-driver',
+          storage,
+          unitOfWork: world.unitOfWork,
+        }),
         target: await resolveTarget(),
-        unitOfWork: world.unitOfWork,
-        upload: {
-          attachmentKey: '',
-          bytes: new Uint8Array([1]),
-          capturedAt: undefined,
-          kind: 'photo',
-          mimeType: 'image/jpeg',
-          position: undefined,
-          receiverDocument: '',
-          receiverName: 'Ana',
-        },
-      })
+      }),
+      'TRIP_DELIVERY_PROOF_ALREADY_CAPTURED',
+      409,
+    )
+    expect(storage.stored).toEqual([])
+  })
 
-      expect(proof.id).toBe('proof-4')
-      expect(saved).toEqual([expected])
-    },
-  )
+  it('M1: o canhoto do escritório substitui o do escritório e devolve o objeto anterior', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'office-delivery-before-second-proof')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'office',
+      objectId: 'office-object-old',
+    })
+
+    const proof = await reportFieldProof({
+      ...fieldProofInput({ key: 'office-proof-over-office', unitOfWork: world.unitOfWork }),
+      target: await resolveTarget(),
+    })
+
+    expect(proof).toEqual({ id: 'proof-new', replacedObjectId: 'office-object-old' })
+  })
 
   it('nota sem entrega alcançável responde 409 TRIP_DOCUMENT_NOT_REACHABLE', async () => {
     const world = buildWorld()
 
     await expectApiError(
       reportFieldProof({
-        actorUserId: ACTOR_USER_ID,
-        companyId: COMPANY_ID,
-        documentId: DOCUMENT_ID,
-        idempotencyKey: 'office-field-proof-no-delivery',
-        newObjectId: () => 'object-3',
-        newProofId: () => 'proof-3',
-        now: NOW,
-        repository: {
-          findDeliveryEventId: async () => null,
-          findDeliveryContext: async () => ({
-            deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
-            deliveryEventPosition: undefined,
-            stopPosition: undefined,
-          }),
-          findProofIdByAttachmentKey: async () => null,
-          findProofPunctuality: async () => null,
-          resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
-          resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
-          saveProof: async (input) => ({ id: input.id }),
-        },
-        sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
-        storage: { store: async () => ({ sha256: 'c'.repeat(64) }) },
+        ...fieldProofInput({ key: 'office-field-proof-no-delivery', unitOfWork: world.unitOfWork }),
         target: await resolveTarget(),
-        unitOfWork: world.unitOfWork,
-        upload: {
-          attachmentKey: '',
-          bytes: new Uint8Array([1]),
-          capturedAt: undefined,
-          kind: 'photo',
-          mimeType: 'image/jpeg',
-          position: undefined,
-          receiverDocument: '',
-          receiverName: '',
-        },
       }),
       'TRIP_DOCUMENT_NOT_REACHABLE',
       409,
     )
+  })
+
+  it('órfão: a transação que desfaz depois do upload apaga o objeto do bucket e relança', async () => {
+    const world = buildWorld()
+    await deliverWithoutProof(world, 'office-delivery-before-failing-proof')
+    const storage = trackingStorage()
+    const failing = {
+      execute: <TResult>(operation: (transaction: never) => Promise<TResult>) =>
+        world.unitOfWork.execute((transaction) =>
+          operation({
+            ...transaction,
+            saveDeliveryProofWithinTransaction: () => Promise.reject(new Error('DISK_FULL')),
+          } as never),
+        ),
+    }
+
+    await expect(
+      reportFieldProof({
+        ...fieldProofInput({ key: 'office-proof-orphan', storage, unitOfWork: failing }),
+        target: await resolveTarget(),
+      }),
+    ).rejects.toThrow('DISK_FULL')
+    expect(storage.stored).toHaveLength(1)
+    expect(storage.removed).toEqual(storage.stored)
+  })
+})
+
+describe('field-delivery: limpeza do canhoto que subiu numa transação desfeita (spec 156 T15)', () => {
+  it('a falha depois do upload apaga o objeto e relança o erro original', async () => {
+    const world = buildWorld()
+    const storage = trackingStorage()
+    const failing = {
+      execute: <TResult>(operation: (transaction: never) => Promise<TResult>) =>
+        world.unitOfWork.execute((transaction) =>
+          operation({
+            ...transaction,
+            completeStopIfSettled: () => Promise.reject(new Error('CONNECTION_LOST')),
+          } as never),
+        ),
+    }
+
+    await expect(
+      reportDocumentDelivery({
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        documentId: DOCUMENT_ID,
+        idempotencyKey: 'office-field-delivery-orphan',
+        location: null,
+        now: new Date('2026-09-18T12:00:00.000Z'),
+        proof: {
+          ...buildProof({
+            settings: OPTIONAL_SETTINGS,
+            upload: {
+              attachmentKey: '',
+              bytes: JPEG_BYTES,
+              mimeType: 'image/jpeg',
+              receiverDocument: '',
+              receiverName: 'Ana',
+            },
+          }),
+          storage,
+        },
+        recordedAt: NOW,
+        target: await resolveTarget(),
+        unitOfWork: failing,
+      }),
+    ).rejects.toThrow('CONNECTION_LOST')
+    expect(storage.stored).toHaveLength(1)
+    expect(storage.removed).toEqual(storage.stored)
   })
 })
 

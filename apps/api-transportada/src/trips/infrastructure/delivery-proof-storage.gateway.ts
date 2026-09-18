@@ -3,7 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import type { DeliveryProofStoragePort } from '../application/attach-delivery-proof.use-case.js'
+import type { RemovableObjectStoragePort } from '../application/stored-object-cleanup.service.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
 
 /**
@@ -16,8 +16,12 @@ import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage
 export function createDeliveryProofStorage(input: {
   readonly bucket: string
   readonly storage: NfeStorageGateway
-}): DeliveryProofStoragePort {
+}): RemovableObjectStoragePort {
   return {
+    /** Spec 156 T15: só a limpeza de um objeto que subiu numa transação desfeita chama isto. */
+    async remove(proof) {
+      await input.storage.deleteObject({ bucket: input.bucket, key: proof.objectKey })
+    },
     async store(proof) {
       const sha256 = createHash('sha256').update(proof.bytes).digest('hex')
       await input.storage.storeObject({

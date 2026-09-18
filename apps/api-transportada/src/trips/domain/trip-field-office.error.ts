@@ -63,3 +63,17 @@ export class TripDeliveryProofReceiverNameRequiredError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 156 T15 M1: o evento já tem o comprovante que o motorista colheu (app ou WhatsApp). O
+ * escritório não o substitui — a foto da rua, com posição e hora, é a prova mais forte da entrega.
+ */
+export class TripDeliveryProofAlreadyCapturedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_ALREADY_CAPTURED',
+      message: 'This delivery already has a proof captured by the driver.',
+      status: 409,
+    })
+  }
+}

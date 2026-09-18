@@ -31,6 +31,9 @@ export function createDrizzleTripFieldOfficeAudit(
         metadata: {
           ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
           ipAddress: input.ipAddress,
+          ...(input.replacedObjectId === undefined || input.replacedObjectId === null
+            ? {}
+            : { replacedObjectId: input.replacedObjectId }),
         },
         permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
         targetId: input.onBehalfOfDriverId,

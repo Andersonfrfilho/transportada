@@ -38,6 +38,7 @@ import {
   reportDocumentDelivery,
   reportDocumentReturn,
 } from '../../src/trips/application/report-document-delivery.use-case.js'
+import type { RemovableObjectStoragePort } from '../../src/trips/application/stored-object-cleanup.service.js'
 import { reportFieldProof } from '../../src/trips/application/report-field-proof.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
@@ -56,6 +57,11 @@ import { createTripFieldOfficeOccurrenceRoutes } from '../../src/trips/presentat
 
 /** As rotas do escritório nunca colhem assinatura (D8) — o comprovante do canhoto é sempre `photo`. */
 export const FAKE_ENVELOPE = { ciphertext: 'x', iv: 'y', keyId: 'test', tag: 'z' } as never
+
+/** Um JPEG mínimo: a assinatura de bytes `FF D8 FF` que as rotas do escritório conferem (T15 seg B2). */
+export const JPEG_BYTES = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46,
+])
 
 export const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -199,33 +205,55 @@ export async function seedDeliveryOccurrenceType(
   return id
 }
 
-export function wireRoutes(database: TestDatabase) {
+/** Dublê do bucket: conta o que subiu e o que a limpeza de órfãos apagou (spec 156 T15). */
+export function fakeProofStorage(): RemovableObjectStoragePort & {
+  readonly removed: string[]
+  readonly stored: string[]
+} {
+  const stored: string[] = []
+  const removed: string[] = []
+  return {
+    async remove(input) {
+      removed.push(input.objectKey)
+    },
+    removed,
+    async store(input) {
+      stored.push(input.objectKey)
+      return { sha256: `${stored.length}`.padStart(64, '0') }
+    },
+    stored,
+  }
+}
+
+export function wireRoutes(
+  database: TestDatabase,
+  options: { readonly storage?: RemovableObjectStoragePort } = {},
+) {
   const targets = new DrizzleFieldTripTargetRepository(database.db)
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
   const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
   const audit = createDrizzleTripFieldOfficeAudit(database.db)
-  let objectCounter = 0
-  const storage = {
-    store: async () => ({ sha256: (objectCounter++, `${objectCounter}`.padStart(64, '0')) }),
+  const attachment = {
+    newObjectId: () => crypto.randomUUID(),
+    newProofId: () => crypto.randomUUID(),
+    resolveSettings: (settings: { readonly companyId: string; readonly documentId: string }) =>
+      deliveryProofs.resolveProofFieldSettings(settings),
+    sealDocument: async () => FAKE_ENVELOPE,
+    storage: options.storage ?? fakeProofStorage(),
   }
 
   return createTripFieldOfficeRoutes({
     attachProof: (input) =>
       reportFieldProof({
         actorUserId: input.actorUserId,
+        attachment,
         companyId: input.companyId,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
-        newObjectId: () => crypto.randomUUID(),
-        newProofId: () => crypto.randomUUID(),
-        now: new Date(),
-        repository: deliveryProofs,
-        sealDocument: async () => FAKE_ENVELOPE,
-        storage,
         target: input.target,
         unitOfWork: driverFieldReports,
-        upload: { ...input.proof, capturedAt: undefined, kind: 'photo', position: undefined },
+        upload: input.proof,
       }),
     audit,
     reportArrival: (input) =>
@@ -241,14 +269,7 @@ export function wireRoutes(database: TestDatabase) {
         ...input,
         location: null,
         now: input.deliveredAt,
-        proof: {
-          newObjectId: () => crypto.randomUUID(),
-          newProofId: () => crypto.randomUUID(),
-          resolveSettings: (settings) => deliveryProofs.resolveProofFieldSettings(settings),
-          sealDocument: async () => FAKE_ENVELOPE,
-          storage,
-          upload: input.proof,
-        },
+        proof: { ...attachment, upload: input.proof },
         recordedAt: new Date('2026-09-18T13:00:00.000Z'),
         unitOfWork: driverFieldReports,
       }),

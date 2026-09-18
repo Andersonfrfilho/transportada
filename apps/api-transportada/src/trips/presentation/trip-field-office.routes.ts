@@ -32,8 +32,9 @@ import {
 } from '../application/start-field-trip.use-case.js'
 import type {
   OfficeDeliveryProofUpload,
-  ReportDocumentOutcomeResult,
-} from '../application/report-document-delivery.use-case.js'
+  OfficeProofPersistResult,
+} from '../application/office-delivery-proof.service.js'
+import type { ReportDocumentOutcomeResult } from '../application/report-document-delivery.use-case.js'
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
@@ -90,7 +91,7 @@ export type TripFieldOfficeDependencies = {
       readonly proof: OfficeDeliveryProofUpload
       readonly target: ResolvedTripFieldTarget
     },
-  ) => Promise<{ readonly id: string }>
+  ) => Promise<OfficeProofPersistResult>
   readonly audit: TripFieldOfficeAuditPort
   readonly reportArrival: (
     input: OfficeContextInput & {
@@ -472,9 +473,10 @@ export function createTripFieldOfficeRoutes(
       policy: OFFICE_REPORT_POLICY,
     }),
     /**
-     * Anexa a uma entrega **já feita** (ADR-0067 §2): não cria evento, não muda `delivered_at`. Sem
-     * `Idempotency-Key` da tabela `trip_field_reports` — o unique `(company, stop_event, kind)` já
-     * é a chave de dedupe (mesma régua do motorista, `POST /me/.../proof`).
+     * Anexa a uma entrega **já feita** (ADR-0067 §2): não cria evento, não muda `delivered_at`.
+     * Exige `Idempotency-Key`, reservada em `trip_field_reports` com a operação
+     * `office.document.proof` (spec 156 T6); o unique `(company, stop_event, kind)` é o que faz o
+     * canhoto novo do escritório substituir o anterior do escritório.
      */
     defineRoute<{
       readonly correlationId: string
@@ -502,6 +504,7 @@ export function createTripFieldOfficeRoutes(
         })
         await dependencies.audit.record({
           action: OFFICE_AUDIT_ACTION.proof,
+          replacedObjectId: result.replacedObjectId,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           correlationId: input.correlationId,

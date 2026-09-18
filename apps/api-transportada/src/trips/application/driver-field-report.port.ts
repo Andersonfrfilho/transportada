@@ -11,6 +11,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
@@ -220,6 +221,25 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<boolean>
+  /**
+   * Spec 156 T15 M2: o evento `delivered` mais recente da nota, alcançável pelo alvo, com a viagem
+   * já despachada e a nota não liberada — o mesmo recorte de `DeliveryProofPort.findDeliveryEventId`,
+   * dentro da transação do `field-proof`.
+   */
+  findDeliveryEventForProof(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly target: FieldTripTarget
+  }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 156 T15 M1: o comprovante já gravado daquele evento e tipo — o canal decide se o escritório
+   * pode substituí-lo, e o objeto vai para a auditoria da substituição.
+   */
+  findProofForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<{ readonly channel: TripFieldChannel; readonly objectId: string } | null>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null

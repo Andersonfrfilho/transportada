@@ -9,6 +9,7 @@ import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
+import { auditLogs } from '../../src/database/database.schema.js'
 import {
   tripDeliveryProofs,
   tripStatusEvents,
@@ -17,6 +18,7 @@ import {
   trips,
 } from '../../src/database/trip.schema.js'
 import {
+  JPEG_BYTES,
   fakeContext,
   jsonRequest,
   multipartRequest,
@@ -340,9 +342,6 @@ describe('nota já fechada no canal office (T15 M6)', () => {
   )
 })
 
-/** Um JPEG mínimo: a assinatura de bytes `FF D8 FF` que a rota confere (T15 seg B2). */
-const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
-
 describe('assinatura exigida no canal office (T15 A2, ADR-0067 §5 D8)', () => {
   testWithPostgres(
     'A2: com assinatura required, canhoto sem nome do recebedor responde 422 e não baixa a nota',
@@ -422,6 +421,55 @@ describe('assinatura exigida no canal office (T15 A2, ADR-0067 §5 D8)', () => {
         expect(proof?.masked).toBe('***.444.777-**')
         expect(proof?.envelope).not.toBeNull()
         expect(proof?.receiverName).toBe('Ana')
+      })
+    },
+  )
+})
+
+describe('field-proof do escritório (T15 M1, M2)', () => {
+  testWithPostgres(
+    'M1: canhoto do escritório sobre o do escritório substitui, e a auditoria guarda o objeto anterior',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-m1-deliver',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'review-m1-deliver',
+          }),
+        })
+        const [before] = await database.db
+          .select({ objectId: tripDeliveryProofs.objectId })
+          .from(tripDeliveryProofs)
+
+        const response = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-m1-proof',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: { receiverName: 'Ana Paula' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'review-m1-proof',
+          }),
+        })
+
+        expect(response.status).toBe(201)
+        const proofs = await database.db
+          .select({ objectId: tripDeliveryProofs.objectId })
+          .from(tripDeliveryProofs)
+        expect(proofs).toHaveLength(1)
+        expect(proofs[0]?.objectId).not.toBe(before?.objectId)
+        const [audit] = await database.db
+          .select({ metadata: auditLogs.metadata })
+          .from(auditLogs)
+          .where(eq(auditLogs.action, 'trip_field_office.document_proof'))
+        expect(audit?.metadata).toMatchObject({ replacedObjectId: before?.objectId })
       })
     },
   )

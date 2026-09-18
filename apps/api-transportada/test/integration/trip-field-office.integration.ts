@@ -33,6 +33,7 @@ import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizz
 import { readTripActionSnapshot } from '../../src/trips/infrastructure/trip-action-snapshot.query.js'
 import {
   FAKE_ENVELOPE,
+  JPEG_BYTES,
   fakeContext,
   jsonRequest,
   linkDriverMembership,
@@ -215,7 +216,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           pathParameters: { id: trip.tripId, documentId: trip.documentId },
           request: multipartRequest({
             fields: { deliveredAt, receiverName: 'João da Silva' },
-            file: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
             idempotencyKey: 'office-field-delivery-1',
           }),
         })
@@ -365,7 +366,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           pathParameters: { id: trip.tripId, documentId: trip.documentId },
           request: multipartRequest({
             fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana' },
-            file: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
             idempotencyKey: 'office-delivery-before-driver-replay',
           }),
         })
@@ -416,7 +417,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
    * pontualidade — e sem foto anterior ele grava `not_required`, nunca `away`.
    */
   testWithPostgres(
-    'entrega do motorista + field-proof do escritório: a pontualidade do motorista fica',
+    'T15 M1: field-proof do escritório não substitui a foto do motorista — 409, a foto dele fica',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -464,17 +465,18 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
         })
         expect(driverPhoto.punctuality).toBe('late_and_away')
 
-        const response = await proofRoute!.execute({
-          context: fakeContext(company),
-          correlationId: 'integration-correlation-office-proof-over-driver',
-          pathParameters: { id: trip.tripId, documentId: trip.documentId },
-          request: multipartRequest({
-            fields: { receiverName: 'Ana Paula' },
-            file: { bytes: new Uint8Array([7, 7, 7]), mimeType: 'image/jpeg' },
-            idempotencyKey: 'office-field-proof-over-driver',
+        await expect(
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-office-proof-over-driver',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { receiverName: 'Ana Paula' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: 'office-field-proof-over-driver',
+            }),
           }),
-        })
-        expect(response.status).toBe(201)
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_ALREADY_CAPTURED', status: 409 })
 
         const proofRows = await database.db
           .select({
@@ -483,7 +485,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           })
           .from(tripDeliveryProofs)
           .where(eq(tripDeliveryProofs.companyId, company.companyId))
-        expect(proofRows).toEqual([{ channel: 'office', punctuality: 'late_and_away' }])
+        expect(proofRows).toEqual([{ channel: 'driver_app', punctuality: 'late_and_away' }])
       })
     },
   )
@@ -517,7 +519,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           pathParameters: { id: trip.tripId, documentId: trip.documentId },
           request: multipartRequest({
             fields: { receiverName: 'Ana Paula' },
-            file: { bytes: new Uint8Array([7, 7, 7]), mimeType: 'image/jpeg' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
             idempotencyKey: 'office-field-proof-no-driver-photo',
           }),
         })
@@ -561,7 +563,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           pathParameters: { id: trip.tripId, documentId: trip.documentId },
           request: multipartRequest({
             fields: { receiverName: 'Ana Paula' },
-            file: { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
             idempotencyKey: 'office-field-proof-1',
           }),
         })
@@ -879,7 +881,7 @@ describe('a ocorrência em massa do escritório contra o Postgres (spec 156 T7.3
             pathParameters: { id: trip.tripId },
             request: multipartRequest({
               fields: { documentIds, note: 'Cliente ausente', occurrenceTypeId: typeId },
-              file: { bytes: new Uint8Array([9, 9, 9]), mimeType: 'image/jpeg' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
               idempotencyKey: 'lote-com-foto',
             }),
           })

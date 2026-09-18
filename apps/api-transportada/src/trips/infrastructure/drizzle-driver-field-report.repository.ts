@@ -27,7 +27,9 @@ import type {
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
-import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -601,6 +603,61 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return record !== undefined
+  }
+
+  public async findDeliveryEventForProof(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly target: FieldTripTarget
+  }): Promise<{ readonly id: string } | null> {
+    const [record] = await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripDocuments,
+        and(
+          eq(tripDocuments.companyId, tripStopEvents.companyId),
+          eq(tripDocuments.id, tripStopEvents.tripDocumentId),
+        ),
+      )
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.tripDocumentId, input.documentId),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+          fieldTripTargetCondition(input.target),
+          isNull(tripDocuments.releasedAt),
+          inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
+      .limit(1)
+
+    return record ?? null
+  }
+
+  public async findProofForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<{ readonly channel: TripFieldChannel; readonly objectId: string } | null> {
+    const [record] = await this.transaction
+      .select({ channel: tripDeliveryProofs.channel, objectId: tripDeliveryProofs.objectId })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+      .limit(1)
+
+    return record ?? null
   }
 
   public async recordOccurrence(

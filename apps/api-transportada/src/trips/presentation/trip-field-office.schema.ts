@@ -13,7 +13,7 @@ import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import { parseBody, parseOptionalBody } from '../../http/request-parsing.service.js'
 import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
-import type { OfficeDeliveryProofUpload } from '../application/report-document-delivery.use-case.js'
+import type { OfficeDeliveryProofUpload } from '../application/office-delivery-proof.service.js'
 import { MAX_BATCH_DOCUMENTS } from './trip-request.schema.js'
 
 const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
