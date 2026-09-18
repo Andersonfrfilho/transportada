@@ -18,7 +18,7 @@
  * as que instanciam o WASM a partir de bytes embutidos, cobertas por `'wasm-unsafe-eval'`; a
  * biblioteca escolhe entre elas por aparelho, e a documentação exige o diretório inteiro.
  */
-import { mkdir, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 
 function resolvePackageDirectory(specifier: string): URL {
@@ -62,6 +62,14 @@ const TESSERACT_ENG_DIRECTORY = resolvePackageDirectory('@tesseract.js-data/eng/
 /** `4.0.0_best_int`: melhor leitura na sonda, 3,5× menor e carga 2,5× mais rápida que `4.0.0` (ADR-0069 §1). */
 const MODEL_VARIANT = '4.0.0_best_int'
 const MODEL_FILE = 'eng.traineddata.gz'
+const COMPRESSED_EXTENSIONS = ['.gz', '.br'] as const
+/**
+ * O `vite dev` serve `public/` cru e nunca lê `.br`/`.gz` — só o `server.ts` de produção escolhe o
+ * comprimido. No `predev` a compressão é tempo puro: numa máquina limpa ela passava do prazo do
+ * `make smoke` (60 s) e derrubava o smoke autenticado da CI.
+ */
+const SKIP_COMPRESSION_FLAG = '--skip-compression'
+const SKIP_COMPRESSION = process.argv.includes(SKIP_COMPRESSION_FLAG)
 
 const licenseFiles = [
   { source: new URL('LICENSE.md', TESSERACT_JS_DIRECTORY), target: 'LICENSE-tesseract.js.md' },
@@ -79,6 +87,8 @@ const licenseFiles = [
  * Idempotente por conteúdo: recomprimir o mesmo arquivo é no-op.
  */
 async function ensureCompressedSiblings(target: URL): Promise<boolean> {
+  if (SKIP_COMPRESSION) return false
+  if (await areSiblingsFresh(target)) return false
   const original = new Uint8Array(await Bun.file(target).arrayBuffer())
   const gz = gzipSync(original, { level: 9 })
   const br = brotliCompressSync(original, {
@@ -89,6 +99,20 @@ async function ensureCompressedSiblings(target: URL): Promise<boolean> {
     copyBufferIfChanged({ buffer: br, target: new URL(`${target.toString()}.br`) }),
   ])
   return gzChanged || brChanged
+}
+
+/**
+ * Brotli na qualidade máxima custa ~30 s nos quatro `.wasm.js`: só recomprime quando falta um
+ * irmão ou o original ficou mais novo que ele. Sem isso cada `build` pagava a conta inteira.
+ */
+async function areSiblingsFresh(target: URL): Promise<boolean> {
+  const originalModified = await stat(target).then((info) => info.mtimeMs)
+  const siblings = await Promise.all(
+    COMPRESSED_EXTENSIONS.map((extension) =>
+      stat(new URL(`${target.toString()}${extension}`)).catch(() => null),
+    ),
+  )
+  return siblings.every((info) => info !== null && info.mtimeMs >= originalModified)
 }
 
 async function copyBufferIfChanged(input: {
