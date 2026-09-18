@@ -29,6 +29,7 @@ import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/prop
 import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -54,6 +55,8 @@ type TripProposalDetailProps = Readonly<{
   onDraftOrderChange: (order: readonly string[]) => void
   onMoveStop: (nfeDocumentIds: readonly string[], vehicleId: string) => void
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
+  /** Spec 153: a rota que o mapa mostra, para o aceite congelar esta e não outra. */
+  onRouteChoiceChange: (choice: RouteChoice | undefined) => void
   onSaveEdits: () => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
@@ -86,6 +89,7 @@ export function TripProposalDetail({
   onDraftOrderChange,
   onMoveStop,
   onRemoveStop,
+  onRouteChoiceChange,
   onSaveEdits,
   onUndoRemoveStop,
   pendingRemovals,
@@ -303,6 +307,7 @@ export function TripProposalDetail({
           measuredOrder={stopOrder}
           nearby={[]}
           onOrderChange={handleOrderChange}
+          onRouteChoiceChange={onRouteChoiceChange}
           onStopMove={onMoveStop}
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}

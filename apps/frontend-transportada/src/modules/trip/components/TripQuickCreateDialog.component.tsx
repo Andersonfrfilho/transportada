@@ -365,6 +365,7 @@ export function TripQuickCreateDialog({
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
+          onRouteChoiceChange={quickCreate.setRouteChoice}
           /**
            * ⚠️ A parada é um endereço, e a fila é de **chaves de acesso**: a tradução de id de nota
            * para chave acontece aqui, uma vez, sobre a mesma lista que alimentou o mapa. Nota que

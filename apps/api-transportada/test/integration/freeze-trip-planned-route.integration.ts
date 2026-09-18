@@ -12,7 +12,14 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companies, fleetVehicles, trips } from '../../src/database/database.schema.js'
+import {
+  companies,
+  companyFuelPrices,
+  fleetVehicles,
+  trips,
+} from '../../src/database/database.schema.js'
+import type { FuelProduct } from '../../src/shared/fuel.constant.js'
+import { NO_FUEL_BASELINE } from '../../src/toll-booths/domain/route-option.policy.js'
 import type { VehicleType } from '../../src/shared/vehicle-type.constant.js'
 import type { WritePlannedRouteInput } from '../../src/trips/application/freeze-trip-planned-route.use-case.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
@@ -68,8 +75,36 @@ describe('freeze trip planned route repository integration', () => {
 
         expect(vehicle).toEqual({
           axles: { count: 3, source: 'declared' },
+          fuelBaseline: NO_FUEL_BASELINE,
           hasAutomaticTollPayment: true,
           multiplier: { denominator: 1, numerator: 3 },
+        })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'lê consumo e preço efetivo do combustível do veículo — o que o critério cheapest compara',
+    async () => {
+      await withDisposableDatabase(async ({ database }) => {
+        const { companyId, tripId } = await seedTripWithVehicle(database, {
+          averageConsumption: '3.50',
+          axleCount: 2,
+          fuelType: 'diesel-s10',
+          hasAutomaticTollPayment: false,
+          vehicleType: 'toco',
+        })
+        await database.db
+          .insert(companyFuelPrices)
+          .values({ companyId, pricePerUnit: '6.2000', product: 'diesel-s10' })
+        const repository = new DrizzleTripPlannedRouteRepository(database.db)
+
+        const vehicle = await repository.readVehicleContext({ companyId, tripId })
+
+        /** `average_consumption` é `numeric(…, 2)`: o banco devolve a escala da coluna. */
+        expect(vehicle?.fuelBaseline).toEqual({
+          kilometersPerLiter: '3.50',
+          pricePerLiter: '6.2000',
         })
       })
     },
@@ -185,7 +220,9 @@ async function expectQueryToFail(
 async function seedTripWithVehicle(
   database: TestDatabase,
   vehicle: {
+    readonly averageConsumption?: string
     readonly axleCount: number
+    readonly fuelType?: FuelProduct
     readonly hasAutomaticTollPayment: boolean
     readonly vehicleType: VehicleType
   },
@@ -195,6 +232,10 @@ async function seedTripWithVehicle(
 
   await database.db.insert(companies).values({ id: companyId, status: 'active' })
   await database.db.insert(fleetVehicles).values({
+    ...(vehicle.averageConsumption === undefined
+      ? {}
+      : { averageConsumption: vehicle.averageConsumption }),
+    ...(vehicle.fuelType === undefined ? {} : { fuelType: vehicle.fuelType }),
     axleCount: vehicle.axleCount,
     companyId,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,

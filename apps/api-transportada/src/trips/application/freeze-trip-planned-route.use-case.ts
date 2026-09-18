@@ -22,6 +22,7 @@ import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js
 import type { RouteChoice, RouteChoiceCriterion } from '../domain/route-choice.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
+import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 
 /** Sem escolha declarada, RF3 default é o mesmo da leitura: mais barata conhecida, sem assinatura. */
@@ -29,6 +30,11 @@ const DEFAULT_ROUTE_CHOICE_CRITERION: RouteChoiceCriterion = 'cheapest'
 
 export type FreezeTripPlannedRouteVehicleContext = {
   readonly axles: AxleCount | null
+  /**
+   * Consumo e preço do combustível do veículo da viagem — a mesma fonte da leitura ao vivo. Sem
+   * eles nenhuma opção tem custo, e o critério `cheapest` cai na principal com `reproduced: false`.
+   */
+  readonly fuelBaseline: RouteOptionVehicle
   /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
@@ -97,6 +103,7 @@ export async function freezeTripPlannedRoute(input: FreezeTripPlannedRouteInput)
     axles: vehicle.axles,
     ...(input.choice === undefined ? {} : { choice: input.choice }),
     depot: input.depot ?? null,
+    fuelBaseline: vehicle.fuelBaseline,
     geometry: input.geometry,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     multiplier: vehicle.multiplier,

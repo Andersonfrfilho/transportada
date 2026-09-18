@@ -35,10 +35,12 @@ import {
 } from '../shared/tripRouteAssembly.service'
 import {
   applyStopMoves,
+  forgetMovedVehicleRouteChoices,
   resolveAcceptedStopOrders,
   resolveMovedVehicleIds,
 } from '../shared/proposalStopMove.service'
 import { getTripClient } from './useTripWorkspace.hook'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
 const SUGGESTION_POLL_MS = 2_000
@@ -127,6 +129,13 @@ export function useTripRouteAssembly(
   const [releaseLayoutByVehicle, setReleaseLayoutByVehicle] = useState<ReadonlyMap<string, string>>(
     new Map(),
   )
+  /**
+   * Spec 153: por caminhão, a rota que o mapa da proposta mostra — a que a viagem congela no aceite.
+   * Caminhão sem entrada segue o critério padrão do servidor.
+   */
+  const [routeChoiceByVehicle, setRouteChoiceByVehicle] = useState<
+    ReadonlyMap<string, RouteChoice>
+  >(new Map())
   const [orderByVehicle, setOrderByVehicle] = useState<ReadonlyMap<string, readonly string[]>>(
     new Map(),
   )
@@ -246,6 +255,7 @@ export function useTripRouteAssembly(
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
       setReleaseLayoutByVehicle(new Map())
+      setRouteChoiceByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
       setStopMoves(new Map())
       setDraftStopMoves(new Map())
@@ -296,10 +306,16 @@ export function useTripRouteAssembly(
       const releaseUnplacedFromLayoutIds = [...releaseLayoutByVehicle]
         .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
         .map(([, layoutId]) => layoutId)
+      const acceptedRouteChoices = [...routeChoiceByVehicle]
+        .filter(([vehicleId]) => vehicleIds === undefined || vehicleIds.includes(vehicleId))
+        .map(([vehicleId, routeChoice]) => ({ routeChoice, vehicleId }))
       const accepted = await getTripClient().acceptMultiVehicleSuggestion({
         suggestionId,
         ...(vehicleIds === undefined ? {} : { vehicleIds }),
         ...(releaseUnplacedFromLayoutIds.length === 0 ? {} : { releaseUnplacedFromLayoutIds }),
+        ...(acceptedRouteChoices.length === 0
+          ? {}
+          : { routeChoiceByVehicle: acceptedRouteChoices }),
         /**
          * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
          * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
@@ -321,6 +337,7 @@ export function useTripRouteAssembly(
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
       setReleaseLayoutByVehicle(new Map())
+      setRouteChoiceByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
       setStopMoves(new Map())
       setDraftStopMoves(new Map())
@@ -346,6 +363,20 @@ export function useTripRouteAssembly(
         return next
       })
     },
+    /**
+     * ⚠️ Devolve o mesmo mapa quando nada mudou: o mapa da proposta publica a escolha num efeito, e
+     * um mapa novo a cada chamada renderizaria a proposta de novo sem fim.
+     */
+    setVehicleRouteChoice: (vehicleId: string, choice: RouteChoice | undefined) =>
+      setRouteChoiceByVehicle((current) => {
+        const known = current.get(vehicleId)
+        if (known?.criterion === choice?.criterion && known?.signature === choice?.signature) {
+          return current
+        }
+        return choice === undefined
+          ? withoutVehicle(current, vehicleId)
+          : new Map([...current, [vehicleId, choice]])
+      }),
     /** A escolha da busca **é** o lote: não há segundo passo entre marcar a nota e ela contar. */
     setPool,
     close: () => setIsOpen(false),
@@ -396,6 +427,16 @@ export function useTripRouteAssembly(
      * caminhão deixaria um salvo e o outro não — o aceite levaria meia mudança.
      */
     saveEdits: () => {
+      if (proposal !== null) {
+        setRouteChoiceByVehicle((current) =>
+          forgetMovedVehicleRouteChoices({
+            choices: current,
+            committedMoves: stopMoves,
+            draftMoves: draftStopMoves,
+            stops: proposal.stops,
+          }),
+        )
+      }
       setOrderByVehicle((current) => new Map([...current, ...draftOrderByVehicle]))
       setStopMoves((current) => new Map([...current, ...draftStopMoves]))
       setDraftOrderByVehicle(new Map())
@@ -482,10 +523,10 @@ function vehicleIdsOf(proposal: MultiVehicleProposal): readonly string[] {
   ]
 }
 
-function withoutVehicle(
-  orders: ReadonlyMap<string, readonly string[]>,
+function withoutVehicle<TValue>(
+  orders: ReadonlyMap<string, TValue>,
   vehicleId: string,
-): ReadonlyMap<string, readonly string[]> {
+): ReadonlyMap<string, TValue> {
   const next = new Map(orders)
   next.delete(vehicleId)
   return next

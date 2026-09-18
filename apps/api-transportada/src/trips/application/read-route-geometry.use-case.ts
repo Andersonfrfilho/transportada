@@ -15,6 +15,7 @@ import {
   type TollRouteCost,
 } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import {
+  NO_FUEL_BASELINE,
   rankRouteOptions,
   type RouteCostGap,
   type RouteOptionVehicle,
@@ -263,8 +264,6 @@ export type ReadRouteGeometryInput = {
    */
   readonly tollBooths?: null | ReadRouteGeometryTollBoothsPort
 }
-
-const NO_FUEL_BASELINE: RouteOptionVehicle = { kilometersPerLiter: null, pricePerLiter: null }
 
 /** Sem escolha declarada, a rota de topo continua sendo a mais barata conhecida (spec 153 D1). */
 const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }

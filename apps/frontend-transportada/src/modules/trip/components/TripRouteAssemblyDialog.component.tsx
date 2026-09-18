@@ -174,6 +174,9 @@ export function TripRouteAssemblyDialog({
                   }
                   onMoveStop={assembly.moveStopDraft}
                   onRemoveStop={assembly.markStopRemoved}
+                  onRouteChoiceChange={(choice) =>
+                    assembly.setVehicleRouteChoice(view.vehicleId, choice)
+                  }
                   onSaveEdits={assembly.saveEdits}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}

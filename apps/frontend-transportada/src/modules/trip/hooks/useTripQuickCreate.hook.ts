@@ -15,10 +15,11 @@ import {
   moveCity,
   reconcileCityOrder,
   resolveStopKey,
-  resolveStopOrder,
   type AssemblyCityOrder,
 } from '../shared/assemblyOrder.service'
 import { readDailyAllowanceDaysInput } from '../shared/dailyAllowanceDaysField.service'
+import { runQuickCreateTrip } from '../shared/quickCreateTrip.service'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 import type { ScannedNfeDocument, TripDetail } from '../shared/trip.types'
@@ -65,6 +66,8 @@ export function useTripQuickCreate(
    * que vira `PATCH /stops/order` no fim da criação — no componente ela morreria ao fechar o modal.
    */
   const [cityOrder, setCityOrder] = useState<AssemblyCityOrder>([])
+  /** Spec 153: a rota que o mapa da montagem mostra — a que a viagem congela ao planejar. */
+  const [routeChoice, setRouteChoice] = useState<RouteChoice | undefined>(undefined)
   /** A câmera não aparece no meio da sessão: reler `navigator` a cada render não diria nada novo. */
   const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
   /**
@@ -106,6 +109,7 @@ export function useTripQuickCreate(
 
   function reset(): void {
     setCityOrder([])
+    setRouteChoice(undefined)
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
     setDriverIds([])
     setVehicleId('')
@@ -166,39 +170,23 @@ export function useTripQuickCreate(
 
   /**
    * A viagem e os vínculos são um passo só do ponto de vista de quem clica, mas não são atômicos no
-   * servidor: se um vínculo falhar, a viagem fica criada com o que entrou, e é isso que o operador
-   * vê ao ser levado para ela. Desfazer aqui apagaria trabalho que já é válido.
+   * servidor: depois de criada, a viagem é o destino do operador mesmo que um passo seguinte falhe
+   * (`runQuickCreateTrip`). Desfazer aqui apagaria trabalho que já é válido.
    */
   const createMutation = useMutation({
-    mutationFn: async (): Promise<TripDetail> => {
-      const client = getTripClient()
-      const trip = await client.createTrip({
-        /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
-        ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
-        driverIds,
-        vehicleId,
-      })
-      /**
-       * Uma requisição para o maço inteiro. O laço de antes pagava uma ida ao servidor por nota, e
-       * uma viagem de trezentas notas falhava no meio com a viagem já criada.
-       */
-      await client.linkTripDocumentsBatch({
+    mutationFn: (): Promise<TripDetail> =>
+      runQuickCreateTrip({
+        cityOrder,
+        client: getTripClient(),
+        createBody: {
+          /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+          ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+          driverIds,
+          vehicleId,
+        },
         nfeDocumentIds: stagedDocumentIds(queueRef.current),
-        tripId: trip.id,
-      })
-      await client.planTripRoute({ tripId: trip.id })
-      /**
-       * A ordem do mapa só pode ser aplicada **aqui**: as paradas nascem do endereço normalizado no
-       * vínculo, e antes disso não existe id de parada para reordenar. Falha na reordenação não
-       * desfaz a viagem — ela já é válida, e a ordem se corrige no detalhe.
-       */
-      const detail = await client.getTrip({ tripId: trip.id })
-      const stopIds = resolveStopOrder({ order: cityOrder, stops: detail.stops })
-      if (stopIds.length > 1) {
-        await client.reorderTripStops({ stopIds, tripId: trip.id })
-      }
-      return trip
-    },
+        ...(routeChoice === undefined ? {} : { routeChoice }),
+      }),
     onSuccess: (trip) => {
       void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] })
@@ -213,6 +201,7 @@ export function useTripQuickCreate(
     cityOrder,
     moveCityUp: (code: string) => setCityOrder(moveCity({ code, direction: -1, order: cityOrder })),
     setCityOrder,
+    setRouteChoice,
     stagedDocuments: staged,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,

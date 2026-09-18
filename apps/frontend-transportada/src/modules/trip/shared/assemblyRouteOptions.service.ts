@@ -7,7 +7,7 @@
  * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
-import type { RouteGeometryOption } from './routeGeometry.service'
+import type { RouteChoice, RouteGeometryOption } from './routeGeometry.service'
 
 export type RouteOptionSummary = Readonly<{
   /**
@@ -53,4 +53,37 @@ export function resolveRouteOptionSummaries(input: {
       totalCost: option.totalCost,
     }
   })
+}
+
+/**
+ * A rota escolhida na montagem, no formato que o planejamento aceita (spec 153 D2/D3). A
+ * **assinatura** é o que reencontra a rota — o índice de agora é outra estrada quando a API pede as
+ * rotas de novo —, e o critério só decide quando ela não é reencontrada.
+ *
+ * ⚠️ Rota única não é escolha (spec 096 D2): `undefined`, e o planejamento segue o critério padrão.
+ */
+export function resolveAssemblyRouteChoice(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly hasChoice: boolean
+  readonly options: readonly RouteGeometryOption[]
+  readonly selectedIndex: number
+}): RouteChoice | undefined {
+  const option = input.options[input.selectedIndex]
+  if (!input.hasChoice || option === undefined) return undefined
+
+  return { criterion: resolveChoiceCriterion({ ...input, option }), signature: option.signature }
+}
+
+/** Nenhum rótulo é `alternative`: o operador trocou de rota sem regra declarada. */
+function resolveChoiceCriterion(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly option: RouteGeometryOption
+  readonly selectedIndex: number
+}): RouteChoice['criterion'] {
+  if (input.selectedIndex === input.cheapestIndex) return 'cheapest'
+  if (input.selectedIndex === input.fastestIndex) return 'fastest'
+  if (input.option.isNoToll) return 'no_toll'
+  return 'alternative'
 }

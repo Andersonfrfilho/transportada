@@ -32,8 +32,8 @@ export type SolverCityOrderController = Readonly<{
  * heurística.
  *
  * ⚠️ **Ele nunca aceita a sugestão.** `POST .../accept` cria viagens de verdade, e este diálogo cria
- * a viagem por conta própria logo depois (`createTrip → linkTripDocumentsBatch → planTripRoute →
- * reorderTripStops`). Aceitar aqui produziria **duas** viagens para a mesma carga. O que se
+ * a viagem por conta própria logo depois (`createTrip → linkTripDocumentsBatch → reorderTripStops →
+ * planTripRoute`). Aceitar aqui produziria **duas** viagens para a mesma carga. O que se
  * aproveita é a ordem; a decisão continua sendo do operador, no botão "Criar viagem".
  *
  * ⚠️ **Exige veículo escolhido**, porque o contrato da rota exige (`vehicles` tem mínimo 1) — e com

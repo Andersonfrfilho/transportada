@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
@@ -35,6 +35,7 @@ import {
 } from '../shared/assemblyNoteFigures.service'
 
 import { stopColorOf } from '../shared/stopColor.service'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { RouteTollSummary } from './RouteTollSummary.component'
 import {
   buildAssemblyDepotLegs,
@@ -42,7 +43,10 @@ import {
   formatDuration,
   totalAssemblyMinutes,
 } from '../shared/assemblyLeg.service'
-import { resolveRouteOptionSummaries } from '../shared/assemblyRouteOptions.service'
+import {
+  resolveAssemblyRouteChoice,
+  resolveRouteOptionSummaries,
+} from '../shared/assemblyRouteOptions.service'
 import {} from '../shared/tileMap.service'
 import {
   resolveStopKey,
@@ -77,6 +81,11 @@ type TripAssemblyMapProps = Readonly<{
    * sem recalcular seria oferecer um controle que produz um roteiro que a conta ao lado não descreve.
    */
   onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
+  /**
+   * Spec 153: a rota que o operador está vendo, para o planejamento congelar **esta** e não outra.
+   * `undefined` é "não há escolha" — rota única, rascunho ou estrada que ainda não veio.
+   */
+  onRouteChoiceChange?: ((choice: RouteChoice | undefined) => void) | undefined
   /**
    * Tirar a parada inteira da viagem — todas as notas que param naquele endereço, pelos ids delas.
    *
@@ -164,6 +173,7 @@ export function TripAssemblyMap({
   measuredOrder,
   nearby,
   onOrderChange,
+  onRouteChoiceChange,
   onStopMove,
   onStopRemove,
   onStopUndoRemove,
@@ -307,6 +317,65 @@ export function TripAssemblyMap({
     setSelectedOptionIndex(0)
   }, [routeKey, tollVehicleId])
 
+  /**
+   * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
+   * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
+   */
+  /** As alternativas são da ordem medida: durante o rascunho elas escolheriam entre caminhos antigos. */
+  const routeOptions = isDraft ? [] : (geometryQuery.data?.options ?? [])
+  const hasRouteChoice = isDraft ? false : (geometryQuery.data?.hasChoice ?? false)
+  const cheapestIndex = geometryQuery.data?.cheapestIndex ?? null
+  const fastestIndex = geometryQuery.data?.fastestIndex ?? null
+  const costGap = geometryQuery.data?.costGap ?? null
+  const routeOptionSummaries = resolveRouteOptionSummaries({
+    cheapestIndex,
+    fastestIndex,
+    options: routeOptions,
+  })
+  /**
+   * ⚠️ O índice guardado pode sobrar de uma resposta anterior com mais opções — limitar ao que
+   * existe hoje evita `options[selectedOptionIndex]` vazando `undefined` para o resto da tela.
+   */
+  const boundedOptionIndex = Math.min(selectedOptionIndex, Math.max(routeOptions.length - 1, 0))
+
+  /**
+   * ⚠️ Memorizada pelos dois textos, não pelo objeto: um objeto novo a cada render dispararia o
+   * efeito abaixo a cada render, e o dono do estado renderizaria de novo sem fim.
+   */
+  const routeChoice = resolveAssemblyRouteChoice({
+    cheapestIndex,
+    fastestIndex,
+    hasChoice: hasRouteChoice,
+    options: routeOptions,
+    selectedIndex: boundedOptionIndex,
+  })
+  const routeChoiceCriterion = routeChoice?.criterion
+  const routeChoiceSignature = routeChoice?.signature ?? null
+  const stableRouteChoice = useMemo(
+    () =>
+      routeChoiceCriterion === undefined
+        ? undefined
+        : { criterion: routeChoiceCriterion, signature: routeChoiceSignature },
+    [routeChoiceCriterion, routeChoiceSignature],
+  )
+  /**
+   * ⚠️ O callback fica numa referência, fora das dependências: quem hospeda o mapa costuma passar
+   * uma função nova a cada render, e com ela o efeito publicaria a cada render.
+   */
+  const onRouteChoiceChangeRef = useRef(onRouteChoiceChange)
+  useEffect(() => {
+    onRouteChoiceChangeRef.current = onRouteChoiceChange
+  }, [onRouteChoiceChange])
+  /**
+   * ⚠️ Enquanto a estrada é medida (rascunho ou resposta a caminho) nada é publicado: `undefined`
+   * ali diria "não há escolha" antes de a resposta dizer isso.
+   */
+  const isRouteChoiceSettled = !isDraft && !geometryQuery.isFetching
+  useEffect(() => {
+    if (!isRouteChoiceSettled) return
+    onRouteChoiceChangeRef.current?.(stableRouteChoice)
+  }, [isRouteChoiceSettled, stableRouteChoice])
+
   /** Enquanto a sonda não responde, as telhas tentam — trocar de desenho depois pisca menos que antes. */
 
   /**
@@ -369,26 +438,6 @@ export function TripAssemblyMap({
    * ⚠️ Os trechos saem da **geometria**, não das coordenadas. Sem roteirizador a lista é vazia e a
    * tela não imprime tempo nenhum — ADR-0044 §5: não se estima o que o OSRM não respondeu.
    */
-  /**
-   * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
-   * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
-   */
-  /** As alternativas são da ordem medida: durante o rascunho elas escolheriam entre caminhos antigos. */
-  const routeOptions = isDraft ? [] : (geometryQuery.data?.options ?? [])
-  const hasRouteChoice = isDraft ? false : (geometryQuery.data?.hasChoice ?? false)
-  const cheapestIndex = geometryQuery.data?.cheapestIndex ?? null
-  const fastestIndex = geometryQuery.data?.fastestIndex ?? null
-  const costGap = geometryQuery.data?.costGap ?? null
-  const routeOptionSummaries = resolveRouteOptionSummaries({
-    cheapestIndex,
-    fastestIndex,
-    options: routeOptions,
-  })
-  /**
-   * ⚠️ O índice guardado pode sobrar de uma resposta anterior com mais opções — limitar ao que
-   * existe hoje evita `options[selectedOptionIndex]` vazando `undefined` para o resto da tela.
-   */
-  const boundedOptionIndex = Math.min(selectedOptionIndex, Math.max(routeOptions.length - 1, 0))
   const activeOption = routeOptions[boundedOptionIndex] ?? null
   /**
    * ⚠️ A opção escolhida redesenha o traço **e** alimenta o tempo/pedágio impressos acima do

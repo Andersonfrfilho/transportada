@@ -12,6 +12,11 @@ import {
 } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import { formatTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveTollCatalogStatus } from '../../toll-booths/domain/toll-catalog-status.policy.js'
+import {
+  NO_FUEL_BASELINE,
+  rankRouteOptions,
+  type RouteOptionVehicle,
+} from '../../toll-booths/domain/route-option.policy.js'
 import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js'
 import type { RouteChoiceCriterion } from '../domain/route-choice.policy.js'
 import type {
@@ -39,6 +44,14 @@ export type ReadTripRouteGeometryRoutePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<null | StoredTripRoute>
+  /**
+   * O consumo e o preço **de hoje** do veículo da viagem — o traçado é o congelado, o custo não.
+   * `null` quando a viagem não tem veículo lido; aí o custo sai com `NO_FUEL_BASELINE`.
+   */
+  readVehicleContext(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<null | Readonly<{ fuelBaseline: RouteOptionVehicle }>>
 }
 
 export type TripRouteGeometryView = RouteGeometryView &
@@ -70,8 +83,11 @@ export async function readTripRouteGeometry(
   })
   if (stored === null) return toLiveView({ live: await input.readLiveRoute() })
 
-  const toll = await enrichFrozenToll({ now, toll: stored.toll, tollBooths: input.tollBooths })
-  return toFrozenView({ stored, toll })
+  const [toll, vehicle] = await Promise.all([
+    enrichFrozenToll({ now, toll: stored.toll, tollBooths: input.tollBooths }),
+    input.route.readVehicleContext({ companyId: input.companyId, tripId: input.tripId }),
+  ])
+  return toFrozenView({ fuelBaseline: vehicle?.fuelBaseline ?? NO_FUEL_BASELINE, stored, toll })
 }
 
 function toLiveView(input: { readonly live: RouteGeometryView }): TripRouteGeometryView {
@@ -95,31 +111,47 @@ function toLiveView(input: { readonly live: RouteGeometryView }): TripRouteGeome
   }
 }
 
+/**
+ * ⚠️ O custo da rota congelada sai da **mesma** conta da leitura ao vivo (`rankRouteOptions`), nunca
+ * de uma segunda: fixá-lo em `null` fazia o detalhe imprimir "Não calculado" sem motivo nenhum, com
+ * o consumo e o preço cadastrados. Sem eles, `costGap` diz qual dos dois faltou.
+ */
 function toFrozenView(input: {
+  readonly fuelBaseline: RouteOptionVehicle
   readonly stored: StoredTripRoute
   readonly toll: null | RouteGeometryToll
 }): TripRouteGeometryView {
+  const ranking = rankRouteOptions({
+    options: [
+      {
+        distanceMeters: input.stored.distanceMeters,
+        durationSeconds: input.stored.durationSeconds,
+        tollTotal: input.toll?.total ?? null,
+      },
+    ],
+    vehicle: input.fuelBaseline,
+  })
   const option: RouteGeometryOption = {
     distanceMeters: input.stored.distanceMeters,
     durationSeconds: input.stored.durationSeconds,
-    fuelTotal: null,
+    fuelTotal: ranking.options[0]?.fuelTotal ?? null,
     isNoToll: false,
     legs: input.stored.legs,
     points: input.stored.points,
     signature: input.stored.signature,
     toll: input.toll,
-    totalCost: null,
+    totalCost: ranking.options[0]?.totalCost ?? null,
   }
 
   return {
-    cheapestIndex: 0,
+    cheapestIndex: ranking.cheapestIndex,
     choiceReproduced: input.stored.choiceReproduced,
-    costGap: null,
+    costGap: ranking.costGap,
     criterion: input.stored.criterion,
     depot: input.stored.depot,
     distanceMeters: input.stored.distanceMeters,
     durationSeconds: input.stored.durationSeconds,
-    fastestIndex: 0,
+    fastestIndex: ranking.fastestIndex,
     frozen: true,
     hasChoice: false,
     legs: option.legs,

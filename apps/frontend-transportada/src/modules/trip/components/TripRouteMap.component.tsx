@@ -106,7 +106,8 @@ export function TripRouteMap({
 
   if (points.length === 0 && stopsWithoutLocation.length === 0) return null
 
-  const route = geometry?.options?.[0] ?? null
+  /** A rota que a viagem usa (spec 153) — a congelada no planejamento, não sempre a principal. */
+  const route = geometry?.options?.[geometry.selectedIndex ?? 0] ?? null
   const traceKind = geometry !== null && geometry.legs.length > 0 ? 'road' : 'straight'
 
   return (

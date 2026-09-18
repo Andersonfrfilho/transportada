@@ -32,6 +32,16 @@ describe('o mapa do roteiro na tela (spec 079 T013)', () => {
     expect(source).not.toInclude('<VectorMap')
   })
 
+  /**
+   * Spec 153: o painel mostra a rota que a viagem usa — `options[selectedIndex]` —, não sempre a
+   * principal. Medido em staging: a mais barata (224,9 km) foi escolhida e congelada, e o detalhe
+   * imprimia a principal (213,5 km).
+   */
+  it('mostra a rota escolhida, não sempre a principal', () => {
+    expect(source).toInclude('geometry?.options?.[geometry.selectedIndex ?? 0]')
+    expect(source).not.toInclude('geometry?.options?.[0]')
+  })
+
   /** A cor sai dos tokens: hexadecimal literal é rejeitado em code review (web.md §8). */
   it('não tem cor literal', () => {
     expect(source).not.toMatch(/#[0-9a-f]{3,8}\b/iu)

@@ -71,7 +71,7 @@ import {
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
 } from './deliveryProofSettings.service'
-import type { RouteGeometry } from './routeGeometry.service'
+import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type { OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
@@ -105,6 +105,8 @@ export type TripClient = Readonly<{
       vehicleIds?: readonly string[]
       /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
       releaseUnplacedFromLayoutIds?: readonly string[]
+      /** Spec 153: a rota vista por caminhão. Ausente é o critério padrão do servidor. */
+      routeChoiceByVehicle?: readonly Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]
     }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
@@ -216,7 +218,10 @@ export type TripClient = Readonly<{
   ) => Promise<readonly DeliveryAddressOverride[]>
   listTrips: (input: TripListInput) => Promise<TripPage>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
+  /** Spec 153: `routeChoice` ausente é o critério padrão do servidor — e aí o corpo não vai. */
+  planTripRoute: (
+    input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
+  ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   transitionTripDocument: (
@@ -374,13 +379,17 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
          */
         ...(input.vehicleIds === undefined &&
         input.stopOrderByVehicle === undefined &&
-        input.releaseUnplacedFromLayoutIds === undefined
+        input.releaseUnplacedFromLayoutIds === undefined &&
+        input.routeChoiceByVehicle === undefined
           ? {}
           : {
               body: JSON.stringify({
                 ...(input.releaseUnplacedFromLayoutIds === undefined
                   ? {}
                   : { releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds }),
+                ...(input.routeChoiceByVehicle === undefined
+                  ? {}
+                  : { routeChoiceByVehicle: input.routeChoiceByVehicle }),
                 ...(input.stopOrderByVehicle === undefined
                   ? {}
                   : { stopOrderByVehicle: input.stopOrderByVehicle }),
@@ -822,6 +831,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async planTripRoute(input) {
       const response = await authorizedRequest({
+        ...(input.routeChoice === undefined
+          ? {}
+          : { body: JSON.stringify({ routeChoice: input.routeChoice }) }),
         dependencies,
         method: 'POST',
         path: `${TRIPS_PATH}/${input.tripId}/plan-route`,

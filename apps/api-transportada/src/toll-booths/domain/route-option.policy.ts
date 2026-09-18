@@ -44,6 +44,12 @@ export type RouteOptionVehicle = Readonly<{
   pricePerLiter: null | string
 }>
 
+/** Veículo sem consumo ou sem preço conhecido — nenhuma opção ganha custo, e `costGap` diz por quê. */
+export const NO_FUEL_BASELINE: RouteOptionVehicle = {
+  kilometersPerLiter: null,
+  pricePerLiter: null,
+}
+
 export type RankedRouteOption = RouteOptionInput &
   Readonly<{
     /** `null` quando não há como calcular — nunca zero, que diria "não gasta combustível". */

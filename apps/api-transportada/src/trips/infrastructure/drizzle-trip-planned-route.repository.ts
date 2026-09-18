@@ -1,8 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 153 T201 (substitui a spec 090 T11): lê o veículo da viagem para saber o eixo e se ela paga
- * com tag, e grava a rota planejada inteira — traçado, métricas e pedágio — numa única escrita.
+ * Spec 153 T201 (substitui a spec 090 T11): lê o veículo da viagem para saber o eixo, se ela paga
+ * com tag e quanto o combustível custa, e grava a rota planejada inteira — traçado, métricas e
+ * pedágio — numa única escrita.
  */
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -23,6 +24,7 @@ import type {
 } from '../application/freeze-trip-planned-route.use-case.js'
 import { parsePlannedRoute } from '../domain/parse-planned-route.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import { resolveVehicleFuelBaseline } from './effective-fuel-price.query.js'
 import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
@@ -38,7 +40,9 @@ export class DrizzleTripPlannedRouteRepository
     const [row] = await this.database
       .select({
         axleCount: fleetVehicles.axleCount,
+        fuelType: fleetVehicles.fuelType,
         hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
+        kilometersPerLiter: fleetVehicles.averageConsumption,
         vehicleType: fleetVehicles.vehicleType,
       })
       .from(trips)
@@ -50,8 +54,17 @@ export class DrizzleTripPlannedRouteRepository
       .limit(1)
     if (row === undefined) return null
 
+    /** O mesmo seam da leitura ao vivo (`route-geometry-vehicle-axles.query.ts`). */
+    const fuelBaseline = await resolveVehicleFuelBaseline({
+      companyId: input.companyId,
+      database: this.database,
+      fuelType: row.fuelType,
+      kilometersPerLiter: row.kilometersPerLiter,
+    })
+
     return {
       axles: resolveDeclaredVehicleAxles(row),
+      fuelBaseline,
       /** A categoria sai do mesmo `row` que os eixos: as duas descrevem o mesmo veículo. */
       multiplier: resolveDeclaredTollMultiplier(row),
       hasAutomaticTollPayment: row.hasAutomaticTollPayment,

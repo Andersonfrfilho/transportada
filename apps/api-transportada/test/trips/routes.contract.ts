@@ -24,11 +24,13 @@ import {
 } from '../fixtures/trip-http-payload.fixture'
 import {
   createTripHttpFixture,
+  FINANCIALS_PERMISSIONS,
   FLEET_ONLY_PERMISSIONS,
   NO_PERMISSIONS,
   READ_ONLY_PERMISSIONS,
 } from '../fixtures/trip-http.fixture'
 import { readTripRouteGeometry } from '../../src/trips/application/read-trip-route-geometry.use-case.js'
+import { NO_FUEL_BASELINE } from '../../src/toll-booths/domain/route-option.policy.js'
 
 /**
  * ADR-0043 §1, §2: as rotas de estado da spec 056 RF-6, testadas na fronteira HTTP — o encanamento
@@ -438,6 +440,17 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
     toll: null,
   }
 
+  const FROZEN_TOLL = {
+    axles: { count: 2, source: 'declared' as const },
+    booths: [],
+    boothsFallenBackToManual: 0,
+    boothsWithoutCharge: 0,
+    chargePerAxle: '16.4000',
+    multiplier: { denominator: 1, numerator: 2 },
+    paymentMode: 'manual' as const,
+    total: '32.8000',
+  }
+
   const LIVE_ROAD_VIEW = {
     cheapestIndex: 0,
     choiceReproduced: false,
@@ -490,7 +503,10 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
           readLiveRoute: () => {
             throw new Error('não deveria calcular ao vivo com rota congelada')
           },
-          route: { readFrozenRoute: () => Promise.resolve(FROZEN_ROUTE) },
+          route: {
+            readFrozenRoute: () => Promise.resolve(FROZEN_ROUTE),
+            readVehicleContext: () => Promise.resolve({ fuelBaseline: NO_FUEL_BASELINE }),
+          },
           tollBooths: null,
           tripId: call.tripId,
         })
@@ -518,6 +534,82 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
     expect((data as { options: readonly unknown[] }).options).toHaveLength(1)
   })
 
+  /**
+   * ⚠️ Medido em staging: a rota congelada saía com combustível e custo "Não calculado" e **nenhum
+   * aviso**, porque a leitura congelada fixava `fuelTotal`/`totalCost`/`costGap` em `null` sem ler o
+   * veículo. A conta é a mesma da leitura ao vivo (`rankRouteOptions`), com o consumo e o preço de
+   * hoje sobre o traçado de ontem.
+   */
+  test('computes fuel and total cost of the frozen route with the vehicle baseline', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: FINANCIALS_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => {
+            throw new Error('não deveria calcular ao vivo com rota congelada')
+          },
+          route: {
+            readFrozenRoute: () => Promise.resolve({ ...FROZEN_ROUTE, toll: FROZEN_TOLL }),
+            readVehicleContext: () =>
+              Promise.resolve({
+                fuelBaseline: { kilometersPerLiter: '3.5000', pricePerLiter: '6.2000' },
+              }),
+          },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toMatchObject({ cheapestIndex: 0, costGap: null, frozen: true })
+    expect((data as { options: readonly unknown[] }).options[0]).toMatchObject({
+      fuelTotal: '227.5400',
+      totalCost: '260.3400',
+    })
+  })
+
+  /** Sem consumo ou preço a tela precisa do **motivo** — `null` mudo não diz o que cadastrar. */
+  test('says NO_FUEL_BASELINE on the frozen route when the vehicle has no consumption or price', async () => {
+    const fixture = await createTripHttpFixture({
+      permissions: FINANCIALS_PERMISSIONS,
+      readTripRouteGeometryExecute: (input) => {
+        const call = input as { context: { companyId: string }; tripId: string }
+        return readTripRouteGeometry({
+          companyId: call.context.companyId,
+          readLiveRoute: () => {
+            throw new Error('não deveria calcular ao vivo com rota congelada')
+          },
+          route: {
+            readFrozenRoute: () => Promise.resolve({ ...FROZEN_ROUTE, toll: FROZEN_TOLL }),
+            readVehicleContext: () => Promise.resolve(null),
+          },
+          tollBooths: null,
+          tripId: call.tripId,
+        })
+      },
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: tripRouteGeometryPath() }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData(response)
+    expect(data).toMatchObject({ cheapestIndex: null, costGap: 'NO_FUEL_BASELINE', frozen: true })
+    expect((data as { options: readonly unknown[] }).options[0]).toMatchObject({
+      fuelTotal: null,
+      totalCost: null,
+    })
+  })
+
   test('falls back to the live route when nothing froze yet, keeping frozen: false', async () => {
     const fixture = await createTripHttpFixture({
       permissions: READ_ONLY_PERMISSIONS,
@@ -526,7 +618,12 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
         return readTripRouteGeometry({
           companyId: call.context.companyId,
           readLiveRoute: () => Promise.resolve(LIVE_ROAD_VIEW),
-          route: { readFrozenRoute: () => Promise.resolve(null) },
+          route: {
+            readFrozenRoute: () => Promise.resolve(null),
+            readVehicleContext: () => {
+              throw new Error('a leitura ao vivo já calcula o custo com o veículo dela')
+            },
+          },
           tollBooths: null,
           tripId: call.tripId,
         })
@@ -558,7 +655,12 @@ describe('GET /trips/:id/route-geometry serves the frozen route (spec 153 T203)'
         return readTripRouteGeometry({
           companyId: call.context.companyId,
           readLiveRoute: () => Promise.resolve(LIVE_UNAVAILABLE_VIEW),
-          route: { readFrozenRoute: () => Promise.resolve(null) },
+          route: {
+            readFrozenRoute: () => Promise.resolve(null),
+            readVehicleContext: () => {
+              throw new Error('a leitura ao vivo já calcula o custo com o veículo dela')
+            },
+          },
           tollBooths: null,
           tripId: call.tripId,
         })

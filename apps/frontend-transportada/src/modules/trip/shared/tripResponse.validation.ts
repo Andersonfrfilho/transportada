@@ -16,6 +16,7 @@ import type {
 } from './trip.types'
 import {
   AXLE_COUNT_SOURCES,
+  ROUTE_CHOICE_CRITERIA,
   ROUTE_COST_GAPS,
   DEPOT_ORIGIN_SOURCES,
   ROUTE_DEPOT_ABSENCES,
@@ -130,13 +131,17 @@ function invalid(): Error {
 /** `unavailable` com lista vazia é o único jeito de dizer "não sei o caminho" (spec 079/093). */
 const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
   cheapestIndex: null,
+  choiceReproduced: true,
   costGap: null,
+  criterion: null,
   depot: null,
   fastestIndex: null,
   hasChoice: false,
   legs: [],
+  frozen: false,
   options: [],
   points: [],
+  selectedIndex: null,
   source: 'unavailable',
   toll: null,
 }
@@ -723,16 +728,21 @@ export function createTripResponseAdapters() {
        * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
        * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
        */
-      const options = Array.isArray(input.options) ? input.options : []
+      const rawOptions: readonly unknown[] = Array.isArray(input.options) ? input.options : []
+      const options = rawOptions.every(isGeometryOption) ? rawOptions.map(toGeometryOption) : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
+        choiceReproduced: input.choiceReproduced !== false,
+        criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
         costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
         fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
+        frozen: input.frozen === true,
         hasChoice: input.hasChoice === true,
         legs: legs.every(isGeometryLeg) ? legs : [],
-        options: options.every(isGeometryOption) ? options : [],
+        options,
         points,
+        selectedIndex: readOptionIndex({ index: input.selectedIndex, optionCount: options.length }),
         source: input.source,
         toll: isGeometryToll(input.toll) ? input.toll : null,
       }
@@ -1042,7 +1052,29 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
 }
 
 /** Spec 096 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
-function isGeometryOption(value: unknown): value is RouteGeometryOption {
+/** ⚠️ Índice fora da lista é ausência: a tela cai na principal em vez de ler `undefined`. */
+function readOptionIndex(input: {
+  readonly index: unknown
+  readonly optionCount: number
+}): null | number {
+  const { index, optionCount } = input
+  if (typeof index !== 'number' || !Number.isInteger(index)) return null
+  return index >= 0 && index < optionCount ? index : null
+}
+
+type RawGeometryOption = Omit<RouteGeometryOption, 'isNoToll' | 'signature'> &
+  Readonly<{ isNoToll?: unknown; signature?: unknown }>
+
+/**
+ * A assinatura e a marca de sem pedágio são lidas à parte: resposta anterior à spec 153 não as
+ * traz, e isso não invalida a opção — só deixa a rota sem identidade para reproduzir (`null`).
+ */
+function toGeometryOption(option: RawGeometryOption): RouteGeometryOption {
+  const { isNoToll, signature, ...rest } = option
+  return { ...rest, isNoToll: isNoToll === true, signature: isString(signature) ? signature : null }
+}
+
+function isGeometryOption(value: unknown): value is RawGeometryOption {
   if (!isRecord(value)) return false
   const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
   return (
