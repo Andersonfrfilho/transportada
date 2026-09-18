@@ -167,7 +167,8 @@ export function useDriverTrip(
           return next
         })
       }
-      if (result.sent > 0 || result.rejected > 0) {
+      /* Spec 157 (T12): foto enviada tira a nota de `pendingProofs` — sem reler, a contagem mentia. */
+      if (result.sent > 0 || result.rejected > 0 || result.attachmentsSent.length > 0) {
         void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
       }
     },

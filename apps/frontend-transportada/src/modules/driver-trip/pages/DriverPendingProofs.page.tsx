@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import {
   DeliveryProofSection,
@@ -56,6 +57,9 @@ export function DriverPendingProofsPage({
         </Button>
         <h1 className={styles.eventQueueTitle}>{t('pendingProofs.title')}</h1>
       </header>
+      {entries.length === 0 ? null : (
+        <p className={styles.profileMeta}>{t('pendingProofs.hint')}</p>
+      )}
 
       {entries.length === 0 ? (
         <p className={styles.profileMeta} role="status">
@@ -70,8 +74,8 @@ export function DriverPendingProofsPage({
               queueView,
             })
             return (
-              <li className={styles.document} key={entry.documentId}>
-                <span>{entry.recipientName}</span>
+              <li className={styles.pendingProofItem} key={entry.documentId}>
+                <span className={styles.pendingProofRecipient}>{entry.recipientName}</span>
                 <span className={styles.stopMeta}>
                   {t('pendingProofs.documentLabel', {
                     number: entry.documentNumber,
@@ -84,7 +88,8 @@ export function DriverPendingProofsPage({
                   </p>
                 )}
                 {isQueued ? (
-                  <p className={styles.profileMeta} role="status">
+                  <p className={styles.pendingProofQueued} role="status">
+                    <Icon name="clock" />
                     {t('pendingProofs.queued')}
                   </p>
                 ) : (

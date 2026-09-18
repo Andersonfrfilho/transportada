@@ -69,6 +69,36 @@ export function listProofPendingDocuments(
   return snapshot?.pendingProofs ?? []
 }
 
+export type ProofDocumentLabel = Readonly<{
+  number: string
+  recipientName: string
+  series: string
+}>
+
+/**
+ * Spec 157 (T12): o aviso de pontualidade diz **de qual nota** é — três avisos iguais sem nome não
+ * dizem ao motorista qual foto saiu atrasada. Procura na lista de pendentes e, depois, na viagem.
+ */
+export function findProofDocumentLabel(input: {
+  readonly documentId: string
+  readonly snapshot: DriverTripSnapshot | undefined
+}): ProofDocumentLabel | undefined {
+  const pending = input.snapshot?.pendingProofs.find((item) => item.documentId === input.documentId)
+  if (pending !== undefined) {
+    return {
+      number: pending.documentNumber,
+      recipientName: pending.recipientName,
+      series: pending.documentSeries,
+    }
+  }
+  const document = input.snapshot?.trips
+    .flatMap((trip) => trip.stops)
+    .flatMap((stop) => stop.documents)
+    .find((candidate) => candidate.id === input.documentId)
+  if (document === undefined) return undefined
+  return { number: document.number, recipientName: document.recipientName, series: document.series }
+}
+
 /**
  * ADR-0045 §8: navegar é delegar. O endereço vai como busca para o app de mapa que a pessoa já usa;
  * a coordenada entra quando existe, porque pino é melhor que texto quando o endereço é ambíguo.

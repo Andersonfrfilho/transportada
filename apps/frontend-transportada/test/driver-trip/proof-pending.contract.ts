@@ -183,6 +183,19 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
     expect(driverTripEn.proofPendingWarning).toInclude('Retaking it never helps')
     expect(driverTripEn.proofPendingWarning).toInclude('device clock')
   })
+
+  /**
+   * Spec 157 (T12, revisão de design): o aviso aparece **antes** do "Entreguei" — dizer que a entrega
+   * já está registrada era falso ali. Título curto e uma frase à vista; a regra fina fica a um toque.
+   */
+  it('o aviso do cartão é curto, não mente sobre a entrega e guarda o detalhe num toque', () => {
+    const card = readFileSync(CARD, 'utf8')
+    expect(driverTrip.proofPendingWarning).not.toInclude('já está registrada')
+    expect(driverTrip.proofPendingWarningTitle).toBe('Foto do canhoto obrigatória')
+    expect(driverTrip.proofPendingWarningLead).toInclude('tira pontos da sua nota')
+    expect(card).toInclude("t('proofPendingWarningTitle')")
+    expect(card).toInclude('<details className={styles.proofPendingWarningDetails}>')
+  })
 })
 
 /**

@@ -113,7 +113,8 @@
     "whatsappTitle": "WhatsApp",
     "score": "{{score}} of 100",
     "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
-    "scoreTitle": "Your score"
+    "scoreTitle": "Your score",
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days."
   },
   "progress": {
     "label": "{{resolved}} of {{total}} stops resolved"
@@ -155,7 +156,7 @@
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
-  "proofPendingWarning": "Photo required for this delivery. Take it now, on site: sending it later or from somewhere else may cost points on your score. Retaking it never helps — the worst attempt counts. Uploading it much later counts as late, even if the device clock shows another time. The delivery is already recorded.",
+  "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
@@ -170,7 +171,12 @@
       "on_time": "Recorded on time and on site."
     },
     "outcomeDismiss": "Dismiss notice",
-    "queued": "Photo queued, waiting to send.",
-    "title": "Pending photos"
-  }
+    "queued": "Photo saved on the phone. It uploads by itself when the signal returns.",
+    "title": "Pending photos",
+    "hint": "These deliveries still need the proof photo. Send it as soon as you can: a photo that never arrives costs more points.",
+    "outcomeFor": "{{recipient}} · Document {{number}}/{{series}}"
+  },
+  "proofPendingWarningTitle": "Proof photo required",
+  "proofPendingWarningLead": "Take it here, at delivery time. A photo sent later or away from here costs points on your score.",
+  "proofPendingWarningDetails": "How the photo counts toward your score"
 }

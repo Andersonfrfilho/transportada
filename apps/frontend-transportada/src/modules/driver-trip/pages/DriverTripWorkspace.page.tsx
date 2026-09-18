@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
+import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
@@ -28,8 +29,10 @@ import type {
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import {
   findCurrentStop,
+  findProofDocumentLabel,
   isAwaitingDispatch,
   listProofPendingDocuments,
+  type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
@@ -81,6 +84,10 @@ export function DriverTripWorkspacePage() {
   const [dismissedProofOutcomeIds, setDismissedProofOutcomeIds] = useState<ReadonlySet<string>>(
     new Set(),
   )
+  /** Spec 157 (T12): de qual nota é cada aviso de pontualidade. */
+  const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
+    ReadonlyMap<string, ProofDocumentLabel>
+  >(new Map())
 
   useEffect(() => {
     let ativo = true
@@ -160,6 +167,11 @@ export function DriverTripWorkspacePage() {
 
   function handleProof(input: DriverProofAttachment): void {
     setAttachmentLimit(undefined)
+    /* Guardado no toque: depois do envio a nota sai de `pendingProofs` e o nome some junto. */
+    const label = findProofDocumentLabel({ documentId: input.documentId, snapshot })
+    if (label !== undefined) {
+      setProofLabelByDocumentId((current) => new Map(current).set(input.documentId, label))
+    }
     void driverTrip
       .attachProof(input)
       .then((outcome) => {
@@ -191,6 +203,7 @@ export function DriverTripWorkspacePage() {
         <DriverProfilePage
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
+          onOpenPendingProofs={() => setIsPendingProofsOpen(true)}
           onOpenQueue={() => setIsQueueOpen(true)}
         />
         <DriverBottomBar section={section} onSelect={setSection} />
@@ -302,19 +315,14 @@ export function DriverTripWorkspacePage() {
 
         {/* Spec 157 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
         {visibleProofOutcomes.map(([documentId, outcome]) => (
-          <p className={styles.proofOutcomeToast} key={documentId} role="status">
-            <span>{t(`pendingProofs.outcome.${outcome}`)}</span>
-            <Button
-              aria-label={t('pendingProofs.outcomeDismiss')}
-              onClick={() =>
-                setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
-              }
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="close" />
-            </Button>
-          </p>
+          <DriverProofOutcomeNotice
+            key={documentId}
+            label={proofLabelByDocumentId.get(documentId)}
+            onDismiss={() =>
+              setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
+            }
+            outcome={outcome}
+          />
         ))}
 
         {attachmentLimit !== undefined ? (

@@ -79,10 +79,12 @@
       "on_time": "Registrada em dia e no local."
     },
     "outcomeDismiss": "Dispensar aviso",
-    "queued": "Foto na fila, aguardando envio.",
-    "title": "Fotos pendentes"
+    "queued": "Foto guardada no celular. Ela sobe sozinha quando o sinal voltar.",
+    "title": "Fotos pendentes",
+    "hint": "Estas entregas ainda precisam da foto do canhoto. Envie assim que puder: foto que não chega tira mais pontos da sua nota.",
+    "outcomeFor": "{{recipient}} · Nota {{number}}/{{series}}"
   },
-  "proofPendingWarning": "Foto obrigatória para esta entrega. Tire agora, no local: enviar depois ou de outro lugar pode tirar pontos da sua nota. Tirar de novo não melhora — vale a pior tentativa. Subir a foto muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora. A entrega já está registrada.",
+  "proofPendingWarning": "Tirar de novo não melhora: vale a pior foto. Foto enviada muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora.",
   "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceKind": {
@@ -119,7 +121,8 @@
     "scoreTitle": "Sua nota",
     "signOut": "Sair",
     "vehicleTitle": "Veículo da viagem",
-    "whatsappTitle": "WhatsApp"
+    "whatsappTitle": "WhatsApp",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias."
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas"
@@ -181,5 +184,8 @@
   "documentOccurrenceTypesFailed": "Não foi possível carregar os tipos de ocorrência agora. Entregar e devolver continuam funcionando normalmente.",
   "documentOccurrenceTypesLoading": "Carregando os tipos de ocorrência…",
   "documentOccurrenceTypesRetry": "Tentar de novo",
-  "documentOccurrenceWholeDocument": "A nota inteira"
+  "documentOccurrenceWholeDocument": "A nota inteira",
+  "proofPendingWarningTitle": "Foto do canhoto obrigatória",
+  "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
+  "proofPendingWarningDetails": "Como a foto conta na nota"
 }

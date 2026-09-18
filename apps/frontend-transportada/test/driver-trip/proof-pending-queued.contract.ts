@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import { isProofAlreadyQueued } from '@/modules/driver-trip/pages/DriverPendingProofs.page'
+import { findProofDocumentLabel } from '@/modules/driver-trip/shared/driverTripView.service'
 import { documentAttachmentKey } from '@/modules/driver-trip/shared/offlineAttachments.service'
 import type { EventQueueItemView } from '@/modules/driver-trip/shared/eventQueueView.service'
 
@@ -11,6 +12,11 @@ const WORKSPACE = new URL(
   '../../src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx',
   import.meta.url,
 )
+const NOTICE = new URL(
+  '../../src/modules/driver-trip/components/DriverProofOutcomeNotice.component.tsx',
+  import.meta.url,
+)
+const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
 
 function queuedProofItem(overrides: Partial<EventQueueItemView> = {}): EventQueueItemView {
   return {
@@ -60,6 +66,59 @@ describe('o resultado da pontualidade aparece fora da lista de pendentes (T11, i
 
     expect(workspace).toInclude('visibleProofOutcomes')
     expect(workspace).toInclude('dismissedProofOutcomeIds')
-    expect(workspace).toInclude('proofOutcomeToast')
+    expect(workspace).toInclude('<DriverProofOutcomeNotice')
+    expect(readFileSync(NOTICE, 'utf8')).toInclude('proofOutcomeToast')
+  })
+})
+
+/**
+ * Spec 157 (T12, revisão de design): com três avisos na tela, "registrada fora do prazo" sozinho não
+ * diz qual foto foi — o aviso nomeia a nota, guardada no toque (depois do envio ela sai da lista).
+ */
+describe('o aviso de pontualidade nomeia a nota (T12)', () => {
+  const pending = {
+    deliveredAt: null,
+    deliveryProof: null,
+    documentId: 'document-1',
+    documentNumber: '900203',
+    documentSeries: '1',
+    recipientName: 'Farmácia Vida',
+    tripId: 'trip-1',
+    tripStatus: 'completed',
+  }
+
+  it('acha a nota na lista de pendentes da raiz', () => {
+    expect(
+      findProofDocumentLabel({
+        documentId: 'document-1',
+        snapshot: { isRegisteredDriver: true, pendingProofs: [pending], score: null, trips: [] },
+      }),
+    ).toEqual({ number: '900203', recipientName: 'Farmácia Vida', series: '1' })
+  })
+
+  it('sem a nota em lugar nenhum, não inventa rótulo', () => {
+    expect(
+      findProofDocumentLabel({
+        documentId: 'document-9',
+        snapshot: { isRegisteredDriver: true, pendingProofs: [pending], score: null, trips: [] },
+      }),
+    ).toBeUndefined()
+    expect(
+      findProofDocumentLabel({ documentId: 'document-1', snapshot: undefined }),
+    ).toBeUndefined()
+  })
+
+  it('o workspace guarda o rótulo no toque e o aviso separa notícia boa de ruim por ícone', () => {
+    const workspace = readFileSync(WORKSPACE, 'utf8')
+    const notice = readFileSync(NOTICE, 'utf8')
+    expect(workspace).toInclude(
+      'findProofDocumentLabel({ documentId: input.documentId, snapshot })',
+    )
+    expect(notice).toInclude("isGood ? 'check' : 'alert'")
+    expect(notice).toInclude('proofOutcomeToastGood')
+  })
+
+  it('foto enviada relê o snapshot, senão a contagem de pendentes ficava velha', () => {
+    expect(readFileSync(HOOK, 'utf8')).toInclude('result.attachmentsSent.length > 0) {')
   })
 })

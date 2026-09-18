@@ -281,10 +281,19 @@ function DocumentRow({
     <li className={styles.document}>
       <span>{document.recipientName}</span>
       {/* Spec 157 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
+      {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
       {isProofPendingWarningDue({ document, stopProofSettings }) ? (
-        <p className={styles.proofPendingWarning} role="status">
-          {t('proofPendingWarning')}
-        </p>
+        <div className={styles.proofPendingWarning} role="note">
+          <p className={styles.proofPendingWarningTitle}>
+            <Icon name="camera" />
+            {t('proofPendingWarningTitle')}
+          </p>
+          <p className={styles.proofPendingWarningLead}>{t('proofPendingWarningLead')}</p>
+          <details className={styles.proofPendingWarningDetails}>
+            <summary>{t('proofPendingWarningDetails')}</summary>
+            <p>{t('proofPendingWarning')}</p>
+          </details>
+        </div>
       ) : null}
       <div className={styles.actions}>
         <Button onClick={() => onDeliver(document.id)} type="button">
