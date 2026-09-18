@@ -230,7 +230,7 @@ aconteceu**; quem for escrever leitor para um desses campos precisa abrir o enve
 confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
-**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0068, spec 157):
+**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0069, spec 159):
 `DrizzleDriverScoreRepository` lê numa consulta só o último `delivered` de cada nota nos 90 dias (só
 `channel = 'driver_app'`, nota não devolvida, desde `score_effective_since` — sem retroatividade) das
 notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motorista do evento é
@@ -238,7 +238,7 @@ notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motoris
 `GET /me/trips/current` (`score` e `pendingProofs`, que lista a foto pendente até de viagem
 `completed`), em `GET /fleet/drivers` (`score` por item, uma leitura por página) e em
 `GET /fleet/drivers/:id/score` (nota + penalidades, `fleet.read`, 404 para motorista alheio). Foto
-substituta fica com a pior pontualidade; a do escritório não classifica (spec 157 T11). ⚠️ Posição da
+substituta fica com a pior pontualidade; a do escritório não classifica (spec 159 T11). ⚠️ Posição da
 foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 dias pelo expurgo do worker.
 
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,

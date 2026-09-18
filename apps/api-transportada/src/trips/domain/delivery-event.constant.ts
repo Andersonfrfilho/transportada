@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 157 T11 (§16): os literais que a entrega, a foto e a nota do motorista repetiam em cada
+ * Spec 159 T11 (§16): os literais que a entrega, a foto e a nota do motorista repetiam em cada
  * consulta. Tipados pelos catálogos do schema — um erro de digitação não compila.
  */
 import type { DeliveryProofFieldMode } from '../../database/company-delivery-proof-settings.schema.js'

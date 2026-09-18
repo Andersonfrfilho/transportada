@@ -22,14 +22,14 @@ const RECEIVER_DOCUMENT_FIELD = 'receiverDocument'
 const ATTACHMENT_KEY_FIELD = 'attachmentKey'
 const ATTACHMENT_KEY_MAX_LENGTH = 128
 const RECEIVER_NAME_MAX_LENGTH = 120
-/** ADR-0068 §2-4, spec 157 RF3: onde e quando a foto foi tirada — os quatro campos são opcionais. */
+/** ADR-0069 §2-4, spec 159 RF3: onde e quando a foto foi tirada — os quatro campos são opcionais. */
 const LATITUDE_FIELD = 'latitude'
 const LONGITUDE_FIELD = 'longitude'
 const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
 
 /**
- * Spec 157 T11 (itens 4 e 10): texto com teto e forma decimal **antes** de virar número — `Number()`
+ * Spec 159 T11 (itens 4 e 10): texto com teto e forma decimal **antes** de virar número — `Number()`
  * sozinho aceita `1e2`, `Infinity` e string de mil dígitos. A precisão declarada tem teto: acima de
  * 10 km o aparelho não sabe onde está, e o número só serviria para inflar o raio.
  */

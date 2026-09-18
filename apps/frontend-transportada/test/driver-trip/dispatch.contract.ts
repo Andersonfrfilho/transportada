@@ -126,7 +126,7 @@ describe('a fila offline no hook (revisão 082)', () => {
   })
 
   /**
-   * Spec 157 (revisão D6): a chave do anexo nasce na captura e acompanha o envio pela drenagem —
+   * Spec 159 (revisão D6): a chave do anexo nasce na captura e acompanha o envio pela drenagem —
    * não existe mais rota multipart direta fora da fila (aceite 8: sempre fila, mesmo nota entregue).
    */
   it('a chave do anexo nasce na captura e acompanha o envio pela fila', () => {

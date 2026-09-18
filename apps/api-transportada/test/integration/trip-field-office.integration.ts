@@ -438,7 +438,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Spec 157 T11 (ALTO 3): o escritório dá baixa com o canhoto, e a fila offline do motorista
+   * Spec 159 T11 (ALTO 3): o escritório dá baixa com o canhoto, e a fila offline do motorista
    * reenvia o `deliver` depois. O no-op não pode gravar um `delivered` novo sem foto — ele viraria o
    * "último" evento da nota, esconderia o canhoto e deixaria a nota pendente (e penalizável).
    */
@@ -508,7 +508,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Spec 157 T11 (ALTO 2): a entrega é do motorista, e a foto dele chegou tarde e sem posição. O
+   * Spec 159 T11 (ALTO 2): a entrega é do motorista, e a foto dele chegou tarde e sem posição. O
    * canhoto que o escritório sobe depois por `field-proof` substitui o arquivo, mas não lava a
    * pontualidade — e sem foto anterior ele grava `not_required`, nunca `away`.
    */

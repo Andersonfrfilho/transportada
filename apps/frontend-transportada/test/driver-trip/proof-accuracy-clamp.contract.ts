@@ -28,7 +28,7 @@ function createCapturingClient(requests: Request[]) {
 }
 
 /**
- * Spec 157 (T11, item 2): `accuracyMeters` acima de 10 km agora dá `400` na API. O cliente nunca
+ * Spec 159 (T11, item 2): `accuracyMeters` acima de 10 km agora dá `400` na API. O cliente nunca
  * manda um valor que ela recusa — nem na captura nova, nem ao drenar um anexo antigo da fila
  * offline com o valor sem teto de antes desta correção.
  */
@@ -91,7 +91,7 @@ describe('accuracyMeters acima de 10 km não sobe (T11, item 2)', () => {
   })
 })
 
-/** Spec 157 (T11, item 9): uma fonte só para os valores de pontualidade — sem redeclarar. */
+/** Spec 159 (T11, item 9): uma fonte só para os valores de pontualidade — sem redeclarar. */
 describe('PROOF_PUNCTUALITY_VALUES tem uma fonte só (T11, item 9)', () => {
   it('driverTrip.types é a origem, e o cliente a importa em vez de redeclarar', () => {
     const CLIENT = new URL(

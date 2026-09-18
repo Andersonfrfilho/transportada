@@ -49,7 +49,7 @@ export function countPendingDocuments(stop: DriverTripStop): number {
   return stop.documents.filter((document) => !isDocumentSettled(document)).length
 }
 
-/** Spec 157 RF12: a nota que o card avisa — foto obrigatória e ainda não entregue. */
+/** Spec 159 RF12: a nota que o card avisa — foto obrigatória e ainda não entregue. */
 export function isProofPendingWarningDue(input: {
   readonly document: DriverTripDocument
   readonly stopProofSettings: DriverDeliveryProofSettings | null
@@ -59,7 +59,7 @@ export function isProofPendingWarningDue(input: {
 }
 
 /**
- * Spec 157 (T11, revisão): a lista da tela "fotos pendentes" **lê a raiz do snapshot**, não mais
+ * Spec 159 (T11, revisão): a lista da tela "fotos pendentes" **lê a raiz do snapshot**, não mais
  * percorre `trips` — é o único jeito de enxergar a pendente de uma viagem já `completed`, que sai
  * de `trips` mas continua em `pendingProofs`. A ordem é a que a API mandou.
  */
@@ -76,7 +76,7 @@ export type ProofDocumentLabel = Readonly<{
 }>
 
 /**
- * Spec 157 (T12): o aviso de pontualidade diz **de qual nota** é — três avisos iguais sem nome não
+ * Spec 159 (T12): o aviso de pontualidade diz **de qual nota** é — três avisos iguais sem nome não
  * dizem ao motorista qual foto saiu atrasada. Procura na lista de pendentes e, depois, na viagem.
  */
 export function findProofDocumentLabel(input: {

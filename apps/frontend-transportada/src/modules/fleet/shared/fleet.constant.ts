@@ -7,7 +7,7 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
-/** Spec 157 RF10: a nota e as penalidades vigentes de um motorista. */
+/** Spec 159 RF10: a nota e as penalidades vigentes de um motorista. */
 export function driverScorePath(driverId: string): string {
   return `${FLEET_DRIVERS_PATH}/${driverId}/score`
 }
@@ -56,7 +56,7 @@ export const FREIGHT_REGION_LOAD_LIMIT = 2000
 
 export const DRIVER_AVAILABILITY_KEYS = ['emailTaken', 'licenseNumberTaken', 'taxIdTaken'] as const
 
-/** Spec 157 RF10, ADR-0068 §7: a ficha do motorista — nota e o porquê dela. Sem coordenada nenhuma. */
+/** Spec 159 RF10, ADR-0069 §7: a ficha do motorista — nota e o porquê dela. Sem coordenada nenhuma. */
 export const DRIVER_PENALTY_KEYS = [
   'deliveredAt',
   'documentNumber',

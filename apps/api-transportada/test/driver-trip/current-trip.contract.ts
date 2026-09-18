@@ -129,7 +129,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
   })
 
   /**
-   * Spec 157 T11 (ALTO 1): a última entrega conclui a viagem, ela sai de `trips`, e a foto pendente
+   * Spec 159 T11 (ALTO 1): a última entrega conclui a viagem, ela sai de `trips`, e a foto pendente
    * precisa continuar alcançável — o bloco `pendingProofs` vem na raiz, inclusive sem viagem ativa.
    */
   it('devolve as fotos pendentes do motorista mesmo sem viagem ativa', async () => {
@@ -179,7 +179,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
   })
 
   /**
-   * Spec 157 T6, ADR-0068 §1: `proofPending` é calculado pelo repositório (SQL contra o evento de
+   * Spec 159 T6, ADR-0069 §1: `proofPending` é calculado pelo repositório (SQL contra o evento de
    * entrega — ver `test/integration/me-trip.integration.ts`); o caso de uso só repassa o documento
    * como o repositório o devolveu, sem tocar no campo.
    */
@@ -243,7 +243,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
   })
 
   /**
-   * Spec 157 RF2, ADR-0068 §6: a nota do motorista logado sobe na raiz do snapshot. O caso de uso
+   * Spec 159 RF2, ADR-0069 §6: a nota do motorista logado sobe na raiz do snapshot. O caso de uso
    * pergunta só pelo motorista resolvido do vínculo, com o relógio injetado — nunca por id vindo de
    * fora (ADR-0045 §2).
    */

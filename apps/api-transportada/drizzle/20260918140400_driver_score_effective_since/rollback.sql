@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 157 T11 (decisão D1): o corte de ativação da nota do motorista. As linhas de
+-- Desfaz a spec 159 T11 (decisão D1): o corte de ativação da nota do motorista. As linhas de
 -- fábrica que a migration criou em `company_delivery_proof_settings` ficam — elas têm os mesmos
 -- valores que a ausência de linha já significava (ADR-0057 §4), então não há o que desfazer nelas.
 BEGIN;

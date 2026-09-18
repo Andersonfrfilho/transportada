@@ -43,7 +43,7 @@ export function createDrizzleRedactTripLocations(
   }
 }
 
-/** Spec 157 T11: só a posição da foto cai — o arquivo, o veredito e o horário declarado ficam. */
+/** Spec 159 T11: só a posição da foto cai — o arquivo, o veredito e o horário declarado ficam. */
 export function createDrizzleRedactDeliveryProofLocations(
   database: TripLocationDatabase,
 ): RedactDeliveryProofLocations {

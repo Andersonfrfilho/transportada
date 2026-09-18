@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0068 §5-6, spec 157 RF8-RF9: a nota do motorista é derivada na leitura, nunca em cron. Regra
+ * ADR-0069 §5-6, spec 159 RF8-RF9: a nota do motorista é derivada na leitura, nunca em cron. Regra
  * pura, sem I/O — quem busca as entregas dos últimos 90 dias é o repositório
  * (`DrizzleDriverScoreRepository`).
  */
@@ -12,10 +12,10 @@ import {
   type ProofPunctuality,
 } from '../../trips/domain/delivery-proof-punctuality.policy.js'
 
-/** ADR-0068 §5: penalidade vigente por 90 dias, fixo — não é parâmetro de empresa. */
+/** ADR-0069 §5: penalidade vigente por 90 dias, fixo — não é parâmetro de empresa. */
 export const DRIVER_SCORE_WINDOW_DAYS = 90
 
-/** ADR-0068 §5: a nota nunca passa disso, mesmo sem nenhuma penalidade. */
+/** ADR-0069 §5: a nota nunca passa disso, mesmo sem nenhuma penalidade. */
 export const DRIVER_SCORE_MAXIMUM = 100
 
 /** RF8: qualquer foto fora da regra pesa `latePenaltyPoints`, uma vez por entrega. */
@@ -65,7 +65,7 @@ export type ComputeDriverScoreParams = {
   readonly settings: DriverScoreSettings
   readonly deliveries: readonly DriverScoreDelivery[]
   /**
-   * Spec 157 T11 (decisão D1 do usuário, sem retroatividade): entrega anterior a este instante não
+   * Spec 159 T11 (decisão D1 do usuário, sem retroatividade): entrega anterior a este instante não
    * entra na nota — nem penaliza, nem tira a nota de `null`. Ausente, não há corte.
    */
   readonly effectiveSince?: Date

@@ -13,13 +13,13 @@ import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
 import { mockTripWorkspaceApi } from './trip-smoke.helper'
 
 /**
- * Spec 157 T12 (`web.md` §15): os prints da revisão de design das telas da foto obrigatória e da
- * nota do motorista. Fora do smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-157-prints.smoke.spec.ts`
+ * Spec 159 T12 (`web.md` §15): os prints da revisão de design das telas da foto obrigatória e da
+ * nota do motorista. Fora do smoke da CI — roda com `PLAYWRIGHT_TEST_MATCH=spec-159-prints.smoke.spec.ts`
  * e grava os PNGs ao lado da spec, que é onde a evidência mora.
  */
 const PRINTS_DIRECTORY = resolve(
   process.cwd(),
-  '../../specs/157-a-foto-obrigatoria-pesa-na-nota-do-motorista/prints',
+  '../../specs/159-a-foto-obrigatoria-pesa-na-nota-do-motorista/prints',
 )
 const PHONE = { height: 844, width: 390 } as const
 const DESKTOP = { height: 900, width: 1440 } as const

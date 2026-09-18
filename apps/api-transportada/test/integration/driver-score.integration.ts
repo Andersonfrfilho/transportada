@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 157 T7, ADR-0068 §5-6 — a nota do motorista contra Postgres de verdade. A regra de pontos é
+ * Spec 159 T7, ADR-0069 §5-6 — a nota do motorista contra Postgres de verdade. A regra de pontos é
  * provada em `test/driver-score/*` sem banco; aqui se prova o **SQL**: o último evento por nota, o
  * recorte de canal e de janela, a ligação do motorista pelo vínculo, a exceção por CNPJ e o tenant
  * em todas as tabelas do join. Contrato com dublê passa com `where` errado — este não.
@@ -75,7 +75,7 @@ type DeliveryInput = {
   readonly returned?: boolean
 }
 
-describe('a nota do motorista lida do banco (spec 157 T7)', () => {
+describe('a nota do motorista lida do banco (spec 159 T7)', () => {
   testWithPostgres('aceite 5: late (5) + ausente há 25h (10) = 85; o resto não pesa', async () => {
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)
@@ -89,7 +89,7 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
         photo: 'late',
       })
       const missing = await seedDelivery(database, { ...delivery, deliveredAgo: 25 * HOUR })
-      // Spec 157 T11 (D2): o WhatsApp não será liberado agora — fica fora da nota, como o escritório.
+      // Spec 159 T11 (D2): o WhatsApp não será liberado agora — fica fora da nota, como o escritório.
       await seedDelivery(database, { ...delivery, channel: 'whatsapp', deliveredAgo: 26 * HOUR })
       await seedDelivery(database, { ...delivery, deliveredAgo: 3 * HOUR })
       await seedDelivery(database, { ...delivery, deliveredAgo: 91 * DAY })
@@ -223,7 +223,7 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
   })
 
   /**
-   * Spec 157 T11 (item 14): o motorista do evento é gravado nele (`reported_by_driver_id`). Desligar
+   * Spec 159 T11 (item 14): o motorista do evento é gravado nele (`reported_by_driver_id`). Desligar
    * o acesso ao app (`fleet_drivers.membership_id = null`) não apaga o histórico dele. O evento
    * antigo, sem a coluna, segue resolvido pelo vínculo — e esse some com o vínculo (limitação
    * registrada na evidência da T11).
@@ -258,7 +258,7 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
   })
 
   /**
-   * Spec 157 T11 (item 7): o pré-filtro por motorista acha a nota pela entrega dele, mas o "último
+   * Spec 159 T11 (item 7): o pré-filtro por motorista acha a nota pela entrega dele, mas o "último
    * evento" continua sendo o da nota — se o escritório refez a baixa depois, ela sai da nota dele.
    */
   testWithPostgres('última entrega do escritório tira a nota do motorista', async () => {
@@ -290,7 +290,7 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
     })
   })
 
-  /** Spec 157 T11 (D1): sem retroatividade — só entra a entrega a partir da ativação da nota. */
+  /** Spec 159 T11 (D1): sem retroatividade — só entra a entrega a partir da ativação da nota. */
   testWithPostgres('entrega anterior à ativação da nota não conta', async () => {
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)
@@ -316,7 +316,7 @@ describe('a nota do motorista lida do banco (spec 157 T7)', () => {
     })
   })
 
-  /** Spec 157 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
+  /** Spec 159 T8, aceite 6: a ficha da frota lê a nota do banco e dá 404 para motorista alheio. */
   testWithPostgres('frota: a listagem traz a nota e a ficha de outra empresa é 404', async () => {
     await withDisposableDatabase(async (database) => {
       const own = await seedCompany(database)
@@ -361,7 +361,7 @@ async function seedCompany(database: TestDatabase): Promise<Company> {
   await database.db.insert(companies).values({ id: companyId, status: 'active' })
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
   await database.db.insert(userCompanyMemberships).values({ companyId, status: 'active', userId })
-  // Spec 157 T11 (D1): a ativação da nota bem antes das entregas semeadas — o corte tem teste próprio.
+  // Spec 159 T11 (D1): a ativação da nota bem antes das entregas semeadas — o corte tem teste próprio.
   await database.db.insert(companyDeliveryProofSettings).values({
     companyId,
     photo: 'required',

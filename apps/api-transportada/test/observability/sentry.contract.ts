@@ -205,7 +205,7 @@ describe('contrato do rastreio de erro da API — redação ponta a ponta', () =
   })
 
   /**
-   * Spec 157 T11 (item 9): o `DrizzleQueryError` põe os parâmetros da consulta na mensagem
+   * Spec 159 T11 (item 9): o `DrizzleQueryError` põe os parâmetros da consulta na mensagem
    * (`Failed query: …\nparams: …`) — e ali vão a coordenada da foto, o texto do recebedor, o que a
    * consulta levar. O SQL fica (agrupa o erro); os parâmetros nunca saem.
    */

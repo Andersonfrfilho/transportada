@@ -272,7 +272,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * Spec 157 T11 (ALTO 1): as notas que **este** motorista entregou nos 90 dias, com foto
+   * Spec 159 T11 (ALTO 1): as notas que **este** motorista entregou nos 90 dias, com foto
    * obrigatória resolvida e sem foto no último `delivered`, em qualquer viagem que o `/proof` ainda
    * alcança (`TRIP_DISPATCHED_STATUSES`, inclusive `completed`, e o mesmo recorte de tripulação de
    * `findDeliveryEventId`). O último evento é o da nota, de qualquer autor; quem ele é se decide
@@ -295,7 +295,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return rows.flatMap((row) => {
       const deliveredAt = row.capturedAt ?? row.recordedAt
-      // Spec 157 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
+      // Spec 159 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
       if (effectiveSince !== undefined && deliveredAt < effectiveSince) return []
       const isOwnDelivery =
         row.channel !== TRIP_FIELD_CHANNELS.office &&
@@ -325,7 +325,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     })
   }
 
-  /** Spec 157 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
+  /** Spec 159 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
   private async readScoreEffectiveSince(input: {
     readonly companyId: string
   }): Promise<Date | undefined> {
@@ -607,7 +607,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * ADR-0068 §1, spec 157 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
+   * ADR-0069 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
    * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
    * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
    */
@@ -638,7 +638,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           inArray(tripStopEvents.tripDocumentId, [...input.documentIds]),
         ),
       )
-      // Spec 157 T11: o mesmo desempate da nota do motorista — sem o `id`, empate de `created_at`
+      // Spec 159 T11: o mesmo desempate da nota do motorista — sem o `id`, empate de `created_at`
       // deixava o snapshot e a nota lerem eventos diferentes da mesma nota.
       .orderBy(
         tripStopEvents.tripDocumentId,
@@ -806,7 +806,7 @@ function toDriverDocument(
     id: row.id,
     number: row.number ?? '',
     /**
-     * ADR-0068 §1, spec 157 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
+     * ADR-0069 §1, spec 159 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
      * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
      */
     proofPending:

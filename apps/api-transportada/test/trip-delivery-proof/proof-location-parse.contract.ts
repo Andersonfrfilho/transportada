@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 157 T11 (itens 4 e 10): os quatro campos novos do multipart do `/proof` passam por Zod —
+ * Spec 159 T11 (itens 4 e 10): os quatro campos novos do multipart do `/proof` passam por Zod —
  * texto com teto e forma decimal antes de virar número, faixa de coordenada, teto da precisão
  * declarada e `capturedAt` ISO. Tudo opcional; o par incompleto é `400`.
  */
@@ -28,7 +28,7 @@ async function expectInvalid(fields: Record<string, string>): Promise<void> {
   expect((error as ApiError).status).toBe(400)
 }
 
-describe('posição e horário da foto no multipart (spec 157 T11)', () => {
+describe('posição e horário da foto no multipart (spec 159 T11)', () => {
   test('sem posição nem horário é o caso normal', async () => {
     const upload = await parseDeliveryProofUpload(proofRequest({}))
 

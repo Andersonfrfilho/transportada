@@ -64,7 +64,7 @@ describe('a ordenação da nota no seletor de motoristas (RF11, aceite 7)', () =
 })
 
 /**
- * Spec 157 (T12, revisão de design): "95/100" solto no seletor não diz que é nota, e o leitor de tela
+ * Spec 159 (T12, revisão de design): "95/100" solto no seletor não diz que é nota, e o leitor de tela
  * lia "barra". A opção diz "Nota 95 de 100"; o selo, ao lado do cabeçalho "Nota", só "95 de 100".
  */
 describe('o texto da nota no seletor e no selo (T12)', () => {

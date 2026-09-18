@@ -30,7 +30,7 @@ function queuedProofItem(overrides: Partial<EventQueueItemView> = {}): EventQueu
 }
 
 /**
- * Spec 157 (T11, item 5): documento com anexo já na fila (aguardando envio) não mostra o
+ * Spec 159 (T11, item 5): documento com anexo já na fila (aguardando envio) não mostra o
  * formulário de novo — evita anexar duas vezes o mesmo comprovante.
  */
 describe('o item pendente já na fila não repete o formulário (T11, item 5)', () => {
@@ -57,7 +57,7 @@ describe('o item pendente já na fila não repete o formulário (T11, item 5)', 
 })
 
 /**
- * Spec 157 (T11, item 5): a pontualidade fica visível fora da lista de pendentes — um aviso
+ * Spec 159 (T11, item 5): a pontualidade fica visível fora da lista de pendentes — um aviso
  * persistente no workspace, dispensável, computado no render (nunca em `useEffect`).
  */
 describe('o resultado da pontualidade aparece fora da lista de pendentes (T11, item 5)', () => {
@@ -72,7 +72,7 @@ describe('o resultado da pontualidade aparece fora da lista de pendentes (T11, i
 })
 
 /**
- * Spec 157 (T12, revisão de design): com três avisos na tela, "registrada fora do prazo" sozinho não
+ * Spec 159 (T12, revisão de design): com três avisos na tela, "registrada fora do prazo" sozinho não
  * diz qual foto foi — o aviso nomeia a nota, guardada no toque (depois do envio ela sai da lista).
  */
 describe('o aviso de pontualidade nomeia a nota (T12)', () => {

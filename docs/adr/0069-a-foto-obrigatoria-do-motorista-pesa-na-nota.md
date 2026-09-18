@@ -1,10 +1,10 @@
-# ADR-0068 — A foto obrigatória do motorista não recusa a entrega, pesa na nota
+# ADR-0069 — A foto obrigatória do motorista não recusa a entrega, pesa na nota
 
 - **Status:** aceita
 - **Data:** 2026-09-18
 - **Decisores:** usuário (regra da nota, geolocalização + horas, pontos que descem, onde a nota
-  aparece, anexo em lote), na conversa da spec 157
-- **Fecha:** a T1 da spec 157 (`specs/157-a-foto-obrigatoria-pesa-na-nota-do-motorista/`)
+  aparece, anexo em lote), na conversa da spec 159
+- **Fecha:** a T1 da spec 159 (`specs/159-a-foto-obrigatoria-pesa-na-nota-do-motorista/`)
 - **Complementa:** ADR-0057 (comprovante configurável) e ADR-0067 §5, emenda 2 (o 422
   `TRIP_DELIVERY_PROOF_PHOTO_REQUIRED` vale só para o escritório)
 
@@ -74,4 +74,4 @@ E, sem decisão nova, a revisão consertou: a precisão soma ao raio no máximo 
 10 km é `400`); a baixa repetida do motorista não grava `delivered` novo; o motorista do evento passa
 a ser gravado nele (`reported_by_driver_id`), e desligar o acesso ao app não apaga o histórico; as
 fotos pendentes de viagem concluída aparecem em `pendingProofs` no snapshot; a posição da foto cai
-aos 90 dias com a do evento. Riscos aceitos em `docs/SECURITY.md` (2026-09-18, spec 157).
+aos 90 dias com a do evento. Riscos aceitos em `docs/SECURITY.md` (2026-09-18, spec 159).

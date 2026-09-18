@@ -45,7 +45,7 @@ export function TripRouteAssemblyPanel({
    * da matriz de estrada já têm texto lá, e copiá-los daria duas grafias para a mesma falha.
    */
   const { t: tRouting } = useTranslation('routing')
-  /** Spec 157 RF11, ADR-0068 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
+  /** Spec 159 RF11, ADR-0069 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
   const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',

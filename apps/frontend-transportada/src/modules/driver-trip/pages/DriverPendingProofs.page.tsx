@@ -18,7 +18,7 @@ type DriverPendingProofsPageProps = Readonly<{
   onBack: () => void
   onProof: (input: DriverProofAttachment) => void
   proofOutcomeByDocumentId: ReadonlyMap<string, ProofPunctuality>
-  /** Spec 157 (T11): diz quais documentos já têm anexo na fila, aguardando envio. */
+  /** Spec 159 (T11): diz quais documentos já têm anexo na fila, aguardando envio. */
   queueView: readonly EventQueueItemView[]
   snapshot: DriverTripSnapshot | undefined
 }>
@@ -35,7 +35,7 @@ export function isProofAlreadyQueued(input: {
 }
 
 /**
- * Spec 157 (P6, T9): toda nota entregue sem a foto obrigatória, em qualquer viagem do snapshot —
+ * Spec 159 (P6, T9): toda nota entregue sem a foto obrigatória, em qualquer viagem do snapshot —
  * o motorista anexa em lote sem procurar parada por parada. O formulário é o mesmo de
  * `DriverStopCard` (`DeliveryProofSection`), reaproveitado — não uma segunda implementação.
  */

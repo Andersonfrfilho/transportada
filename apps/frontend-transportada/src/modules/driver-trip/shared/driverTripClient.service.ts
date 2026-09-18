@@ -17,7 +17,7 @@ const CURRENT_TRIP_PATH = '/me/trips/current'
 const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
 
 /**
- * Spec 157 (T11): a API recusa `accuracyMeters` acima de 10 km com `400` (item 4 da revisão). O
+ * Spec 159 (T11): a API recusa `accuracyMeters` acima de 10 km com `400` (item 4 da revisão). O
  * cliente nunca manda um valor que a API já sabe que vai recusar — precisão fora disso vira
  * ausência, exatamente como GPS desligado (ADR-0045 §3). Vale para a captura nova **e** para o que
  * já estava parado na fila offline com o valor antigo, sem teto: os dois passam por aqui.
@@ -72,7 +72,7 @@ export type DriverTripClient = Readonly<{
    * e está declarado como pendência em vez de resolvido pela metade.
    */
   attachProof: (input: {
-    /** Spec 157 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
+    /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
     accuracyMeters?: number
     /** Idempotência POR ANEXO: gerada na captura e reenviada igual — o servidor não duplica o blob. */
     attachmentKey?: string

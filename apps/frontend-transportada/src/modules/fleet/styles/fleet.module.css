@@ -136,7 +136,7 @@
   color: var(--color-ready);
 }
 
-/* Spec 157 RF10, ADR-0068 §7: a nota do motorista — mesmo molde do statusBadge, cor por faixa. */
+/* Spec 159 RF10, ADR-0069 §7: a nota do motorista — mesmo molde do statusBadge, cor por faixa. */
 /* `justify-self`: dentro do fieldset da ficha o selo esticava na largura toda. */
 .driverScoreBadge {
   justify-self: start;

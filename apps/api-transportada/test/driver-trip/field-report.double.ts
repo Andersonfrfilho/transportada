@@ -14,11 +14,11 @@ export type FieldReportState = {
   readonly dispatchedAtByTripId: Map<string, Date>
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
-  /** Spec 157 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
+  /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
   readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
   readonly proofsByAttachmentKey: Map<string, string>
-  /** ADR-0068 §1, spec 157 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
+  /** ADR-0069 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>

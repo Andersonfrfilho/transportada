@@ -209,7 +209,7 @@ function isDriverAddress(value: unknown): boolean {
   )
 }
 
-/** ADR-0068 §5: a nota é inteira de 0 a 100, ou `null` sem histórico. */
+/** ADR-0069 §5: a nota é inteira de 0 a 100, ou `null` sem histórico. */
 function isDriverScore(value: unknown): value is number | null {
   if (value === null) return true
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100
@@ -249,7 +249,7 @@ function isDriver(value: unknown): value is FleetDriverDetail {
   )
 }
 
-/** ADR-0068 §7: nunca uma coordenada aqui — só o motivo, os pontos e as datas. */
+/** ADR-0069 §7: nunca uma coordenada aqui — só o motivo, os pontos e as datas. */
 function isDriverPenalty(value: unknown): value is FleetDriverPenalty {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_PENALTY_KEYS) || !hasEveryKey(value, DRIVER_PENALTY_KEYS)) {
@@ -399,7 +399,7 @@ export function createFleetResponseAdapters() {
     return input
   }
 
-  /** Spec 157 RF10: só a listagem carrega `score`; a ficha criada/editada continua sem ele. */
+  /** Spec 159 RF10: só a listagem carrega `score`; a ficha criada/editada continua sem ele. */
   function scoredDriverFromApi(input: unknown): FleetDriverListItem {
     if (!isRecord(input)) throw invalid()
     const { score, ...driver } = input

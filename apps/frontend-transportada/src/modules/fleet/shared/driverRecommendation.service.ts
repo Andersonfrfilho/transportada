@@ -2,9 +2,9 @@
 import type { FleetDriverListItem } from './fleet.types'
 
 /**
- * Spec 157 RF11, ADR-0068 §7: o seletor de motoristas da viagem ordena por nota — da maior para a
+ * Spec 159 RF11, ADR-0069 §7: o seletor de motoristas da viagem ordena por nota — da maior para a
  * menor, `null` (sem histórico) sempre por último, e empate pelo nome. Pura e testável sem tela: a
- * ordenação não filtra ninguém, só ordena — a regra é "ordena, não filtra" (ADR-0068 §7).
+ * ordenação não filtra ninguém, só ordena — a regra é "ordena, não filtra" (ADR-0069 §7).
  */
 export function sortDriversByScore(
   drivers: readonly FleetDriverListItem[],

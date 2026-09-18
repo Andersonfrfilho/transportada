@@ -1,8 +1,8 @@
-# Spec 157 — Evidência
+# Spec 159 — Evidência
 
-## T1 — ADR-0068
+## T1 — ADR-0069
 
-Arquivo `docs/adr/0068-a-foto-obrigatoria-do-motorista-pesa-na-nota.md` já existia no worktree antes
+Arquivo `docs/adr/0069-a-foto-obrigatoria-do-motorista-pesa-na-nota.md` já existia no worktree antes
 desta sessão (aceita, cita ADR-0057 e ADR-0067 §5 emenda 2). Marcada como concluída junto do commit
 da T2.
 
@@ -560,7 +560,7 @@ via o atalho no topo).
 
 Decisões do usuário (2026-09-18): D1 sem retroatividade, D2 WhatsApp fora da nota, D3a relógio do
 aparelho com prazo, D3b substituta fica com a pior pontualidade, D4 penalidades seguem `fleet.read`.
-Registradas em `spec.md` (RF2–RF9, RF13, casos extremos) e em ADR-0068 (emenda 2026-09-18). Teste
+Registradas em `spec.md` (RF2–RF9, RF13, casos extremos) e em ADR-0069 (emenda 2026-09-18). Teste
 escrito antes da correção em cada item.
 
 | #      | Achado                                                                  | Correção                                                                                                                                                                                                                                                                                                                                                                              | Teste                                                                                                                                                                                                             | Commit                 |
@@ -678,7 +678,7 @@ E, sem numeração própria na lista original mas cobertos junto:
 
 - Foto grava no IndexedDB **antes** de esperar o GPS (até 8 s) — a posição chega depois e atualiza o
   mesmo anexo por `attachmentKey` (`applyAttachmentLocation`); se a drenagem subir antes da posição
-  resolver, a foto vai sem ela e conta como longe (ADR-0068 §4), nunca perdida.
+  resolver, a foto vai sem ela e conta como longe (ADR-0069 §4), nunca perdida.
   `test/driver-trip/offline-attachments.contract.ts` — `52e21880`.
 - `TripDeliveryProofSettingsPanel`: campo numérico vazio não vira `0` silencioso
   (`resolvePunctualityFieldValue` trata string vazia como `NaN`, reprovando
@@ -703,14 +703,14 @@ T11 fica `[x]`.
 
 ## T12 — Revisão de design e usabilidade (`web.md` §15)
 
-Prints gerados por `apps/frontend-transportada/test/spec-157-prints.smoke.spec.ts` (Playwright do
+Prints gerados por `apps/frontend-transportada/test/spec-159-prints.smoke.spec.ts` (Playwright do
 repo, API mockada sobre `driver-trip-smoke.helper.ts`, `fleet-smoke.helper.ts`,
 `trip-smoke.helper.ts`, `multi-vehicle-smoke.helper.ts` e `nfe-workspace-smoke.helper.ts`), PWA a
 390×844 e escritório a 1440×900, **temas escuro e claro** (a app oferece os dois). Build único +
 `vite preview` na 53117, fora do smoke da CI:
 
 ```
-PLAYWRIGHT_TEST_MATCH=spec-157-prints.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53117 \
+PLAYWRIGHT_TEST_MATCH=spec-159-prints.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53117 \
 PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=true PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
 VITE_SMOKE_AUTH_BYPASS=true bunx playwright test      # 22 passed
 ```
@@ -730,7 +730,7 @@ alvos de toque visíveis abaixo de 44 px.
 | 6   | Perfil                | "85 de 100" no tamanho do texto de apoio, sem dizer como a nota se forma nem por onde melhorar                                                             | Nota na fonte de display, frase de como ela cai e expira, botão "Fotos pendentes (n)" quando houver                                                                                            | `pwa-perfil-nota-*`, `pwa-perfil-sem-nota-*`          | `0142ea37` |
 | 7   | Seletores da viagem   | "95/100" solto não diz que é nota; leitor de tela lê "barra"; "Sem histórico" ambíguo                                                                      | Opção "Nota 95 de 100" / "Sem nota ainda" (`driverScore.option*`), nos dois seletores                                                                                                          | `escritorio-seletor-{nova-viagem,montar-roteiro}-*`   | `60431741` |
 | 8   | Lista / ficha         | Selo esticava na largura do fieldset; tabela de cinco colunas não cabia no painel lateral (~440px) e escondia pontos e prazo                               | Selo com `justify-self: start` e texto "40 de 100"/"Sem nota"; `DriverScoreSection` com lista: motivo e "−10 pontos" à vista, nota fiscal · entrega · expiração embaixo                        | `escritorio-lista-motoristas-*`, `escritorio-ficha-*` | `60431741` |
-| 9   | Painel do comprovante | Hint começava com "Spec 157:" (jargão interno na tela); erro de faixa não ligado ao campo                                                                  | Hint reescrito; `aria-describedby` do campo aponta para a mensagem. Os cinco campos e o erro de vazio conferidos                                                                               | `escritorio-painel-comprovante{,-erro}-*`             | `60431741` |
+| 9   | Painel do comprovante | Hint começava com "Spec 159:" (jargão interno na tela); erro de faixa não ligado ao campo                                                                  | Hint reescrito; `aria-describedby` do campo aponta para a mensagem. Os cinco campos e o erro de vazio conferidos                                                                               | `escritorio-painel-comprovante{,-erro}-*`             | `60431741` |
 | 10  | Smoke                 | `multi-vehicle-smoke.helper` servia motoristas sem `score`, que a validação da listagem exige desde a T10                                                  | `score` no dublê                                                                                                                                                                               | —                                                     | `f35020fe` |
 
 Conferido e mantido: o aviso **não** bloqueia "Entreguei" (o teste afirma o botão habilitado); o selo
@@ -741,7 +741,7 @@ dois temas; sem rolagem horizontal no celular; primitivos do design system (`But
 ### Pendências fora do escopo (registradas, não omitidas)
 
 - Cabeçalho do shell no celular: botões de menu, tema e sair com 32–36×38px (< 44px). Global, anterior
-  à spec 157 — pede tarefa própria no `DriverShellHeader`/shell.
+  à spec 159 — pede tarefa própria no `DriverShellHeader`/shell.
 - Lista de motoristas com a ficha aberta: a coluna "Nota" fica atrás da rolagem horizontal da tabela
   (layout lista + painel pré-existente).
 - `<input type=number>` cru no painel do comprovante: casa visualmente com os vizinhos (mesma altura e

@@ -330,7 +330,7 @@ describe('field-delivery: entrega + comprovante na mesma transação (spec 156 T
   })
 
   /**
-   * Spec 157 T6, ADR-0068 §1: com `photo = 'required'` e sem foto anexada, a resposta avisa
+   * Spec 159 T6, ADR-0069 §1: com `photo = 'required'` e sem foto anexada, a resposta avisa
    * `proofPending: true` — a entrega **continua aceita** (aceite 1). Ampliação do teste acima.
    */
   it('com photo = required e sem foto, proofPending é true — a entrega continua aceita', async () => {
@@ -429,7 +429,7 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
   })
 
   /**
-   * Spec 157 T11 (ALTO 2): o canhoto do escritório não classifica — nem penaliza o motorista (a foto
+   * Spec 159 T11 (ALTO 2): o canhoto do escritório não classifica — nem penaliza o motorista (a foto
    * de escritório não tem posição, e contaria como `away`), nem lava a foto dele fora da regra. A
    * pontualidade que já estava no evento fica; sem foto anterior, `not_required`.
    */

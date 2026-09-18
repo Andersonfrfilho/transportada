@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 157 RF10 (T8), aceite 6: a nota na listagem da frota e a rota da ficha com as penalidades.
+ * Spec 159 RF10 (T8), aceite 6: a nota na listagem da frota e a rota da ficha com as penalidades.
  * Leitura de `fleet.read`, como a listagem; motorista inexistente ou de outra empresa é 404; a
  * resposta nunca carrega posição — só motivo, pontos e datas.
  */
@@ -23,7 +23,7 @@ import {
 
 const DRIVER_SCORE_PATH = `${FLEET_DRIVERS_PATH}/${DRIVER_ID}/score`
 
-describe('fleet driver score http contract (spec 157 T8)', () => {
+describe('fleet driver score http contract (spec 159 T8)', () => {
   test('lists each driver with its score', async () => {
     const fixture = await createFleetHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
 

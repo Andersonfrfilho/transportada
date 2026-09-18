@@ -48,7 +48,7 @@ export function DriverTripWorkspacePage() {
   const [section, setSection] = useState<DriverSection>('trip')
   /** Spec 082 D7: a tela de pendentes abre por cima da seção corrente — banner e Perfil chegam nela. */
   const [isQueueOpen, setIsQueueOpen] = useState(false)
-  /** Spec 157 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
+  /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
   const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
@@ -77,14 +77,14 @@ export function DriverTripWorkspacePage() {
   /** Spec 082 D2: uma leitura ao abrir — recusa vira `null`, e a distância só não aparece. */
   const [lastKnownLocation, setLastKnownLocation] = useState<DriverReportedLocation | null>(null)
   /**
-   * Spec 157 (T11): o resultado da pontualidade fica visível fora da tela de pendentes — um aviso
+   * Spec 159 (T11): o resultado da pontualidade fica visível fora da tela de pendentes — um aviso
    * persistente até o motorista dispensar. Derivado direto do estado do hook a cada render, sem
    * `useEffect`: dispensar é só marcar o documento como lido.
    */
   const [dismissedProofOutcomeIds, setDismissedProofOutcomeIds] = useState<ReadonlySet<string>>(
     new Set(),
   )
-  /** Spec 157 (T12): de qual nota é cada aviso de pontualidade. */
+  /** Spec 159 (T12): de qual nota é cada aviso de pontualidade. */
   const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
     ReadonlyMap<string, ProofDocumentLabel>
   >(new Map())
@@ -246,7 +246,7 @@ export function DriverTripWorkspacePage() {
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
   const proofPendingCount = listProofPendingDocuments(snapshot).length
-  /** Spec 157 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
+  /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
   const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
     ([documentId]) => !dismissedProofOutcomeIds.has(documentId),
   )
@@ -290,7 +290,7 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
-        {/* Spec 157 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
+        {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
         {proofPendingCount > 0 ? (
           <button
             className={styles.queueBannerButton}
@@ -313,7 +313,7 @@ export function DriverTripWorkspacePage() {
           </button>
         ) : null}
 
-        {/* Spec 157 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
+        {/* Spec 159 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
         {visibleProofOutcomes.map(([documentId, outcome]) => (
           <DriverProofOutcomeNotice
             key={documentId}

@@ -14,7 +14,7 @@ export type FleetViewStatus = 'empty' | 'error' | 'forbidden' | 'loading' | 'rea
 export type FleetViewModel = Readonly<{
   canManageFleet: boolean
   canReadFleet: boolean
-  /** Spec 157 RF11: `score` vem junto — o seletor de motoristas da viagem ordena por ele. */
+  /** Spec 159 RF11: `score` vem junto — o seletor de motoristas da viagem ordena por ele. */
   driverDirectory?: readonly FleetDriverListItem[]
   drivers?: readonly FleetDriverListItem[]
   nextDriverCursor?: null | string

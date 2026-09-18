@@ -41,14 +41,14 @@ function readOptionalText(value: unknown): string {
 }
 
 /**
- * Spec 157 RF1: campo novo do canal do motorista. Ausente (snapshot antigo em cache) vira `false` —
+ * Spec 159 RF1: campo novo do canal do motorista. Ausente (snapshot antigo em cache) vira `false` —
  * o mesmo espírito de `readOptionalText`, nunca quebra a tela por um campo que ainda não chegou.
  */
 function readProofPending(value: unknown): boolean {
   return value === true
 }
 
-/** ADR-0068 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
+/** ADR-0069 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
 function readDriverScore(value: unknown): number | null {
   if (value === null || value === undefined) return null
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100
@@ -150,7 +150,7 @@ function toStop(value: unknown): DriverTripStop {
 }
 
 /**
- * Spec 157 (T11): item malformado da lista raiz não derruba a tela inteira — ele só some da lista,
+ * Spec 159 (T11): item malformado da lista raiz não derruba a tela inteira — ele só some da lista,
  * o mesmo espírito do resto deste arquivo (campo faltando é recusa explícita do item, não exceção).
  */
 function toPendingProof(value: unknown): PendingProofDocument | null {

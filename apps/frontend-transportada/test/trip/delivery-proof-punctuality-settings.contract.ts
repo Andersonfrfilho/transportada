@@ -36,7 +36,7 @@ function validSettings(overrides: Partial<Record<string, number>> = {}) {
 }
 
 /**
- * Spec 157 RF7, ADR-0068 §7: os cinco parâmetros da nota do motorista, junto do comprovante —
+ * Spec 159 RF7, ADR-0069 §7: os cinco parâmetros da nota do motorista, junto do comprovante —
  * `proofWindowMinutes` (5-1440), `proofRadiusMeters` (50-5000), `latePenaltyPoints` (0-100),
  * `missingPenaltyPoints` (0-100), `missingAfterHours` (1-168).
  */
@@ -75,7 +75,7 @@ describe('os cinco parâmetros da nota do motorista no painel de comprovante (RF
   })
 
   /**
-   * Spec 157 (T11, item 7): `Number('')` é `0`, e `latePenaltyPoints`/`missingPenaltyPoints`
+   * Spec 159 (T11, item 7): `Number('')` é `0`, e `latePenaltyPoints`/`missingPenaltyPoints`
    * aceitam `0` como valor válido — o campo vazio não pode virar "zero pontos" silenciosamente.
    */
   it('campo vazio nunca vira 0 silencioso — fica inválido até alguém digitar', () => {

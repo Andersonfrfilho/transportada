@@ -36,7 +36,7 @@ export type DriverTripDocument = {
   readonly id: string
   readonly number: string
   /**
-   * ADR-0068 §1, spec 157 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
+   * ADR-0069 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
    */
   readonly proofPending: boolean
@@ -96,7 +96,7 @@ export type DriverTrip = {
 }
 
 /**
- * Spec 157 T11 (ALTO 1): a nota entregue pelo próprio motorista nos 90 dias, com foto obrigatória
+ * Spec 159 T11 (ALTO 1): a nota entregue pelo próprio motorista nos 90 dias, com foto obrigatória
  * e sem foto. Vem na raiz do snapshot, fora das viagens: a última entrega conclui a viagem e ela
  * sai de `trips`, mas a foto ainda pode chegar pelo `/proof` (que aceita viagem `completed`).
  */
@@ -147,9 +147,9 @@ export type FindCurrentDriverTripResult = {
    * cadastro" não é "nada para hoje". Sem esta distinção o segundo caso esconde o primeiro.
    */
   readonly isRegisteredDriver: boolean
-  /** Spec 157 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
+  /** Spec 159 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
   readonly pendingProofs: readonly DriverPendingProof[]
-  /** ADR-0068 §6, spec 157 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
+  /** ADR-0069 §6, spec 159 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
   readonly score: number | null
   readonly trips: readonly DriverTrip[]
 }

@@ -12,7 +12,7 @@ function formatDate(value: string): string {
 }
 
 /**
- * Spec 157 RF10 (P5): a nota e o porquê dela, na ficha do motorista. Lista, não tabela: a ficha abre
+ * Spec 159 RF10 (P5): a nota e o porquê dela, na ficha do motorista. Lista, não tabela: a ficha abre
  * num painel lateral estreito, e cinco colunas ali escondiam os pontos e o prazo atrás de rolagem.
  */
 export function DriverScoreSection({ driverId }: DriverScoreSectionProps) {

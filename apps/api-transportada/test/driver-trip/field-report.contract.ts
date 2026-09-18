@@ -238,7 +238,7 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
   })
 
   /**
-   * Spec 157 T6, ADR-0068 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
+   * Spec 159 T6, ADR-0069 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
    * `proofPending` de novo, na mesma leitura — não fica preso ao valor da primeira resposta.
    */
   it('o reenvio da mesma chave recalcula proofPending, não reaproveita a primeira resposta', async () => {
@@ -332,7 +332,7 @@ describe('entreguei e não entreguei', () => {
   })
 
   /**
-   * Spec 157 T11 (ALTO 3): o no-op não grava um `delivered` novo — senão o evento repetido vira o
+   * Spec 159 T11 (ALTO 3): o no-op não grava um `delivered` novo — senão o evento repetido vira o
    * "último" da nota, sem foto, e esconde a foto que já estava no evento verdadeiro (nota e
    * `proofPending` passavam a ler o evento errado).
    */

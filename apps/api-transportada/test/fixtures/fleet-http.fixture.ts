@@ -49,7 +49,7 @@ type RouteDependencies = {
   }
 }
 
-/** Spec 157 T8: a listagem já chega com a nota ao lado de cada motorista. */
+/** Spec 159 T8: a listagem já chega com a nota ao lado de cada motorista. */
 export const SCORED_DRIVER_PAGE = {
   ...DRIVER_PAGE,
   items: DRIVER_PAGE.items.map((driver) => ({ ...driver, score: 85 })),

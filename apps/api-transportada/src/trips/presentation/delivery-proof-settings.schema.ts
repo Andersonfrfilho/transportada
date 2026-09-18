@@ -29,7 +29,7 @@ export const deliveryProofOverridesSchema = z
   })
   .strict()
 
-/** ADR-0068 §7, spec 157 RF7: as faixas do painel — fora delas é `400 invalidRequest`. */
+/** ADR-0069 §7, spec 159 RF7: as faixas do painel — fora delas é `400 invalidRequest`. */
 export const deliveryProofPunctualitySettingsSchema = z
   .object({
     proofWindowMinutes: z.number().int().min(5).max(1440),
@@ -42,9 +42,9 @@ export const deliveryProofPunctualitySettingsSchema = z
 
 /**
  * O corpo do `PUT` da configuração geral: os quatro modos + os cinco parâmetros da nota do
- * motorista (ADR-0068). A exceção por CNPJ continua com `deliveryProofSettingsSchema` sozinho.
+ * motorista (ADR-0069). A exceção por CNPJ continua com `deliveryProofSettingsSchema` sozinho.
  *
- * Spec 157 T11 (item 6): os cinco parâmetros são opcionais — o que não veio mantém o valor gravado
+ * Spec 159 T11 (item 6): os cinco parâmetros são opcionais — o que não veio mantém o valor gravado
  * (ou o padrão, sem linha). Obrigatórios, o painel antigo em cache levava `400` ao salvar os modos.
  *
  * ADR-0069 §6: o interruptor da leitura do canhoto é da configuração geral, nunca da exceção, e é

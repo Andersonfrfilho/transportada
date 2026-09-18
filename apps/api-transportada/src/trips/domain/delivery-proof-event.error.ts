@@ -4,7 +4,7 @@
 import { DiagnosableError } from '../../shared/diagnosable.error.js'
 
 /**
- * Spec 157 T11: o evento de entrega que `findDeliveryEventId` acabou de resolver sumiu antes de
+ * Spec 159 T11: o evento de entrega que `findDeliveryEventId` acabou de resolver sumiu antes de
  * `findDeliveryContext` lê-lo (a nota foi desvinculada, ou a viagem apagada, entre as duas
  * leituras). Não é erro do motorista — é corrida, e o `new Error` cru perdia o motivo no log.
  */

@@ -13,7 +13,7 @@ export type DriverTripDocument = Readonly<{
   grossWeight: string
   id: string
   number: string
-  /** Spec 157 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
+  /** Spec 159 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
   proofPending: boolean
   recipientName: string
   returnReason: string | null
@@ -77,7 +77,7 @@ export type DriverTrip = Readonly<{
 }>
 
 /**
- * Spec 157 (T11, revisão): a foto pendente **na raiz** do snapshot — sai daqui mesmo sem viagem
+ * Spec 159 (T11, revisão): a foto pendente **na raiz** do snapshot — sai daqui mesmo sem viagem
  * ativa, porque a nota entregue pode ser de uma viagem já `completed`. É esta lista, não mais o
  * percurso por `trips`, que alimenta a tela "Fotos pendentes" e o contador do workspace.
  */
@@ -94,15 +94,15 @@ export type PendingProofDocument = Readonly<{
 
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
-  /** Spec 157 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
+  /** Spec 159 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
   pendingProofs: readonly PendingProofDocument[]
-  /** Spec 157 RF2/RF9, ADR-0068 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
+  /** Spec 159 RF2/RF9, ADR-0069 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
   score: number | null
   trips: readonly DriverTrip[]
 }>
 
 /**
- * ⚠️ Cópia por valor de `ProofPunctuality` (`delivery-proof-punctuality.policy.ts`, ADR-0068 §3-4).
+ * ⚠️ Cópia por valor de `ProofPunctuality` (`delivery-proof-punctuality.policy.ts`, ADR-0069 §3-4).
  * `not_required` nunca aparece na resposta de `/proof` para foto obrigatória; ela existe do lado da
  * API para nota sem exigência — o app não recebe esse valor nesta rota.
  */

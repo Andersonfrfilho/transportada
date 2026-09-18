@@ -33,7 +33,7 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
 export const DEFAULT_CANHOTO_OCR_ENABLED = false
 
 /**
- * ADR-0068 §3-5, spec 157 RF7: os parâmetros da nota do motorista. Só existem na configuração
+ * ADR-0069 §3-5, spec 159 RF7: os parâmetros da nota do motorista. Só existem na configuração
  * **geral** da empresa — a exceção por CNPJ (`deliveryProofSettingOverrides`) continua só com os
  * quatro campos de `DeliveryProofFieldSettings`, porque a regra da nota é da empresa, não do
  * destinatário.
@@ -46,7 +46,7 @@ export type DeliveryProofPunctualitySettings = {
   readonly missingAfterHours: number
 }
 
-/** ADR-0068 §5: os números escolhidos na conversa da spec — configuráveis por empresa. */
+/** ADR-0069 §5: os números escolhidos na conversa da spec — configuráveis por empresa. */
 export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
   latePenaltyPoints: 5,
   missingAfterHours: 24,

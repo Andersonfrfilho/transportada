@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0068 §5-6, spec 157 RF8-RF10 (T7): busca e agrupa as entregas que pesam na nota do
+ * ADR-0069 §5-6, spec 159 RF8-RF10 (T7): busca e agrupa as entregas que pesam na nota do
  * motorista. A regra (quais penalizam, quantos pontos, `null` sem histórico) mora em
  * `computeDriverScore`; aqui só se lê o banco — uma consulta de entregas para a lista inteira de
  * motoristas (sem N+1) e as duas leituras de configuração da empresa, em paralelo.
@@ -60,7 +60,7 @@ type DeliveryRow = {
 }
 
 type ScoreSettings = {
-  /** Spec 157 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
+  /** Spec 159 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
   readonly effectiveSince: Date | undefined
   readonly lookup: ProofSettingsLookup
   readonly score: DriverScoreSettings
@@ -115,7 +115,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
 
   /**
    * O motorista do evento é `on_behalf_of_driver_id` (escritório), `reported_by_driver_id` (app e
-   * WhatsApp, gravado no evento — spec 157 T11) ou, no evento anterior a essa coluna, o cadastro de
+   * WhatsApp, gravado no evento — spec 159 T11) ou, no evento anterior a essa coluna, o cadastro de
    * frota ligado ao vínculo de `actor_user_id`. Toda tabela do join carrega o `company_id` do
    * contexto.
    */
@@ -144,7 +144,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
       .where(
         and(
           /**
-           * Spec 157 T11 (decisão D2): só o app do motorista entra na nota. O escritório já é
+           * Spec 159 T11 (decisão D2): só o app do motorista entra na nota. O escritório já é
            * obrigado a mandar a foto na baixa, e o WhatsApp não será liberado agora — ele continua
            * calculando `proofPending`, mas não pesa.
            */
@@ -190,7 +190,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
  * `distinct on`: se a última entrega foi do escritório, a nota sai da nota do motorista, mesmo que
  * um evento anterior tenha sido dele.
  *
- * Spec 157 T11 (item 7): o `distinct on` só roda sobre as notas que têm **alguma** entrega dos
+ * Spec 159 T11 (item 7): o `distinct on` só roda sobre as notas que têm **alguma** entrega dos
  * motoristas pedidos na janela (`buildRequestedDriverDocuments`) — a ficha de um motorista não
  * varre mais a empresa inteira, e o "último evento" continua sendo o da nota, de qualquer autor.
  */

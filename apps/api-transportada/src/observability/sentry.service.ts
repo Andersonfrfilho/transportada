@@ -23,7 +23,7 @@ import * as Sentry from '@sentry/bun'
 const SENTRY_EXTRA_REDACTED_KEYS = ['cookies', 'ip_address', 'params'] as const
 
 /**
- * Spec 157 T11 (item 9): `DrizzleQueryError` escreve os parâmetros da consulta na própria mensagem
+ * Spec 159 T11 (item 9): `DrizzleQueryError` escreve os parâmetros da consulta na própria mensagem
  * (`Failed query: <sql>\nparams: <valores>`), e o redator por chave não os vê. O SQL fica — é ele
  * que agrupa o erro —, os valores (coordenada, nome, documento) não.
  */

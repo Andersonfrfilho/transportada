@@ -159,7 +159,7 @@ export type DriverFieldReportTransactionPort = {
     /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
     readonly recordedAt?: Date
     /**
-     * Spec 157 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
+     * Spec 159 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
      * daqui, não do vínculo atual da conta. Ausente no escritório (ele usa `onBehalfOfDriverId`).
      */
     readonly reportedByDriverId?: string
@@ -171,7 +171,7 @@ export type DriverFieldReportTransactionPort = {
    * reabre o objeto no bucket: quem chama já subiu os bytes antes de entrar na transação.
    */
   saveDeliveryProofWithinTransaction(input: {
-    /** ADR-0068 §4: `null` no canal `office` — spec 157 T5, o canhoto não classifica pontualidade. */
+    /** ADR-0069 §4: `null` no canal `office` — spec 159 T5, o canhoto não classifica pontualidade. */
     readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
@@ -186,7 +186,7 @@ export type DriverFieldReportTransactionPort = {
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
-    /** ADR-0068 §6: o canal `office` não entra na nota — grava sempre `not_required`. */
+    /** ADR-0069 §6: o canal `office` não entra na nota — grava sempre `not_required`. */
     readonly punctuality: TripDeliveryProofPunctuality
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
@@ -202,7 +202,7 @@ export type DriverFieldReportTransactionPort = {
     readonly kind: TripDeliveryProofKind
   }): Promise<string | null>
   /**
-   * ADR-0068 §1, spec 157 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
+   * ADR-0069 §1, spec 159 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
    * para `proofPending` na resposta e no snapshot compartilharem a mesma leitura.
    */
   findProofExistsForEvent(input: {
@@ -227,7 +227,7 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
   }): Promise<{ readonly id: string } | null>
   /**
-   * Spec 157 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
+   * Spec 159 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
    * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).
    */
   findLatestEventForDocument(input: {

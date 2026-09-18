@@ -280,7 +280,7 @@ function DocumentRow({
   return (
     <li className={styles.document}>
       <span>{document.recipientName}</span>
-      {/* Spec 157 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
+      {/* Spec 159 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
       {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
       {isProofPendingWarningDue({ document, stopProofSettings }) ? (
         <div className={styles.proofPendingWarning} role="note">
@@ -398,7 +398,7 @@ export type DeliveryProofSectionProps = Readonly<{
  * `required` bloqueia o anexo com mensagem **no campo** (todos de uma vez), e o documento do
  * recebedor entra mascarado e sobe canônico. Sem canvas/pointer, a assinatura cai para a foto.
  *
- * Spec 157 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
+ * Spec 159 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
  * a mesma validação, sem uma segunda implementação divergindo calada.
  */
 export function DeliveryProofSection({

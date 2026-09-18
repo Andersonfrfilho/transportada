@@ -447,15 +447,15 @@ export type FleetDriverFilters = Readonly<{
   statusEq?: FleetDriverStatus
 }>
 
-/** Spec 157 RF10: a listagem traz a nota ao lado de cada motorista — `null` sem histórico. */
+/** Spec 159 RF10: a listagem traz a nota ao lado de cada motorista — `null` sem histórico. */
 export type FleetDriverListItem = FleetDriverDetail & Readonly<{ score: number | null }>
 
-/** ADR-0068 §5: as duas razões de penalidade — cópia por valor de `DRIVER_PENALTY_REASON` da API. */
+/** ADR-0069 §5: as duas razões de penalidade — cópia por valor de `DRIVER_PENALTY_REASON` da API. */
 export const DRIVER_PENALTY_REASONS = ['late_proof', 'missing_proof'] as const
 export type DriverPenaltyReason = (typeof DRIVER_PENALTY_REASONS)[number]
 
 /**
- * Spec 157 RF10, ADR-0068 §7: a ficha do motorista mostra o porquê da nota — nota fiscal, data da
+ * Spec 159 RF10, ADR-0069 §7: a ficha do motorista mostra o porquê da nota — nota fiscal, data da
  * entrega, motivo, pontos e quando expira. Nunca a coordenada da foto (dado pessoal de localização).
  */
 export type FleetDriverPenalty = Readonly<{

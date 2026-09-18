@@ -165,7 +165,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
     ).toBe(false)
   })
 
-  /** Spec 157 (T11, item 8): o cartão chama o serviço, nunca reimplementa a condição à parte. */
+  /** Spec 159 (T11, item 8): o cartão chama o serviço, nunca reimplementa a condição à parte. */
   it('o cartão da parada usa isProofPendingWarningDue, sem reimplementar a condição', () => {
     const card = readFileSync(CARD, 'utf8')
     expect(card).toInclude('isProofPendingWarningDue({ document, stopProofSettings })')
@@ -173,7 +173,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
   })
 
   /**
-   * Spec 157 (T11, item 3, ADR-0068 D3a/D3b): tirar a foto de novo não melhora a pontualidade, e a
+   * Spec 159 (T11, item 3, ADR-0069 D3a/D3b): tirar a foto de novo não melhora a pontualidade, e a
    * foto que sobe muito depois conta como tardia mesmo com o relógio do aparelho dizendo outra
    * hora — o aviso tem de dizer isso em linguagem simples.
    */
@@ -185,7 +185,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
   })
 
   /**
-   * Spec 157 (T12, revisão de design): o aviso aparece **antes** do "Entreguei" — dizer que a entrega
+   * Spec 159 (T12, revisão de design): o aviso aparece **antes** do "Entreguei" — dizer que a entrega
    * já está registrada era falso ali. Título curto e uma frase à vista; a regra fina fica a um toque.
    */
   it('o aviso do cartão é curto, não mente sobre a entrega e guarda o detalhe num toque', () => {
@@ -199,7 +199,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
 })
 
 /**
- * Spec 157 (T11, revisão): `pendingProofs` sai da **raiz** do snapshot, não mais do percurso por
+ * Spec 159 (T11, revisão): `pendingProofs` sai da **raiz** do snapshot, não mais do percurso por
  * `trips` — é o único jeito de ver a pendente de uma viagem já `completed`, que sai de `trips` mas
  * continua aqui. Contrato novo do frontend registrado em `evidence.md` §T11.
  */

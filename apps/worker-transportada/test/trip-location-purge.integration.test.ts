@@ -72,7 +72,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     `)
   }
 
-  /** Spec 157 T11: a foto do comprovante presa ao evento, com a posição que o aparelho leu. */
+  /** Spec 159 T11: a foto do comprovante presa ao evento, com a posição que o aparelho leu. */
   async function insertProof(input: {
     readonly createdAt: string
     readonly eventId: string
@@ -187,7 +187,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     expect(byId.get(freshEventId)?.latitude).not.toBeNull()
     expect(byId.get(withoutLocationEventId)?.latitude).toBeNull()
 
-    // Spec 157 T11: a foto vencida perde a posição e guarda o resto; a recente fica inteira
+    // Spec 159 T11: a foto vencida perde a posição e guarda o resto; a recente fica inteira
     expect(result.counters.redactedProofs).toBe(1)
     const proofs = await db.execute(sql`
       select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "punctuality"

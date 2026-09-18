@@ -31,7 +31,7 @@
   padding: var(--space-3);
 }
 
-/* Spec 157 (T11): resultado da pontualidade — persiste até o motorista dispensar. */
+/* Spec 159 (T11): resultado da pontualidade — persiste até o motorista dispensar. */
 .proofOutcomeToast {
   align-items: center;
   background: color-mix(in srgb, var(--color-copper) 18%, transparent);
@@ -626,7 +626,7 @@
 }
 
 /*
- * Spec 157 RF12: aviso antes de entregar — cobre suave, nunca o vermelho da recusa. O texto fica na
+ * Spec 159 RF12: aviso antes de entregar — cobre suave, nunca o vermelho da recusa. O texto fica na
  * cor do corpo e em 1rem: cobre sobre cobre some no sol, e o motorista lê isso de pé, com uma mão.
  */
 .proofPendingWarning {
@@ -676,7 +676,7 @@
   width: 100%;
 }
 
-/* Spec 157 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */
+/* Spec 159 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */
 .pendingProofItem {
   background: var(--color-graphite);
   border: 1px solid var(--color-slate);

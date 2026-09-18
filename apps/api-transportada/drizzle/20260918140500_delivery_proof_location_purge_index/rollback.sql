@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 157 T11 (item 8): o índice parcial que serve o expurgo da posição da foto. Só DDL
+-- Desfaz a spec 159 T11 (item 8): o índice parcial que serve o expurgo da posição da foto. Só DDL
 -- de índice — o expurgo continua correto sem ele, só varre mais.
 BEGIN;
 

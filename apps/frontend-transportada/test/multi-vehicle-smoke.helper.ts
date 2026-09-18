@@ -185,7 +185,7 @@ export async function mockMultiVehicleApi(page: Page): Promise<MultiVehicleMockS
     }
     await fulfillJson(route, {
       data: [
-        /** Spec 157 RF10: a listagem carrega `score` — sem ele a validação recusa a página. */
+        /** Spec 159 RF10: a listagem carrega `score` — sem ele a validação recusa a página. */
         { ...DRIVER_DETAIL, id: AGGREGATE_DRIVER_ID, name: 'Agregado Sintetico', score: 72 },
         { ...DRIVER_DETAIL, id: STAFF_DRIVER_ID, name: 'Motorista da Casa', score: null },
       ],

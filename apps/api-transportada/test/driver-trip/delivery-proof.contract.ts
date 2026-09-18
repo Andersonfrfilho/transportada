@@ -202,7 +202,7 @@ describe('o comprovante da entrega', () => {
   })
 
   /**
-   * Spec 082 (revisão, item 5) + spec 157 (casos extremos): reenvio com a mesma chave converge sem
+   * Spec 082 (revisão, item 5) + spec 159 (casos extremos): reenvio com a mesma chave converge sem
    * duplicar nem regravar, e a pontualidade já gravada não é recalculada.
    */
   it('reenvio com a mesma attachmentKey devolve o comprovante existente sem tocar no bucket, nem reclassificar', async () => {
@@ -235,12 +235,12 @@ describe('o comprovante da entrega', () => {
   })
 
   /**
-   * Spec 157, aceite 3-4 (ADR-0068 §2-4): a pontualidade da foto é gravada e viaja na resposta. Os
+   * Spec 159, aceite 3-4 (ADR-0069 §2-4): a pontualidade da foto é gravada e viaja na resposta. Os
    * casos completos de `classifyProofPunctuality` já estão em
    * `test/trip-delivery-proof/punctuality.contract.ts` (T2) — aqui só se prova que o caso de uso
    * junta as peças certas (settings da nota, contexto do evento, `capturedAt`/posição do upload).
    */
-  describe('pontualidade da foto (spec 157 RF4-RF6)', () => {
+  describe('pontualidade da foto (spec 159 RF4-RF6)', () => {
     async function withPhotoMode(
       world: ReturnType<typeof buildWorld>,
       photoMode: 'off' | 'optional' | 'required',
@@ -313,7 +313,7 @@ describe('o comprovante da entrega', () => {
     })
 
     /**
-     * Spec 157 T11 (D3b): a substituta nunca melhora a pontualidade — a pontual depois da tardia
+     * Spec 159 T11 (D3b): a substituta nunca melhora a pontualidade — a pontual depois da tardia
      * continua `late`, senão bastava tirar outra foto no lugar certo para apagar o atraso.
      */
     it('foto pontual que substitui a tardia continua late', async () => {

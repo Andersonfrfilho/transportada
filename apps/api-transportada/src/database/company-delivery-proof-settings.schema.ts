@@ -56,7 +56,7 @@ export const companyDeliveryProofSettings = pgTable(
      */
     canhotoOcrEnabled: boolean('canhoto_ocr_enabled').notNull().default(false),
     /**
-     * ADR-0068 §3-5, spec 157 RF7: parâmetros da nota do motorista — só na configuração geral, a
+     * ADR-0069 §3-5, spec 159 RF7: parâmetros da nota do motorista — só na configuração geral, a
      * exceção por CNPJ (`deliveryProofSettingOverrides` abaixo) não os carrega, porque a regra é da
      * empresa, não do destinatário.
      */
@@ -66,7 +66,7 @@ export const companyDeliveryProofSettings = pgTable(
     missingPenaltyPoints: integer('missing_penalty_points').notNull().default(10),
     missingAfterHours: integer('missing_after_hours').notNull().default(24),
     /**
-     * Spec 157 T11 (decisão D1 do usuário, sem retroatividade): a nota do motorista só conta
+     * Spec 159 T11 (decisão D1 do usuário, sem retroatividade): a nota do motorista só conta
      * entrega a partir daqui. A migration grava o instante dela em toda linha existente e cria a
      * linha de fábrica para empresa que ainda não tinha — empresa criada depois nasce sem entrega
      * anterior à regra, e sem linha não há corte. O `PUT` da configuração nunca o altera.

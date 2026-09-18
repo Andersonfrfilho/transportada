@@ -1,4 +1,4 @@
-# Spec 157 — Tarefas
+# Spec 159 — Tarefas
 
 | fase | tasks                                                                | modelo recomendado       | fallback se der 429 |
 | ---- | -------------------------------------------------------------------- | ------------------------ | ------------------- |
@@ -18,7 +18,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 
 ## Fase 0
 
-- [x] **T1 🧠 ADR-0068** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
+- [x] **T1 🧠 ADR-0069** — "A foto obrigatória do motorista não recusa a entrega, pesa na nota".
       Registra a decisão do usuário, a exceção ao 422 da ADR-0067 para o canal do motorista, RF5/RF6/RF8,
       e que foto sem posição conta como longe. Aceite: arquivo em `docs/adr/`, ADR-0057 e ADR-0067 citadas.
 
@@ -67,7 +67,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/157-a-foto-obrigatoria-pesa-na-nota-do-motorista/
+/oh-my-claudecode:autopilot Execute a spec specs/159-a-foto-obrigatoria-pesa-na-nota-do-motorista/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: T1 🧠 → opus · Fase 1–2 → executor model=sonnet · T7 🧠 → opus (validar com architect) ·
 Fase 3–4 → executor model=sonnet · T11 → code-reviewer model=opus · T12 → designer model=opus.

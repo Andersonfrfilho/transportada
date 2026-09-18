@@ -17,7 +17,7 @@ type DriverProofOutcomeNoticeProps = Readonly<{
 const GOOD_OUTCOMES: readonly ProofPunctuality[] = ['on_time', 'not_required']
 
 /**
- * Spec 157 (T11/T12): o veredito da foto, fora da lista de pendentes, até ser dispensado. Nomeia a
+ * Spec 159 (T11/T12): o veredito da foto, fora da lista de pendentes, até ser dispensado. Nomeia a
  * nota — com três avisos na tela, "registrada fora do prazo" sozinho não diz qual foi — e separa a
  * notícia boa da ruim por ícone e texto, com a cor só reforçando.
  */

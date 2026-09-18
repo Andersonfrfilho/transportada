@@ -72,7 +72,7 @@ export function isFieldDeliverySettings(value: unknown): value is FieldDeliveryS
   return isRecord(value) && typeof value['canhotoOcrEnabled'] === 'boolean'
 }
 
-/** Spec 157 RF7, ADR-0068 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
+/** Spec 159 RF7, ADR-0069 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
 export const DELIVERY_PROOF_PUNCTUALITY_FIELDS = [
   'proofWindowMinutes',
   'proofRadiusMeters',
@@ -97,7 +97,7 @@ export const DELIVERY_PROOF_PUNCTUALITY_RANGES: Readonly<
   proofWindowMinutes: { max: 1440, min: 5 },
 }
 
-/** ADR-0068 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
+/** ADR-0069 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
 export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
   latePenaltyPoints: 5,
   missingAfterHours: 24,
@@ -119,7 +119,7 @@ export function isDeliveryProofPunctualityValue(
 }
 
 /**
- * Spec 157 (T11, item 7): o campo em branco **nunca** vira `0` silencioso — `Number('')` é `0`, e
+ * Spec 159 (T11, item 7): o campo em branco **nunca** vira `0` silencioso — `Number('')` é `0`, e
  * `latePenaltyPoints`/`missingPenaltyPoints` aceitam `0` como valor válido, então o campo vazio
  * passaria como "zero pontos" sem o motorista ter digitado nada. Vazio vira `NaN`: reprova
  * `Number.isInteger` em `isDeliveryProofPunctualityValue` e aparece com a mensagem de erro do campo.

@@ -54,7 +54,7 @@ function buildIdentity(permissions: readonly string[]) {
 }
 
 /**
- * Spec 157 (T12): o que o print da foto obrigatória precisa por cima do snapshot padrão — a
+ * Spec 159 (T12): o que o print da foto obrigatória precisa por cima do snapshot padrão — a
  * configuração da parada, as fotos pendentes da raiz e a nota. Ausente, o snapshot é o de sempre.
  */
 export type DriverTripProofScenario = Readonly<{

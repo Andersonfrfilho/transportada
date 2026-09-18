@@ -31,7 +31,7 @@ export type TripLocationPurgeRoutineDependencies = {
   /** ADR-0056 §2: o rastro ao vivo, com prazo próprio e muito mais curto que o da coordenada. */
   readonly purgeStalePings: PurgeStalePings
   readonly redact: RedactTripLocations
-  /** Spec 157 T11: a posição da foto do comprovante, no mesmo corte de 90 dias. */
+  /** Spec 159 T11: a posição da foto do comprovante, no mesmo corte de 90 dias. */
   readonly redactProofLocations: RedactDeliveryProofLocations
 }
 

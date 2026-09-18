@@ -13,7 +13,7 @@ const DELIVERED_AT = new Date('2026-09-18T12:00:00.000Z')
 const RECEIVED_AT = new Date('2026-09-18T12:15:00.000Z')
 const STOP_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
 
-describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
+describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
   test('não exige quando o modo não é required', () => {
     expect(
       classifyProofPunctuality({
@@ -243,8 +243,8 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
   })
 })
 
-/** Spec 157 T11: as duas brechas que a revisão achou no veredito da foto. */
-describe('antifraude do veredito (spec 157 T11, D3a e item 4)', () => {
+/** Spec 159 T11: as duas brechas que a revisão achou no veredito da foto. */
+describe('antifraude do veredito (spec 159 T11, D3a e item 4)', () => {
   /**
    * D3a: o aparelho diz que tirou a foto na hora da entrega, mas ela chegou 30 h depois. O relógio
    * dele só vale até `missingAfterHours` (24) antes do recebimento — a referência vira entrega + 6 h.
@@ -307,11 +307,11 @@ describe('antifraude do veredito (spec 157 T11, D3a e item 4)', () => {
 })
 
 /**
- * Spec 157 T11, decisão D3(b) do usuário: substituir a foto (upsert por evento+tipo) nunca melhora
+ * Spec 159 T11, decisão D3(b) do usuário: substituir a foto (upsert por evento+tipo) nunca melhora
  * a pontualidade gravada — fica a pior das duas, e `late` com `away` vira `late_and_away`. Sem isso,
  * a foto tardia seria "lavada" por uma segunda foto tirada depois no lugar certo.
  */
-describe('substituição da foto fica com a pior pontualidade (spec 157 T11, D3b)', () => {
+describe('substituição da foto fica com a pior pontualidade (spec 159 T11, D3b)', () => {
   const cases: ReadonlyArray<
     readonly [ProofPunctuality | undefined, ProofPunctuality, ProofPunctuality]
   > = [

@@ -43,7 +43,7 @@ export type DeliveryProofSettingsDependencies = {
 }
 
 /**
- * Spec 157 T11 (item 6): os modos sempre vêm; os parâmetros da nota, só os que mudam. O interruptor
+ * Spec 159 T11 (item 6): os modos sempre vêm; os parâmetros da nota, só os que mudam. O interruptor
  * da leitura do canhoto (ADR-0069 §6) é opcional do mesmo jeito.
  */
 type CompanyDeliveryProofSettingsInput = DeliveryProofFieldSettings & {

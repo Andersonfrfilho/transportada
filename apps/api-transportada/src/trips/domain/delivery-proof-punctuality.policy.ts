@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0068 §2-4, spec 157 RF4-RF6: a foto obrigatória do motorista nunca recusa a entrega — ela
+ * ADR-0069 §2-4, spec 159 RF4-RF6: a foto obrigatória do motorista nunca recusa a entrega — ela
  * classifica a pontualidade da foto para a nota (`fleet/domain/driver-score.policy.ts`). Regra pura,
  * sem I/O; quem lê `trip_stops`/`trip_stop_events`/`trip_delivery_proofs` é o repositório.
  */
@@ -12,7 +12,7 @@ import { MILLISECONDS_PER_HOUR, MILLISECONDS_PER_MINUTE } from '../../shared/tim
 import { REQUIRED_PROOF_FIELD_MODE } from './delivery-event.constant.js'
 import { DELIVERED_AT_FUTURE_TOLERANCE_MILLISECONDS } from './field-delivery-timing.policy.js'
 
-/** ADR-0068 §2: os cinco vereditos que uma foto de entrega pode receber. */
+/** ADR-0069 §2: os cinco vereditos que uma foto de entrega pode receber. */
 export const PROOF_PUNCTUALITY = {
   away: 'away',
   lateAndAway: 'late_and_away',
@@ -42,7 +42,7 @@ export type ClassifyProofPunctualityParams = {
   readonly proofWindowMinutes: number
   readonly proofRadiusMeters: number
   /**
-   * Spec 157 T11 (decisão D3a): o relógio do aparelho só é aceito até este tanto antes do
+   * Spec 159 T11 (decisão D3a): o relógio do aparelho só é aceito até este tanto antes do
    * recebimento. É o mesmo prazo da foto ausente — foto que subiu depois dele não pode alegar ter
    * sido tirada na hora da entrega.
    */
@@ -53,7 +53,7 @@ export type ClassifyProofPunctualityParams = {
  * RF5: o `capturedAt` do aparelho vale, mas só dentro de `[entrega − 2 min, recebimento + 2 min]` —
  * a mesma folga da baixa pelo escritório. Ausente, a referência é o recebimento.
  *
- * Spec 157 T11 (D3a): o piso também nunca fica antes de `recebimento − missingAfterHours`. Sem isso,
+ * Spec 159 T11 (D3a): o piso também nunca fica antes de `recebimento − missingAfterHours`. Sem isso,
  * uma foto tirada dias depois, com o relógio do aparelho voltado para a hora da entrega, passava
  * como pontual pela fila offline.
  */
@@ -90,7 +90,7 @@ function isAway(params: ClassifyProofPunctualityParams): boolean {
   if (distance === null) return false
 
   /**
-   * Spec 157 T11 (item 4): a precisão declarada soma ao raio, mas no máximo um raio a mais — senão
+   * Spec 159 T11 (item 4): a precisão declarada soma ao raio, mas no máximo um raio a mais — senão
    * `accuracyMeters` enorme transformava qualquer lugar em "no local".
    */
   const accuracy = Math.min(params.photoPosition.accuracyMeters ?? 0, params.proofRadiusMeters)
@@ -113,7 +113,7 @@ export type MergeProofPunctualityParams = {
 }
 
 /**
- * Spec 157 T11 (decisão D3b do usuário, 2026-09-18): a foto substituída nunca melhora a
+ * Spec 159 T11 (decisão D3b do usuário, 2026-09-18): a foto substituída nunca melhora a
  * pontualidade. Fica a pior das duas — `late` e `away` pesam igual, e os dois juntos são
  * `late_and_away`. `on_time` só vence `not_required`. É também o que impede a foto do escritório
  * (`not_required`) de lavar a do motorista.

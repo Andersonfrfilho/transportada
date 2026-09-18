@@ -16,7 +16,7 @@ import { createDeliveryProofSettingsRoutes } from '../../src/trips/presentation/
 import { companyDeliveryProofSettingsSchema } from '../../src/trips/presentation/delivery-proof-settings.schema.js'
 
 /**
- * ADR-0068 §3-5, spec 157 T4/RF7: os cinco parâmetros da nota do motorista, junto da configuração
+ * ADR-0069 §3-5, spec 159 T4/RF7: os cinco parâmetros da nota do motorista, junto da configuração
  * geral do comprovante. A exceção por CNPJ não os carrega — só a configuração geral.
  */
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
@@ -107,8 +107,8 @@ const VALID_BODY: CompanyDeliveryProofSettings = {
   signature: 'optional',
 }
 
-describe('delivery proof punctuality settings (spec 157 T4, ADR-0068 §3-5)', () => {
-  test('GET without a stored row answers the ADR-0068 §5 defaults', async () => {
+describe('delivery proof punctuality settings (spec 159 T4, ADR-0069 §3-5)', () => {
+  test('GET without a stored row answers the ADR-0069 §5 defaults', async () => {
     const response = await callRoute({ dependencies: fakeDependencies(null), method: 'GET' })
 
     expect(response.status).toBe(200)
@@ -126,7 +126,7 @@ describe('delivery proof punctuality settings (spec 157 T4, ADR-0068 §3-5)', ()
   })
 
   /**
-   * Spec 157 T11 (item 6): o `PUT` que não manda os cinco parâmetros novos — o painel antigo, ou um
+   * Spec 159 T11 (item 6): o `PUT` que não manda os cinco parâmetros novos — o painel antigo, ou um
    * cliente que só troca o modo da foto — mantém o que estava gravado, nunca volta ao padrão.
    */
   test('PUT without the punctuality params keeps the stored ones', async () => {

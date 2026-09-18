@@ -43,7 +43,7 @@ export type DriverProofInput = Readonly<{
 }>
 
 /**
- * Spec 157 (revisão D6): todo anexo aceito vira `queued` — a fila sempre recebe primeiro, mesmo
+ * Spec 159 (revisão D6): todo anexo aceito vira `queued` — a fila sempre recebe primeiro, mesmo
  * online, e a drenagem sobe quase na hora.
  */
 export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
@@ -57,7 +57,7 @@ export type DriverTripController = Readonly<{
   isQueueLoading: boolean
   isSyncing: boolean
   /**
-   * Spec 157 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
+   * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
    * persistido, e o snapshot não carrega esse detalhe por documento.
    */
@@ -167,7 +167,7 @@ export function useDriverTrip(
           return next
         })
       }
-      /* Spec 157 (T12): foto enviada tira a nota de `pendingProofs` — sem reler, a contagem mentia. */
+      /* Spec 159 (T12): foto enviada tira a nota de `pendingProofs` — sem reler, a contagem mentia. */
       if (result.sent > 0 || result.rejected > 0 || result.attachmentsSent.length > 0) {
         void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
       }
@@ -240,7 +240,7 @@ export function useDriverTrip(
     }
     window.addEventListener('online', handleOnline)
     /**
-     * Spec 157 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
+     * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
      */
     void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
@@ -260,16 +260,16 @@ export function useDriverTrip(
   }
 
   /**
-   * Spec 157 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
+   * Spec 159 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
    * drenagem (que roda logo em seguida, quase instantânea quando há rede). Teto atingido volta como
    * recusa anunciada — nada é descartado. A chave do anexo nasce **aqui, na captura**.
    *
-   * Spec 157 (T11, item 6): a foto grava no IndexedDB **antes** de esperar o GPS, não depois — o
+   * Spec 159 (T11, item 6): a foto grava no IndexedDB **antes** de esperar o GPS, não depois — o
    * `getCurrentPosition` pode levar até 8 s, e a foto só em memória durante essa espera some se o
    * motorista fechar o app no meio. A posição chega em seguida, atualizando o mesmo anexo; se a
-   * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0068
+   * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0069
    * §4) — nunca perdida.
    */
   async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {

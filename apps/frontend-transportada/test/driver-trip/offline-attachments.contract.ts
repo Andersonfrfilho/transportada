@@ -95,7 +95,7 @@ describe('a fila offline com anexos (D6)', () => {
   })
 
   /**
-   * Spec 157 (revisão D6, aceite 8): sem evento de entrega na fila — a nota já foi entregue em outra
+   * Spec 159 (revisão D6, aceite 8): sem evento de entrega na fila — a nota já foi entregue em outra
    * sessão, ou o anexo é enviado em lote pela tela de pendentes — o anexo entra do mesmo jeito, com
    * uma chave própria do documento em vez da chave do evento.
    */
@@ -452,7 +452,7 @@ describe('a fila offline com anexos (D6)', () => {
 })
 
 /**
- * Spec 157 (T11, item 6): a foto grava no IndexedDB antes de esperar o GPS — a posição chega depois
+ * Spec 159 (T11, item 6): a foto grava no IndexedDB antes de esperar o GPS — a posição chega depois
  * e atualiza o mesmo item pela `attachmentKey`, sem tocar nos outros anexos do grupo.
  */
 describe('a posição chega depois do anexo (T11, item 6)', () => {
@@ -483,7 +483,7 @@ describe('a posição chega depois do anexo (T11, item 6)', () => {
 })
 
 /**
- * Spec 157 (T11, item 4): anexo recusado ou parado expira aos 7 dias — o descarte apaga o dado
+ * Spec 159 (T11, item 4): anexo recusado ou parado expira aos 7 dias — o descarte apaga o dado
  * (blob, posição), não só a entrada da fila. Risco aceito em `docs/SECURITY.md`.
  */
 describe('descarte do anexo parado (T11, item 4)', () => {

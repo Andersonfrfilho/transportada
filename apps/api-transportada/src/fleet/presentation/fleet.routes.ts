@@ -225,7 +225,7 @@ export function createFleetRoutes(
       policy: FLEET_MANAGE_POLICY,
     }),
     /**
-     * Spec 157 RF10, ADR-0068 §7: a nota e o porquê dela na ficha. `fleet.read`, como a listagem que
+     * Spec 159 RF10, ADR-0069 §7: a nota e o porquê dela na ficha. `fleet.read`, como a listagem que
      * já mostra a nota — quem escolhe o motorista da viagem precisa ver por que ele caiu.
      */
     defineRoute<Omit<ReadFleetDriverScoreInput, 'context'>>({
@@ -351,7 +351,7 @@ function serializeScoredDriver(driver: ScoredFleetDriver): object {
   return { ...serializeDriver(driver), score: driver.score }
 }
 
-/** Posição da foto nunca sai daqui (ADR-0068, consequências): só o motivo, os pontos e as datas. */
+/** Posição da foto nunca sai daqui (ADR-0069, consequências): só o motivo, os pontos e as datas. */
 function serializeDriverScore(result: DriverScoreResult): object {
   return {
     penalties: result.penalties.map((penalty) => ({

@@ -13,7 +13,7 @@ import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
-  /** Spec 157 (T12): quem vê a nota cair acha dali o caminho para as fotos que faltam. */
+  /** Spec 159 (T12): quem vê a nota cair acha dali o caminho para as fotos que faltam. */
   onOpenPendingProofs: () => void
   onOpenQueue: () => void
   queuedCount: number

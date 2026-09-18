@@ -858,7 +858,7 @@ export const tripStopEvents = pgTable(
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /**
-     * Spec 157 T11: o cadastro de motorista que reportou pelo app ou pelo WhatsApp, gravado no
+     * Spec 159 T11: o cadastro de motorista que reportou pelo app ou pelo WhatsApp, gravado no
      * evento. A nota do motorista deixa de depender do vínculo atual (`actor_user_id` →
      * membership → `fleet_drivers.membership_id`): desligar o acesso ao app não apaga o histórico
      * dele. Evento anterior a esta coluna segue resolvido pelo vínculo.
@@ -921,7 +921,7 @@ export const tripStopEvents = pgTable(
       table.createdAt,
     ),
     /**
-     * Spec 157 T7: a nota do motorista lê as entregas dos últimos 90 dias pela hora da entrega
+     * Spec 159 T7: a nota do motorista lê as entregas dos últimos 90 dias pela hora da entrega
      * (`captured_at ?? recorded_at`). Sem ele, o `EXPLAIN` varria todo evento da empresa, de todo
      * tipo e de todo o histórico, para descartar 88% no filtro.
      */
@@ -1183,7 +1183,7 @@ export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
 
 /**
- * ADR-0068 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
+ * ADR-0069 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
  * `PROOF_PUNCTUALITY` de `trips/domain/delivery-proof-punctuality.policy.ts`, pelo mesmo motivo do
  * `TRIP_FIELD_CHANNELS` acima — importar `trips/domain` daqui puxaria a árvore do módulo para dentro
  * do fechamento de imports do pre-deploy (`test/database-migration/pre-deploy.contract.ts`).
@@ -1240,7 +1240,7 @@ export const tripDeliveryProofs = pgTable(
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /**
-     * ADR-0068 §2-4, spec 157 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
+     * ADR-0069 §2-4, spec 159 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
      * motorista. Anuláveis pelo mesmo motivo da posição do evento de entrega (ADR-0045 §3): a
      * recusa não bloqueia, e sem posição a foto conta como longe (`classifyProofPunctuality`).
      */
@@ -1249,7 +1249,7 @@ export const tripDeliveryProofs = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     /**
-     * ADR-0068 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
+     * ADR-0069 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
      * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
      */
     punctuality: varchar('punctuality', { length: 16 })
@@ -1288,7 +1288,7 @@ export const tripDeliveryProofs = pgTable(
       .onUpdate('cascade'),
     unique('trip_delivery_proofs_company_id_id_unique').on(table.companyId, table.id),
     /**
-     * Spec 157 T11 (item 8): a posição da foto é dado de localização como a do evento de entrega, e
+     * Spec 159 T11 (item 8): a posição da foto é dado de localização como a do evento de entrega, e
      * o expurgo dos 90 dias do worker (`trip.location.purge`) a apaga pelo mesmo corte — sem este
      * índice ele varreria todo comprovante do histórico.
      */

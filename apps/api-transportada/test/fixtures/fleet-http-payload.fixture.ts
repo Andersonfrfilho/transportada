@@ -253,7 +253,7 @@ export const VEHICLE_PAGE: FleetVehiclePage = { items: [VEHICLE], nextCursor: nu
 
 export const DRIVER_PAGE: FleetDriverPage = { items: [DRIVER], nextCursor: null }
 
-/** Spec 157 T8: a ficha da nota — uma penalidade de foto ausente, sem nenhuma coordenada. */
+/** Spec 159 T8: a ficha da nota — uma penalidade de foto ausente, sem nenhuma coordenada. */
 export const DRIVER_SCORE: DriverScoreResult = {
   penalties: [
     {

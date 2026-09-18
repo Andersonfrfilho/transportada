@@ -28,7 +28,7 @@ export type QueuedAttachment = Readonly<{
   documentId: string
   fileName: string
   kind: 'photo' | 'signature'
-  /** Spec 157 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
+  /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
   accuracyMeters?: number
   latitude?: number
   longitude?: number
@@ -61,14 +61,14 @@ export type EnqueueAttachmentResult =
   | Readonly<{ accepted: true; eventKey: string }>
   | Readonly<{ accepted: false; reason: 'count-limit' | 'size-limit' }>
 
-/** Spec 157 (revisão D6): a chave sintética de um documento sem evento de entrega na fila. */
+/** Spec 159 (revisão D6): a chave sintética de um documento sem evento de entrega na fila. */
 export function documentAttachmentKey(documentId: string): string {
   return `document:${documentId}`
 }
 
 /**
  * O anexo procura primeiro o evento de entrega **ainda na fila** daquela nota — "evento primeiro",
- * como antes. Spec 157: quando a entrega já saiu da fila (já foi aceita, ou é anexo em lote de uma
+ * como antes. Spec 159: quando a entrega já saiu da fila (já foi aceita, ou é anexo em lote de uma
  * nota entregue em sessão anterior), o anexo entra do mesmo jeito, referenciado por uma chave própria
  * do documento — a foto nunca fica de fora da fila offline só porque a entrega já subiu.
  */
@@ -103,7 +103,7 @@ export async function enqueueAttachment(input: {
 }
 
 /**
- * Spec 157 (T11, item 6): a foto entra no IndexedDB **antes** de esperar o GPS — só assim ela
+ * Spec 159 (T11, item 6): a foto entra no IndexedDB **antes** de esperar o GPS — só assim ela
  * nunca se perde se o motorista fechar o app durante a leitura de posição (até 8 s). A posição
  * chega depois, por esta função, atualizando o mesmo item pela `attachmentKey`.
  */
@@ -127,7 +127,7 @@ export function applyAttachmentLocation(input: {
 }
 
 /**
- * Spec 157 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
+ * Spec 159 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
  * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
  * pode ficar indefinidamente no aparelho.
  */
@@ -170,13 +170,13 @@ export async function discardStaleAttachments(input: {
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
   | Readonly<{ cause: string; kind: 'rejected' }>
-  /** Spec 157 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
+  /** Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
   | Readonly<{ kind: 'sent'; punctuality?: ProofPunctuality }>
 
 export type AttachmentDrainResult = Readonly<{
   /** Anexos que o servidor recusou: causa própria, sem contaminar o evento já aceito. */
   attachmentsRejected: number
-  /** Spec 157 (P6): a pontualidade de cada foto que subiu nesta drenagem — a tela traduz em linguagem simples. */
+  /** Spec 159 (P6): a pontualidade de cada foto que subiu nesta drenagem — a tela traduz em linguagem simples. */
   attachmentsSent: readonly Readonly<{ documentId: string; punctuality?: ProofPunctuality }>[]
   rejected: number
   remaining: number

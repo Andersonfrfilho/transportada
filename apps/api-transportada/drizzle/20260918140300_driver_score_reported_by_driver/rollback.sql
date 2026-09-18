@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 157 T11 (item 14): o motorista que reportou gravado no evento de campo. Sem a
+-- Desfaz a spec 159 T11 (item 14): o motorista que reportou gravado no evento de campo. Sem a
 -- coluna, a nota do motorista volta a resolver o autor só pelo vínculo atual (membership).
 BEGIN;
 

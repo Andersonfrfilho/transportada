@@ -269,7 +269,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(events).toHaveLength(5)
       expect(events.filter((event) => event.latitude !== null)).toHaveLength(2)
       expect(events.filter((event) => event.kind === 'returned')).toHaveLength(1)
-      // Spec 157 T11: o motorista que reportou fica no evento, não só no vínculo da conta
+      // Spec 159 T11: o motorista que reportou fica no evento, não só no vínculo da conta
       expect(
         events.filter((event) => event.kind !== 'arrived').map((event) => event.reportedByDriverId),
       ).toEqual([world.driverId, world.driverId, world.driverId])
@@ -330,12 +330,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   })
 
   /**
-   * Spec 157 T5 (ADR-0068 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
+   * Spec 159 T5 (ADR-0069 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
    * verdade — a query de `findDeliveryContext` (join `trip_stop_events`+`trip_stops`) e a de
    * `resolveProofPunctualitySettings` são o que um contrato com dublê não prova.
    */
   testWithPostgres(
-    'a foto classifica pontualidade contra a posição da entrega (spec 157)',
+    'a foto classifica pontualidade contra a posição da entrega (spec 159)',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedDispatchedTrip(database)
@@ -445,18 +445,18 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
-   * Spec 157 T6, ADR-0068 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
+   * Spec 159 T6, ADR-0069 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
    * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
    * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).
    */
   testWithPostgres(
-    'proofPending avisa sem bloquear, no /deliver e no snapshot (spec 157)',
+    'proofPending avisa sem bloquear, no /deliver e no snapshot (spec 159)',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedDispatchedTrip(database)
         await database.db
           .insert(companyDeliveryProofSettings)
-          // Spec 157 T11 (D1): a nota vale desde antes do NOW fixo desta suíte.
+          // Spec 159 T11 (D1): a nota vale desde antes do NOW fixo desta suíte.
           .values({
             companyId: world.companyId,
             photo: 'required',
@@ -506,7 +506,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         )
         expect(documentBeforePhoto?.proofPending).toBe(true)
         /**
-         * Spec 157 RF2/RF8 (T7): a entrega com foto obrigatória acabou de acontecer — conta para a
+         * Spec 159 RF2/RF8 (T7): a entrega com foto obrigatória acabou de acontecer — conta para a
          * nota (sai de `null`), mas ainda está dentro das `missingAfterHours`: nenhuma penalidade.
          */
         expect(beforePhoto.score).toBe(100)
@@ -558,11 +558,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
-   * Spec 157 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
+   * Spec 159 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
    * obrigatórias que faltam continuam listadas em `pendingProofs`, e o `/proof` ainda as aceita.
    */
   testWithPostgres(
-    'a última entrega conclui a viagem e a pendente continua listada (spec 157 T11)',
+    'a última entrega conclui a viagem e a pendente continua listada (spec 159 T11)',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedDispatchedTrip(database)

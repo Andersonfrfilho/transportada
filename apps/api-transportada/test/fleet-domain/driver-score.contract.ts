@@ -16,7 +16,7 @@ function daysAgo(days: number): Date {
   return new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000)
 }
 
-describe('nota do motorista (spec 157 RF8-RF9)', () => {
+describe('nota do motorista (spec 159 RF8-RF9)', () => {
   /** Aceite 5: uma foto late (5) + uma ausente há 25h (10) → 85. */
   test('soma as penalidades vigentes e tira da nota cheia', () => {
     const result = computeDriverScore({
@@ -176,7 +176,7 @@ describe('nota do motorista (spec 157 RF8-RF9)', () => {
     expect(result.penalties).toHaveLength(0)
   })
   /**
-   * Spec 157 T11 (decisão D1): sem retroatividade — a entrega anterior à ativação da nota não
+   * Spec 159 T11 (decisão D1): sem retroatividade — a entrega anterior à ativação da nota não
    * penaliza e não conta como histórico.
    */
   test('entrega anterior à ativação da nota não conta', () => {

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 157 RF10 (T8), ADR-0068 §7: a nota na frota. A listagem pede a nota de todos os motoristas da
+ * Spec 159 RF10 (T8), ADR-0069 §7: a nota na frota. A listagem pede a nota de todos os motoristas da
  * página numa leitura só; a ficha devolve nota e penalidades, e motorista inexistente ou de outra
  * empresa é o mesmo 404 — o repositório de nota nem é consultado.
  */
@@ -66,7 +66,7 @@ function buildUseCase(input: {
   })
 }
 
-describe('fleet driver scores use case contract (spec 157 T8)', () => {
+describe('fleet driver scores use case contract (spec 159 T8)', () => {
   test('lists the page with each score from a single read for every driver on it', async () => {
     const { asked, scores } = buildScores()
 

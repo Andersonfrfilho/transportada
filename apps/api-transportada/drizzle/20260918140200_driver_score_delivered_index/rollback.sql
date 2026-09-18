@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 157 T7: o índice parcial que serve a nota do motorista (entregas dos últimos 90
+-- Desfaz a spec 159 T7: o índice parcial que serve a nota do motorista (entregas dos últimos 90
 -- dias por empresa). Só DDL de índice — nenhum dado depende dele.
 BEGIN;
 

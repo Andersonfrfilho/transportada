@@ -79,7 +79,7 @@ export type FleetClient = Readonly<{
   /** Spec 081: o vínculo da empresa inteiro, em pares. Sem argumento: o recorte é o tenant. */
   listDriverVehiclePairs: () => Promise<readonly FleetDriverVehiclePair[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
-  /** Spec 157 RF10: a nota e as penalidades vigentes de um motorista — ficha da frota. */
+  /** Spec 159 RF10: a nota e as penalidades vigentes de um motorista — ficha da frota. */
   readDriverScore: (input: { driverId: string }) => Promise<FleetDriverScoreResult>
   listFreightRegions: (input: FleetListInput<FreightRegionFilters>) => Promise<FreightRegionPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
