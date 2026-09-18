@@ -12,12 +12,12 @@ import {
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type {
-  DeliveryProofCompanySettings,
+  CompanyDeliveryProofSettings,
   DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofSettingsOverride } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
-  deliveryProofCompanySettingsSchema,
+  companyDeliveryProofSettingsSchema,
   deliveryProofOverridesSchema,
 } from './delivery-proof-settings.schema.js'
 
@@ -29,7 +29,7 @@ export type DeliveryProofSettingsDependencies = {
   }) => Promise<readonly DeliveryProofSettingsOverride[]>
   readonly readSettings: (input: {
     readonly companyId: string
-  }) => Promise<DeliveryProofCompanySettings>
+  }) => Promise<CompanyDeliveryProofSettings>
   readonly replaceOverrides: (input: {
     readonly companyId: string
     readonly overrides: readonly DeliveryProofSettingsOverride[]
@@ -37,7 +37,7 @@ export type DeliveryProofSettingsDependencies = {
   readonly saveSettings: (input: {
     readonly companyId: string
     readonly settings: DeliveryProofSettingsInput
-  }) => Promise<DeliveryProofCompanySettings>
+  }) => Promise<CompanyDeliveryProofSettings>
 }
 
 function jsonResponse(body: object): Response {
@@ -74,7 +74,7 @@ export function createDeliveryProofSettingsRoutes(
       method: 'PUT',
       parse: async ({ request }) => {
         const { canhotoOcrEnabled, ...fields } = await parseBody(
-          deliveryProofCompanySettingsSchema,
+          companyDeliveryProofSettingsSchema,
           request,
         )
         return canhotoOcrEnabled === undefined ? fields : { ...fields, canhotoOcrEnabled }

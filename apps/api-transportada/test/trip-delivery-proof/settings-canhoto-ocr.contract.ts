@@ -13,9 +13,10 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import { ApiError } from '../../src/shared/api.error.js'
-import type {
-  DeliveryProofCompanySettings,
-  DeliveryProofSettingsInput,
+import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  type CompanyDeliveryProofSettings,
+  type DeliveryProofSettingsInput,
 } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 import {
   createDeliveryProofSettingsRoutes,
@@ -30,6 +31,9 @@ const FIELDS = {
   receiverName: 'optional',
   signature: 'optional',
 } as const
+
+/** Os parâmetros da nota do motorista (spec 159) viajam juntos — aqui, só como pano de fundo. */
+const SETTINGS = { ...FIELDS, ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS }
 
 const NOT_CALLED = () => {
   throw new Error('ROUTE_DEPENDENCY_NOT_EXPECTED')
@@ -49,7 +53,7 @@ function context(): AuthenticatedContext<CompanyContext> {
   }
 }
 
-function buildDependencies(stored: DeliveryProofCompanySettings): {
+function buildDependencies(stored: CompanyDeliveryProofSettings): {
   readonly dependencies: DeliveryProofSettingsDependencies
   readonly saved: DeliveryProofSettingsInput[]
 } {
@@ -90,7 +94,7 @@ function putRequest(body: object): Request {
 
 describe('canhoto_ocr_enabled na configuração do comprovante (spec 156 T13, ADR-0069 §6)', () => {
   it('o GET devolve o interruptor ao lado dos quatro campos', async () => {
-    const { dependencies } = buildDependencies({ ...FIELDS, canhotoOcrEnabled: true })
+    const { dependencies } = buildDependencies({ ...SETTINGS, canhotoOcrEnabled: true })
 
     const response = await routeOf(dependencies, 'GET').execute({
       context: context(),
@@ -100,47 +104,47 @@ describe('canhoto_ocr_enabled na configuração do comprovante (spec 156 T13, AD
     })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { ...FIELDS, canhotoOcrEnabled: true } })
+    expect(await response.json()).toEqual({ data: { ...SETTINGS, canhotoOcrEnabled: true } })
   })
 
   it('o PUT com o interruptor repassa o valor ao repositório', async () => {
-    const { dependencies, saved } = buildDependencies({ ...FIELDS, canhotoOcrEnabled: false })
+    const { dependencies, saved } = buildDependencies({ ...SETTINGS, canhotoOcrEnabled: false })
 
     const response = await routeOf(dependencies, 'PUT').execute({
       context: context(),
       correlationId: 'correlation-1',
       pathParameters: {},
-      request: putRequest({ ...FIELDS, canhotoOcrEnabled: true }),
+      request: putRequest({ ...SETTINGS, canhotoOcrEnabled: true }),
     })
 
     expect(response.status).toBe(200)
-    expect(saved).toEqual([{ ...FIELDS, canhotoOcrEnabled: true }])
-    expect(await response.json()).toEqual({ data: { ...FIELDS, canhotoOcrEnabled: true } })
+    expect(saved).toEqual([{ ...SETTINGS, canhotoOcrEnabled: true }])
+    expect(await response.json()).toEqual({ data: { ...SETTINGS, canhotoOcrEnabled: true } })
   })
 
   it('o PUT sem o interruptor não o manda ao repositório — ausente é "não mexe"', async () => {
-    const { dependencies, saved } = buildDependencies({ ...FIELDS, canhotoOcrEnabled: true })
+    const { dependencies, saved } = buildDependencies({ ...SETTINGS, canhotoOcrEnabled: true })
 
     await routeOf(dependencies, 'PUT').execute({
       context: context(),
       correlationId: 'correlation-1',
       pathParameters: {},
-      request: putRequest(FIELDS),
+      request: putRequest(SETTINGS),
     })
 
-    expect(saved).toEqual([FIELDS])
+    expect(saved).toEqual([SETTINGS])
     expect(Object.hasOwn(saved[0]!, 'canhotoOcrEnabled')).toBe(false)
   })
 
   it('o PUT com interruptor que não é booleano é 400', async () => {
-    const { dependencies } = buildDependencies({ ...FIELDS, canhotoOcrEnabled: false })
+    const { dependencies } = buildDependencies({ ...SETTINGS, canhotoOcrEnabled: false })
 
     try {
       await routeOf(dependencies, 'PUT').execute({
         context: context(),
         correlationId: 'correlation-1',
         pathParameters: {},
-        request: putRequest({ ...FIELDS, canhotoOcrEnabled: 'true' }),
+        request: putRequest({ ...SETTINGS, canhotoOcrEnabled: 'true' }),
       })
       throw new Error('EXPECTED_API_ERROR')
     } catch (error) {
@@ -150,7 +154,7 @@ describe('canhoto_ocr_enabled na configuração do comprovante (spec 156 T13, AD
   })
 
   it('as rotas da configuração continuam em settings.manage', () => {
-    const { dependencies } = buildDependencies({ ...FIELDS, canhotoOcrEnabled: false })
+    const { dependencies } = buildDependencies({ ...SETTINGS, canhotoOcrEnabled: false })
 
     for (const method of ['GET', 'PUT']) {
       expect(routeOf(dependencies, method).policy).toEqual({

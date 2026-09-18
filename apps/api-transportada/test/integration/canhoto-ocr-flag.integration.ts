@@ -7,6 +7,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
 import { companies } from '../../src/database/database.schema'
+import { DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS } from '../../src/trips/domain/delivery-proof-settings.policy'
 import { DrizzleDeliveryProofSettingsRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof-settings.repository'
 
 const databaseUrl =
@@ -23,6 +24,9 @@ const FIELDS = {
   receiverName: 'optional',
   signature: 'optional',
 } as const
+
+/** Os parâmetros da nota do motorista (spec 159) viajam juntos — aqui, só como pano de fundo. */
+const SETTINGS = { ...FIELDS, ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS }
 
 /**
  * Spec 156 T13, ADR-0069 §6: o painel (`settings.manage`) escreve o interruptor na configuração do
@@ -51,9 +55,9 @@ describe('o interruptor da leitura do canhoto (spec 156 T13, ADR-0069)', () => {
         const companyId = await seedCompany(database)
         const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
 
-        const saved = await repository.saveSettings({ companyId, settings: FIELDS })
+        const saved = await repository.saveSettings({ companyId, settings: SETTINGS })
 
-        expect(saved).toEqual({ ...FIELDS, canhotoOcrEnabled: false })
+        expect(saved).toEqual({ ...SETTINGS, canhotoOcrEnabled: false })
         expect(await repository.readCanhotoOcrEnabled({ companyId })).toBe(false)
       })
     },
@@ -69,16 +73,16 @@ describe('o interruptor da leitura do canhoto (spec 156 T13, ADR-0069)', () => {
 
         await repository.saveSettings({
           companyId,
-          settings: { ...FIELDS, canhotoOcrEnabled: true },
+          settings: { ...SETTINGS, canhotoOcrEnabled: true },
         })
         expect(await repository.readCanhotoOcrEnabled({ companyId })).toBe(true)
 
         const saved = await repository.saveSettings({
           companyId,
-          settings: { ...FIELDS, photo: 'optional' },
+          settings: { ...SETTINGS, photo: 'optional' },
         })
 
-        expect(saved).toEqual({ ...FIELDS, canhotoOcrEnabled: true, photo: 'optional' })
+        expect(saved).toEqual({ ...SETTINGS, canhotoOcrEnabled: true, photo: 'optional' })
         expect(await repository.readCanhotoOcrEnabled({ companyId })).toBe(true)
       })
     },
@@ -93,12 +97,12 @@ describe('o interruptor da leitura do canhoto (spec 156 T13, ADR-0069)', () => {
         const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
         await repository.saveSettings({
           companyId,
-          settings: { ...FIELDS, canhotoOcrEnabled: true },
+          settings: { ...SETTINGS, canhotoOcrEnabled: true },
         })
 
         await repository.saveSettings({
           companyId,
-          settings: { ...FIELDS, canhotoOcrEnabled: false },
+          settings: { ...SETTINGS, canhotoOcrEnabled: false },
         })
 
         expect(await repository.readCanhotoOcrEnabled({ companyId })).toBe(false)
@@ -115,11 +119,11 @@ describe('o interruptor da leitura do canhoto (spec 156 T13, ADR-0069)', () => {
         const companyId = await seedCompany(database)
         const otherCompanyId = await seedCompany(database)
         const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
-        await repository.saveSettings({ companyId: otherCompanyId, settings: FIELDS })
+        await repository.saveSettings({ companyId: otherCompanyId, settings: SETTINGS })
 
         await repository.saveSettings({
           companyId,
-          settings: { ...FIELDS, canhotoOcrEnabled: true },
+          settings: { ...SETTINGS, canhotoOcrEnabled: true },
         })
 
         expect(await repository.readCanhotoOcrEnabled({ companyId })).toBe(true)

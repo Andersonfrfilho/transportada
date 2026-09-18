@@ -26,20 +26,55 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
 }
 
 /**
- * ADR-0069 §6: a configuração geral carrega, além dos quatro campos, o interruptor da leitura do
- * canhoto. Ele é da empresa, não entra na exceção por destinatário nem no snapshot do motorista.
+ * ADR-0069 §6: a leitura do canhoto pela foto é experimental, desligada por padrão — sem linha
+ * gravada vale isto. O interruptor é da empresa, não entra na exceção por destinatário nem no
+ * snapshot do motorista.
  */
-export type DeliveryProofCompanySettings = DeliveryProofFieldSettings & {
-  readonly canhotoOcrEnabled: boolean
+export const DEFAULT_CANHOTO_OCR_ENABLED = false
+
+/**
+ * ADR-0068 §3-5, spec 157 RF7: os parâmetros da nota do motorista. Só existem na configuração
+ * **geral** da empresa — a exceção por CNPJ (`deliveryProofSettingOverrides`) continua só com os
+ * quatro campos de `DeliveryProofFieldSettings`, porque a regra da nota é da empresa, não do
+ * destinatário.
+ */
+export type DeliveryProofPunctualitySettings = {
+  readonly proofWindowMinutes: number
+  readonly proofRadiusMeters: number
+  readonly latePenaltyPoints: number
+  readonly missingPenaltyPoints: number
+  readonly missingAfterHours: number
 }
+
+/** ADR-0068 §5: os números escolhidos na conversa da spec — configuráveis por empresa. */
+export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
+  latePenaltyPoints: 5,
+  missingAfterHours: 24,
+  missingPenaltyPoints: 10,
+  proofRadiusMeters: 300,
+  proofWindowMinutes: 60,
+}
+
+/**
+ * A configuração geral do comprovante: os quatro modos, os parâmetros de pontualidade e o
+ * interruptor da leitura do canhoto (ADR-0069 §6).
+ */
+export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings & {
+    readonly canhotoOcrEnabled: boolean
+  }
 
 /** No `PUT`, o interruptor ausente é "não mexe": o painel de antes da T13 manda só os campos. */
-export type DeliveryProofSettingsInput = DeliveryProofFieldSettings & {
-  readonly canhotoOcrEnabled?: boolean
-}
+export type DeliveryProofSettingsInput = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings & {
+    readonly canhotoOcrEnabled?: boolean
+  }
 
-/** ADR-0069 §6: experimental, desligada por padrão — sem linha gravada vale isto. */
-export const DEFAULT_CANHOTO_OCR_ENABLED = false
+export const DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS: CompanyDeliveryProofSettings = {
+  ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+  ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  canhotoOcrEnabled: DEFAULT_CANHOTO_OCR_ENABLED,
+}
 
 export type ResolveDeliveryProofSettingsParams = {
   readonly general: DeliveryProofFieldSettings | null

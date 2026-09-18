@@ -77,3 +77,69 @@ reservando `.types.ts` só para módulos com tipos muito extensos (`cargo-layout
 
 T4 em diante (migration, `/proof`, `/deliver`, snapshot, consulta da nota, rotas da frota, telas) não
 fazem parte desta sessão.
+
+## T4 — Migration aditiva + settings
+
+Arquivos:
+
+- `apps/api-transportada/src/database/trip.schema.ts` — `tripDeliveryProofs` ganha `latitude`,
+  `longitude` (numeric 10,7), `accuracyMeters` (numeric 10,2), `capturedAt` (timestamptz), todos
+  nulos, e `punctuality varchar(16) not null default 'not_required'` com CHECK contra
+  `TRIP_DELIVERY_PROOF_PUNCTUALITIES` (nova const, duplicada de `PROOF_PUNCTUALITY` do domínio pelo
+  mesmo motivo de `TRIP_FIELD_CHANNELS` — importar `trips/domain` no schema puxaria a árvore do
+  módulo para dentro do fechamento de imports do pre-deploy). CHECKs de par de coordenada e faixa
+  (-90..90/-180..180), mesmo molde de `trip_stops`.
+- `apps/api-transportada/src/database/company-delivery-proof-settings.schema.ts` —
+  `companyDeliveryProofSettings` ganha `proofWindowMinutes` (int, padrão 60, CHECK 5–1440),
+  `proofRadiusMeters` (padrão 300, CHECK 50–5000), `latePenaltyPoints` (padrão 5, CHECK 0–100),
+  `missingPenaltyPoints` (padrão 10, CHECK 0–100), `missingAfterHours` (padrão 24, CHECK 1–168).
+  `deliveryProofSettingOverrides` **não** ganhou esses campos, como pedido.
+- `apps/api-transportada/drizzle/20260918105116_delivery_proof_punctuality/` (novo) —
+  `migration.sql` gerado por `bun run db:generate --name delivery_proof_punctuality`,
+  `rollback.sql` escrito à mão (sem guarda de dado: migration puramente aditiva, nenhum dado de
+  negócio depende das colunas novas), `snapshot.json` gerado junto.
+- `apps/api-transportada/src/trips/domain/delivery-proof-settings.policy.ts` — `DeliveryProofFieldSettings`
+  intacto; novo `DeliveryProofPunctualitySettings` (os cinco parâmetros) +
+  `DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS`, e `CompanyDeliveryProofSettings` (os dois tipos
+  combinados) + `DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS` para a configuração geral.
+- `apps/api-transportada/src/trips/presentation/delivery-proof-settings.schema.ts` — novo
+  `deliveryProofPunctualitySettingsSchema` (faixas do painel, `int().min().max()`) e
+  `companyDeliveryProofSettingsSchema` (os quatro modos + os cinco parâmetros, `.strict()`); o
+  schema de exceções continua só com `deliveryProofSettingsSchema` (os quatro modos).
+- `apps/api-transportada/src/trips/infrastructure/drizzle-delivery-proof-settings.repository.ts` —
+  `readSettings`/`saveSettings` leem/gravam os nove campos da configuração geral; ausência de linha
+  cai em `DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS`. `listOverrides`/`replaceOverrides` inalterados.
+- `apps/api-transportada/src/trips/presentation/delivery-proof-settings.routes.ts` — `GET`/`PUT
+/company-settings/delivery-proof` tipados em `CompanyDeliveryProofSettings`, `PUT` valida com
+  `companyDeliveryProofSettingsSchema`.
+- `apps/api-transportada/test/trip-delivery-proof/punctuality-settings.contract.ts` (novo, 9 casos):
+  defaults por `GET` sem linha, round-trip `PUT`→`GET`, faixa de cada um dos cinco campos (400 fora),
+  inteiro não aceita fração, corpo de exceção continua recusando os campos de pontualidade.
+- `apps/api-transportada/test/trip-delivery-proof.contract.test.ts` — import do arquivo acima.
+- `apps/api-transportada/test/database-migration/static-migration.contract.ts` — lista estática de
+  diretórios de migration ganhou `20260918105116_delivery_proof_punctuality`.
+
+Comandos e resultado:
+
+```
+$ bun run db:generate --name delivery_proof_punctuality   # apps/api-transportada
+{"status":"ok", ...}
+$ bun run db:check                                        # apps/api-transportada
+Everything's fine
+$ bun run typecheck                                        # raiz, todas as apps — 0 erros
+$ bun run lint                                              # raiz, todas as apps — 0 erros
+$ bun test ./test/trip-delivery-proof.contract.test.ts     # apps/api-transportada
+ 65 pass / 0 fail / 99 expect() calls
+$ bun test                                                  # apps/api-transportada, suíte completa
+ 6529 pass / 32 skip / 0 fail / 22700 expect() calls — 180 arquivos
+$ make migration-test                                       # raiz — contra o Postgres do docker-compose (transportada-local-postgres-1, saudável)
+ 97 pass / 0 fail / 1368 expect() calls — inclui a migration nova aplicada em `database-migration.contract.test.ts`
+```
+
+Banco usado na integração: Postgres do `docker-compose.yml` da raiz (`transportada-local-postgres-1`,
+porta 65432), já saudável neste worktree — não foi preciso o contorno do Postgres Homebrew descrito
+no prompt. Nenhum teste pulou.
+
+Desvio da spec: nenhum. `TRIP_DELIVERY_PROOF_PUNCTUALITIES` duplica os valores de `PROOF_PUNCTUALITY`
+(T2) em vez de importar — decisão de camada preexistente no arquivo (ver comentário de
+`TRIP_FIELD_CHANNELS`), não um desvio do RF4.

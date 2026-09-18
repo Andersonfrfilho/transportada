@@ -1160,6 +1160,21 @@ export const tripFieldReports = pgTable(
 export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
 
+/**
+ * ADR-0068 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
+ * `PROOF_PUNCTUALITY` de `trips/domain/delivery-proof-punctuality.policy.ts`, pelo mesmo motivo do
+ * `TRIP_FIELD_CHANNELS` acima — importar `trips/domain` daqui puxaria a árvore do módulo para dentro
+ * do fechamento de imports do pre-deploy (`test/database-migration/pre-deploy.contract.ts`).
+ */
+export const TRIP_DELIVERY_PROOF_PUNCTUALITIES = [
+  'not_required',
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+] as const
+export type TripDeliveryProofPunctuality = (typeof TRIP_DELIVERY_PROOF_PUNCTUALITIES)[number]
+
 export const tripDeliveryProofs = pgTable(
   'trip_delivery_proofs',
   {
@@ -1202,6 +1217,23 @@ export const tripDeliveryProofs = pgTable(
       .default(TRIP_FIELD_CHANNELS.driverApp),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * ADR-0068 §2-4, spec 157 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
+     * motorista. Anuláveis pelo mesmo motivo da posição do evento de entrega (ADR-0045 §3): a
+     * recusa não bloqueia, e sem posição a foto conta como longe (`classifyProofPunctuality`).
+     */
+    latitude: numeric({ precision: 10, scale: 7 }),
+    longitude: numeric({ precision: 10, scale: 7 }),
+    accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+    capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * ADR-0068 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
+     * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
+     */
+    punctuality: varchar('punctuality', { length: 16 })
+      .notNull()
+      .default('not_required')
+      .$type<TripDeliveryProofPunctuality>(),
   },
   (table) => [
     foreignKey({
@@ -1264,6 +1296,23 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
+    ),
+    // Coordenada é par, mesmo molde de `trip_stops_coordinates_check` — meia coordenada não localiza.
+    check(
+      'trip_delivery_proofs_coordinates_check',
+      sql`(${table.latitude} is null) = (${table.longitude} is null)`,
+    ),
+    check(
+      'trip_delivery_proofs_latitude_range_check',
+      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+    ),
+    check(
+      'trip_delivery_proofs_longitude_range_check',
+      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
+    ),
+    check(
+      'trip_delivery_proofs_punctuality_check',
+      sql`${table.punctuality} in (${raw(inList(TRIP_DELIVERY_PROOF_PUNCTUALITIES))})`,
     ),
   ],
 )

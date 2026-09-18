@@ -6,6 +6,7 @@ import {
   boolean,
   check,
   foreignKey,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -54,6 +55,16 @@ export const companyDeliveryProofSettings = pgTable(
      * empresa, não do destinatário — por isso não existe na tabela de exceções.
      */
     canhotoOcrEnabled: boolean('canhoto_ocr_enabled').notNull().default(false),
+    /**
+     * ADR-0068 §3-5, spec 157 RF7: parâmetros da nota do motorista — só na configuração geral, a
+     * exceção por CNPJ (`deliveryProofSettingOverrides` abaixo) não os carrega, porque a regra é da
+     * empresa, não do destinatário.
+     */
+    proofWindowMinutes: integer('proof_window_minutes').notNull().default(60),
+    proofRadiusMeters: integer('proof_radius_meters').notNull().default(300),
+    latePenaltyPoints: integer('late_penalty_points').notNull().default(5),
+    missingPenaltyPoints: integer('missing_penalty_points').notNull().default(10),
+    missingAfterHours: integer('missing_after_hours').notNull().default(24),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -78,6 +89,26 @@ export const companyDeliveryProofSettings = pgTable(
       sql`${table.signature} in (${MODE_LIST()})`,
     ),
     check('company_delivery_proof_settings_photo_check', sql`${table.photo} in (${MODE_LIST()})`),
+    check(
+      'company_delivery_proof_settings_proof_window_minutes_check',
+      sql`${table.proofWindowMinutes} between 5 and 1440`,
+    ),
+    check(
+      'company_delivery_proof_settings_proof_radius_meters_check',
+      sql`${table.proofRadiusMeters} between 50 and 5000`,
+    ),
+    check(
+      'company_delivery_proof_settings_late_penalty_points_check',
+      sql`${table.latePenaltyPoints} between 0 and 100`,
+    ),
+    check(
+      'company_delivery_proof_settings_missing_penalty_points_check',
+      sql`${table.missingPenaltyPoints} between 0 and 100`,
+    ),
+    check(
+      'company_delivery_proof_settings_missing_after_hours_check',
+      sql`${table.missingAfterHours} between 1 and 168`,
+    ),
   ],
 )
 

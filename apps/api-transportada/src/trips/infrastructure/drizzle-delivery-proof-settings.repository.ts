@@ -14,8 +14,8 @@ import {
 } from '../../database/company-delivery-proof-settings.schema.js'
 import {
   DEFAULT_CANHOTO_OCR_ENABLED,
-  DEFAULT_DELIVERY_PROOF_SETTINGS,
-  type DeliveryProofCompanySettings,
+  DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
+  type CompanyDeliveryProofSettings,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
@@ -32,11 +32,16 @@ export class DrizzleDeliveryProofSettingsRepository {
   /** Ausência de linha é o padrão de fábrica — a leitura nunca devolve "não configurado". */
   public async readSettings(input: {
     readonly companyId: string
-  }): Promise<DeliveryProofCompanySettings> {
+  }): Promise<CompanyDeliveryProofSettings> {
     const [record] = await this.database
       .select({
         canhotoOcrEnabled: companyDeliveryProofSettings.canhotoOcrEnabled,
+        latePenaltyPoints: companyDeliveryProofSettings.latePenaltyPoints,
+        missingAfterHours: companyDeliveryProofSettings.missingAfterHours,
+        missingPenaltyPoints: companyDeliveryProofSettings.missingPenaltyPoints,
         photo: companyDeliveryProofSettings.photo,
+        proofRadiusMeters: companyDeliveryProofSettings.proofRadiusMeters,
+        proofWindowMinutes: companyDeliveryProofSettings.proofWindowMinutes,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
         receiverName: companyDeliveryProofSettings.receiverName,
         signature: companyDeliveryProofSettings.signature,
@@ -45,12 +50,7 @@ export class DrizzleDeliveryProofSettingsRepository {
       .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
       .limit(1)
 
-    return (
-      record ?? {
-        ...DEFAULT_DELIVERY_PROOF_SETTINGS,
-        canhotoOcrEnabled: DEFAULT_CANHOTO_OCR_ENABLED,
-      }
-    )
+    return record ?? DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS
   }
 
   /**
@@ -71,7 +71,7 @@ export class DrizzleDeliveryProofSettingsRepository {
   public async saveSettings(input: {
     readonly companyId: string
     readonly settings: DeliveryProofSettingsInput
-  }): Promise<DeliveryProofCompanySettings> {
+  }): Promise<CompanyDeliveryProofSettings> {
     await this.database
       .insert(companyDeliveryProofSettings)
       .values({ companyId: input.companyId, ...input.settings })
