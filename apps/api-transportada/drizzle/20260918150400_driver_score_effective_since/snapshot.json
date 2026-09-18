@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "89c20f17-d87d-45f5-a385-2e14477e1fb6",
+  "id": "db9282b6-8b66-48cb-a78e-fa63d27f32fc",
   "prevIds": [
-    "5dd6d785-c248-4047-a52b-353122d00c56"
+    "89c20f17-d87d-45f5-a385-2e14477e1fb6"
   ],
   "ddl": [
     {
@@ -19274,6 +19274,19 @@
       "table": "company_delivery_proof_settings"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_ocr_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -19334,6 +19347,19 @@
       "generated": null,
       "identity": null,
       "name": "missing_after_hours",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "score_effective_since",
       "entityType": "columns",
       "schema": "public",
       "table": "company_delivery_proof_settings"

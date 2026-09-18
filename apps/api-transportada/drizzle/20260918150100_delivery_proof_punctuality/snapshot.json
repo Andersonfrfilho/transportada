@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "8e15c793-83d5-442d-90fc-7268a0200270",
+  "id": "f031f625-2656-4385-8953-fe9d794999d4",
   "prevIds": [
-    "db9282b6-8b66-48cb-a78e-fa63d27f32fc"
+    "a827289a-b8de-429f-aa54-03071de7353a"
   ],
   "ddl": [
     {
@@ -19274,6 +19274,19 @@
       "table": "company_delivery_proof_settings"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_ocr_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -19334,19 +19347,6 @@
       "generated": null,
       "identity": null,
       "name": "missing_after_hours",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_delivery_proof_settings"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "score_effective_since",
       "entityType": "columns",
       "schema": "public",
       "table": "company_delivery_proof_settings"
@@ -28351,19 +28351,6 @@
       "table": "trip_stop_events"
     },
     {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "reported_by_driver_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "trip_stop_events"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -34373,27 +34360,6 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "created_at",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": "\"latitude\" is not null",
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "trip_delivery_proofs_located_created_at_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "trip_delivery_proofs"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
           "value": "company_id",
           "isExpression": false,
           "asc": true,
@@ -34603,34 +34569,6 @@
       "method": "btree",
       "concurrently": false,
       "name": "trip_stop_events_company_stop_created_at_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "trip_stop_events"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "company_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
-          "value": "coalesce(\"captured_at\", \"recorded_at\")",
-          "isExpression": true,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": "\"kind\" = 'delivered'",
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "trip_stop_events_company_delivered_at_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_stop_events"
@@ -41402,25 +41340,6 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_stop_events_company_driver_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "trip_stop_events"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "reported_by_driver_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "fleet_drivers",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
-      "onUpdate": "CASCADE",
-      "onDelete": "RESTRICT",
-      "name": "trip_stop_events_company_reported_by_driver_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trip_stop_events"

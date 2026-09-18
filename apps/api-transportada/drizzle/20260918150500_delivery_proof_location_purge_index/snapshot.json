@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "db9282b6-8b66-48cb-a78e-fa63d27f32fc",
+  "id": "8e15c793-83d5-442d-90fc-7268a0200270",
   "prevIds": [
-    "89c20f17-d87d-45f5-a385-2e14477e1fb6"
+    "db9282b6-8b66-48cb-a78e-fa63d27f32fc"
   ],
   "ddl": [
     {
@@ -19274,6 +19274,19 @@
       "table": "company_delivery_proof_settings"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_ocr_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -34368,6 +34381,27 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "delivery_address_overrides"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"latitude\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_delivery_proofs_located_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_delivery_proofs"
     },
     {
       "nameExplicit": true,

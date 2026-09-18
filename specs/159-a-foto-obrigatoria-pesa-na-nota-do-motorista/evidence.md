@@ -94,7 +94,7 @@ Arquivos:
   `proofRadiusMeters` (padrão 300, CHECK 50–5000), `latePenaltyPoints` (padrão 5, CHECK 0–100),
   `missingPenaltyPoints` (padrão 10, CHECK 0–100), `missingAfterHours` (padrão 24, CHECK 1–168).
   `deliveryProofSettingOverrides` **não** ganhou esses campos, como pedido.
-- `apps/api-transportada/drizzle/20260918140100_delivery_proof_punctuality/` (novo) —
+- `apps/api-transportada/drizzle/20260918150100_delivery_proof_punctuality/` (novo) —
   `migration.sql` gerado por `bun run db:generate --name delivery_proof_punctuality`,
   `rollback.sql` escrito à mão (sem guarda de dado: migration puramente aditiva, nenhum dado de
   negócio depende das colunas novas), `snapshot.json` gerado junto.
@@ -117,7 +117,7 @@ Arquivos:
   inteiro não aceita fração, corpo de exceção continua recusando os campos de pontualidade.
 - `apps/api-transportada/test/trip-delivery-proof.contract.test.ts` — import do arquivo acima.
 - `apps/api-transportada/test/database-migration/static-migration.contract.ts` — lista estática de
-  diretórios de migration ganhou `20260918140100_delivery_proof_punctuality`.
+  diretórios de migration ganhou `20260918150100_delivery_proof_punctuality`.
 
 Comandos e resultado:
 
@@ -313,7 +313,7 @@ Arquivos:
 - `apps/api-transportada/src/main.ts` — `DrizzleDriverScoreRepository` nos dois pontos que montam
   `findCurrentDriverTrip` (rota do motorista e ações do WhatsApp).
 - `apps/api-transportada/src/database/trip.schema.ts` + migration
-  `drizzle/20260918140200_driver_score_delivered_index/` (`migration.sql`, `snapshot.json`,
+  `drizzle/20260918150200_driver_score_delivered_index/` (`migration.sql`, `snapshot.json`,
   `rollback.sql` à mão) — índice parcial `trip_stop_events (company_id, coalesce(captured_at,
 recorded_at)) where kind = 'delivered'`. `static-migration.contract.ts` lista a pasta nova.
 - Testes: `test/integration/driver-score.integration.ts` (novo, listado em `test:integration`),
@@ -586,8 +586,8 @@ escrito antes da correção em cada item.
 | D3b    | Substituta lavava a pontualidade                                        | `mergeProofPunctuality`                                                                                                                                                                                                                                                                                                                                                               | `punctuality.contract.ts` (13 combinações); `delivery-proof.contract.ts` "foto pontual que substitui a tardia continua late"                                                                                      | `2bf747b5`             |
 
 Migrations novas (todas aditivas, com `snapshot.json` e `rollback.sql`):
-`20260918140300_driver_score_reported_by_driver`, `20260918140400_driver_score_effective_since`
-(com `INSERT … SELECT id FROM companies ON CONFLICT DO NOTHING`), `20260918140500_delivery_proof_location_purge_index`.
+`20260918150300_driver_score_reported_by_driver`, `20260918150400_driver_score_effective_since`
+(com `INSERT … SELECT id FROM companies ON CONFLICT DO NOTHING`), `20260918150500_delivery_proof_location_purge_index`.
 Verificação manual contra Postgres 18 descartável: migrar tudo → aplicar os rollbacks de
 `effective_since` e `reported_by_driver` → colunas somem (0) → inserir empresa → migrar de novo →
 a empresa ganhou linha de fábrica com `score_effective_since` preenchido e as colunas voltaram (2).

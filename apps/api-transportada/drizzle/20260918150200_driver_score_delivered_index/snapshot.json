@@ -19274,6 +19274,19 @@
       "table": "company_delivery_proof_settings"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_ocr_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,

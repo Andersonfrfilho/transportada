@@ -266,12 +266,12 @@ describe('Drizzle migrations', () => {
       '20260918070043_delivery_proof_office_receiver_name',
       '20260918084711_trip_document_occurrence_attachment',
       '20260918122304_trip_status_events',
-      '20260918140100_delivery_proof_punctuality',
-      '20260918140200_driver_score_delivered_index',
-      '20260918140300_driver_score_reported_by_driver',
-      '20260918140400_driver_score_effective_since',
-      '20260918140500_delivery_proof_location_purge_index',
       '20260918142214_delivery_proof_canhoto_ocr',
+      '20260918150100_delivery_proof_punctuality',
+      '20260918150200_driver_score_delivered_index',
+      '20260918150300_driver_score_reported_by_driver',
+      '20260918150400_driver_score_effective_since',
+      '20260918150500_delivery_proof_location_purge_index',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

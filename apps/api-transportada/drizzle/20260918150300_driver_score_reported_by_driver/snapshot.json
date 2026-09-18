@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "f031f625-2656-4385-8953-fe9d794999d4",
+  "id": "89c20f17-d87d-45f5-a385-2e14477e1fb6",
   "prevIds": [
-    "8e2e977b-228c-4bfa-8635-5838feccfd5c"
+    "5dd6d785-c248-4047-a52b-353122d00c56"
   ],
   "ddl": [
     {
@@ -19274,6 +19274,19 @@
       "table": "company_delivery_proof_settings"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_ocr_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_delivery_proof_settings"
+    },
+    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -28338,6 +28351,19 @@
       "table": "trip_stop_events"
     },
     {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_by_driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_stop_events"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -34556,6 +34582,34 @@
       "method": "btree",
       "concurrently": false,
       "name": "trip_stop_events_company_stop_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_stop_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "coalesce(\"captured_at\", \"recorded_at\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"kind\" = 'delivered'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_stop_events_company_delivered_at_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_stop_events"
@@ -41327,6 +41381,25 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_stop_events_company_driver_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_stop_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "reported_by_driver_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_drivers",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_stop_events_company_reported_by_driver_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trip_stop_events"
