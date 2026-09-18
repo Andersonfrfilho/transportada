@@ -21,6 +21,8 @@ export type FieldOccurrenceSubmission = Readonly<{
 }>
 
 export type FieldOccurrenceDialogProps = Readonly<{
+  /** O motorista escolhido no painel da viagem — o diálogo abre com ele, não com o primeiro. */
+  defaultDriverId: string
   documentIds: readonly string[]
   drivers: readonly Readonly<{ driverId: string; driverName: string }>[]
   hasMultipleDrivers: boolean
@@ -39,6 +41,7 @@ export type FieldOccurrenceDialogProps = Readonly<{
  * (ocorrência de parada, T8) — as duas rotas e os dois vocabulários são propositalmente diferentes.
  */
 export function FieldOccurrenceDialog({
+  defaultDriverId,
   documentIds,
   drivers,
   hasMultipleDrivers,
@@ -59,9 +62,9 @@ export function FieldOccurrenceDialog({
     if (!isOpen) return
     setOccurrenceTypeId('')
     setNote('')
-    setDriverId('')
+    setDriverId(defaultDriverId)
     setFile(null)
-  }, [isOpen])
+  }, [defaultDriverId, isOpen])
 
   if (!isOpen) return null
 

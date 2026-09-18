@@ -175,6 +175,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    */
   const [batchReturnFailure, setBatchReturnFailure] = useState<{
     readonly failedCount: number
+    readonly tripId: string
     readonly feedbackKey: string
     readonly totalCount: number
   } | null>(null)
@@ -382,6 +383,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       documentIds: [...selection.selectedIds],
     })
     if (documentIds.length === 0) return
+    setBatchReturnFailure(null)
     workspace.batchFieldReturnMutation.mutate(
       { documentIds, ...officeDriverIdInput, reason, tripId: trip.id },
       {
@@ -395,6 +397,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           const firstErrorCode = failed[0]?.errorCode ?? null
           setBatchReturnFailure({
             failedCount: failed.length,
+            tripId: trip.id,
             feedbackKey:
               resolveTripFeedbackKey(firstErrorCode === null ? null : new Error(firstErrorCode)) ??
               'requestFailed',
@@ -455,7 +458,10 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         </p>
       )}
 
-      {batchReturnFailure === null ? null : (
+      {/* O aviso fala das notas que continuam marcadas: sem elas, ou em outra viagem, ele já não vale */}
+      {batchReturnFailure === null ||
+      batchReturnFailure.tripId !== trip.id ||
+      selection.selectedIds.size === 0 ? null : (
         <p className={styles.alert} role="alert">
           {t('stateActions.batchReturnPartialFailure', {
             failed: batchReturnFailure.failedCount,
@@ -640,6 +646,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       />
 
       <FieldOccurrenceDialog
+        defaultDriverId={officeDriverId ?? ''}
         documentIds={fieldOccurrenceDocumentIds ?? []}
         drivers={trip.drivers}
         hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}

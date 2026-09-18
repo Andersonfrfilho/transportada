@@ -1989,10 +1989,14 @@ de "as quatro" para "as sete" (o teste já afirmava `toHaveLength(7)`, só o tex
 - `bun run --cwd apps/frontend-transportada test` → `4397 pass · 0 fail`, 37198 `expect()`, mais
   `bun run test:hooks` → `10 pass · 0 fail`.
 - API, contrato (`bun --env-file=../../.env.test test --timeout 120000`, dentro de
-  `apps/api-transportada`) → `6546 pass · 1 fail · 23158 expect()`. A falha
-  (`Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal
-migration`) é diferença de versão do Postgres nativo descartável (18.4) contra o esperado pelo
-  projeto — `SQLSTATE` `23001` em vez de `23503` numa constraint — e não toca nada de `trips`.
+  `apps/api-transportada`, com `DATABASE_URL` e `DRIZZLE_TEST_DATABASE_URL` no Postgres nativo
+  descartável) → `6558 pass · 1 fail · 0 skip`, 180 arquivos, depois do último rebase. A falha é
+  `Drizzle migration integration > … fiscal migration`, e ela se repete de forma determinística:
+  o `DELETE` em `nfse_emission_profiles` viola `cte_emission_profiles_company_nfse_profile_fk`, que é
+  `ON DELETE RESTRICT`. O Postgres 18.4 do Homebrew devolve `23001` (`restrict_violation`) onde o
+  teste espera `23503`. É ambiente: o `compose.yaml` fixa outra imagem por digest, e a T8b não toca
+  essa migration nem esse teste. A segunda revisão tinha medido `0 fail`, mas com 23 skips: sem
+  `DRIZZLE_TEST_DATABASE_URL`, o teste de migration não roda.
 - API, integração (`bun --env-file=../../.env.test run test:integration`) → o Docker local estava
   fora do ar (`Cannot connect to the Docker daemon`); rodado contra Postgres nativo descartável
   (`initdb`/`pg_ctl` em `65433`, `max_connections=400` — o padrão de 100 esgotava sob os 414 testes
@@ -2003,6 +2007,21 @@ migration`) é diferença de versão do Postgres nativo descartável (18.4) cont
   `statement_timeout`/config de pool do Postgres do Docker, que o nativo não replica) e testes de
   isolamento de tenant/`auth-me` fechando conexão sob carga; 8 de object storage indisponível
   (MinIO também estava no Docker parado — `cte archive gateway`, extrato/recarga de pedágio spec
-  154); 1 da mesma diferença de `SQLSTATE` do Postgres do teste de contrato acima.
+  154); 1 é a mesma do teste de contrato acima (`23001` do Postgres 18).
   **Os seis arquivos de integração da T8b, rodados isolados e dentro da rodada cheia, deram
   `34 pass · 0 fail · 0 skip`** — nenhum skip, nenhuma falha, nos dois modos.
+
+### Segunda revisão (`code-reviewer`, opus): aprovada
+
+Os bloqueantes e importantes da primeira rodada foram resolvidos. Os quatro menores que sobraram
+foram corrigidos no último commit da T8b:
+
+- O cabeçalho de copyright de `test/trip/state-gates.contract.ts` voltou.
+- O `FieldOccurrenceDialog` (T9) abre com o motorista escolhido no painel da viagem
+  (`defaultDriverId`), não com o de `position = 1`. É o mesmo seletor único da T8b.
+- O aviso "N de M não foram devolvidas" some quando começa um lote novo, quando se troca de
+  viagem ou quando nenhuma nota continua marcada.
+- A seção de gates acima dá a causa medida da falha de contrato, que é ambiente.
+
+Fica fora: o seletor de motorista vive em `TripFieldActions`, que não aparece numa viagem
+despachada sem nenhuma parada. O revisor deu confiança baixa ao caso, e ele vai para a T16.
