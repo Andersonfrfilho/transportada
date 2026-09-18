@@ -661,4 +661,42 @@ $ DATABASE_URL=<banco migrado> bun test ./test/trip-location-purge.integration.t
 $ bun run test                           # 4357 pass / 0 fail (+ 2 pass test:hooks)
 ```
 
-T11 **não** fica `[x]`: falta a parte do frontend acima (e a revisão dela).
+### T11 — parte do frontend (`apps/frontend-transportada`)
+
+Implementados os cinco pontos listados acima, teste antes de cada correção, quatro commits
+isolados:
+
+| #   | Correção                                                                                                                                                                                                                                                                                                                                                                    | Teste                                                                                                                                             | Commit     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | `DriverTripSnapshot.pendingProofs` na raiz (novo tipo `PendingProofDocument`); `driverTripResponse.validation.ts` valida o bloco (item malformado some da lista, não quebra a tela); `listProofPendingDocuments` lê a raiz em vez de percorrer `trips` — alcançável sem viagem ativa, já que o botão/contador do workspace não dependiam de `trip !== undefined`            | `test/driver-trip/proof-pending.contract.ts` (parsing da raiz, item sem `documentId`/`tripId` some, lista alcança viagem `completed` sem `trips`) | `22c50e5b` |
+| 2   | `driverTripClient.attachProof` limita/omite `accuracyMeters` acima de 10 km (`clampProofAccuracyMeters`/`MAX_PROOF_ACCURACY_METERS`) antes do multipart — vale para a captura nova e para o que a drenagem reenvia de um anexo antigo da fila, porque os dois passam pelo mesmo `attachProof`                                                                               | `test/driver-trip/proof-accuracy-clamp.contract.ts`                                                                                               | `e4bcf3e7` |
+| 3   | `proofPendingWarning` (pt/en) diz que refazer a foto não melhora a pontualidade (D3b) e que o envio tardio conta como atrasado mesmo com outro horário no relógio do aparelho (D3a)                                                                                                                                                                                         | `test/driver-trip/proof-pending.contract.ts` (texto pt/en)                                                                                        | `22c50e5b` |
+| 4   | Anexo recusado ou parado expira aos 7 dias (`ATTACHMENT_DISCARD_AFTER_MS`/`discardStaleAttachments`), apagando blob e posição — roda uma vez por abertura do app, antes da drenagem                                                                                                                                                                                         | `test/driver-trip/offline-attachments.contract.ts`                                                                                                | `52e21880` |
+| 5   | `DriverPendingProofsPage` esconde o formulário e mostra "na fila, aguardando envio" quando já há anexo na `attachmentStore` para o documento (`isProofAlreadyQueued`, chave `documentAttachmentKey`); resultado da pontualidade vira aviso persistente e dispensável no workspace (`visibleProofOutcomes`/`dismissedProofOutcomeIds`), computado no render, sem `useEffect` | `test/driver-trip/proof-pending-queued.contract.ts`                                                                                               | `22c50e5b` |
+
+E, sem numeração própria na lista original mas cobertos junto:
+
+- Foto grava no IndexedDB **antes** de esperar o GPS (até 8 s) — a posição chega depois e atualiza o
+  mesmo anexo por `attachmentKey` (`applyAttachmentLocation`); se a drenagem subir antes da posição
+  resolver, a foto vai sem ela e conta como longe (ADR-0068 §4), nunca perdida.
+  `test/driver-trip/offline-attachments.contract.ts` — `52e21880`.
+- `TripDeliveryProofSettingsPanel`: campo numérico vazio não vira `0` silencioso
+  (`resolvePunctualityFieldValue` trata string vazia como `NaN`, reprovando
+  `isDeliveryProofPunctualityValue` e aparecendo com a mensagem de erro do campo).
+  `test/trip/delivery-proof-punctuality-settings.contract.ts` — `238a9935`.
+- `DriverStopCard` chama `isProofPendingWarningDue` em vez de reimplementar a condição —
+  `22c50e5b`.
+- `PROOF_PUNCTUALITY_VALUES` tem fonte única em `driverTrip.types.ts`; `driverTripClient.service.ts`
+  importa em vez de redeclarar; valor morto `'sent'` saiu de `DriverProofOutcome` — `e4bcf3e7` e
+  `52e21880`.
+
+Comandos e resultado (`apps/frontend-transportada`):
+
+```
+$ bun run typecheck                      # raiz, todas as apps — 0 erros
+$ bun run lint                           # raiz, todas as apps — 0 erros
+$ bun run test                           # 4383 pass / 0 fail (+ 2 pass test:hooks)
+$ bun run build                          # ok (avisos de chunk >500kB pré-existentes, fora do escopo)
+```
+
+T11 fica `[x]`.
