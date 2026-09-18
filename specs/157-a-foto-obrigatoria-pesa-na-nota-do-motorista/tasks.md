@@ -28,7 +28,7 @@ no `package.json`), evidência em `evidence.md` e commit isolado. Integração d
       `test/trip-delivery-proof/punctuality.contract.ts`. Aceite: casos 3 e 4 da spec, limite do
       `capturedAt` (futuro e antes da entrega), parada sem coordenada, sem referência nenhuma,
       `not_required`.
-- [ ] **T3** `computeDriverScore` em `fleet/domain/driver-score.policy.ts` + contrato. Aceite: caso 5 da
+- [x] **T3** `computeDriverScore` em `fleet/domain/driver-score.policy.ts` + contrato. Aceite: caso 5 da
       spec, mínimo 0, `null` sem histórico, penalidade única por entrega, configuração atual para ausência.
 
 ## Fase 2 — persistência e portas do motorista
