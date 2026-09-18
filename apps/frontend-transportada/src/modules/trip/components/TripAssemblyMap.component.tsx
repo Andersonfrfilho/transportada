@@ -609,7 +609,7 @@ export function TripAssemblyMap({
                     {summary.isBestOfBoth ? (
                       <span className={styles.routeOptionBadge}>
                         <Icon name="speed" size="sm" />
-                        <Icon name="savings" size="sm" />
+                        <Icon name="cost-down" size="sm" />
                         {t('assemblyMap.routeOptions.fastestAndCheapest')}
                       </span>
                     ) : (
@@ -622,7 +622,7 @@ export function TripAssemblyMap({
                         ) : null}
                         {summary.isCheapest ? (
                           <span className={styles.routeOptionBadge}>
-                            <Icon name="savings" size="sm" />
+                            <Icon name="cost-down" size="sm" />
                             {t('assemblyMap.routeOptions.cheapest')}
                           </span>
                         ) : null}
