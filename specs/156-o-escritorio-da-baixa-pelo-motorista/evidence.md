@@ -1671,3 +1671,66 @@ Array(n).fill(x)` tipava `any[]` sob `@typescript-eslint/no-unsafe-assignment`; 
 - `apps/frontend-transportada/test/trip/canhoto-identification.contract.ts` (novo)
 - `apps/frontend-transportada/test/fixtures/canhotoBarcodeFrame.fixture.ts` (novo)
 - `apps/frontend-transportada/test/trip.contract.test.ts` (import acrescentado)
+
+## T8b
+
+Remove o caminho antigo de entrega/devolução do escritório (sem autoria, `trip.manage`) e deixa só
+o caminho novo com autoria (`field-delivery`/`field-return`, `trip.report-on-behalf`), acionado
+pelos botões "Entregar"/"Devolver" da tela.
+
+### T8b.1 — `findDriverReachableDocument` filtra `releasedAt`
+
+Achado B2 da validação da T7: `findDriverReachableDocument`
+(`apps/api-transportada/src/trips/infrastructure/delivery-proof-read.support.ts`) não filtrava
+`isNull(tripDocuments.releasedAt)` no `where`, ao contrário de `findReachableDocumentIds`
+(`drizzle-office-occurrence-batch.repository.ts`, já correta) e de `findDocumentForDriver`
+(`drizzle-driver-field-report.repository.ts`, usada por entrega/devolução, já correta). Uma nota
+liberada da viagem (`markCancelled`, revisão de layout) continuava respondendo alcançável para
+`registerDriverOccurrence` enquanto a viagem seguia em estado ativo.
+
+**Achado da investigação, registrado antes da correção:** `findDriverReachableDocument` só é
+alcançada, na composição real (`main.ts:738` e `main.ts:2439`), pelo motorista — `/me` (PWA) e o
+fluxo do WhatsApp —, nunca pelo escritório. O escritório usa `findReachableDocumentIds` (lote de
+ocorrências, já filtrava) e `findDocumentForDriver` (entrega/devolução via
+`report-document-delivery.use-case.ts`, já filtrava). A frase da task ("e o escritório, pelo mesmo
+helper") descreve o vocabulário compartilhado (`FieldTripTarget`, que aceita `kind: 'trip'` do
+escritório e `kind: 'driver'` do motorista) — não um caminho de produção hoje alcançado pelo
+escritório por esta função específica. Corrigido do mesmo jeito: defesa em profundidade, e o teste
+cobre os dois `kind` do alvo, não só o que a produção usa hoje.
+
+### Arquivos
+
+**Alterados:**
+
+- `apps/api-transportada/src/trips/infrastructure/delivery-proof-read.support.ts` — importa `isNull`
+  de `drizzle-orm`; `findDriverReachableDocument` ganha `isNull(tripDocuments.releasedAt)` no
+  `where`, no mesmo lugar de `findReachableDocumentIds`. Comentário da função atualizado para citar
+  as duas funções irmãs e a spec 156 T8b.1.
+- `apps/api-transportada/test/integration/field-trip-target.integration.ts` — novo teste "nota
+  liberada da própria viagem não é alcançável, nem pelo motorista nem pelo escritório (T8b.1)":
+  libera a nota (`UPDATE trip_documents SET released_at`), confirma `findDriverReachableDocument`
+  responde `null` para `target: { kind: 'driver' }` e para `target: { kind: 'trip' }`, e confirma que
+  uma segunda nota da mesma viagem, não liberada, continua alcançável (não é regressão de tenant).
+
+### TDD
+
+Vermelho confirmado revertendo a linha `isNull(tripDocuments.releasedAt)` e rodando só o teste novo:
+
+```
+(fail) o alvo trip do escritório contra o Postgres (spec 156 T3) > nota liberada da própria viagem
+não é alcançável, nem pelo motorista nem pelo escritório (T8b.1)
+expect(received).toBeNull()
+Received: { tripId: "05322028-b6ee-4b9d-9970-0ccaaa091fa9" }
+```
+
+Verde depois de restaurar o `isNull`: `6 pass · 0 fail` em `field-trip-target.integration.ts`.
+
+### Gates
+
+- `bun run --cwd apps/api-transportada typecheck` → exit 0.
+- `bun run --cwd apps/api-transportada test` → `6504 pass · 0 fail · 32 skip`, 22643 `expect()`.
+- Integração (`bun --env-file=../../.env.test test --timeout 120000`, dentro de
+  `apps/api-transportada`): `field-trip-target.integration.ts`, `me-trip.integration.ts`,
+  `trip-field-office.integration.ts`, `trip-field-authorship.integration.ts`,
+  `trip-repository.integration.ts`, `whatsapp-driver-flow-actions.integration.ts` →
+  `34 pass · 0 fail`, 0 skip.

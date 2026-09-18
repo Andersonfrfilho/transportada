@@ -7,7 +7,7 @@
  * aparece na tela de outra.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
@@ -468,10 +468,17 @@ export async function readOccurrenceLabels(
  * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
  * nota da viagem que ele resolveu.
  *
- * ⚠️ O recorte é o mesmo de `findDeliveryEventId`: o alvo (`fieldTripTargetCondition`) e viagem em
- * estado ativo. Nota de outra viagem — ou de viagem que já fechou — responde `null`, e o caso de uso a
- * trata como inalcançável. É a consulta que estreita o `trip.report` da empresa inteira para a
- * carga que ele tem nas mãos; a permissão sozinha não estreita nada.
+ * ⚠️ O recorte é o mesmo de `findReachableDocumentIds`: o alvo (`fieldTripTargetCondition`), viagem
+ * em estado ativo e **só as vivas** — nota liberada (`released_at`) não está mais na viagem, mesmo
+ * que a viagem continue ativa (spec 156 T8b.1). Nota de outra viagem, de viagem que já fechou, ou já
+ * liberada desta mesma viagem, responde `null`, e o caso de uso a trata como inalcançável. É a
+ * consulta que estreita o `trip.report` da empresa inteira para a carga que ele tem nas mãos; a
+ * permissão sozinha não estreita nada.
+ *
+ * ⚠️ `findDeliveryEventId` (`drizzle-delivery-proof.repository.ts`) **não** filtra `released_at` —
+ * ela busca o evento de uma entrega que já aconteceu, e o comprovante continua válido mesmo que a
+ * nota seja liberada depois. Os dois têm o mesmo alvo e o mesmo recorte de viagem ativa, mas não o
+ * mesmo recorte de `released_at`; o comentário anterior os igualava por engano.
  */
 export async function findDriverReachableDocument(
   queryable: TripQueryable,
@@ -492,6 +499,7 @@ export async function findDriverReachableDocument(
       and(
         eq(tripDocuments.companyId, input.companyId),
         eq(tripDocuments.id, input.documentId),
+        isNull(tripDocuments.releasedAt),
         fieldTripTargetCondition(input.target),
         inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
       ),

@@ -275,6 +275,56 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
   })
 
   testWithPostgres(
+    'nota liberada da própria viagem não é alcançável, nem pelo motorista nem pelo escritório (T8b.1)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database, 1)
+        const targetTrip = await seedTrip(database, company, {
+          driverIds: [...company.driverIds],
+        })
+
+        /** Liberada como `markCancelled`/a fila de revisão fazem: marca, nunca apaga a linha. */
+        await database.db
+          .update(tripDocuments)
+          .set({ releasedAt: NOW })
+          .where(eq(tripDocuments.id, targetTrip.documentId))
+
+        const driverTarget = { driverId: company.driverIds[0] ?? '', kind: 'driver' } as const
+        const officeTarget = { kind: 'trip', tripId: targetTrip.tripId } as const
+
+        expect(
+          await findDriverReachableDocument(database.db, {
+            companyId: company.companyId,
+            documentId: targetTrip.documentId,
+            target: driverTarget,
+          }),
+        ).toBeNull()
+        expect(
+          await findDriverReachableDocument(database.db, {
+            companyId: company.companyId,
+            documentId: targetTrip.documentId,
+            target: officeTarget,
+          }),
+        ).toBeNull()
+
+        /** A mesma viagem, nota **não** liberada: continua alcançável — não é regressão de tenant. */
+        const otherDocument = (
+          await seedTrip(database, company, {
+            driverIds: [...company.driverIds],
+          })
+        ).documentId
+        expect(
+          await findDriverReachableDocument(database.db, {
+            companyId: company.companyId,
+            documentId: otherDocument,
+            target: driverTarget,
+          }),
+        ).not.toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
     'a viagem que concluiu entre a leitura e a gravação não regride (R2)',
     async () => {
       await withDisposableDatabase(async (database) => {
