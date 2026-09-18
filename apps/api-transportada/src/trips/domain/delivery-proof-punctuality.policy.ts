@@ -78,6 +78,42 @@ function isAway(params: ClassifyProofPunctualityParams): boolean {
   return distance > radius
 }
 
+const LATE_PUNCTUALITIES: ReadonlySet<ProofPunctuality> = new Set([
+  PROOF_PUNCTUALITY.late,
+  PROOF_PUNCTUALITY.lateAndAway,
+])
+const AWAY_PUNCTUALITIES: ReadonlySet<ProofPunctuality> = new Set([
+  PROOF_PUNCTUALITY.away,
+  PROOF_PUNCTUALITY.lateAndAway,
+])
+
+export type MergeProofPunctualityParams = {
+  /** A pontualidade da foto que já estava gravada no evento — `undefined` sem foto anterior. */
+  readonly previous: ProofPunctuality | undefined
+  readonly next: ProofPunctuality
+}
+
+/**
+ * Spec 157 T11 (decisão D3b do usuário, 2026-09-18): a foto substituída nunca melhora a
+ * pontualidade. Fica a pior das duas — `late` e `away` pesam igual, e os dois juntos são
+ * `late_and_away`. `on_time` só vence `not_required`. É também o que impede a foto do escritório
+ * (`not_required`) de lavar a do motorista.
+ */
+export function mergeProofPunctuality(params: MergeProofPunctualityParams): ProofPunctuality {
+  const { next, previous } = params
+  if (previous === undefined) return next
+
+  const late = LATE_PUNCTUALITIES.has(previous) || LATE_PUNCTUALITIES.has(next)
+  const away = AWAY_PUNCTUALITIES.has(previous) || AWAY_PUNCTUALITIES.has(next)
+  if (late && away) return PROOF_PUNCTUALITY.lateAndAway
+  if (late) return PROOF_PUNCTUALITY.late
+  if (away) return PROOF_PUNCTUALITY.away
+  if (previous === PROOF_PUNCTUALITY.onTime || next === PROOF_PUNCTUALITY.onTime) {
+    return PROOF_PUNCTUALITY.onTime
+  }
+  return PROOF_PUNCTUALITY.notRequired
+}
+
 export function classifyProofPunctuality(params: ClassifyProofPunctualityParams): ProofPunctuality {
   if (params.photoMode !== 'required') return PROOF_PUNCTUALITY.notRequired
 

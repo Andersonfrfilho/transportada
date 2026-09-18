@@ -67,6 +67,12 @@ function buildWorld(
       }),
     resolveProofPunctualitySettings: () =>
       Promise.resolve(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS),
+    /** O dublê guarda a última pontualidade por evento+tipo, como o upsert do banco. */
+    findProofPunctuality: (query) =>
+      Promise.resolve(
+        saved.findLast((proof) => proof.eventId === query.eventId && proof.kind === query.kind)
+          ?.punctuality ?? null,
+      ),
     saveProof: (proof) => {
       saved.push(proof)
       return Promise.resolve({ id: 'proof-1' })
@@ -306,7 +312,48 @@ describe('o comprovante da entrega', () => {
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.notRequired)
     })
 
-    it('foto substituída (upsert por evento+tipo) leva a nova pontualidade', async () => {
+    /**
+     * Spec 157 T11 (D3b): a substituta nunca melhora a pontualidade — a pontual depois da tardia
+     * continua `late`, senão bastava tirar outra foto no lugar certo para apagar o atraso.
+     */
+    it('foto pontual que substitui a tardia continua late', async () => {
+      const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
+      const world = buildWorld({ deliveredAt: DELIVERED_AT, stopPosition })
+      await withPhotoMode(world, 'required')
+      const lateCapturedAt = new Date(DELIVERED_AT.getTime() + 2 * 60 * 60 * 1000)
+
+      await attachDeliveryProof(
+        buildInput(
+          world,
+          { attachmentKey: 'first', capturedAt: lateCapturedAt, position: undefined },
+          lateCapturedAt,
+        ),
+      )
+      const second = await attachDeliveryProof(
+        buildInput(
+          world,
+          { attachmentKey: 'second', capturedAt: lateCapturedAt, position: stopPosition },
+          lateCapturedAt,
+        ),
+      )
+      const onTimeAfterAway = await attachDeliveryProof(
+        buildInput(world, {
+          attachmentKey: 'third',
+          capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
+          position: stopPosition,
+        }),
+      )
+
+      expect(world.saved.map((proof) => proof.punctuality)).toEqual([
+        PROOF_PUNCTUALITY.lateAndAway,
+        PROOF_PUNCTUALITY.lateAndAway,
+        PROOF_PUNCTUALITY.lateAndAway,
+      ])
+      expect(second.punctuality).toBe(PROOF_PUNCTUALITY.lateAndAway)
+      expect(onTimeAfterAway.punctuality).toBe(PROOF_PUNCTUALITY.lateAndAway)
+    })
+
+    it('foto substituída (upsert por evento+tipo) fica com a pior pontualidade', async () => {
       const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
       const world = buildWorld({ deliveredAt: DELIVERED_AT, stopPosition })
       await withPhotoMode(world, 'required')

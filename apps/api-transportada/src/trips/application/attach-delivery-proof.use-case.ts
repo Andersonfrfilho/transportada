@@ -7,6 +7,7 @@ import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
 import {
   classifyProofPunctuality,
+  mergeProofPunctuality,
   PROOF_PUNCTUALITY,
   type ProofPosition,
   type ProofPunctuality,
@@ -27,6 +28,7 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -103,6 +105,15 @@ export type DeliveryProofPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality } | null>
+  /**
+   * Spec 157 T11: a pontualidade da foto que a substituta vai sobrescrever (upsert por
+   * evento+tipo). `null` quando o evento ainda não tem comprovante daquele tipo.
+   */
+  findProofPunctuality(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<ProofPunctuality | null>
   saveProof(input: {
     readonly accuracyMeters: string | null
     readonly actorUserId: string
@@ -198,14 +209,16 @@ export async function attachDeliveryProof(
     if (existing !== null) return existing
   }
 
-  /**
-   * ADR-0068 §2-6, spec 157 RF4-RF6: só a foto entra na nota — a assinatura grava `not_required`
-   * de propósito (RF4). O motorista é o único canal que chega aqui (a assinatura é sempre dele).
-   */
-  const punctuality =
-    input.upload.kind === 'photo'
-      ? await classifyPhotoPunctuality({ eventId, input, settings })
-      : PROOF_PUNCTUALITY.notRequired
+  const authorship = deriveFieldAuthorship(input)
+  const punctuality = mergeProofPunctuality({
+    next: await classifyUploadPunctuality({ authorship, eventId, input, settings }),
+    previous:
+      (await input.repository.findProofPunctuality({
+        companyId: input.companyId,
+        eventId,
+        kind: input.upload.kind,
+      })) ?? undefined,
+  })
 
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
@@ -226,14 +239,13 @@ export async function attachDeliveryProof(
     receiverDocument.length === 0
       ? null
       : await input.sealDocument({ companyId: input.companyId, proofId, receiverDocument })
-  const authorship = deriveFieldAuthorship(input)
   /**
    * ADR-0067 §5 (emenda 2026-09-18): o canhoto do escritório é sempre `kind: 'photo'`, e é o único
    * caso em que uma foto carrega `receiverName` — quem assina é o recebedor, não o escritório, e
    * `receiverName` é como ele cumpre a exigência de assinatura sem colhê-la (D8). O CHECK do banco
    * (`trip_delivery_proofs_receiver_check`) foi relaxado para `channel = 'office'` na mesma migration.
    */
-  const carriesReceiverName = isSignature || authorship.channel === 'office'
+  const carriesReceiverName = isSignature || authorship.channel === TRIP_FIELD_CHANNELS.office
 
   const proof = await input.repository.saveProof({
     accuracyMeters: input.upload.position?.accuracyMeters?.toFixed(2) ?? null,
@@ -259,6 +271,25 @@ export async function attachDeliveryProof(
   })
 
   return { ...proof, punctuality }
+}
+
+/**
+ * ADR-0068 §2-6, spec 157 RF4-RF6: só a foto do motorista entra na nota — a assinatura grava
+ * `not_required` de propósito (RF4). Spec 157 T11 (ALTO 2): a foto do escritório (`field-proof`,
+ * canal `office`) também — ela não classifica, e a fusão com a anterior
+ * (`mergeProofPunctuality`) preserva o que a foto do motorista já tinha gravado: o canhoto do
+ * escritório nem penaliza o motorista nem lava uma foto dele fora da regra.
+ */
+async function classifyUploadPunctuality(params: {
+  readonly authorship: FieldAuthorship
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+  readonly settings: DeliveryProofFieldSettings
+}): Promise<ProofPunctuality> {
+  if (params.input.upload.kind !== 'photo') return PROOF_PUNCTUALITY.notRequired
+  if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return PROOF_PUNCTUALITY.notRequired
+
+  return classifyPhotoPunctuality(params)
 }
 
 /**

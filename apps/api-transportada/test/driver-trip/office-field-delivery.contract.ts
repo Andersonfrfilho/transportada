@@ -403,6 +403,7 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
           stopPosition: undefined,
         }),
         findProofIdByAttachmentKey: async () => null,
+        findProofPunctuality: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
         resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => ({ id: input.id }),
@@ -427,6 +428,74 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
     expect(world.state.events.size).toBe(1)
   })
 
+  /**
+   * Spec 157 T11 (ALTO 2): o canhoto do escritório não classifica — nem penaliza o motorista (a foto
+   * de escritório não tem posição, e contaria como `away`), nem lava a foto dele fora da regra. A
+   * pontualidade que já estava no evento fica; sem foto anterior, `not_required`.
+   */
+  it.each([
+    ['late', 'late'],
+    ['away', 'away'],
+    [null, 'not_required'],
+  ] as const)(
+    'foto do escritório sobre anterior %s grava %s, sem ler a configuração da nota',
+    async (previous, expected) => {
+      const world = buildWorld()
+      const delivery = await reportDocumentDelivery({
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        documentId: DOCUMENT_ID,
+        idempotencyKey: `office-field-delivery-before-${String(previous)}`,
+        location: null,
+        now: new Date('2026-09-18T12:00:00.000Z'),
+        recordedAt: NOW,
+        target: await resolveTarget(),
+        unitOfWork: world.unitOfWork,
+      })
+      const saved: string[] = []
+
+      const proof = await reportFieldProof({
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        documentId: DOCUMENT_ID,
+        idempotencyKey: `office-field-proof-over-${String(previous)}`,
+        newObjectId: () => 'object-4',
+        newProofId: () => 'proof-4',
+        now: NOW,
+        repository: {
+          findDeliveryEventId: async () => delivery.id,
+          findDeliveryContext: () => Promise.reject(new Error('OFFICE_PROOF_MUST_NOT_CLASSIFY')),
+          findProofIdByAttachmentKey: async () => null,
+          findProofPunctuality: async () => previous,
+          resolveProofFieldSettings: async () => ({ ...OPTIONAL_SETTINGS, photo: 'required' }),
+          resolveProofPunctualitySettings: () =>
+            Promise.reject(new Error('OFFICE_PROOF_MUST_NOT_CLASSIFY')),
+          saveProof: async (input) => {
+            saved.push(input.punctuality)
+            return { id: input.id }
+          },
+        },
+        sealDocument: async () => ({ ciphertext: '', iv: '', keyId: 'k1', tag: '' }) as never,
+        storage: { store: async () => ({ sha256: 'd'.repeat(64) }) },
+        target: await resolveTarget(),
+        unitOfWork: world.unitOfWork,
+        upload: {
+          attachmentKey: '',
+          bytes: new Uint8Array([1]),
+          capturedAt: undefined,
+          kind: 'photo',
+          mimeType: 'image/jpeg',
+          position: undefined,
+          receiverDocument: '',
+          receiverName: 'Ana',
+        },
+      })
+
+      expect(proof.id).toBe('proof-4')
+      expect(saved).toEqual([expected])
+    },
+  )
+
   it('nota sem entrega alcançável responde 409 TRIP_DOCUMENT_NOT_REACHABLE', async () => {
     const world = buildWorld()
 
@@ -447,6 +516,7 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
             stopPosition: undefined,
           }),
           findProofIdByAttachmentKey: async () => null,
+          findProofPunctuality: async () => null,
           resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
           resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
           saveProof: async (input) => ({ id: input.id }),
@@ -491,6 +561,7 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
           stopPosition: undefined,
         }),
         findProofIdByAttachmentKey: async () => null,
+        findProofPunctuality: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
         resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => {
@@ -534,6 +605,7 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
           stopPosition: undefined,
         }),
         findProofIdByAttachmentKey: async () => null,
+        findProofPunctuality: async () => null,
         resolveProofFieldSettings: async () => OPTIONAL_SETTINGS,
         resolveProofPunctualitySettings: async () => DEFAULT_PUNCTUALITY_SETTINGS,
         saveProof: async (input) => {

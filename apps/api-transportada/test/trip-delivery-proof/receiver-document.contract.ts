@@ -59,6 +59,7 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
       }),
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
     findProofIdByAttachmentKey: () => Promise.resolve(null),
+    findProofPunctuality: () => Promise.resolve(null),
     resolveProofFieldSettings: () =>
       Promise.resolve({ ...DEFAULT_DELIVERY_PROOF_SETTINGS, ...settings }),
     resolveProofPunctualitySettings: () =>

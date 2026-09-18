@@ -2572,9 +2572,10 @@ function createApplicationRoutes({
           target: input.target,
           unitOfWork: driverFieldReports,
           /**
-           * Spec 157 T5: o `field-proof` do escritório não colhe posição/`capturedAt` — a foto
-           * ainda classifica (ADR-0068 RF4), mas o canal `office` não entra na nota (RF8 filtra por
-           * canal na leitura, T7).
+           * Spec 157 T11: o `field-proof` do escritório não colhe posição/`capturedAt` e **não**
+           * classifica — a foto grava `not_required`, fundida com a do motorista que ela substitui
+           * (`mergeProofPunctuality`). O filtro de canal da nota olha o evento de entrega, não a
+           * foto; sem isto o canhoto contaria como `away` na entrega do motorista.
            */
           upload: { ...input.proof, capturedAt: undefined, kind: 'photo', position: undefined },
         }),

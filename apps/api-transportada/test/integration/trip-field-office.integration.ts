@@ -47,6 +47,7 @@ import {
   reportDocumentDelivery,
   reportDocumentReturn,
 } from '../../src/trips/application/report-document-delivery.use-case.js'
+import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportFieldProof } from '../../src/trips/application/report-field-proof.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
@@ -502,6 +503,128 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           now: new Date('2026-09-20T12:00:00.000Z'),
         })
         expect(score).toEqual({ penalties: [], score: null })
+      })
+    },
+  )
+
+  /**
+   * Spec 157 T11 (ALTO 2): a entrega é do motorista, e a foto dele chegou tarde e sem posição. O
+   * canhoto que o escritório sobe depois por `field-proof` substitui o arquivo, mas não lava a
+   * pontualidade — e sem foto anterior ele grava `not_required`, nunca `away`.
+   */
+  testWithPostgres(
+    'entrega do motorista + field-proof do escritório: a pontualidade do motorista fica',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: company.companyId, photo: 'required' })
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const [, , , , , , proofRoute] = wireRoutes(database)
+        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
+        const driver = {
+          actorUserId: driverUserId,
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          driverId: company.firstDriverId,
+        }
+
+        await reportDocumentDelivery({
+          ...driver,
+          idempotencyKey: 'motorista-entrega-antes-do-canhoto',
+          location: null,
+          now: new Date(),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+        })
+        const threeHoursLater = new Date(Date.now() + 3 * 60 * 60 * 1000)
+        const driverPhoto = await attachDeliveryProof({
+          ...driver,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: threeHoursLater,
+          repository: deliveryProofs,
+          sealDocument: async () => FAKE_ENVELOPE,
+          storage: { store: async () => ({ sha256: 'e'.repeat(64) }) },
+          upload: {
+            attachmentKey: 'foto-do-motorista',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: threeHoursLater,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: undefined,
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        expect(driverPhoto.punctuality).toBe('late_and_away')
+
+        const response = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-office-proof-over-driver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { receiverName: 'Ana Paula' },
+            file: { bytes: new Uint8Array([7, 7, 7]), mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-field-proof-over-driver',
+          }),
+        })
+        expect(response.status).toBe(201)
+
+        const proofRows = await database.db
+          .select({
+            channel: tripDeliveryProofs.channel,
+            punctuality: tripDeliveryProofs.punctuality,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toEqual([{ channel: 'office', punctuality: 'late_and_away' }])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'field-proof do escritório sobre entrega do motorista sem foto grava not_required',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: company.companyId, photo: 'required' })
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const [, , , , , , proofRoute] = wireRoutes(database)
+
+        await reportDocumentDelivery({
+          actorUserId: driverUserId,
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          driverId: company.firstDriverId,
+          idempotencyKey: 'motorista-entrega-sem-foto',
+          location: null,
+          now: new Date(),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+        })
+        const response = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-office-proof-no-driver-photo',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { receiverName: 'Ana Paula' },
+            file: { bytes: new Uint8Array([7, 7, 7]), mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-field-proof-no-driver-photo',
+          }),
+        })
+        expect(response.status).toBe(201)
+
+        const [proofRow] = await database.db
+          .select({ punctuality: tripDeliveryProofs.punctuality })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRow?.punctuality).toBe('not_required')
       })
     },
   )

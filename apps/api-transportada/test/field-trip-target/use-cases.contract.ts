@@ -111,6 +111,7 @@ function buildProofRepository() {
       return 'event-1'
     },
     findProofIdByAttachmentKey: async () => null,
+    findProofPunctuality: async () => null,
     resolveProofFieldSettings: async () => ({
       photo: 'optional',
       receiverDocument: 'off',

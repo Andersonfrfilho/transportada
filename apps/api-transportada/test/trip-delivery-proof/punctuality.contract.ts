@@ -3,7 +3,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { classifyProofPunctuality } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
+import {
+  classifyProofPunctuality,
+  mergeProofPunctuality,
+  type ProofPunctuality,
+} from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 
 const DELIVERED_AT = new Date('2026-09-18T12:00:00.000Z')
 const RECEIVED_AT = new Date('2026-09-18T12:15:00.000Z')
@@ -224,4 +228,35 @@ describe('classificação da pontualidade da foto (spec 157 RF4-RF6)', () => {
 
     expect(result).toBe('on_time')
   })
+})
+
+/**
+ * Spec 157 T11, decisão D3(b) do usuário: substituir a foto (upsert por evento+tipo) nunca melhora
+ * a pontualidade gravada — fica a pior das duas, e `late` com `away` vira `late_and_away`. Sem isso,
+ * a foto tardia seria "lavada" por uma segunda foto tirada depois no lugar certo.
+ */
+describe('substituição da foto fica com a pior pontualidade (spec 157 T11, D3b)', () => {
+  const cases: ReadonlyArray<
+    readonly [ProofPunctuality | undefined, ProofPunctuality, ProofPunctuality]
+  > = [
+    [undefined, 'on_time', 'on_time'],
+    [undefined, 'late', 'late'],
+    ['on_time', 'late', 'late'],
+    ['late', 'on_time', 'late'],
+    ['away', 'on_time', 'away'],
+    ['late', 'late', 'late'],
+    ['late', 'away', 'late_and_away'],
+    ['away', 'late', 'late_and_away'],
+    ['late_and_away', 'on_time', 'late_and_away'],
+    ['on_time', 'not_required', 'on_time'],
+    ['not_required', 'on_time', 'on_time'],
+    ['not_required', 'not_required', 'not_required'],
+    ['late', 'not_required', 'late'],
+  ]
+
+  for (const [previous, next, expected] of cases) {
+    test(`${previous ?? 'sem foto'} + ${next} = ${expected}`, () => {
+      expect(mergeProofPunctuality({ next, previous })).toBe(expected)
+    })
+  }
 })

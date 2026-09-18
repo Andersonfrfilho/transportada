@@ -247,6 +247,27 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return record ?? null
   }
 
+  /** Spec 157 T11: a pontualidade que a foto substituta vai herdar na fusão (`mergeProofPunctuality`). */
+  public async findProofPunctuality(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: 'photo' | 'signature'
+  }): Promise<ProofPunctuality | null> {
+    const [record] = await this.database
+      .select({ punctuality: tripDeliveryProofs.punctuality })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+      .limit(1)
+
+    return record?.punctuality ?? null
+  }
+
   /** O objeto e o vínculo entram na mesma transação: byte no bucket sem dono é lixo que ninguém acha. */
   public async saveProof(input: SaveProofInput): Promise<{ readonly id: string }> {
     return this.database.transaction(async (transaction) => {
