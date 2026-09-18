@@ -349,6 +349,20 @@ export class OccurrenceTypeNotFieldError extends ApiError {
 }
 
 /**
+ * Spec 157 RF4: a rota do galpão (`trip.manage`) grava só tipo de separação. Com tipo de rua, o
+ * `separator` — que tem `trip.manage` e não tem `trip.report` — registraria o que nunca viu.
+ */
+export class OccurrenceTypeNotSeparationError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_SEPARATION',
+      message: 'The occurrence type is not a separation occurrence type.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
  * vez de "nada para hoje", que esconderia o problema até alguém reclamar.

@@ -33,7 +33,7 @@ function repository(notifies: boolean) {
         id: TIPO,
         name: 'Recusa total',
         notifies,
-        stage: 'delivery' as const,
+        stage: 'separation' as const,
       }
     },
     async listDocumentProducts() {
@@ -64,7 +64,7 @@ function repository(notifies: boolean) {
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
-        stage: 'delivery' as const,
+        stage: 'separation' as const,
         typeName: saved.typeName,
       }
     },

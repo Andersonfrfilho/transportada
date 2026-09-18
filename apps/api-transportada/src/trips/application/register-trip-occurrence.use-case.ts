@@ -3,11 +3,15 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
-import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import {
+  OccurrenceTypeNotSeparationError,
+  TripDocumentNotFoundError,
+} from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
 import type {
   OccurrenceNotificationParameters,
@@ -161,6 +165,11 @@ export async function registerTripOccurrence(
     occurrenceTypeId: input.occurrenceTypeId,
   })
   if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
+
+  /** Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele. */
+  if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
+    throw new OccurrenceTypeNotSeparationError()
+  }
 
   /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item

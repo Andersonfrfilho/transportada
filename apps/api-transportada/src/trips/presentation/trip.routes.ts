@@ -1207,8 +1207,8 @@ export function createTripRoutes(
     /**
      * ⚠️ **Uma rota só, agora que o tipo é cadastrado.** Antes havia duas — uma por grupo — porque
      * o grupo vinha do corpo e a autorização precisava ser estática. Com o tipo no banco, o grupo
-     * vem do **cadastro**, e o caso de uso o confere: quem manda um tipo de rua por esta rota não
-     * ganha nada, porque a permissão dela é `trip.manage` e o registro é o mesmo.
+     * vem do **cadastro**, e o caso de uso o confere: tipo de rua por esta rota responde 422
+     * `OCCURRENCE_TYPE_NOT_SEPARATION` (spec 157), porque `trip.manage` é também do `separator`.
      *
      * O motorista continua tendo a rota dele em `/me`, com o escopo da viagem ativa.
      */
