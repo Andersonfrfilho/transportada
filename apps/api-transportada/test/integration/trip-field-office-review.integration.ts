@@ -474,3 +474,81 @@ describe('field-proof do escritório (T15 M1, M2)', () => {
     },
   )
 })
+
+describe('a baixa de campo adianta a viagem para on_delivery_route (T15 M4, ADR-0058 §3)', () => {
+  testWithPostgres(
+    'M4: a primeira nota entregue pelo escritório leva in_transit a on_delivery_route, com a hora informada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedExtraDocument(database, company, trip, {
+          separationStatus: 'loaded',
+          stopId: trip.stopId,
+        })
+        const [, , , , deliverRoute] = wireRoutes(database)
+        const deliveredAt = '2026-09-18T09:00:00.000Z'
+
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-m4',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({ fields: { deliveredAt }, idempotencyKey: 'review-m4' }),
+        })
+
+        expect(response.status).toBe(201)
+        const [tripRow] = await database.db
+          .select({ status: trips.status })
+          .from(trips)
+          .where(eq(trips.id, trip.tripId))
+        expect(tripRow?.status).toBe('on_delivery_route')
+        const events = await database.db
+          .select({
+            channel: tripStatusEvents.channel,
+            fromStatus: tripStatusEvents.fromStatus,
+            occurredAt: tripStatusEvents.occurredAt,
+            onBehalfOfDriverId: tripStatusEvents.onBehalfOfDriverId,
+            toStatus: tripStatusEvents.toStatus,
+          })
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.tripId))
+        expect(events).toEqual([
+          {
+            channel: 'office',
+            fromStatus: 'in_transit',
+            occurredAt: new Date(deliveredAt),
+            onBehalfOfDriverId: company.firstDriverId,
+            toStatus: 'on_delivery_route',
+          },
+        ])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'M4: a nota que fecha a viagem grava só in_transit → completed, sem passo intermediário',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const [, , , , deliverRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'review-m4-complete',
+          pathParameters: { documentId: trip.documentId, id: trip.tripId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'review-m4-complete',
+          }),
+        })
+
+        const events = await database.db
+          .select({ fromStatus: tripStatusEvents.fromStatus, toStatus: tripStatusEvents.toStatus })
+          .from(tripStatusEvents)
+          .where(eq(tripStatusEvents.tripId, trip.tripId))
+        expect(events).toEqual([{ fromStatus: 'in_transit', toStatus: 'completed' }])
+      })
+    },
+  )
+})

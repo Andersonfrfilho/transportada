@@ -243,9 +243,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
 
       /**
        * Spec 158 T4 (lacuna da T3): a devolução que fecha a última parada conclui a viagem por
-       * `completeTripIfSettled` (report-document-delivery.use-case.ts), com o `from` real
-       * (`in_transit` — este motorista nunca passa por `on_delivery_route`) e `occurred_at` igual
-       * ao `now` do caso de uso.
+       * `completeTripIfSettled` (report-document-delivery.use-case.ts), com o `from` real e
+       * `occurred_at` igual ao `now` do caso de uso. Spec 156 T15 M4 (ADR-0058 §3): a entrega da
+       * primeira nota já tinha adiantado a viagem para `on_delivery_route` — este motorista nunca
+       * tocou em "iniciar trajeto", e a baixa de campo passa a derivar o passo, como o barracão fazia.
        */
       const [completionStatusEvent] = await database.db
         .select()
@@ -254,7 +255,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(completionStatusEvent).toMatchObject({
         actorUserId: world.userId,
         channel: 'driver_app',
-        fromStatus: 'in_transit',
+        fromStatus: 'on_delivery_route',
         onBehalfOfDriverId: null,
         toStatus: 'completed',
       })

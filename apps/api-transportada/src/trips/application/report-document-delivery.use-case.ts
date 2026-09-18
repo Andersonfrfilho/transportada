@@ -411,6 +411,19 @@ async function runOutcomeTransaction(context: {
               tripId: document.tripId,
             })
           : false
+        /**
+         * ADR-0058 §3, spec 156 T15 M4: a nota que fechou adianta a viagem para `on_delivery_route`
+         * — o caminho do barracão (removido na T8b) fazia isso, e a baixa de campo não fazia.
+         */
+        if (!alreadySettled && !tripCompleted) {
+          await transaction.advanceTripFromSettledDocuments({
+            actorUserId: input.actorUserId,
+            at: input.now,
+            authorship,
+            companyId: input.companyId,
+            tripId: document.tripId,
+          })
+        }
         const proofPending = await resolveProofPendingFlag({
           companyId: input.companyId,
           eventId: event.id,

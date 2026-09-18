@@ -155,6 +155,20 @@ export type DriverFieldReportTransactionPort = {
     readonly tripId: string
   }): Promise<boolean>
 
+  /**
+   * ADR-0058 §3, spec 156 T15 M4: a nota que fecha adianta a viagem de quem esqueceu de tocar em
+   * "iniciar trajeto" (`deriveTripStatus` → `on_delivery_route`), com o evento em
+   * `trip_status_events`. Nunca conclui a viagem — quem conclui é `completeTripIfSettled`, pelas
+   * paradas. Devolve se mudou.
+   */
+  advanceTripFromSettledDocuments(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean>
+
   recordEvent(input: {
     readonly actorUserId: string
     readonly authorship: FieldAuthorship

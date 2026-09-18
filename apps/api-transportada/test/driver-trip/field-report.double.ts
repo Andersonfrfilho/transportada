@@ -119,6 +119,10 @@ export function createFieldReportUnitOfWork(
     },
     completeStopIfSettled: async () => state.stopCompletes,
     completeTripIfSettled: async () => state.tripCompletes,
+    advanceTripFromSettledDocuments: async (input) => {
+      state.calls.push(`advanceTripFromSettledDocuments:${input.tripId}`)
+      return false
+    },
     recordEvent: async (input) => {
       state.calls.push(`recordEvent:${input.kind}:${input.location === null ? 'no-gps' : 'gps'}`)
       const event = { id: nextIdentifier('event') }

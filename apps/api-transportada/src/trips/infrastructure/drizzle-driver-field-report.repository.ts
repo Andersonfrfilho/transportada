@@ -29,7 +29,12 @@ import type {
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import {
+  deriveTripStatus,
+  tallyTripDocuments,
+  TRIP_DISPATCHED_STATUSES,
+  TRIP_ON_ROAD_STATUSES,
+} from '../domain/trip-state.policy.js'
 import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -40,6 +45,9 @@ type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 /** As duas fases em que a viagem está na rua. Fora delas o motorista não tem o que reportar. */
 /** Reportar acontece na rua, e a rua inclui o trajeto iniciado (ADR-0058). */
 const ACTIVE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
+
+/** ADR-0058 §3: o único passo que a baixa de uma nota deriva — concluir é pelas paradas. */
+const TRIP_ON_DELIVERY_ROUTE_STATUS = 'on_delivery_route' satisfies TripStatus
 
 /** Nota entregue ou devolvida saiu do eixo do campo — é o que faz a parada poder fechar. */
 const SETTLED_DOCUMENT_STATUSES = ['delivered', 'returned'] as const
@@ -474,6 +482,60 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       occurredAt: lastStop?.completedAt ?? input.at,
       onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
       toStatus: 'completed',
+      tripId: input.tripId,
+    })
+
+    return true
+  }
+
+  /**
+   * A trava (`FOR NO KEY UPDATE`) vem antes da leitura das notas, como em `recalculateTripStatus`
+   * (`drizzle-trip-document.repository.ts`): a decisão depende do tally que ainda vai ser lido. A
+   * ordem "notas → viagem" continua: a nota já foi gravada nesta transação.
+   */
+  public async advanceTripFromSettledDocuments(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean> {
+    const [tripRow] = await this.transaction
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .for('no key update')
+      .limit(1)
+    if (tripRow === undefined) return false
+
+    const documentRows = await this.transaction
+      .select({ status: tripDocuments.separationStatus })
+      .from(tripDocuments)
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          eq(tripDocuments.tripId, input.tripId),
+          isNull(tripDocuments.releasedAt),
+        ),
+      )
+    const nextStatus = deriveTripStatus({
+      tally: tallyTripDocuments(documentRows.map((row) => row.status)),
+      tripStatus: tripRow.status,
+    })
+    if (nextStatus !== TRIP_ON_DELIVERY_ROUTE_STATUS) return false
+
+    await this.transaction
+      .update(trips)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: tripRow.status,
+      occurredAt: input.at,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: nextStatus,
       tripId: input.tripId,
     })
 
