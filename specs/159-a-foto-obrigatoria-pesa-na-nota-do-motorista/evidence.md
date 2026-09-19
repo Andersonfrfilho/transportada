@@ -762,3 +762,105 @@ registrada", `<details>`), `test/driver-trip/proof-pending-queued.contract.ts`
 `test/fleet/driver-recommendation.contract.ts` (rótulo da nota nos dois seletores, ficha em lista).
 
 T12 fica `[x]`.
+
+## Pendências de UI (as duas primeiras da T12, `web.md` §10/§15)
+
+Das três pendências fora do escopo registradas na T12, as duas primeiras foram corrigidas nesta
+sessão (branch `work/159-pendencias-de-ui`). A terceira (`<input type=number>` cru no painel do
+comprovante) segue fora do escopo — não há primitivo de número no design system para trocar, como já
+registrado.
+
+### 1. Cabeçalho do shell no celular: alvo de toque abaixo de 44px
+
+**Achado:** `main.tsx` (shell do office, não o `DriverShellHeader` do motorista — a busca inicial por
+"menu, tema, sair" levou a esse arquivo) tinha três botões abaixo do mínimo:
+`.application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger` (menu, 36×36px) e
+`.application-logout-button`/`.application-theme-toggle` (tema e sair, 32×32px cada) —
+`src/styles/index.css`.
+
+**Correção:** os três passam a usar o token `--touch-target` (44px, já existente em
+`src/styles/index.css:93`, criado para este fim e até então sem consumidor). O menu (visível só
+abaixo do breakpoint de desktop) sobe direto para 44px. Tema e sair seguem mobile-first: base 44px,
+com um bloco novo dentro do `@media (min-width: 64rem)` já existente que devolve o tamanho compacto
+de 2rem no desktop (mouse, sem exigência de alvo de toque) — não altera a aparência em telas largas.
+
+- `apps/frontend-transportada/src/styles/index.css:648-663` (menu)
+- `apps/frontend-transportada/src/styles/index.css:847-856` (tema/sair, base mobile)
+- `apps/frontend-transportada/src/styles/index.css:1371-1379` (tema/sair, override de desktop)
+
+**Medição (Playwright, `getBoundingClientRect` via `boundingBox()`), 390×844, temas escuro/claro:**
+
+| Botão                           | Antes   | Depois  |
+| ------------------------------- | ------- | ------- |
+| Menu (`Abrir navegação`)        | 36×36px | 44×44px |
+| Tema (`Usar tema claro/escuro`) | 32×32px | 44×44px |
+| Sair                            | 32×32px | 44×44px |
+
+Print: `pendencia-cabecalho-{antes,depois}-{dark,light}.png`.
+
+### 2. Lista de motoristas com a ficha aberta: coluna "Nota" atrás da rolagem horizontal
+
+**Achado:** `DriverList.component.tsx` tinha a coluna de nota na 6ª posição (nome, CPF, CNPJ
+vinculado, CNH, acesso ao app, **nota**, situação, ações). Com a ficha aberta a `workspaceDeck` divide
+`3fr`/`2fr` (`fleet.module.css:52-57`) — a lista fica com ~695px de 1440px de tela — e a tabela
+(`white-space: nowrap`) estoura para ~1084px, empurrando a nota para fora da área visível sem rolar.
+
+**Correção:** a coluna de nota move para a 2ª posição, logo depois do nome — visível de imediato sem
+depender de o operador saber que precisa rolar. Solução mais simples listada no achado original
+("mover a coluna para perto do nome"); a alternativa (badge junto do nome) juntaria dois dados
+distintos numa célula só e complicaria mais que o problema resolve.
+
+- `apps/frontend-transportada/src/modules/fleet/components/DriverList.component.tsx:25-49`
+
+**Medição (Playwright, `getBoundingClientRect` do `<th>` "Nota" contra o contêiner de rolagem da
+tabela, `scrollLeft` em 0), 1440×900 com a ficha aberta, motorista com nome longo e CNPJ vinculado
+(dado curto não reproduz a rolagem — a tabela cabe sem estourar):**
+
+|                                | Antes                                          | Depois                         |
+| ------------------------------ | ---------------------------------------------- | ------------------------------ |
+| Borda direita da coluna "Nota" | 1022,7px (fora do contêiner, borda em 847,8px) | dentro do contêiner, sem rolar |
+
+Print: `pendencia-lista-nota-{antes,depois}-{dark,light}.png`.
+
+### Teste
+
+`apps/frontend-transportada/test/spec-159-ui-pendencias.smoke.spec.ts` (fora do smoke da CI, mesmo
+padrão do `spec-159-prints.smoke.spec.ts`): quatro testes (dois por pendência × dois temas), variável
+`PENDENCIA_STAGE` (`antes`/`depois`) decide o sufixo do print — a mesma suíte gerou os dois lados de
+cada correção, rodada uma vez contra o código revertido (`antes`, reprovando as quatro asserções) e
+outra vez com a correção aplicada (`depois`, as quatro passam):
+
+```
+$ bun run --cwd apps/frontend-transportada build
+$ PLAYWRIGHT_TEST_MATCH=spec-159-ui-pendencias.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53117 \
+  PENDENCIA_STAGE=antes bun run --cwd apps/frontend-transportada smoke     # 4 failed (esperado)
+# ... correção aplicada, novo build ...
+$ PLAYWRIGHT_TEST_MATCH=spec-159-ui-pendencias.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53117 \
+  PENDENCIA_STAGE=depois bun run --cwd apps/frontend-transportada smoke   # 4 passed
+```
+
+Hashes SHA-256 dos prints (`specs/159-a-foto-obrigatoria-pesa-na-nota-do-motorista/prints/`):
+
+```
+595d73f2bc74efa9b457b6e24f83308ec4e4d0096679d0439a057ed6e3e7c271  pendencia-cabecalho-antes-dark.png
+a57d109de5b1ad3c348c550e5f6f5519ad03d38f9e0b6438aefc3debe19e9146  pendencia-cabecalho-antes-light.png
+e64e787bbc5e275e2004a4a5f1dd73ac284e7798f82bf2eb66927fd56ae6f27d  pendencia-cabecalho-depois-dark.png
+b5b65ad9ddf7893d3d385f06bec88aeddfd9c075772af25f3dc280cdacdd5050  pendencia-cabecalho-depois-light.png
+999d0d924259462c39d19997a197055ad3ed02712ac9edbdb999b06ec371858a  pendencia-lista-nota-antes-dark.png
+d2a01ff556fd1fb5bbdc6d682f6bbd07445294efc4fb32e2cbbec8de335ed56c  pendencia-lista-nota-antes-light.png
+9432bf666ca838c3af40d3f808fff7d680aeeedc05f291bf349f0db680bb229f  pendencia-lista-nota-depois-dark.png
+6b75d97754d819522a45e6c124ecb974ea8b19c47f76fc727b03e8bc7583af19  pendencia-lista-nota-depois-light.png
+```
+
+### Gates
+
+```
+$ bun install --frozen-lockfile                    # raiz
+$ bun run typecheck                                 # raiz — 0 erros
+$ bun run lint                                      # raiz — 0 erros
+$ bun run --cwd apps/frontend-transportada test     # 4661 pass / 0 fail (+ 30 pass test:hooks)
+$ bun run --cwd apps/frontend-transportada build    # ok
+```
+
+Regressão conferida: a suíte original `spec-159-prints.smoke.spec.ts` (22 testes, T12) segue passando
+com a coluna "Nota" reordenada — nenhum teste depende da ordem das colunas.
