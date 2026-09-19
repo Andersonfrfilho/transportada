@@ -359,6 +359,7 @@ for (const theme of THEMES) {
             ? { overrides: [] }
             : {
                 ...PHOTO_REQUIRED,
+                canhotoOcrEnabled: false,
                 latePenaltyPoints: 5,
                 missingAfterHours: 24,
                 missingPenaltyPoints: 10,
