@@ -200,7 +200,8 @@ describe('a hora informada pelo escritório (T15 A1, M9, aceite 8)', () => {
           correlationId: 'review-a1-future',
           pathParameters: { id: trip.tripId, stopId: trip.stopId },
           request: jsonRequest({
-            body: { arrivedAt: '2026-09-19T08:30:00.000Z' },
+            // O relógio da chegada é o real: uma data fixa vence no dia seguinte.
+            body: { arrivedAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
             idempotencyKey: 'review-a1-future',
           }),
         }),
