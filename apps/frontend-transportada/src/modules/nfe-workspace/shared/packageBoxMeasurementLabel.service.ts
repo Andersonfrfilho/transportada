@@ -38,3 +38,19 @@ export function measurementSourceLabel(t: Translate, input: MeasurementSourceLab
     margin: input.measurementMarginMm / MILLIMETRES_PER_CENTIMETRE,
   })
 }
+
+/** A recusa do `PUT` de medida que a etapa Medida pela câmera já nomeia (`packageBoxClient.service.ts`). */
+export const PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED_CODE =
+  'PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED'
+
+/**
+ * A recusa da gravação, no caminho digitado da fila — antes só o fluxo da câmera mostrava algo, e a
+ * linha digitada fechava calada mesmo quando o `PUT` falhava. Código com chave própria ganha
+ * mensagem específica (hoje só a câmera desligada na empresa); os demais caem na mensagem genérica.
+ */
+export function packageBoxMeasureFailureMessage(t: Translate, errorCode: string): string {
+  if (errorCode === PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED_CODE) {
+    return t('packageBoxes.cameraMeasurementDisabledError')
+  }
+  return t('packageBoxes.saveFailed', { code: errorCode })
+}

@@ -445,6 +445,8 @@
     "measureWithCamera": "Measure with camera",
     "save": "Save measurement",
     "cancel": "Cancel",
+    "saveFailed": "The measurement could not be saved ({{code}}). Check it and try again.",
+    "cameraMeasurementDisabledError": "Camera measurement was turned off for this company. Type the measurement instead.",
     "scanner": {
       "title": "Scan the box label",
       "close": "Close",

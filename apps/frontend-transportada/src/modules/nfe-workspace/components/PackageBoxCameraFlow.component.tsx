@@ -26,6 +26,7 @@ import {
   markMeasurementGuideSeen,
   readMeasurementGuideStorage,
 } from '../shared/measurementGuideSeen.service'
+import { resolveInitialUnitsPerBox } from '../shared/packageBoxUnitsPerBox.service'
 import styles from '../styles/packageBoxCameraFlow.module.css'
 
 export type PackageBoxCameraFlowProps = Readonly<{
@@ -427,7 +428,7 @@ export function PackageBoxCameraFlow({
               onSubmit={handleSave}
               proposal={state.reviewSource === 'camera' ? state.proposal : undefined}
               saving={state.step === 'saving'}
-              unitsPerBox={box.unitsPerBox}
+              unitsPerBox={resolveInitialUnitsPerBox(box)}
               widthMm={box.widthMm}
             />
           </>

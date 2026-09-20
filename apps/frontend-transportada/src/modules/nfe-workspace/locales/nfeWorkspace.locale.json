@@ -619,6 +619,8 @@
     "measureWithCamera": "Medir pela câmera",
     "save": "Gravar medida",
     "cancel": "Cancelar",
+    "saveFailed": "Não foi possível gravar a medida ({{code}}). Confira e tente de novo.",
+    "cameraMeasurementDisabledError": "A medida pela câmera foi desligada para esta empresa. Digite a medida.",
     "scanner": {
       "title": "Ler etiqueta da caixa",
       "close": "Fechar",
