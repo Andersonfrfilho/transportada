@@ -693,6 +693,7 @@
     "resolving": "Looking the invoice up…",
     "scan": "Scan with the camera",
     "search": "Search invoices",
+    "searchLoading": "Loading available invoices…",
     "searchResult": "{{count}} invoice found.",
     "searchResult_other": "{{count}} invoices found.",
     "searchTerm": "Search",

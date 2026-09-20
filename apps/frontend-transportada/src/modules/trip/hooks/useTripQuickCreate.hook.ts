@@ -87,6 +87,21 @@ export function useTripQuickCreate(
     queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
   })
 
+  /**
+   * Adiantar a busca no instante em que o ponteiro alcança o botão, antes do clique. A lista de
+   * notas livres de uma transportadora com milhares delas leva segundos, e esses segundos hoje são
+   * gastos com o diálogo já aberto, olhando tabela vazia.
+   *
+   * ⚠️ Intenção declarada, não pré-carregamento de página: quem nunca vai criar viagem não paga a
+   * consulta. E o `staleTime` global segura a repetição — passar o mouse dez vezes busca uma.
+   */
+  function prefetchDocuments(): void {
+    void queryClient.prefetchQuery({
+      queryFn: loadAvailableTripDocuments,
+      queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
+    })
+  }
+
   function updateQueue(next: TripQuickCreateQueue): void {
     queueRef.current = next
     setQueue(next)
@@ -271,6 +286,7 @@ export function useTripQuickCreate(
     isScannerOpen,
     issues,
     open: () => setIsOpen(true),
+    prefetchDocuments,
     openScanner: () => setIsScannerOpen(true),
     queue,
     stageDocuments: (documents: readonly ScannedNfeDocument[]) => {

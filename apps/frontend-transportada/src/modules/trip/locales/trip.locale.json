@@ -855,6 +855,7 @@
     "resolving": "Procurando a nota…",
     "scan": "Ler com a câmera",
     "search": "Buscar notas",
+    "searchLoading": "Carregando as notas disponíveis…",
     "searchResult": "{{count}} nota encontrada.",
     "searchResult_other": "{{count}} notas encontradas.",
     "searchTerm": "Busca",

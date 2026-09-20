@@ -365,9 +365,15 @@ export function TripWorkspacePage() {
               {workspace.controller.canManageTrips ? (
                 <div className={styles.actionActions}>
                   {/* Enquanto o rascunho volta, abrir o diálogo seria montar por cima dele. */}
+                  {/*
+                    O ponteiro sobre o botão — ou o foco pelo teclado — já adianta a lista de notas.
+                    Quando o clique vier, a busca costuma estar pronta em vez de começar ali.
+                  */}
                   <Button
                     disabled={quickCreate.draftStore.isRestoring}
                     onClick={quickCreate.open}
+                    onFocus={quickCreate.prefetchDocuments}
+                    onPointerEnter={quickCreate.prefetchDocuments}
                     size="sm"
                     type="button"
                   >

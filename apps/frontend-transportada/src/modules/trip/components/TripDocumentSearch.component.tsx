@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { NfeDocumentFilterPanel } from '@/modules/nfe-workspace/components/NfeDocumentFilterPanel.component'
 import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { useNfeDocumentTable } from '@/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
@@ -16,6 +17,11 @@ import styles from '../styles/trip.module.css'
 
 type TripDocumentSearchProps = Readonly<{
   documents: readonly NfeDocumentListItem[]
+  /**
+   * A busca de notas livres leva segundos em empresa com milhares delas. Sem este aviso a lista
+   * vazia parece resultado: quem monta o lote conclui que não há nota e fecha a tela.
+   */
+  isLoading?: boolean
   /**
    * Onde a escolha já **é** o lote, o que se marca entra direto. O botão de acrescentar só ganha
    * sentido onde a fila mistura o que veio da busca com o que veio do bipe — ali a escolha é um
@@ -45,6 +51,7 @@ type TripDocumentSearchProps = Readonly<{
  */
 export function TripDocumentSearch({
   documents,
+  isLoading = false,
   onFilteredChange,
   onSelectionChange,
   onStage,
@@ -108,7 +115,12 @@ export function TripDocumentSearch({
             {t('quickCreate.stageSelected', { count: table.selectedCount })}
           </Button>
         ) : null}
-        {isOpen && table.totalFiltered > 0 ? (
+        {isLoading ? (
+          <span className={styles.hint} role="status">
+            {t('quickCreate.searchLoading')}
+          </span>
+        ) : null}
+        {isOpen && !isLoading && table.totalFiltered > 0 ? (
           <Button onClick={table.toggleAllFiltered} size="sm" type="button" variant="secondary">
             <Icon name={table.allFilteredSelected ? 'remove' : 'check'} />
             {t(
@@ -145,102 +157,117 @@ export function TripDocumentSearch({
 
           <NfeDocumentFilterPanel table={table} />
 
-          <p className={styles.hint}>
-            {t('quickCreate.searchResult', { count: table.totalFiltered })}
-          </p>
+          {isLoading ? null : (
+            <p className={styles.hint}>
+              {t('quickCreate.searchResult', { count: table.totalFiltered })}
+            </p>
+          )}
 
-          <div className={styles.searchTableScroll}>
-            <table className={styles.searchTable}>
-              <thead>
-                <tr>
-                  <th scope="col">
-                    <Checkbox
-                      ariaLabel={t('quickCreate.selectAll')}
-                      checked={table.allSelected}
-                      onChange={table.toggleSelectAll}
-                    />
-                  </th>
-                  <th scope="col">{t('quickCreate.columns.number')}</th>
-                  <th scope="col">{t('quickCreate.columns.recipient')}</th>
-                  <th scope="col">{t('quickCreate.columns.address')}</th>
-                  <th scope="col">{t('quickCreate.columns.city')}</th>
-                  <th scope="col">{t('quickCreate.columns.amount')}</th>
-                  <th scope="col">{t('quickCreate.columns.weight')}</th>
-                  <th scope="col">{t('quickCreate.columns.freight')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.pageItems.map((document) => (
-                  <tr key={document.id}>
-                    <td>
+          {isLoading ? (
+            <SkeletonGroup
+              className={styles.searchTableScroll}
+              label={t('quickCreate.searchLoading')}
+            >
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="100%" />
+            </SkeletonGroup>
+          ) : (
+            <div className={styles.searchTableScroll}>
+              <table className={styles.searchTable}>
+                <thead>
+                  <tr>
+                    <th scope="col">
                       <Checkbox
-                        ariaLabel={`${document.number}/${document.series}`}
-                        checked={table.selectedIds.has(document.id)}
-                        onChange={() => table.toggleRow(document.id)}
+                        ariaLabel={t('quickCreate.selectAll')}
+                        checked={table.allSelected}
+                        onChange={table.toggleSelectAll}
                       />
-                    </td>
-                    <td>
-                      {document.number}/{document.series}
-                    </td>
-                    <td>{document.recipientName}</td>
-                    <td>{document.recipientAddress ?? ''}</td>
-                    <td>
-                      {document.recipientCity ?? ''}
-                      {document.recipientState === null ? '' : `/${document.recipientState}`}
-                    </td>
-                    <td className={styles.searchNumericCell}>
-                      {formatAmount(document.totalAmount)}
-                    </td>
-                    {/*
+                    </th>
+                    <th scope="col">{t('quickCreate.columns.number')}</th>
+                    <th scope="col">{t('quickCreate.columns.recipient')}</th>
+                    <th scope="col">{t('quickCreate.columns.address')}</th>
+                    <th scope="col">{t('quickCreate.columns.city')}</th>
+                    <th scope="col">{t('quickCreate.columns.amount')}</th>
+                    <th scope="col">{t('quickCreate.columns.weight')}</th>
+                    <th scope="col">{t('quickCreate.columns.freight')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.pageItems.map((document) => (
+                    <tr key={document.id}>
+                      <td>
+                        <Checkbox
+                          ariaLabel={`${document.number}/${document.series}`}
+                          checked={table.selectedIds.has(document.id)}
+                          onChange={() => table.toggleRow(document.id)}
+                        />
+                      </td>
+                      <td>
+                        {document.number}/{document.series}
+                      </td>
+                      <td>{document.recipientName}</td>
+                      <td>{document.recipientAddress ?? ''}</td>
+                      <td>
+                        {document.recipientCity ?? ''}
+                        {document.recipientState === null ? '' : `/${document.recipientState}`}
+                      </td>
+                      <td className={styles.searchNumericCell}>
+                        {formatAmount(document.totalAmount)}
+                      </td>
+                      {/*
                       ⚠️ O peso vem **com a origem**. `estimated` é `volumes × peso padrão da
                       empresa` — palpite —, e um número de quilos sem marca é indistinguível da
                       massa que o emitente declarou. É por peso que se decide o que ainda cabe no
                       caminhão, e é aí que o palpite passando por medida faz alguém parar de
                       carregar, ou continuar.
                     */}
-                    <td className={styles.searchNumericCell}>
-                      {document.cargoGrossWeight === null ? (
-                        ''
-                      ) : (
-                        <>
-                          {t('quickCreate.weightValue', {
-                            weight: formatWeightKilograms(document.cargoGrossWeight),
-                          })}
-                          {document.cargoWeightSource === 'estimated' ? (
-                            <span
-                              className={styles.searchEstimateMark}
-                              title={t('quickCreate.weightEstimatedHint')}
-                            >
-                              {t('quickCreate.weightEstimated')}
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                    </td>
-                    {/*
+                      <td className={styles.searchNumericCell}>
+                        {document.cargoGrossWeight === null ? (
+                          ''
+                        ) : (
+                          <>
+                            {t('quickCreate.weightValue', {
+                              weight: formatWeightKilograms(document.cargoGrossWeight),
+                            })}
+                            {document.cargoWeightSource === 'estimated' ? (
+                              <span
+                                className={styles.searchEstimateMark}
+                                title={t('quickCreate.weightEstimatedHint')}
+                              >
+                                {t('quickCreate.weightEstimated')}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
+                      </td>
+                      {/*
                       ⚠️ **Previsão, não receita.** Vazio quando nenhuma regra casa **e** quando duas
                       casam igualmente bem — o empate vira ausência de propósito, para a configuração
                       ambígua aparecer em vez de sair um número arbitrário.
                     */}
-                    <td className={styles.searchNumericCell}>
-                      {document.freightAmount === null ? (
-                        ''
-                      ) : (
-                        <>
-                          {formatAmount(document.freightAmount)}
-                          {document.freightRuleName === null ? null : (
-                            <span className={styles.searchEstimateMark}>
-                              {document.freightRuleName}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <td className={styles.searchNumericCell}>
+                        {document.freightAmount === null ? (
+                          ''
+                        ) : (
+                          <>
+                            {formatAmount(document.freightAmount)}
+                            {document.freightRuleName === null ? null : (
+                              <span className={styles.searchEstimateMark}>
+                                {document.freightRuleName}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       ) : null}
     </section>
