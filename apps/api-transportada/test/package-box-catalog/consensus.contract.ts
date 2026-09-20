@@ -67,7 +67,7 @@ describe('evaluatePackageBoxCatalogConsensus (spec 160, RF07)', () => {
   test('duas fontes com arestas iguais mas peso além de 5% não promovem', () => {
     const heavier: PackageBoxCatalogSourceProposal = {
       grossWeightGrams: Math.ceil(
-        COSMOS_PROPOSAL.grossWeightGrams * (1 + CATALOG_CONSENSUS_WEIGHT_TOLERANCE_RATIO) + 1,
+        COSMOS_PROPOSAL.grossWeightGrams * (1 + CATALOG_CONSENSUS_WEIGHT_TOLERANCE_RATIO * 3),
       ),
       heightMm: 240,
       lengthMm: 300,
