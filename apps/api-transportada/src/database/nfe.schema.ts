@@ -467,12 +467,22 @@ export const nfeVolumes = pgTable(
  * edicao fica registrada.
  * `replicated` (spec 155, D6) e medida copiada de outra variacao do mesmo produto: nao foi
  * conferida nesta caixa, e o cadastro precisa saber a diferenca.
+ * `catalog` (spec 160) e proposta promovida do catalogo publico de GTIN — duas fontes concordando
+ * dentro da tolerancia (RNF03), nunca conferida por gente.
+ *
+ * ⚠️ **A CHECK do banco (`nfe_package_boxes_measurement_source_check`,
+ * `nfe_package_box_measurements_source_check`) ainda lista só os quatro valores antigos** — este
+ * array TS por si só não torna `catalog` gravável; falta a migration aditiva que alarga as duas
+ * CHECKs (fora do escopo da Fase 1 da spec 160, T006 pediu explicitamente para não gerar migration
+ * aqui). Até essa migration existir, `catalog` só serve para o domínio raciocinar sobre a origem
+ * antes de ela ser persistida.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
   'camera',
   'camera_adjusted',
   'replicated',
+  'catalog',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 
