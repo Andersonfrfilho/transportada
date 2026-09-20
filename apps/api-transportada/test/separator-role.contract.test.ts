@@ -259,7 +259,12 @@ describe('separator role contract', () => {
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/cargo-layouts/:layoutId/release-unplaced',
-      'POST /trips/:id/close',
+      /**
+       * Spec 156 T8c (ADR-0067, achado da T8b): `POST /trips/:id/close` deixou de ser
+       * `trip.manage`. Encerrar é do escritório — confirma quantas notas ficam sem baixa e exige
+       * motivo quando alguma está em aberto — e passou para `trip.report-on-behalf`. O separador
+       * monta a viagem; ele não é quem confirma o fim da entrega.
+       */
       /**
        * Spec 061: pedágio e avulso são lançamento de **operação**, não de dinheiro sensível — quem
        * monta a viagem lança, e o resultado (que mostra margem e o que se paga ao agregado) continua

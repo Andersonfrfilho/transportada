@@ -231,6 +231,12 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /trips/:id/timeline',
       'GET /trips/:id/valuation',
       'GET /trips/occurrence-types/field',
+      /**
+       * Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` e passou a
+       * `trip.report-on-behalf` — o `finance` já tinha a permissão para dar baixa, e ganha aqui a
+       * mesma rota que fecha a viagem depois de conferir o maço de canhotos.
+       */
+      'POST /trips/:id/close',
       'POST /trips/:id/confirm-load',
       'POST /trips/:id/documents/:documentId/field-delivery',
       'POST /trips/:id/documents/:documentId/field-proof',

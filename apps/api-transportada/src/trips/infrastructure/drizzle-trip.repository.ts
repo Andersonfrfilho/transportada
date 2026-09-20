@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-or
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
+  auditLogs,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
@@ -34,6 +35,7 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { TRIP_DISPATCHED_STATUSES, checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
@@ -78,6 +80,10 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
+/** Spec 156 T8c: encerrar não é em nome de ninguém — o alvo da auditoria é a própria viagem. */
+const TRIP_CLOSE_AUDIT_ACTION = 'office.trip.close'
+const TRIP_CLOSE_AUDIT_ENTITY_TYPE = 'trip'
+
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
   'trip_documents_live_nfe_document_unique',
   'trip_documents_live_freight_calculation_unique',
@@ -104,7 +110,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   public async close(input: {
     readonly actorUserId: string
     readonly channel: TripFieldChannel
+    readonly closeReason: string | null
     readonly companyId: string
+    readonly correlationId: string
+    readonly ipAddress: string
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripDetail | null> {
@@ -117,9 +126,27 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .limit(1)
       if (tripRow === undefined) return null
 
+      const openDocuments = await transaction
+        .select({ id: tripDocuments.id })
+        .from(tripDocuments)
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            eq(tripDocuments.tripId, input.tripId),
+            isNull(tripDocuments.releasedAt),
+            notInArray(tripDocuments.separationStatus, ['delivered', 'returned']),
+          ),
+        )
+
       const [closed] = await transaction
         .update(trips)
-        .set({ status: 'completed', updatedAt: sql`now()` })
+        .set({
+          closeReason: input.closeReason,
+          closedAt: sql`now()`,
+          closedByUserId: input.actorUserId,
+          status: 'completed',
+          updatedAt: sql`now()`,
+        })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
@@ -132,6 +159,28 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: 'completed',
         tripId: input.tripId,
+      })
+
+      /**
+       * Spec 156 T8c, `security.md` §10: ação sensível — encerra entrega que outra pessoa fez. O
+       * motivo nunca entra em `metadata` (é dado de negócio); só a contagem e os ids opacos das
+       * notas que ficaram sem baixa.
+       */
+      await transaction.insert(auditLogs).values({
+        action: TRIP_CLOSE_AUDIT_ACTION,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: input.tripId,
+        entityType: TRIP_CLOSE_AUDIT_ENTITY_TYPE,
+        metadata: {
+          documentIds: openDocuments.map((document) => document.id),
+          ipAddress: input.ipAddress,
+          openDocumentCount: openDocuments.length,
+        },
+        permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
+        targetId: input.tripId,
+        targetType: TRIP_CLOSE_AUDIT_ENTITY_TYPE,
       })
 
       return readTripDetail(transaction, {
@@ -184,19 +233,6 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       })
       return detail
     })
-  }
-
-  public async deliverDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<TripDocument | null> {
-    const [delivered] = await this.database
-      .update(tripDocuments)
-      .set({ deliveredAt: sql`now()`, updatedAt: sql`now()` })
-      .where(and(...buildTripDocumentFilters(input), tripStillOpen(input)))
-      .returning()
-    return delivered === undefined ? null : mapTripDocument(delivered)
   }
 
   public async findById(input: {

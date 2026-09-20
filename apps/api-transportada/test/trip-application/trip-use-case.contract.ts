@@ -7,11 +7,15 @@ import { createTripUseCase } from '../../src/trips/application/trip.use-case.js'
 import type {
   TripDetail,
   TripDocument,
+  TripDocumentDetail,
   TripPage,
   TripRepositoryPort,
 } from '../../src/trips/application/trip.port.js'
 import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-trip-route.use-case.js'
-import { TripDocumentAlreadyLinkedError } from '../../src/trips/domain/trip.error.js'
+import {
+  TripCloseReasonRequiredError,
+  TripDocumentAlreadyLinkedError,
+} from '../../src/trips/domain/trip.error.js'
 import type {
   TripDriverCandidate,
   TripVehicleCandidate,
@@ -29,6 +33,8 @@ const DOCUMENT_ID = '44444444-4444-4444-8444-444444444445'
 const NFE_DOCUMENT_ID = '44444444-4444-4444-8444-444444444446'
 
 const CONTEXT = { companyId: COMPANY_ID, userId: USER_ID }
+const CORRELATION_ID = 'correlation-close-trip'
+const IP_ADDRESS = '203.0.113.10'
 
 const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
 
@@ -83,8 +89,18 @@ const document = (overrides: Partial<TripDocument> = {}): TripDocument => ({
   ...overrides,
 })
 
+const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDetail => ({
+  ...document(overrides),
+  contact: null,
+  cteAuthorized: false,
+  fiscalStatus: 'authorized',
+  nfeIssuedAt: null,
+  nfeNumber: null,
+  nfeSeries: null,
+  nfeTotalValue: null,
+})
+
 type FixtureParams = {
-  readonly deliverResult?: TripDocument | null
   readonly documentResult?: TripDocument | null
   readonly drivers?: readonly TripDriverCandidate[]
   readonly linkError?: Error
@@ -97,7 +113,6 @@ type FixtureParams = {
 function createFixture(params: FixtureParams = {}) {
   const closeCalls: object[] = []
   const createCalls: object[] = []
-  const deliverCalls: object[] = []
   const linkCalls: object[] = []
   const listCalls: object[] = []
   const releaseCalls: object[] = []
@@ -118,12 +133,6 @@ function createFixture(params: FixtureParams = {}) {
         })),
         vehicleId: input.vehicleId,
       })
-    },
-    async deliverDocument(input) {
-      deliverCalls.push(input)
-      return params.deliverResult === undefined
-        ? document({ deliveredAt: '2026-08-02T10:00:00.000Z' })
-        : params.deliverResult
     },
     async findById() {
       return params.stored === undefined ? openTrip() : params.stored
@@ -157,7 +166,7 @@ function createFixture(params: FixtureParams = {}) {
     },
   }
 
-  return { closeCalls, createCalls, deliverCalls, linkCalls, listCalls, releaseCalls, repository }
+  return { closeCalls, createCalls, linkCalls, listCalls, releaseCalls, repository }
 }
 
 describe('trip use case contract', () => {
@@ -319,33 +328,98 @@ describe('trip use case contract', () => {
     expect(fixture.releaseCalls).toEqual([])
   })
 
-  test('marking an already delivered document as delivered again is idempotent', async () => {
-    const deliveredDocument = document({ deliveredAt: '2026-08-02T09:00:00.000Z' })
-    const fixture = createFixture({ documentResult: deliveredDocument })
-    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
-
-    const delivered = await useCase.deliverDocument({
-      context: CONTEXT,
-      documentId: DOCUMENT_ID,
-      tripId: TRIP_ID,
-    })
-
-    expect(delivered).toEqual(deliveredDocument)
-    expect(fixture.deliverCalls).toEqual([])
-  })
-
   test('closing an already closed trip is idempotent', async () => {
     const closedTrip = openTrip({ status: 'completed' })
     const fixture = createFixture({ stored: closedTrip })
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
 
-    const closed = await useCase.close({ context: CONTEXT, tripId: TRIP_ID })
+    const closed = await useCase.close({
+      context: CONTEXT,
+      correlationId: CORRELATION_ID,
+      ipAddress: IP_ADDRESS,
+      reason: null,
+      tripId: TRIP_ID,
+    })
 
     expect(closed).toEqual(closedTrip)
     expect(fixture.closeCalls).toEqual([])
   })
 
-  test('refuses to link, deliver or release documents on a completed trip', async () => {
+  // spec 156 T8c (ADR-0067): nota em aberto (nem entregue, nem devolvida, nem liberada) exige motivo.
+  test('refuses to close a trip with an open document and no reason', async () => {
+    const fixture = createFixture({ stored: openTrip({ documents: [documentDetail()] }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .close({
+        context: CONTEXT,
+        correlationId: CORRELATION_ID,
+        ipAddress: IP_ADDRESS,
+        reason: null,
+        tripId: TRIP_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripCloseReasonRequiredError)
+    expect((error as ApiError).code).toBe('TRIP_CLOSE_REASON_REQUIRED')
+    expect(fixture.closeCalls).toEqual([])
+  })
+
+  test('closes a trip with an open document when a reason is given', async () => {
+    const fixture = createFixture({ stored: openTrip({ documents: [documentDetail()] }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const closed = await useCase.close({
+      context: CONTEXT,
+      correlationId: CORRELATION_ID,
+      ipAddress: IP_ADDRESS,
+      reason: 'Canhotos recebidos no escritório',
+      tripId: TRIP_ID,
+    })
+
+    expect(closed.status).toBe('completed')
+    expect(fixture.closeCalls).toEqual([
+      {
+        actorUserId: USER_ID,
+        channel: 'backoffice',
+        closeReason: 'Canhotos recebidos no escritório',
+        companyId: COMPANY_ID,
+        correlationId: CORRELATION_ID,
+        ipAddress: IP_ADDRESS,
+        onBehalfOfDriverId: null,
+        tripId: TRIP_ID,
+      },
+    ])
+  })
+
+  // Com todas as notas fechadas (entregue, devolvida ou liberada), o motivo é opcional.
+  test('closes a trip without a reason when every document is settled', async () => {
+    const fixture = createFixture({
+      stored: openTrip({
+        documents: [
+          documentDetail({
+            deliveredAt: '2026-08-02T09:00:00.000Z',
+            separationStatus: 'delivered',
+          }),
+          documentDetail({ releasedAt: '2026-08-02T09:00:00.000Z' }),
+        ],
+      }),
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const closed = await useCase.close({
+      context: CONTEXT,
+      correlationId: CORRELATION_ID,
+      ipAddress: IP_ADDRESS,
+      reason: null,
+      tripId: TRIP_ID,
+    })
+
+    expect(closed.status).toBe('completed')
+    expect(fixture.closeCalls).toHaveLength(1)
+  })
+
+  test('refuses to link or release documents on a completed trip', async () => {
     const fixture = createFixture({ stored: openTrip({ status: 'completed' }) })
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
 
@@ -357,16 +431,12 @@ describe('trip use case contract', () => {
         tripId: TRIP_ID,
       })
       .catch((caught: unknown) => caught)
-    const deliverError = await useCase
-      .deliverDocument({ context: CONTEXT, documentId: DOCUMENT_ID, tripId: TRIP_ID })
-      .catch((caught: unknown) => caught)
     const releaseError = await useCase
       .releaseDocument({ context: CONTEXT, documentId: DOCUMENT_ID, tripId: TRIP_ID })
       .catch((caught: unknown) => caught)
 
     expect((linkError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
     expect((linkError as ApiError).status).toBe(409)
-    expect((deliverError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
     expect((releaseError as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
   })
 
@@ -434,7 +504,13 @@ describe('trip use case contract', () => {
       repository: fixture.repository,
     })
 
-    await useCase.close({ context: CONTEXT, tripId: TRIP_ID })
+    await useCase.close({
+      context: CONTEXT,
+      correlationId: CORRELATION_ID,
+      ipAddress: IP_ADDRESS,
+      reason: null,
+      tripId: TRIP_ID,
+    })
 
     expect(purged).toEqual([{ companyId: CONTEXT.companyId, tripId: TRIP_ID }])
   })

@@ -372,7 +372,10 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         const closed = await tripRepository.close({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
+          closeReason: null,
           companyId,
+          correlationId: 'correlation-close-lifecycle',
+          ipAddress: '203.0.113.10',
           onBehalfOfDriverId: null,
           tripId: trip.id,
         })
@@ -394,7 +397,10 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         await tripRepository.close({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
+          closeReason: null,
           companyId,
+          correlationId: 'correlation-close-lifecycle',
+          ipAddress: '203.0.113.10',
           onBehalfOfDriverId: null,
           tripId: trip.id,
         })

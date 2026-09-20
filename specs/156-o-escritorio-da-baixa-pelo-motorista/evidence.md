@@ -2685,3 +2685,141 @@ Evidência completa em `t16-evidence.md`: 21 defeitos corrigidos, teclado do ass
 ponta, 10 notas sem rolagem (23 cliques; teclado 2 cliques + 21 Enter), 68 prints (desktop 1280 e
 celular 375, claro e escuro) e 30 de "antes". Pendências registradas lá (checkbox do design system
 com 20×24 px no celular, campo nativo de data e hora, foto na ocorrência de parada depende da API).
+
+## T8c
+
+Achado da revisão da T8b: `POST /trips/:id/close` pedia `trip.manage`, então o `separator` encerrava
+a viagem sem confirmação e sem olhar as notas em aberto — e `completed` trava toda baixa
+(`checkTripDocumentTransition` → `tripCompleted`). Decisão do usuário: "escritório, com motivo".
+
+### Backend (`apps/api-transportada`)
+
+**Permissão.** `TRIP_CLOSE_PATH` passa de `TRIP_MANAGE_POLICY` para `OFFICE_REPORT_POLICY`
+(`trip.report-on-behalf`, reexportada de `trip-field-office.support.ts` — o comentário ali já
+explicava por que não é `trip.manage` nem `trip.report`). `test/separator-role.contract.test.ts`
+perdeu `POST /trips/:id/close` da lista exaustiva de rotas que o `separator` alcança.
+
+**Motivo.** `closeTripSchema` (`trip-request.schema.ts`) — `{ reason: string | null }`, `trim`,
+`min(1).max(500)`, `.nullable().default(null)` — parseado com `parseOptionalBody` (a rota não tinha
+corpo antes; ausência de corpo continua valendo como `{}`, logo `reason: null`). A regra "obrigatório
+só com nota em aberto" é pura, em `trip-close.policy.ts`
+(`checkTripCloseRequiresReason`/`isTripDocumentOpenForClose`/`countOpenTripDocumentsForClose`):
+aberto é `releasedAt === null` e `separationStatus` fora de `delivered`/`returned`. Sem motivo quando
+exigido → 422 `TripCloseReasonRequiredError` (`TRIP_CLOSE_REASON_REQUIRED`).
+
+**Trilha.** Migration aditiva `drizzle/20260920232745_trip_close_office_authorship/` — `trips` ganha
+`closed_at`, `closed_by_user_id` (FK composta `(company_id, closed_by_user_id)` →
+`user_company_memberships`, mesmo molde de `requires_mdfe_actor_user_id`) e `close_reason`, com
+`trips_close_check` (as duas primeiras nascem/morrem juntas; o motivo só existe com `closed_at`).
+`repository.close` grava as três colunas e insere a linha de `audit_logs` **na mesma transação**:
+`action: 'office.trip.close'`, `permission: trip.report-on-behalf`, `entityId`/`targetId` = a própria
+viagem (`targetType: 'trip'`) — decisão registrada na ADR: encerrar não é "em nome de" um motorista,
+então `insertTripFieldOfficeAudit` (que exige `onBehalfOfDriverId` como alvo) não se aplica; o molde
+seguido é o de auditoria sem alvo-pessoa já usado por outras rotinas do repositório (recarga do
+catálogo de pedágio). `metadata` leva `openDocumentCount` e os `documentIds` (opacos) das notas em
+aberto no momento do fechamento — nunca o motivo.
+
+**Código morto removido.** `deliverDocument` saiu da porta, do caso de uso e do repositório —
+gravava `delivered_at` sem tocar em `separation_status` e sem chamador desde a T8b (confirmado por
+grep; nenhuma rota, worker, cron ou fluxo do WhatsApp o chamava).
+`test/trip-delivery-proof/orphan-deliver.contract.ts` ganhou um terceiro teste que lê os três
+arquivos e falha se `deliverDocument` reaparecer em qualquer um. `test/integration/trip-repository.
+integration.ts` parou de chamar o método removido: um `UPDATE` de teste
+(`markTripDocumentDelivered`) grava `delivered_at`/`separation_status = 'delivered'` diretamente,
+preservando a cobertura de isolamento de tenant que o teste já tinha.
+
+### Frontend (`apps/frontend-transportada`)
+
+O botão "Encerrar viagem" trocou de `workspace.controller.canManageTrips` para
+`workspace.controller.canReportOnBehalf` (a mesma flag que já gateava `TripFieldActions`). Ao
+clicar, abre `TripCloseDialog` (novo componente, mesmo molde de `TripReasonDialog`/
+`useModalDialog`/`createPortal`) que conta as notas em aberto (`deliveredAt`/`returnedAt`/
+`releasedAt` todos nulos) e mostra o aviso pluralizado (`closeDialog.openDocumentsWarning`/`_other`);
+o campo de motivo é obrigatório só quando essa contagem é maior que zero
+(`closeDialog.reasonLabel`/`reasonLabelOptional`). `tripClient.service.ts#closeTrip` passou a enviar
+`{ reason }` no corpo; a invalidação de query após o sucesso não mudou (`closeMutation` já usava
+`invalidate`, que atualiza o detalhe e a listagem).
+
+### TDD
+
+Contratos vermelhos antes da implementação, confirmados verdes depois:
+
+- `test/trip-http/close.contract.ts`: `closes an open trip` (agora exige `trip.report-on-behalf` e
+  confere `{ correlationId, ipAddress, reason }` no `closeTripCalls`), `closes an open trip with an
+explicit reason`, `propagates the reason-required refusal when the trip has an open document` (422
+  `TRIP_CLOSE_REASON_REQUIRED`).
+- `test/separator-role.contract.test.ts`: `POST /trips/:id/close` saiu da lista exaustiva do
+  `separator` — o teste falha (403 esperado) se a rota reaparecer ali sem decisão escrita.
+- `test/trip-field-office/finance-read.contract.ts`: `POST /trips/:id/close` entrou na lista do
+  `finance` (que já tinha `trip.report-on-behalf`).
+- `test/trip-application/trip-use-case.contract.ts`: `refuses to close a trip with an open document
+and no reason` (`TripCloseReasonRequiredError`), `closes a trip with an open document when a reason
+is given` (confere o payload completo passado ao repositório), `closes a trip without a reason when
+every document is settled`.
+- Frontend: `test/trip/client-and-controller.contract.ts` — o controller com só `trip.manage` passou
+  a receber `TRIP_FORBIDDEN` em `closeTrip`, e o controller com `trip.report-on-behalf` (sem
+  `trip.manage`) passou a alcançá-lo; o corpo `{ reason }` é conferido na requisição gravada.
+
+### Gates
+
+- `bun run --cwd apps/api-transportada typecheck` → exit 0.
+- `bun run --cwd apps/api-transportada lint` → exit 0.
+- `bunx prettier --check` nos arquivos tocados → exit 0 (depois de `--write` em
+  `trip-close.policy.ts` e `trip-use-case.contract.ts`).
+- Contrato da API (`bun --env-file=../../.env.test test --timeout 120000`, dentro de
+  `apps/api-transportada`, Postgres nativo descartável — o Docker do worktree estava fora do ar):
+  `6719 pass · 0 fail`, 23676 `expect()`, 180 arquivos.
+- Integração da API (`bun --env-file=../../.env.test run test:integration`): `470 pass · 9 fail`, 85
+  arquivos; as 9 falhas são `ObjectStorageError: Object storage is unavailable` em
+  `toll-booth-extract-storage`/`toll-booth-reload`/`cte-archive-gateway`/`server.integration` — o
+  MinIO não sobe sem Docker neste ambiente, sem relação com esta task.
+  `trip-repository.integration.ts` e `trip-lifecycle.integration.ts` (que exercitam `close`) — `0
+fail`.
+- `make migration-test` (via `db:test` com `DRIZZLE_TEST_DATABASE_URL` apontando para o Postgres
+  nativo descartável — o `postgres-up` do Docker também estava fora do ar): `97 pass · 0 fail`, 1397
+  `expect()`. `bun run --cwd apps/api-transportada db:generate` → `no_changes` depois da migration
+  gerada, confirmando schema e SQL batem.
+- `bun run --cwd apps/frontend-transportada typecheck` → exit 0.
+- `bun run --cwd apps/frontend-transportada lint` → exit 0.
+- `bun run --cwd apps/frontend-transportada test` → `4661 pass · 0 fail` (suíte principal, 29
+  arquivos) + `30 pass · 0 fail` (hooks com DOM, processo próprio).
+
+### Arquivos
+
+**Backend, alterados:** `src/database/trip.schema.ts` (colunas + FK + check),
+`src/trips/domain/trip.error.ts` (`TripCloseReasonRequiredError`),
+`src/trips/domain/trip-close.policy.ts` (novo),
+`src/trips/application/trip.port.ts` (`close` ganha `closeReason`/`correlationId`/`ipAddress`, sai
+`deliverDocument`), `src/trips/application/trip.use-case.ts` (`close` valida o motivo, sai
+`deliverDocument`), `src/trips/infrastructure/drizzle-trip.repository.ts` (grava as três colunas +
+`audit_logs` na transação, sai `deliverDocument`), `src/trips/presentation/trip-request.schema.ts`
+(`closeTripSchema`), `src/trips/presentation/trip.schema.ts` (`parseCloseTripRequest`),
+`src/trips/presentation/trip.routes.ts` (política, `parse` com `correlationId`/`ipAddress`/`reason`).
+`drizzle/20260920232745_trip_close_office_authorship/` (novo: `migration.sql`, `snapshot.json`,
+`rollback.sql`).
+
+**Backend, testes alterados:** `test/separator-role.contract.test.ts`,
+`test/trip-field-office/finance-read.contract.ts`, `test/trip-http/close.contract.ts`,
+`test/fixtures/trip-http.fixture.ts` (`COMPANY_CONTEXT` ganha `trip.report-on-behalf`),
+`test/trip-application/trip-use-case.contract.ts`, `test/trip-delivery-proof/orphan-deliver.contract.ts`,
+`test/integration/trip-repository.integration.ts`, `test/integration/trip-lifecycle.integration.ts`,
+`test/database-migration/static-migration.contract.ts` (lista da migration nova).
+
+**Frontend, alterados:** `src/modules/trip/components/TripCloseDialog.component.tsx` (novo),
+`src/modules/trip/components/TripDetail.component.tsx`, `src/modules/trip/shared/tripClient.service.ts`,
+`src/modules/trip/hooks/useTripWorkspace.hook.ts`, `src/modules/trip/locales/trip{,.en}.locale.json`.
+
+**Frontend, testes alterados:** `test/trip/client-and-controller.contract.ts`.
+
+**Documentação:** `docs/adr/0067-o-escritorio-da-baixa-em-nome-do-motorista.md` (emenda 2026-09-20),
+`apps/api-transportada/CLAUDE.md`.
+
+### Em aberto
+
+- Nenhum. `[NEEDS CLARIFICATION]` não existia para esta task — a decisão do usuário ("escritório,
+  com motivo") fechou o único ponto em aberto do achado da T8b.
+- Revisão de design/usabilidade do novo diálogo (`TripCloseDialog`) não foi refeita à parte: ele
+  segue o molde pixel a pixel de `TripReasonDialog`, já revisado na T16. Print não anexado aqui por
+  não haver ambiente de preview rodando nesta sessão (worktree sem `make dev`); recomenda-se um
+  print rápido na próxima sessão que abrir a tela antes do merge para staging, comparando o diálogo
+  novo com o de dispensa de MDF-e.

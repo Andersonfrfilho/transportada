@@ -4,6 +4,7 @@
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -23,10 +24,41 @@ import {
   nfeDocuments,
   nfeImports,
   storedObjects,
+  tripDocuments,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
+import type { TripDatabase } from '../../src/trips/infrastructure/trip-queryable.type.js'
+
+const CLOSE_CORRELATION_ID = 'correlation-trip-repository-integration'
+const CLOSE_IP_ADDRESS = '203.0.113.20'
+
+/**
+ * Spec 156 T8c: `repository.deliverDocument` saiu (código morto, sem chamador — ver
+ * `test/trip-delivery-proof/orphan-deliver.contract.ts`). Este teste ainda precisa marcar uma nota
+ * como entregue para provar isolamento de tenant e o travamento do `release`; um `UPDATE` direto
+ * reproduz só o estado (`delivered_at`/`separation_status`), sem reintroduzir a escrita órfã.
+ */
+async function markTripDocumentDelivered(
+  database: TripDatabase,
+  input: { readonly companyId: string; readonly documentId: string; readonly tripId: string },
+): Promise<{ readonly deliveredAt: Date } | null> {
+  const [delivered] = await database
+    .update(tripDocuments)
+    .set({ deliveredAt: sql`now()`, separationStatus: 'delivered', updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .returning({ deliveredAt: tripDocuments.deliveredAt })
+  return delivered === undefined || delivered.deliveredAt === null
+    ? null
+    : { deliveredAt: delivered.deliveredAt }
+}
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -281,7 +313,7 @@ describe('trip repository integration', () => {
 
         // Tenant vizinho não escreve na nota alheia, mesmo com os ids corretos em mãos.
         expect(
-          await repository.deliverDocument({
+          await markTripDocumentDelivered(database.db, {
             companyId: otherCompanyId,
             documentId: nfeLink.id,
             tripId: created.id,
@@ -302,7 +334,7 @@ describe('trip repository integration', () => {
           }),
         ).toMatchObject({ deliveredAt: null, releasedAt: null })
 
-        const delivered = await repository.deliverDocument({
+        const delivered = await markTripDocumentDelivered(database.db, {
           companyId,
           documentId: nfeLink.id,
           tripId: created.id,
@@ -369,7 +401,7 @@ describe('trip repository integration', () => {
           nfeDocumentId: cancelledNfeDocumentId,
           tripId: secondTrip.id,
         })
-        const deliveredCancelledNfe = await repository.deliverDocument({
+        const deliveredCancelledNfe = await markTripDocumentDelivered(database.db, {
           companyId,
           documentId: relinkedCancelledNfe.id,
           tripId: secondTrip.id,
@@ -379,19 +411,13 @@ describe('trip repository integration', () => {
         const closeInput = {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
+          closeReason: null,
+          correlationId: CLOSE_CORRELATION_ID,
+          ipAddress: CLOSE_IP_ADDRESS,
           onBehalfOfDriverId: null,
         } as const
         const closed = await repository.close({ ...closeInput, companyId, tripId: created.id })
         expect(closed?.status).toBe('completed')
-        // Viagem completed: a escrita condicionada não acha linha nenhuma, e é o que fecha a
-        // corrida entre a checagem do caso de uso e o update.
-        expect(
-          await repository.deliverDocument({
-            companyId,
-            documentId: nfeLink.id,
-            tripId: created.id,
-          }),
-        ).toBeNull()
         expect(
           await repository.close({ ...closeInput, companyId: otherCompanyId, tripId: created.id }),
         ).toBeNull()

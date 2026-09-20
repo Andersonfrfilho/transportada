@@ -108,6 +108,20 @@ export class TripCargoLayoutNotFoundError extends ApiError {
   }
 }
 
+/**
+ * Spec 156 T8c: o escritório encerra a viagem com nota ainda em aberto (nem entregue, nem
+ * devolvida, nem liberada) sem dizer por quê. Com todas as notas fechadas, o motivo é opcional.
+ */
+export class TripCloseReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CLOSE_REASON_REQUIRED',
+      message: 'Closing a trip with open documents requires a reason.',
+      status: 422,
+    })
+  }
+}
+
 /** ADR-0023: encerrar é terminal — repetir o encerramento é idempotente, mas nenhum outro comando muda uma viagem fechada. */
 export class TripClosedError extends ApiError {
   public constructor() {

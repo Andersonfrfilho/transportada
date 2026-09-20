@@ -280,21 +280,22 @@ export type TripPage = {
 }
 
 export type TripRepositoryPort = {
-  /** Idempotente (ADR-0017): fechar uma viagem já fechada devolve a mesma viagem, sem erro. */
+  /**
+   * Idempotente (ADR-0017): fechar uma viagem já fechada devolve a mesma viagem, sem erro. Spec
+   * 156 T8c: a linha de `audit_logs` nasce na mesma transação, com o IP e a contagem de notas que
+   * ficaram em aberto — nunca o motivo, que é dado de negócio.
+   */
   close(input: {
     readonly actorUserId: string
     readonly channel: TripFieldChannel
+    readonly closeReason: string | null
     readonly companyId: string
+    readonly correlationId: string
+    readonly ipAddress: string
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripDetail | null>
   create(input: CreateTripRecord): Promise<TripDetail>
-  /** Idempotente: marcar como entregue um documento já entregue devolve o mesmo registro. */
-  deliverDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<TripDocument | null>
   findById(input: {
     readonly companyId: string
     readonly tripId: string

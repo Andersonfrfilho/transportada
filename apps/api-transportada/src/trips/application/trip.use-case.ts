@@ -4,7 +4,9 @@
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import { checkTripCloseRequiresReason } from '../domain/trip-close.policy.js'
 import {
+  TripCloseReasonRequiredError,
   TripDocumentAlreadyDeliveredError,
   TripDocumentNotFoundError,
   TripNotFoundError,
@@ -36,12 +38,10 @@ export type CreateTripInput = {
 
 export type CloseTripInput = {
   readonly context: TripCompanyContext
-  readonly tripId: string
-}
-
-export type DeliverTripDocumentInput = {
-  readonly context: TripCompanyContext
-  readonly documentId: string
+  readonly correlationId: string
+  readonly ipAddress: string
+  /** Spec 156 T8c: obrigatório só quando a viagem tem nota em aberto — a política decide isso. */
+  readonly reason: string | null
   readonly tripId: string
 }
 
@@ -73,7 +73,6 @@ export type ReleaseTripDocumentInput = {
 export type TripUseCase = {
   close(input: CloseTripInput): Promise<TripDetail>
   create(input: CreateTripInput): Promise<TripDetail>
-  deliverDocument(input: DeliverTripDocumentInput): Promise<TripDocument>
   get(input: GetTripInput): Promise<TripDetail>
   linkDocument(input: LinkTripDocumentInput): Promise<TripDocument>
   list(input: ListTripsInput): Promise<TripPage>
@@ -102,14 +101,21 @@ export function createTripUseCase(dependencies: {
   const { repository, routeFreezer } = dependencies
 
   return {
-    async close({ context, tripId }) {
+    async close({ context, correlationId, ipAddress, reason, tripId }) {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
       if (trip.status === 'completed') return trip
+
+      if (reason === null && checkTripCloseRequiresReason(trip.documents)) {
+        throw new TripCloseReasonRequiredError()
+      }
 
       const closed = await repository.close({
         actorUserId: context.userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
+        closeReason: reason,
         companyId: context.companyId,
+        correlationId,
+        ipAddress,
         onBehalfOfDriverId: null,
         tripId,
       })
@@ -135,20 +141,6 @@ export function createTripUseCase(dependencies: {
         ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
         vehicleId: vehicle.id,
       })
-    },
-
-    async deliverDocument({ context, documentId, tripId }) {
-      const companyId = context.companyId
-      await assertTripOpen({ companyId, repository, tripId })
-
-      const document = await findTripDocumentOrThrow({ companyId, documentId, repository, tripId })
-      if (document.deliveredAt !== null) return document
-
-      const delivered = await repository.deliverDocument({ companyId, documentId, tripId })
-      // O update é condicionado à viagem aberta: nulo aqui é nota inexistente ou fechamento
-      // concorrente entre a leitura acima e a escrita.
-      if (delivered === null) throw new TripDocumentNotFoundError()
-      return delivered
     },
 
     async get({ context, tripId }) {

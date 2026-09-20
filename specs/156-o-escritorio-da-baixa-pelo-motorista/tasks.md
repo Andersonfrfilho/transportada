@@ -103,6 +103,20 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       (`trip.report-on-behalf`, com `channel` e `on_behalf_of_driver_id`), mostrados por
       `allowedActions`. Contratos negativos: as rotas antigas não existem mais; o lote recusa
       `deliver`/`return` com 400; o separador recebe 403 em `field-delivery`/`field-return`.
+- [x] **T8c — Encerrar viagem é do escritório, e com motivo** (achado da T8b; decisão do usuário:
+      "escritório, com motivo"). Hoje `POST /trips/:id/close` pede `trip.manage`, então **o separador
+      encerra viagem**, sem confirmação e sem olhar as notas em aberto — e viagem `completed` trava
+      toda baixa (`checkTripDocumentTransition` → `tripCompleted`), então um toque congela nota sem
+      entrega nem devolução. Passa a exigir `trip.report-on-behalf`. Encerrar com nota em aberto
+      (nem `delivered`, nem `returned`, nem liberada) exige `reason`; sem ele, 422
+      `TRIP_CLOSE_REASON_REQUIRED`. Migration aditiva em `trips` (`closed_at`, `closed_by_user_id`
+      com FK composta pela empresa, `close_reason`) e uma linha em `audit_logs` com quem encerrou,
+      a viagem e quantas notas ficaram em aberto — sem PII. A tela mostra o botão só a quem tem a
+      permissão e pergunta antes, dizendo quantas notas ficarão sem baixa, com o motivo obrigatório.
+      Sai junto o código morto da entrega antiga (`deliverDocument` no use case, na porta e no
+      repositório: grava `deliveredAt` sem autoria e sem mexer em `separationStatus`, e nenhuma rota
+      o chama). Contratos negativos: separador 403 em `close`; encerrar com nota em aberto e sem
+      motivo → 422; com todas fechadas, `reason` é opcional.
 - [x] **T9 — Linha do tempo com autoria** ("por X (escritório) pelo motorista Y") e
       `FieldOccurrenceDialog` para uma nota ou para várias.
 

@@ -190,6 +190,15 @@ opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-del
   tipo, lista fechada de campos e um `file` só. `audit_logs` na transação da ação (nunca no reenvio
   nem em `changed: false`). Rate limit no Postgres: lote 30/300 s, notas 300/300 s, viagem/parada
   120/300 s (`test/rate-limited-routes.contract.test.ts`).
+- **Encerrar a viagem também é `trip.report-on-behalf`** (spec 156 T8c, ADR-0067, emenda
+  2026-09-20): `POST /trips/:id/close` deixou de ser `trip.manage` — o separador monta a viagem, mas
+  não é quem confirma que a entrega acabou. Nota em aberto (nem `delivered`, nem `returned`, nem
+  liberada) exige `reason` no corpo; sem ele, 422 `TRIP_CLOSE_REASON_REQUIRED`
+  (`trip-close.policy.ts`). `trips` grava `closed_at`/`closed_by_user_id`/`close_reason`, e a
+  auditoria (`office.trip.close`) mira a própria viagem, não um motorista — encerrar não é "em nome
+  de" ninguém, então não usa `insertTripFieldOfficeAudit`. `deliverDocument` (porta, caso de uso e
+  repositório) saiu junto: gravava `delivered_at` sem tocar em `separation_status` e sem chamador
+  desde a T8b.
 - `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no
   `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
   `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.

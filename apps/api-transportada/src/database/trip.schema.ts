@@ -169,6 +169,14 @@ export const trips = pgTable(
      * como estimada, em vez de fingir que alguém informou.
      */
     dailyAllowanceDays: integer('daily_allowance_days'),
+    /**
+     * Spec 156 T8c (ADR-0067): quem encerrou, quando e por quê. `closedAt`/`closedByUserId` nascem
+     * juntos, e `closeReason` é obrigatório só quando havia nota em aberto no momento do
+     * encerramento — a regra vive em `trip-close.policy.ts`, não aqui.
+     */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByUserId: uuid('closed_by_user_id'),
+    closeReason: text('close_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -187,6 +195,19 @@ export const trips = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.closedByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trips_company_closed_by_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** O motivo só existe com o encerramento: as duas colunas nascem e morrem juntas. */
+    check(
+      'trips_close_check',
+      sql`(${table.closedAt} is null) = (${table.closedByUserId} is null)
+        and (${table.closeReason} is null or ${table.closedAt} is not null)`,
+    ),
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),

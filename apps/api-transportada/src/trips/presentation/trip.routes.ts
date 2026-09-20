@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveClientIp } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
@@ -23,6 +24,7 @@ import type {
 import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 import {
   resolveTripAllowedActions,
   type AllowedActionsTripSnapshot,
@@ -104,6 +106,7 @@ import type {
 import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import {
   parseBatchTransitionTripDocumentsRequest,
+  parseCloseTripRequest,
   parseCreateTripRequest,
   parseCreateTripCteBatchRequest,
   parseDispatchTripRequest,
@@ -1046,11 +1049,17 @@ export function createTripRoutes(
         })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseCloseTripRequest(request)
+        return {
+          correlationId,
+          ipAddress: resolveClientIp(request),
+          reason: body.reason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
       pathname: TRIP_CLOSE_PATH,
-      policy: TRIP_MANAGE_POLICY,
+      policy: OFFICE_REPORT_POLICY,
     }),
     defineRoute<Omit<CreateTripMdfeManifestInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
