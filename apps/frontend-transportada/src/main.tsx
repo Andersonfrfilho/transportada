@@ -47,12 +47,11 @@ import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notifi
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
+import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
-})
+const queryClient = new QueryClient({ defaultOptions: QUERY_CLIENT_DEFAULT_OPTIONS })
 
 const deploymentEnvironment = getDeploymentEnvironment()
 

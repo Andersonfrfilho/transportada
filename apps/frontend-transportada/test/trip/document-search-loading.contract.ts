@@ -87,7 +87,7 @@ describe('a lista de notas se adianta ao clique em Nova viagem', () => {
     const source = readSource(HOOK_PATH)
 
     expect(source).toContain('queryClient.prefetchQuery({')
-    expect(source).toContain('queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,')
+    expect(source).toContain('queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,')
     expect(source).toContain('queryFn: loadAvailableTripDocuments,')
   })
 

@@ -62,6 +62,18 @@ export const TRIP_PAGE_SIZE = 25
 export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
+/**
+ * Um carregador, **uma chave**. As duas montagens — a manual do "Nova viagem" e a automática do
+ * roteiro — nasceram com chaves próprias sobre esta mesma função, e isso custava duas varreduras
+ * paginadas da base de notas por abertura da tela de viagens, para guardar duas cópias do mesmo
+ * recorte.
+ *
+ * ⚠️ Chave separada nunca serviu para invalidar uma sem a outra: as duas sempre penderam de
+ * `[TRIP_QUERY_KEY]`, e é o prefixo que as derruba juntas. Quem for separá-las de novo precisa
+ * primeiro de um motivo que o cache saiba distinguir.
+ */
+export const AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY = [TRIP_QUERY_KEY, 'available-documents'] as const
+
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   DRIVER_NOT_ON_TRIP: 'driverNotOnTrip',
   /** Spec 156 T7.3/T9 (L4): tipo de separação, aposentado ou inexistente no lote de ocorrência. */

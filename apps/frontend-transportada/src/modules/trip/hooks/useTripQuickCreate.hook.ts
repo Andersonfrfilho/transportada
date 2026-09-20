@@ -9,7 +9,7 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
+import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY, TRIP_QUERY_KEY } from '../shared/trip.constant'
 
 import {
   moveCity,
@@ -20,7 +20,7 @@ import {
 import { readDailyAllowanceDaysInput } from '../shared/dailyAllowanceDaysField.service'
 import { runQuickCreateTrip } from '../shared/quickCreateTrip.service'
 import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.service'
-import { QUICK_CREATE_DOCUMENTS_QUERY_KEY, useQuickCreateDraft } from './useQuickCreateDraft.hook'
+import { useQuickCreateDraft } from './useQuickCreateDraft.hook'
 import type { RouteChoice } from '../shared/routeGeometry.service'
 import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
@@ -80,25 +80,28 @@ export function useTripQuickCreate(
    */
   const queueRef = useRef<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
 
-  /** Só busca quando o modal abre: a lista inteira de notas não se carrega para uma tela fechada. */
+  /**
+   * Este observador só liga com o modal aberto — mas a chave é a de toda a tela de viagens, e a
+   * montagem automática a mantém carregada desde que a página monta. Quem abre o diálogo costuma
+   * encontrar a lista pronta; o `isLoading` sobra para quem abre antes de a primeira busca voltar.
+   */
   const documentsQuery = useQuery({
     enabled: isOpen,
     queryFn: loadAvailableTripDocuments,
-    queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
+    queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
   })
 
   /**
-   * Adiantar a busca no instante em que o ponteiro alcança o botão, antes do clique. A lista de
-   * notas livres de uma transportadora com milhares delas leva segundos, e esses segundos hoje são
-   * gastos com o diálogo já aberto, olhando tabela vazia.
+   * Renova a lista no instante em que o ponteiro alcança o botão, antes do clique. A carga inicial
+   * da tela já a trouxe; o que este adiantamento cobre é a tela aberta há tempo — passado o
+   * `staleTime`, a espera voltaria a cair sobre o clique.
    *
-   * ⚠️ Intenção declarada, não pré-carregamento de página: quem nunca vai criar viagem não paga a
-   * consulta. E o `staleTime` global segura a repetição — passar o mouse dez vezes busca uma.
+   * O mesmo `staleTime` segura a repetição: passar o mouse dez vezes busca uma.
    */
   function prefetchDocuments(): void {
     void queryClient.prefetchQuery({
       queryFn: loadAvailableTripDocuments,
-      queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
+      queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
     })
   }
 

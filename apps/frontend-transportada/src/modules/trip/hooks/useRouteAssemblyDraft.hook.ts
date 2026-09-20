@@ -8,7 +8,7 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
+import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY } from '../shared/trip.constant'
 import type { MultiVehicleProposal, TripCandidateDocument } from '../shared/trip.types'
 import {
   buildAutomaticAssemblyDraft,
@@ -37,12 +37,6 @@ import {
 import type { TripRouteAssemblyDraft } from '../shared/tripRouteAssembly.service'
 import { useTripAssemblyDraftLifecycle } from './useTripAssemblyDraftLifecycle.hook'
 import { getTripClient } from './useTripWorkspace.hook'
-
-export const ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY = [
-  TRIP_QUERY_KEY,
-  'route-assembly',
-  'documents',
-] as const
 
 const SUGGESTION_READERS = {
   readProposal: (suggestionId: string) =>
@@ -141,7 +135,7 @@ export function useRouteAssemblyDraft(input: RouteAssemblyDraftInput) {
         loadDocuments: () =>
           queryClient.fetchQuery({
             queryFn: loadAvailableTripDocuments,
-            queryKey: ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY,
+            queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
           }),
         selectableDriverIds: input.selectableDriverIds,
         selectableVehicleIds: input.selectableVehicleIds,
