@@ -140,6 +140,15 @@
     "title_one": "Cancel {{count}} trip?",
     "title_other": "Cancel {{count}} trips?"
   },
+  "closeDialog": {
+    "confirm": "Close trip",
+    "noOpenDocuments": "Every document is already delivered, returned or released. The reason is optional.",
+    "openDocumentsWarning": "{{count}} document will be left without a recorded settlement.",
+    "openDocumentsWarning_other": "{{count}} documents will be left without a recorded settlement.",
+    "reasonLabel": "Reason for closing",
+    "reasonLabelOptional": "Reason for closing (optional)",
+    "title": "Close this trip?"
+  },
   "cargoLayers": {
     "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
     "box": {

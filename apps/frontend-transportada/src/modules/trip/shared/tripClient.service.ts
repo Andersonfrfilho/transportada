@@ -114,7 +114,8 @@ type ClientDependencies = Readonly<{
 export type TripClient = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
-  closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  /** Spec 156 T8c: `reason` é obrigatório só quando a viagem tem nota em aberto (a tela decide). */
+  closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   /** Spec 156 T5: `POST /trips/:id/confirm-load` — o mesmo caso de uso do motorista, com o alvo. */
   confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
@@ -466,6 +467,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async closeTrip(input) {
       const response = await authorizedRequest({
+        body: JSON.stringify({ reason: input.reason }),
         dependencies,
         method: 'POST',
         path: `${TRIPS_PATH}/${input.tripId}/close`,

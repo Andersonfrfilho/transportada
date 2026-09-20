@@ -71,7 +71,9 @@ describe('trip client contract', () => {
     expect(await client.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
     )
-    expect(await client.closeTrip({ tripId: TRIP_ID })).toEqual(TRIP_DETAIL)
+    expect(
+      await client.closeTrip({ reason: 'Canhotos recebidos no escritório', tripId: TRIP_ID }),
+    ).toEqual(TRIP_DETAIL)
 
     const [
       listRequest,
@@ -138,6 +140,8 @@ describe('trip client contract', () => {
 
     expect(closeRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/close`)
     expect(closeRequest.method).toBe('POST')
+    expect(closeRequest.headers.get('content-type')).toBe('application/json')
+    expect(await closeRequest.json()).toEqual({ reason: 'Canhotos recebidos no escritório' })
   })
 
   test('overrides a delivery address and lists its history', async () => {
@@ -330,21 +334,29 @@ describe('trip controller contract', () => {
       await readOnlyController.createTrip(CREATE_TRIP_BODY).catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
     expect(
-      await readOnlyController.closeTrip({ tripId: TRIP_ID }).catch((caught: unknown) => caught),
+      await readOnlyController
+        .closeTrip({ reason: null, tripId: TRIP_ID })
+        .catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
     expect(client.mutationCount).toBe(0)
 
     const controller = createTripController({ client, permissions: [FLEET_READ, TRIP_MANAGE] })
     expect(controller.canManageTrips).toBe(true)
     await controller.createTrip(CREATE_TRIP_BODY)
-    await controller.closeTrip({ tripId: TRIP_ID })
+    // Spec 156 T8c, ADR-0067: encerrar deixou de ser `trip.manage` — o separador (que tem
+    // `trip.manage`, sem `trip.report-on-behalf`) não confirma mais que a entrega acabou.
+    expect(
+      await controller
+        .closeTrip({ reason: null, tripId: TRIP_ID })
+        .catch((caught: unknown) => caught),
+    ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
     await controller.linkTripDocument({
       freightCalculationId: null,
       nfeDocumentId: NFE_DOCUMENT_ID,
       tripId: TRIP_ID,
     })
     await controller.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
-    expect(client.mutationCount).toBe(4)
+    expect(client.mutationCount).toBe(3)
 
     // Spec 156 T8b, ADR-0067: `fieldDeliverDocument` é `trip.report-on-behalf`, não `trip.manage` —
     // o `separator`, que tem `trip.manage`, não deve alcançá-la (ele não reporta entrega).
@@ -358,7 +370,7 @@ describe('trip controller contract', () => {
         })
         .catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
-    expect(client.mutationCount).toBe(4)
+    expect(client.mutationCount).toBe(3)
 
     const officeController = createTripController({
       client,
@@ -369,6 +381,13 @@ describe('trip controller contract', () => {
       deliveredAt: '2026-09-18T12:00:00.000Z',
       documentId: DOCUMENT_ID,
       idempotencyKey: 'idem-deliver',
+      tripId: TRIP_ID,
+    })
+    expect(client.mutationCount).toBe(4)
+
+    // Spec 156 T8c: `trip.report-on-behalf` é quem confirma o fim da entrega, não `trip.manage`.
+    await officeController.closeTrip({
+      reason: 'Canhotos recebidos no escritório',
       tripId: TRIP_ID,
     })
     expect(client.mutationCount).toBe(5)
@@ -731,6 +750,9 @@ type TransitionInput = Readonly<{
   tripId: string
 }>
 
+/** Spec 156 T8c: `reason` é obrigatório só quando a viagem tem nota em aberto — a tela decide. */
+type CloseTripInput = Readonly<{ reason: null | string; tripId: string }>
+
 type FieldDeliverInput = Readonly<{
   deliveredAt: string
   documentId: string
@@ -753,7 +775,7 @@ type DispatchInput = Readonly<{ force?: boolean; forceReason?: null | string; tr
 type TripClient = {
   batchStatus(input: BatchStatusInput): Promise<unknown>
   cancelTrip(input: TripIdInput): Promise<unknown>
-  closeTrip(input: TripIdInput): Promise<unknown>
+  closeTrip(input: CloseTripInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
   fieldDeliverDocument(input: FieldDeliverInput): Promise<unknown>
   fieldReturnDocument(input: FieldReturnInput): Promise<unknown>
@@ -788,7 +810,7 @@ type TripAdaptersModule = {
 type TripController = {
   readonly canManageTrips: boolean
   readonly canReadTrips: boolean
-  readonly closeTrip: (input: TripIdInput) => Promise<unknown>
+  readonly closeTrip: (input: CloseTripInput) => Promise<unknown>
   readonly createTrip: (input: typeof CREATE_TRIP_BODY) => Promise<unknown>
   readonly fieldDeliverDocument: (input: FieldDeliverInput) => Promise<unknown>
   readonly getTrip: (input: TripIdInput) => Promise<unknown>

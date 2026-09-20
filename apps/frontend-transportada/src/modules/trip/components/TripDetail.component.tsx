@@ -48,6 +48,7 @@ import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
+import { TripCloseDialog } from './TripCloseDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
@@ -189,6 +190,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * trilha, e o diálogo é onde o motivo é digitado antes de o servidor recusá-la sem ele.
    */
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false)
+  /**
+   * Spec 156 T8c (ADR-0067): encerrar passou a confirmar antes — quantas notas ficam sem baixa e,
+   * quando há alguma em aberto, o motivo. `false` fecha o diálogo sem chamar a mutation.
+   */
+  const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
@@ -270,6 +276,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   }
 
   const canManage = workspace.controller.canManageTrips
+  /** Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma. */
+  const canCloseTrip = workspace.controller.canReportOnBehalf
+  const openTripDocumentCount = trip.documents.filter(
+    (document) =>
+      document.deliveredAt === null && document.returnedAt === null && document.releasedAt === null,
+  ).length
   /**
    * Spec 156 D11/T8: geometria, agendamento, prontidão fiscal e produtos continuam só em
    * `fleet.read` — o `finance` (`trip.report-on-behalf`) recebe 403 nessas rotas. O painel fica
@@ -460,8 +472,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   }
 
   function handleCloseTrip(): void {
+    setIsCloseDialogOpen(true)
+  }
+
+  function handleCloseTripSubmit(reason: null | string): void {
     if (trip === undefined) return
-    workspace.closeMutation.mutate({ tripId: trip.id })
+    setIsCloseDialogOpen(false)
+    workspace.closeMutation.mutate({ reason, tripId: trip.id })
   }
 
   function handleReorderStops(stopIds: readonly string[]): void {
@@ -900,7 +917,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
             {t('actions.issueMdfe')}
           </Button>
         ) : null}
-        {canManage && !isCompleted ? (
+        {canCloseTrip && !isCompleted ? (
           <Button
             disabled={workspace.closeMutation.isPending}
             onClick={handleCloseTrip}
@@ -934,6 +951,14 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onClose={() => setOverrideDocumentId(null)}
         onOverride={(body) => workspace.overrideDeliveryAddressMutation.mutateAsync(body)}
         tripId={trip.id}
+      />
+
+      <TripCloseDialog
+        isOpen={isCloseDialogOpen}
+        isSubmitting={workspace.closeMutation.isPending}
+        onClose={() => setIsCloseDialogOpen(false)}
+        onSubmit={handleCloseTripSubmit}
+        openDocumentCount={openTripDocumentCount}
       />
 
       <TripReasonDialog

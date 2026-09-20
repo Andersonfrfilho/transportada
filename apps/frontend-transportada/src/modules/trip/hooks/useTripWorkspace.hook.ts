@@ -94,7 +94,7 @@ export type TripController = Readonly<{
   canReportOnBehalf: boolean
   canManageMdfe: boolean
   canSubmitCte: boolean
-  closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
@@ -190,7 +190,8 @@ export function createTripController(
     canReadTrips,
     canReportOnBehalf,
     canSubmitCte,
-    closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
+    // Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma.
+    closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
     confirmLoadTrip: (body) =>
       canReportOnBehalf ? input.client.confirmLoadTrip(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
