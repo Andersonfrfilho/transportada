@@ -15,10 +15,10 @@ export const SETTINGS_PANELS = [
   'freightRegions',
   'nfseCredential',
   'nfseProfiles',
-  'occurrenceNotifications',
   'deliveryProof',
   'federalTaxes',
   'driverAllowance',
+  'occurrenceTypeCatalog',
   'contractorMail',
   'cameraMeasurement',
 ] as const
@@ -51,7 +51,7 @@ export type SettingsDataSource =
   | 'fuelPrices'
   | 'landing'
   | 'nfse'
-  | 'occurrenceNotifications'
+  | 'occurrenceTypeCatalog'
   | 'scheduledDistribution'
   | 'tollBoothCharges'
 
@@ -114,14 +114,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
   tollBoothCharges: { module: 'fleet', source: 'tollBoothCharges', tab: 'tolls' },
   /**
-   * Spec 079 — o aviso de ocorrência mora **na tela de viagens**, que é onde a ocorrência é
-   * registrada e onde ela aparece. Numa tela de configurações genérica, quem liga o aviso estaria
-   * longe do efeito dele — que é justamente o que a regra "configuração perto do efeito" evita.
+   * O catálogo morava na tela de viagens, numa aba chamada "Avisos" — nome que descrevia só o
+   * efeito colateral (o e-mail) e escondia o que a tela realmente é: o **cadastro** do catálogo
+   * (nome, etapa, interruptor de aviso, modelo de e-mail). Isto não é "configuração perto do
+   * efeito": é cadastro da empresa, e mora em Configurações como os demais.
    */
-  occurrenceNotifications: {
-    module: 'trip',
-    source: 'occurrenceNotifications',
-    tab: 'notifications',
+  occurrenceTypeCatalog: {
+    module: 'company-settings',
+    source: 'occurrenceTypeCatalog',
+    tab: 'occurrenceTypes',
   },
   /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
@@ -194,7 +195,7 @@ export function resolveSettingsDataScope(
     fuelPrices: sources.has('fuelPrices'),
     landing: sources.has('landing'),
     nfse: sources.has('nfse'),
-    occurrenceNotifications: sources.has('occurrenceNotifications'),
+    occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
     scheduledDistribution: sources.has('scheduledDistribution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
   }
@@ -206,6 +207,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'certificates',
   'taxes',
   'driverAllowance',
+  'occurrenceTypes',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

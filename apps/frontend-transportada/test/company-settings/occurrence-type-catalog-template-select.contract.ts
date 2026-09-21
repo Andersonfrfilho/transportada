@@ -5,15 +5,15 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import trip from '../../src/modules/trip/locales/trip.locale.json'
-import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
+import companySettings from '../../src/modules/company-settings/locales/companySettings.locale.json'
+import companySettingsEn from '../../src/modules/company-settings/locales/companySettings.en.locale.json'
 import {
   buildOccurrenceEmailTemplateOptions,
   OCCURRENCE_TEMPLATE_NONE,
 } from '../../src/modules/trip/shared/occurrenceTemplate.service'
 
 const PANEL = new URL(
-  '../../src/modules/trip/components/TripOccurrenceNotifications.component.tsx',
+  '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
   import.meta.url,
 )
 const STYLES = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
@@ -54,11 +54,11 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
   /** O select existe, vem do design system e é alimentado pela consulta de templates. */
   it('oferece o select de modelo alimentado pela consulta do módulo de notificações', () => {
     expect(source).toInclude('useEmailTemplatesQuery')
-    expect(source).toInclude("t('occurrence.emailTemplate')")
-    expect(trip.occurrence.emailTemplate).toBeString()
-    expect(tripEn.occurrence.emailTemplate).toBeString()
-    expect(trip.occurrence.emailTemplateNone).toBeString()
-    expect(tripEn.occurrence.emailTemplateNone).toBeString()
+    expect(source).toInclude("t('occurrenceTypeCatalog.emailTemplate')")
+    expect(companySettings.occurrenceTypeCatalog.emailTemplate).toBeString()
+    expect(companySettingsEn.occurrenceTypeCatalog.emailTemplate).toBeString()
+    expect(companySettings.occurrenceTypeCatalog.emailTemplateNone).toBeString()
+    expect(companySettingsEn.occurrenceTypeCatalog.emailTemplateNone).toBeString()
   })
 
   /** O valor da opção — e o que se grava — é a **chave** do template, nunca o id da variante. */
@@ -75,8 +75,8 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
 
   /** Assunto e corpo saíram do formulário: o texto é assunto do editor de templates. */
   it('não tem mais campos de assunto e corpo nem aviso de marcadores', () => {
-    expect(source).not.toInclude("t('occurrence.emailSubject')")
-    expect(source).not.toInclude("t('occurrence.emailBody')")
+    expect(source).not.toInclude("t('occurrenceTypeCatalog.emailSubject')")
+    expect(source).not.toInclude("t('occurrenceTypeCatalog.emailBody')")
     expect(source).not.toInclude('findUnknownTemplatePlaceholders')
     expect(source).not.toInclude('OCCURRENCE_TEMPLATE_PLACEHOLDERS')
   })
@@ -96,16 +96,16 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
   /** A linha do tipo mostra o modelo escolhido; a linha legada mostra o assunto com a marca. */
   it('nomeia o modelo na linha, e marca o legado', () => {
     expect(source).toInclude('legacyTemplate')
-    expect(trip.occurrence.legacyTemplate).toInclude('legado')
-    expect(tripEn.occurrence.legacyTemplate).toBeString()
+    expect(companySettings.occurrenceTypeCatalog.legacyTemplate).toInclude('legado')
+    expect(companySettingsEn.occurrenceTypeCatalog.legacyTemplate).toBeString()
   })
 
   /** O atalho leva ao editor de templates do módulo de notificações, pela navegação do shell. */
   it('tem o atalho para editar os modelos', () => {
-    expect(source).toInclude("t('occurrence.editTemplates')")
+    expect(source).toInclude("t('occurrenceTypeCatalog.editTemplates')")
     expect(source).toInclude('NOTIFICATION_SETTINGS_HREF')
-    expect(trip.occurrence.editTemplates).toBeString()
-    expect(tripEn.occurrence.editTemplates).toBeString()
+    expect(companySettings.occurrenceTypeCatalog.editTemplates).toBeString()
+    expect(companySettingsEn.occurrenceTypeCatalog.editTemplates).toBeString()
   })
 })
 

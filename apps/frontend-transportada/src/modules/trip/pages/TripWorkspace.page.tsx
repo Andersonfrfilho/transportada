@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,7 +19,6 @@ import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/co
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 
 import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
-import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
 import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
@@ -126,9 +125,9 @@ function TripWorkspacePageSkeleton() {
   )
 }
 
-type TripTabId = 'notifications' | 'proof' | 'trips'
+type TripTabId = 'proof' | 'trips'
 
-const TRIP_TABS: readonly TripTabId[] = ['trips', 'notifications', 'proof']
+const TRIP_TABS: readonly TripTabId[] = ['trips', 'proof']
 
 function resolveTripTab(id: string): TripTabId {
   return TRIP_TABS.find((tab) => tab === id) ?? 'trips'
@@ -150,27 +149,7 @@ export function TripWorkspacePage() {
   const settingsScope = resolveSettingsDataScope('trip', activeTab)
 
   /**
-   * Spec 079: é o `enabled` que faz o painel **vir preenchido** — abrir a aba busca o que já está
-   * gravado, em vez de mostrar todos os tipos desligados até alguém recarregar.
-   */
-  const occurrenceTypesQuery = useQuery({
-    enabled: canManageSettings && settingsScope.occurrenceNotifications,
-    queryFn: () => workspace.controller.listOccurrenceTypes(),
-    queryKey: ['trip', 'occurrence-types'] as const,
-  })
-
-  /**
-   * ⚠️ Invalida em vez de escrever o cache com a resposta: o `PUT` devolve **um** tipo, e a lista
-   * inteira mudou de ordem se o nome mudou. Escrever um item sobre a lista a deixaria mentindo.
-   */
-  const saveOccurrenceTypeMutation = useMutation({
-    mutationFn: workspace.controller.saveOccurrenceType,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['trip', 'occurrence-types'] })
-    },
-  })
-  /**
-   * Spec 082: mesmo desenho da 079 — permissão **e** aba aberta ligam a consulta, e é isso que faz
+   * Spec 082: permissão **e** aba aberta ligam a consulta, e é isso que faz
    * o painel do comprovante vir preenchido (ou com a fábrica que a API resolve) ao abrir a aba.
    */
   const deliveryProofSettingsQuery = useDeliveryProofSettingsQuery({
@@ -299,25 +278,13 @@ export function TripWorkspacePage() {
 
       {authQuery.isSuccess && !isForbidden ? (
         <div className={styles.deck}>
-          {/*
-           * Spec 079: **configuração perto do efeito.** O aviso de ocorrência se liga aqui, na tela
-           * onde a ocorrência é registrada e onde ela aparece — não numa tela de configurações que
-           * cresce sem fim e deixa quem liga longe do efeito.
-           */}
           <Tabs
             ariaLabel={t('title')}
             items={TRIP_TABS.map((tab) => ({
               id: tab,
               label: t(`tabs.${tab}`),
               panel:
-                tab === 'notifications' ? (
-                  <TripOccurrenceNotifications
-                    canManage={canManageSettings}
-                    isSaving={saveOccurrenceTypeMutation.isPending}
-                    onSave={(type) => saveOccurrenceTypeMutation.mutate(type)}
-                    types={occurrenceTypesQuery.data ?? []}
-                  />
-                ) : tab === 'proof' ? (
+                tab === 'proof' ? (
                   <TripDeliveryProofSettingsPanel
                     canManage={canManageSettings}
                     canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}
@@ -354,7 +321,7 @@ export function TripWorkspacePage() {
             value={activeTab}
           />
 
-          {activeTab === 'notifications' || activeTab === 'proof' ? null : (
+          {activeTab === 'proof' ? null : (
             <>
               {feedbackKey === null ? null : (
                 <p className={styles.alert} role="alert">

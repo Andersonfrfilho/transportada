@@ -664,35 +664,20 @@
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
   },
   "occurrence": {
-    "active": "Em uso",
-    "add": "Cadastrar tipo",
     "cancel": "Cancelar",
     "copyEmail": "Copiar e-mail",
-    "editTemplates": "Editar modelos de e-mail",
     "emailBody": "Texto do e-mail",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "emailSubject": "Assunto do e-mail",
-    "emailTemplate": "Modelo de e-mail",
-    "emailTemplateNone": "Sem e-mail",
-    "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
-    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "line": "{{type}} — {{moment}}",
-    "name": "Nome do tipo",
     "none": "Nenhuma ocorrência registrada.",
     "noteLabel": "Observação",
-    "notificationsHint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
-    "notificationsTitle": "Tipos de ocorrência",
-    "notifies": "Avisar quando acontecer",
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "product": "Item da nota",
     "register": "Registrar ocorrência",
-    "stage": "Onde acontece",
-    "stageDelivery": "Na rua",
-    "stageSeparation": "No galpão",
     "submit": "Registrar",
     "title": "Ocorrências",
     "wholeDocument": "A nota inteira",
-    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "dialogTitle": "Ocorrência de separação — {{document}}"
   },
   "occurrenceFeed": {
@@ -1207,7 +1192,6 @@
     "withoutDriver": "Sem motorista"
   },
   "tabs": {
-    "notifications": "Avisos",
     "proof": "Comprovante",
     "trips": "Viagens"
   },

@@ -528,10 +528,6 @@
     "title": "Pending CT-e"
   },
   "occurrence": {
-    "editTemplates": "Edit email templates",
-    "emailTemplate": "Email template",
-    "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)",
     "dialogTitle": "Separation occurrence — {{document}}"
   },
   "occurrenceFeed": {

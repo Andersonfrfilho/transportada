@@ -19,6 +19,11 @@ import {
   type DriverAllowancePanelProps,
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
+import {
+  OccurrenceTypeCatalogPanel,
+  type OccurrenceTypeCatalogPanelProps,
+} from '../components/OccurrenceTypeCatalogPanel.component'
+import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
 import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
 import { useCompanyContactsPanel } from '../hooks/useCompanyContactsPanel.hook'
 import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
@@ -113,6 +118,7 @@ type SettingsBodyProps = Readonly<{
   initialValue: CompanySettingsUpdate | undefined
   landing: LandingSection
   logo: LogoSection
+  occurrenceTypeCatalog: OccurrenceTypeCatalogPanelProps
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
   onLookupProfile: (cnpj: string) => Promise<CompanyProfileLookup | null>
@@ -230,6 +236,8 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
+  if (tab === 'occurrenceTypes')
+    return <OccurrenceTypeCatalogPanel {...props.occurrenceTypeCatalog} />
   if (tab === 'site') {
     return (
       <>
@@ -342,6 +350,9 @@ export function CompanySettingsPage() {
   })
   const driverAllowanceError =
     driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
+  const occurrenceTypeCatalogPanel = useOccurrenceTypeCatalogPanel({
+    enabled: canManageSettings && activeTab === 'occurrenceTypes',
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -416,6 +427,12 @@ export function CompanySettingsPage() {
           onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
+        }}
+        occurrenceTypeCatalog={{
+          canManage: canManageSettings,
+          isSaving: occurrenceTypeCatalogPanel.saveMutation.isPending,
+          onSave: (type) => occurrenceTypeCatalogPanel.saveMutation.mutate(type),
+          types: occurrenceTypeCatalogPanel.query.data ?? [],
         }}
         landing={{
           data: landingPanel.query.data,

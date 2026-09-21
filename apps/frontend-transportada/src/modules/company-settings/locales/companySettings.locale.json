@@ -6,7 +6,8 @@
     "site": "Site",
     "certificates": "Certificados",
     "taxes": "Tributos",
-    "driverAllowance": "Diária do motorista"
+    "driverAllowance": "Diária do motorista",
+    "occurrenceTypes": "Tipos de ocorrência"
   },
   "driverAllowance": {
     "kicker": "Custo de viagem",
@@ -260,5 +261,22 @@
     "networkYoutube": "YouTube",
     "networkTiktok": "TikTok",
     "networkX": "X"
+  },
+  "occurrenceTypeCatalog": {
+    "title": "Tipos de ocorrência",
+    "hint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
+    "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "add": "Cadastrar tipo",
+    "name": "Nome do tipo",
+    "stage": "Onde acontece",
+    "stageSeparation": "No galpão",
+    "stageDelivery": "Na rua",
+    "notifies": "Avisar quando acontecer",
+    "active": "Em uso",
+    "emailTemplate": "Modelo de e-mail",
+    "emailTemplateNone": "Sem e-mail",
+    "editTemplates": "Editar modelos de e-mail",
+    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
   }
 }

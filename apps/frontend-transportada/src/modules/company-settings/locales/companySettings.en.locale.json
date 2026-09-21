@@ -6,7 +6,8 @@
     "site": "Site",
     "certificates": "Certificates",
     "taxes": "Taxes",
-    "driverAllowance": "Driver allowance"
+    "driverAllowance": "Driver allowance",
+    "occurrenceTypes": "Occurrence types"
   },
   "driverAllowance": {
     "kicker": "Trip cost",
@@ -260,5 +261,22 @@
     "networkYoutube": "YouTube",
     "networkTiktok": "TikTok",
     "networkX": "X"
+  },
+  "occurrenceTypeCatalog": {
+    "title": "Occurrence types",
+    "hint": "Register the types the operation uses. The alert goes to whoever dispatched the trip, and only for checked types — the default is not to notify.",
+    "empty": "No type registered yet. Register the first one to be able to log occurrences.",
+    "add": "Register type",
+    "name": "Type name",
+    "stage": "Where it happens",
+    "stageSeparation": "At the yard",
+    "stageDelivery": "On the road",
+    "notifies": "Notify when it happens",
+    "active": "In use",
+    "emailTemplate": "Email template",
+    "emailTemplateNone": "No email",
+    "editTemplates": "Edit email templates",
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "withoutTemplate": "No email: this type is only logged on the trip."
   }
 }
