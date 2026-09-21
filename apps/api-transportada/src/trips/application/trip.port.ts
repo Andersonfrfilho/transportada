@@ -234,6 +234,16 @@ export type TripCargoLayoutView = {
 }
 
 export type TripDetail = Trip & {
+  /**
+   * Spec 156 T8d: os três nascem juntos e só do encerramento **manual** pelo botão (`close`) — a
+   * derivação automática (`deriveTripStatus`) também leva `status` a `completed` sozinha, e nesse
+   * caminho os três continuam `null`. `closedByName` é resolvido por membership ativa escopada pela
+   * empresa (mesmo molde da junção de ator da linha do tempo); pessoa sem membership ativa aparece
+   * sem nome, nunca com erro.
+   */
+  readonly closeReason: string | null
+  readonly closedAt: string | null
+  readonly closedByName: string | null
   readonly cargoLayout: TripCargoLayoutView | null
   /** Spec 145 D10: de onde veio a planta servida — pronta, antiga (`stale`), pendente ou impossível. */
   readonly cargoLayoutState: TripCargoLayoutState

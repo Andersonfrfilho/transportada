@@ -48,6 +48,9 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
   companyId: COMPANY_ID,
   driverNames: [],
   createdAt: '2026-08-01T10:00:00.000Z',
+  closeReason: null,
+  closedAt: null,
+  closedByName: null,
   cargoLayout: null,
   cargoLayoutState: {
     computedAt: null,

@@ -486,6 +486,8 @@
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
   "detail": {
+    "closedManually": "Encerrada manualmente em {{moment}}",
+    "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
     "deliveredColumn": "Entrega",
     "documentColumn": "Nota",
     "documentsEmpty": "Nenhuma nota vinculada a esta viagem",

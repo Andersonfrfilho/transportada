@@ -109,6 +109,19 @@ function statusClassName(status: TripStatus): string {
     : `${styles.statusBadge}`
 }
 
+const closedAtFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+function formatClosedAt(value: string): string {
+  const moment = new Date(value)
+  return Number.isNaN(moment.getTime()) ? value : closedAtFormatter.format(moment)
+}
+
 type TripDetailSkeletonProps = Readonly<{
   label?: string
 }>
@@ -510,6 +523,26 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         <h2 id="trip-detail-title">{t('detail.title')}</h2>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
       </div>
+
+      {/*
+       * Spec 156 T8d: só aparece no encerramento manual (`closedAt` preenchido) — a derivação
+       * automática que também leva a viagem a `completed` nunca grava as três colunas.
+       */}
+      {trip.closedAt === null || trip.closedAt === undefined ? null : (
+        <p className={styles.hint}>
+          {trip.closedByName === null || trip.closedByName === undefined
+            ? t('detail.closedManually', { moment: formatClosedAt(trip.closedAt) })
+            : t('detail.closedManuallyBy', {
+                moment: formatClosedAt(trip.closedAt),
+                name: trip.closedByName,
+              })}
+          {trip.closeReason === null ||
+          trip.closeReason === undefined ||
+          trip.closeReason === '' ? null : (
+            <> — {t('eventTimeline.closeReason', { reason: trip.closeReason })}</>
+          )}
+        </p>
+      )}
 
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">

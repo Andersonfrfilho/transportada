@@ -171,6 +171,9 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
 
 export const TRIP_DETAIL: TripDetail = {
   ...TRIP,
+  closeReason: null,
+  closedAt: null,
+  closedByName: null,
   cargoLayout: null,
   cargoLayoutState: {
     computedAt: null,

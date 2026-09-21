@@ -2929,3 +2929,72 @@ fail`, 82 `expect()`.
   molde pixel a pixel de `TripReasonDialog`/`TripReturnReasonDialog`, já revisados na T16.
 - Achados 5 e 10 do code-reviewer ficam registrados acima como pendência conhecida, por instrução
   explícita — não são bloqueadores desta task.
+
+## T8d — o detalhe da viagem diz quem encerrou, quando e por quê
+
+A T8c gravou `trips.closed_at`/`closed_by_user_id`/`close_reason` no encerramento manual, mas só a
+linha do tempo (158 T12) os mostrava. `readTripDetail` (`drizzle-trip.repository.ts`) passa a
+devolvê-los no detalhe, propagados no tipo da aplicação (`TripDetail`, `trip.port.ts`), no
+validador estrito do frontend e na tela.
+
+- **API**: `TripDetail` ganha `closeReason`/`closedAt`/`closedByName`. `closedAt`/`closeReason` já
+  vinham de graça no `select()` sem coluna explícita da linha de `trips` (nenhuma consulta extra).
+  `closedByName` é resolvido por `resolveTripCloserName`, uma consulta a mais **só quando
+  `closedByUserId !== null`** (mesmo molde da junção de ator da linha do tempo —
+  `timelineActorMembership`/`timelineActorProfile`, `trip-timeline-status.query.ts` — membership
+  ativa escopada pela empresa; pessoa sem membership ativa devolve `null`, nunca lança). Como a
+  derivação automática nunca preenche `closed_by_user_id`, o caminho comum (a maioria das viagens)
+  não paga nada por este campo — `trip-detail-query-count.integration.ts` confirma que a contagem
+  de `select`s não mudou entre a viagem de 1 parada e a de 40. `serializeTripDetail`
+  (`trip.routes.ts`) serializa os três.
+- **Frontend**: `TripDetail`/`TripDetailContract` (tipo e fixture de teste) e
+  `TRIP_DETAIL_OPTIONAL_KEYS` ganham as três chaves, nascendo opcionais (spec 078 D2 — bundle novo
+  com API antiga não pode reprovar o detalhe inteiro por elas faltarem). O validador `isDetail`
+  (`tripResponse.validation.ts`) aceita ausente/`null`/string e recusa qualquer outro tipo. A tela
+  (`TripDetail.component.tsx`) mostra uma linha (`styles.hint`, o mesmo token de texto secundário
+  já usado no painel) logo abaixo do cabeçalho quando `trip.closedAt` está preenchido — "Encerrada
+  manualmente por {{name}} em {{moment}}" ou, sem nome (pessoa removida), "Encerrada manualmente em
+  {{moment}}" — com o motivo em seguida, reaproveitando `eventTimeline.closeReason` (mesmo texto já
+  usado na linha do tempo, sem duplicar string). Nada aparece quando `closedAt` é `null`
+  (conclusão pela derivação automática). Locale pt-BR e en no mesmo commit
+  (`detail.closedManually`/`detail.closedManuallyBy`).
+
+**Testes (vermelho antes de verde nos três):**
+
+- `test/integration/trip-detail-close-fields.integration.ts` (novo, Postgres real): viagem
+  encerrada à mão traz os três preenchidos e o nome certo; quem encerrou sem membership ativa
+  (removida) aparece com `closedByName: null`, sem lançar; viagem concluída por
+  `UPDATE trips SET status = 'completed'` direto (simulando a derivação automática, que nunca
+  passa por `close`) traz os três `null`.
+- `test/integration/trip-detail-query-count.integration.ts` (existente): continua verde sem
+  alteração — prova que a junção nova não mudou a contagem de `select`s.
+- `test/trip/close-fields-accepted.contract.ts` (novo, frontend): o validador aceita o detalhe sem
+  as três chaves, aceita os três nulos, aceita os três preenchidos, aceita `closedByName: null`
+  com `closedAt` preenchido, e recusa cada uma das três com tipo numérico.
+- `test/trip/close-detail-line.contract.ts` (novo, frontend, molde de `close-trip-wiring.contract.ts`
+  — lê o arquivo, não a lógica isolada): a linha só aparece com `closedAt` preenchido, o texto sem
+  nome não cita `closedByName`, e o motivo só entra quando `closeReason` não é vazio.
+
+**Gates**
+
+- `bun run typecheck` (raiz, 6 apps) — exit 0.
+- `bun run lint` (raiz, 6 apps) — exit 0.
+- `bunx prettier --check .` (raiz) — "All matched files use Prettier code style!".
+- `bun run --cwd apps/frontend-transportada test` (suíte principal + `test:hooks`) — 4710 + 40
+  pass, 0 fail (a suíte principal ganhou 11 testes desta task: `close-fields-accepted.contract.ts`
+  e `close-detail-line.contract.ts`, mais a correção da fixture de `occupancy-optional.contract.ts`
+  que já cobria as chaves do detalhe).
+- API contrato, de dentro de `apps/api-transportada`, com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`
+  apontando para o Postgres nativo descartável em `127.0.0.1:65433` (Docker em `65432` fora do ar):
+  `bun --env-file=../../.env.test test --timeout 120000` — 6728 pass, 0 fail.
+- API integração, mesmo Postgres: `bun --env-file=../../.env.test run test:integration` — 491
+  pass, 8 fail (488 pré-existentes + 3 novos de `trip-detail-close-fields.integration.ts`, todos
+  verdes). As 8 falhas são as mesmas de sempre nesta sessão
+  (`toll-booth-extract-storage.integration.ts`/`toll-booth-reload.integration.ts`,
+  `ObjectStorageError: Object storage is unavailable` — MinIO fora do ar), nenhuma em `trip-*`.
+  `trip-detail-query-count.integration.ts` continua sem regressão.
+- `bun run --cwd apps/api-transportada db:generate` — `{"status":"no_changes"}`: as colunas já
+  existiam (T8c); esta task não mexe em schema.
+- `git fetch`: `origin/staging` sem avanço (continua em `f9218483`).
+
+**Em aberto:** nenhum.

@@ -1597,6 +1597,13 @@ function serializeTripDetail(input: {
   const trip = input.trip
   return {
     ...serializeTrip(trip),
+    /**
+     * Spec 156 T8d: os três só do encerramento manual (`close`) — a derivação automática que também
+     * leva a viagem a `completed` nunca os preenche.
+     */
+    closeReason: trip.closeReason,
+    closedAt: trip.closedAt,
+    closedByName: trip.closedByName,
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
     /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */

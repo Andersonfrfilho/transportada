@@ -215,6 +215,10 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
   return {
     ...BASE_TRIP,
     amounts: null,
+    /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
+    closeReason: null,
+    closedAt: null,
+    closedByName: null,
     documents,
     /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
     estimatedArrivalFrozenAt: null,

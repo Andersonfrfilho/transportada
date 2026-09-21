@@ -12,6 +12,7 @@ import {
   nfeDocuments,
 } from '../../database/database.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
@@ -67,6 +68,7 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
 import {
   createRequestCargoLayoutForTrip,
   type RequestCargoLayoutForTrip,
@@ -751,6 +753,33 @@ function buildTripDocumentFilters(input: {
  */
 const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
 
+/**
+ * Spec 156 T8d: mesmo molde da junção de ator da linha do tempo
+ * (`timelineActorMembership`/`timelineActorProfile`, `trip-timeline-status.query.ts`) — membership
+ * ativa escopada pela empresa. Pessoa sem membership ativa (removida) devolve `null`, nunca lança.
+ */
+async function resolveTripCloserName(
+  queryable: TripQueryable,
+  input: { readonly closedByUserId: string; readonly companyId: string },
+): Promise<string | null> {
+  const [row] = await queryable
+    .select({ name: timelineActorProfile.name })
+    .from(timelineActorMembership)
+    .innerJoin(
+      timelineActorProfile,
+      eq(timelineActorProfile.userId, timelineActorMembership.userId),
+    )
+    .where(
+      and(
+        eq(timelineActorMembership.companyId, input.companyId),
+        eq(timelineActorMembership.userId, input.closedByUserId),
+        eq(timelineActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .limit(1)
+  return row?.name ?? null
+}
+
 async function readTripDetail(
   queryable: TripQueryable,
   input: {
@@ -765,6 +794,19 @@ async function readTripDetail(
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .limit(1)
   if (record === undefined) return null
+
+  /**
+   * Spec 156 T8d: só uma consulta a mais, e só quando a viagem foi encerrada à mão — a derivação
+   * automática nunca preenche `closed_by_user_id`, então o caminho comum (a maioria das viagens)
+   * não paga nada por este campo (`test/integration/trip-detail-query-count.integration.ts`).
+   */
+  const closedByName =
+    record.closedByUserId === null
+      ? null
+      : await resolveTripCloserName(queryable, {
+          closedByUserId: record.closedByUserId,
+          companyId: input.companyId,
+        })
 
   /**
    * O contato sai da **ficha**, não do retrato: `trip_drivers` guarda nome e CPF de quando a viagem
@@ -980,6 +1022,9 @@ async function readTripDetail(
 
   return {
     ...mapTrip(record),
+    closeReason: record.closeReason,
+    closedAt: record.closedAt === null ? null : record.closedAt.toISOString(),
+    closedByName,
     cargoLayout: cargoLayoutReading.cargoLayout,
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
     cargoLayoutId: layoutId,

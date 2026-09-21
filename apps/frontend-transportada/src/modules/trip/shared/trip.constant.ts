@@ -256,6 +256,10 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
  */
 export const TRIP_DETAIL_OPTIONAL_KEYS = [
   ...TRIP_OPTIONAL_KEYS,
+  /** Spec 156 T8d: nascem juntos — encerramento manual traz os três, derivação automática nenhum. */
+  'closeReason',
+  'closedAt',
+  'closedByName',
   'cargoLayout',
   /** Spec 145 D17: aceito antes de a API servir (T10), para o detalhe não cair na janela de deploy. */
   'cargoLayoutState',

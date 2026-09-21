@@ -353,6 +353,10 @@ function isDetail(value: unknown): value is TripDetail {
   return (
     isTripFields(value) &&
     isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
+    /** Spec 156 T8d: opcional (spec 078 D2), mas presente com tipo errado continua reprovando. */
+    isAbsentOrNullableString((value as { closeReason?: unknown }).closeReason) &&
+    isAbsentOrNullableString((value as { closedAt?: unknown }).closedAt) &&
+    isAbsentOrNullableString((value as { closedByName?: unknown }).closedByName) &&
     ((value as { cargoLayoutId?: unknown }).cargoLayoutId === undefined ||
       isNullableString((value as { cargoLayoutId?: unknown }).cargoLayoutId)) &&
     isEveryItem(value.documents, isDocumentDetail) &&

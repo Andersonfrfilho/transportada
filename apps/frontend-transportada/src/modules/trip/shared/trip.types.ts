@@ -546,6 +546,14 @@ export type TripCargoLayoutPoll = Readonly<{
 
 export type TripDetail = Trip &
   Readonly<{
+    /**
+     * Spec 156 T8d: os três nascem juntos e só do encerramento manual pelo botão — viagem
+     * concluída pela derivação automática traz os três `null`. Opcionais como todo campo novo
+     * (spec 078 D2), até o deploy que os serve estar garantido.
+     */
+    closeReason?: string | null
+    closedAt?: null | string
+    closedByName?: null | string
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
     cargoLayout: TripCargoLayout | null

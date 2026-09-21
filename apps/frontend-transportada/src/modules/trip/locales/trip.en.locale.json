@@ -370,6 +370,8 @@
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
   "detail": {
+    "closedManually": "Closed manually on {{moment}}",
+    "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",
     "deliveredColumn": "Delivery",
     "documentColumn": "Document",
     "documentsEmpty": "No document linked to this trip",
