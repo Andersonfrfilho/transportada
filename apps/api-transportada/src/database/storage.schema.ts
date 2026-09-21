@@ -24,6 +24,10 @@ export const STORAGE_OBJECT_PURPOSES = [
   'aggregate_application_attachment',
   /** Spec 143 T010 (ADR-0063 §5): o MIME bruto de todo e-mail recebido da contratante, evidência. */
   'contractor_mail_raw',
+  /** Spec 161 D12: o original da foto da ocorrência de galpão — a prova, reencodada e sem EXIF. */
+  'trip_occurrence_attachment',
+  /** Spec 161 D12: a miniatura gerada do mesmo canvas do original, o que as listas carregam. */
+  'trip_occurrence_thumbnail',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 

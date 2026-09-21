@@ -14,6 +14,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -1457,6 +1458,11 @@ export const tripDocumentOccurrences = pgTable(
     attachmentObjectId: uuid('attachment_object_id'),
   },
   (table) => [
+    /**
+     * Spec 161 T1: pré-requisito da FK composta de `trip_document_occurrence_attachments` — sem
+     * este unique, a tabela nova não consegue referenciar `(company_id, id)` desta.
+     */
+    unique('trip_document_occurrences_company_id_id_unique').on(table.companyId, table.id),
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],
@@ -1508,6 +1514,95 @@ export const tripDocumentOccurrences = pgTable(
       table.companyId,
       table.tripDocumentId,
       table.createdAt,
+    ),
+  ],
+)
+
+/**
+ * Spec 161 (D2/D12): as fotos da ocorrência de galpão — até cinco por ocorrência, cada uma com um
+ * original (`stored_object_id`, prova) e uma miniatura opcional (`thumbnail_object_id`, o que as
+ * listas carregam). `attachment_object_id` de `trip_document_occurrences` continua servindo a
+ * ocorrência de rua (D6) — esta tabela nunca é escrita por aquele canal.
+ *
+ * ⚠️ O teto de cinco está **duplicado no banco**: o CHECK de `position` (1 a 5) e a política de
+ * aplicação (`OCCURRENCE_ATTACHMENT_LIMIT`, T2). Mudar o teto exige migration nos dois lugares.
+ *
+ * ⚠️ `position` é monotônica, nunca reciclada. É escolhida **dentro do `INSERT`**
+ * (`coalesce(max(position), 0) + 1`, T3), nunca por um `SELECT count(*)` antes — reciclar um buraco
+ * (ex.: a foto 3 falhou e a próxima reusa a posição 3) reintroduziria a corrida de duas abas
+ * disputando a mesma posição. O unique de `(company_id, occurrence_id, position)` é quem resolve a
+ * corrida da sexta foto: a violação vira 409, e o mapeamento para
+ * `TripOccurrenceAttachmentLimitError`/`TRIP_OCCURRENCE_ATTACHMENT_LIMIT` cobre os dois SQLSTATE por
+ * nome de constraint — `23505` (este unique) e `23514` (o CHECK de posição). Esse mapeamento é do
+ * caso de uso (T6/T7), fora do escopo desta task; fica registrado aqui para quem chegar antes.
+ */
+export const tripDocumentOccurrenceAttachments = pgTable(
+  'trip_document_occurrence_attachments',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    storedObjectId: uuid('stored_object_id').notNull(),
+    /** Nulo: foto do WhatsApp (D14), coluna antiga sem miniatura, ou falha de geração no cliente. */
+    thumbnailObjectId: uuid('thumbnail_object_id'),
+    position: smallint().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_attachments_company_id_id_unique').on(
+      table.companyId,
+      table.id,
+    ),
+    unique('trip_document_occurrence_attachments_unique_position').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
+    ),
+    check(
+      'trip_document_occurrence_attachments_position_check',
+      sql`${table.position} between 1 and 5`,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_attachments_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_attachments_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.storedObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrence_attachments_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.thumbnailObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrence_attachments_company_thumbnail_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** FK não-parcial da coluna NOT NULL, RESTRICT — a mais cara de deixar sem índice. */
+    index('trip_document_occurrence_attachments_company_object_idx').on(
+      table.companyId,
+      table.storedObjectId,
+    ),
+    /** FK parcial: só a linha que tem miniatura, no molde do índice de `on_behalf_of_driver_id`. */
+    index('trip_document_occurrence_attachments_company_thumbnail_idx')
+      .on(table.companyId, table.thumbnailObjectId)
+      .where(sql`${table.thumbnailObjectId} is not null`),
+    index('trip_document_occurrence_attachments_company_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
     ),
   ],
 )
