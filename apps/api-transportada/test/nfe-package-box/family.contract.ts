@@ -205,6 +205,44 @@ describe('a contagem de unidades da embalagem (spec 155 D3/D8)', () => {
     expect(resolvePackagingUnitCount('CX')).toBeUndefined()
     expect(resolvePackagingUnitCount('')).toBeUndefined()
   })
+
+  /**
+   * Spec 160 (extra): lista fechada de prefixos, medida sobre 799 caixas de produção. `M2`/`M3`
+   * (metro quadrado/cúbico) e `ML300`/`G500` são unidades válidas de NF-e que terminam em dígito
+   * sem serem embalagem — um regex genérico as leria como "2 unidades" ou "3 unidades".
+   */
+  test.each([
+    ['CX12', 12],
+    ['CX240', 240],
+    ['FR20', 20],
+    ['FD200', 200],
+    ['DP18', 18],
+    ['EV3', 3],
+    ['PC6', 6],
+    ['UN1', 1],
+  ])('prefixo fechado: %s → %i', (commercialUnit, expected) => {
+    expect(resolvePackagingUnitCount(commercialUnit)).toBe(expected)
+  })
+
+  test.each(['M2', 'M3', 'ML300', 'G500', 'KG'])(
+    'unidade de medida %s não é embalagem, nunca contagem',
+    (commercialUnit) => {
+      expect(resolvePackagingUnitCount(commercialUnit)).toBeUndefined()
+    },
+  )
+
+  test.each(['CX', '', 'CX0', 'XY12'])('%s não forma contagem válida', (commercialUnit) => {
+    expect(resolvePackagingUnitCount(commercialUnit)).toBeUndefined()
+  })
+
+  test('normaliza caixa alta e espaço nas bordas antes de casar o prefixo', () => {
+    expect(resolvePackagingUnitCount('cx12')).toBe(12)
+    expect(resolvePackagingUnitCount('  CX12  ')).toBe(12)
+  })
+
+  test('CX99999 estoura o teto explícito (máximo real observado é 240)', () => {
+    expect(resolvePackagingUnitCount('CX99999')).toBeUndefined()
+  })
 })
 
 describe('a familia de formato assimetrico (spec 155 D11)', () => {
