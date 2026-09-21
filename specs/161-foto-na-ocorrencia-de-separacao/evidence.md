@@ -97,3 +97,68 @@ rows, refusing rollback"`, transação inteira desfeita (`ROLLBACK`), tabela int
 
 Não usei o Postgres de outra sessão (porta 65433, `pensive-borg-f59971`) nem toquei nele — troquei de
 porta assim que percebi que já estava ocupado.
+
+## T2 — Política de anexo, miniatura e retenção
+
+`src/trips/domain/occurrence-attachment.policy.ts` (novo, sem I/O): `OCCURRENCE_ATTACHMENT_LIMIT =
+5` (comentário deixa explícito que é duplicado pelo CHECK
+`trip_document_occurrence_attachments_position_check` da T1 — mudar um lado sem o outro é o bug a
+evitar), `OCCURRENCE_PHOTO_MAX_BYTES = 512 * 1024`, `OCCURRENCE_THUMBNAIL_MAX_BYTES = 128 * 1024`,
+`OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil` (soma 5
+anos preservando dia/hora via `setUTCFullYear`), `buildOccurrenceAttachmentObjectKey` e
+`buildOccurrenceThumbnailObjectKey` (sem PII, `tenants/{companyId}/trip-occurrence-attachments/
+{occurrenceId}/{objectId}` para o original e `.../thumbnails/{objectId}` para a miniatura — molde de
+`buildDeliveryProofObjectKey`), e as duas operações de idempotência:
+`OCCURRENCE_ATTACHMENT_CREATE_OPERATION` (`separation.document.occurrence`, para T5/T6 via
+`withFieldReport`) e `OCCURRENCE_ATTACHMENT_APPEND_OPERATION`
+(`separation.document.occurrence-attachment`, para T7), cada uma com sua função de impressão digital
+— `buildOccurrenceAttachmentCreateFingerprint` (tipo + nota + `productCode` + sha256 do original) e
+`buildOccurrenceAttachmentAppendFingerprint` (`occurrenceId` + sha256 do original). As duas
+impressões usam **só o sha256 do original**, nunca o da miniatura — decisão já fixada no plano
+(RF3/D13) e reafirmada em comentário no código.
+
+### Vermelho → verde
+
+Escrevi `test/trip-occurrence/attachment-policy.contract.ts` (importado pelo barril
+`test/trip-occurrence.contract.test.ts`, já listado no `package.json`) antes de criar o arquivo de
+política — rodar `bun test` nesse ponto falhava com `Cannot find module
+'../../src/trips/domain/occurrence-attachment.policy.js'` (vermelho). Depois de escrever a política,
+`bun run --cwd apps/api-transportada test ./test/trip-occurrence.contract.test.ts` foi verde: **86
+pass, 0 fail** (14 casos novos deste arquivo, cobrindo os critérios de aceite: `retention_until =
+created_at + 5 anos` idêntico para original e miniatura, inclusive atravessando 29 de fevereiro; os
+dois tetos de bytes; nenhuma chave — original ou miniatura — batendo com os padrões de PII
+(`nota`, `nf-e`, `cliente`, `cpf`, `cnpj`, `nome`, `driver`, `motorista`); a impressão de criação
+mudando com tipo/nota/`productCode`/foto e convergindo com `productCode` ausente = `null`; a
+impressão do anexo adicional mudando com ocorrência e foto, sempre pelo sha256 do original).
+
+Este contrato é pura política (sem banco, sem HTTP): T2 não precisa de integração contra Postgres —
+os testes de leitura/gravação reais chegam em T3, T6, T7 e T12.
+
+### Gates (raiz do worktree)
+
+- `bun run --cwd apps/api-transportada test ./test/trip-occurrence.contract.test.ts` → **86 pass, 0
+  fail**, 192 `expect()`.
+- `bun run --cwd apps/api-transportada test` (suíte completa de contrato) → **6754 pass, 32 skip, 0
+  fail**, 6786 testes em 183 arquivos.
+- `bun run lint` (as seis apps) → verde.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run format:check` → verde depois de `prettier --write` nos dois arquivos novos (o aviso
+  inicial também listava os três arquivos ainda desformatados de propósito em
+  `specs/162-limpeza-do-armazenamento/`, fora do escopo desta task — não tocados).
+
+### Decisões tomadas além do que a spec já fixava
+
+- **Duas funções de chave**, uma para o original e uma para a miniatura
+  (`buildOccurrenceAttachmentObjectKey`/`buildOccurrenceThumbnailObjectKey`), em vez de uma função só
+  com um parâmetro de "tipo de anexo". O plano só nomeava
+  `buildOccurrenceAttachmentObjectKey` no plural ("chaves de objeto... para original e miniatura");
+  duas funções tipadas deixam o chamador de T6/T7 escolher a certa em tempo de compilação, sem `if`
+  nem enum de tipo espalhado pelo caso de uso.
+- **Miniatura na mesma árvore de chaves do original**, num sufixo `thumbnails/{objectId}` — não é
+  outra parte do bucket. Segue o mesmo `tenants/{companyId}/trip-occurrence-attachments/{occurrenceId}/`
+  de `buildOccurrenceBatchAttachmentObjectKey` (spec 156 T7b), que já existe para o lote de rua; a
+  ocorrência de galpão ganha o par original/miniatura dentro do mesmo prefixo por ocorrência.
+- **Duas operações de idempotência, não uma**: `OCCURRENCE_ATTACHMENT_CREATE_OPERATION` para a
+  criação (T5/T6) e `OCCURRENCE_ATTACHMENT_APPEND_OPERATION` para o anexo adicional (T7), com
+  literais exatamente iguais aos citados no `plan.md` ("Idempotência e concorrência") — não inventei
+  nome novo, só materializei os dois textos já decididos como constantes exportadas.

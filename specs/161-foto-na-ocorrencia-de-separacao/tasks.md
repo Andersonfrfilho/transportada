@@ -34,7 +34,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     `TripOccurrenceAttachmentLimitError`/409 (posição do INSERT monotônico) é de T6/T7, não desta
     task — comentário deixado em `trip.schema.ts` e em `plan.md`.
 
-- [ ] **T2** Política de anexo, miniatura e retenção — `occurrence-attachment.policy.ts`: teto 5,
+- [x] **T2** Política de anexo, miniatura e retenção — `occurrence-attachment.policy.ts`: teto 5,
       chaves de objeto sem PII para original e miniatura,
       `OCCURRENCE_PHOTO_MAX_BYTES = 512 KiB`, `OCCURRENCE_THUMBNAIL_MAX_BYTES = 128 KiB`,
       `OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil`,
