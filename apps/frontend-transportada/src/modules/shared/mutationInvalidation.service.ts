@@ -20,6 +20,8 @@ export const MUTATION_EFFECT = {
   nfeDocumentLink: 'nfeDocumentLink',
   /** Uma caixa foi medida (ou a medida replicada): a planta e a conta de quem monta viagem mudam. */
   packageBoxMeasurement: 'packageBoxMeasurement',
+  /** Uma nota entrou na viagem ou saiu dela: rota, pedágio, planta de carga e valuation recalculam. */
+  tripCargoLink: 'tripCargoLink',
 } as const
 
 export type MutationEffect = (typeof MUTATION_EFFECT)[keyof typeof MUTATION_EFFECT]
@@ -41,6 +43,7 @@ export const MUTATION_EFFECT_QUERY_KEYS: Readonly<Record<MutationEffect, readonl
     'trip-cargo-preview',
     'trip-valuation-preview',
   ],
+  tripCargoLink: ['routing', 'trip-cargo-layout', 'trip-cargo-preview', 'trip-valuation-preview'],
 }
 
 /** O cliente de consulta visto pelo que este módulo usa dele — é o que torna o efeito testável. */

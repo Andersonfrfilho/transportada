@@ -626,6 +626,73 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         })}
       />
 
+      {canManage && isEditable ? (
+        <div className={styles.actionForm}>
+          <h3>{t('detail.linkDocumentTitle')}</h3>
+          <div className={styles.fieldGrid}>
+            <label>
+              {t('detail.linkMode')}
+              <Select
+                ariaLabel={t('detail.linkMode')}
+                options={[
+                  { label: t('detail.linkModeNfe'), value: 'nfe' },
+                  { label: t('detail.linkModeFreight'), value: 'freight' },
+                ]}
+                value={linkForm.draft.mode}
+                onChange={(value) => linkForm.setMode(value as 'freight' | 'nfe')}
+              />
+            </label>
+            <label>
+              {t('detail.linkValue')}
+              <input
+                autoComplete="off"
+                onChange={(event) => linkForm.setValue(event.target.value)}
+                value={linkForm.draft.value}
+              />
+              <span className={styles.hint}>{t('detail.linkValueHint')}</span>
+            </label>
+          </div>
+          {linkForm.issue === undefined ? null : (
+            <p className={styles.alert} role="alert">
+              {t(`feedback.${linkForm.issue}`)}
+            </p>
+          )}
+          <div className={styles.actionActions}>
+            <Button
+              disabled={
+                linkForm.reference === undefined ||
+                linkForm.isResolving ||
+                workspace.linkDocumentMutation.isPending
+              }
+              onClick={() => void handleLinkDocument()}
+              size="sm"
+              type="button"
+            >
+              <Icon name="link" />
+              {t('actions.linkDocument')}
+            </Button>
+            {linkForm.canScan ? (
+              <Button onClick={linkForm.openScanner} size="sm" type="button" variant="secondary">
+                <Icon name="camera" />
+                {t('detail.scan')}
+              </Button>
+            ) : null}
+          </div>
+          <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
+          <BarcodeScanner
+            closeLabel={t('detail.scanClose')}
+            deniedMessage={t('detail.scanDenied')}
+            isOpen={linkForm.isScannerOpen}
+            onClose={linkForm.closeScanner}
+            onRead={linkForm.acceptScan}
+            readingMessage={t('detail.scanReading')}
+            startingMessage={t('detail.scanStarting')}
+            title={t('detail.scanTitle')}
+            unavailableMessage={t('detail.scanUnavailable')}
+          />
+        </div>
+      ) : null}
+
       {/*
         ⚠️ O tipo do veículo vem da frota carregada, não da viagem: o corpo do detalhe traz o
         `vehicleId` e nada mais. Sem ele a silhueta cai no contorno genérico — e quem abre o detalhe
@@ -820,73 +887,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           }
         })}
       />
-
-      {canManage && isEditable ? (
-        <div className={styles.actionForm}>
-          <h3>{t('detail.linkDocumentTitle')}</h3>
-          <div className={styles.fieldGrid}>
-            <label>
-              {t('detail.linkMode')}
-              <Select
-                ariaLabel={t('detail.linkMode')}
-                options={[
-                  { label: t('detail.linkModeNfe'), value: 'nfe' },
-                  { label: t('detail.linkModeFreight'), value: 'freight' },
-                ]}
-                value={linkForm.draft.mode}
-                onChange={(value) => linkForm.setMode(value as 'freight' | 'nfe')}
-              />
-            </label>
-            <label>
-              {t('detail.linkValue')}
-              <input
-                autoComplete="off"
-                onChange={(event) => linkForm.setValue(event.target.value)}
-                value={linkForm.draft.value}
-              />
-              <span className={styles.hint}>{t('detail.linkValueHint')}</span>
-            </label>
-          </div>
-          {linkForm.issue === undefined ? null : (
-            <p className={styles.alert} role="alert">
-              {t(`feedback.${linkForm.issue}`)}
-            </p>
-          )}
-          <div className={styles.actionActions}>
-            <Button
-              disabled={
-                linkForm.reference === undefined ||
-                linkForm.isResolving ||
-                workspace.linkDocumentMutation.isPending
-              }
-              onClick={() => void handleLinkDocument()}
-              size="sm"
-              type="button"
-            >
-              <Icon name="link" />
-              {t('actions.linkDocument')}
-            </Button>
-            {linkForm.canScan ? (
-              <Button onClick={linkForm.openScanner} size="sm" type="button" variant="secondary">
-                <Icon name="camera" />
-                {t('detail.scan')}
-              </Button>
-            ) : null}
-          </div>
-          <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
-          <BarcodeScanner
-            closeLabel={t('detail.scanClose')}
-            deniedMessage={t('detail.scanDenied')}
-            isOpen={linkForm.isScannerOpen}
-            onClose={linkForm.closeScanner}
-            onRead={linkForm.acceptScan}
-            readingMessage={t('detail.scanReading')}
-            startingMessage={t('detail.scanStarting')}
-            title={t('detail.scanTitle')}
-            unavailableMessage={t('detail.scanUnavailable')}
-          />
-        </div>
-      ) : null}
 
       {/*
        * A lista de cargas é leitura antes de ser ação: ela fica fora do formulário de vínculo. Dentro

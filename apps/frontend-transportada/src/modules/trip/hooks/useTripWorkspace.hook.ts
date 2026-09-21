@@ -449,10 +449,15 @@ export function useTripWorkspace(
     ]).then(() => undefined)
   }
 
-  /** Prender e soltar a nota numa viagem mexe no vínculo dela: o alcance mora no registro. */
+  /**
+   * Prender e soltar a nota numa viagem mexe no vínculo dela (efeito compartilhado com NFS-e e
+   * lote de CT-e) e recongela rota, pedágio, planta de carga e valuation no servidor — só esta
+   * tela produz o segundo efeito.
+   */
   async function invalidateDocumentLink(): Promise<void> {
     await invalidate()
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+    await invalidateMutationEffect({ effect: MUTATION_EFFECT.tripCargoLink, queryClient })
   }
 
   /**
