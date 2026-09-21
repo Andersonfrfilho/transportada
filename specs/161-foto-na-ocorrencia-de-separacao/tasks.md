@@ -63,12 +63,15 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     `TripOccurrenceAttachmentLimitError` **não** entrou nesta task — comentário deixado na própria
     classe apontando para T6/T7, que é quem chama `insertOccurrenceAttachment`. Ver `evidence.md`.
 
-- [ ] **T5** Foto obrigatória **no caso de uso** (D1/RF4) — `register-trip-occurrence.use-case.ts`
+- [x] **T5** Foto obrigatória **no caso de uso** (D1/RF4) — `register-trip-occurrence.use-case.ts`
       passa a receber `attachment?` e a recusar etapa `separation` sem anexo, antes de
       `saveOccurrence`, do storage e da auditoria.
   - Critério de aceite (CA2): contrato prova a recusa a partir do caso de uso, não da rota — o dublê
     de repositório **não** é chamado. Contratos que registravam ocorrência de galpão sem foto são
     atualizados.
+  - ⚠️ As duas fiações reais em `src/main.ts` (rota JSON de registro e o passo de ocorrência do
+    WhatsApp do operador) ainda não passam `attachment` — passam a responder sempre 422 até T6/T15
+    ligarem a foto. Ver `evidence.md`.
 
 - [ ] **T6** Registro multipart com original e miniatura (RF5/RF7) — `occurrence.schema.ts` (parser
       com lista fechada, um `file` e no máximo um `thumbnail`; `thumbnail` sem `file` → 400),

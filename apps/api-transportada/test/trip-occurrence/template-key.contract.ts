@@ -84,6 +84,7 @@ function buildRepository(type: OccurrenceTypeRecord) {
 async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => void) {
   return registerTripOccurrence({
     actorUserId: '00000000-0000-4000-8000-00000000000f',
+    attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
     companyId: COMPANY,
     documentId: '00000000-0000-4000-8000-000000000017',
     note: '',

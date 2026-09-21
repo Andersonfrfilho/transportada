@@ -4,6 +4,7 @@
 import './trip-occurrence/attachment-errors.contract'
 import './trip-occurrence/attachment-policy.contract'
 import './trip-occurrence/attachment-read.contract'
+import './trip-occurrence/attachment-required.contract'
 import './trip-occurrence/catalog.contract'
 import './trip-occurrence/register.contract'
 import './trip-occurrence/notification.contract'

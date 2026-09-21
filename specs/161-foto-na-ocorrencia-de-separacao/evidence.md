@@ -303,3 +303,70 @@ o `tasks.md` já carregava esse apontamento desde a T1.
 Nenhuma — os três erros seguem literalmente o molde de `TripDocumentNotFoundError`/
 `TripDeliveryProofPhotoRequiredError`/`TripDocumentAlreadySettledError` já existentes no arquivo
 (`code`, `message`, `status`, sem campo de contexto).
+
+## T5 — foto obrigatória no caso de uso (`register-trip-occurrence.use-case.ts`)
+
+### Vermelho → verde
+
+`test/trip-occurrence/attachment-required.contract.ts` (novo) registra uma ocorrência `separation`
+sem `attachment` e espera `OccurrencePhotoRequiredError` com o dublê de `saveOccurrence`/`notify`
+**não** chamado — vermelho porque `RegisterTripOccurrenceInput` ainda não tinha o campo e o caso de
+uso nunca recusava por foto ausente. Depois de acrescentar `attachment?: { bytes: Uint8Array;
+mimeType: string }` e a recusa logo após confirmar `stage === separation` (antes de
+`resolveOccurrenceProductScope`/`listDocumentProducts`/`saveOccurrence`/`notifyOccurrence`): verde —
+`bun test ./test/trip-occurrence.contract.test.ts` foi de 96 para **98 pass, 0 fail**, 220
+`expect()`.
+
+### Contratos existentes atualizados por causa da obrigatoriedade
+
+Toda ocorrência que os testes registravam por `registerTripOccurrence` é `stage: 'separation'` (é a
+única etapa que este caso de uso grava, spec 157) — três arquivos chamavam sem foto e passaram a
+levar `attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' }`:
+
+- `test/trip-occurrence/register.contract.ts` — 1 ponto de chamada (`registrar`, usado pelos dois
+  testes "tipo de rua responde 422.../tipo de galpão grava e avisa"; o de rua continua caindo em
+  `OccurrenceTypeNotSeparationError` **antes** de chegar na checagem de foto, então a foto extra no
+  corpo não muda esse teste).
+- `test/trip-occurrence/notification.contract.ts` — 2 pontos de chamada (`registrar` e a chamada
+  direta do teste "falha no aviso não desfaz a ocorrência").
+- `test/trip-occurrence/template-key.contract.ts` — 1 ponto de chamada (`registrar`).
+
+**Quatro pontos de chamada, em três arquivos.** Nenhum deles testava ausência de foto — esse caso é
+só o `attachment-required.contract.ts` novo.
+
+### Gates
+
+- `bun test ./test/trip-occurrence.contract.test.ts` → **98 pass, 0 fail**, 220 `expect()`.
+- `bun run --cwd apps/api-transportada test` (suíte completa de contrato) → **6769 pass, 32 skip, 0
+  fail**, 23255 `expect()` em 182 arquivos (era 6767/23250 antes desta task).
+- `bun run typecheck` (as seis apps, via `bun run typecheck` na raiz) → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde.
+- `bun --env-file=../../.env.test run test:integration` **não rodou** — não está na lista de gates
+  desta task (`tasks.md` só pede os quatro comandos acima para T4/T5) e T5 não altera schema nem
+  query; ver risco de produção registrado abaixo.
+
+### Decisões tomadas além do que a spec fixava
+
+- **Forma de `attachment`**: `{ bytes: Uint8Array; mimeType: string }`, como `plan.md` descreve
+  (`recebe attachment?: { bytes, mimeType }`) — sem nome de arquivo, porque a chave do objeto é
+  opaca (`occurrence-attachment.policy.ts`) e nada no caso de uso precisa dele.
+- **Ordem da recusa**: `OccurrencePhotoRequiredError` é lançado logo depois de confirmar
+  `occurrenceType.stage === TRIP_OCCURRENCE_STAGE.separation`, **antes** de
+  `resolveOccurrenceProductScope`/`listDocumentProducts`. Um `documentId`/`productCode` inválido
+  numa ocorrência de separação sem foto responde 422 `OCCURRENCE_PHOTO_REQUIRED` em vez de 404
+  `TRIP_DOCUMENT_NOT_FOUND` — segue o texto da task ("recusar... antes de `saveOccurrence`, do
+  storage e da auditoria"), e o CA2 só exige a recusa a partir do caso de uso, sem prescrever ordem
+  entre as duas validações de entrada.
+- **T5 não persiste nenhum objeto** — `attachment` só é conferido, nunca gravado; a persistência dos
+  dois objetos na mesma transação (`plan.md`) é T6, que também reescreve `trip.routes.ts` para
+  multipart.
+- ⚠️ **Risco de produção registrado, não corrigido nesta task** (fora do escopo de T5, que é só o
+  caso de uso): as duas fiações reais em `src/main.ts` que chamam `registerTripOccurrence` para
+  `separation` — a rota JSON `POST /trips/:id/documents/:documentId/occurrences` (linha ~2762) e o
+  passo de ocorrência do fluxo WhatsApp do operador (`registerOccurrence`, linha ~825) — **nenhuma
+  das duas passa `attachment`**. A partir deste commit, as duas passam a responder sempre 422
+  `OCCURRENCE_PHOTO_REQUIRED` em produção, até T6 (multipart na rota) e T15 (passo de foto no
+  WhatsApp) ligarem o `attachment`. É o comportamento esperado da sequência de tasks — não há tela
+  nem fluxo publicado hoje que dependa dessas duas chamadas continuarem aceitando ocorrência sem
+  foto —, mas registrado aqui para quem ler o diff isolado da T5 sem o resto da fase 2/4.

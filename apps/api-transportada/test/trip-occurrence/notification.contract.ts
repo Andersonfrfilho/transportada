@@ -74,6 +74,7 @@ function repository(notifies: boolean) {
 function registrar(notifies: boolean, notify: (call: object) => void) {
   return registerTripOccurrence({
     actorUserId: ACTOR,
+    attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
     companyId: COMPANY,
     documentId: DOCUMENT,
     note: '',
@@ -159,6 +160,7 @@ describe('notificação por tipo de ocorrência (spec 079)', () => {
   test('falha no aviso não desfaz a ocorrência', async () => {
     const saved = await registerTripOccurrence({
       actorUserId: ACTOR,
+      attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
       companyId: COMPANY,
       documentId: DOCUMENT,
       note: '',

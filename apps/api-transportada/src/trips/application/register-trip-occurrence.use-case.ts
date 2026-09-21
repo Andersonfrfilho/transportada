@@ -10,6 +10,7 @@ import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
+  OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
@@ -139,6 +140,13 @@ export type OccurrenceNotifierPort = {
 
 export type RegisterTripOccurrenceInput = {
   readonly actorUserId: string
+  /**
+   * Spec 161 D1/RF4: a foto da ocorrência de galpão. Ausente é aceitável para o **tipo**, mas não
+   * para a **etapa** — `separation` recusa sem ela (`OccurrencePhotoRequiredError`), antes de
+   * `saveOccurrence`, do storage e da auditoria. A persistência do objeto em si é T6, fora desta
+   * task: aqui o campo só é conferido, nunca gravado.
+   */
+  readonly attachment?: { readonly bytes: Uint8Array; readonly mimeType: string }
   readonly companyId: string
   readonly documentId: string
   readonly note: string
@@ -183,6 +191,15 @@ export async function registerTripOccurrence(
   if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
     throw new OccurrenceTypeNotSeparationError()
   }
+
+  /**
+   * ⚠️ Spec 161 D1/RF4: a foto passa a ser obrigatória **aqui**, no caso de uso, e não na rota
+   * HTTP — a fase 4 desta spec faz o WhatsApp registrar pelo mesmo caminho, e a regra na rota
+   * deixaria o outro canal passar por fora. A recusa é **antes** de ler produtos, de
+   * `saveOccurrence`, do storage e da auditoria: nenhum efeito de borda acontece para uma
+   * ocorrência que não vai nascer.
+   */
+  if (input.attachment === undefined) throw new OccurrencePhotoRequiredError()
 
   /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
