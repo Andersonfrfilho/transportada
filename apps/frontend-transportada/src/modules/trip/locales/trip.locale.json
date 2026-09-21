@@ -570,6 +570,7 @@
     "title": "Linha do tempo"
   },
   "feedback": {
+    "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",

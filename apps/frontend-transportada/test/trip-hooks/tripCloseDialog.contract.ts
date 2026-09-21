@@ -29,6 +29,7 @@ afterEach(() => {
  * propósito, não o `container` do `createRoot`.
  */
 async function renderDialog(props: {
+  readonly feedbackKey?: null | string
   readonly isOpen: boolean
   readonly isSubmitting: boolean
   readonly onClose: () => void
@@ -39,12 +40,13 @@ async function renderDialog(props: {
   document.body.append(container)
   root = createRoot(container)
   await act(async () => {
-    root?.render(createElement(TripCloseDialog, props))
+    root?.render(createElement(TripCloseDialog, { feedbackKey: null, ...props }))
     await Promise.resolve()
   })
 }
 
 async function rerenderDialog(props: {
+  readonly feedbackKey?: null | string
   readonly isOpen: boolean
   readonly isSubmitting: boolean
   readonly onClose: () => void
@@ -52,7 +54,7 @@ async function rerenderDialog(props: {
   readonly openDocumentCount: number
 }): Promise<void> {
   await act(async () => {
-    root?.render(createElement(TripCloseDialog, props))
+    root?.render(createElement(TripCloseDialog, { feedbackKey: null, ...props }))
     await Promise.resolve()
   })
 }
@@ -239,5 +241,35 @@ describe('TripCloseDialog (spec 156 T8c)', () => {
 
     expect(closed).toBe(true)
     expect(submitted).toEqual([])
+  })
+  it('mostra a recusa do servidor dentro do diálogo, sem perder o motivo digitado', async () => {
+    const submitted: (null | string)[] = []
+    const props = {
+      isOpen: true,
+      isSubmitting: false,
+      onClose: () => {},
+      onSubmit: (reason: null | string) => submitted.push(reason),
+      openDocumentCount: 3,
+    }
+    await renderDialog(props)
+    await typeReason('Cliente recusou o restante da carga')
+
+    await rerenderDialog({ ...props, feedbackKey: 'closeReasonRequired' })
+
+    const alert = document.body.querySelector('[role="alert"]')
+    expect(alert?.textContent).toBe('Informe o motivo para encerrar a viagem com nota em aberto.')
+    expect(reasonInput().value).toBe('Cliente recusou o restante da carga')
+  })
+
+  it('sem recusa, nenhum alerta é montado', async () => {
+    await renderDialog({
+      isOpen: true,
+      isSubmitting: false,
+      onClose: () => {},
+      onSubmit: () => {},
+      openDocumentCount: 0,
+    })
+
+    expect(document.body.querySelector('[role="alert"]')).toBe(null)
   })
 })

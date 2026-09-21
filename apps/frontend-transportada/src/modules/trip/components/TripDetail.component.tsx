@@ -958,6 +958,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       />
 
       <TripCloseDialog
+        feedbackKey={resolveTripFeedbackKey(workspace.closeMutation.error) ?? null}
         isOpen={isCloseDialogOpen}
         isSubmitting={workspace.closeMutation.isPending}
         onClose={() => setIsCloseDialogOpen(false)}

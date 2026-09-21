@@ -448,6 +448,7 @@
     "title": "Timeline"
   },
   "feedback": {
+    "closeReasonRequired": "Provide the reason to close a trip with open invoices.",
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",

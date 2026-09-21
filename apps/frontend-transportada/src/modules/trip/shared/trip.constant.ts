@@ -79,6 +79,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 156 T7.3/T9 (L4): tipo de separação, aposentado ou inexistente no lote de ocorrência. */
   OCCURRENCE_TYPE_NOT_FIELD: 'occurrenceTypeNotField',
   STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
+  /** Spec 156 T8c: encerrar com nota em aberto exige motivo, e o aviso sai dentro do diálogo. */
+  TRIP_CLOSE_REASON_REQUIRED: 'closeReasonRequired',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',

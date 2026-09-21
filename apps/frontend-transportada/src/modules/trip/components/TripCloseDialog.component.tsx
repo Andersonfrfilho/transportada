@@ -10,6 +10,8 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import styles from '../styles/trip.module.css'
 
 type TripCloseDialogProps = Readonly<{
+  /** A recusa do servidor, já traduzida em chave de feedback. `null` enquanto nada falhou. */
+  feedbackKey: null | string
   isOpen: boolean
   isSubmitting: boolean
   onClose: () => void
@@ -24,6 +26,7 @@ type TripCloseDialogProps = Readonly<{
  * em aberto — sem nenhuma, o campo fica livre para ficar em branco.
  */
 export function TripCloseDialog({
+  feedbackKey,
   isOpen,
   isSubmitting,
   onClose,
@@ -81,6 +84,13 @@ export function TripCloseDialog({
             <Icon name="close" />
           </button>
         </header>
+
+        {/* O aviso vive aqui dentro: o da página fica atrás do overlay enquanto o diálogo está aberto */}
+        {feedbackKey === null ? null : (
+          <p className={styles.alert} role="alert">
+            {t(`feedback.${feedbackKey}`)}
+          </p>
+        )}
 
         <label>
           {isReasonRequired ? t('closeDialog.reasonLabel') : t('closeDialog.reasonLabelOptional')}
