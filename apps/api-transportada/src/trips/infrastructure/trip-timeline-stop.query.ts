@@ -129,6 +129,7 @@ export async function listStopEventRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    closeReason: null,
     document:
       row.documentId === null
         ? null
@@ -220,6 +221,7 @@ export async function listStopOccurrenceRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: row.id,

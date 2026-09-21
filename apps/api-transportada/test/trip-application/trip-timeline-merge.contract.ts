@@ -31,6 +31,7 @@ function row(input: {
   return {
     actorName: null,
     channel: null,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: input.id,

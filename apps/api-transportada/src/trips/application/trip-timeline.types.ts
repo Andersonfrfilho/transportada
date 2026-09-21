@@ -63,6 +63,12 @@ export type TripTimelineItem = {
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   readonly channel: TripFieldChannel | null
+  /**
+   * Spec 158 T12 (spec 156 T8c): `trips.close_reason`, só em `trip.status_changed` para
+   * `completed` **manual** — o único `completed` possível hoje, porque a derivação automática não
+   * roda em viagem já `completed` e `close` volta cedo nela.
+   */
+  readonly closeReason: string | null
   readonly document: TripTimelineDocumentReference | null
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null

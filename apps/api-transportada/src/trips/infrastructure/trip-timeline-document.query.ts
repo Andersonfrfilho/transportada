@@ -120,6 +120,7 @@ export async function listDocumentOccurrenceRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    closeReason: null,
     document: { id: row.documentId, number: row.invoiceNumber, series: row.invoiceSeries },
     fromStatus: null,
     id: row.id,
@@ -218,6 +219,7 @@ export async function listDocumentStatusChangedRows(
     return {
       actorName: row.actorName ?? null,
       channel,
+      closeReason: null,
       document: { id: row.documentId, number: row.invoiceNumber, series: row.invoiceSeries },
       fromStatus: row.fromStatus,
       id: row.id,

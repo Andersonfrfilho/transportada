@@ -8,7 +8,7 @@
 import { and, eq } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
-import { tripDispatchSnapshots, tripStatusEvents } from '../../database/trip.schema.js'
+import { trips, tripDispatchSnapshots, tripStatusEvents } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
@@ -76,6 +76,7 @@ export async function listDispatchedRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: null,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: row.id,
@@ -116,6 +117,7 @@ export async function listStatusChangedRows(
     .select({
       actorName: timelineActorProfile.name,
       channel: tripStatusEvents.channel,
+      closeReason: trips.closeReason,
       fromStatus: tripStatusEvents.fromStatus,
       id: tripStatusEvents.id,
       occurredAt: tripStatusEvents.occurredAt,
@@ -125,6 +127,10 @@ export async function listStatusChangedRows(
       toStatus: tripStatusEvents.toStatus,
     })
     .from(tripStatusEvents)
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripStatusEvents.companyId), eq(trips.id, tripStatusEvents.tripId)),
+    )
     .leftJoin(
       timelineActorMembership,
       and(
@@ -150,6 +156,11 @@ export async function listStatusChangedRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    /**
+     * Spec 158 T12: `trips.close_reason` só descreve o encerramento manual — em qualquer outro
+     * `toStatus` ele é ruído da mesma viagem, nunca o motivo daquele evento.
+     */
+    closeReason: row.toStatus === 'completed' ? row.closeReason : null,
     document: null,
     fromStatus: row.fromStatus,
     id: row.id,
