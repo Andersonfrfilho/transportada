@@ -1,5 +1,7 @@
 # Tasks
 
+> ⏸️ **Suspensa após a Fase 1** — ver o topo de `spec.md`. T007–T020 não serão executadas.
+
 > 🤖 Modelo: `sonnet` (T001 e T012 são 🧠 — validar com `opus` antes)
 
 ## Fase 1 — Fundação pura, sem rede

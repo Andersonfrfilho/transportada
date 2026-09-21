@@ -1,5 +1,14 @@
 # Feature 160 — Medida de caixa por catálogo de GTIN
 
+> **Status: suspensa após a Fase 1 (2026-09-21).** O Cosmos não tem mais plano gratuito — o menor
+> é o Simple, R$ 499,99/mês por 100 consultas/dia — e o usuário decidiu não assinar: o custo não
+> compensa para o objetivo. As 7 chamadas feitas com o token voltaram `429` porque a conta não tem
+> plano. Sem fonte com dimensão de caixa master, as Fases 2–5 não têm o que consumir.
+> Continua valendo o que saiu desta spec: a Fase 1 (sanidade e consenso, em staging), a lista
+> fechada de prefixos em `resolvePackagingUnitCount` e a correção de `units_per_box` em produção
+> (ver `evidence.md`). Retomar só se surgir fonte de dimensão sem custo, e validando antes, com uma
+> chamada real, se ela devolve a caixa master e não só o produto unitário.
+
 ## Problema e resultado
 
 Hoje toda dimensão de caixa nasce de alguém medindo: `nfe_package_boxes.length_mm/width_mm/height_mm`
