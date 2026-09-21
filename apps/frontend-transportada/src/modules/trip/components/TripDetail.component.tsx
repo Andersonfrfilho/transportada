@@ -921,7 +921,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
             {t('actions.issueMdfe')}
           </Button>
         ) : null}
-        {canCloseTrip && !isCompleted ? (
+        {/* Viagem cancelada não encerra (spec 158 T12): oferecer o botão daria um 409 sem saída */}
+        {canCloseTrip && !isCompleted && trip.status !== 'cancelled' ? (
           <Button
             disabled={workspace.closeMutation.isPending}
             onClick={handleCloseTrip}

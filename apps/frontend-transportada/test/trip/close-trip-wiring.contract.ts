@@ -48,4 +48,16 @@ describe('TripDetail liga o encerramento à permissão e à contagem certas (spe
       'setIsCloseDialogOpen(false)',
     )
   })
+  /**
+   * Spec 158 T12: a API recusa `cancelled → completed` com 409. Oferecer o botão ali é ação sem
+   * saída — o usuário digitaria o motivo para levar um erro.
+   */
+  test('o botão de encerrar não aparece em viagem cancelada', () => {
+    const source = readFileSync(TRIP_DETAIL_SOURCE, 'utf8')
+    const buttonIndex = source.indexOf("t('actions.close')")
+    const conditionStart = source.lastIndexOf('{canCloseTrip', buttonIndex)
+
+    expect(conditionStart).toBeGreaterThan(-1)
+    expect(source.slice(conditionStart, buttonIndex)).toContain("trip.status !== 'cancelled'")
+  })
 })

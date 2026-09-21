@@ -65,8 +65,8 @@ export type TripTimelineItem = {
   readonly channel: TripFieldChannel | null
   /**
    * Spec 158 T12 (spec 156 T8c): `trips.close_reason`, só em `trip.status_changed` para
-   * `completed` **manual** — o único `completed` possível hoje, porque a derivação automática não
-   * roda em viagem já `completed` e `close` volta cedo nela.
+   * `completed`. O `completed` derivado (`deriveTripStatus`, quando a última nota fecha) nunca tem
+   * motivo: `close_reason` só é escrito por `POST /trips/:id/close`.
    */
   readonly closeReason: string | null
   readonly document: TripTimelineDocumentReference | null

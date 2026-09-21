@@ -199,7 +199,8 @@ opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-del
   de" ninguém, então não usa `insertTripFieldOfficeAudit`. ⚠️ As três colunas registram o
   **encerramento manual pelo botão**, nunca "fim da viagem": `deriveTripStatus` também leva `status`
   a `completed` sozinho, quando todas as notas fecham, sem passar por `POST /trips/:id/close` — nesse
-  caminho as três ficam `null`. `deliverDocument` (porta, caso de uso e
+  caminho as três ficam `null`. Viagem `cancelled` recusa o encerramento com 409
+  `STATE_TRANSITION_NOT_ALLOWED` (spec 158 T12: `close` passou a consultar `checkTripTransition`). `deliverDocument` (porta, caso de uso e
   repositório) saiu junto: gravava `delivered_at` sem tocar em `separation_status` e sem chamador
   desde a T8b.
 - `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no
