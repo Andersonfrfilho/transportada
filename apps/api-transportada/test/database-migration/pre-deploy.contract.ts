@@ -43,6 +43,7 @@ describe('Pre-deploy da API', () => {
     expect(report).toEqual({
       migrated: true,
       migrationsChecked: 0,
+      occurrenceTypes: 'skipped',
       provisioning: 'skipped',
       templates: 'skipped',
     })
@@ -54,12 +55,14 @@ describe('Pre-deploy da API', () => {
       verifyMigrationsComplete: async () => 215,
       provision: async () => ['company'],
       seedTemplates: async () => 4,
+      seedOccurrenceTypes: async () => 7,
     })
 
     expect(report).toEqual({
       created: ['company'],
       migrated: true,
       migrationsChecked: 215,
+      occurrenceTypes: 7,
       provisioning: 'ensured',
       templates: 4,
     })
@@ -90,6 +93,29 @@ describe('Pre-deploy da API', () => {
     expect(order).toEqual(['migrate', 'provision', 'seed'])
   })
 
+  // O catálogo de tipos de ocorrência é o que faz a tela de galpão/rua oferecer algo para
+  // registrar — sem ele, nenhuma instalação consegue registrar ocorrência (defeito de 21/09/2026).
+  test('semeia o catálogo de tipos de ocorrência depois do provisionamento, nunca antes', async () => {
+    const order: string[] = []
+
+    await runPreDeploy({
+      migrate: async () => {
+        order.push('migrate')
+      },
+      verifyMigrationsComplete: async () => 0,
+      provision: async () => {
+        order.push('provision')
+        return []
+      },
+      seedOccurrenceTypes: async () => {
+        order.push('occurrence-types')
+        return 0
+      },
+    })
+
+    expect(order).toEqual(['migrate', 'provision', 'occurrence-types'])
+  })
+
   // Migration que falha não pode deixar o provisionamento rodar contra schema velho.
   test('migration que falha aborta antes de provisionar', async () => {
     let provisioned = false
@@ -114,6 +140,7 @@ describe('Pre-deploy da API', () => {
   test('migration pendente aborta antes de provisionar e de semear', async () => {
     let provisioned = false
     let seeded = false
+    let occurrenceTypesSeeded = false
 
     const failure = await runPreDeploy({
       migrate: async () => undefined,
@@ -128,11 +155,16 @@ describe('Pre-deploy da API', () => {
         seeded = true
         return 0
       },
+      seedOccurrenceTypes: async () => {
+        occurrenceTypesSeeded = true
+        return 0
+      },
     }).catch((error: unknown) => error)
 
     expect(failure).toBeInstanceOf(Error)
     expect(provisioned).toBe(false)
     expect(seeded).toBe(false)
+    expect(occurrenceTypesSeeded).toBe(false)
   })
 
   // Sem provisionamento configurado a verificação continua obrigatória — não é um passo opcional.
@@ -166,6 +198,7 @@ describe('Pre-deploy da API', () => {
     expect(report).toEqual({
       migrated: true,
       migrationsChecked: 3,
+      occurrenceTypes: 'skipped',
       provisioning: 'skipped',
       templates: 'skipped',
     })

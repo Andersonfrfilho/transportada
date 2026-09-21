@@ -6,6 +6,8 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { parseEnvironment } from '../config/environment.schema.js'
 import { createApiNotificationModule } from '../notification/infrastructure/notification-module.factory.js'
 import { seedNotificationTemplates } from '../notification/application/notification-template-seed.service.js'
+import { seedOccurrenceTypeCatalog } from './occurrence-type-catalog-seed.service.js'
+import { createDrizzleOccurrenceTypeCatalogSeedPort } from './occurrence-type-catalog-seed.repository.js'
 import { runAllDatabaseMigrations } from './database-migration.service.js'
 import type { ProvisionedArtifact } from './environment-provisioning.constant.js'
 import {
@@ -22,12 +24,16 @@ export type PreDeploySteps = {
   readonly provision: (() => Promise<readonly ProvisionedArtifact[]>) | undefined
   /** O texto do aviso vem do catálogo em código; sem esta passada ele fica no do deploy anterior. */
   readonly seedTemplates?: (() => Promise<number>) | undefined
+  /** O catálogo de tipos de ocorrência (spec 079) para toda empresa — sem ele nenhuma tela oferece
+   * tipo para registrar ocorrência. */
+  readonly seedOccurrenceTypes?: (() => Promise<number>) | undefined
 }
 
 export type PreDeployReport =
   | {
       readonly migrated: true
       readonly migrationsChecked: number
+      readonly occurrenceTypes: number | 'skipped'
       readonly provisioning: 'skipped'
       readonly templates: number | 'skipped'
     }
@@ -35,6 +41,7 @@ export type PreDeployReport =
       readonly created: readonly ProvisionedArtifact[]
       readonly migrated: true
       readonly migrationsChecked: number
+      readonly occurrenceTypes: number | 'skipped'
       readonly provisioning: 'ensured'
       readonly templates: number | 'skipped'
     }
@@ -54,6 +61,7 @@ export async function runPreDeploy({
   verifyMigrationsComplete,
   provision,
   seedTemplates,
+  seedOccurrenceTypes,
 }: PreDeploySteps): Promise<PreDeployReport> {
   await migrate()
   const migrationsChecked = await verifyMigrationsComplete()
@@ -62,6 +70,7 @@ export async function runPreDeploy({
     return {
       migrated: true,
       migrationsChecked,
+      occurrenceTypes: await runSeed(seedOccurrenceTypes),
       provisioning: 'skipped',
       templates: await runSeed(seedTemplates),
     }
@@ -74,15 +83,14 @@ export async function runPreDeploy({
     created,
     migrated: true,
     migrationsChecked,
+    occurrenceTypes: await runSeed(seedOccurrenceTypes),
     provisioning: 'ensured',
     templates: await runSeed(seedTemplates),
   }
 }
 
-async function runSeed(
-  seedTemplates: PreDeploySteps['seedTemplates'],
-): Promise<number | 'skipped'> {
-  return seedTemplates === undefined ? 'skipped' : await seedTemplates()
+async function runSeed(seed: (() => Promise<number>) | undefined): Promise<number | 'skipped'> {
+  return seed === undefined ? 'skipped' : await seed()
 }
 
 if (import.meta.main) {
@@ -116,6 +124,19 @@ if (import.meta.main) {
               await provider.close()
             }
           },
+    // Roda para toda empresa existente — não depende de `companyId` declarado no ambiente.
+    seedOccurrenceTypes: async () => {
+      const provider = createDrizzleProvider({
+        connection: { adapter: 'postgres', max: 1, url: config.databaseUrl },
+      })
+      try {
+        return await seedOccurrenceTypeCatalog({
+          port: createDrizzleOccurrenceTypeCatalogSeedPort(provider.db),
+        })
+      } finally {
+        await provider.close()
+      }
+    },
     provision: isEnvironmentProvisioningConfigured(process.env)
       ? async () => {
           const state = await runEnvironmentProvisioning(

@@ -66,6 +66,23 @@ correção de causa medida (instruções preparadas do Bun SQL travavam sob conc
 religar exige medir de novo numa versão nova do Bun. Detalhe completo (armadilhas de `idleTimeout` e
 `cancel()`): docs/ai-context § "O banco falha rápido".
 
+**O catálogo de tipos de ocorrência nasce vazio no banco — o pre-deploy só faz bootstrap**
+(21/09/2026, revisão de idempotência no mesmo dia): `company_occurrence_types` estava vazia em
+staging e produção; a migration que criou a tabela
+(`drizzle/20260903140000_company_occurrence_types/migration.sql`) nunca teve `INSERT`, e o catálogo
+que existia fixo em `shared/trip-occurrence.constant.ts` nunca foi gravado — nenhuma instalação
+conseguia registrar ocorrência de galpão ou de rua, porque a tela não tinha tipo para oferecer (o
+`PUT /company-settings/occurrence-types` existe, mas não tem consumidor no frontend). `runPreDeploy`
+agora chama `seedOccurrenceTypeCatalog` (`database/occurrence-type-catalog-seed.service.ts`, catálogo
+em `shared/occurrence-type-catalog.constant.ts`) depois de migrar/provisionar/semear templates: para
+cada `companies` com catálogo **vazio**, grava os sete tipos pt-BR (três de `separation`, quatro de
+`delivery`), de uma vez. ⚠️ **Não é sincronização** — a primeira versão comparava por `(stage,
+name)` e "preenchia o que faltasse" a cada deploy, o que ressuscitava tipo renomeado pela
+transportadora (renomear é suportado pela tela de cadastro; o nome novo nunca batia com o catálogo,
+e o antigo voltava a cada deploy). Hoje **empresa com qualquer tipo cadastrado — ativo, aposentado,
+um só que seja — fica intocada para sempre**; só quem nunca cadastrou nada recebe o catálogo, e uma
+vez só. Prova viva contra Postgres: `test/integration/occurrence-type-catalog-seed.integration.ts`.
+
 **Perfil fiscal sem sequência de CT-e é leitura válida** (15/09/2026): o refresh de staging trunca
 `fiscal_sequences` e mantém `company_fiscal_profiles`. `GET /company-settings` respondia 500 com
 `Error` genérico, e a causa não chegava ao log. Hoje `findCompanySettings` devolve a linha que o
