@@ -31,6 +31,8 @@ export type DispatchTripWriteInput = {
   /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
   readonly forced: boolean
   readonly forceReason: string | null
+  /** Defeito 29 (ADR-0068 "Consequências"): reconferido dentro da transação, com o status travado. */
+  readonly hasRoute: boolean
   readonly onBehalfOfDriverId: string | null
   readonly tripId: string
   readonly unloadedDocumentIds: readonly string[]
@@ -108,6 +110,7 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
     companyId: input.companyId,
     forced,
     forceReason: forced ? (input.forceReason ?? null) : null,
+    hasRoute: state.hasRoute,
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     tripId: input.tripId,
     unloadedDocumentIds: state.unloadedDocumentIds,

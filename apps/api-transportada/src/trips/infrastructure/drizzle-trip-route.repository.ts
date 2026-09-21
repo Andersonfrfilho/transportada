@@ -34,6 +34,8 @@ import {
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
+import { TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -72,6 +74,8 @@ export class DrizzleTripRouteRepository
     readonly actorUserId: string
     readonly channel: TripFieldChannel
     readonly companyId: string
+    /** Defeito 29 (ADR-0068 "Consequências"): reconferido aqui, com o status recém-travado. */
+    readonly hasRoute: boolean
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripStatus> {
@@ -84,10 +88,31 @@ export class DrizzleTripRouteRepository
         .limit(1)
       if (tripRow === undefined) return 'route_planned'
 
+      /**
+       * ADR-0068 "Consequências", defeito 29 (spec 158 T13): `planTripRoute` decide pela máquina de
+       * estados **fora** da transação; reconferir aqui, com o status que o lock acabou de travar,
+       * é o que impede uma corrida de gravar `route_planned` sobre uma viagem já cancelada/despachada.
+       */
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.planRoute,
+        hasRoute: input.hasRoute,
+        tripStatus: tripRow.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+      if (transition.outcome === 'unchanged') return tripRow.status
+
       const [updated] = await transaction
         .update(trips)
-        .set({ status: 'route_planned', updatedAt: sql`now()` })
-        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .set({ status: transition.nextStatus, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, tripRow.status),
+          ),
+        )
         .returning({ status: trips.status })
       if (updated === undefined) return tripRow.status
 
@@ -232,10 +257,31 @@ export class DrizzleTripRouteRepository
         .limit(1)
       if (tripRow === undefined) return 'cancelled'
 
+      /**
+       * ADR-0068 "Consequências", defeito 29 (spec 158 T13): `cancelTrip` decide pela máquina de
+       * estados **fora** da transação; reconferir aqui, com o status recém-travado, é o que
+       * impede uma corrida de gravar `cancelled` sobre uma viagem que já concluiu.
+       */
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.cancel,
+        hasRoute: false,
+        tripStatus: tripRow.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+      if (transition.outcome === 'unchanged') return tripRow.status
+
       const [updated] = await transaction
         .update(trips)
-        .set({ status: 'cancelled', updatedAt: sql`now()` })
-        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .set({ status: transition.nextStatus, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, tripRow.status),
+          ),
+        )
         .returning({ status: trips.status })
       if (updated === undefined) return tripRow.status
 
@@ -373,10 +419,31 @@ async function dispatch(
     .limit(1)
   if (tripRow === undefined) return { tripStatus: 'dispatched' }
 
+  /**
+   * ADR-0068 "Consequências", defeito 29 (spec 158 T13): `dispatchTrip` decide pela máquina de
+   * estados **fora** da transação; reconferir aqui, com o status recém-travado, é o que impede
+   * uma corrida de gravar `dispatched` sobre uma viagem já cancelada/concluída.
+   */
+  const transition = checkTripTransition({
+    action: TRIP_ACTION.dispatch,
+    hasRoute: input.hasRoute,
+    tripStatus: tripRow.status,
+  })
+  if (transition.outcome === 'blocked') {
+    throw new TripStateTransitionNotAllowedError(transition.reason)
+  }
+  if (transition.outcome === 'unchanged') return { tripStatus: tripRow.status }
+
   const [updated] = await transaction
     .update(trips)
-    .set({ status: 'dispatched', updatedAt: sql`now()` })
-    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .set({ status: transition.nextStatus, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(trips.companyId, input.companyId),
+        eq(trips.id, input.tripId),
+        eq(trips.status, tripRow.status),
+      ),
+    )
     .returning({ status: trips.status })
   if (updated === undefined) return { tripStatus: tripRow.status }
 

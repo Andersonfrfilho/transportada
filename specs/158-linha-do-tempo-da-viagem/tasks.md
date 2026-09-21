@@ -104,7 +104,7 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       (`trip.use-case.ts:106` não passa por `checkTripTransition`); (3) `dispatch`,
       `markRoutePlanned`, `markCancelled` e `close` escrevem sem guarda de origem, com a precondição
       lida fora da transação — o evento pode registrar uma transição proibida (ADR-0068
-      "Consequências").
+      "Consequências"). **Resolvido na T13** desta mesma spec (2026-09-21).
 
 ## Fase 8 — O motivo do encerramento (spec 156 T8c)
 
@@ -120,6 +120,17 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       commit. Junto sai o defeito (2) da T11: `close` aceita `cancelled → completed`
       (`trip.use-case.ts` não passa por `checkTripTransition`) — viagem cancelada passa a recusar o
       encerramento, com o código de erro que a máquina de estados já usa.
+
+- [x] **T13 — Guarda de origem nos quatro writers de `trips.status`** (defeito 29 de
+      `PERGUNTAS-ABERTAS.md`, ADR-0068 "Consequências"). `dispatch`, `markRoutePlanned` e
+      `markCancelled` (`drizzle-trip-route.repository.ts`) e `close` (`drizzle-trip.repository.ts`)
+      leem a `from_status` **fora** da transação e escrevem sem conferir que ela ainda vale — uma
+      corrida grava em `trip_status_events` uma transição que a política já proibiu. Todos passam a
+      fazer compare-and-set (`where status = :fromStatus`), no molde de `markTripInTransit` e
+      `completeTripIfSettled`. **Decisão do usuário (2026-09-21): a corrida perdida passa a
+      responder conflito**, com o código que a máquina de estados já usa — antes ela era ignorada em
+      silêncio. Contratos de concorrência de verdade, não simulada: duas transações no mesmo
+      Postgres, a segunda perde.
 
 ## Prompt de execução
 

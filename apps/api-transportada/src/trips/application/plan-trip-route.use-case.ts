@@ -22,6 +22,8 @@ export type PlanTripRoutePort = {
     readonly actorUserId: string
     readonly channel: TripFieldChannel
     readonly companyId: string
+    /** Defeito 29 (ADR-0068 "Consequências"): reconferido dentro da transação, com o status travado. */
+    readonly hasRoute: boolean
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripStatus>
@@ -90,6 +92,7 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
           actorUserId: input.actorUserId,
           channel: input.channel,
           companyId: input.companyId,
+          hasRoute: state.hasRoute,
           onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
           tripId: input.tripId,
         })

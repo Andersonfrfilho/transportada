@@ -156,6 +156,14 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
         > comportamento: a race condition que hoje silenciosamente ignora o update passaria a devolver 409
         > (ou similar).
 
+        > **Resolvida (2026-09-21, spec 158 T13):** os quatro passaram a fazer compare-and-set
+        > (`where status = tripRow.status`, lido sob o mesmo `FOR NO KEY UPDATE` que já existia) e, antes de
+        > escrever, reconferem a transição pela própria `checkTripTransition` (`trip-state.policy.ts`) — nunca
+        > duplicando a regra à mão. A corrida perdida agora responde 409 `STATE_TRANSITION_NOT_ALLOWED`, com o
+        > mesmo motivo que a máquina de estados já usa (antes, o update era ignorado em silêncio). Testes de
+        > concorrência de verdade contra Postgres (duas transações reais, sem `pg_sleep`) em
+        > `test/integration/trip-status-write-guard.integration.ts`.
+
 ### 155 — a variação do mesmo produto mede uma vez e replica
 
 30. **O GTIN da caixa e o GTIN da unidade de consumo** (155 D10, 2026-09-17): `carton_gtin` carrega 650

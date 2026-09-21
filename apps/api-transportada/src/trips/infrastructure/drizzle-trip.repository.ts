@@ -34,7 +34,12 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
-import { TRIP_DISPATCHED_STATUSES, checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import {
+  TRIP_ACTION,
+  TRIP_DISPATCHED_STATUSES,
+  checkTripAcceptsLinkage,
+  checkTripTransition,
+} from '../domain/trip-state.policy.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
@@ -127,6 +132,29 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .limit(1)
       if (tripRow === undefined) return null
 
+      /**
+       * ADR-0068 "Consequências", defeito 29 (spec 158 T13): `tripRow.status` acabou de sair do
+       * `SELECT … FOR NO KEY UPDATE` — é o único valor confiável, porque o portão do caso de uso
+       * (`checkTripTransition` em `trip.use-case.ts`) leu o status **fora** da transação. Uma
+       * corrida que cancele a viagem entre as duas leituras só é pega aqui, com o mesmo motivo que
+       * a máquina de estados já usa — nunca duplicado à mão.
+       */
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.close,
+        hasRoute: false,
+        tripStatus: tripRow.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+      if (transition.outcome === 'unchanged') {
+        return readTripDetail(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+          cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        })
+      }
+
       const openDocuments = await transaction
         .select({ id: tripDocuments.id })
         .from(tripDocuments)
@@ -145,10 +173,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           closeReason: input.closeReason,
           closedAt: sql`now()`,
           closedByUserId: input.actorUserId,
-          status: 'completed',
+          status: transition.nextStatus,
           updatedAt: sql`now()`,
         })
-        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, tripRow.status),
+          ),
+        )
         .returning({ id: trips.id })
       if (closed === undefined) return null
 
