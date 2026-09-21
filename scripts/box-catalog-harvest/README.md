@@ -17,9 +17,12 @@ produção ser maior que a cota diária.
 
 ## Como roda
 
-1. `bun assisted-capture-server.ts` — sobe em `http://127.0.0.1:53999`, lê a fila de produção
-   (`nfe_package_boxes` com `carton_gtin` e sem medida, transação `READ ONLY` ordenada pelo GTIN que
-   destrava mais caixas) e imprime o token.
+0. `scripts/box-catalog-harvest/export-pending-queue.sh` — o Postgres de produção **não tem proxy
+   público** (e não deve ter), então a fila sai por `railway ssh` no serviço `api`, numa transação
+   `READ ONLY`, para `~/.config/transportada/pending-gtins.json` (só GTIN da caixa e contagem).
+   Rode de novo quando quiser atualizar a fila.
+1. `bun scripts/box-catalog-harvest/assisted-capture-server.ts` — sobe em `http://127.0.0.1:53999`,
+   lê a fila do arquivo acima (ou de `DATABASE_URL`, se não houver arquivo) e imprime o token.
 2. Instale `cosmos-capture.user.js` no Tampermonkey e, no menu do script, cole o token uma vez.
 3. O servidor abre a primeira página. O userscript lê a ficha técnica, extrai a dimensão da caixa e
    envia ao servidor; **o avanço é sempre um clique ou Alt+N seu** — nada navega sozinho.
@@ -35,6 +38,15 @@ return`).
   `0600`), entrega `/next`, recebe `/capture` (valida `unitGtin`, `status`, `pageUrl`).
 - `harvest-queue.ts` — fila de GTINs pendentes (produção, `READ ONLY`), derivação GTIN-14 → GTIN-13
   da unidade e o JSONL de saída.
+
+## Quando o Cosmos não tem a medida
+
+O painel mostra **Buscar GTIN** e **Buscar ficha logística** (abrem o Google numa aba nova) e
+**Pular (Alt+N)**. Achou a medida em qualquer site (fabricante, distribuidor, PDF aberto no Chrome):
+**selecione o texto** e aperte **Alt+C**. Vale `47,4 x 24,7 x 24,0 cm` ou Comprimento/Largura/Altura.
+A linha entra como `found_manual`, com `source` = domínio da página, e o painel oferece
+**Voltar para a fila (Alt+N)**. O userscript roda em todo site, mas só age no Alt+C e só envia o
+texto selecionado.
 
 ## Comportamento
 

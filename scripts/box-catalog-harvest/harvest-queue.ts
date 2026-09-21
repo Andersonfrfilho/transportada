@@ -22,6 +22,7 @@ export type CaptureRecord = {
   readonly cartonGtin: string
   readonly unitGtin: string
   readonly status: string
+  readonly source: string
   readonly capturedAt: string
   readonly pageUrl: string
   readonly extracted?: Record<string, unknown>
@@ -53,22 +54,36 @@ export async function appendCaptureRecord(record: CaptureRecord): Promise<void> 
   await appendFile(OUTPUT_PATH, `${JSON.stringify(record)}\n`)
 }
 
+type PendingRow = { readonly carton_gtin: string; readonly pending_boxes: number }
+
+export const PENDING_QUERY = `select carton_gtin, count(*)::int as pending_boxes
+  from nfe_package_boxes
+ where carton_gtin is not null and length_mm is null
+ group by carton_gtin
+ order by pending_boxes desc`
+
+function toPendingGtins(rows: readonly PendingRow[]): PendingGtin[] {
+  return rows
+    .filter((row) => /^\d{8,14}$/.test(row.carton_gtin))
+    .map((row) => ({
+      cartonGtin: row.carton_gtin,
+      unitGtin: deriveUnitGtin(row.carton_gtin),
+      pendingBoxes: row.pending_boxes,
+    }))
+}
+
+/** Produção não tem proxy público: a fila vem exportada por `railway ssh` (ver README). */
+export async function readPendingGtinsFromFile(path: string): Promise<PendingGtin[]> {
+  return toPendingGtins(JSON.parse(await readFile(path, 'utf8')) as PendingRow[])
+}
+
 export async function selectPendingGtins(databaseUrl: string): Promise<PendingGtin[]> {
   const database = new SQL(databaseUrl)
   try {
-    return await database.begin('read only', async (transaction) => {
-      const rows = await transaction`
-        select carton_gtin, count(*)::int as pending_boxes
-          from nfe_package_boxes
-         where carton_gtin is not null and length_mm is null
-         group by carton_gtin
-         order by pending_boxes desc`
-      return rows.map((row: { carton_gtin: string; pending_boxes: number }) => ({
-        cartonGtin: row.carton_gtin,
-        unitGtin: deriveUnitGtin(row.carton_gtin),
-        pendingBoxes: row.pending_boxes,
-      }))
-    })
+    const rows = await database.begin('read only', (transaction) =>
+      transaction.unsafe(PENDING_QUERY),
+    )
+    return toPendingGtins(rows as PendingRow[])
   } finally {
     await database.close()
   }

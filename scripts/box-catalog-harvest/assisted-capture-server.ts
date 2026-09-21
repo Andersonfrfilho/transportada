@@ -13,10 +13,13 @@ import {
   OUTPUT_PATH,
   type PendingGtin,
   readCapturedGtins,
+  readPendingGtinsFromFile,
   selectPendingGtins,
 } from './harvest-queue.js'
 
-const PORT = 53999
+const DEFAULT_QUEUE_PATH = `${process.env.HOME}/.config/transportada/pending-gtins.json`
+
+const PORT = Number(process.env.CAPTURE_PORT ?? 53999)
 const COSMOS_PRODUCT_URL = 'https://cosmos.bluesoft.com.br/produtos'
 const TOKEN_PATH = `${process.env.HOME}/.config/transportada/capture-token`
 const MAX_SNIPPET_LENGTH = 4000
@@ -64,14 +67,59 @@ function describeNext(queue: readonly PendingGtin[]): Record<string, unknown> {
   return { ...next, url: `${COSMOS_PRODUCT_URL}/${next.unitGtin}`, remaining: queue.length }
 }
 
-const databaseUrl = process.env.DATABASE_URL
-if (!databaseUrl) throw new Error('variável DATABASE_URL ausente')
+async function loadPendingGtins(): Promise<PendingGtin[]> {
+  const queuePath = process.env.PENDING_QUEUE_PATH ?? DEFAULT_QUEUE_PATH
+  const isQueueFilePresent = await Bun.file(queuePath).exists()
+  if (isQueueFilePresent) return readPendingGtinsFromFile(queuePath)
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) throw new Error(`sem fila em ${queuePath} e sem DATABASE_URL — ver README`)
+  return selectPendingGtins(databaseUrl)
+}
+
+type ManualCapturePayload = {
+  readonly cartonGtin: string
+  readonly pageUrl: string
+  readonly extracted: Record<string, unknown>
+  readonly snippet: string
+}
+
+function parseManualCapture(value: unknown): ManualCapturePayload | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { cartonGtin, pageUrl, extracted, snippet } = value as Record<string, unknown>
+  if (typeof cartonGtin !== 'string' || !pendingByCartonGtin.has(cartonGtin)) return undefined
+  if (typeof pageUrl !== 'string' || !/^https?:\/\//.test(pageUrl)) return undefined
+  if (typeof extracted !== 'object' || extracted === null) return undefined
+  if (typeof snippet !== 'string' || snippet.length === 0) return undefined
+  return {
+    cartonGtin,
+    pageUrl,
+    extracted: extracted as Record<string, unknown>,
+    snippet: snippet.slice(0, MAX_SNIPPET_LENGTH),
+  }
+}
+
+/** Medida achada fora do Cosmos: a pessoa selecionou o texto e apertou Alt+C na página. */
+async function handleManualCapture(request: Request): Promise<Response> {
+  const capture = parseManualCapture(await request.json().catch(() => undefined))
+  if (!capture) return Response.json({ error: 'INVALID_CAPTURE' }, { status: 400 })
+  const item = pendingByCartonGtin.get(capture.cartonGtin)
+  if (!item) return Response.json({ error: 'INVALID_CAPTURE' }, { status: 400 })
+  await appendCaptureRecord({
+    ...capture,
+    unitGtin: item.unitGtin,
+    status: 'found_manual',
+    source: new URL(capture.pageUrl).hostname,
+    capturedAt: new Date().toISOString(),
+  })
+  console.log(JSON.stringify({ level: 'info', gtin: item.cartonGtin, status: 'found_manual' }))
+  return Response.json(describeNext(queue))
+}
 
 const token = await loadOrCreateToken()
 const captured = await readCapturedGtins()
-const queue = (await selectPendingGtins(databaseUrl)).filter(
-  (item) => !captured.has(item.cartonGtin),
-)
+const allPending = await loadPendingGtins()
+const pendingByCartonGtin = new Map(allPending.map((item) => [item.cartonGtin, item]))
+const queue = allPending.filter((item) => !captured.has(item.cartonGtin))
 
 Bun.serve({
   hostname: '127.0.0.1',
@@ -81,6 +129,8 @@ Bun.serve({
       return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const { pathname } = new URL(request.url)
     if (request.method === 'GET' && pathname === '/next') return Response.json(describeNext(queue))
+    if (request.method === 'POST' && pathname === '/capture-manual')
+      return handleManualCapture(request)
     if (request.method !== 'POST' || pathname !== '/capture')
       return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
@@ -93,6 +143,7 @@ Bun.serve({
     if (!item) return Response.json(describeNext(queue))
     await appendCaptureRecord({
       ...capture,
+      source: 'cosmos',
       cartonGtin: item.cartonGtin,
       capturedAt: new Date().toISOString(),
     })
@@ -104,7 +155,7 @@ Bun.serve({
         remaining: queue.length,
       }),
     )
-    return Response.json(describeNext(queue))
+    return Response.json({ ...describeNext(queue), captured: item })
   },
 })
 
