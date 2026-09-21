@@ -43,7 +43,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     **original e miniatura**, os dois tetos, e que nenhuma chave contém nome, CNPJ ou número de
     nota.
 
-- [ ] **T3** Repositório e leitura unificada — `drizzle-occurrence-attachment.repository.ts`
+- [x] **T3** Repositório e leitura unificada — `drizzle-occurrence-attachment.repository.ts`
       (inserir com miniatura opcional, contar, listar; sempre por `companyId`),
       `occurrence-attachment.service.ts` (RF15: tabela nova; sem linhas, cai na coluna
       `attachment_object_id`; RF26: `expired` pela data; `thumbnailUrl` ausente quando não há

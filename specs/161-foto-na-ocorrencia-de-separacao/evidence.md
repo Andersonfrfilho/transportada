@@ -162,3 +162,107 @@ os testes de leitura/gravação reais chegam em T3, T6, T7 e T12.
   criação (T5/T6) e `OCCURRENCE_ATTACHMENT_APPEND_OPERATION` para o anexo adicional (T7), com
   literais exatamente iguais aos citados no `plan.md` ("Idempotência e concorrência") — não inventei
   nome novo, só materializei os dois textos já decididos como constantes exportadas.
+
+## T3 — Repositório e leitura unificada do anexo
+
+Data: 2026-09-21.
+
+### O que mudou
+
+- `src/trips/application/occurrence-attachment.service.ts` (novo): `readOccurrenceAttachments` —
+  o ponto único de leitura (RF15/RF11). Lê `listOccurrenceAttachments` (tabela nova); só quando ela
+  devolve `[]` cai para `findLegacyOccurrenceAttachment` (coluna `attachment_object_id`, D6), que
+  vira um item único de `position: 1` sem miniatura. Cada registro vira `OccurrenceAttachmentView`
+  no formato exato de RF8 (`{ id, position, downloadUrl?, thumbnailUrl?, expiresAt?, expired,
+mimeType }`): anexo com `retentionUntil` vencido devolve `{ expired: true }` **sem** chamar o
+  gateway de download (nenhuma URL, nem de original nem de miniatura — RF26); anexo sem miniatura
+  não recebe a chave `thumbnailUrl` (omitida por `exactOptionalPropertyTypes`, nunca `undefined`
+  explícito); `objectKey`/`bucket` nunca saem da função — só entram no `OccurrenceAttachmentLocation`
+  interno, que a view não repassa.
+- `src/trips/infrastructure/drizzle-occurrence-attachment.repository.ts` (novo):
+  `DrizzleOccurrenceAttachmentRepository` implementa o port do serviço, com quatro métodos:
+  - `insertOccurrenceAttachment`: `INSERT ... SELECT ... coalesce(max(position), 0) + 1` numa
+    instrução só (`database.execute(sql\`...\`)`, molde de `drizzle-rate-limiter.repository.ts`),
+exatamente como o `plan.md`exige para T3 — nunca`SELECT count(\*)`antes do`INSERT`. O
+mapeamento dos SQLSTATE `23505`/`23514`para`TripOccurrenceAttachmentLimitError` fica para
+    T6/T7, fora desta task (comentário deixado no método).
+  - `countOccurrenceAttachments`: `count(*)` escopado por `companyId` e `occurrenceId`.
+  - `listOccurrenceAttachments`: junta `trip_document_occurrence_attachments` com dois alias de
+    `stored_objects` (`trip_occurrence_attachment_original`/`..._thumbnail`) — `innerJoin` no
+    original (`NOT NULL`), `leftJoin` na miniatura (nullable) — **cada** junção com `companyId` nos
+    dois lados, ordenado por `position`.
+  - `findLegacyOccurrenceAttachment`: junta `trip_document_occurrences` com `stored_objects` pela
+    coluna antiga, também com `companyId` nos dois lados.
+- `test/trip-occurrence/attachment-read.contract.ts` (novo, escrito **antes** do serviço): sete
+  casos contra dublês de repositório e de download (sem banco) — sem anexo → `[]`; só coluna antiga
+  → um item sem `thumbnailUrl`; tabela nova com miniatura → `downloadUrl` e `thumbnailUrl`, sem
+  consultar a coluna antiga; tabela nova sem miniatura → só `downloadUrl`; retenção vencida →
+  `expired: true` sem nenhuma URL; nunca publica `objectKey`/`bucket`; a consulta é sempre escopada
+  por `companyId`+`occurrenceId` (RF15, RF26, CA5, CA8).
+- `test/trip-occurrence.contract.test.ts`: import de `./trip-occurrence/attachment-read.contract`.
+- `test/trip-schema/tenant-safety.contract.ts`: `trip_document_occurrence_attachments` somada a
+  `TRIP_TABLES` (ancoragem em `companies`); teste novo confere as três FKs compostas da tabela
+  (ocorrência `CASCADE`, original `RESTRICT`, miniatura `RESTRICT`) — as mesmas do T1, sem
+  duplicidade de nome com o teste de `foreignKeys` já existente. Bloco novo
+  `describe('occurrence attachment query tenant safety (spec 161 T3)', ...)`, no molde exato do já
+  existente para `delivery-proof-read.support.ts`: prova por **texto de fonte** — todo `.innerJoin(`
+  e `.leftJoin(` do repositório novo carrega `companyId`, e todo `.where(` filtra por `companyId`.
+  Prova por comportamento (dublê) não pegaria uma junção futura perdendo o tenant e ainda passando
+  no caminho feliz; prova por texto pega.
+
+### As doze menções de "anexo" em `delivery-proof-read.support.ts` — por que este arquivo não mudou
+
+O prompt desta task media 12 menções a "anexo" nesse arquivo (linha 222 lendo pela coluna antiga) e
+pedia para confirmar que a leitura unificada cobre os dois caminhos. Conferido: **nenhuma das doze é
+tocada por T3**. `delivery-proof-read.support.ts` é consumido hoje por `main.ts:2717-2745`
+(`GET .../occurrences`, que devolve o `attachment` singular) — trocar esse arquivo para
+`attachments[]` é o que o `plan.md` atribui explicitamente à **T9** ("`delivery-proof-read.support.ts:
+175-271`: `attachments[]` no lugar do `attachment` singular"), não à T3. O que T3 entrega é o ponto
+de leitura que T9 vai _consumir_ (`readOccurrenceAttachments`, que já resolve os dois caminhos —
+tabela nova e coluna antiga) — a tela ainda mostra `attachment` singular até T9 trocar o consumidor.
+Registrado aqui para quem pegar T9 em seguida: a leitura dupla já existe e está testada; falta
+só ligar `listTripOccurrences` a `readOccurrenceAttachments` no lugar do `leftJoin` direto em
+`storedObjects` das linhas 218-224.
+
+### Vermelho e verde
+
+`bun run --cwd apps/api-transportada test ./test/trip-occurrence.contract.test.ts` antes de escrever
+`occurrence-attachment.service.ts` falhava na importação (`Cannot find module
+'../../src/trips/application/occurrence-attachment.service.js'`, vermelho). Depois de escrever o
+serviço e o repositório, o mesmo comando foi verde: **93 pass, 0 fail** (7 casos novos deste
+arquivo).
+
+### Gates (raiz do worktree)
+
+- `bun run --cwd apps/api-transportada test ./test/trip-schema.contract.test.ts
+./test/trip-occurrence.contract.test.ts` → **171 pass, 0 fail**, 583 `expect()`.
+- `bun run --cwd apps/api-transportada test` (suíte completa de contrato) → **6764 pass, 32 skip, 0
+  fail**, 6796 testes em 182 arquivos.
+- `bun run --cwd apps/api-transportada typecheck` → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run format:check` → verde depois de `prettier --write` no contrato novo (os três arquivos
+  ainda desformatados de `specs/162-limpeza-do-armazenamento/` seguem fora do escopo desta task, não
+  tocados).
+- Nenhum teste de integração criado nesta task — T3 não pede banco real (a integração das três
+  leituras é T12); os quatro casos do CA5/CA8 são provados contra dublê, como o molde de
+  `test/trip-delivery-proof/read.contract.ts` já fazia para o comprovante.
+
+### Decisões tomadas além do que a spec já fixava
+
+- **`OccurrenceAttachmentLocation`/`OccurrenceAttachmentRecord` como tipos internos do serviço**, não
+  do repositório — o repositório importa os tipos do serviço (`ReadOccurrenceAttachmentsPort`) em vez
+  do contrário, para o `occurrence-attachment.service.ts` continuar sem import de Drizzle (camada de
+  aplicação sem I/O, `apps/api-transportada/CLAUDE.md`).
+  Molde: `read-delivery-proof.use-case.ts`/`drizzle-delivery-proof.repository.ts`.
+- **Quatro métodos num repositório só**, em vez de um por arquivo — `tasks.md` já agrupa "inserir,
+  contar, listar" na mesma entrega; separar em quatro classes teria sido abstração sem consumidor
+  hoje (T6/T7/T9 chamam os quatro do mesmo objeto).
+- **`findLegacyOccurrenceAttachment` devolve `position: 1` fixo**, nunca lido de coluna nenhuma — a
+  ocorrência de galpão anterior a esta spec não tinha `position`, e o RF15 já define a coluna antiga
+  como "anexo único"; fixar em código evita uma coluna fantasma que ninguém preenche.
+- **`isExpired` trata `retentionUntil: null` como "nunca expira"** — decisão não escrita à letra na
+  spec, mas decorre de RF15 (a coluna antiga "sempre vem sem `thumbnailUrl`", nada diz sobre
+  expiração) e do fato de nenhum `stored_objects` anterior a esta spec ter `retention_until`
+  preenchido (`plan.md`, premissas verificadas: "nenhuma app escreve
+  `stored_objects.retention_until`... hoje"). Um objeto sem data de retenção não tem como "vencer".

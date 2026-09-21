@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './trip-occurrence/attachment-policy.contract'
+import './trip-occurrence/attachment-read.contract'
 import './trip-occurrence/catalog.contract'
 import './trip-occurrence/register.contract'
 import './trip-occurrence/notification.contract'
