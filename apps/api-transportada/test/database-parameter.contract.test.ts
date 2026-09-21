@@ -33,8 +33,7 @@ describe('database parameter serialization (prepare: false)', () => {
     expect(serializeJsonParameter(bare)).toBe('{"key":"value"}')
   })
 
-  test('primitives, null, Date, Uint8Array and already-serialized text pass untouched', () => {
-    const date = new Date('2026-09-11T20:24:00.000Z')
+  test('primitives, null, Uint8Array and already-serialized text pass untouched', () => {
     const bytes = new Uint8Array([1, 2])
 
     expect(serializeJsonParameter('text')).toBe('text')
@@ -44,8 +43,25 @@ describe('database parameter serialization (prepare: false)', () => {
     expect(serializeJsonParameter(true)).toBe(true)
     expect(serializeJsonParameter(null)).toBeNull()
     expect(serializeJsonParameter(undefined)).toBeUndefined()
-    expect(serializeJsonParameter(date)).toBe(date)
     expect(serializeJsonParameter(bytes)).toBe(bytes)
+  })
+
+  /**
+   * ⚠️ Medido em staging (2026-09-21): `GET /fleet/drivers` respondia 500 e o Postgres registrava
+   * `invalid input syntax for type timestamp with time zone: "Tue Jun 23 2026 18:40:41 GMT+0000
+   * (Coordinated Universal Time)"`. Numa comparação em SQL cru (`coalesce(a, b) >= ${data}`) não há
+   * coluna para o drizzle consultar, então a `Date` chega inteira ao driver — e com `prepare: false`
+   * o Bun a converte com `String()`, que o Postgres não sabe ler. A suíte não via porque os testes
+   * criam o provider **com** preparo.
+   */
+  test('Date vira ISO — sem coluna para tipar, o driver a converteria com String()', () => {
+    const date = new Date('2026-09-11T20:24:00.000Z')
+
+    expect(serializeJsonParameter(date)).toBe('2026-09-11T20:24:00.000Z')
+    expect(serializeJsonParameters([date, 'queued'])).toEqual([
+      '2026-09-11T20:24:00.000Z',
+      'queued',
+    ])
   })
 
   test('the parameter list keeps positions, serializing only what is structured', () => {
