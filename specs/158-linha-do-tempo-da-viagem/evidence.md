@@ -1098,3 +1098,61 @@ Registro de três defeitos encontrados durante T9–T10, fora do escopo desta sp
    transação e escrevem sem `WHERE status = :fromStatus`. Pergunta: acrescentar a guarda?
 
 Registrados em `specs/PERGUNTAS-ABERTAS.md` como itens 27, 28, 29 (data 2026-09-18, origem ADR-0068).
+
+## T12
+
+**Parte 1 — motivo do encerramento na linha do tempo.**
+
+- `trip-timeline.types.ts`: `TripTimelineItem.closeReason` (`string | null`), documentado como "só
+  em `trip.status_changed` para `completed` manual".
+- `trip-timeline-status.query.ts#listStatusChangedRows`: `innerJoin(trips, companyId + id)`,
+  `closeReason: row.toStatus === 'completed' ? row.closeReason : null` — mapeado na leitura, nunca
+  no banco, porque `trips.close_reason` sobrevive a qualquer transição seguinte da mesma viagem
+  (provado no teste "closeReason não vaza para trip.status_changed que não seja completed"). As
+  outras cinco fontes (`listDispatchedRows`, `listDocumentOccurrenceRows`,
+  `listDocumentStatusChangedRows`, `listStopEventRows`, `listStopOccurrenceRows`) ganharam
+  `closeReason: null` para fechar o tipo.
+- Prova de que "derivado nunca tem motivo": `trip-timeline.integration.ts` insere um
+  `trip_status_events` com `toStatus = 'completed'` **sem** tocar `trips.close_reason` (molda a
+  viagem que fechou pela última nota baixada) e confere `closeReason` nulo — ao lado do teste do
+  encerramento manual (com `close_reason` gravado) e do teste que prova que um `close_reason`
+  antigo não vaza para um evento `separating` da mesma viagem.
+- Frontend: `TripTimelineItem.closeReason`, `TRIP_TIMELINE_ITEM_KEYS`, `isTimelineItem` (validador
+  estrito), locale pt-BR/en (`eventTimeline.closeReason`) e o item da linha do tempo mostrando o
+  motivo — mesmo molde visual de `eventTimeline.returnReason`, condicionado a
+  `kind === 'trip.status_changed' && toStatus === 'completed'`.
+
+**Parte 2 — viagem cancelada recusa `close` (defeito (2) da T11 / PERGUNTAS-ABERTAS #28).**
+
+- `trip-state.policy.ts`: `TRIP_ACTION.close` novo, dispatch em `checkTripTransition` para
+  `checkClose` — bloqueia `cancelled` com `TRIP_TRANSITION_BLOCK.tripCancelled` (o mesmo código já
+  usado por `cancel`/`dispatch`/`planRoute`), `completed` responde `unchanged` e qualquer outro
+  status vai para `completed`.
+- `trip.use-case.ts#close`: troca o `if (trip.status === 'completed') return trip` solto por
+  `checkTripTransition({ action: TRIP_ACTION.close, ... })`, tratando `blocked` (lança
+  `TripStateTransitionNotAllowedError`) e `unchanged` (idempotente, sem gravar) antes da checagem de
+  motivo — viagem cancelada nunca chega a perguntar se precisa de motivo.
+- `specs/PERGUNTAS-ABERTAS.md` item 28 marcado como resolvido.
+
+**Gates**
+
+- `bun run typecheck` (raiz) — exit 0, seis apps (api, worker, cron, frontend-transportada,
+  frontend-client, frontend-landing).
+- `bun run lint` (raiz) — exit 0.
+- `bunx prettier --check .` — "All matched files use Prettier code style!".
+- `bun run --cwd apps/frontend-transportada test` (suíte principal + `test:hooks`) — 4699 + 40 pass,
+  0 fail.
+- API contrato, de dentro de `apps/api-transportada`:
+  `bun --env-file=../../.env.test test --timeout 120000` — 6728 pass, 0 fail. (O Postgres do Docker
+  em `65432` está fora do ar — rodado com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` apontando para
+  o Postgres nativo descartável em `127.0.0.1:65433`, role `postgres`.)
+- API integração:
+  `bun --env-file=../../.env.test run test:integration` — 484 pass, 8 fail (mesmo Postgres nativo).
+  As 8 falhas são `toll-booth-extract-storage.integration.ts`/`toll-booth-reload.integration.ts`
+  (`ObjectStorageError: Object storage is unavailable` — MinIO fora do ar neste ambiente, `make up`
+  não rodado nesta sessão), nada em `trip-timeline`/`trip-domain`/`trip-application`. Os 16 testes de
+  `trip-timeline.integration.ts` (13 pré-existentes + 3 novos da Parte 1) passaram.
+- `bun run --cwd apps/api-transportada db:generate --name t12-no-op` — `{"status":"no_changes"}`:
+  esta task não mexe em schema.
+
+**Em aberto:** nenhum. `git fetch` sem avanço em `origin/staging` no momento da entrega.

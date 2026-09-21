@@ -345,6 +345,28 @@ describe('trip use case contract', () => {
     expect(fixture.closeCalls).toEqual([])
   })
 
+  // spec 158 T12 (PERGUNTAS-ABERTAS #28): `close` passa por `checkTripTransition`, então uma
+  // viagem cancelada nunca vira `completed` pelo botão de encerrar.
+  test('refuses to close a cancelled trip', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'cancelled' }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .close({
+        context: CONTEXT,
+        correlationId: CORRELATION_ID,
+        ipAddress: IP_ADDRESS,
+        reason: null,
+        tripId: TRIP_ID,
+      })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
+    expect((error as ApiError).status).toBe(409)
+    expect(fixture.closeCalls).toEqual([])
+  })
+
   // spec 156 T8c (ADR-0067): nota em aberto (nem entregue, nem devolvida, nem liberada) exige motivo.
   test('refuses to close a trip with an open document and no reason', async () => {
     const fixture = createFixture({ stored: openTrip({ documents: [documentDetail()] }) })

@@ -106,6 +106,21 @@ contrato/aceite vem **antes** da implementação em toda task de código.
       lida fora da transação — o evento pode registrar uma transição proibida (ADR-0068
       "Consequências").
 
+## Fase 8 — O motivo do encerramento (spec 156 T8c)
+
+> 🤖 Modelo: `sonnet`
+
+- [x] **T12 — A linha do tempo mostra por que a viagem foi encerrada.** A spec 156 T8c passou a
+      exigir motivo para encerrar viagem com nota em aberto e gravou `trips.close_reason`, mas o
+      item `trip.status_changed → completed` não carrega esse texto: a tela mostra quem encerrou e
+      por qual canal, e não o porquê. O item da linha do tempo passa a trazer o motivo do
+      encerramento manual (`trips.close_reason`, junção na consulta de status — o encerramento
+      manual é o único `completed` possível, porque a derivação automática não roda em viagem já
+      `completed` e o `close` volta cedo nela). Tipos, validador estrito e locale pt-BR/en no mesmo
+      commit. Junto sai o defeito (2) da T11: `close` aceita `cancelled → completed`
+      (`trip.use-case.ts` não passa por `checkTripTransition`) — viagem cancelada passa a recusar o
+      encerramento, com o código de erro que a máquina de estados já usa.
+
 ## Prompt de execução
 
 ```text

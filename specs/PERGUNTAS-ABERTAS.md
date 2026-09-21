@@ -124,18 +124,19 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
     > **Pergunta:** recusar com 409 `DOCUMENT_ALREADY_SETTLED` igual ao escritório faz, ou deduplicar
     > na leitura da linha do tempo?
 
-28. Transição proibida `cancelled → completed` no `close` (2026-09-18, ADR-0068)
+28. ~~Transição proibida `cancelled → completed` no `close`~~ — **resolvida na 158 T12**
+    (2026-09-18, ADR-0068)
 
-        O caso de uso `close` não passa por `checkTripTransition` antes de escrever. A viagem pode passar de
+        O caso de uso `close` não passava por `checkTripTransition` antes de escrever. A viagem podia passar de
         `cancelled` direto para `completed`, transição que a política de transitions proíbe.
 
-        **Local:** `apps/api-transportada/src/trips/application/trip.use-case.ts:106`. A linha só protege
-        contra `close` duplo no estado `closed`; falta a guarda de `checkTripTransition(trip.status,
+        **Local:** `apps/api-transportada/src/trips/application/trip.use-case.ts`. A linha só protegia
+        contra `close` duplo no estado `completed`; faltava a guarda de `checkTripTransition`.
 
-    'completed')`.
-
-        > **Pergunta:** bloquear com 409 `TRIP_STATUS_NOT_ALLOWED` (ou equivalente), ou permitir essa
-        > transição especial do ciclo de cancelamento?
+        > **Resolvida:** `close` agora chama `checkTripTransition({ action: TRIP_ACTION.close, ... })`
+        > (`trip-state.policy.ts`); viagem `cancelled` recusa com 409 `STATE_TRANSITION_NOT_ALLOWED`
+        > (`TRIP_CANCELLED`) — o mesmo código que as demais transições proibidas já usam. `completed`
+        > continua idempotente.
 
 29. Escrita sem guarda de origem em quatro writers (2026-09-18, ADR-0068)
 

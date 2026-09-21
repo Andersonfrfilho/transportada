@@ -3,7 +3,11 @@
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
-import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import {
+  TRIP_ACTION,
+  checkTripAcceptsLinkage,
+  checkTripTransition,
+} from '../domain/trip-state.policy.js'
 import { checkTripCloseRequiresReason } from '../domain/trip-close.policy.js'
 import {
   TripCloseReasonRequiredError,
@@ -103,7 +107,20 @@ export function createTripUseCase(dependencies: {
   return {
     async close({ context, correlationId, ipAddress, reason, tripId }) {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
-      if (trip.status === 'completed') return trip
+
+      /**
+       * Spec 158 T12 (PERGUNTAS-ABERTAS #28): `close` passa pela mesma máquina de estados das
+       * demais transições manuais — sem isso, `cancelled → completed` era aceito.
+       */
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.close,
+        hasRoute: false,
+        tripStatus: trip.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+      if (transition.outcome === 'unchanged') return trip
 
       if (reason === null && checkTripCloseRequiresReason(trip.documents)) {
         throw new TripCloseReasonRequiredError()
