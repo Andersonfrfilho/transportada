@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+import {
+  PACKAGING_UNIT_COUNT_MAXIMUM,
+  PACKAGING_UNIT_COUNT_PREFIXES,
+} from './package-box-family.constant.js'
+
 /**
  * Prefixo com menos tokens é categoria + tamanho, sem marca: `AZEITE 500ML` junta garrafa PET com
  * garrafa de vidro. Medido sobre as caixas de produção, esse piso derruba só essa família.
@@ -11,7 +16,9 @@ export const MINIMUM_FAMILY_PREFIX_TOKENS = 3
 /** Guloso de propósito: cortar no primeiro dígito juntaria `REFR TANG 18G PACK 15` com o sachê avulso. */
 const FAMILY_PREFIX_PATTERN = /^.*[0-9][^ ]*/
 
-const PACKAGING_UNIT_COUNT_PATTERN = /([0-9]+)$/
+const PACKAGING_UNIT_COUNT_PATTERN = new RegExp(
+  `^(${PACKAGING_UNIT_COUNT_PREFIXES.join('|')})([0-9]+)$`,
+)
 
 /**
  * Palavras que descrevem a embalagem, nao o sabor. Medidas sobre os rotulos de producao: quando uma
@@ -123,10 +130,12 @@ export function buildPackagingKey(params: PackagingKeyParams): string {
 /** A unidade comercial carrega a contagem no sufixo (`CX36`, `FR12`) — é o que o conferente confere. */
 export function resolvePackagingUnitCount(commercialUnit: string): number | undefined {
   const digits =
-    PACKAGING_UNIT_COUNT_PATTERN.exec(normalizeCommercialUnit(commercialUnit))?.[1] ?? ''
+    PACKAGING_UNIT_COUNT_PATTERN.exec(normalizeCommercialUnit(commercialUnit))?.[2] ?? ''
   const count = Number.parseInt(digits, 10)
 
-  return Number.isSafeInteger(count) && count > 0 ? count : undefined
+  return Number.isSafeInteger(count) && count > 0 && count <= PACKAGING_UNIT_COUNT_MAXIMUM
+    ? count
+    : undefined
 }
 
 /**
