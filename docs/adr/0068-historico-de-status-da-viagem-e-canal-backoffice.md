@@ -148,11 +148,14 @@ regra cai junto — o contrato da leitura (spec 158 T5) cita esta seção.
 - **Ordem entre fontes.** O evento de status da chegada e da entrega usa o mesmo `now` do caso de uso
   que grava o `trip_stop_event`. Empate é desfeito por `(occurred_at, prioridade do tipo, id)`: a
   chegada antes da troca de status que ela causa, a entrega antes da conclusão.
-- **O evento pode registrar uma transição que a política proibiria.** `dispatch`, `markRoutePlanned`,
-  `markCancelled` e `close` escrevem sem condição, com a precondição lida fora da transação. A
-  tabela grava fielmente o que aconteceu; a guarda (`where status in (<origens permitidas>)`) é
-  mudança de comportamento e fica registrada à parte (spec 158 T11), com o `close` aceitando
-  `cancelled → completed`.
+- ~~**O evento pode registrar uma transição que a política proibiria.**~~ **Resolvido** — spec 158
+  T12 e T13 (2026-09-21). Era verdade no desenho original: `dispatch`, `markRoutePlanned`,
+  `markCancelled` e `close` liam a precondição fora da transação e escreviam sem condição. Hoje os
+  quatro reconferem `checkTripTransition` **dentro** da transação, com o status travado pelo
+  `FOR NO KEY UPDATE`, e o `UPDATE trips` é compare-and-set (`where status = <o status travado>`).
+  A corrida perdida responde 409 `STATE_TRANSITION_NOT_ALLOWED`, onde antes era ignorada em
+  silêncio; `close` também deixou de aceitar `cancelled → completed`. O que continua lido fora da
+  transação é o `hasRoute` de `dispatch`/`markRoutePlanned` — o eixo travado é `trips.status`.
 - A linha do tempo passa a ter o início de rota do motorista, que hoje se perde.
 - Viagens anteriores ao deploy não têm histórico de status; a tela não inventa.
 - Duas escritas ganham transação (`markRoutePlanned`, `updateStatus`) e todas ganham um `FOR UPDATE`
@@ -163,7 +166,7 @@ regra cai junto — o contrato da leitura (spec 158 T5) cita esta seção.
 
 ## Achados registrados, fora desta decisão
 
-- `close` aceita `cancelled → completed`: a checagem está em `trip.use-case.ts:106` e não passa por
-  `checkTripTransition`. Registrado na T11 da spec 158.
+- ~~`close` aceita `cancelled → completed`~~ — **resolvido na spec 158 T12** (2026-09-21): o `close`
+  passou a consultar `checkTripTransition`, e viagem cancelada recusa com 409.
 - A entrega pelo motorista não leva a viagem a `on_delivery_route` (`markDocumentDelivered` não chama
   `deriveTripStatus`); só `completeTripIfSettled` age. Comportamento atual preservado.

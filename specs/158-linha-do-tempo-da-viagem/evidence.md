@@ -1155,6 +1155,36 @@ Registrados em `specs/PERGUNTAS-ABERTAS.md` como itens 27, 28, 29 (data 2026-09-
 - `bun run --cwd apps/api-transportada db:generate --name t12-no-op` — `{"status":"no_changes"}`:
   esta task não mexe em schema.
 
+### Revisão da T13 (`code-reviewer`, opus): aprovada, com quatro ajustes levados junto
+
+A revisão confirmou o principal, medindo: o teste de concorrência roda **vermelho no código
+anterior** (`0 pass · 4 fail`, um por escritor) e verde aqui; o `FOR NO KEY UPDATE` já serializa as
+transações, então o compare-and-set é defesa em profundidade, não redundância inútil; nenhum
+caminho grava `trip_status_events` sem o `UPDATE` ter afetado linha; e a repetição normal do usuário
+continua respondendo 200, porque o portão do caso de uso resolve antes de chegar ao repositório.
+
+Corrigido depois dela:
+
+- **`close` que perdia o compare-and-set respondia 404.** `return null` virava
+  `TripNotFoundError` — "viagem não encontrada" para uma viagem que existe. Agora relê o status
+  dentro da transação e deixa a própria `checkTripTransition` dar o motivo do conflito; se o status
+  novo ainda permitir encerrar (corrida benigna), devolve o detalhe em vez de inventar erro.
+  ⚠️ Caminho **sem teste**: com todos os escritores de hoje travando a linha, ele é inalcançável — é
+  defesa para o dia em que alguém escrever `trips.status` sem lock.
+- **ADR-0068** descrevia o defeito como aberto, e é o documento que os comentários do código citam.
+  As duas passagens ("Consequências" e "Achados registrados") agora dizem que T12 e T13 o
+  resolveram, e o que **continua** fora da transação (`hasRoute`).
+- **`apps/api-transportada/CLAUDE.md`**: o parágrafo da escrita de status passou a exigir a
+  reconferência e o compare-and-set de quem criar o próximo escritor.
+- **O comentário de `hasRoute`** em `dispatch-trip`/`plan-trip-route` dizia "reconferido dentro da
+  transação", o que não é verdade: o que se reconfere sob o lock é o status.
+
+Ficaram registrados, sem correção: o teste de tela `close-detail-line.contract.ts` compara texto do
+fonte com indentação literal (molde já existente no repo, paga juros num refactor); o
+`trip-detail-query-count` não exercita viagem encerrada, então ninguém afirma que a junção do nome é
++1 constante; e `raceAgainstBlocker` não espera o perdedor aparecer em `pg_locks` antes de liberar o
+bloqueador (passa nas duas ordens, não é instável).
+
 **Em aberto:** nenhum. `git fetch` sem avanço em `origin/staging` no momento da entrega.
 
 ## T13 — guarda de origem nos quatro escritores de trips.status

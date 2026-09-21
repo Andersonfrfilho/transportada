@@ -216,7 +216,11 @@ opcional e ausente não mexe). O escritório lê **só** o interruptor em `GET
 **Toda troca de `trips.status` grava `trip_status_events`** (spec 158, ADR-0068): um só escritor,
 `recordTripStatusChange`, na mesma transação e só quando mudou; `SELECT … FOR NO KEY UPDATE`
 **imediatamente antes** do `UPDATE trips` (nunca `FOR UPDATE`: deadlock com o `FOR KEY SHARE` das
-inserções com FK para `trips`). Canal decidido na composição: web `backoffice`, WhatsApp do operador
+inserções com FK para `trips`). ⚠️ **Escritor novo de `trips.status` reconfere
+`checkTripTransition` depois do lock e escreve por compare-and-set** (`where status = <o status
+travado>`, spec 158 T13): a precondição do caso de uso foi lida fora da transação, e sem isso a
+corrida gravava em `trip_status_events` uma transição que a política proibia. Corrida perdida
+responde 409 `STATE_TRANSITION_NOT_ALLOWED` — nunca 404, e nunca silêncio. Canal decidido na composição: web `backoffice`, WhatsApp do operador
 `whatsapp`, motorista `driver_app`, escritório em nome do motorista `office`. Contrato estático
 `test/trip-schema/trip-status-writers.contract.ts` reprova `update(trips)` com `status` sem o evento.
 ⚠️ Em `trip_document_events`, `channel = 'driver_app'` é **canal não registrado** (histórico anterior,

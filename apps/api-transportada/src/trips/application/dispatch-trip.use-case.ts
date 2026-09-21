@@ -31,7 +31,11 @@ export type DispatchTripWriteInput = {
   /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
   readonly forced: boolean
   readonly forceReason: string | null
-  /** Defeito 29 (ADR-0068 "Consequências"): reconferido dentro da transação, com o status travado. */
+  /**
+   * Spec 158 T13: o que a transação reconfere sob o lock é o **status**. Este `hasRoute` é o valor
+   * da decisão do caso de uso, ainda lido fora dela — roteiro apagado na janela fica fora do
+   * escopo da T13, e o eixo protegido é `trips.status`.
+   */
   readonly hasRoute: boolean
   readonly onBehalfOfDriverId: string | null
   readonly tripId: string

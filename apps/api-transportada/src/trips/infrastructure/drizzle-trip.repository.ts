@@ -186,7 +186,32 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           ),
         )
         .returning({ id: trips.id })
-      if (closed === undefined) return null
+      /**
+       * Perder o compare-and-set não é "viagem não encontrada" — ela existe, e alguém mudou o
+       * status debaixo do lock. Devolver `null` aqui traduziria a corrida em 404 (revisão da T13);
+       * o motivo do conflito vem da própria máquina de estados, lida sobre o status novo.
+       */
+      if (closed === undefined) {
+        const [currentRow] = await transaction
+          .select({ status: trips.status })
+          .from(trips)
+          .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+          .limit(1)
+        if (currentRow === undefined) return null
+        const current = checkTripTransition({
+          action: TRIP_ACTION.close,
+          hasRoute: false,
+          tripStatus: currentRow.status,
+        })
+        if (current.outcome === 'blocked') {
+          throw new TripStateTransitionNotAllowedError(current.reason)
+        }
+        return readTripDetail(transaction, {
+          cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
+      }
 
       await recordTripStatusChange(transaction, {
         actorUserId: input.actorUserId,
