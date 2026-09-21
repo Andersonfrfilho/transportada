@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
+import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDeliveryProofs,
@@ -405,9 +406,11 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .update(tripStops)
       .set({
         ...(input.fillMissingArrival
-          ? { arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${input.at})` }
+          ? {
+              arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${timestamptzParameter(input.at)})`,
+            }
           : {}),
-        completedAt: sql`coalesce((${lastSettledAt}), ${input.at})`,
+        completedAt: sql`coalesce((${lastSettledAt}), ${timestamptzParameter(input.at)})`,
         updatedAt: input.at,
       })
       .where(

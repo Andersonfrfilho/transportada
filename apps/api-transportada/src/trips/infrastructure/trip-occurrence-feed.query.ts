@@ -18,6 +18,7 @@ import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
+import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
@@ -78,10 +79,14 @@ function periodConditions(
 ): readonly SQL[] {
   const conditions: SQL[] = []
   if (filters?.createdFrom !== undefined) {
-    conditions.push(sql`${createdAtColumn} >= ${new Date(filters.createdFrom)}`)
+    conditions.push(
+      sql`${createdAtColumn} >= ${timestamptzParameter(new Date(filters.createdFrom))}`,
+    )
   }
   if (filters?.createdUntil !== undefined) {
-    conditions.push(sql`${createdAtColumn} <= ${new Date(filters.createdUntil)}`)
+    conditions.push(
+      sql`${createdAtColumn} <= ${timestamptzParameter(new Date(filters.createdUntil))}`,
+    )
   }
   return conditions
 }
