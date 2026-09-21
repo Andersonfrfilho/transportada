@@ -56,9 +56,12 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4** Erros novos — `trip.error.ts`: `OccurrencePhotoRequiredError` (422),
+- [x] **T4** Erros novos — `trip.error.ts`: `OccurrencePhotoRequiredError` (422),
       `TripOccurrenceAttachmentLimitError` (409), `TripOccurrenceNotFoundError` (404).
   - Critério de aceite: contrato confere código, status e ausência de PII na mensagem.
+  - O mapeamento de `23505`/`23514` (posição do INSERT monotônico) para
+    `TripOccurrenceAttachmentLimitError` **não** entrou nesta task — comentário deixado na própria
+    classe apontando para T6/T7, que é quem chama `insertOccurrenceAttachment`. Ver `evidence.md`.
 
 - [ ] **T5** Foto obrigatória **no caso de uso** (D1/RF4) — `register-trip-occurrence.use-case.ts`
       passa a receber `attachment?` e a recusar etapa `separation` sem anexo, antes de

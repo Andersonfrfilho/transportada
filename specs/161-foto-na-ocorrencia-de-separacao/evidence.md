@@ -266,3 +266,40 @@ arquivo).
   expiração) e do fato de nenhum `stored_objects` anterior a esta spec ter `retention_until`
   preenchido (`plan.md`, premissas verificadas: "nenhuma app escreve
   `stored_objects.retention_until`... hoje"). Um objeto sem data de retenção não tem como "vencer".
+
+## T4 — erros novos (`OccurrencePhotoRequiredError`, `TripOccurrenceAttachmentLimitError`,
+
+`TripOccurrenceNotFoundError`)
+
+### Vermelho → verde
+
+`test/trip-occurrence/attachment-errors.contract.ts` importava as três classes antes de elas
+existirem em `src/trips/domain/trip.error.ts` — vermelho por `Cannot find module` seria o caso se o
+arquivo já existisse sem os exports; como o arquivo era novo, o vermelho apareceu como falha de
+resolução de import ao rodar `bun test
+./test/trip-occurrence.contract.test.ts` antes de tocar em `trip.error.ts`. Depois de acrescentar as
+três classes (código, status, mensagem sem interpolar id): **96 pass, 0 fail**, 215 `expect()`.
+
+### Escopo do mapeamento 23505/23514
+
+Confirmado o que T1 e o comentário de `drizzle-occurrence-attachment.repository.ts` já registravam:
+mapear as duas SQLSTATE (`trip_document_occurrence_attachments_unique_position` → `23505`,
+`trip_document_occurrence_attachments_position_check` → `23514`) para `TripOccurrenceAttachmentLimitError`
+por **nome de constraint** é do caso de uso que insere o anexo (T6/T7), não desta task — T4 só
+declara o erro. Comentário deixado em `trip.error.ts` apontando para T6/T7 e para os dois SQLSTATE, e
+o `tasks.md` já carregava esse apontamento desde a T1.
+
+### Gates
+
+- `bun test ./test/trip-occurrence.contract.test.ts` → **96 pass, 0 fail**, 215 `expect()`.
+- `bun run --cwd apps/api-transportada test` (suíte completa de contrato) → **6767 pass, 32 skip, 0
+  fail**, 23250 `expect()` em 182 arquivos.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde.
+
+### Decisões além do que a spec fixava
+
+Nenhuma — os três erros seguem literalmente o molde de `TripDocumentNotFoundError`/
+`TripDeliveryProofPhotoRequiredError`/`TripDocumentAlreadySettledError` já existentes no arquivo
+(`code`, `message`, `status`, sem campo de contexto).

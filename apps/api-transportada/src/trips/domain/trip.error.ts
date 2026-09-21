@@ -574,3 +574,50 @@ export class TripDeliveryProofPhotoRequiredError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 161 D1/RF4: a ocorrência de galpão passou a exigir foto — a recusa é do **caso de uso**
+ * (`register-trip-occurrence.use-case.ts`), antes de gravar, do storage e da auditoria, nunca da
+ * rota. O motivo mora ali: a fase 4 desta spec faz o WhatsApp mandar foto pelo mesmo caso de uso, e
+ * a regra na rota HTTP deixaria o outro canal passar por fora.
+ */
+export class OccurrencePhotoRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PHOTO_REQUIRED',
+      message: 'A photo is required to register this occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 161 T1/T6: o teto de cinco anexos por ocorrência, travado no banco por dois caminhos —
+ * `trip_document_occurrence_attachments_unique_position` (`23505`) e
+ * `trip_document_occurrence_attachments_position_check` (`23514`). Os dois convergem para este erro
+ * no caso de uso que insere o anexo (T6/T7); cobrir só o `23505` faz a sexta foto virar 500.
+ */
+export class TripOccurrenceAttachmentLimitError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_LIMIT',
+      message: 'This occurrence already has the maximum number of photos.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 161 RF6: a rota de anexo adicional (`attach-occurrence-photo.use-case.ts`) resolve a
+ * ocorrência pela empresa do contexto — de outra empresa, ou inexistente, respondem igual, porque
+ * distinguir os dois diria a quem tenta se aquele identificador existe em algum lugar.
+ */
+export class TripOccurrenceNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NOT_FOUND',
+      message: 'The occurrence was not found for this trip.',
+      status: 404,
+    })
+  }
+}
