@@ -21,6 +21,7 @@ describe('Pre-deploy da API', () => {
       migrate: async () => {
         order.push('migrate')
       },
+      verifyMigrationsComplete: async () => 0,
       provision: async () => {
         order.push('provision')
         return ['company']
@@ -34,16 +35,23 @@ describe('Pre-deploy da API', () => {
   test('ambiente sem empresa declarada migra e reporta o provisionamento pulado', async () => {
     const report = await runPreDeploy({
       migrate: async () => undefined,
+      verifyMigrationsComplete: async () => 0,
       provision: undefined,
       seedTemplates: undefined,
     })
 
-    expect(report).toEqual({ migrated: true, provisioning: 'skipped', templates: 'skipped' })
+    expect(report).toEqual({
+      migrated: true,
+      migrationsChecked: 0,
+      provisioning: 'skipped',
+      templates: 'skipped',
+    })
   })
 
   test('reporta o que foi criado para o deploy virar evidência', async () => {
     const report = await runPreDeploy({
       migrate: async () => undefined,
+      verifyMigrationsComplete: async () => 215,
       provision: async () => ['company'],
       seedTemplates: async () => 4,
     })
@@ -51,6 +59,7 @@ describe('Pre-deploy da API', () => {
     expect(report).toEqual({
       created: ['company'],
       migrated: true,
+      migrationsChecked: 215,
       provisioning: 'ensured',
       templates: 4,
     })
@@ -67,6 +76,7 @@ describe('Pre-deploy da API', () => {
       migrate: async () => {
         order.push('migrate')
       },
+      verifyMigrationsComplete: async () => 0,
       provision: async () => {
         order.push('provision')
         return []
@@ -88,6 +98,7 @@ describe('Pre-deploy da API', () => {
       migrate: async () => {
         throw new Error('migration failed')
       },
+      verifyMigrationsComplete: async () => 0,
       provision: async () => {
         provisioned = true
         return []
@@ -96,6 +107,68 @@ describe('Pre-deploy da API', () => {
 
     expect(failure).toBeInstanceOf(Error)
     expect(provisioned).toBe(false)
+  })
+
+  // O incidente medido em 19/09/2026: `migrate()` retornou sem erro com 22 migrations sem aplicar.
+  // A verificação tem de rodar sempre, e reprovar o deploy antes de provisionar ou semear.
+  test('migration pendente aborta antes de provisionar e de semear', async () => {
+    let provisioned = false
+    let seeded = false
+
+    const failure = await runPreDeploy({
+      migrate: async () => undefined,
+      verifyMigrationsComplete: async () => {
+        throw new Error('2 shipped migration(s) were not applied to the database')
+      },
+      provision: async () => {
+        provisioned = true
+        return []
+      },
+      seedTemplates: async () => {
+        seeded = true
+        return 0
+      },
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(provisioned).toBe(false)
+    expect(seeded).toBe(false)
+  })
+
+  // Sem provisionamento configurado a verificação continua obrigatória — não é um passo opcional.
+  test('migration pendente aborta mesmo sem provisionamento configurado', async () => {
+    let seeded = false
+
+    const failure = await runPreDeploy({
+      migrate: async () => undefined,
+      verifyMigrationsComplete: async () => {
+        throw new Error('1 shipped migration(s) were not applied to the database')
+      },
+      provision: undefined,
+      seedTemplates: async () => {
+        seeded = true
+        return 0
+      },
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(seeded).toBe(false)
+  })
+
+  test('sem migration pendente segue o fluxo normal e reporta quantas foram conferidas', async () => {
+    const report = await runPreDeploy({
+      migrate: async () => undefined,
+      verifyMigrationsComplete: async () => 3,
+      provision: undefined,
+      seedTemplates: undefined,
+    })
+
+    expect(report).toEqual({
+      migrated: true,
+      migrationsChecked: 3,
+      provisioning: 'skipped',
+      templates: 'skipped',
+    })
   })
 
   /**

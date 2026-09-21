@@ -17,7 +17,7 @@ const MIGRATIONS_DIRECTORY_CANDIDATES = [
 ] as const
 
 /** Journal do próprio drizzle: fica fora de `database.schema.ts` para o drizzle-kit não gerá-lo. */
-const migrationJournal = pgSchema('drizzle').table('__drizzle_migrations', {
+export const migrationJournal = pgSchema('drizzle').table('__drizzle_migrations', {
   name: text('name'),
 })
 

@@ -13,9 +13,12 @@ import {
   readEnvironmentProvisioningConfiguration,
   runEnvironmentProvisioning,
 } from './environment-provisioning.service.js'
+import { assertMigrationsAreComplete } from './migration-completeness.service.js'
 
 export type PreDeploySteps = {
   readonly migrate: () => Promise<void>
+  /** Lança `MigrationsPendingError` quando a pasta enviada tem migration que o banco não aplicou. */
+  readonly verifyMigrationsComplete: () => Promise<number>
   readonly provision: (() => Promise<readonly ProvisionedArtifact[]>) | undefined
   /** O texto do aviso vem do catálogo em código; sem esta passada ele fica no do deploy anterior. */
   readonly seedTemplates?: (() => Promise<number>) | undefined
@@ -24,30 +27,44 @@ export type PreDeploySteps = {
 export type PreDeployReport =
   | {
       readonly migrated: true
+      readonly migrationsChecked: number
       readonly provisioning: 'skipped'
       readonly templates: number | 'skipped'
     }
   | {
       readonly created: readonly ProvisionedArtifact[]
       readonly migrated: true
+      readonly migrationsChecked: number
       readonly provisioning: 'ensured'
       readonly templates: number | 'skipped'
     }
 
 /**
  * A Railway aceita um `preDeployCommand` só e o executa como argv, sem shell — encadear com
- * `&&` roda apenas o primeiro comando e deixa o deploy verde sem provisionar. Os dois passos
- * do arranque vivem aqui, num processo só, com a ordem garantida por código.
+ * `&&` roda apenas o primeiro comando e deixa o deploy verde sem provisionar. Os passos do arranque
+ * vivem aqui, num processo só, com a ordem garantida por código.
+ *
+ * `verifyMigrationsComplete` roda logo depois de `migrate()`: o passo de migration só sabe dizer
+ * "eu rodei", nunca "não sobrou nada" — em 19/09/2026 isso deixou 22 migrations da imagem sem
+ * aplicar em staging por dias, com rotas respondendo 500. A trava fica antes de provisionar e de
+ * semear, para nada rodar contra um schema incompleto.
  */
 export async function runPreDeploy({
   migrate,
+  verifyMigrationsComplete,
   provision,
   seedTemplates,
 }: PreDeploySteps): Promise<PreDeployReport> {
   await migrate()
+  const migrationsChecked = await verifyMigrationsComplete()
 
   if (provision === undefined) {
-    return { migrated: true, provisioning: 'skipped', templates: await runSeed(seedTemplates) }
+    return {
+      migrated: true,
+      migrationsChecked,
+      provisioning: 'skipped',
+      templates: await runSeed(seedTemplates),
+    }
   }
 
   const created = await provision()
@@ -56,6 +73,7 @@ export async function runPreDeploy({
   return {
     created,
     migrated: true,
+    migrationsChecked,
     provisioning: 'ensured',
     templates: await runSeed(seedTemplates),
   }
@@ -80,6 +98,7 @@ if (import.meta.main) {
     migrate: async () => {
       await runAllDatabaseMigrations({ connectionString })
     },
+    verifyMigrationsComplete: async () => assertMigrationsAreComplete({ connectionString }),
     // Ambiente que ainda não declarou empresa não tem a quem pertencer o template.
     seedTemplates:
       companyId === undefined

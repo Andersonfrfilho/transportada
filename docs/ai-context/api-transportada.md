@@ -1386,6 +1386,24 @@ conexão**, embora a documentação diga que é: medido, ele recusou uma consult
 escopo não é cancelada pelo aborto**. Contratos em `test/database-availability.contract.test.ts` e
 `test/integration/database-availability.integration.ts`.
 
+**O pre-deploy reprova quando sobra migration pendente.** Medido em staging 19/09/2026: o
+`preDeployCommand` (`bun src/database/pre-deploy.service.ts`) rodou `migrate()` em menos de um
+segundo, imprimiu `{"migrated":true,...}` e **não aplicou 22 migrations que estavam na imagem** — o
+banco ficou com 193 de 215 aplicadas por dias, e rotas de viagem, frota, caixa e webhook respondiam
+500 com SQLSTATE 42703 (coluna inexistente). O passo só sabia dizer "eu rodei", nunca "não sobrou
+nada". `assertMigrationsAreComplete` (`src/database/migration-completeness.service.ts`) fecha essa
+lacuna: lê a mesma pasta que o drizzle lista (subpasta com `migration.sql`) e o journal
+`drizzle.__drizzle_migrations` (tabela ausente conta como nenhuma migration aplicada, banco recém
+criado não é erro), compara pela função pura já existente `listPendingMigrations`
+(`migration-status.policy.ts` — a mesma que sustenta a readiness de `/health/ready`, reaproveitada em
+vez de duplicada) e lança `MigrationsPendingError` (`migration-completeness.error.ts`, com a
+contagem e os nomes) quando sobra pendência. `runPreDeploy` chama isso logo depois de `migrate()` e
+antes de provisionar e de semear templates (`pre-deploy.service.ts`): migration pendente aborta o
+deploy inteiro, nunca deixa os passos seguintes rodarem contra um schema incompleto. Contratos em
+`test/database-migration/pre-deploy.contract.ts` (com fakes, sem banco) e
+`test/integration/migration-completeness.integration.ts` (Postgres de verdade, reproduzindo o
+journal pela metade).
+
 **O WhatsApp vira canal de comando** (spec 144, `whatsapp-commands`, ADR-0063/ADR-0064). Até aqui o
 WhatsApp só recebia e mostrava mensagem na inbox (spec 062); agora uma mensagem recebida executa
 ação de negócio — separar nota, despachar viagem, registrar entrega ou ocorrência, emitir CT-e/NFS-e

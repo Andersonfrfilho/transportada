@@ -51,6 +51,13 @@ fizeram o gerado recriar tabelas já aplicadas. O `db:check` **não** pega isso 
 `test/database-migration/schema-snapshot.contract.ts`. Receita e histórico: docs/ai-context §
 "Migration à mão é permitida".
 
+**O pre-deploy reprova quando sobra migration pendente** (19/09/2026): `migrate()` sozinho só sabe
+dizer "eu rodei", nunca "não sobrou nada" — em staging isso deixou 22 migrations da imagem sem
+aplicar por dias, com rotas de viagem/frota/caixa/webhook em 500 (SQLSTATE 42703). `runPreDeploy`
+agora chama `assertMigrationsAreComplete` (`migration-completeness.service.ts`) logo depois de
+`migrate()` e antes de provisionar/semear; migration pendente lança `MigrationsPendingError` e aborta
+o deploy inteiro. Detalhe completo: docs/ai-context § "O pre-deploy reprova quando sobra migration".
+
 **O banco falha rápido, e diz por quê** (spec 137, incidente 11/09/2026): `database-client.service.ts`
 monta o Bun SQL com pool e prazos explícitos (`DATABASE_POOL_MAX`, `DATABASE_CONNECT_TIMEOUT_SECONDS`,
 `DATABASE_QUERY_TIMEOUT_MS` abaixo do `REQUEST_TIMEOUT_SECONDS`); consulta que passa do prazo vira
