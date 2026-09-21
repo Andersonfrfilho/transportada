@@ -403,6 +403,7 @@
   "empty": "No trip found",
   "error": "Could not load trips",
   "eventTimeline": {
+    "closeReason": "Close reason: {{reason}}",
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
     "itemTitle": {

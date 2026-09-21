@@ -1112,6 +1112,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   return (
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
+    isNullableString(value.closeReason) &&
     (value.document === null || isTimelineDocumentReference(value.document)) &&
     isNullableString(value.fromStatus) &&
     isString(value.id) &&

@@ -11,6 +11,7 @@ import type { TripTimelineItem } from '../../src/modules/trip/shared/trip.types'
 const BASE_ITEM: TripTimelineItem = {
   actorName: 'Marina Alves',
   channel: 'office',
+  closeReason: null,
   document: { id: 'doc-1', number: '123', series: '1' },
   fromStatus: null,
   id: 'item-1',

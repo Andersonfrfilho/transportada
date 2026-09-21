@@ -192,6 +192,8 @@ export type TripTimelineItem = Readonly<{
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   channel: null | TripFieldChannel
+  /** Spec 158 T12: só em `trip.status_changed` para `completed` manual (encerramento pelo botão). */
+  closeReason: null | string
   document: null | TripTimelineDocumentReference
   /** Só em `*.status_changed`. */
   fromStatus: null | string

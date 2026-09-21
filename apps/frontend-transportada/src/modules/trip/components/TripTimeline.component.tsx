@@ -155,6 +155,13 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason
       : null
+  const closeReason =
+    item.kind === 'trip.status_changed' &&
+    item.toStatus === 'completed' &&
+    item.closeReason !== null &&
+    item.closeReason !== ''
+      ? item.closeReason
+      : null
 
   return (
     <li className={cn(styles.item, TONE_CLASS[resolveTripTimelineTone(item)])}>
@@ -173,6 +180,11 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
       {returnReason === null ? null : (
         <p className={styles.itemDetail}>
           {t('eventTimeline.returnReason', { reason: returnReason })}
+        </p>
+      )}
+      {closeReason === null ? null : (
+        <p className={styles.itemDetail}>
+          {t('eventTimeline.closeReason', { reason: closeReason })}
         </p>
       )}
       {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}

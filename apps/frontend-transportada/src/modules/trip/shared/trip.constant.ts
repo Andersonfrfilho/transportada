@@ -317,6 +317,7 @@ export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/
 export const TRIP_TIMELINE_ITEM_KEYS = [
   'actorName',
   'channel',
+  'closeReason',
   'document',
   'fromStatus',
   'id',

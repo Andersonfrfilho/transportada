@@ -525,6 +525,7 @@
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
   "eventTimeline": {
+    "closeReason": "Motivo do encerramento: {{reason}}",
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
     "itemTitle": {
