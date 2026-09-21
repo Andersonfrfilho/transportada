@@ -117,3 +117,23 @@ $ bun run test (suíte completa da api-transportada)     → 6700 pass / 0 fail 
 | `0a12ce3c` | feat(nfe): política pura de sanidade do catálogo de GTIN (spec 160, T004)               |
 | `c504072c` | feat(nfe): política pura de consenso do catálogo de GTIN (spec 160, T005)               |
 | `d1f10741` | feat(nfe): 'catalog' entra em PACKAGE_BOX_MEASUREMENT_SOURCES (spec 160, T006)          |
+
+## Correção de dados em produção — `units_per_box` (2026-09-21)
+
+Fora das tasks T001–T020. Executado pelo usuário no terminal (a escrita remota em produção é
+bloqueada para o agente), no banco `postgres-hqfu`.
+
+- **Antes:** 799 caixas, `units_per_box = 1` em 798, embora `commercial_unit` já dissesse a
+  quantidade (`CX32`, `FR20`…). Causa: o formulário abria o campo com `1` e ninguém redigitava.
+- **Regra:** a mesma de `resolvePackagingUnitCount` (lista fechada `CX FR FD DP EV PC UN`, teto
+  1000), aplicada só onde o valor era `1` e o derivado ficava entre 2 e 1000.
+- **Execução:** bloco `DO` numa transação que abortava se o número de linhas afetadas fosse diferente
+  de 791 (medido no ensaio). Saída: `NOTICE: ok: 791 caixas corrigidas`.
+- **Depois:** 799 caixas, 7 com `1` (as 7 são `UN1`, avulsas de verdade) e **0** divergentes da
+  unidade comercial.
+- **Incluiu as 100 já medidas com `1`:** nenhuma das 100 tinha sido alterada do padrão, e a única
+  caixa em que alguém mexeu (Tixan, `CX9`) já estava certa. Cem caixas de `CX12` a `CX240` serem todas
+  avulsas não é plausível.
+- **Não tocou:** `measured_at`, dimensões nem o histórico `nfe_package_box_measurements`.
+- **Rollback:** backup `id,valor_antigo,valor_novo` das 791 linhas; todas estavam em `1`, então
+  desfazer é voltar esses ids para `1`.
