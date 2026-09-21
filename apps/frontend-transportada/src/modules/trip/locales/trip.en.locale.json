@@ -15,7 +15,8 @@
     "view": "View",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
-    "fieldDelivery": "Deliver"
+    "fieldDelivery": "Deliver",
+    "separationOccurrence": "Separation occurrence"
   },
   "authorship": {
     "backoffice": "by {{actor}}",
@@ -530,7 +531,8 @@
     "editTemplates": "Edit email templates",
     "emailTemplate": "Email template",
     "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)"
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "dialogTitle": "Separation occurrence — {{document}}"
   },
   "occurrenceFeed": {
     "columns": {

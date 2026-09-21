@@ -35,6 +35,12 @@ export type TripStopDocumentActions = Readonly<{
   /** Spec 156 T11: mesma ideia da ocorrência de campo — a capacidade varia nota a nota. */
   canFieldDelivery: (documentId: string) => boolean
   canManage: boolean
+  /**
+   * A ocorrência de galpão (`separation`), ao contrário de `canFieldOccurrence`, não varia nota a
+   * nota: `trip.manage`, viagem editável e o catálogo de tipos são da viagem inteira, não da nota.
+   * Vale para toda nota, em qualquer status de separação.
+   */
+  canSeparationOccurrence: boolean
   canSeparateOrLoad: boolean
   /** `allowedActions.documents[id]` — a mesma capacidade que `TripFieldActions` consome. */
   capabilities: FieldActionCapabilities
@@ -49,6 +55,8 @@ export type TripStopDocumentActions = Readonly<{
   onOpenFieldOccurrence: (documentId: string) => void
   /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
   onOpenFieldDelivery: (documentId: string) => void
+  /** Abre `SeparationOccurrenceDialog` para esta nota (ação da linha, no galpão). */
+  onOpenSeparationOccurrence: (documentId: string) => void
   /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
   onToggleProof: (documentId: string) => void
   openProofDocumentId: null | string
@@ -380,6 +388,17 @@ function TripStopDocumentRow({
           >
             <Icon name="edit" />
             {t('deliveryOverride.menuAction')}
+          </Button>
+        ) : null}
+        {actions.canSeparationOccurrence ? (
+          <Button
+            onClick={() => actions.onOpenSeparationOccurrence(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="alert" />
+            {t('actions.separationOccurrence')}
           </Button>
         ) : null}
         {actions.canFieldOccurrence(document.id) ? (

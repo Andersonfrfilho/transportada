@@ -31,6 +31,7 @@ import {
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
+import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
 import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
@@ -44,6 +45,7 @@ import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
+import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
@@ -328,9 +330,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     [...selection.selectedIds].some((documentId) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     )
+  const canSeparationOccurrence = resolveSeparationOccurrenceButtonVisibility({
+    canManage,
+    isEditable,
+    types: workspace.occurrenceTypesQuery.data ?? [],
+  })
   const documentActions = {
     canManage,
     canSeparateOrLoad,
+    canSeparationOccurrence,
     canFieldDelivery: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     canFieldOccurrence: (documentId: string) =>
@@ -338,6 +346,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     capabilities: workspace.fieldActionCapabilities,
     onOpenFieldDelivery: (documentId: string) => setFieldDeliveryDocumentIds([documentId]),
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
+    onOpenSeparationOccurrence: (documentId: string) =>
+      workspace.setOpenSeparationOccurrenceDocumentId(documentId),
     onToggleProof: (documentId: string) =>
       workspace.setOpenProofDocumentId(
         workspace.openProofDocumentId === documentId ? null : documentId,
@@ -831,6 +841,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         types={workspace.fieldOccurrenceTypesQuery.data ?? []}
       />
 
+      <SeparationOccurrenceDialogLoader
+        documentId={workspace.openSeparationOccurrenceDocumentId}
+        documents={trip.documents}
+        onClose={() => workspace.setOpenSeparationOccurrenceDocumentId(null)}
+        workspace={workspace}
+      />
+
       {/*
        * Spec 156 T12: o envio de verdade (`useFieldDelivery`, instanciado acima — concorrência
        * limitada, retentativa só das falhas). `dispatchedAt` é `null` porque `GET /trips/:id`
@@ -1033,6 +1050,50 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         title={t('stateActions.returnTitle')}
       />
     </section>
+  )
+}
+
+/**
+ * O carregador do diálogo de ocorrência de separação (botão da linha da nota, spec do galpão sem
+ * comprovante). `documentId` nulo fecha — mesmo padrão de `TripDeliveryProofLoader` abaixo, sem
+ * consulta nenhuma disparada até o operador clicar.
+ */
+function SeparationOccurrenceDialogLoader({
+  documentId,
+  documents,
+  onClose,
+  workspace,
+}: Readonly<{
+  documentId: null | string
+  documents: readonly TripDocumentDetail[]
+  onClose: () => void
+  workspace: TripWorkspaceController
+}>) {
+  if (documentId === null) return null
+  const document = documents.find((candidate) => candidate.id === documentId)
+  if (document === undefined) return null
+
+  return (
+    <SeparationOccurrenceDialog
+      canRegister={workspace.controller.canManageTrips}
+      document={document}
+      email={workspace.registerOccurrenceMutation.data?.email ?? null}
+      isOpen
+      isRegistering={workspace.registerOccurrenceMutation.isPending}
+      occurrences={workspace.occurrencesQuery.data ?? []}
+      onClose={onClose}
+      onRegister={(occurrence) =>
+        workspace.registerOccurrenceMutation.mutate({
+          documentId,
+          note: occurrence.note,
+          occurrenceTypeId: occurrence.occurrenceTypeId,
+          productCode: occurrence.productCode,
+          tripId: document.tripId,
+        })
+      }
+      products={workspace.documentProductsQuery.data ?? []}
+      types={workspace.occurrenceTypesQuery.data ?? []}
+    />
   )
 }
 

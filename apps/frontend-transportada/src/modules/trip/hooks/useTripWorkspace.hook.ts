@@ -289,6 +289,15 @@ export function useTripWorkspace(
 
   /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
   const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+  /**
+   * Qual nota está com o diálogo de ocorrência de separação aberto (botão da linha, sem passar
+   * pelo comprovante). Mesmo padrão de `openProofDocumentId` — as consultas de ocorrência abaixo
+   * usam `activeOccurrenceDocumentId`, que resolve para qualquer um dos dois painéis abertos.
+   */
+  const [openSeparationOccurrenceDocumentId, setOpenSeparationOccurrenceDocumentId] = useState<
+    null | string
+  >(null)
+  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
 
   /** Spec 145 D16: quando começou o `pending` atual da planta — o teto de 10 min conta daqui. */
   const [cargoLayoutEpisode, setCargoLayoutEpisode] = useState<
@@ -373,19 +382,22 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'delivery-proofs', openProofDocumentId] as const,
   })
 
-  /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
+  /**
+   * Os itens seguem o mesmo painel: comprovante **ou** ocorrência de separação, uma abertura, duas
+   * consultas, nenhuma antes.
+   */
   const documentProductsQuery = useQuery({
     enabled:
       controller.canReadTripFleetDetails &&
-      openProofDocumentId !== null &&
+      activeOccurrenceDocumentId !== null &&
       input.tripId !== undefined &&
       input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
-        documentId: openProofDocumentId ?? '',
+        documentId: activeOccurrenceDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
+    queryKey: [...tripKey, 'document-products', activeOccurrenceDocumentId] as const,
   })
 
   /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
@@ -396,13 +408,14 @@ export function useTripWorkspace(
   })
 
   const occurrencesQuery = useQuery({
-    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      activeOccurrenceDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
     queryFn: () =>
       controller.readTripOccurrences({
-        documentId: openProofDocumentId ?? '',
+        documentId: activeOccurrenceDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'occurrences', openProofDocumentId] as const,
+    queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId] as const,
   })
 
   const fiscalReadinessQuery = useQuery({
@@ -487,7 +500,7 @@ export function useTripWorkspace(
     mutationFn: controller.registerTripOccurrence,
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: [...tripKey, 'occurrences', openProofDocumentId],
+        queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
       })
     },
   })
@@ -720,6 +733,8 @@ export function useTripWorkspace(
     registerOccurrenceMutation,
     openProofDocumentId,
     setOpenProofDocumentId,
+    openSeparationOccurrenceDocumentId,
+    setOpenSeparationOccurrenceDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
     setMdfeRequirementMutation,
     dispatchMutation,
