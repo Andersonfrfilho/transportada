@@ -99,6 +99,35 @@ Rollback: as duas tabelas novas são dropáveis sem perda de medida (cache recon
   Roda com `bun --env-file=../../.env.test test --timeout 120000` — sem a flag, pula em silêncio.
 - Arquivo de teste novo precisa entrar na lista explícita do `package.json` da app.
 
+## Números medidos em produção (2026-09-21)
+
+Banco `postgres-hqfu` (serviço `Postgres-Hqfu` — **não** o serviço chamado `Postgres`, que é outro
+banco e devolve dados antigos):
+
+| Medida                                      | Valor                                   |
+| ------------------------------------------- | --------------------------------------- |
+| Caixas                                      | 799                                     |
+| Com `carton_gtin`                           | 793 (99,2%)                             |
+| Sem medida                                  | 698                                     |
+| Caixas consultáveis (sem medida + com GTIN) | 692                                     |
+| **GTINs distintos pendentes**               | **613**                                 |
+| Sem GTIN e sem medida                       | 6                                       |
+| Dígitos do GTIN                             | 779 com 13, 14 com 8, **nenhum com 14** |
+
+Ritmo da medição manual: 3 em 16/09, 96 em 17/09, 2 em 20/09 — feita conforme há gente disponível.
+
+Duas consequências para o desenho:
+
+1. **A cota vira o gargalo de verdade.** 613 GTINs a 25/dia são ~25 dias de cron. Vale a pena
+   mesmo assim: roda sozinho, em paralelo ao trabalho humano, e 25 dias de máquina custam zero
+   pessoa-hora. Mas o cache permanente e o contador de cota deixam de ser zelo e viram requisito
+   de prazo.
+2. **Os códigos são de unidade, não de caixa master.** Nenhum GTIN de 14 dígitos na base. Ao
+   consultar por GTIN-13, o provedor responde sobre a unidade; a dimensão da caixa master só
+   aparece na tabela "Unidades Comerciais", que é justamente o que falta confirmar se a API
+   devolve. Se não devolver, o que dá para preencher é `units_per_box` e peso — útil, mas não
+   resolve cubagem sozinho.
+
 ## Riscos
 
 - **O catálogo está errado e a gente promove mesmo assim.** Mitigado pelo consenso de duas fontes +
