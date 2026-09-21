@@ -2814,12 +2814,118 @@ fail`.
 **Documentação:** `docs/adr/0067-o-escritorio-da-baixa-em-nome-do-motorista.md` (emenda 2026-09-20),
 `apps/api-transportada/CLAUDE.md`.
 
+### Revisão do code-reviewer (2026-09-20) — correções
+
+O `code-reviewer` (opus) reprovou a T8c em dois pontos de frontend; o backend passou em todos os
+critérios. Correções:
+
+1. **A contagem da tela divergia da regra do servidor.** `TripDetail.component.tsx` filtrava
+   `deliveredAt === null && returnedAt === null && releasedAt === null`; o servidor usa
+   `releasedAt === null` e `separationStatus ∉ {delivered, returned}`
+   (`trip-close.policy.ts`/`drizzle-trip.repository.ts`). Elas divergiam exatamente na hipótese que
+   a escrita órfã de `deliverDocument` produzia (hora de entrega sem `separationStatus`
+   atualizado): a tela via a nota como fechada, mandava `reason: null`, e o servidor respondia 422
+   `TRIP_CLOSE_REASON_REQUIRED`. Extraída a regra do servidor para
+   `src/modules/trip/shared/tripClose.service.ts`
+   (`isTripDocumentOpenForClose`/`countOpenTripDocumentsForClose`), usando `separationStatus` —
+   `TripDetail` passou a chamá-la em vez do filtro inline. Vermelho confirmado revertendo a regra
+   para a antiga e rodando `test/trip/close-trip.contract.ts`: o caso
+   "`separationStatus` manda, mesmo sem `deliveredAt` carimbado" falhava (`Expected: false,
+Received: true`); verde depois de restaurar.
+2. **O diálogo fechava antes do `mutate` responder**, perdendo o motivo digitado assim que o 422
+   chegava. `handleCloseTripSubmit` (`TripDetail.component.tsx`) passou a fechar só dentro do
+   `onSuccess` do `mutate`; `TripCloseDialog` deixou de limpar o campo no `handleSubmit` — agora só
+   um `useEffect` na abertura (`isOpen` virando `true`) limpa, no mesmo molde de
+   `TripReturnReasonDialog`. Coberto em
+   `test/trip-hooks/tripCloseDialog.contract.ts#mantém o motivo digitado enquanto o diálogo
+continua aberto após uma falha` e `#limpa o motivo quando o diálogo é reaberto do zero`.
+   Vermelho confirmado revertendo `openTripDocumentCount` para o filtro antigo e rodando
+   `test/trip/close-trip-wiring.contract.ts`: a asserção de que a fonte chama
+   `countOpenTripDocumentsForClose(trip.documents)` falhava; verde depois de restaurar.
+
+Cobertura nova (nenhum arquivo de teste de frontend existia para isto antes desta revisão):
+
+- `test/trip/close-trip.contract.ts` — a regra de nota em aberto (pendente/separada/carregada
+  seguem abertas; entregue, devolvida ou liberada fecham; o caso de `separationStatus: 'delivered'`
+  sem `deliveredAt` carimbado, que é onde a regra antiga e a nova divergiam) e a contagem do lote.
+- `test/trip/close-trip-wiring.contract.ts` — leitura estática de `TripDetail.component.tsx`:
+  o botão usa `canCloseTrip` (`trip.report-on-behalf`), nunca `canManage`; a contagem vem de
+  `countOpenTripDocumentsForClose`, nunca de um filtro inline; `setIsCloseDialogOpen(false)`
+  só aparece dentro do `onSuccess` de `handleCloseTripSubmit`.
+- `test/trip-hooks/tripCloseDialog.contract.ts` (suíte com DOM, `test:hooks`) — `TripCloseDialog`
+  não tinha cobertura nenhuma: confirmar desabilitado até digitar motivo quando há nota em aberto,
+  liberado de saída sem nota em aberto (envia `null`), espaço em branco não conta como motivo, o
+  motivo sobrevive a uma nova renderização com `isOpen` continuando `true` (o caminho de uma falha),
+  o motivo limpa quando o diálogo reabre do zero, e o botão de fechar chama `onClose` sem enviar
+  nada. Listado em `test/trip-hooks.contract.test.ts`.
+- Registrado no `package.json`: nenhuma edição foi necessária ali — a app já lista os entrypoints
+  agregadores (`test/trip.contract.test.ts`, `test/trip-hooks.contract.test.ts`) no script `test`;
+  os três arquivos novos entram por `import` nesses agregadores.
+
+Menores, também da mesma revisão:
+
+3. **`closed_at`/`closed_by_user_id`/`close_reason` documentados como encerramento manual, não fim
+   de viagem.** `deriveTripStatus` também leva `trips.status` a `completed` sozinho (todas as notas
+   fecham), sem passar por `POST /trips/:id/close` — nesse caminho as três colunas continuam
+   `null`. Linha de aviso acrescentada na ADR-0067 e em `apps/api-transportada/CLAUDE.md`.
+4. **Plural i18n padronizado.** `openDocumentsWarning` virou `openDocumentsWarning_one` (com
+   `openDocumentsWarning_other` ao lado), no molde de `driverTrip.locale.json`
+   (`documentsPending_one`/`_other`), em vez do par `openDocumentsWarning`/`_other` sem o `_one`
+   explícito.
+5. **Lista `['delivered', 'returned']` duplicada** entre `trip-close.policy.ts` e
+   `drizzle-trip.repository.ts` (code-standart §16) — virou `TRIP_CLOSE_SETTLED_SEPARATION_STATUSES`
+   (exportada de `trip-close.policy.ts`), importada nos dois lugares.
+6. **`orphan-deliver.contract.ts` ancorado.** `not.toInclude('deliverDocument')` casava por
+   substring; trocado por um regex de identificador isolado
+   (`/(?<![A-Za-z])deliverDocument(?![A-Za-z])/`) que não reprova por conter as mesmas letras
+   dentro de `fieldDeliverDocument`.
+
+**Registrado e não mexido, por instrução explícita da revisão:**
+
+- **Achado 5 — a contagem da auditoria lê fora do lock.** `drizzle-trip.repository.ts#close` conta
+  as notas em aberto (`openDocumentCount`/`documentIds` de `audit_logs.metadata`) numa consulta
+  separada da `SELECT … FOR NO KEY UPDATE` que trava a linha de `trips`. Sob concorrência real, uma
+  escrita em `trip_documents` entre as duas leituras pode deixar a contagem da trilha
+  ligeiramente diferente do estado exato no instante do commit. Só afeta a trilha de auditoria
+  (nunca a decisão de exigir motivo, que é feita antes, na leitura do caso de uso, nem o
+  fechamento em si) — pendência registrada, não corrigida nesta task.
+- **Achado 10 — as colunas novas não voltam na resposta HTTP.** `closedAt`/`closedByUserId`/
+  `closeReason` não aparecem em `TripDetail`/`GET /trips/:id` — decisão deliberada desta task (ver
+  "O que ficou em aberto" original) para não forçar `tripResponse.validation.ts` a aceitar chaves
+  novas sem consumidor. Exibir essa informação (por exemplo, na linha do tempo) é escopo da T9 ou
+  de uma task própria, não desta.
+
+### Gates (depois da revisão)
+
+- `git fetch && git rebase origin/staging`: nada novo em `origin/staging` (`ce5e0b70`, mesmo commit
+  usado no `make worktree` desta sessão) — sem rebase a fazer.
+- `bun install --frozen-lockfile`: sem mudança de dependência nesta revisão.
+- `bun run --cwd apps/api-transportada typecheck` → exit 0.
+- `bun run --cwd apps/api-transportada lint` → exit 0.
+- `bun run --cwd apps/frontend-transportada typecheck` → exit 0.
+- `bun run --cwd apps/frontend-transportada lint` → exit 0.
+- `bunx prettier --check` nos arquivos tocados pela revisão → exit 0.
+- `bun run --cwd apps/frontend-transportada test` (suíte principal + `test:hooks`) →
+  `4672 pass · 0 fail` (29 arquivos) + `36 pass · 0 fail` (hooks com DOM, 1 arquivo — os 6 testes
+  novos de `TripCloseDialog` entram aqui).
+- Contrato da API (`bun --env-file=../../.env.test test --timeout 120000`, Postgres nativo
+  descartável — o Docker do worktree segue fora do ar): `6719 pass · 0 fail`, 23676 `expect()`,
+  180 arquivos.
+- `make migration-test` (via `db:test`, mesmo Postgres nativo): `97 pass · 0 fail`, 1397
+  `expect()` — sem mudança de schema nesta revisão, `db:generate` continua `no_changes`.
+- Integração da API (`bun --env-file=../../.env.test run test:integration`, mesmo Postgres nativo):
+  `471 pass · 8 fail`, 85 arquivos; as 8 falhas continuam `ObjectStorageError: Object storage is
+unavailable` (MinIO fora do ar sem Docker), a mesma família da primeira rodada desta task — sem
+  relação com a revisão. `test/integration/trip-repository.integration.ts` e
+  `test/integration/trip-lifecycle.integration.ts` rodados à parte, com saída completa: `5 pass · 0
+fail`, 82 `expect()`.
+
 ### Em aberto
 
-- Nenhum. `[NEEDS CLARIFICATION]` não existia para esta task — a decisão do usuário ("escritório,
-  com motivo") fechou o único ponto em aberto do achado da T8b.
-- Revisão de design/usabilidade do novo diálogo (`TripCloseDialog`) não foi refeita à parte: ele
-  segue o molde pixel a pixel de `TripReasonDialog`, já revisado na T16. Print não anexado aqui por
-  não haver ambiente de preview rodando nesta sessão (worktree sem `make dev`); recomenda-se um
-  print rápido na próxima sessão que abrir a tela antes do merge para staging, comparando o diálogo
-  novo com o de dispensa de MDF-e.
+- Nenhum item novo desta revisão. Os dois achados de frontend (contagem e fechamento prematuro do
+  diálogo) foram corrigidos e cobertos por teste, vermelho antes de verde nos dois.
+- Segue de pé o mesmo item já registrado antes da revisão: print de design do `TripCloseDialog`
+  não anexado por falta de ambiente de preview nesta sessão (worktree sem `make dev`); ele segue o
+  molde pixel a pixel de `TripReasonDialog`/`TripReturnReasonDialog`, já revisados na T16.
+- Achados 5 e 10 do code-reviewer ficam registrados acima como pendência conhecida, por instrução
+  explícita — não são bloqueadores desta task.

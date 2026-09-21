@@ -15,6 +15,12 @@ const USE_CASE = new URL('../../src/trips/application/trip.use-case.ts', import.
 const PORT = new URL('../../src/trips/application/trip.port.ts', import.meta.url)
 
 /**
+ * `deliverDocument` sozinho, nunca como pedaço de outro identificador — `fieldDeliverDocument`
+ * (a autoria da T8b/T8c) contém a mesma letras seguidas e não pode reprovar o contrato por isso.
+ */
+const DELIVER_DOCUMENT_IDENTIFIER = /(?<![A-Za-z])deliverDocument(?![A-Za-z])/
+
+/**
  * Spec 079 G020. `repository.deliverDocument` → `useCase.deliverDocument` ficou sem chamador em
  * 02/09/2026, quando a rota de entregar passou para a máquina de estados: gravava `delivered_at`
  * **sem tocar em `separation_status`**, e a viagem nunca chegava a `completed`.
@@ -37,7 +43,7 @@ describe('a escrita órfã de entrega não volta a ser servida', () => {
   test('nenhuma rota chama o caminho antigo de entregar', () => {
     const routes = readFileSync(ROUTES, 'utf8')
 
-    expect(routes).not.toInclude('deliverDocument')
+    expect(routes).not.toMatch(DELIVER_DOCUMENT_IDENTIFIER)
   })
 
   test('a composição não liga a máquina de estados a deliver/return', () => {
@@ -50,7 +56,7 @@ describe('a escrita órfã de entrega não volta a ser servida', () => {
 
   test('a porta, o caso de uso e o repositório não declaram mais deliverDocument', () => {
     for (const url of [PORT, USE_CASE, REPOSITORY]) {
-      expect(readFileSync(url, 'utf8')).not.toInclude('deliverDocument')
+      expect(readFileSync(url, 'utf8')).not.toMatch(DELIVER_DOCUMENT_IDENTIFIER)
     }
   })
 })

@@ -21,6 +21,7 @@ import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import { countOpenTripDocumentsForClose } from '../shared/tripClose.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
 import {
@@ -278,10 +279,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const canManage = workspace.controller.canManageTrips
   /** Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma. */
   const canCloseTrip = workspace.controller.canReportOnBehalf
-  const openTripDocumentCount = trip.documents.filter(
-    (document) =>
-      document.deliveredAt === null && document.returnedAt === null && document.releasedAt === null,
-  ).length
+  const openTripDocumentCount = countOpenTripDocumentsForClose(trip.documents)
   /**
    * Spec 156 D11/T8: geometria, agendamento, prontidão fiscal e produtos continuam só em
    * `fleet.read` — o `finance` (`trip.report-on-behalf`) recebe 403 nessas rotas. O painel fica
@@ -475,10 +473,16 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     setIsCloseDialogOpen(true)
   }
 
+  /**
+   * Fecha o diálogo só **depois** do sucesso (achado do code-reviewer): fechar antes do `mutate`
+   * responder perdia o motivo digitado assim que o 422 chegava — o diálogo reabria vazio.
+   */
   function handleCloseTripSubmit(reason: null | string): void {
     if (trip === undefined) return
-    setIsCloseDialogOpen(false)
-    workspace.closeMutation.mutate({ reason, tripId: trip.id })
+    workspace.closeMutation.mutate(
+      { reason, tripId: trip.id },
+      { onSuccess: () => setIsCloseDialogOpen(false) },
+    )
   }
 
   function handleReorderStops(stopIds: readonly string[]): void {

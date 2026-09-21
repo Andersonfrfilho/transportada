@@ -7,7 +7,19 @@
  */
 import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 
-const SETTLED_SEPARATION_STATUSES = new Set<TripDocumentSeparationStatus>(['delivered', 'returned'])
+/**
+ * code-standart §16: os dois estados que fecham uma nota (fora do lock, na leitura da política) e
+ * a mesma checagem repetida na consulta do repositório (`drizzle-trip.repository.ts`) — uma lista
+ * só, importada nos dois lugares.
+ */
+export const TRIP_CLOSE_SETTLED_SEPARATION_STATUSES = [
+  'delivered',
+  'returned',
+] as const satisfies readonly TripDocumentSeparationStatus[]
+
+const SETTLED_SEPARATION_STATUSES = new Set<TripDocumentSeparationStatus>(
+  TRIP_CLOSE_SETTLED_SEPARATION_STATUSES,
+)
 
 export type TripCloseDocumentState = {
   readonly releasedAt: string | null

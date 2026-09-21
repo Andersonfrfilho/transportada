@@ -143,7 +143,7 @@
   "closeDialog": {
     "confirm": "Close trip",
     "noOpenDocuments": "Every document is already delivered, returned or released. The reason is optional.",
-    "openDocumentsWarning": "{{count}} document will be left without a recorded settlement.",
+    "openDocumentsWarning_one": "{{count}} document will be left without a recorded settlement.",
     "openDocumentsWarning_other": "{{count}} documents will be left without a recorded settlement.",
     "reasonLabel": "Reason for closing",
     "reasonLabelOptional": "Reason for closing (optional)",

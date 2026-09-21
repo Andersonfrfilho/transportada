@@ -196,7 +196,10 @@ opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-del
   liberada) exige `reason` no corpo; sem ele, 422 `TRIP_CLOSE_REASON_REQUIRED`
   (`trip-close.policy.ts`). `trips` grava `closed_at`/`closed_by_user_id`/`close_reason`, e a
   auditoria (`office.trip.close`) mira a própria viagem, não um motorista — encerrar não é "em nome
-  de" ninguém, então não usa `insertTripFieldOfficeAudit`. `deliverDocument` (porta, caso de uso e
+  de" ninguém, então não usa `insertTripFieldOfficeAudit`. ⚠️ As três colunas registram o
+  **encerramento manual pelo botão**, nunca "fim da viagem": `deriveTripStatus` também leva `status`
+  a `completed` sozinho, quando todas as notas fecham, sem passar por `POST /trips/:id/close` — nesse
+  caminho as três ficam `null`. `deliverDocument` (porta, caso de uso e
   repositório) saiu junto: gravava `delivered_at` sem tocar em `separation_status` e sem chamador
   desde a T8b.
 - `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no

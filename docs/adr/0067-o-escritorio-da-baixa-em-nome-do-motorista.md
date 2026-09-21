@@ -291,7 +291,12 @@ motivo é opcional. Sem ele quando exigido, `422 TRIP_CLOSE_REASON_REQUIRED`
 (`trip-close.policy.ts`, pura — só decide se o motivo é obrigatório, olhando as notas já carregadas).
 
 **Trilha.** `trips` ganha `closed_at`, `closed_by_user_id` (FK composta por empresa, como
-`requires_mdfe_actor_user_id`) e `close_reason`, todas aditivas. Uma linha em `audit_logs` nasce na
+`requires_mdfe_actor_user_id`) e `close_reason`, todas aditivas. ⚠️ **As três colunas registram o
+encerramento manual pelo escritório — nunca "quando a viagem terminou".** `trips.status` também
+chega a `completed` sozinho, derivado (`deriveTripStatus`, quando todas as notas fecham), sem passar
+por `POST /trips/:id/close`; nesse caminho as três colunas continuam `null`. Ler `closed_at` como
+data de fim da viagem erra em silêncio para toda viagem que nunca precisou do botão. Uma linha em
+`audit_logs` nasce na
 mesma transação do fechamento (`office.trip.close`), com a contagem de notas que ficaram em aberto e
 os ids opacos delas em `metadata` — nunca o motivo, que é dado de negócio, não trilha de segurança.
 **Este registro não é "em nome do motorista"**: encerrar a viagem não é uma ação atribuída a um

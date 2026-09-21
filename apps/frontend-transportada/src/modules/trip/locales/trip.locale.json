@@ -189,7 +189,7 @@
   "closeDialog": {
     "confirm": "Encerrar viagem",
     "noOpenDocuments": "Todas as notas já estão entregues, devolvidas ou liberadas. O motivo é opcional.",
-    "openDocumentsWarning": "{{count}} nota ficará sem baixa registrada.",
+    "openDocumentsWarning_one": "{{count}} nota ficará sem baixa registrada.",
     "openDocumentsWarning_other": "{{count}} notas ficarão sem baixa registrada.",
     "reasonLabel": "Motivo do encerramento",
     "reasonLabelOptional": "Motivo do encerramento (opcional)",

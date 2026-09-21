@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -36,12 +36,21 @@ export function TripCloseDialog({
   const isReasonRequired = openDocumentCount > 0
   const trimmedReason = reason.trim()
 
+  /**
+   * Só a **abertura** limpa o campo — nunca o envio. Fechar cedo demais (achado do
+   * code-reviewer) perdia o motivo digitado quando o servidor recusava: `onSubmit` só fecha o
+   * diálogo depois do sucesso (`TripDetail.component.tsx`), e este efeito não dispara de novo
+   * enquanto `isOpen` continua `true` — o texto sobrevive ao erro, junto do aviso da mutation.
+   */
+  useEffect(() => {
+    if (isOpen) setReason('')
+  }, [isOpen])
+
   if (!isOpen) return null
 
   function handleSubmit(): void {
     if (isReasonRequired && trimmedReason.length === 0) return
     onSubmit(trimmedReason.length === 0 ? null : trimmedReason)
-    setReason('')
   }
 
   return createPortal(

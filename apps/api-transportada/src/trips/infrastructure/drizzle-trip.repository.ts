@@ -36,6 +36,7 @@ import {
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { TRIP_DISPATCHED_STATUSES, checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
@@ -134,7 +135,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             eq(tripDocuments.companyId, input.companyId),
             eq(tripDocuments.tripId, input.tripId),
             isNull(tripDocuments.releasedAt),
-            notInArray(tripDocuments.separationStatus, ['delivered', 'returned']),
+            notInArray(tripDocuments.separationStatus, [...TRIP_CLOSE_SETTLED_SEPARATION_STATUSES]),
           ),
         )
 
