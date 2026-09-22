@@ -38,7 +38,7 @@
 
 - [x] T011 UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
 - [ ] T012 🧠 Revisão de design e usabilidade da fila, com print (CA08) — revisão por código feita; print BLOQUEADO (sem Keycloak/frontend local, ver evidence.md)
-- [ ] T013 `make check` + `evidence.md`
+- [x] T013 `make check` + `evidence.md`
 
 ## Prompt de execução
 
