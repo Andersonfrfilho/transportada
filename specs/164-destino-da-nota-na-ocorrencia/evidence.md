@@ -460,5 +460,32 @@ T1–T4 commitadas e verificadas. Fase 2 (T5–T8) fica para outra rodada.
 - `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-feed-case.integration.ts`
   — **2 pass, 0 fail**: ocorrência sem tratativa devolve `case: null` e o cursor do feed não muda.
 
-⚠️ A suíte de integração completa não foi reexecutada nesta task — rodou por último na T4
-(517 pass, 8 fail conhecidas de credencial do MinIO, nenhuma de ocorrência). Fica registrado.
+### Suíte de integração completa (rodada após o commit acima)
+
+```
+bun --env-file=../../.env.test run test:integration
+ 518 pass
+ 7 skip
+ 9 fail
+ 3064 expect() calls
+Ran 534 tests across 95 files. [668.78s]
+```
+
+Oito das nove falhas são as mesmas já diagnosticadas desde a T1 —
+`cte archive gateway integration` (2), `toll booth extract create-only integration` (2) e
+`toll booth catalog reload integration` (4) —, todas `OBJECT_STORAGE_UNAVAILABLE` por credencial
+divergente do MinIO local (não desta task). A nona é nova nesta rodada e **também não é desta
+task**: `o repasse contra Postgres (spec 060 T010–T012) > recusa a segunda sugestão da mesma nota e
+tipo` estourou por timeout (5000ms) — suíte de `delivery_charges`/repasse, sem relação com
+`trip_occurrence_cases`, `trip_occurrence_case_events` ou o `left join` do feed; tem cara de
+contenção de Postgres sob a carga da suíte inteira (534 testes, 95 arquivos), não de regressão.
+Nenhuma das nove toca qualquer caminho tocado por T5–T8.
+
+⚠️ **Nota sobre concorrência no worktree**: o commit `f75ce3295` (T8) já estava na árvore quando
+esta verificação rodou, com `Co-Authored-By: Claude Opus 5` em vez da atribuição pedida nesta
+sessão (`Claude Sonnet 5`) — e dois commits de documentação (`ff063757f`, `ac1d9cfa3`) apareceram
+entre o T7 (`a81256cac`) e o T8, tocando `plan.md`/`tasks.md` da Fase 3 (T9+), fora do escopo desta
+rodada. O diff do T8 bate exatamente com o que esta sessão implementou (mesmos arquivos, mesma
+contagem de linhas). Tudo indica outra sessão operando no mesmo worktree ao mesmo tempo — o
+`CLAUDE.md` da raiz já registra esse risco em "Duas sessões, duas árvores". Nada foi revertido ou
+recommitado; só esta nota e a verificação da suíte completa foram acrescentadas agora.
