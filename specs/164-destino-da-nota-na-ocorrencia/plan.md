@@ -587,3 +587,22 @@ Pôr a cobrança de ocorrência em `delivery_charges` é a decisão certa (uma m
 lote, uma página pública), e o preço é poder quebrar o repasse de taxa que já roda. Os contratos de
 regressão do repasse — fechamento, sugestão recorrente, página pública — são parte da Fase 5, não da
 Fase 7.
+
+### O fechamento é por seleção, com filtros — decisão do usuário
+
+Perguntado sobre a ocorrência resolvida depois do fechamento do mês, o usuário respondeu: **"add mais
+filtros para selecionarmos mais"**. Ou seja, o mês não é uma gaveta rígida: a página de ressarcimentos
+mostra o que está em aberto e **o operador escolhe o que entra** em cada demonstrativo.
+
+Consequências para a Fase 5:
+
+- A tela lista as cobranças de ocorrência ainda sem lote, com filtros de **contratante**, **período**
+  (intervalo de datas, não "mês"), **tipo de cobrança**, **estado** e **ocorrência com/sem acerto**,
+  mais busca por nota. A seleção é explícita (marcar linhas), e o total do rodapé acompanha a seleção.
+- O fechamento leva **exatamente o que foi selecionado** — o lote continua sendo o `extra_charge_batches`
+  do contratante e do período, e o período gravado é o intervalo que cobre as linhas escolhidas.
+- Uma tratativa resolvida tarde aparece na lista do mesmo jeito: ela nunca "perde a janela", porque o
+  recorte de elegibilidade é `sem lote`, não `do mês corrente`. Dois demonstrativos do mesmo mês são
+  possíveis e legítimos; o PDF diz o que cobre.
+- ⚠️ Nada disso muda a imutabilidade: linha já enviada não volta para a seleção (é o
+  `delivery_charges_batch_status_check` que garante), e o demonstrativo gerado é artefato guardado.
