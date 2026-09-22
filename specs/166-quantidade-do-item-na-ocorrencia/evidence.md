@@ -130,3 +130,98 @@ sessão.
 - `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-item-quantity.integration.ts`: verde (T208).
 - `bun --env-file=../../.env.test run test:integration` (suíte completa): 9 falhas pré-existentes,
   alheias a esta spec (MinIO local e módulo de caixa) — ver acima.
+
+## Fase 3 — Telas (T301–T305)
+
+Escopo executado nesta sessão: só `apps/frontend-transportada`. Não toquei em
+`apps/api-transportada` nem em `docs/spec/railway.md`. T402 (revisão de design com print) fica de
+fora por pedido explícito — é do usuário.
+
+### T301/T302 — Campo de quantidade por item + envio (RF7, CA09)
+
+`TripOccurrences.component.tsx` ganha, por item marcado, um `<input type="number" step="0.001">`
+com seletor `@/components/ui/select` para a unidade (peça/caixa) — em branco continua válido, sem
+exigir nada (RF7). Estado em `Map<code, {quantity, unit}>` para sobreviver a desmarcar/remarcar o
+item sem perder a associação com `productCodes`.
+
+Lógica pura (testada antes da UI, `test/trip/occurrence-product-selection.contract.ts`):
+`resolveOccurrenceItemQuantityFields` monta `productQuantities`/`productQuantityUnits` alinhadas
+por índice a `productCodes` — item sem quantidade digitada (ou só espaços) vira `null` nas duas
+listas, nunca uma string vazia solta. O envio (`tripClient.service.ts#registerTripOccurrence`)
+manda os dois campos repetidos no multipart, alinhados por índice, com `''` na posição em branco —
+mesmo formato que `productQuantities`/`productQuantityUnits` da API (Fase 2, T203) espera. A cadeia
+inteira (`TripOccurrences` → `SeparationOccurrenceDialog`/`TripDetail` →
+`useTripWorkspace.hook.ts#sendSeparationOccurrencePhotos` → `tripClient.service.ts`) ficou tipada
+ponta a ponta; os dois campos novos são opcionais no client e no hook para não quebrar os
+fixtures/mocks de hook existentes que ainda não passam quantidade.
+
+### T303 — Seleção única quando o tipo não aceita vários (RF8)
+
+Com `type.allowsMultipleItems` falso, o campo de item troca o `MultiSelect` pelo `Select` (mesmo
+primitivo do design system, nunca `<select>` nativo) — escolher outro item substitui em vez de
+somar, porque o `Select` já é exclusivo por natureza. Trocar de tipo com mais de um item já marcado
+trunca para o primeiro (`handleOccurrenceTypeChange`), para não mandar dois itens a um tipo que a
+API vai recusar com `422 OCCURRENCE_TYPE_SINGLE_ITEM`.
+
+### T304 — Interruptor no cadastro de tipos (RF9, CA10)
+
+`OccurrenceType.allowsMultipleItems` (padrão `true`, RF3) entra no guard de leitura
+(`isOccurrenceType`, chave fechada) e no `saveOccurrenceType` do client. `OccurrenceTypeCatalogPanel`
+ganha um `@/components/ui/checkbox` — "Aceita vários itens" — tanto no formulário de cadastro novo
+quanto por linha de tipo já cadastrado, ao lado dos interruptores existentes ("Avisar"/"Em uso").
+
+### T305 — Quantidade na leitura da ocorrência (P3)
+
+`resolveOccurrenceProductEntries` casa cada código de `productCodes`/`productCode` com a linha
+correspondente em `products` (quando existe) — item sem linha (ocorrência antiga, ou item sem
+contagem) sai com `quantity`/`unit` nulos. `formatOccurrenceProductEntryLabel` imprime só o código
+quando não há contagem, e `"código (quantidade unidade)"` quando há — nunca `"código (0 peça)"`.
+`formatOccurrenceProductsLine` compõe a linha inteira (todos os itens, cada um com a contagem que
+tiver) e cai para "a nota inteira" quando a lista de itens é vazia. `TripOccurrences.component.tsx`
+usa essa função na listagem, substituindo `formatOccurrenceProductLabel` (que continua existindo,
+sem uso agora, para não quebrar o contrato que já a testava isolada).
+
+### Testes novos
+
+- `test/trip/occurrence-product-selection.contract.ts`: 15 casos novos —
+  `resolveOccurrenceItemQuantityFields` (par casado, branco vira `null`, espaço em branco conta
+  como vazio) e a leitura (`resolveOccurrenceProductEntries`,
+  `formatOccurrenceProductEntryLabel`, `formatOccurrenceProductsLine`).
+- `test/trip/occurrence-item-quantity-field.contract.ts` (novo, registrado em
+  `test/trip.contract.test.ts`): fiação na tela — primitivo certo (nunca `<select>` cru), `Select`
+  substituindo `MultiSelect` em item único, `handleOccurrenceTypeChange` truncando a seleção,
+  `resolveOccurrenceItemQuantityFields`/`formatOccurrenceProductsLine` conectados, chaves de locale
+  presentes nos dois idiomas.
+- `test/company-settings/occurrence-type-catalog-panel.contract.ts`: 2 casos novos — o `Checkbox`
+  do interruptor (nunca `<input type=checkbox>`) e o rótulo nos dois locales.
+- `test/trip/separation-occurrence-button.contract.ts`: fixture `buildType` atualizada com
+  `allowsMultipleItems: true` (campo novo obrigatório no tipo).
+
+### Gates desta fase (`apps/frontend-transportada`)
+
+```
+$ bunx tsc --noEmit
+(sem saída — zero erros)
+
+$ bun run lint
+$ eslint .
+(sem saída — zero erros/avisos)
+
+$ bun run test
+ 4868 pass
+ 0 fail
+Ran 4868 tests across 29 files. [4.16s]
+ 44 pass
+ 0 fail
+Ran 44 tests across 1 file. [571.00ms]
+```
+
+Commits: `e7a8e3d23` (T304 + transporte da quantidade), `e02e37fe7` (T301–T303, T305).
+
+### O que não rodou, e por quê
+
+- **T402** (revisão de design com print): fora de escopo desta sessão por pedido explícito — cabe
+  ao usuário.
+- **`make smoke`/Playwright** (`verify-picker.smoke.spec.ts` e afins): não fazem parte do gate
+  `bun run test` da app nem foram pedidos; não rodei.
+- Publicação em staging (Fase 3): não fiz deploy — só implementei e testei localmente, como pedido.
