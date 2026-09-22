@@ -896,6 +896,7 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
     expect(registerCalls).toBe(0)
     expect(attachCalls).toEqual([
       {
+        actorUserId: USER_ID,
         attachment: { bytes: expect.any(Uint8Array), mimeType: 'image/jpeg' },
         companyId: COMPANY_ID,
         occurrenceId: 'occurrence-1',

@@ -36,6 +36,7 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotFoundError,
   TripDispatchForceReasonRequiredError,
+  TripFieldReportKeyReusedError,
   TripHasUnloadedDocumentsError,
   TripHasUnscheduledStopsError,
   TripNotFoundError,
@@ -84,6 +85,7 @@ export type OperatorFlowActionDependencies = {
   /** Spec 161 T15 (RF18c): segunda foto em diante da mesma ocorrência — a mesma
    * `attachOccurrencePhoto` (T7) que `POST .../occurrences/:occurrenceId/attachments` usa. */
   readonly attachOccurrencePhoto: (input: {
+    readonly actorUserId: string
     readonly attachment: { readonly bytes: Uint8Array; readonly mimeType: string }
     readonly companyId: string
     readonly occurrenceId: string
@@ -833,6 +835,7 @@ export function createOperatorWhatsAppFlowActions(
       }
 
       const position = await deps.attachOccurrencePhoto({
+        actorUserId: actor.scope.userId,
         attachment,
         companyId: actor.scope.companyId,
         occurrenceId,
@@ -966,6 +969,15 @@ function describeTripError(error: unknown): string {
     error.code === 'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE'
   ) {
     return 'O arquivo enviado precisa ser uma imagem (JPEG, PNG ou WEBP). Envie a foto de novo ou toque em ❌ Cancelar ocorrência.'
+  }
+  /**
+   * Spec 161 T16 (RF20b): a mesma chave (sha256 do arquivo) com nota/tipo/produto diferentes —
+   * caso raro, nunca deveria acontecer com a mesma foto, mas a idempotência não deixa passar em
+   * silêncio (é erro do cliente, não repetição, no mesmo molde de `TripFieldReportKeyReusedError`
+   * na web).
+   */
+  if (error instanceof TripFieldReportKeyReusedError) {
+    return 'Essa foto já foi processada com outros dados. Envie a foto de novo.'
   }
   throw error
 }

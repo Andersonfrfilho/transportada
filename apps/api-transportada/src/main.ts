@@ -753,6 +753,18 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+  /**
+   * Spec 161 T16: a mesma reserva/liquidação de chave que `fieldReportGuardTransaction`
+   * (`createApplicationRoutes`) monta para a rota HTTP — instância própria porque este bloco vive
+   * em `bootstrap()`, escopo diferente. A idempotência do WhatsApp (sha256 do arquivo) usa a mesma
+   * tabela `trip_field_reports`, só a chave muda.
+   */
+  const whatsappFieldReportGuardTransaction = {
+    claim: (input: Parameters<DriverFieldReportTransactionPort['claim']>[0]) =>
+      whatsappDriverFieldReports.execute((transaction) => transaction.claim(input)),
+    settle: (input: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
+      whatsappDriverFieldReports.execute((transaction) => transaction.settle(input)),
+  }
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
@@ -806,29 +818,54 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
     /**
-     * Spec 161 T15 (RF18c): segunda foto em diante da mesma ocorrência — a mesma
-     * `attachOccurrencePhoto` (T7) que a rota HTTP usa, sem o envelope de idempotência por
-     * `Idempotency-Key` (a idempotência do WhatsApp é por sha256 do arquivo, T16).
+     * Spec 161 T16 (RF20b): a chave de idempotência do WhatsApp é o **sha256 do arquivo
+     * baixado** — nunca o `media-id` (muda a cada reenvio da mesma foto pelo operador) nem o
+     * `occurrenceId` (circular: ele só existe depois que a primeira foto já foi gravada). Mesmo
+     * molde de `withFieldReport` que T8 já usa na rota HTTP, com a mesma operação
+     * (`OCCURRENCE_ATTACHMENT_APPEND_OPERATION`) — reenviar a mesma foto (mesmo sha256) converge
+     * na mesma linha em vez de abrir uma sexta posição; o `media-id` nunca entra na chave nem no
+     * log.
      */
     attachOccurrencePhoto: (input) =>
-      attachOccurrencePhoto({
-        attachment: input.attachment,
-        companyId: input.companyId,
-        occurrenceId: input.occurrenceId,
-        repository: {
-          countOccurrenceAttachments: (query) =>
-            new DrizzleOccurrenceAttachmentRepository(database.db).countOccurrenceAttachments(
-              query,
-            ),
-          findOccurrence: (query) => findOccurrenceForAttachment(database.db, query),
-          newObjectId: () => crypto.randomUUID(),
-          now: () => new Date(),
-          storage: createDeliveryProofStorage({
-            bucket: whatsappStorageBucket,
-            storage: whatsappStorageGateway,
-          }),
-          unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db),
+      withFieldReport({
+        guard: {
+          actorUserId: input.actorUserId,
+          authorship: { channel: TRIP_FIELD_CHANNELS.whatsapp, onBehalfOfDriverId: null },
+          companyId: input.companyId,
+          idempotencyKey: sha256Hex(input.attachment.bytes),
+          operation: `${OCCURRENCE_ATTACHMENT_APPEND_OPERATION}:${buildOccurrenceAttachmentAppendFingerprint(
+            {
+              attachmentSha256: sha256Hex(input.attachment.bytes),
+              occurrenceId: input.occurrenceId,
+            },
+          )}`,
+          transaction: whatsappFieldReportGuardTransaction,
         },
+        perform: () =>
+          attachOccurrencePhoto({
+            attachment: input.attachment,
+            companyId: input.companyId,
+            occurrenceId: input.occurrenceId,
+            repository: {
+              countOccurrenceAttachments: (query) =>
+                new DrizzleOccurrenceAttachmentRepository(database.db).countOccurrenceAttachments(
+                  query,
+                ),
+              findOccurrence: (query) => findOccurrenceForAttachment(database.db, query),
+              newObjectId: () => crypto.randomUUID(),
+              now: () => new Date(),
+              storage: createDeliveryProofStorage({
+                bucket: whatsappStorageBucket,
+                storage: whatsappStorageGateway,
+              }),
+              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db),
+            },
+          }),
+        recall: async (resultId) =>
+          new DrizzleOccurrenceAttachmentRepository(database.db).findAttachmentPosition({
+            companyId: input.companyId,
+            id: resultId,
+          }),
       }),
     batchTransition: (input) =>
       transitionTripDocumentsBatch({
@@ -869,57 +906,104 @@ export function bootstrap(): Bun.Server<undefined> {
      * Spec 161 T13 (CA9b/CA9c/RF16): a mesma persistência da rota HTTP
      * (`persistSeparationOccurrenceWithAttachment`, `src/main.ts:2861` na rota
      * `POST .../occurrences`) — nunca `saveTripOccurrence` cru, que não sobe `stored_objects` nem
-     * grava purpose/retenção. `attachment` ainda é opcional aqui: até a T15 ligar o passo de foto
-     * do fluxo do operador, `registerTripOccurrence` recusa com `OccurrencePhotoRequiredError`
-     * (D1/RF4) para qualquer ocorrência de galpão, como já acontecia antes desta task.
+     * grava purpose/retenção. `attachment` ainda é opcional no tipo: sem ele,
+     * `registerTripOccurrence` recusa com `OccurrencePhotoRequiredError` (D1/RF4), como já
+     * acontecia antes de T15 ligar o passo de foto.
+     *
+     * Spec 161 T16 (RF20b): com `attachment`, a chamada inteira entra em `withFieldReport` com a
+     * chave de idempotência sendo o **sha256 do arquivo baixado** — mesmo raciocínio de
+     * `attachOccurrencePhoto` acima. `occurrenceId` seria circular aqui (é exatamente o que esta
+     * chamada cria) e `media-id` muda a cada reenvio; sha256 é o único identificador estável.
      */
-    registerOccurrence: (input) =>
-      registerTripOccurrence({
-        actorUserId: input.actorUserId,
-        ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
-        companyId: input.companyId,
-        documentId: input.documentId,
-        note: input.note,
-        occurredOn: new Date().toLocaleDateString('pt-BR'),
-        occurrenceTypeId: input.occurrenceTypeId,
-        productCode: '',
-        repository: {
-          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
-          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-          listOccurrences: (query) => listTripOccurrences(database.db, query),
-          readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
-          saveOccurrence: (query) =>
-            persistSeparationOccurrenceWithAttachment({
-              attachment: query.attachment,
-              input: {
-                actorUserId: query.actorUserId,
-                companyId: query.companyId,
-                documentId: query.documentId,
-                note: query.note,
-                occurrenceTypeId: query.occurrenceTypeId,
-                productCode: query.productCode,
-                stage: query.stage,
-                tripId: query.tripId,
-                typeName: query.typeName,
-              },
-              /**
-               * Spec 161 T15 (D13): a foto sai do aparelho do operador, sem o reencode do
-               * navegador (que já limita a web a `OCCURRENCE_PHOTO_MAX_BYTES`, 512 KiB) — o teto
-               * do WhatsApp é `OFFICE_PROOF_MAX_BYTES` (960 KiB, importado de
-               * `delivery-proof.policy.ts`, §16 do code-standart: nenhuma constante nova).
-               */
-              maxOriginalBytes: OFFICE_PROOF_MAX_BYTES,
-              newObjectId: () => crypto.randomUUID(),
-              now: () => new Date(),
-              storage: createDeliveryProofStorage({
-                bucket: whatsappStorageBucket,
-                storage: whatsappStorageGateway,
+    registerOccurrence: (input) => {
+      const perform = () =>
+        registerTripOccurrence({
+          actorUserId: input.actorUserId,
+          ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
+          companyId: input.companyId,
+          documentId: input.documentId,
+          note: input.note,
+          occurredOn: new Date().toLocaleDateString('pt-BR'),
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: '',
+          repository: {
+            findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+            listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+            listOccurrences: (query) => listTripOccurrences(database.db, query),
+            readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
+            saveOccurrence: (query) =>
+              persistSeparationOccurrenceWithAttachment({
+                attachment: query.attachment,
+                input: {
+                  actorUserId: query.actorUserId,
+                  companyId: query.companyId,
+                  documentId: query.documentId,
+                  note: query.note,
+                  occurrenceTypeId: query.occurrenceTypeId,
+                  productCode: query.productCode,
+                  stage: query.stage,
+                  tripId: query.tripId,
+                  typeName: query.typeName,
+                },
+                /**
+                 * Spec 161 T15 (D13): a foto sai do aparelho do operador, sem o reencode do
+                 * navegador (que já limita a web a `OCCURRENCE_PHOTO_MAX_BYTES`, 512 KiB) — o
+                 * teto do WhatsApp é `OFFICE_PROOF_MAX_BYTES` (960 KiB, importado de
+                 * `delivery-proof.policy.ts`, §16 do code-standart: nenhuma constante nova).
+                 */
+                maxOriginalBytes: OFFICE_PROOF_MAX_BYTES,
+                newObjectId: () => crypto.randomUUID(),
+                now: () => new Date(),
+                storage: createDeliveryProofStorage({
+                  bucket: whatsappStorageBucket,
+                  storage: whatsappStorageGateway,
+                }),
+                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db),
               }),
-              unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db),
-            }),
+          },
+          tripId: input.tripId,
+        })
+
+      if (input.attachment === undefined) return perform()
+
+      const attachmentSha256 = sha256Hex(input.attachment.bytes)
+      return withFieldReport({
+        guard: {
+          actorUserId: input.actorUserId,
+          authorship: { channel: TRIP_FIELD_CHANNELS.whatsapp, onBehalfOfDriverId: null },
+          companyId: input.companyId,
+          idempotencyKey: attachmentSha256,
+          operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
+            {
+              attachmentSha256,
+              note: input.note,
+              occurrenceTypeId: input.occurrenceTypeId,
+              productCode: null,
+            },
+          )}`,
+          transaction: whatsappFieldReportGuardTransaction,
         },
-        tripId: input.tripId,
-      }),
+        perform,
+        recall: async (resultId) => {
+          const occurrence = await findTripOccurrenceById(database.db, {
+            companyId: input.companyId,
+            occurrenceId: resultId,
+          })
+          if (occurrence === null) return null
+          const attachments = await new DrizzleOccurrenceAttachmentRepository(
+            database.db,
+          ).listOccurrenceAttachments({ companyId: input.companyId, occurrenceId: resultId })
+          return {
+            ...occurrence,
+            attachments: attachments.map((attachment) => ({
+              id: attachment.id,
+              position: attachment.position,
+            })),
+            email: null,
+          }
+        },
+      })
+    },
     separateDocument: (input) =>
       transitionTripDocument({
         action: 'separate',
