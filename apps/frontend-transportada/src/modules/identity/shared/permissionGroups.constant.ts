@@ -40,7 +40,7 @@ export const PERMISSION_GROUPS = [
   },
   { key: 'operations', permissions: ['operations.read', 'operations.run', 'audit.read'] },
   { key: 'occurrences', permissions: ['occurrences.resolve'] },
-  { key: 'portal', permissions: ['deliveries.track', 'charges.decide'] },
+  { key: 'portal', permissions: ['deliveries.track', 'charges.decide', 'occurrences.decide'] },
 ] as const
 
 export const OTHER_PERMISSION_GROUP = 'other'

@@ -33,7 +33,7 @@ describe('a CSP do portal do contratante (spec 063 T009)', () => {
     )
   })
 
-  /** Sem `iframe` e sem imagem remota: o mapa é desenho nosso, e nada de terceiro renderiza aqui. */
+  /** Sem `iframe` e sem imagem de terceiro: o mapa é desenho nosso, e nada de fora renderiza aqui. */
   test('fecha frame e imagem de terceiro', () => {
     const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })
 
@@ -41,6 +41,25 @@ describe('a CSP do portal do contratante (spec 063 T009)', () => {
     expect(policy).toContain("frame-ancestors 'none'")
     expect(policy).toContain("img-src 'self'")
     expect(policy).toContain("object-src 'none'")
+  })
+
+  /**
+   * Spec 164 T9: a foto da ocorrência sai por URL assinada do armazenamento, que não é a origem do
+   * portal. Sem esta origem, o navegador bloqueia a imagem e a tela mostra foto quebrada **sem
+   * nenhum erro de rede** — o pior modo de falha possível para quem está do outro lado.
+   */
+  test('a origem do armazenamento entra em img-src, e só ela', () => {
+    const policy = buildContentSecurityPolicy({
+      ...ORIGINS,
+      allowsInlineScript: false,
+      storageBaseUrl: 'https://objetos.exemplo.test/bucket/qualquer',
+    })
+
+    expect(policy).toContain("img-src 'self' https://objetos.exemplo.test")
+    expect(policy).not.toContain('img-src data:')
+    expect(policy).not.toContain('img-src blob:')
+    // Armazenamento não vira destino de `fetch` por tabela: a leitura é `<img>`, não XHR.
+    expect(policy).not.toContain("connect-src 'self' https://objetos.exemplo.test")
   })
 
   /** `'unsafe-inline'` existe **só** em `style-src`, e o script inline só no servidor de dev. */

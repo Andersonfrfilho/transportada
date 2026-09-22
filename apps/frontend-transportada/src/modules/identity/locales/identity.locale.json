@@ -464,6 +464,10 @@
       "occurrences.resolve": {
         "label": "Tratar ocorrência",
         "where": "Ocorrências: revisar, devolver ao galpão, mandar à contratante, fechar e cancelar a tratativa."
+      },
+      "occurrences.decide": {
+        "label": "Decidir ocorrência (portal)",
+        "where": "Portal do contratante: autorizar reentrega ou acertar os produtos da ocorrência."
       }
     },
     "matrix": {

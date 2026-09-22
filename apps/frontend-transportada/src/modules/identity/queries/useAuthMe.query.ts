@@ -82,6 +82,11 @@ const COMPANY_PERMISSIONS = [
    * autoaprovação.
    */
   'occurrences.resolve',
+  /**
+   * Spec 164 T9: quem decide o destino da ocorrência é a contratante, pelo portal — e decidir não
+   * sai de carona com acompanhar entrega, pela mesma régua da ADR-0050 §6.
+   */
+  'occurrences.decide',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

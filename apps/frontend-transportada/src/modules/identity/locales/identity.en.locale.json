@@ -464,6 +464,10 @@
       "occurrences.resolve": {
         "label": "Handle occurrence",
         "where": "Occurrences: review, return to the warehouse, send to the contractor, close and cancel the case."
+      },
+      "occurrences.decide": {
+        "label": "Decide occurrence (portal)",
+        "where": "Contractor portal: authorise redelivery or settle the occurrence items."
       }
     },
     "matrix": {
