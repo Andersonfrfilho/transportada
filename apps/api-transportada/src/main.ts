@@ -976,6 +976,7 @@ export function bootstrap(): Bun.Server<undefined> {
           operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
             {
               attachmentSha256,
+              documentId: input.documentId,
               note: input.note,
               occurrenceTypeId: input.occurrenceTypeId,
               productCode: null,
@@ -2956,6 +2957,7 @@ function createApplicationRoutes({
               operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
                 {
                   attachmentSha256: sha256Hex(input.attachment.bytes),
+                  documentId: input.documentId,
                   note: input.note,
                   occurrenceTypeId: input.occurrenceTypeId,
                   productCode: input.productCode,

@@ -721,6 +721,7 @@ async function buildScenario(db: Database, companyId: string) {
           operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
             {
               attachmentSha256,
+              documentId: input.documentId,
               note: input.note,
               occurrenceTypeId: input.occurrenceTypeId,
               productCode: null,

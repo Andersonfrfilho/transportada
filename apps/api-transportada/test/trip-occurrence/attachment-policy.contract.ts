@@ -93,6 +93,7 @@ describe('política de anexo da ocorrência de galpão (spec 161 T2)', () => {
   test('a impressão de criação muda com o conteúdo (tipo, nota, código do produto, foto)', () => {
     const base = {
       attachmentSha256: 'a'.repeat(64),
+      documentId: 'd1d1d1d1-0000-4000-8000-000000000001',
       note: 'caixa violada',
       occurrenceTypeId: 'item_avariado',
       productCode: 'SKU-1',
@@ -112,17 +113,45 @@ describe('política de anexo da ocorrência de galpão (spec 161 T2)', () => {
   test('produtoCode ausente não colide com productCode vazio — null explícito', () => {
     const withoutProductCode = buildOccurrenceAttachmentCreateFingerprint({
       attachmentSha256: 'a'.repeat(64),
+      documentId: 'd1d1d1d1-0000-4000-8000-000000000001',
       note: 'caixa violada',
       occurrenceTypeId: 'item_avariado',
     })
     const withNullProductCode = buildOccurrenceAttachmentCreateFingerprint({
       attachmentSha256: 'a'.repeat(64),
+      documentId: 'd1d1d1d1-0000-4000-8000-000000000001',
       note: 'caixa violada',
       occurrenceTypeId: 'item_avariado',
       productCode: null,
     })
 
     expect(withoutProductCode).toBe(withNullProductCode)
+  })
+
+  /**
+   * I3 (revisão spec 161): sem `documentId` na impressão, a mesma foto com o mesmo tipo e a mesma
+   * observação em **outra nota** convergiam para a impressão da nota anterior — o WhatsApp
+   * respondia "foto anexada" para uma ocorrência que não era da nota do operador. `attachmentSha256`
+   * sozinho não basta: duas notas podem receber a mesma foto (reenvio, foto do mesmo produto).
+   */
+  test('mesma foto/tipo/nota em documentId diferente não colide — impressões distintas', () => {
+    const sameContentDifferentDocument = {
+      attachmentSha256: 'a'.repeat(64),
+      note: 'avaria no barracão',
+      occurrenceTypeId: 'item_avariado',
+      productCode: null,
+    }
+
+    const fingerprintForDocumentA = buildOccurrenceAttachmentCreateFingerprint({
+      ...sameContentDifferentDocument,
+      documentId: 'd1d1d1d1-0000-4000-8000-000000000001',
+    })
+    const fingerprintForDocumentB = buildOccurrenceAttachmentCreateFingerprint({
+      ...sameContentDifferentDocument,
+      documentId: 'd2d2d2d2-0000-4000-8000-000000000002',
+    })
+
+    expect(fingerprintForDocumentA).not.toBe(fingerprintForDocumentB)
   })
 
   test('a impressão do anexo adicional é do sha256 do original, nunca da miniatura', () => {

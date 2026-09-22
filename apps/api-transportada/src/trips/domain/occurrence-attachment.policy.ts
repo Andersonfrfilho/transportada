@@ -83,6 +83,14 @@ export const OCCURRENCE_ATTACHMENT_APPEND_OPERATION = 'separation.document.occur
 
 export type BuildOccurrenceAttachmentCreateFingerprintParams = {
   readonly attachmentSha256: string
+  /**
+   * I3 (revisão spec 161): sem a nota na impressão, a mesma foto com o mesmo tipo e a mesma
+   * observação em **outra** nota convergia para a impressão da nota anterior — mesma foto e
+   * mesmo texto não são incomuns entre notas de um mesmo galpão (produto padrão, observação
+   * copiada). `documentId` já identifica a viagem por tabela (`trip_documents`), então não
+   * precisa entrar sozinho na impressão.
+   */
+  readonly documentId: string
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode?: string | null
@@ -96,6 +104,7 @@ export function buildOccurrenceAttachmentCreateFingerprint(
   params: BuildOccurrenceAttachmentCreateFingerprintParams,
 ): string {
   const fingerprint = JSON.stringify([
+    params.documentId,
     params.occurrenceTypeId,
     params.note,
     params.productCode ?? null,

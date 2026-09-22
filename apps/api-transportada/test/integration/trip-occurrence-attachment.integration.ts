@@ -125,6 +125,7 @@ function wireOccurrenceUseCases(database: TestDatabase) {
         operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
           {
             attachmentSha256: sha256Hex(input.attachment.bytes),
+            documentId: input.documentId,
             note: 'caixa com avaria visível',
             occurrenceTypeId: input.occurrenceTypeId,
             productCode: '',
