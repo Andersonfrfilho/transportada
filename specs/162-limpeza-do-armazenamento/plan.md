@@ -197,13 +197,32 @@ Teste de aceite/contrato **antes** da implementação, em toda task.
 integração são duas listas e dois comandos, e o segundo precisa do `--env-file` ou **pula** em vez
 de falhar (CLAUDE.md da raiz).
 
+## Alternativa barata, se a T0 disser que o ganho é pequeno
+
+Registrada para não ser redescoberta. Se a medição da T0 mostrar poucos órfãos e pouco espaço
+recuperável, a tela não se paga, e o que resolve o problema real é o que
+`docs/SECURITY.md:169` já pede desde 2026-09-18: **uma rotina de worker, sem interface.**
+
+Recorte: T1 (só a classificação, que a rotina também usa), T11 e T12 — a rotina
+`storage.object.purge` ampliada para varrer órfãos com mais de N dias e apagá-los, com contagem no
+log. Fora: permissões novas, as quatro rotas, a migration dos 18 índices (a rotina varre em lote,
+não pagina sob latência de tela), o módulo de frontend e a revisão de design. De 19 tasks para
+aproximadamente 4.
+
+Isso não entrega "página para excluir coisas do bucket", que é o que o usuário pediu — entrega o
+efeito (o bucket para de acumular lixo) sem a tela. É uma troca que só ele pode fazer, e é para
+isso que a T0 existe antes da Fase 1.
+
 ## Riscos
 
-1. **O ganho de espaço é bem menor do que a primeira redação sugeria.** Com `import_source`,
-   `contractor_mail_raw` e canhoto fora, sobram foto de ocorrência, órfão, PDF de fatura e documento
-   de candidato. A feature passa a valer principalmente pela **detecção de órfão** (T5) — se ela não
-   for confiável, sobra pouco. Isso está escrito no `spec.md` em vez de mantido como expectativa.
-2. **Órfão de `delivery_proof` é, em boa parte, canhoto substituído** (`docs/SECURITY.md:160-163`).
+1. **O risco principal já não é técnico: é a tela não se pagar.** Com fiscal, `import_source`,
+   `contractor_mail_raw`, canhoto e **foto de ocorrência** (nova e antiga) fora, sobram órfão, PDF de
+   fatura, documento de candidato e miniatura — e a miniatura é ganho ruim (cache). A feature virou
+   essencialmente uma ferramenta de limpeza de órfãos, e **ninguém mediu quantos órfãos existem**.
+   Mitigação: a **T0** é portão de decisão antes da Fase 1, e a § "Alternativa barata" acima é o
+   plano B. Está escrito no `spec.md` em vez de mantido como expectativa.
+2. **Órfão de `delivery_proof` é, em boa parte, canhoto substituído e foto de ocorrência
+   substituída** (`docs/SECURITY.md:160-163`).
    Apagá-lo é o comportamento desejado — o comprovante vigente é o vinculado —, mas o rótulo do
    filtro precisa dizer isso, senão o operador apaga sem saber o que era. Defeito de rótulo, pego na
    revisão de design (T16).

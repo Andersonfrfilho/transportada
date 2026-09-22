@@ -17,6 +17,25 @@ respondidas e viraram decisão (spec.md § Dúvidas): `import_source` e `contrac
 guarda e não se apagam; canhoto é protegido por vínculo, com saída individual por foto ilegível
 (D8); e a nota do motorista não muda (D9, medido).
 
+## Fase 0 — Medir antes de construir
+
+> 🤖 Modelo: `sonnet` · **Portão: o resultado desta task decide se as Fases 1 a 6 acontecem.**
+
+- [ ] **T0** Contar o que há para apagar — consulta **de leitura**, sem código de produção, contra a
+      instalação real (staging e, se possível, produção): por finalidade, quantos objetos e quantos
+      bytes; e, dentro de `delivery_proof`, quantos são **órfãos** (sem nenhuma das referências da
+      tabela de D3) e que volume somam. Uma consulta única, `read only`, registrada em `evidence.md`
+      com a data e o ambiente.
+      **Aceite:** número absoluto de órfãos e bytes órfãos na mão, mais o total por finalidade
+      apagável (`billing_document`, `aggregate_document`, `aggregate_application_attachment`,
+      `trip_occurrence_thumbnail`).
+      **Decisão, e ela é do usuário — parar e perguntar:** - **Ganho relevante** → seguir para a Fase 1. - **Ganho pequeno** → **não construir a tela.** Propor no lugar a varredura periódica que
+      `docs/SECURITY.md:169` já pede: rotina de worker, sem interface, sem permissão nova — o que
+      equivale a executar só as Fases 1 (parcial) e 4. O `plan.md` § "Alternativa barata" tem o
+      recorte.
+      ⚠️ Esta task não escreve código de produção e não abre commit de feature. Se ela for pulada, o
+      resto da spec é construído sem saber se serve para algo.
+
 ## Fase 1 — A classificação e a permissão vêm antes de qualquer rota
 
 > 🤖 Modelo: `sonnet` (T2 é 🧠 — validar com `architect` antes de gerar a migration)
@@ -27,15 +46,19 @@ guarda e não se apagam; canhoto é protegido por vínculo, com saída individua
 'protected' | 'purgeable'>` e a função pura `resolveStorageProtection({ purpose, recordType })`
       devolvendo `{ state, reason, individualPurgePath }`.
       Teste antes: `test/storage/purpose-classification.contract.ts` — percorre
-      `STORAGE_OBJECT_PURPOSES` inteiro **e** os quatro casos de `delivery_proof`
-      (`trip_delivery_proofs`, `trip_stop_occurrences`, `trip_document_occurrences`, órfão); casos de
+      `STORAGE_OBJECT_PURPOSES` inteiro **e** os cinco casos de `delivery_proof`
+      (`trip_delivery_proofs`, `trip_stop_occurrences`, `trip_document_occurrences`,
+      `trip_document_occurrence_attachments` e órfão — só o último apagável); casos de
       tipo provam que finalidade nova **ou** tabela referenciadora nova não compilam sem entrada.
       ⚠️ Conferir `STORAGE_OBJECT_PURPOSES` em `origin/staging` antes: a spec 161 acrescentou
-      `trip_occurrence_attachment` e `trip_occurrence_thumbnail` (ambas `purgeable`, já na tabela de
-      D6) e a tabela `trip_document_occurrence_attachments`, com **duas** colunas para
+      `trip_occurrence_attachment` (`protected` — prova obrigatória) e `trip_occurrence_thumbnail`
+      (`purgeable` — cache), já na tabela de D6, e a tabela `trip_document_occurrence_attachments`, com **duas** colunas para
       `stored_objects`.
       **Aceite (CA2b, CA3):** as finalidades classificadas conforme a tabela de D6 (11 na base de
-      hoje, 13 com a 161 mesclada) — as 5 fiscais
+      hoje, 13 com a 161 mesclada) — com `trip_occurrence_attachment` como `protected` (prova
+      obrigatória) e `trip_occurrence_thumbnail` como `purgeable` (cache); e **todas** as tabelas
+      referenciadoras de `delivery_proof` resolvendo para `protected`, sobrando apenas o órfão como
+      apagável — as 5 fiscais
       mais `import_source` e `contractor_mail_raw` como `protected` (guarda: evidência e defesa
       contratual), `delivery_proof` como `by-link`; e o vínculo `trip_delivery_proofs` resolvendo
       para `protected` com `individualPurgePath: 'illegible'`. O teste de exaustividade falha se
@@ -205,6 +228,10 @@ Se ela já entregou rotina de expurgo, **absorver** em vez de criar uma segunda 
       cru é proibido fora de `src/components/ui/`.
       Teste antes: contrato do painel — falha da lista e lista vazia têm textos distintos (lição da
       RF5 da spec 157).
+      ⚠️ Com o recorte das quatro decisões, o filtro de **finalidade** perdeu quase todo o valor
+      (sobraram quatro finalidades apagáveis): os filtros que importam são **vínculo (órfão)**,
+      tamanho e período. A ordem e o destaque na tela devem refletir isso. A miniatura não entra em
+      filtro padrão nem em sugestão de limpeza (D6).
       **Aceite (RF10):** filtros de D2 funcionando, paginação com "anterior" e "próxima", estado de
       carregamento, aviso de falha com "Tentar de novo", texto próprio de lista vazia, e **objeto
       protegido aparecendo marcado** com razão legível em `tooltip` (nunca `title` nativo) e caixa de
@@ -254,24 +281,39 @@ Se ela já entregou rotina de expurgo, **absorver** em vez de criar uma segunda 
 /oh-my-claudecode:autopilot Execute a spec specs/162-limpeza-do-armazenamento/ (leia spec.md, plan.md
 e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md. Não toque em
 specs/161-foto-na-ocorrencia-de-separacao/.
-Modelos: Fase 1 → executor model=sonnet (T2 🧠 → opus, validar a migration com architect antes de
-gerar) · Fase 2 → executor model=sonnet (T5 🧠 → opus: vínculo + proteção + órfão com 16 NOT EXISTS
-num passo só é o coração da spec) · Fase 3 → executor model=sonnet (T9b 🧠 → opus: canhoto ilegível
-e o contrato de regressão da nota do motorista) · Fases 4, 5 e 6 → executor model=sonnet · revisão
-final → code-reviewer model=opus, com security-reviewer model=opus nas Fases 2 e 3.
+
+COMECE PELA T0 E PARE NELA. A T0 é portão: conta órfãos e bytes por finalidade na instalação real,
+por consulta de leitura, sem código de produção. Traga o número e PERGUNTE ao usuário se segue. Se o
+ganho for pequeno, a resposta certa é não construir a tela — proponha a § "Alternativa barata" do
+plan.md (rotina de worker sem interface, ~4 tasks). Não avance para a Fase 1 sem essa resposta.
+
+Modelos (depois do portão): Fase 1 → executor model=sonnet (T2 🧠 → opus, validar a migration com
+architect antes de gerar) · Fase 2 → executor model=sonnet (T5 🧠 → opus: vínculo + proteção + órfão
+com 18 NOT EXISTS num passo só é o coração da spec) · Fase 3 → executor model=sonnet (T9b 🧠 → opus:
+canhoto ilegível e o contrato de regressão da nota do motorista) · Fases 4, 5 e 6 → executor
+model=sonnet · revisão final → code-reviewer model=opus, com security-reviewer model=opus nas
+Fases 2 e 3.
+
 Teste de contrato antes da implementação em toda task. Cada task fecha com typecheck + os testes da
-task + commit isolado, evidência em evidence.md. Lembre que na API são dois comandos e nenhum cobre
-o outro: `bun --env-file=../../.env.test test --timeout 120000` (contrato) e
-`bun --env-file=../../.env.test run test:integration` (integração, sem o --env-file ela PULA), e que
+task + commit isolado, evidência em evidence.md. Na API são dois comandos e nenhum cobre o outro:
+`bun --env-file=../../.env.test test --timeout 120000` (contrato) e
+`bun --env-file=../../.env.test run test:integration` (integração, sem o --env-file ela PULA), e
 arquivo de teste novo não roda sem ser listado no package.json da app.
+
 Invariantes que não se negociam:
-- A proteção é por FINALIDADE **e por VÍNCULO**, em quatro camadas (D6). As 7 finalidades de guarda
-  (5 fiscais + import_source + contractor_mail_raw) nunca são listadas nem excluídas. delivery_proof
-  é `by-link`: vinculado a trip_delivery_proofs é canhoto e é protegido; vinculado às duas tabelas
-  de ocorrência, ou órfão, é apagável.
+- A proteção é por FINALIDADE **e por VÍNCULO**, em quatro camadas (D6). Protegidas por inteiro: as
+  5 fiscais, import_source, contractor_mail_raw e trip_occurrence_attachment (prova obrigatória da
+  spec 161). Apagáveis: billing_document, aggregate_document, aggregate_application_attachment e
+  trip_occurrence_thumbnail (cache, não prova).
+- delivery_proof é `by-link`, e TODA tabela referenciadora resolve para `protected` — canhoto
+  (trip_delivery_proofs) e foto de ocorrência, nova e antiga (trip_stop_occurrences,
+  trip_document_occurrences, trip_document_occurrence_attachments). Só o ÓRFÃO é apagável. Mantenha
+  a classificação por tabela mesmo assim: é ela que faz tabela nova virar erro de compilação.
 - Canhoto só se apaga por POST /storage/objects/:id/purge-illegible, um por vez, com motivo escrito
   de 20 a 500 caracteres sem PII, que vai para audit_logs.reason. Nenhum lote, filtro ou outra rota
-  o alcança.
+  o alcança. Foto de ocorrência NÃO tem exceção equivalente — não crie uma.
+- Protegido ≠ eterno: a retenção da spec 161 (cinco anos) e seu expurgo automático continuam
+  valendo. Esta spec impede o ato manual, não o prazo.
 - A nota do motorista NÃO muda ao apagar canhoto, e o contrato da T9b prova isso calculando,
   apagando e recalculando. Não desvincule nada e não escreva em trip_delivery_proofs.
 - Exclusão é lápide (status='deleted' + deleted_at), nunca DELETE de linha e nunca desvincular;
@@ -280,5 +322,7 @@ Invariantes que não se negociam:
 - Objeto protegido por vínculo APARECE na lista, marcado e não selecionável — não o esconda.
 - companyId sempre do contexto; nenhuma resposta, log ou trilha com objectKey/bucket/sha256 ou PII;
   trilha de auditoria por objeto com metadata.ipAddress.
-Não há [NEEDS CLARIFICATION] em aberto. Pare e pergunte antes de: deploy e migration destrutiva.
+
+Não há [NEEDS CLARIFICATION] em aberto. Pare e pergunte antes de: a decisão da T0, deploy e
+migration destrutiva.
 ```

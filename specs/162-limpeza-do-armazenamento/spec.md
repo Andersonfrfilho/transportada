@@ -19,40 +19,44 @@ que nenhuma tela contorna.
 
 ### O que sobra para apagar, dito sem otimismo
 
-Três respostas do usuário recortaram o escopo depois da primeira redação, e o recorte é grande o
-bastante para mudar a promessa da feature. `import_source` e `contractor_mail_raw` são guarda; o
-canhoto é guarda. **O maior ganho de espaço que esta spec parecia prometer — os `.zip` de lote da
-importação — saiu.** O que sobra é:
+Quatro rodadas de resposta do usuário recortaram o escopo depois da primeira redação, e o recorte é
+grande o bastante para mudar a conclusão da spec — não só a sua promessa. Está fora: fiscal
+(5 finalidades), `import_source`, `contractor_mail_raw`, canhoto, **foto de ocorrência** (nova e
+antiga). O que sobra:
 
-| Sobra                                                                     | Tamanho típico                     | Comentário                                                                      |
-| ------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
-| Foto de ocorrência (`trip_stop_occurrences`, `trip_document_occurrences`) | grande, e crescendo                | é a fatia real; a spec 161 acrescenta mais                                      |
-| Objeto órfão, sem vínculo nenhum                                          | desconhecido, provavelmente grande | canhoto substituído e upload de transação desfeita (`docs/SECURITY.md:149-174`) |
-| `billing_document`                                                        | médio                              | PDF de fatura, regerável                                                        |
-| `aggregate_document`, `aggregate_application_attachment`                  | pequeno                            | documento de candidato                                                          |
-| Canhoto ilegível, um a um (D8)                                            | pequeno por definição              | exceção nomeada, não fonte de espaço                                            |
+| Sobra                                                    | Tamanho                         | Vale a pena?                                                   |
+| -------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------- |
+| **Objeto órfão**, sem vínculo nenhum                     | **desconhecido — nunca medido** | é a única sobra com potencial de ser grande                    |
+| `billing_document`                                       | médio                           | PDF de fatura, regerável; ganho real, volume modesto           |
+| `aggregate_document`, `aggregate_application_attachment` | pequeno                         | documento de candidato; poucos por instalação                  |
+| `trip_occurrence_thumbnail`                              | pequeno cada, muitos            | **ganho ruim**: é cache, e apagar deixa as listas mais pesadas |
+| Canhoto ilegível, um a um (D8)                           | irrelevante em volume           | exceção de qualidade, não fonte de espaço                      |
 
-A feature continua valendo — mas o que ela limpa é **foto de ocorrência e órfão**, não arquivo
-fiscal nem lote de importação. A consequência prática é que a detecção de órfão (D3) deixou de ser
-um filtro conveniente e virou **a funcionalidade principal**; se ela não for confiável, sobra pouco.
+**A conclusão honesta: esta virou, essencialmente, uma ferramenta de limpeza de órfãos.** O pedido
+original — "página para excluir coisas do bucket" — nasceu supondo que havia muita coisa apagável.
+Depois das quatro respostas, quase tudo o que ocupa espaço de verdade é guarda ou prova. A detecção
+de órfão (D3), que na primeira redação era um filtro conveniente e na segunda já era o coração,
+agora é praticamente **a razão de existir da tela**.
 
-### O modelo já previa isto, e ninguém ligou
+E há um problema com isso que seria desonesto não escrever: **ninguém sabe quantos órfãos existem.**
+Não há medição, nesta base nem em produção. Se forem poucos, esta tela não se paga — são 19 tasks,
+uma migration de 18 índices, rotina nova no worker e módulo novo no frontend para recuperar um
+espaço que talvez não exista. Os órfãos vêm de três fontes conhecidas
+(`docs/SECURITY.md:149-174`): canhoto substituído pelo unique `(company, stop_event, kind)`, upload
+de transação desfeita cuja limpeza falhou, e processo morto entre o upload e o `catch`. São todos
+eventos de exceção — podem ser milhares ou podem ser dezenas.
 
-Três colunas de `stored_objects` estão mortas desde que nasceram
-(`apps/api-transportada/src/database/storage.schema.ts:45,48,51`): `status='deleted'`,
-`deleted_at` e `retention_until` não têm um único escritor nem leitor em produção — medido em
-`api-transportada`, `worker-transportada` e `cron-transportada`. E o CHECK
-`stored_objects_deleted_check` (`storage.schema.ts:78-81`) amarra `status='deleted'` a `deleted_at`
-não nulo.
+**Por isso a T0 existe e é um portão, não uma formalidade.** Ela é uma consulta de leitura, sem
+código de produção, que conta órfãos e bytes por finalidade na instalação real. O resultado decide:
 
-Ao mesmo tempo, as **16 chaves estrangeiras** que apontam para `stored_objects` — em 13 tabelas,
-todas compostas `(company_id, <coluna>) → stored_objects(company_id, id)` — são todas
-`onDelete('restrict')`. Nenhuma linha de `stored_objects` referenciada pode ser apagada do banco,
-nunca.
+- **Ganho relevante** → segue o plano inteiro.
+- **Ganho pequeno** → a resposta certa é **não construir a tela**. O que resolve o problema real
+  passa a ser a varredura periódica que `docs/SECURITY.md:169` já pede há tempos — uma rotina de
+  worker, sem interface, sem permissão nova, sem 19 tasks. O `plan.md` registra essa alternativa
+  para que ela não precise ser redescoberta.
 
-Somadas, as duas coisas dizem qual é o desenho: **excluir não é remover a linha, é tirar os bytes e
-deixar a lápide.** A linha vira `deleted`, o vínculo continua íntegro, e o objeto sai do bucket.
-Esta spec liga o que o schema já desenhou.
+Preferi dizer isto a entregar uma spec animada. A decisão é do usuário, e ela fica mais barata com o
+número na mão do que depois da Fase 5.
 
 ## Fora do escopo
 
@@ -275,8 +279,9 @@ para três coisas diferentes**. Ela é gravada pelo canhoto do motorista
 (`drizzle-driver-field-report.repository.ts:599`, que insere em `trip_delivery_proofs`), pelo
 canhoto do escritório (`drizzle-delivery-proof.repository.ts:292`, mesma tabela) e pelo anexo de
 ocorrência do escritório (`drizzle-office-occurrence-batch.repository.ts:122`, que insere em
-`trip_document_occurrences`). Proteger a finalidade inteira tiraria da tela justamente as fotos de
-ocorrência que o usuário quer poder apagar; liberá-la exporia o canhoto. **Quem separa é o vínculo.**
+`trip_document_occurrences`). Liberar a finalidade inteira exporia o canhoto e a foto de ocorrência,
+que são prova; e a distinção que sobra — **o órfão, que nada referencia e nada serve** — não está na
+finalidade, está no vínculo. **Quem separa é o vínculo.**
 
 Três classes, e a classificação de um objeto é `(finalidade, tabela que o referencia)`:
 
@@ -288,27 +293,71 @@ Três classes, e a classificação de um objeto é `(finalidade, tabela que o re
 
 **Classificação por finalidade** (`STORAGE_PURPOSE_CLASSIFICATION`):
 
-| Finalidade                                                                    | Classe      | Por quê                                                                                                                                       |
-| ----------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nfe_document`, `nfe_event`, `cte_document`, `mdfe_document`, `nfse_document` | `protected` | XML original preservado (CLAUDE.md da raiz); constituição §5, "histórico imutável"; guarda legal                                              |
-| `import_source`                                                               | `protected` | **guarda fiscal: é evidência e defesa contratual** — decisão do usuário. Não é classificação por precaução à espera de resposta; é a resposta |
-| `contractor_mail_raw`                                                         | `protected` | **peça de defesa contratual, não evidência operacional descartável** — decisão do usuário, mesma razão                                        |
-| `delivery_proof`                                                              | `by-link`   | canhoto é guarda; anexo de ocorrência não                                                                                                     |
-| `billing_document`                                                            | `purgeable` | documento de fatura, regerável                                                                                                                |
-| `aggregate_document`                                                          | `purgeable` | documento de candidato                                                                                                                        |
-| `aggregate_application_attachment`                                            | `purgeable` | anexo de pré-cadastro                                                                                                                         |
-| `trip_occurrence_attachment`                                                  | `purgeable` | foto de ocorrência de galpão (spec 161)                                                                                                       |
-| `trip_occurrence_thumbnail`                                                   | `purgeable` | miniatura da mesma foto (spec 161)                                                                                                            |
+| Finalidade                                                                    | Classe      | Por quê                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nfe_document`, `nfe_event`, `cte_document`, `mdfe_document`, `nfse_document` | `protected` | XML original preservado (CLAUDE.md da raiz); constituição §5, "histórico imutável"; guarda legal                                                                                                                                              |
+| `import_source`                                                               | `protected` | **guarda fiscal: é evidência e defesa contratual** — decisão do usuário. Não é classificação por precaução à espera de resposta; é a resposta                                                                                                 |
+| `contractor_mail_raw`                                                         | `protected` | **peça de defesa contratual, não evidência operacional descartável** — decisão do usuário, mesma razão                                                                                                                                        |
+| `delivery_proof`                                                              | `by-link`   | canhoto é guarda; anexo de ocorrência não                                                                                                                                                                                                     |
+| `billing_document`                                                            | `purgeable` | documento de fatura, regerável                                                                                                                                                                                                                |
+| `aggregate_document`                                                          | `purgeable` | documento de candidato                                                                                                                                                                                                                        |
+| `aggregate_application_attachment`                                            | `purgeable` | anexo de pré-cadastro                                                                                                                                                                                                                         |
+| `trip_occurrence_attachment`                                                  | `protected` | **é a prova da ocorrência de galpão, e a spec 161 a tornou obrigatória.** Uma tela que a apague contradiz as duas coisas, e deixaria ocorrência com prova obrigatória ausente — exatamente o estado que a obrigatoriedade existe para impedir |
+| `trip_occurrence_thumbnail`                                                   | `purgeable` | **é cache de leitura, não prova** — regenerável do mesmo canvas do original; ver a nota abaixo, e não "consertar" por simetria                                                                                                                |
 
 **Resolução por vínculo** (`STORAGE_LINK_CLASSIFICATION`), aplicada só à classe `by-link`:
 
-| Tabela que referencia                  | Classe      | Por quê                                                                                        |
-| -------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| `trip_delivery_proofs`                 | `protected` | **é o canhoto** — prova da entrega. Única saída: D8                                            |
-| `trip_stop_occurrences`                | `purgeable` | foto de ocorrência de parada                                                                   |
-| `trip_document_occurrences`            | `purgeable` | foto de ocorrência de nota                                                                     |
-| `trip_document_occurrence_attachments` | `purgeable` | foto de ocorrência de galpão (spec 161)                                                        |
-| _sem vínculo_ (órfão)                  | `purgeable` | nada o referencia e nada o serve; por definição não é o comprovante vigente de entrega nenhuma |
+| Tabela que referencia                  | Classe      | Por quê                                                                              |
+| -------------------------------------- | ----------- | ------------------------------------------------------------------------------------ |
+| `trip_delivery_proofs`                 | `protected` | **é o canhoto** — prova da entrega. Única saída: D8                                  |
+| `trip_stop_occurrences`                | `protected` | foto de ocorrência de parada — **mesma prova, sob a finalidade antiga** (ver abaixo) |
+| `trip_document_occurrences`            | `protected` | foto de ocorrência de nota — idem                                                    |
+| `trip_document_occurrence_attachments` | `protected` | foto de ocorrência de galpão (spec 161), prova obrigatória                           |
+| _sem vínculo_ (órfão)                  | `purgeable` | nada o referencia e nada o serve; por definição não é prova vigente de nada          |
+
+**A foto de ocorrência antiga protege igual, e isto é decisão, não consequência automática.** A
+spec 161 criou finalidades próprias, mas as fotos de ocorrência gravadas **antes** dela continuam
+com `purpose = 'delivery_proof'`, vinculadas a `trip_stop_occurrences` ou
+`trip_document_occurrences`. É o mesmo artefato, com o mesmo papel probatório; deixá-las apagáveis
+faria a resposta depender de **quando** o arquivo subiu, o que não é linha de princípio para decidir
+se prova pode ser destruída. Protegidas, portanto. O lado recuperável deste erro custa
+armazenamento; o outro destrói prova.
+
+⚠️ **Consequência de desenho, dita sem maquiagem:** com isso, **toda** linha de `delivery_proof`
+vinculada passa a ser protegida, e a resolução por vínculo deixa de distinguir canhoto de anexo
+dentro daquela finalidade — o que ela distingue agora é **vinculado (protegido) de órfão
+(apagável)**. A regra ficou mais simples do que o problema que motivou criá-la.
+
+Mantenho a `STORAGE_LINK_CLASSIFICATION` por tabela mesmo assim, e a razão já não é a de antes: ela
+não separa nada hoje, mas é **o que transforma uma tabela referenciadora nova em erro de compilação
+em vez de um padrão silencioso**. Foi exatamente isso que aconteceu com a spec 161 durante a escrita
+desta. Um booleano "vinculado ⇒ protegido" acertaria hoje e erraria calado na próxima tabela que
+alguém criar com uma foto apagável dentro.
+
+### Retenção e exclusão manual não são a mesma coisa
+
+Vale escrever, porque as duas palavras se confundem e o erro é simétrico:
+
+- **Protegido** (esta spec) significa que **nenhum ato manual** apaga o arquivo. Não significa
+  eterno.
+- **Retenção** (spec 161: cinco anos para a foto de ocorrência) é prazo, e o expurgo automático
+  quando ele vence continua valendo, intacto.
+
+Ler "protegida" como "eterna" faria alguém desligar a retenção por achá-la contraditória; ler o
+contrário faria alguém oferecer o botão manual por achar que o prazo já autoriza. As duas leituras
+estão erradas. Quem apaga por prazo é a rotina, sobre critério de tempo; quem esta tela impede é a
+pessoa, sobre critério de vontade.
+
+### A miniatura é cache, e apagá-la é um ganho ruim
+
+`trip_occurrence_thumbnail` é apagável porque é **derivada** — gerada do mesmo canvas do original
+(spec 161 D12) e regenerável. Nenhuma informação se perde: apagada, a lista passa a carregar o
+original, e fica **mais pesada**. É espaço trocado por banda e latência.
+
+Por isso a miniatura não é sugestão de limpeza em lugar nenhum da tela, não entra em filtro padrão,
+e o texto ao lado dela diz o que se perde. Está disponível para aperto real de espaço, não como
+economia recomendada. E ninguém deve "corrigir" a assimetria entre original protegido e miniatura
+apagável: ela é a decisão, não um descuido.
 
 ⚠️ **O órfão de `delivery_proof` merece uma frase honesta.** Boa parte deles é canhoto
 **substituído**: o unique `(company, stop_event, kind)` faz a foto nova tomar o lugar da antiga, e a
@@ -524,9 +573,12 @@ windowSeconds }`) e entra em `test/rate-limited-routes.contract.test.ts` — é 
 - **CA2.** Contrato: para **cada** uma das 7 finalidades protegidas por inteiro, o objeto não
   aparece em `GET /storage/objects` (nem sem filtro, nem com `purpose` igual a ela — que é `400`) e
   `POST /storage/purges` com o id dele responde `refused_protected`, sem chamar o gateway.
-- **CA2b.** Contrato: para `delivery_proof`, a classificação é percorrida nos **quatro** casos —
-  vinculado a `trip_delivery_proofs` (protegido, aparece marcado, lote recusa), a
-  `trip_stop_occurrences` (apagável), a `trip_document_occurrences` (apagável) e órfão (apagável).
+- **CA2b.** Contrato: para `delivery_proof`, a classificação é percorrida nos **cinco** casos —
+  vinculado a `trip_delivery_proofs` (protegido: canhoto), a `trip_stop_occurrences` (protegido:
+  ocorrência antiga), a `trip_document_occurrences` (protegido: ocorrência antiga), a
+  `trip_document_occurrence_attachments` (protegido: ocorrência da 161) e **órfão** (o único
+  apagável). Nos quatro protegidos, o objeto aparece **marcado** na lista e o lote o recusa com
+  `refused_protected`.
 - **CA3.** Contrato: `STORAGE_PURPOSE_CLASSIFICATION` e `STORAGE_LINK_CLASSIFICATION` cobrem as duas
   uniões inteiras — um teste de tipo prova que finalidade nova **ou tabela referenciadora nova** não
   compilam sem classificação.
