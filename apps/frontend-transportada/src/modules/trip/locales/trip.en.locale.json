@@ -96,6 +96,7 @@
     "title": "Assembly map",
     "toll": {
       "adjustBooth": "Adjust this booth's tariff",
+      "avoided": "This route avoids the toll booths.",
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",
       "catalogEmpty": "Toll not calculated: the toll booth catalog has not been loaded in this environment.",

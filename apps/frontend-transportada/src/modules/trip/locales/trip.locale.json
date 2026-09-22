@@ -92,6 +92,7 @@
       "cheapest": "mais barata",
       "fastest": "mais rápida",
       "fastestAndCheapest": "mais rápida e mais barata",
+      "noToll": "sem pedágio",
       "gap": {
         "NO_FUEL_BASELINE": "Sem consumo ou preço de combustível declarado para o veículo, não há como dizer qual rota é mais barata.",
         "TOLL_UNKNOWN": "O pedágio de alguma rota não pôde ser calculado — sem como comparar o custo total entre elas."
@@ -117,6 +118,7 @@
     "title": "Mapa da montagem",
     "toll": {
       "adjustBooth": "Ajustar tarifa desta praça",
+      "avoided": "Esta rota evita as praças de pedágio.",
       "axleSource": {
         "declared": "declarados na ficha do veículo",
         "estimated": "estimados pelo tipo do veículo"

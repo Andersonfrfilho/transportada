@@ -17,6 +17,12 @@ import styles from '../styles/trip.module.css'
 type RouteTollSummaryProps = Readonly<{
   /** RF7 (spec 154): só quem tem `settings.manage` vê o caminho até o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /**
+   * Spec 165 RF4: a rota exibida veio da chamada `exclude=toll` (spec 153). Só muda a frase do
+   * trajeto **sem praça** — zero por desvio e zero por acaso são coisas diferentes, e a segunda
+   * frase na primeira situação lê como cálculo quebrado.
+   */
+  isNoTollRoute: boolean
   toll: null | RouteGeometryToll
 }>
 
@@ -38,7 +44,11 @@ function handleAdjustBooth(booth: RouteGeometryTollBooth): void {
  * o botão que abre a aba de pedágio em Frota, com a busca já na praça — só quando `canAdjustTollBooth`
  * (`settings.manage`) é verdadeiro; sem a permissão o botão nem entra no DOM.
  */
-export function RouteTollSummary({ canAdjustTollBooth, toll }: RouteTollSummaryProps) {
+export function RouteTollSummary({
+  canAdjustTollBooth,
+  isNoTollRoute,
+  toll,
+}: RouteTollSummaryProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -99,9 +109,15 @@ export function RouteTollSummary({ canAdjustTollBooth, toll }: RouteTollSummaryP
         */}
           {toll.booths.length === 0 ? (
             <p className={styles.hint}>
+              {/*
+                ⚠️ Spec 165 RF5: catálogo vazio vence o desvio. Sem praça carregada, ninguém sabe
+                de que a rota desviou — a frase do desvio ali seria afirmação sobre dado ausente.
+              */}
               {toll.catalog.status === 'empty'
                 ? t('assemblyMap.toll.catalogEmpty')
-                : t('assemblyMap.toll.none')}
+                : isNoTollRoute
+                  ? t('assemblyMap.toll.avoided')
+                  : t('assemblyMap.toll.none')}
             </p>
           ) : (
             <>

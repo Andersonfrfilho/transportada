@@ -192,7 +192,15 @@ export function TripRouteMap({
       geometry.costGap === null ? null : (
         <p className={styles.hint}>{t(`assemblyMap.routeOptions.gap.${geometry.costGap}`)}</p>
       )}
-      <RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={geometry?.toll ?? null} />
+      {/*
+        ⚠️ Spec 165: a rota congelada não guarda se veio de `exclude=toll`, então aqui nunca se
+        afirma desvio — a frase genérica de hoje é o que se sabe.
+      */}
+      <RouteTollSummary
+        canAdjustTollBooth={canAdjustTollBooth}
+        isNoTollRoute={false}
+        toll={geometry?.toll ?? null}
+      />
       {canCorrect ? (
         <TripStopPointCorrection isCorrecting={isCorrecting} onCorrect={onCorrect} stops={stops} />
       ) : null}

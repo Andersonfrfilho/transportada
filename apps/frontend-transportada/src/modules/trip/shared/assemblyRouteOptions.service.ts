@@ -22,6 +22,12 @@ export type RouteOptionSummary = Readonly<{
   isBestOfBoth: boolean
   isCheapest: boolean
   isFastest: boolean
+  /**
+   * Spec 165 RF1: esta opção veio da chamada `exclude=toll` (spec 153). ⚠️ É **diferente** de
+   * `boothCount === 0` — a rota comum que não cruza praça nenhuma também conta zero, e sem esta
+   * marca as duas linhas ficam idênticas na tela em que o operador escolhe a rota.
+   */
+  isNoToll: boolean
   minutes: number
   totalCost: null | string
 }>
@@ -49,6 +55,7 @@ export function resolveRouteOptionSummaries(input: {
       isBestOfBoth: isFastest && isCheapest,
       isCheapest,
       isFastest,
+      isNoToll: option.isNoToll,
       minutes: Math.round(option.durationSeconds / SECONDS_PER_MINUTE),
       totalCost: option.totalCost,
     }
