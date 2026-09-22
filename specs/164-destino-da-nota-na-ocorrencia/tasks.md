@@ -128,7 +128,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 > 🤖 Modelo: `sonnet` — **T14 é 🧠**: mexe na porta de não-retorno do despacho, que é a invariante
 > mais cara da viagem (ADR-0043). Validar com `architect` em `opus` antes de escrever.
 
-- [ ] **T13** Acerto por item, com o pagador — `trips/domain/occurrence-settlement.policy.ts` (soma
+- [ ] **T13** _(movida para a Fase 5, depois da T16)_ Acerto por item, com o pagador — `trips/domain/occurrence-settlement.policy.ts` (soma
       com `Decimal`, validação de item, valor e do par `(payer_kind, payer_id)`),
       `record-occurrence-settlement.use-case.ts`, `PUT /trip-occurrences/:id/case/settlement`.
   - Critério de aceite (CA9/CA9b/RF22–RF24): `numeric(14,4)` do banco à resposta, nunca float; a
@@ -139,18 +139,41 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS`.
   - ⚠️ **Não escreve em `delivery_charges` nesta task** — a ponte é a T17, e separá-las é o que
     permite provar o acerto sozinho antes de ligar o dinheiro.
-  - ⚠️ Não começar antes de a seleção de **vários itens** por ocorrência estar commitada nesta
-    árvore (`drizzle/20260922164534_trip_document_occurrence_products/`,
-    `occurrenceProductSelection.service.ts`) — as duas mexem na mesma leitura.
+  - ⚠️ **Executar na Fase 5, logo depois da T16**: a tabela `trip_occurrence_item_settlements` nasce
+    lá, junto da migration de `delivery_charges` (decisão da validação 🧠 da T1 — acerto e cobrança
+    são o mesmo dinheiro e não se revisam em migrations separadas). Implementá-la antes seria pular
+    essa revisão ou fechar a task sem prova contra Postgres.
+  - A seleção de **vários itens** por ocorrência, de que esta task depende, já está commitada e no
+    ar (`drizzle/20260922164534_trip_document_occurrence_products/`).
 
-- [ ] **T14** 🧠 A proposta de reentrega — `trips/domain/redelivery-proposal.policy.ts` (pura) e
-      `redelivery-proposal.use-case.ts`, servindo
+- [ ] **T14a** A proposta de reentrega, só leitura — `trips/domain/redelivery-proposal.policy.ts`
+      (pura) e `redelivery-proposal.use-case.ts`, servindo
       `GET /trip-occurrences/:id/case/redelivery-proposal`.
-  - Critério de aceite (CA6/CA7/CA8/RF17–RF19): viagem `dispatched` devolve `refused` com motivo e
-    `trip_stops` fica **intocada**, provado por leitura da tabela; parada com uma nota só devolve
-    `reorder_stop`; parada com outras notas devolve `release_document`; nota liberada ou viagem
-    cancelada devolve `refused`. **Nenhuma escrita nova em `trip_stops` ou `trip_documents`** —
-    aplicar é `PATCH /trips/:id/stops/order`, que já existe.
+  - Critério de aceite (CA6/CA7/CA8/RF17): viagem `dispatched` devolve `refused` com o motivo do
+    próprio domínio (`TripTransitionBlock`, nunca vocabulário novo) e `trip_stops` fica **intocada**,
+    provado por leitura da tabela; parada com uma nota só devolve `reorder_stop` **com a ordem
+    completa proposta** (`orderedStopIds`, porque a rota de reordenação recusa lista parcial); parada
+    com outras notas vivas (`released_at is null`, sem contar a própria nota) devolve
+    `release_document`; nota liberada, viagem cancelada **e nota sem parada** (`stop_id is null`, o
+    balde sem endereço) devolvem `refused` com motivo próprio.
+
+- [ ] **T14b** 🧠 Aplicar a proposta é transação do servidor —
+      `POST /trip-occurrences/:id/case/redelivery-application` (`occurrences.resolve`), mais a
+      migration de `redelivery_applied_at`/`redelivery_applied_by_user_id` e o CHECK que amarra
+      `redelivery_application` a `decision_kind = 'redelivery_authorized'`.
+  - Critério de aceite (RF18/RF19): trava `trips` com `for no key update` e reroda
+    `checkTripAcceptsLinkage` **sobre a linha travada** (fecha o TOCTOU de
+    `readStopOrderPreconditions`, que hoje lê o status fora da transação que escreve); executa a
+    reordenação ou a liberação e grava a aplicação por compare-and-set
+    (`where redelivery_application is null`), com 409 na corrida perdida; despachar a viagem **entre**
+    o `GET` e o `POST` deixa `trip_stops` intocada e grava `refused` — provado por integração.
+  - ⚠️ `redeliveryApplication` **sai** do input de transição da tratativa: hoje ele viaja na mesma
+    chamada que o contratante dispara, e uma linha por distração faria a decisão do cliente escrever
+    roteiro. Contrato negativo prova que nenhum caminho do portal alcança `trip_stops`/`trip_documents`.
+  - ⚠️ Ordem de lock fixada e escrita no cabeçalho: **`trips` primeiro, tratativa depois** — inverter
+    dá deadlock contra o despacho, que aparece como 500 esporádico em produção, nunca em teste.
+  - ⚠️ `release_document` **não** é "vai para o fim do roteiro": a nota sai da viagem e volta para o
+    pool (`released_at` + `stop_id = null`, e a parada some se esvaziar). O texto da tela diz isso.
 
 - [x] **T15** O marcador derivado — `readTripDetail` e a listagem devolvem
       `openOccurrenceCase` por nota e `hasOpenOccurrence` por parada, derivados na leitura.
