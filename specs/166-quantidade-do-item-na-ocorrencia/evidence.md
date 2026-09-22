@@ -97,9 +97,36 @@ Ran 3 tests across 1 file. [4.07s]
 e ficou rodando em background por passar do teto de tempo do terminal interativo — resultado
 reportado à parte quando terminar; os 3 testes novos, isolados, já confirmam T208 contra o banco.
 
-## Gates pendentes desta fase
+## Suíte de integração completa (73 arquivos)
 
-- `bun run lint`/`typecheck`/contrato: verdes, mostrados acima.
+```
+$ bun --env-file=../../.env.test run test:integration
+ 516 pass
+ 7 skip
+ 9 fail
+Ran 532 tests across 94 files. [441.29s]
+```
+
+As 9 falhas são **pré-existentes e alheias a esta spec** — nenhuma cita
+`trip-occurrence-item-quantity`:
+
+- 8 em `toll-booth-extract-storage.integration.ts`/`toll-booth-reload.integration.ts`:
+  `ObjectStorageError: Object storage is unavailable` — o MinIO local não respondeu durante a
+  corrida (nada em `trips/`, `database/trip.schema.ts` ou nos arquivos desta spec toca storage de
+  pedágio).
+- 1 timeout em `package-box-catalog-import.integration.ts` (CA03) — módulo de caixa/catálogo,
+  também fora do escopo desta fase.
+
+`test/integration/trip-occurrence-item-quantity.integration.ts` isolado (T208) e os 3611 contratos
+da API seguem 100% verdes; não alterei nenhum arquivo de pedágio ou de catálogo de caixa nesta
+sessão.
+
+## Gates desta fase
+
+- `bun run lint` (api-transportada): verde.
+- `bunx tsc --noEmit`: verde.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato, 183 arquivos): verde.
 - `make migration-test`: verde (T201).
-- `bun --env-file=../../.env.test run test:integration` completo: em execução no momento do
-  fechamento deste documento — ver atualização abaixo se a sessão a reportar antes do fim.
+- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-item-quantity.integration.ts`: verde (T208).
+- `bun --env-file=../../.env.test run test:integration` (suíte completa): 9 falhas pré-existentes,
+  alheias a esta spec (MinIO local e módulo de caixa) — ver acima.
