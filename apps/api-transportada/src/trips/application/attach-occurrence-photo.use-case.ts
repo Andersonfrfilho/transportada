@@ -12,12 +12,11 @@
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import {
-  assertOccurrenceUploadAccepted,
+  assertOccurrenceAttachmentAccepted,
   buildOccurrenceAttachmentObjectKey,
   buildOccurrenceThumbnailObjectKey,
   OCCURRENCE_ATTACHMENT_LIMIT,
   OCCURRENCE_PHOTO_MAX_BYTES,
-  OCCURRENCE_THUMBNAIL_MAX_BYTES,
   resolveOccurrenceAttachmentRetentionUntil,
 } from '../domain/occurrence-attachment.policy.js'
 import {
@@ -106,18 +105,12 @@ export async function attachOccurrencePhoto(
    * Arquivo recusado não gasta nenhum trabalho (mesmo princípio de T6/`office-delivery-
    * proof.service.ts`).
    */
-  assertOccurrenceUploadAccepted({
+  assertOccurrenceAttachmentAccepted({
     bytes: attachment.bytes,
-    maxBytes: OCCURRENCE_PHOTO_MAX_BYTES,
+    imageMaxBytes: OCCURRENCE_PHOTO_MAX_BYTES,
     mimeType: attachment.mimeType,
+    ...(attachment.thumbnail === undefined ? {} : { thumbnail: attachment.thumbnail }),
   })
-  if (attachment.thumbnail !== undefined) {
-    assertOccurrenceUploadAccepted({
-      bytes: attachment.thumbnail.bytes,
-      maxBytes: OCCURRENCE_THUMBNAIL_MAX_BYTES,
-      mimeType: attachment.thumbnail.mimeType,
-    })
-  }
 
   /**
    * ⚠️ **Não é a trava.** É só a mensagem amigável do caso comum, para não gastar upload numa

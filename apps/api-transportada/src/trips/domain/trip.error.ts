@@ -608,6 +608,22 @@ export class TripOccurrenceAttachmentLimitError extends ApiError {
 }
 
 /**
+ * RF29b/RF32b: a miniatura é **cache, nunca prova**, e PDF não tem miniatura. Guardar um retrato de
+ * um PDF na lista mostraria uma imagem que ninguém reconhece como o documento que ela representa —
+ * e, pior, uma miniatura sobrevivendo por engano viraria a única coisa visível do anexo. Recusar
+ * com código próprio diz à tela exatamente o que tirar do envio.
+ */
+export class OccurrencePdfThumbnailError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PDF_HAS_NO_THUMBNAIL',
+      message: 'A PDF attachment cannot carry a thumbnail.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 161 RF6: a rota de anexo adicional (`attach-occurrence-photo.use-case.ts`) resolve a
  * ocorrência pela empresa do contexto — de outra empresa, ou inexistente, respondem igual, porque
  * distinguir os dois diria a quem tenta se aquele identificador existe em algum lugar.

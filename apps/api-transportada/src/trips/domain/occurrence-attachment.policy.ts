@@ -7,8 +7,12 @@
  */
 import { createHash } from 'node:crypto'
 
-import { isDeliveryProofMimeType, matchesDeliveryProofSignature } from './delivery-proof.policy.js'
-import { TripDeliveryProofRejectedError } from './trip.error.js'
+import {
+  DELIVERY_PROOF_MIME_TYPES,
+  isDeliveryProofMimeType,
+  matchesDeliveryProofSignature,
+} from './delivery-proof.policy.js'
+import { OccurrencePdfThumbnailError, TripDeliveryProofRejectedError } from './trip.error.js'
 
 /**
  * Spec 161 D13. ⚠️ **Duplicado no banco**: o CHECK
@@ -135,12 +139,98 @@ export function sha256Hex(bytes: Uint8Array): string {
 }
 
 /**
- * Spec 161 T6 (RF7): teto, tipo e assinatura de bytes do original **e** da miniatura — mesma
- * checagem do canhoto do escritório (`assertOfficeUploadAccepted`), com o teto próprio de cada um
- * (D13). Chamado **antes** de qualquer transação ou upload: arquivo recusado não gasta reserva nem
- * sobe ao bucket (mesmo princípio de `office-delivery-proof.service.ts`).
+ * O anexo da ocorrência aceita **também PDF** — o conferente às vezes tem o laudo ou o romaneio já
+ * digitalizado, e obrigá-lo a fotografar a tela seria trocar o documento pela foto dele. O canhoto
+ * de entrega (`DELIVERY_PROOF_MIME_TYPES`) fica só com imagem, e esta lista é própria de propósito:
+ * mexer numa nunca mexe na outra.
  */
-export function assertOccurrenceUploadAccepted(upload: {
+export const OCCURRENCE_PDF_MIME_TYPE = 'application/pdf'
+
+export const OCCURRENCE_ATTACHMENT_MIME_TYPES = [
+  ...DELIVERY_PROOF_MIME_TYPES,
+  OCCURRENCE_PDF_MIME_TYPE,
+] as const
+
+export type OccurrenceAttachmentMimeType = (typeof OCCURRENCE_ATTACHMENT_MIME_TYPES)[number]
+
+/**
+ * O teto do PDF é maior que o da foto porque não passa pelo reencode do navegador — mas tem de
+ * caber inteiro no limite de corpo do servidor (`APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES`, 1 MiB,
+ * 413 antes da rota). 128 KiB de folga cobrem as fronteiras do multipart, a observação de 500
+ * caracteres e os `productCodes` repetidos.
+ */
+export const OCCURRENCE_PDF_MAX_BYTES = 896 * 1024
+
+export function isOccurrenceAttachmentMimeType(
+  value: string,
+): value is OccurrenceAttachmentMimeType {
+  return (OCCURRENCE_ATTACHMENT_MIME_TYPES as readonly string[]).includes(value)
+}
+
+export function isOccurrencePdf(mimeType: string): boolean {
+  return mimeType === OCCURRENCE_PDF_MIME_TYPE
+}
+
+/** `%PDF-` nos primeiros bytes — a assinatura real, não o `content-type` que o cliente declarou. */
+const OCCURRENCE_PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d] as const
+
+function matchesOccurrenceAttachmentSignature(input: {
+  readonly bytes: Uint8Array
+  readonly mimeType: OccurrenceAttachmentMimeType
+}): boolean {
+  if (input.mimeType === OCCURRENCE_PDF_MIME_TYPE) {
+    return OCCURRENCE_PDF_SIGNATURE.every((byte, index) => input.bytes[index] === byte)
+  }
+  return matchesDeliveryProofSignature({ bytes: input.bytes, mimeType: input.mimeType })
+}
+
+/**
+ * Spec 161 T6 (RF7): teto, tipo e assinatura de bytes do original e da miniatura, num ponto só.
+ * Chamado **antes** de qualquer transação ou upload: arquivo recusado não gasta reserva nem sobe ao
+ * bucket (mesmo princípio de `office-delivery-proof.service.ts`).
+ *
+ * ⚠️ **PDF não tem miniatura** (RF29b/RF32b: a miniatura é cache, nunca prova). O caminho de
+ * leitura já lida com `thumbnail: null`, então PDF sozinho é o caso normal — e PDF **com**
+ * miniatura é recusado com código próprio, em vez de silenciosamente guardar um retrato de um
+ * documento que ninguém vai reconhecer na lista.
+ */
+export function assertOccurrenceAttachmentAccepted(attachment: {
+  readonly bytes: Uint8Array
+  /** O teto da **imagem**; o PDF tem o seu, e escolher entre os dois é decisão desta função. */
+  readonly imageMaxBytes: number
+  readonly mimeType: string
+  readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+}): void {
+  assertOccurrenceFileAccepted({
+    allowPdf: true,
+    bytes: attachment.bytes,
+    maxBytes: isOccurrencePdf(attachment.mimeType)
+      ? OCCURRENCE_PDF_MAX_BYTES
+      : attachment.imageMaxBytes,
+    mimeType: attachment.mimeType,
+  })
+
+  if (attachment.thumbnail === undefined) return
+  if (isOccurrencePdf(attachment.mimeType)) throw new OccurrencePdfThumbnailError()
+
+  assertOccurrenceThumbnailAccepted(attachment.thumbnail)
+}
+
+/** A miniatura é sempre imagem: é ela que a lista carrega em lote, e PDF ali não renderiza. */
+export function assertOccurrenceThumbnailAccepted(thumbnail: {
+  readonly bytes: Uint8Array
+  readonly mimeType: string
+}): void {
+  assertOccurrenceFileAccepted({
+    allowPdf: false,
+    bytes: thumbnail.bytes,
+    maxBytes: OCCURRENCE_THUMBNAIL_MAX_BYTES,
+    mimeType: thumbnail.mimeType,
+  })
+}
+
+function assertOccurrenceFileAccepted(upload: {
+  readonly allowPdf: boolean
   readonly bytes: Uint8Array
   readonly maxBytes: number
   readonly mimeType: string
@@ -148,10 +238,16 @@ export function assertOccurrenceUploadAccepted(upload: {
   if (upload.bytes.byteLength > upload.maxBytes) {
     throw new TripDeliveryProofRejectedError('TOO_LARGE')
   }
-  if (!isDeliveryProofMimeType(upload.mimeType)) {
-    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
-  }
-  if (!matchesDeliveryProofSignature({ bytes: upload.bytes, mimeType: upload.mimeType })) {
+  const accepted = upload.allowPdf
+    ? isOccurrenceAttachmentMimeType(upload.mimeType)
+    : isDeliveryProofMimeType(upload.mimeType)
+  if (!accepted) throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  if (
+    !matchesOccurrenceAttachmentSignature({
+      bytes: upload.bytes,
+      mimeType: upload.mimeType as OccurrenceAttachmentMimeType,
+    })
+  ) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
 }

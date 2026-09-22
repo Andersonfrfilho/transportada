@@ -9,11 +9,10 @@
  * repository.ts` é quem implementa `SeparationOccurrenceUnitOfWork`).
  */
 import {
-  assertOccurrenceUploadAccepted,
+  assertOccurrenceAttachmentAccepted,
   buildOccurrenceAttachmentObjectKey,
   buildOccurrenceThumbnailObjectKey,
   OCCURRENCE_PHOTO_MAX_BYTES,
-  OCCURRENCE_THUMBNAIL_MAX_BYTES,
   resolveOccurrenceAttachmentRetentionUntil,
 } from '../domain/occurrence-attachment.policy.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
@@ -100,18 +99,14 @@ export async function persistSeparationOccurrenceWithAttachment(
    * recusado não gasta nenhum trabalho. Os tetos são os da web (D13); o canal WhatsApp (fase 4)
    * tem os seus próprios, validados no adapter dele, não aqui.
    */
-  assertOccurrenceUploadAccepted({
+  assertOccurrenceAttachmentAccepted({
     bytes: params.attachment.bytes,
-    maxBytes: params.maxOriginalBytes ?? OCCURRENCE_PHOTO_MAX_BYTES,
+    imageMaxBytes: params.maxOriginalBytes ?? OCCURRENCE_PHOTO_MAX_BYTES,
     mimeType: params.attachment.mimeType,
+    ...(params.attachment.thumbnail === undefined
+      ? {}
+      : { thumbnail: params.attachment.thumbnail }),
   })
-  if (params.attachment.thumbnail !== undefined) {
-    assertOccurrenceUploadAccepted({
-      bytes: params.attachment.thumbnail.bytes,
-      maxBytes: OCCURRENCE_THUMBNAIL_MAX_BYTES,
-      mimeType: params.attachment.thumbnail.mimeType,
-    })
-  }
 
   return runWithStoredObjectCleanup({
     operation: (storage) =>
