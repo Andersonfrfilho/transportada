@@ -324,23 +324,39 @@ export class DrizzleTripRouteRepository
     readonly tripId: string
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
-      await transaction
-        .update(tripStops)
-        .set({ sequence: sql`${tripStops.sequence} + ${SEQUENCE_PARKING_OFFSET}` })
-        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
-
-      for (const [index, stopId] of input.orderedStopIds.entries()) {
-        await transaction
-          .update(tripStops)
-          .set({ sequence: BigInt(index + 1), updatedAt: sql`now()` })
-          .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
-      }
-
+      await writeStopOrder(transaction, input)
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })
     })
+  }
+}
+
+/**
+ * Spec 164 T14b (RF18): a mesma escrita de `PATCH /trips/:id/stops/order`, extraída para ser
+ * chamada **dentro** de uma transação já aberta (`redelivery-application`, que trava `trips`
+ * primeiro) — nunca uma segunda escrita de `trip_stops` reinventada. `reorderStops` acima e a
+ * aplicação da proposta de reentrega chamam esta mesma função.
+ */
+export async function writeStopOrder(
+  transaction: TripTransaction,
+  input: {
+    readonly companyId: string
+    readonly orderedStopIds: readonly string[]
+    readonly tripId: string
+  },
+): Promise<void> {
+  await transaction
+    .update(tripStops)
+    .set({ sequence: sql`${tripStops.sequence} + ${SEQUENCE_PARKING_OFFSET}` })
+    .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
+  for (const [index, stopId] of input.orderedStopIds.entries()) {
+    await transaction
+      .update(tripStops)
+      .set({ sequence: BigInt(index + 1), updatedAt: sql`now()` })
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
   }
 }
 

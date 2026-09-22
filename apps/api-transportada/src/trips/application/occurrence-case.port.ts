@@ -8,7 +8,6 @@
 import type {
   TripOccurrenceCaseActorKind,
   TripOccurrenceCaseDecisionKind,
-  TripOccurrenceCaseRedeliveryApplication,
   TripOccurrenceCaseStatus,
 } from '../../database/trip.schema.js'
 
@@ -23,7 +22,6 @@ export type OccurrenceCaseTransitionInput = {
   readonly decisionNote?: string
   readonly hasSettlementItems: boolean
   readonly note: string
-  readonly redeliveryApplication?: TripOccurrenceCaseRedeliveryApplication
 }
 
 export type OccurrenceCaseTransitionResult = {

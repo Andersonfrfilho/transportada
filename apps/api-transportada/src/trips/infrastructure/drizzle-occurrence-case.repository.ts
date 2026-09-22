@@ -25,7 +25,6 @@ import type {
   RedeliveryPolicy,
   TripOccurrenceCaseActorKind,
   TripOccurrenceCaseDecisionKind,
-  TripOccurrenceCaseRedeliveryApplication,
   TripOccurrenceCaseStatus,
 } from '../../database/trip.schema.js'
 import {
@@ -102,7 +101,6 @@ export type OccurrenceCaseTransitionInput = {
   /** Existe ao menos um item de `trip_occurrence_item_settlements` gravado (T16) — o caso de uso chamador calcula. */
   readonly hasSettlementItems: boolean
   readonly note: string
-  readonly redeliveryApplication?: TripOccurrenceCaseRedeliveryApplication
 }
 
 export type OccurrenceCaseTransitionResult = {
@@ -210,9 +208,6 @@ async function applyTransition(
             decisionNote: input.decisionNote ?? '',
           }
         : {}),
-      ...(input.redeliveryApplication === undefined
-        ? {}
-        : { redeliveryApplication: input.redeliveryApplication }),
       ...(resolvesNow ? { resolvedAt: new Date() } : {}),
     })
     .where(

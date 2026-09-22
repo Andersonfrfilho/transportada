@@ -360,6 +360,9 @@ import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-
 import { createRedeliveryProposalRoutes } from './trips/presentation/redelivery-proposal.routes.js'
 import { getRedeliveryProposal } from './trips/application/redelivery-proposal.use-case.js'
 import { DrizzleRedeliveryProposalRepository } from './trips/infrastructure/drizzle-redelivery-proposal.repository.js'
+import { createRedeliveryApplicationRoutes } from './trips/presentation/redelivery-application.routes.js'
+import { applyRedeliveryApplication } from './trips/application/redelivery-application.use-case.js'
+import { DrizzleRedeliveryApplicationRepository } from './trips/infrastructure/drizzle-redelivery-application.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
@@ -1839,6 +1842,11 @@ function createApplicationRoutes({
   })
   /** Spec 164 T14a: só leitura — a proposta de reentrega. */
   const redeliveryProposalRepository = new DrizzleRedeliveryProposalRepository(database)
+  /** Spec 164 T14b: executa e registra a proposta de reentrega na mesma transação. */
+  const redeliveryApplicationRepository = new DrizzleRedeliveryApplicationRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   /** Spec 164 T10: mesmo escritor único de transição do escritório (T4/T5) — só muda o ator. */
   const decideOccurrenceCase = createDecideOccurrenceCaseUseCase({
     cases: {
@@ -2615,6 +2623,19 @@ function createApplicationRoutes({
       redeliveryProposal: {
         getProposal: (input) =>
           getRedeliveryProposal({ ...input, repository: redeliveryProposalRepository }),
+      },
+    }),
+    ...createRedeliveryApplicationRoutes({
+      redeliveryApplication: {
+        apply: (input) =>
+          applyRedeliveryApplication({
+            actorUserId: input.actorUserId,
+            companyId: input.companyId,
+            findCaseIdByOccurrenceId: (findInput) =>
+              occurrenceCaseRepository.findIdByOccurrenceId(findInput),
+            occurrenceId: input.occurrenceId,
+            repository: redeliveryApplicationRepository,
+          }),
       },
     }),
     ...createExtraChargeBatchRoutes({

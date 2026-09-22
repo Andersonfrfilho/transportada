@@ -1842,6 +1842,12 @@ export const tripOccurrenceCases = pgTable(
     /** RF18 (T14): o que aconteceu com a proposta de reentrega — ver o comentário do tipo acima. */
     redeliveryApplication:
       text('redelivery_application').$type<TripOccurrenceCaseRedeliveryApplication>(),
+    /**
+     * Spec 164 T14b: quem aplicou a proposta e quando — sem isto a coluna acima registra o fato
+     * mas não a auditoria. Par obrigatório com `redeliveryApplication` (ver CHECK abaixo).
+     */
+    redeliveryAppliedAt: timestamp('redelivery_applied_at', { withTimezone: true }),
+    redeliveryAppliedByUserId: uuid('redelivery_applied_by_user_id'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1872,6 +1878,20 @@ export const tripOccurrenceCases = pgTable(
     check(
       'trip_occurrence_cases_redelivery_application_check',
       sql`${table.redeliveryApplication} is null or ${table.redeliveryApplication} in (${raw(inList(TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS))})`,
+    ),
+    /** Spec 164 T14b: aplicar a proposta só faz sentido sobre uma decisão de reentrega autorizada. */
+    check(
+      'trip_occurrence_cases_redelivery_application_decision_check',
+      sql`${table.redeliveryApplication} is null or ${table.decisionKind} = 'redelivery_authorized'`,
+    ),
+    check(
+      'trip_occurrence_cases_redelivery_applied_by_check',
+      sql`(${table.redeliveryAppliedAt} is null) = (${table.redeliveryAppliedByUserId} is null)`,
+    ),
+    /** A auditoria só existe quando a proposta foi de fato aplicada/recusada. */
+    check(
+      'trip_occurrence_cases_redelivery_applied_check',
+      sql`(${table.redeliveryApplication} is null) = (${table.redeliveryAppliedAt} is null)`,
     ),
     check(
       'trip_occurrence_cases_decision_check',

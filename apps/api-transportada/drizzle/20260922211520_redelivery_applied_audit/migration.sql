@@ -1,0 +1,5 @@
+ALTER TABLE "trip_occurrence_cases" ADD COLUMN "redelivery_applied_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "trip_occurrence_cases" ADD COLUMN "redelivery_applied_by_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "trip_occurrence_cases" ADD CONSTRAINT "trip_occurrence_cases_redelivery_application_decision_check" CHECK ("redelivery_application" is null or "decision_kind" = 'redelivery_authorized');--> statement-breakpoint
+ALTER TABLE "trip_occurrence_cases" ADD CONSTRAINT "trip_occurrence_cases_redelivery_applied_by_check" CHECK (("redelivery_applied_at" is null) = ("redelivery_applied_by_user_id" is null));--> statement-breakpoint
+ALTER TABLE "trip_occurrence_cases" ADD CONSTRAINT "trip_occurrence_cases_redelivery_applied_check" CHECK (("redelivery_application" is null) = ("redelivery_applied_at" is null));
