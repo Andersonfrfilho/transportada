@@ -23,3 +23,19 @@
 - Verde: **24 pass, 0 fail**. Real vence estimada; real incompleta cai na estimada (`isEstimated: true`);
   nenhuma das duas → `undefined`; leitor sem campos de estimativa só vê a medida real.
 - Typecheck, eslint e prettier verdes.
+
+## T004 — Migration aditiva RF01 + schema TS
+
+- `bun run db:generate --name package_box_unit_and_estimate` → `drizzle/20260922140709_package_box_unit_and_estimate/`
+  (12 `ADD COLUMN` nulas + 4 CHECKs: unidade 5–1500 mm e peso > 0; origem `typed|catalog|manual:%`;
+  estimada 20–2500 mm, volume/peso > 0; estimativa "três arestas + data ou nada"). Sem ENUM.
+- Segundo `bun run db:generate` → `{"status":"no_changes"}`.
+- `rollback.sql` escrito à mão. Contra Postgres 18 nativo (`127.0.0.1:56998/s163`): migrate → 13 colunas
+  `unit%`/`estimated_%` (12 novas + `units_per_box`); rollback → 1; reaplicação → 13.
+- `make migration-test` usa o Postgres do Docker (quebrado localmente); rodado o mesmo alvo direto:
+  `DRIZZLE_TEST_DATABASE_URL=postgres://test@127.0.0.1:56998/s163mt bun --env-file=../../.env.test run db:test`
+  → **110 pass, 0 fail** (inclui `database-migration.contract.test.ts` com a lista explícita atualizada).
+- `test/nfe-schema/package-boxes.contract.ts`: lista de colunas atualizada; a regra "sem coluna de
+  volume" passa a valer para a medida real (a caixa estimada guarda `estimated_volume_cm3`, RF01).
+- Contratos da API completos: **6858 pass, 9 fail** — as 9 são as pré-existentes do
+  "toll booth catalog repository" (dependem do Docker). Typecheck verde.

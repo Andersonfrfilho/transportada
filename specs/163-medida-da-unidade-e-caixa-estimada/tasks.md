@@ -14,7 +14,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T004 Migration aditiva RF01 + schema TS — `make migration-test` verde; `db:generate` sem diferença
+- [x] T004 Migration aditiva RF01 + schema TS — `make migration-test` verde; `db:generate` sem diferença
 - [ ] T005 `record-package-box-unit.use-case.ts` + repositório (grava unidade, recalcula estimativa, nunca toca medida real)
 - [ ] T006 Integração CA05, CA06 — `bun --env-file=../../.env.test run test:integration`
 
