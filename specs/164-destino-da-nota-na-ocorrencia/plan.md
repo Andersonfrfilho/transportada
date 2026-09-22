@@ -69,9 +69,13 @@ nfe_participants` por `taxId`. A app é `apps/frontend-client`, com três págin
 **Banco (API)**
 
 - `src/database/trip.schema.ts`: coluna `redelivery_policy` em `companyOccurrenceTypes`; tabelas
-  `tripOccurrenceCases`, `tripOccurrenceCaseEvents`, `tripOccurrenceItemSettlements`.
-- `src/database/database.schema.ts`: agrega as três tabelas.
-- `drizzle/<ts>_trip_occurrence_cases/` com `migration.sql`, `rollback.sql`, `snapshot.json`.
+  `tripOccurrenceCases`, `tripOccurrenceCaseEvents`.
+- `src/database/database.schema.ts`: agrega as duas tabelas.
+- `drizzle/20260922174226_trip_occurrence_cases/` com `migration.sql`, `rollback.sql`, `snapshot.json`.
+
+⚠️ **Escopo alterado na execução da T1**: `tripOccurrenceItemSettlements` saiu desta task e foi para
+a T16 (Fase 5), junto da migration que amplia `delivery_charges` — o item do acerto e a cobrança que
+ele alimenta mexem no mesmo dinheiro, e a T1 fecha só com as duas tabelas de máquina de estados.
 
 **API — domínio**
 
@@ -166,31 +170,32 @@ alterado** nesta spec.
 
 ## Dados, migration e rollback
 
+⚠️ **O modelo abaixo é o que foi implementado na T1, depois da revisão do `architect` (`opus`)** —
+difere do primeiro rascunho em oito pontos, listados após o SQL.
+
 ```sql
 alter table company_occurrence_types
   add column redelivery_policy text not null default 'unset';
 alter table company_occurrence_types
   add constraint company_occurrence_types_redelivery_policy_check
-  check (redelivery_policy in ('unset','allowed','blocked')) not valid;
-alter table company_occurrence_types
-  validate constraint company_occurrence_types_redelivery_policy_check;
+  check (redelivery_policy in ('unset','allowed','blocked'));
 
 create table trip_occurrence_cases (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null,
   occurrence_id uuid not null,
-  status text not null default 'recorded',
+  status text not null, -- sem default: ver correção 5
   redelivery_policy text not null,
   decision_kind text,
   decision_note text not null default '',
   decided_by_user_id uuid,
   decided_at timestamptz,
   opened_at timestamptz not null default now(),
-  closed_at timestamptz,
+  resolved_at timestamptz, -- ver correção 7: era closed_at
   updated_at timestamptz not null default now(),
   constraint trip_occurrence_cases_company_id_id_unique unique (company_id, id),
   constraint trip_occurrence_cases_occurrence_unique unique (company_id, occurrence_id),
-  constraint trip_occurrence_cases_company_fk foreign key (company_id)
+  constraint trip_occurrence_cases_company_id_companies_id_fk foreign key (company_id)
     references companies (id) on delete restrict on update cascade,
   constraint trip_occurrence_cases_company_occurrence_fk foreign key (company_id, occurrence_id)
     references trip_document_occurrences (company_id, id) on delete cascade on update cascade,
@@ -202,23 +207,90 @@ create table trip_occurrence_cases (
     check ((decision_kind is null) = (decided_at is null)),
   constraint trip_occurrence_cases_decision_kind_check check (decision_kind is null or decision_kind
     in ('redelivery_authorized','goods_paid','other')),
-  constraint trip_occurrence_cases_closed_check
-    check ((status = 'closed' or status = 'returned_to_warehouse') = (closed_at is not null))
+  -- correção 2: decided/closed sem decisão não pode existir, e o inverso também
+  constraint trip_occurrence_cases_decided_status_check
+    check (status not in ('decided','closed') or decision_kind is not null),
+  constraint trip_occurrence_cases_decision_status_check
+    check (decision_kind is null or status in ('decided','closed')),
+  constraint trip_occurrence_cases_decided_by_check
+    check ((decided_at is null) = (decided_by_user_id is null)),
+  constraint trip_occurrence_cases_decision_note_check
+    check (decision_kind <> 'other' or length(btrim(decision_note)) > 0),
+  constraint trip_occurrence_cases_resolved_check
+    check ((status in ('closed','returned_to_warehouse')) = (resolved_at is not null))
 );
+-- correção 4: sem updated_at no índice — o feed pagina por (created_at, id) da ocorrência
 create index trip_occurrence_cases_company_status_idx
-  on trip_occurrence_cases (company_id, status, updated_at desc);
+  on trip_occurrence_cases (company_id, status);
+
+create table trip_occurrence_case_events (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null,
+  case_id uuid not null,
+  from_status text, -- nulo é a abertura
+  to_status text not null,
+  actor_kind text not null,
+  actor_user_id uuid,
+  note text not null default '',
+  occurred_at timestamptz not null default now(),
+  constraint trip_occurrence_case_events_company_id_id_unique unique (company_id, id),
+  constraint trip_occurrence_case_events_company_id_companies_id_fk foreign key (company_id)
+    references companies (id) on delete restrict on update cascade,
+  constraint trip_occurrence_case_events_company_case_fk foreign key (company_id, case_id)
+    references trip_occurrence_cases (company_id, id) on delete cascade on update cascade,
+  constraint trip_occurrence_case_events_actor_kind_check
+    check (actor_kind in ('internal','contractor')),
+  constraint trip_occurrence_case_events_transition_check
+    check (from_status is null or from_status <> to_status),
+  constraint trip_occurrence_case_events_terminal_check
+    check (from_status is null or from_status not in ('closed','returned_to_warehouse')),
+  constraint trip_occurrence_case_events_warehouse_note_check
+    check (to_status <> 'returned_to_warehouse' or length(btrim(note)) > 0)
+);
+create unique index trip_occurrence_case_events_opening_unique
+  on trip_occurrence_case_events (company_id, case_id) where from_status is null;
+create index trip_occurrence_case_events_company_case_occurred_at_idx
+  on trip_occurrence_case_events (company_id, case_id, occurred_at, id);
 ```
 
 ⚠️ `trip_occurrence_cases.redelivery_policy` **não aceita `unset`**: tipo `unset` não abre tratativa
 (D1), e permitir o valor aqui deixaria a tabela guardar uma linha que a política diz não existir.
 
-`trip_occurrence_case_events` e `trip_occurrence_item_settlements` seguem o mesmo molde: `company_id`
-em toda FK composta, `on delete cascade` a partir da tratativa/ocorrência, `check` do vocabulário, e
-índice `(company_id, case_id, occurred_at desc, id desc)` no histórico — o mesmo par de chave de
-cursor que `GET /trips/:id/timeline` usa, com microssegundos em texto, nunca `Date`.
+**As oito correções do `architect` sobre o rascunho original:**
 
-`trip_occurrence_item_settlements.amount` é `numeric(14,4)`, no mesmo formato de
-`delivery_charges.amount`. O pagador é o par `(payer_kind, payer_id)`:
+1. As duas tabelas levam, por nome, exatamente `trip_occurrence_case_events_company_id_id_unique`,
+   `trip_occurrence_case_events_company_id_companies_id_fk` (restrict/cascade),
+   `trip_occurrence_case_events_company_case_fk` (cascade/cascade) e
+   `trip_occurrence_case_events_actor_kind_check` — implementado, nomes conferidos no
+   `migration.sql` gerado.
+2. `decided`/`closed` sem `decision_kind` não pode existir, e o inverso também — os quatro CHECKs
+   novos (`decided_status_check`, `decision_status_check`, `decided_by_check`,
+   `decision_note_check`) acima.
+3. O histórico trava terminal e abertura no banco — `transition_check`, `terminal_check`, o índice
+   único parcial `opening_unique` e `warehouse_note_check`, todos acima.
+4. `trip_occurrence_cases_company_status_updated_at_idx` (com `updated_at desc`) **não foi criado** —
+   nenhuma consulta da spec pagina por `updated_at`; o cursor do feed é `(created_at, id)` da
+   ocorrência. Criado `trip_occurrence_cases_company_status_idx (company_id, status)` e
+   `trip_occurrence_case_events_company_case_occurred_at_idx (company_id, case_id, occurred_at, id)`
+   **ascendente**, como `trip_status_events_company_trip_occurred_at_idx`.
+5. `status` nasce **sem `default`** — quem abre a tratativa (T4) grava `'recorded'` explicitamente.
+6. Nenhum CHECK novo usa `not valid` + `validate constraint`: sem precedente nas 224 migrations do
+   projeto, e a coluna nova nasce com `default 'unset'`, então o CHECK valida instantâneo —
+   confirmado pelo `db:generate` devolvendo `no_changes` e por `make migration-test` verde.
+7. A coluna é `resolved_at`, não `closed_at` — ela também é preenchida por
+   `returned_to_warehouse`, e `closed_at` sugeriria só o fechamento formal. Escolhido renomear (em
+   vez de só comentar) para a leitura do nome não mentir; o comentário no schema reforça.
+8. Duas tentações registradas e recusadas nesta task: (a) o item do acerto (T16) **não** ganha FK
+   composta para `trip_document_occurrence_products` — ocorrência antiga e a do WhatsApp gravam só
+   `product_code` em `trip_document_occurrences`, e a nota inteira grava `''`, então não há chave
+   composta que sirva às três formas; (b)
+   `trip_document_occurrences.occurrence_type_id` continua sem FK para `company_occurrence_types` —
+   **não é esta spec que conserta isso**. As duas decisões estão comentadas no schema, ao lado das
+   tabelas.
+
+`trip_occurrence_item_settlements` (Fase 5, T16) segue o mesmo molde: `company_id` em toda FK
+composta, `on delete cascade` a partir da tratativa, `amount numeric(14,4)` no formato de
+`delivery_charges.amount`, e o pagador como o par `(payer_kind, payer_id)`:
 
 ```sql
 constraint trip_occurrence_item_settlements_payer_kind_check

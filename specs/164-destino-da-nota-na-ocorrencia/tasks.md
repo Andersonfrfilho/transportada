@@ -25,10 +25,13 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
 > proíbe `unset` na tratativa; a T2 é a máquina de estados, que é o coração da feature. Validar as
 > duas com `architect` em `opus` antes de escrever migration ou política.
 
-- [ ] **T1** 🧠 Coluna `redelivery_policy` em `company_occurrence_types` e as tabelas
-      `trip_occurrence_cases`, `trip_occurrence_case_events`, `trip_occurrence_item_settlements` —
-      `src/database/trip.schema.ts`, `database.schema.ts`, `drizzle/<ts>_trip_occurrence_cases/`
+- [x] **T1** 🧠 Coluna `redelivery_policy` em `company_occurrence_types` e as tabelas
+      `trip_occurrence_cases`, `trip_occurrence_case_events` —
+      `src/database/trip.schema.ts`, `database.schema.ts`, `drizzle/20260922174226_trip_occurrence_cases/`
       (`migration.sql`, `rollback.sql`, `snapshot.json`).
+  - ⚠️ **Escopo alterado nesta task**: `trip_occurrence_item_settlements` saiu da T1 e foi para a T16
+    (Fase 5), junto da migration de `delivery_charges` que ela alimenta — as duas mexem no mesmo
+    dinheiro, e separá-las evita revisar acerto e cobrança na mesma migration.
   - Critério de aceite (CA1/RNF4): `bun run db:generate` devolve `no_changes` depois de aplicada;
     `test/database-migration/schema-snapshot.contract.ts` verde; `make migration-test` verde;
     rollback reverte com as tabelas vazias e recusa (`raise`) com linha presente; todo tipo
@@ -51,7 +54,7 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
 
 - [ ] **T4** Repositório e abertura na transação —
       `trips/infrastructure/drizzle-occurrence-case.repository.ts` (escritor único, `select … for no
-  key update` antes do `update`, compare-and-set por status, evento só quando mudou) e a abertura
+key update` antes do `update`, compare-and-set por status, evento só quando mudou) e a abertura
       da tratativa dentro da transação de `register-trip-occurrence.use-case.ts` e
       `register-office-document-occurrences.use-case.ts`.
   - Critério de aceite (RF3/RNF1): tipo `unset` não abre tratativa e o fluxo de hoje fica idêntico;
@@ -159,9 +162,11 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
 > de taxa em produção, e recria um CHECK que existe em **duas** tabelas. Validar com `architect` em
 > `opus` antes de escrever o SQL.
 
-- [ ] **T16** 🧠 `charge_type` `returned_goods` e a coluna `occurrence_id` em `delivery_charges` —
-      `DELIVERY_CHARGE_TYPES` em `src/database/delivery-client.schema.ts`, FK composta, índice
-      parcial, os **dois** CHECKs ampliados (`delivery_charges` e `delivery_client_charge_rules`), e
+- [ ] **T16** 🧠 `charge_type` `returned_goods` e a coluna `occurrence_id` em `delivery_charges`, **e**
+      a tabela `trip_occurrence_item_settlements` (movida da T1: o item do acerto e a cobrança que
+      ele alimenta mexem no mesmo dinheiro e fecham juntas) — `DELIVERY_CHARGE_TYPES` em
+      `src/database/delivery-client.schema.ts`, FK composta, índice parcial, os **dois** CHECKs
+      ampliados (`delivery_charges` e `delivery_client_charge_rules`), e
       `drizzle/<ts>_delivery_charges_occurrence/` com `migration.sql`, `rollback.sql` e
       `snapshot.json`.
   - Critério de aceite (RF26/RNF4): `db:generate` devolve `no_changes`; `make migration-test` verde;
@@ -212,6 +217,11 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
 - [ ] **T21** Cadastro do tipo — `modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx`
       e o hook, com a escolha de `redelivery_policy` em três opções e o texto que explica o que
       `unset` faz.
+  - ⚠️ **Precondição (correção do `architect` na T1)**: `SaveOccurrenceTypeValues` é conjunto
+    **completo**, não patch — o `PUT /company-settings/occurrence-types` de hoje reescreve o tipo
+    inteiro a cada chamada. Salvar sem o campo `redeliveryPolicy` **não pode** devolver o tipo para
+    `unset`; é um modo de falha silencioso (a tela apaga a escolha de reentrega sem avisar) e precisa
+    de contrato próprio antes de tocar no caso de uso.
   - Critério de aceite (RF1/Risco 1): `PUT` sem o campo não altera o valor; a tela deixa evidente
     que tipo `unset` não abre tratativa. Primitivos do design system obrigatórios.
 

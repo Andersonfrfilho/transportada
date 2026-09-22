@@ -108,6 +108,36 @@ export const TRIP_DOCUMENT_SEPARATION_STATUSES = [
 ] as const
 export type TripDocumentSeparationStatus = (typeof TRIP_DOCUMENT_SEPARATION_STATUSES)[number]
 
+/**
+ * Spec 164 T1: os seis estados da tratativa de uma ocorrência de nota. Definida aqui, no schema, e
+ * não em `trips/domain` (T2), porque o CHECK precisa do vocabulário antes de a máquina existir;
+ * `occurrence-case-state.policy.ts` reexporta, no mesmo molde de `TripStatus` acima.
+ */
+export const TRIP_OCCURRENCE_CASE_STATUSES = [
+  'recorded',
+  'under_review',
+  'returned_to_warehouse',
+  'awaiting_contractor',
+  'decided',
+  'closed',
+] as const
+export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+
+export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
+  'redelivery_authorized',
+  'goods_paid',
+  'other',
+] as const
+export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
+
+/** Quem gravou a transição: o time interno ou a decisão do contratante no portal (T9/T10). */
+export const TRIP_OCCURRENCE_CASE_ACTOR_KINDS = ['internal', 'contractor'] as const
+export type TripOccurrenceCaseActorKind = (typeof TRIP_OCCURRENCE_CASE_ACTOR_KINDS)[number]
+
+/** `unset` nunca aparece em `trip_occurrence_cases.redelivery_policy` — só no tipo cadastrado. */
+export const REDELIVERY_POLICIES = ['unset', 'allowed', 'blocked'] as const
+export type RedeliveryPolicy = (typeof REDELIVERY_POLICIES)[number]
+
 const TAX_ID_PATTERN = '^[0-9]{11}$'
 
 /** Condutores por viagem: mesmo teto do manifesto (ADR-0016 §1, `MAX_DRIVERS_PER_MANIFEST`). */
@@ -1703,6 +1733,16 @@ export const companyOccurrenceTypes = pgTable(
      * `false`: nenhuma instalação passa a mandar e-mail sozinha ao aplicar esta migration.
      */
     emailsContractor: boolean('emails_contractor').notNull().default(false),
+    /**
+     * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
+     * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
+     * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
+     * (D1); é o CHECK da tabela nova, não deste, que proíbe o valor na tratativa em si.
+     */
+    redeliveryPolicy: text('redelivery_policy')
+      .notNull()
+      .$type<RedeliveryPolicy>()
+      .default('unset'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1719,6 +1759,200 @@ export const companyOccurrenceTypes = pgTable(
       sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
     ),
     check('company_occurrence_types_name_check', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'company_occurrence_types_redelivery_policy_check',
+      sql`${table.redeliveryPolicy} in (${raw(inList(REDELIVERY_POLICIES))})`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+  ],
+)
+
+/**
+ * Spec 164 T1: a tratativa da nota atingida por ocorrência — decisão sobre o que houve, em cima do
+ * registro append-only de `trip_document_occurrences`. Uma tratativa por ocorrência
+ * (`trip_occurrence_cases_occurrence_unique`); a ocorrência continua imutável e é esta tabela que
+ * muda de estado. O item do acerto (`trip_occurrence_item_settlements`) foi para a T16 (Fase 5),
+ * junto da migration de `delivery_charges` que ele alimenta — as duas mexem no mesmo dinheiro.
+ *
+ * ⚠️ **`redelivery_policy` nunca guarda `'unset'`** (correção do `architect`, D1): tipo `unset` não
+ * abre tratativa — aceitar o valor aqui deixaria a tabela guardar uma linha que a política diz não
+ * existir. O CHECK só aceita `allowed`/`blocked`; quem decide `unset` não abre é
+ * `occurrence-case.policy.ts` (T2), fora do escopo desta task.
+ *
+ * ⚠️ **`status` nasce sem `default`** (correção do `architect`): estado inicial escolhido pelo banco
+ * é estado que um escritor esquecido grava sem querer — precedente medido:
+ * `delivery_charges.status` (`delivery-client.schema.ts`). Quem abre a tratativa (T4) grava
+ * `'recorded'` explicitamente.
+ *
+ * ⚠️ **`resolved_at`, não `closed_at`** (decisão registrada por escrito, correção do `architect`): a
+ * coluna também é preenchida por `returned_to_warehouse` — devolvida ao barracão fecha o ciclo tanto
+ * quanto `closed` — e `closed_at` sugeriria só o fechamento formal. Renomeada em vez de só comentada,
+ * para a leitura do nome não mentir.
+ *
+ * ⚠️ **Sem FK composta para `trip_document_occurrence_products`** (tentação registrada e recusada,
+ * correção do `architect`): ocorrência antiga e a do WhatsApp gravam só `product_code` em
+ * `trip_document_occurrences`, e a nota inteira grava `''` — não há chave composta que sirva às três
+ * formas ao mesmo tempo. A leitura do item continua por `resolveOccurrenceProductCodes`.
+ *
+ * ⚠️ **`trip_document_occurrences.occurrence_type_id` continua sem FK para `company_occurrence_types`**
+ * (tentação registrada e recusada, correção do `architect`) — não é esta spec que conserta isso.
+ */
+export const tripOccurrenceCases = pgTable(
+  'trip_occurrence_cases',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    status: text().notNull().$type<TripOccurrenceCaseStatus>(),
+    redeliveryPolicy: text('redelivery_policy').notNull().$type<RedeliveryPolicy>(),
+    decisionKind: text('decision_kind').$type<TripOccurrenceCaseDecisionKind>(),
+    decisionNote: text('decision_note').notNull().default(''),
+    decidedByUserId: uuid('decided_by_user_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Fechamento **ou** devolução ao barracão — ver a nota acima sobre o nome da coluna. */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_cases_company_id_id_unique').on(table.companyId, table.id),
+    unique('trip_occurrence_cases_occurrence_unique').on(table.companyId, table.occurrenceId),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_cases_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_occurrence_cases_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_occurrence_cases_status_check',
+      sql`${table.status} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_cases_policy_check',
+      sql`${table.redeliveryPolicy} in ('allowed','blocked')`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_check',
+      sql`(${table.decisionKind} is null) = (${table.decidedAt} is null)`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_kind_check',
+      sql`${table.decisionKind} is null or ${table.decisionKind} in (${raw(inList(TRIP_OCCURRENCE_CASE_DECISION_KINDS))})`,
+    ),
+    /** `decided`/`closed` sem `decision_kind` é tratativa fechada sem motivo registrado. */
+    check(
+      'trip_occurrence_cases_decided_status_check',
+      sql`${table.status} not in ('decided','closed') or ${table.decisionKind} is not null`,
+    ),
+    /** O inverso: decisão gravada exige que o status já reflita isso. */
+    check(
+      'trip_occurrence_cases_decision_status_check',
+      sql`${table.decisionKind} is null or ${table.status} in ('decided','closed')`,
+    ),
+    check(
+      'trip_occurrence_cases_decided_by_check',
+      sql`(${table.decidedAt} is null) = (${table.decidedByUserId} is null)`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_note_check',
+      sql`${table.decisionKind} <> 'other' or length(btrim(${table.decisionNote})) > 0`,
+    ),
+    check(
+      'trip_occurrence_cases_resolved_check',
+      sql`(${table.status} in ('closed','returned_to_warehouse')) = (${table.resolvedAt} is not null)`,
+    ),
+    /**
+     * O feed lê por empresa e estado; nenhuma consulta da spec pagina por `updated_at` — o cursor do
+     * feed de ocorrências é `(created_at, id)` da própria ocorrência (correção do `architect`, que
+     * derrubou o índice original com `updated_at desc`).
+     */
+    index('trip_occurrence_cases_company_status_idx').on(table.companyId, table.status),
+  ],
+)
+
+/**
+ * Spec 164 T1: histórico append-only da tratativa — escritor único
+ * (`drizzle-occurrence-case.repository.ts`, T4), evento só quando o status muda de verdade. Molde de
+ * `trip_status_events` (ADR-0068).
+ *
+ * ⚠️ **Leva FK direta para `companies`** — ao contrário de `delivery_charge_events`, que é a exceção
+ * sem essa FK (histórico de cobrança herdado, fora do módulo `trip`). Todo módulo `trip` sempre tem a
+ * FK para `companies`; esta tabela segue a regra do módulo, não a exceção do outro módulo.
+ */
+export const tripOccurrenceCaseEvents = pgTable(
+  'trip_occurrence_case_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    caseId: uuid('case_id').notNull(),
+    /** Nulo é a abertura — a primeira linha da tratativa não tem "de onde veio". */
+    fromStatus: text('from_status').$type<TripOccurrenceCaseStatus>(),
+    toStatus: text('to_status').notNull().$type<TripOccurrenceCaseStatus>(),
+    actorKind: text('actor_kind').notNull().$type<TripOccurrenceCaseActorKind>(),
+    /** Só quando `actor_kind = 'internal'` — a decisão do contratante não tem membership interna. */
+    actorUserId: uuid('actor_user_id'),
+    note: text().notNull().default(''),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_case_events_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_case_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.caseId],
+      foreignColumns: [tripOccurrenceCases.companyId, tripOccurrenceCases.id],
+      name: 'trip_occurrence_case_events_company_case_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_occurrence_case_events_actor_kind_check',
+      sql`${table.actorKind} in (${raw(inList(TRIP_OCCURRENCE_CASE_ACTOR_KINDS))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_from_status_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_to_status_check',
+      sql`${table.toStatus} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_transition_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} <> ${table.toStatus}`,
+    ),
+    /** `closed` e `returned_to_warehouse` são terminais — nenhum evento parte deles de novo. */
+    check(
+      'trip_occurrence_case_events_terminal_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} not in ('closed','returned_to_warehouse')`,
+    ),
+    /** Uma abertura por tratativa — uma segunda linha com `from_status` nulo é escritor duplicado. */
+    uniqueIndex('trip_occurrence_case_events_opening_unique')
+      .on(table.companyId, table.caseId)
+      .where(sql`${table.fromStatus} is null`),
+    check(
+      'trip_occurrence_case_events_warehouse_note_check',
+      sql`${table.toStatus} <> 'returned_to_warehouse' or length(btrim(${table.note})) > 0`,
+    ),
+    /** A linha do tempo lê por tratativa, ordenada — sem este índice ela varre a tabela inteira. */
+    index('trip_occurrence_case_events_company_case_occurred_at_idx').on(
+      table.companyId,
+      table.caseId,
+      table.occurredAt,
+      table.id,
+    ),
   ],
 )
