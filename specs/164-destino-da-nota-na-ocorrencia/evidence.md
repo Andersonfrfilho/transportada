@@ -361,3 +361,24 @@ Ambos sem erro, sem warning.
 ### Commit isolado
 
 Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
+
+## T4 — repositório escritor único e abertura na transação
+
+Fechada em 2026-09-22, contra a infra Docker do projeto (Postgres de teste na 65432).
+
+- `bun run lint` e `bun run typecheck` (raiz, seis apps) — limpos.
+- `bun --env-file=../../.env.test test --timeout 120000` — **6990 pass, 23 skip, 0 fail** (183 arquivos).
+- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-case-write-guard.integration.ts`
+  — **3 pass, 0 fail**: abertura em `allowed`/`blocked`, `unset` que não abre nada, e a corrida real
+  entre duas transições na mesma tratativa (a perdedora recebe 409, nunca 404 e nunca silêncio).
+- Integração de ocorrência que poderia ter regredido — `occurrence-type-catalog-seed`,
+  `trip-occurrence-attachment`, `trip-field-office`, `trip-field-authorship` — **30 pass, 0 fail**.
+
+⚠️ A suíte de integração **completa** não fechou nesta rodada: o processo que a rodava em segundo
+plano não devolveu resultado. Rodaram os arquivos acima, que são os que a T4 toca. Fica registrado
+como o que faltou, não como verde.
+
+⚠️ As 8 falhas conhecidas por `OBJECT_STORAGE_UNAVAILABLE` (CT-e e pedágio) são credencial do
+`.env.test` local — `STORAGE_SECRET_KEY=replace-me` contra o `minio-local-password` que o
+`compose.yaml` fixa. O template do repositório já foi corrigido (`df3093365`); o arquivo local do
+usuário não é editável daqui. Não contam contra esta task, e nenhuma delas toca ocorrência.

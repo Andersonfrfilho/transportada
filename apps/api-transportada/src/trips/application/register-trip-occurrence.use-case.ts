@@ -5,6 +5,7 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
@@ -95,6 +96,12 @@ export type OccurrenceTypeRecord = {
   readonly id: string
   readonly name: string
   readonly notifies: boolean
+  /**
+   * Spec 164 T4 (RF3): decide se o registro abre uma tratativa (`trip_occurrence_cases`).
+   * Ausente é tratado como `'unset'` — não abre; existe como opcional só para os dublês de teste
+   * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
+   */
+  readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrenceStage
 }
 
@@ -141,6 +148,8 @@ export type TripOccurrencePort = {
     readonly occurrenceTypeId: string
     readonly productCode: string
     readonly productCodes: readonly string[]
+    /** Spec 164 T4 (RF3): repassada ao escritor da ocorrência, que abre a tratativa dentro da mesma transação. */
+    readonly redeliveryPolicy?: RedeliveryPolicy
     readonly stage: TripOccurrenceStage
     readonly tripId: string
     readonly typeName: string
@@ -263,6 +272,9 @@ export async function registerTripOccurrence(
     occurrenceTypeId: occurrenceType.id,
     productCode: scope.productCode,
     productCodes: scope.productCodes,
+    ...(occurrenceType.redeliveryPolicy === undefined
+      ? {}
+      : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
     stage: occurrenceType.stage,
     tripId,
     typeName: occurrenceType.name,

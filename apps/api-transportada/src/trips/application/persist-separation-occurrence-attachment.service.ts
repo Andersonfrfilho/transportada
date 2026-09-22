@@ -17,6 +17,7 @@ import {
 } from '../domain/occurrence-attachment.policy.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
 import { runWithStoredObjectCleanup } from './stored-object-cleanup.service.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
   TripOccurrence,
   TripOccurrenceAttachmentPosition,
@@ -31,6 +32,8 @@ export type SeparationOccurrenceSaveInput = {
   readonly productCode: string
   /** Todos os itens marcados; vazia é a nota inteira. A coluna antiga leva o primeiro deles. */
   readonly productCodes: readonly string[]
+  /** Spec 164 T4 (RF3): repassada ao escritor, que abre a tratativa na mesma transação. */
+  readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrence['stage']
   readonly tripId: string
   readonly typeName: string

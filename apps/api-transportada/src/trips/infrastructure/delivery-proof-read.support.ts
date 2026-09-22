@@ -29,6 +29,7 @@ import {
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
@@ -38,6 +39,7 @@ import type {
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { contractors } from '../../database/delivery-client.schema.js'
@@ -294,6 +296,11 @@ export async function saveTripOccurrence(
     readonly note: string
     readonly productCode: string
     readonly occurrenceTypeId: string
+    /**
+     * Spec 164 T4 (RF3): a política do tipo, copiada para a tratativa no registro. Ausente (ou
+     * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
+     */
+    readonly redeliveryPolicy?: RedeliveryPolicy
     readonly stage: TripOccurrence['stage']
     readonly tripId: string
     readonly typeName: string
@@ -332,6 +339,19 @@ export async function saveTripOccurrence(
     })
     .returning()
   if (saved === undefined) return null
+
+  /**
+   * Spec 164 T4 (RF3): a abertura mora na **mesma transação** desta escrita — `unset` (ou
+   * ausente, contrato antigo) não abre, e o fluxo de hoje fica byte a byte idêntico.
+   */
+  if (input.redeliveryPolicy !== undefined) {
+    await openOccurrenceCase(queryable, {
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      occurrenceId: saved.id,
+      redeliveryPolicy: input.redeliveryPolicy,
+    })
+  }
 
   return {
     createdAt: saved.createdAt.toISOString(),
@@ -590,6 +610,8 @@ export async function findOccurrenceType(
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
+      redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)

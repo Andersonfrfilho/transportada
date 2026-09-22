@@ -957,6 +957,9 @@ export function bootstrap(): Bun.Server<undefined> {
                   occurrenceTypeId: query.occurrenceTypeId,
                   productCode: query.productCode,
                   productCodes: query.productCodes,
+                  ...(query.redeliveryPolicy === undefined
+                    ? {}
+                    : { redeliveryPolicy: query.redeliveryPolicy }),
                   stage: query.stage,
                   tripId: query.tripId,
                   typeName: query.typeName,
@@ -3047,6 +3050,9 @@ function createApplicationRoutes({
                         occurrenceTypeId: query.occurrenceTypeId,
                         productCode: query.productCode,
                         productCodes: query.productCodes,
+                        ...(query.redeliveryPolicy === undefined
+                          ? {}
+                          : { redeliveryPolicy: query.redeliveryPolicy }),
                         stage: query.stage,
                         tripId: query.tripId,
                         typeName: query.typeName,

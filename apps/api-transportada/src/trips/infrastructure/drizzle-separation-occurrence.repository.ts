@@ -78,6 +78,7 @@ async function saveSeparationOccurrence(
     note: input.note,
     occurrenceTypeId: input.occurrenceTypeId,
     productCode: input.productCode,
+    ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
     stage: input.stage,
     tripId: input.tripId,
     typeName: input.typeName,

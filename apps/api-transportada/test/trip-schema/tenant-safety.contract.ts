@@ -15,6 +15,8 @@ import {
   tripDocumentReviews,
   tripDocuments,
   tripDrivers,
+  tripOccurrenceCaseEvents,
+  tripOccurrenceCases,
   tripStopEvents,
   tripStops,
   trips,
@@ -42,6 +44,9 @@ const TRIP_TABLES = [
   { name: 'trip_document_occurrence_attachments', table: tripDocumentOccurrenceAttachments },
   /** Os itens da nota que uma ocorrência aponta — código de produto é dado do cliente. */
   { name: 'trip_document_occurrence_products', table: tripDocumentOccurrenceProducts },
+  /** Spec 164 T1/T4: a tratativa da ocorrência e sua trilha append-only. */
+  { name: 'trip_occurrence_cases', table: tripOccurrenceCases },
+  { name: 'trip_occurrence_case_events', table: tripOccurrenceCaseEvents },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -68,6 +73,30 @@ describe('trip tenant safety', () => {
       foreignColumns: ['company_id', 'id'],
       foreignTable: 'trip_document_occurrences',
       name: 'trip_document_occurrence_products_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /**
+   * Spec 164 T4: a tratativa alcança a ocorrência, e o evento alcança a tratativa, sempre por
+   * `(company_id, id)` — nunca pelo id sozinho, senão uma tratativa de outro tenant ganharia
+   * eventos ou itens gravados por este.
+   */
+  test('reaches the occurrence of an occurrence case, and the case of a case event, through the tenant', () => {
+    expect(foreignKeys(tripOccurrenceCases)).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_occurrence_cases_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(tripOccurrenceCaseEvents)).toContainEqual({
+      columns: ['company_id', 'case_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_occurrence_cases',
+      name: 'trip_occurrence_case_events_company_case_fk',
       onDelete: 'cascade',
       onUpdate: 'cascade',
     })
