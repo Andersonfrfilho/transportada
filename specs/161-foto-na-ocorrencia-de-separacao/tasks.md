@@ -73,7 +73,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     WhatsApp do operador) ainda não passam `attachment` — passam a responder sempre 422 até T6/T15
     ligarem a foto. Ver `evidence.md`.
 
-- [ ] **T6** Registro multipart com original e miniatura (RF5/RF7) — `occurrence.schema.ts` (parser
+- [x] **T6** Registro multipart com original e miniatura (RF5/RF7) — `occurrence.schema.ts` (parser
       com lista fechada, um `file` e no máximo um `thumbnail`; `thumbnail` sem `file` → 400),
       persistência dos **dois** objetos na mesma transação com `runWithStoredObjectCleanup`,
       `trip.routes.ts` (multipart, `Idempotency-Key`, rate limit 60/300 s), `main.ts`.

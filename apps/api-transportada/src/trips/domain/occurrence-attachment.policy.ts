@@ -7,6 +7,9 @@
  */
 import { createHash } from 'node:crypto'
 
+import { isDeliveryProofMimeType, matchesDeliveryProofSignature } from './delivery-proof.policy.js'
+import { TripDeliveryProofRejectedError } from './trip.error.js'
+
 /**
  * Spec 161 D13. ⚠️ **Duplicado no banco**: o CHECK
  * `trip_document_occurrence_attachments_position_check` (T1,
@@ -120,6 +123,28 @@ export function buildOccurrenceAttachmentAppendFingerprint(
 
 export function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
+}
+
+/**
+ * Spec 161 T6 (RF7): teto, tipo e assinatura de bytes do original **e** da miniatura — mesma
+ * checagem do canhoto do escritório (`assertOfficeUploadAccepted`), com o teto próprio de cada um
+ * (D13). Chamado **antes** de qualquer transação ou upload: arquivo recusado não gasta reserva nem
+ * sobe ao bucket (mesmo princípio de `office-delivery-proof.service.ts`).
+ */
+export function assertOccurrenceUploadAccepted(upload: {
+  readonly bytes: Uint8Array
+  readonly maxBytes: number
+  readonly mimeType: string
+}): void {
+  if (upload.bytes.byteLength > upload.maxBytes) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
+  if (!isDeliveryProofMimeType(upload.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+  if (!matchesDeliveryProofSignature({ bytes: upload.bytes, mimeType: upload.mimeType })) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
 }
 
 function sha256(value: string): string {

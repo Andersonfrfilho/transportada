@@ -370,3 +370,109 @@ só o `attachment-required.contract.ts` novo.
   WhatsApp) ligarem o `attachment`. É o comportamento esperado da sequência de tasks — não há tela
   nem fluxo publicado hoje que dependa dessas duas chamadas continuarem aceitando ocorrência sem
   foto —, mas registrado aqui para quem ler o diff isolado da T5 sem o resto da fase 2/4.
+
+## T6 — Registro multipart com original e miniatura (RF5/RF7, CA2/CA4/CA7b)
+
+### O que foi implementado
+
+- `src/trips/presentation/occurrence.schema.ts`: `parseRegisterOccurrenceMultipartRequest` —
+  multipart obrigatório (JSON cai no `catch` de `readOfficeMultipartForm` → 400), lista fechada de
+  campos, exatamente um `file`, no máximo um `thumbnail`. `file` é sempre exigido, o que faz
+  `thumbnail` sem `file` responder 400 também, sem checagem própria.
+- `src/trips/domain/occurrence-attachment.policy.ts`: `assertOccurrenceUploadAccepted` — teto, tipo
+  e assinatura de bytes, reaproveitando `isDeliveryProofMimeType`/`matchesDeliveryProofSignature` do
+  canhoto do escritório, com o teto passado por parâmetro (`OCCURRENCE_PHOTO_MAX_BYTES` para o
+  original, `OCCURRENCE_THUMBNAIL_MAX_BYTES` para a miniatura).
+- `src/trips/application/persist-separation-occurrence-attachment.service.ts` (novo): orquestra a
+  gravação — valida (antes de qualquer I/O), sobe o original e a miniatura opcional via
+  `runWithStoredObjectCleanup`, insere os `stored_objects` e a linha de
+  `trip_document_occurrence_attachments`, tudo atrás de um `SeparationOccurrenceUnitOfWork`
+  injetado (porta pura, sem Drizzle) — por isso é testável sem Postgres.
+- `src/trips/infrastructure/drizzle-separation-occurrence.repository.ts` (novo):
+  `DrizzleSeparationOccurrenceUnitOfWork` implementa a porta acima com `database.transaction`,
+  reaproveitando `saveTripOccurrence` (sem `attachmentObjectId` — D6, o galpão nunca escreve a
+  coluna antiga) e a função solta `insertOccurrenceAttachmentRow` (extraída de
+  `drizzle-occurrence-attachment.repository.ts`, T3, para rodar dentro da mesma transação).
+- `src/trips/application/register-trip-occurrence.use-case.ts`: `attachment` ganha `thumbnail?`;
+  `TripOccurrencePort.saveOccurrence` recebe o `attachment` e devolve `attachments?` (posição
+  `{id, position}`); `RegisteredOccurrence.attachments` sai sempre (`[]` se `saveOccurrence` não
+  devolver nada — defensivo, não deveria acontecer para `separation`). ⚠️ A validação de
+  teto/tipo/assinatura **não** entrou aqui — entrou em `persistSeparationOccurrenceWithAttachment`,
+  porque o teto é por canal (web 512 KiB/128 KiB, D13; WhatsApp, fase 4, usa 960 KiB próprios) e o
+  caso de uso é genérico aos dois canais.
+- `src/trips/presentation/trip.routes.ts`: a rota de registro vira multipart
+  (`parseRegisterOccurrenceMultipartRequest`), exige `Idempotency-Key`
+  (`parseIdempotencyKey`, 400 sem o header) e ganha `rateLimit: { maxRequests: 60, scope:
+'trip-separation-occurrence', store: 'postgres', windowSeconds: 300 }`. ⚠️ A chave só é **exigida**
+  nesta task — a convergência por fingerprint (mesma chave/conteúdo não duplica) é T8, que já tem as
+  funções de fingerprint prontas desde T2 (`buildOccurrenceAttachmentCreateFingerprint`).
+- `src/main.ts`: a fiação HTTP passa `attachment` ao caso de uso e troca `saveOccurrence` pela nova
+  `persistSeparationOccurrenceWithAttachment` (com `DrizzleSeparationOccurrenceUnitOfWork` e o mesmo
+  `createDeliveryProofStorage` que o canhoto do escritório usa — bucket único de propósito, ADR
+  implícita do canhoto reaproveitada). A fiação do WhatsApp (linha ~825) **não** foi tocada — segue
+  sem `attachment`, então `registerTripOccurrence` recusa antes de chegar a `saveOccurrence` (T5); é
+  o comportamento esperado até T15.
+
+### Decisão sobre "os dois objetos limpos" (CA7b)
+
+A validação de teto/tipo/assinatura acontece **antes** de qualquer `storage.store()` — arquivo
+recusado não sobe nada ao bucket, então não há o que limpar (mesmo princípio de
+`office-delivery-proof.service.ts`, "validado fora de qualquer reserva"). O que `CA7b` prova de
+verdade é o mecanismo de `runWithStoredObjectCleanup`: se a gravação falhar **depois** de original e
+miniatura já terem subido — no teste, forçando `insertAttachment` a lançar depois dos dois
+`storage.store()` —, os dois `storage.remove()` disparam. É o cenário real de órfão: falha do lado
+do banco depois do upload, não erro de validação (que nunca chega a subir bytes).
+
+### O vermelho e o verde
+
+`test/trip-occurrence/separation-upload.contract.ts` foi escrito **antes** da implementação; rodado
+contra o código antigo (sem `parseRegisterOccurrenceMultipartRequest`, sem
+`persistSeparationOccurrenceWithAttachment`) falhava por `Cannot find module`/`TS2305` em todos os
+`describe`. Depois da implementação: **34 pass, 0 fail** (arquivo isolado). O contrato cobre:
+
+- Parser: JSON → 400; sem `file` → 400 (inclusive só `thumbnail`); campo fora da lista → 400; dois
+  `thumbnail` → 400; `file` sem `thumbnail` aceito, sem miniatura no resultado; `file` com
+  `thumbnail` aceito, os dois nos bytes certos.
+- CA4: original > 512 KiB → 422 `TRIP_DELIVERY_PROOF_TOO_LARGE`, sem tocar storage; miniatura >
+  128 KiB → 422 idem; assinatura de bytes errada → 422 `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE`, sem
+  tocar storage.
+- CA7b: caso feliz sobe os dois objetos e grava `position: 1`; `file` sem `thumbnail` sobe só um
+  objeto; falha depois do upload limpa os dois objetos (original e miniatura).
+- Caso de uso: `registerTripOccurrence` encaminha `attachment` e devolve
+  `attachments: [{ id, position: 1 }]` vindos de `saveOccurrence`.
+
+### Gates
+
+- `bun test test/trip-occurrence.contract.test.ts` → **111 pass, 0 fail**, 247 `expect()` (era
+  98/220 antes desta task — T6 soma 13 testes ao arquivo existente, mais o novo
+  `separation-upload.contract.ts` dentro dele).
+- `bun run --cwd apps/api-transportada test` (suíte completa de contrato) → **6783 pass, 32 skip, 0
+  fail**, 23283 `expect()` em 182 arquivos.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde.
+- `bun --env-file=../../.env.test run test:integration` **não rodou** — T6 não criou nenhum arquivo
+  em `test/integration/`; a integração das três leituras é T12, fora deste recorte.
+
+### Efeito colateral: dois arquivos de teste pré-existentes precisaram de ajuste
+
+- `test/fixtures/trip-http.fixture.ts`: `createRouter` passou a exigir `rateLimitWindows` porque a
+  rota de registro agora declara `rateLimit: { store: 'postgres' }` — sem isso o roteador recusa
+  subir (`assertPostgresRateLimitHasStore`). Adicionado um dublê que sempre permite (o teto de
+  verdade é provado só em `test/rate-limited-routes.contract.test.ts`).
+- `test/rate-limited-routes.contract.test.ts`: a rota nova precisou entrar na lista fechada de
+  arquivos que declaram `store: 'postgres'` (`trips/presentation/trip.routes.ts`) e ganhou um teste
+  próprio conferindo o balde exato (60/300 s, `trip-separation-occurrence`).
+
+### A ocorrência de galpão pela rota HTTP volta a funcionar de ponta a ponta
+
+Provado pelo teste "caso feliz devolve `attachments: [{ id, position: 1 }]`" em
+`separation-upload.contract.ts` — exercita `registerTripOccurrence` com um dublê de `saveOccurrence`
+que simula a persistência e devolve o anexo, confirmando que o caso de uso encaminha `attachment` e
+publica `attachments` na resposta. A cadeia completa (rota → schema multipart → caso de uso →
+`persistSeparationOccurrenceWithAttachment` → transação Drizzle → Postgres) **não** foi exercitada
+contra um banco real nesta task (T6 não pede integração — T12 pede); o que está provado sem
+Postgres é: (1) o parser aceita exatamente o formato esperado e recusa o resto; (2) o caso de uso
+encaminha o anexo e publica a posição; (3) a orquestração de escrita valida antes de subir bytes e
+limpa os dois objetos se a transação falhar depois do upload. Falta, para prova de ponta a ponta
+contra banco de verdade: T12.

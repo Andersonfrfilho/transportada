@@ -230,6 +230,8 @@ import { readTripFieldDeliveryDocuments as readTripFieldDeliveryDocumentsQuery }
 import { readFieldDeliveryDocuments } from './trips/application/read-field-delivery-documents.use-case.js'
 import { createTripFieldDeliveryDocumentsRoutes } from './trips/presentation/trip-field-delivery-documents.routes.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { persistSeparationOccurrenceWithAttachment } from './trips/application/persist-separation-occurrence-attachment.service.js'
+import { DrizzleSeparationOccurrenceUnitOfWork } from './trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
@@ -2763,6 +2765,7 @@ function createApplicationRoutes({
         execute: async (input) =>
           registerTripOccurrence({
             actorUserId: input.context.userId,
+            attachment: input.attachment,
             companyId: input.context.companyId,
             documentId: input.documentId,
             note: input.note,
@@ -2792,7 +2795,34 @@ function createApplicationRoutes({
               listDocumentProducts: (query) => listDocumentProducts(database, query),
               listOccurrences: (query) => listTripOccurrences(database, query),
               readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
-              saveOccurrence: (query) => saveTripOccurrence(database, query),
+              /**
+               * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem o
+               * original e a miniatura opcional e grava a linha de anexo, tudo na transação de
+               * `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
+               * `runWithStoredObjectCleanup` desfaz o que subiu.
+               */
+              saveOccurrence: (query) =>
+                persistSeparationOccurrenceWithAttachment({
+                  attachment: query.attachment,
+                  input: {
+                    actorUserId: query.actorUserId,
+                    companyId: query.companyId,
+                    documentId: query.documentId,
+                    note: query.note,
+                    occurrenceTypeId: query.occurrenceTypeId,
+                    productCode: query.productCode,
+                    stage: query.stage,
+                    tripId: query.tripId,
+                    typeName: query.typeName,
+                  },
+                  newObjectId: () => crypto.randomUUID(),
+                  now: () => new Date(),
+                  storage: createDeliveryProofStorage({
+                    bucket: storageBucket,
+                    storage: storageGateway,
+                  }),
+                  unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database),
+                }),
             },
             tripId: input.tripId,
           }),

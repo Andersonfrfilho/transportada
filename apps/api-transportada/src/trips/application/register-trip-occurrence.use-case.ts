@@ -70,6 +70,9 @@ export type TripOccurrenceWithAttachment = TripOccurrence &
  * o texto pronto já tira o retrabalho de escrever à mão.
  */
 export type RegisteredOccurrence = TripOccurrence & {
+  /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
+   * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
+  readonly attachments: readonly TripOccurrenceAttachmentPosition[]
   readonly email: null | { readonly body: string; readonly subject: string }
 }
 
@@ -114,6 +117,16 @@ export type TripOccurrencePort = {
   }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
     readonly actorUserId: string
+    /**
+     * Spec 161 T6: já validado (teto/tipo/assinatura) — a implementação sobe o original e a
+     * miniatura opcional e grava a linha em `trip_document_occurrence_attachments`, tudo na mesma
+     * transação da ocorrência.
+     */
+    readonly attachment: {
+      readonly bytes: Uint8Array
+      readonly mimeType: string
+      readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+    }
     readonly companyId: string
     readonly documentId: string
     readonly note: string
@@ -122,7 +135,15 @@ export type TripOccurrencePort = {
     readonly stage: TripOccurrenceStage
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence>
+  }): Promise<
+    null | (TripOccurrence & { readonly attachments?: readonly TripOccurrenceAttachmentPosition[] })
+  >
+}
+
+/** O que `saveOccurrence` devolve para a foto gravada — só `id`/`position`, sem URL (D5). */
+export type TripOccurrenceAttachmentPosition = {
+  readonly id: string
+  readonly position: number
 }
 
 /**
@@ -143,10 +164,16 @@ export type RegisterTripOccurrenceInput = {
   /**
    * Spec 161 D1/RF4: a foto da ocorrência de galpão. Ausente é aceitável para o **tipo**, mas não
    * para a **etapa** — `separation` recusa sem ela (`OccurrencePhotoRequiredError`), antes de
-   * `saveOccurrence`, do storage e da auditoria. A persistência do objeto em si é T6, fora desta
-   * task: aqui o campo só é conferido, nunca gravado.
+   * `saveOccurrence`, do storage e da auditoria. Spec 161 T6: o original e a miniatura opcional
+   * (D12/D14) só são validados (teto/tipo/assinatura) e persistidos dentro de `saveOccurrence` — a
+   * implementação da rota faz isso antes de abrir a transação (`persist-separation-occurrence-
+   * attachment.service.ts`); este caso de uso só confere presença, nunca bytes.
    */
-  readonly attachment?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  readonly attachment?: {
+    readonly bytes: Uint8Array
+    readonly mimeType: string
+    readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  }
   readonly companyId: string
   readonly documentId: string
   readonly note: string
@@ -200,6 +227,7 @@ export async function registerTripOccurrence(
    * ocorrência que não vai nascer.
    */
   if (input.attachment === undefined) throw new OccurrencePhotoRequiredError()
+  const attachment = input.attachment
 
   /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
@@ -214,6 +242,7 @@ export async function registerTripOccurrence(
 
   const saved = await repository.saveOccurrence({
     actorUserId,
+    attachment,
     companyId,
     documentId,
     note,
@@ -232,7 +261,11 @@ export async function registerTripOccurrence(
     occurrenceType,
   })
 
-  return { ...saved, email: await renderEmail({ input, occurrenceType, scope }) }
+  return {
+    ...saved,
+    attachments: saved.attachments ?? [],
+    email: await renderEmail({ input, occurrenceType, scope }),
+  }
 }
 
 /**

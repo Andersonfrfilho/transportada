@@ -567,6 +567,12 @@ function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    /**
+     * Spec 161 T6: `POST .../occurrences` ganhou `rateLimit: { store: 'postgres' }` — o roteador
+     * recusa subir com uma rota assim sem um `rateLimitWindows`. O dublê sempre permite; o teto de
+     * verdade é provado em `test/rate-limited-routes.contract.test.ts`.
+     */
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

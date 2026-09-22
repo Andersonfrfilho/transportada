@@ -17,6 +17,7 @@ import type {
   OccurrenceAttachmentRecord,
   ReadOccurrenceAttachmentsPort,
 } from '../application/occurrence-attachment.service.js'
+import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -41,37 +42,46 @@ type InsertOccurrenceAttachmentRow = {
   readonly position: number
 }
 
+/**
+ * ⚠️ `position` **não** vem de um `SELECT count(*)` antes do `INSERT` (plan.md, T1) — o
+ * `coalesce(max(position), 0) + 1` mora dentro da própria instrução, fechando a janela em que duas
+ * requisições calculariam a mesma posição. O unique de `(company_id, occurrence_id, position)` e o
+ * CHECK de `position` (1 a 5) resolvem a corrida da sexta foto por `23505`/`23514` — mapear os dois
+ * para `TripOccurrenceAttachmentLimitError` é do caso de uso que chama esta função (T6/T7). Exportada
+ * como função solta (e não só método de classe) para rodar **dentro** da transação de quem grava
+ * (`persist-separation-occurrence-attachment.service.ts`, T6) — o `queryable` pode ser a conexão ou
+ * uma transação aberta, nunca uma segunda conexão.
+ */
+export async function insertOccurrenceAttachmentRow(
+  queryable: TripQueryable,
+  input: InsertOccurrenceAttachmentInput,
+): Promise<InsertOccurrenceAttachmentResult> {
+  const rows = await queryable.execute<InsertOccurrenceAttachmentRow>(sql`
+    insert into trip_document_occurrence_attachments
+      (company_id, occurrence_id, stored_object_id, thumbnail_object_id, position)
+    select
+      ${input.companyId}::uuid,
+      ${input.occurrenceId}::uuid,
+      ${input.storedObjectId}::uuid,
+      ${input.thumbnailObjectId ?? null}::uuid,
+      coalesce(max(position), 0) + 1
+    from trip_document_occurrence_attachments
+    where company_id = ${input.companyId}::uuid and occurrence_id = ${input.occurrenceId}::uuid
+    returning id, position
+  `)
+  const row = rows[0]
+  if (row === undefined) throw new Error('TRIP_OCCURRENCE_ATTACHMENT_NOT_SAVED')
+
+  return { id: row.id, position: Number(row.position) }
+}
+
 export class DrizzleOccurrenceAttachmentRepository implements ReadOccurrenceAttachmentsPort {
   public constructor(private readonly database: Database) {}
 
-  /**
-   * ⚠️ `position` **não** vem de um `SELECT count(*)` antes do `INSERT` (plan.md, T1) — o
-   * `coalesce(max(position), 0) + 1` mora dentro da própria instrução, fechando a janela em que
-   * duas requisições calculariam a mesma posição. O unique de `(company_id, occurrence_id,
-   * position)` e o CHECK de `position` (1 a 5) resolvem a corrida da sexta foto por `23505`/`23514`
-   * — mapear os dois para `TripOccurrenceAttachmentLimitError` é do caso de uso que chama este
-   * método (T6/T7), fora desta task.
-   */
-  public async insertOccurrenceAttachment(
+  public insertOccurrenceAttachment(
     input: InsertOccurrenceAttachmentInput,
   ): Promise<InsertOccurrenceAttachmentResult> {
-    const rows = await this.database.execute<InsertOccurrenceAttachmentRow>(sql`
-      insert into trip_document_occurrence_attachments
-        (company_id, occurrence_id, stored_object_id, thumbnail_object_id, position)
-      select
-        ${input.companyId}::uuid,
-        ${input.occurrenceId}::uuid,
-        ${input.storedObjectId}::uuid,
-        ${input.thumbnailObjectId ?? null}::uuid,
-        coalesce(max(position), 0) + 1
-      from trip_document_occurrence_attachments
-      where company_id = ${input.companyId}::uuid and occurrence_id = ${input.occurrenceId}::uuid
-      returning id, position
-    `)
-    const row = rows[0]
-    if (row === undefined) throw new Error('TRIP_OCCURRENCE_ATTACHMENT_NOT_SAVED')
-
-    return { id: row.id, position: Number(row.position) }
+    return insertOccurrenceAttachmentRow(this.database, input)
   }
 
   public async countOccurrenceAttachments(input: {

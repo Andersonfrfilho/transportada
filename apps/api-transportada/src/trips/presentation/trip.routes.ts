@@ -8,7 +8,11 @@ import type { RouteGeometryView } from '../application/read-route-geometry.use-c
 import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrenceWithAttachment } from '../application/register-trip-occurrence.use-case.js'
-import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
+import {
+  parseOccurrenceTypeRequest,
+  parseRegisterOccurrenceMultipartRequest,
+} from './occurrence.schema.js'
+import { parseIdempotencyKey } from './me-trip.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
   ListTripOccurrenceFeedInput,
@@ -148,13 +152,31 @@ const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 
 type RegisterOccurrenceRouteInput = {
+  readonly attachment: {
+    readonly bytes: Uint8Array
+    readonly mimeType: string
+    readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  }
   readonly context: CompanyContext
   readonly documentId: string
+  readonly idempotencyKey: string
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode: string
   readonly tripId: string
 }
+
+/**
+ * Spec 161 T6 (RF5): a escrita mais cara e mais rara desta rota — uma foto por ocorrência, num
+ * conferente que registra avaria. 60/300 s por empresa e usuário é folga generosa sobre o uso real
+ * e freio contra reenvio em loop.
+ */
+const REGISTER_OCCURRENCE_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'trip-separation-occurrence',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
 
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
@@ -1249,6 +1271,11 @@ export function createTripRoutes(
      *
      * O motorista continua tendo a rota dele em `/me`, com o escopo da viagem ativa.
      */
+    /**
+     * Spec 161 T6 (RF5): multipart obrigatório desde esta task — corpo JSON responde 400 no
+     * parser. `attachment` chega já lido em bytes; a validação de teto/tipo/assinatura e a
+     * persistência dos dois objetos + a linha do anexo acontecem no caso de uso (D1/RF4/RF7).
+     */
     defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const occurrence = await dependencies.registerTripOccurrence.execute({
@@ -1259,9 +1286,11 @@ export function createTripRoutes(
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
-        const body = await parseRegisterOccurrenceRequest(request)
+        const body = await parseRegisterOccurrenceMultipartRequest(request)
         return {
+          attachment: body.attachment,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          idempotencyKey: parseIdempotencyKey(request),
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
@@ -1270,6 +1299,7 @@ export function createTripRoutes(
       },
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
       policy: TRIP_MANAGE_POLICY,
+      rateLimit: REGISTER_OCCURRENCE_RATE_LIMIT,
     }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {

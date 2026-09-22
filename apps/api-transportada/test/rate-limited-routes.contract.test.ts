@@ -10,6 +10,7 @@ import { createAddressCorrectionRoutes } from '../src/address-correction/present
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
+import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const MAIL_RATE_LIMIT = { maxRequests: 7, windowSeconds: 900 } as const
 const SOURCE_DIRECTORY = new URL('../src/', import.meta.url).pathname
@@ -130,6 +131,34 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     })
   })
 
+  /**
+   * Spec 161 T6 (RF5): o registro da ocorrência de galpão vira multipart, com a mesma escrita mais
+   * cara e mais rara que o lote do escritório — uma foto por ocorrência.
+   */
+  test('o registro da ocorrência de galpão tem o próprio balde', () => {
+    const unused = unusedDependencies() as never
+    const routes = createTripRoutes(unused)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    expect(limited).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'trip-separation-occurrence',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:id/documents/:documentId/occurrences',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -144,6 +173,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'trips/presentation/trip-field-office-document.routes.ts',
       'trips/presentation/trip-field-office-occurrence.routes.ts',
       'trips/presentation/trip-field-office-trip.routes.ts',
+      'trips/presentation/trip.routes.ts',
     ])
   })
 })
