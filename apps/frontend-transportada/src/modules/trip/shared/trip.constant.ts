@@ -311,10 +311,21 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
   'channel',
   'onBehalfOfDriverName',
   /**
-   * Spec 161 T6/T22: nasce opcional aqui só para não derrubar o parse do registro (RF29/RF31) —
-   * `id`/`position` de cada foto gravada. A grade de miniaturas (T24) tipa e consome o conteúdo.
+   * Spec 161 T6/T22/T24: nasce opcional aqui só para não derrubar o parse do registro
+   * (RF29/RF31) — as fotos gravadas, no formato completo de RF8 (T24).
    */
   'attachments',
+] as const
+
+/** Spec 161 T24 (RF8): campos sempre presentes no anexo. */
+export const TRIP_OCCURRENCE_ATTACHMENT_KEYS = ['expired', 'id', 'mimeType', 'position'] as const
+
+/** Spec 161 T24 (RF8): ausentes quando não há URL a oferecer — miniatura sem gerar, ou anexo
+ * expirado (D11, sem nenhuma das duas). */
+export const TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS = [
+  'downloadUrl',
+  'expiresAt',
+  'thumbnailUrl',
 ] as const
 
 /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
@@ -343,6 +354,8 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
+/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto. */
+export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS = ['attachmentCount'] as const
 
 export const TRIP_TIMELINE_DEFAULT_LIMIT = 100
 

@@ -151,6 +151,15 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
     item.occurrence.note !== ''
       ? item.occurrence.note
       : null
+  /** RF12: só marca e conta — nenhuma URL assinada nasce na listagem. Quem quer ver abre a
+   * ocorrência. */
+  const attachmentCount =
+    (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
+    item.occurrence !== null &&
+    item.occurrence.attachmentCount !== undefined &&
+    item.occurrence.attachmentCount > 0
+      ? item.occurrence.attachmentCount
+      : null
   const returnReason =
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason
@@ -188,6 +197,12 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
         </p>
       )}
       {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}
+      {attachmentCount === null ? null : (
+        <p className={styles.itemDetail}>
+          <Icon name="camera" />
+          {t('eventTimeline.attachmentCount', { count: attachmentCount })}
+        </p>
+      )}
     </li>
   )
 }

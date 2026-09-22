@@ -1291,3 +1291,143 @@ falhava na importação. Verde após o serviço:
   `registerOccurrenceMutation` (o `useMutation` antigo, com o corpo JSON que a API não aceita mais)
   ficou sem consumidor e foi removido do hook nesta mesma task, para não deixar código morto para
   trás.
+
+## T24 — As três telas mostram miniatura (RF9/RF10/RF11/RF13/RF14/RF32/RF32b)
+
+Data: 2026-09-21.
+
+### O que mudou
+
+- `src/modules/trip/shared/trip.types.ts`: tipo novo `OccurrenceAttachment` (RF8) —
+  `{ downloadUrl?, expired, expiresAt?, id, mimeType, position, thumbnailUrl? }`. `TripOccurrence.attachments`
+  passa a usar esse tipo (era `{ id, position }[]`). `TripTimelineOccurrenceReference` ganha
+  `attachmentCount?` (RF12).
+- `src/modules/trip/shared/trip.constant.ts`: `TRIP_OCCURRENCE_ATTACHMENT_KEYS`/`_OPTIONAL_KEYS` e
+  `TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS` novos.
+- `src/modules/trip/shared/tripGuards.validation.ts`: guarda nova `isOccurrenceAttachment` — um lugar
+  só usado tanto pelo registro da ocorrência (painel da nota) quanto pelo feed
+  (`GET /trip-occurrences/:id/attachments`), para as duas fontes não divergirem no formato.
+- `src/modules/trip/shared/tripResponse.validation.ts`: `isOccurrence` passa a validar `attachments`
+  com `isOccurrenceAttachment`; `isTimelineOccurrenceReference` ganha `attachmentCount` opcional. A
+  guarda estreita `isOccurrenceAttachmentPosition` (`{ id, position }`, resposta de
+  `POST .../occurrences/:occurrenceId/attachments`, RF6) **foi mantida** — é um contrato diferente do
+  de leitura (RF8) e continua usada por `occurrenceAttachmentPositionFromApi`.
+- `src/modules/trip/shared/tripOccurrenceFeed.service.ts` /
+  `tripOccurrenceFeedClient.service.ts`: `TripOccurrenceAttachment` passa a ser um alias de
+  `OccurrenceAttachment` (era um tipo próprio, sem `thumbnailUrl`/`expired`/`position`); `isAttachment`
+  local foi removido em favor da guarda compartilhada.
+- `src/modules/trip/shared/occurrenceAttachmentGrid.service.ts` (novo): lógica pura —
+  `capOccurrenceAttachments` (teto de 5, RF14), `resolveOccurrenceAttachmentDisplay` (miniatura vs.
+  original vs. indisponível vs. expirado) e `resolveOccurrenceAttachmentOriginal` (o que abre em tela
+  cheia — sempre o original).
+- `src/modules/trip/components/OccurrenceAttachmentGrid.component.tsx` (novo): grade compartilhada
+  pelas três telas — esqueleto até a imagem carregar (`onLoad`), `loading="lazy"`, selo de foto
+  expirada com a data do registro, selo de "não foi possível carregar" por `onError` (sem derrubar as
+  outras fotos), fullscreen ao clicar usando sempre o original.
+- `TripOccurrenceTable.component.tsx` (feed `/ocorrencias` — RF10/RF11, o detalhe expandido da linha
+  é o detalhe da ocorrência): `OccurrenceAttachments` passou a delegar a grade ao componente novo, em
+  vez de desenhar `<img src={attachment.downloadUrl}>` diretamente — esse era o defeito que a CA6b
+  pede para corrigir (a lista buscava e desenhava o original desde sempre).
+- `TripOccurrences.component.tsx` (painel da nota dentro da viagem — RF9): passou a renderizar
+  `OccurrenceAttachmentGrid` por ocorrência, usando `occurrence.attachments`.
+- `TripTimeline.component.tsx` (RF12): marcador de foto (ícone `camera` + contagem,
+  `eventTimeline.attachmentCount`) quando `occurrence.attachmentCount > 0` — nenhuma URL assinada
+  nasce aqui, só a contagem que a API já manda.
+- `src/modules/trip/styles/trip.module.css`: classes novas `.occurrenceAttachmentGrid/Button/Thumb/
+Skeleton/Badge` — nomes próprios, sem reusar `.occurrencePhotoGrid`/`.occurrencePhotoThumb`, que já
+  colidem entre o feed antigo e o seletor da T23 (duas definições da mesma classe no mesmo arquivo,
+  achado pré-existente, fora do escopo desta task).
+- `src/modules/trip/locales/trip.locale.json` / `trip.en.locale.json`:
+  `occurrenceFeed.detail.photoExpired`, `occurrenceFeed.detail.photoLoadError`,
+  `eventTimeline.attachmentCount_one/_other`.
+- `test/trip/occurrence-thumbnail.contract.ts` e `test/trip/occurrence-expired-attachment.contract.ts`
+  (novos, registrados em `test/trip.contract.test.ts`).
+
+### Por que os dois contratos novos são lógica de serviço, não render RTL
+
+O prompt de execução pedia contratos de RTL (`@testing-library/react`). O projeto **não tem** essa
+dependência — `apps/frontend-transportada/CLAUDE.md` e `test/trip-hooks/renderHook.helper.ts` documentam
+a decisão de escrevê-la à mão sobre `react-dom/client` + `act`, só para **hooks** que precisam provar
+montados (`test/trip-hooks/*.contract.ts`, rodado à parte via `bun run test:hooks` com
+`@happy-dom/global-registrator`). Não existe hoje nenhum contrato que renderize um **componente** e
+inspecione o DOM produzido. Seguindo a regra "UI versus lógica" (`web.md` §4: todo cálculo e condicional
+complexa vai para hook/serviço; o componente só é declarativo), toda a decisão que a CA6b cobra —
+miniatura vs. original, expirado nunca vira imagem, teto de 5, o que abre em tela cheia — foi extraída
+para `occurrenceAttachmentGrid.service.ts`, que é o que os dois contratos testam. O componente em si fica
+com só o encanamento declarativo (estado de carregado/erro por id, `onLoad`/`onError`, `loading="lazy"`),
+que não tem branch lógico independente do serviço para testar sem DOM.
+
+### Vermelho → verde
+
+```
+$ mv src/modules/trip/shared/occurrenceAttachmentGrid.service.ts /tmp/...bak
+$ bun test ./test/trip/occurrence-thumbnail.contract.ts ./test/trip/occurrence-expired-attachment.contract.ts
+error: Cannot find module '@/modules/trip/shared/occurrenceAttachmentGrid.service' ...
+ 0 pass
+ 2 fail
+$ mv /tmp/...bak src/modules/trip/shared/occurrenceAttachmentGrid.service.ts
+$ bun test ./test/trip/occurrence-thumbnail.contract.ts ./test/trip/occurrence-expired-attachment.contract.ts
+ 18 pass
+ 0 fail
+```
+
+### Gates
+
+- `bun run --cwd apps/frontend-transportada test` → `4762 pass, 0 fail` (contratos) +
+  `40 pass, 0 fail` (`test:hooks`).
+- `bun run --cwd apps/frontend-transportada lint` → verde.
+- `bun run --cwd apps/frontend-transportada typecheck` (`bunx tsc --noEmit`) → verde.
+- `bun run format:check` (raiz) → verde, após `prettier --write` nos 5 arquivos novos/tocados.
+
+### Como a lista nunca busca o original antes de abrir a foto
+
+`resolveOccurrenceAttachmentDisplay` (testado em `occurrence-thumbnail.contract.ts`) devolve
+`src: attachment.thumbnailUrl` sempre que a miniatura existe — o `downloadUrl` só é lido por
+`resolveOccurrenceAttachmentOriginal`, chamado apenas no `onClick` do botão da grade (abre em
+`fullscreenUrl`). Como o payload de RF8 já traz as duas URLs presigned juntas na mesma resposta (não há
+uma segunda requisição de rede a evitar), a garantia que os testes provam é a que importa no cliente:
+o `<img>` renderizado nunca aponta para o original enquanto a miniatura existir — a requisição HTTP que
+o navegador dispara ao montar o `<img>` é para o `thumbnailUrl`, e o `downloadUrl` só vira uma
+requisição quando o usuário clica.
+
+### Como o anexo `expired` nunca vira `<img>`
+
+`resolveOccurrenceAttachmentDisplay` verifica `attachment.expired` **antes** de olhar para qualquer
+URL — devolve `{ kind: 'expired' }` mesmo se a API mandasse (por engano) `downloadUrl`/`thumbnailUrl`
+num anexo expirado (teste "mesmo se a API mandasse alguma URL..." em
+`occurrence-expired-attachment.contract.ts`). O componente só monta `<img>` quando
+`display.kind === 'image'`; para `'expired'` ele desenha `.occurrenceAttachmentBadge` com o texto e a
+data do registro, e para `'unavailable'`/erro de carregamento o mesmo selo com outro texto — os dois
+caminhos são mutuamente exclusivos com o `<img>` no JSX (`if`/`return` cedo, nunca os dois juntos).
+
+### Divergência encontrada frente à spec
+
+- **`GET .../documents/:documentId/occurrences` (painel da nota, RF9) não tinha guarda alguma para o
+  formato do anexo antes desta task** — `attachments` chegava tipado só como `{ id, position }[]`
+  (T22), sem `downloadUrl`/`thumbnailUrl`/`expired`/`mimeType`. Não é uma divergência da API (o
+  formato real bate com RF8, presumindo o que a T1–T9 do backend já fecharam) — é que o tipo do
+  frontend ainda não tinha sido promovido; esta task promove o tipo e a guarda, sem tocar backend.
+- **O feed (`OccurrenceAttachments` em `TripOccurrenceTable.component.tsx`) desenhava o `downloadUrl`
+  diretamente na miniatura** desde a implementação original (antes da T24) — bug real que a CA6b
+  aponta e que esta task corrige; não era um comportamento documentado em nenhuma spec anterior, só o
+  que o código fazia.
+- `.occurrencePhotoGrid`/`.occurrencePhotoThumb` existem **duas vezes** em `trip.module.css` (T23
+  reaproveitou os nomes do feed antigo sem perceber a colisão) — não mexi nisso: usei nomes próprios
+  para a grade nova (`.occurrenceAttachmentGrid` etc.) em vez de somar uma terceira definição
+  conflitante. Registrado aqui como achado, não corrigido — fora do escopo de T24.
+
+### Pendência
+
+T25 (textos novos + remoção de `occurrence.occurrencePhotoHint`) não foi iniciada nesta passada —
+combinado no prompt de execução: T24 fecha com evidência e gates, e só se sobrar orçamento a sessão
+segue para T25. Não sobrou orçamento de contexto com folga suficiente para tratar T25 com o mesmo
+rigor de TDD, então ela fica explicitamente pendente.
+
+### Revisão de design (`web.md` §15) — parcial, pendência explícita
+
+A grade nova reusa `Skeleton` do design system e segue os tokens de espaçamento/borda/raio já usados
+pelo picker da T23 (`--space-*`, `--radius-sm`, `color-mix` sobre `--color-slate`/`--color-asphalt`) —
+não há primitivo cru. **Não tirei print da tela renderizada nesta passada** (sem servidor/dados reais
+de foto à mão dentro do orçamento desta task): fica como pendência para a T27 (revisão de design e
+usabilidade dedicada, já prevista no `tasks.md`), que é quem fecha a spec com a prova visual do
+`web.md` §15.

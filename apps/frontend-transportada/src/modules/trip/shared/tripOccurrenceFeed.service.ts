@@ -9,6 +9,8 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
+import type { OccurrenceAttachment } from './trip.types'
+
 /**
  * A listagem de ocorrências do escritório (leitura pura): une o que houve com a nota e o que houve
  * na parada, servida por `GET /trip-occurrences` com cursor keyset. Cópia por valor do vocabulário
@@ -39,12 +41,9 @@ export type TripOccurrenceFeedPage = Readonly<{
   nextCursor: null | string
 }>
 
-export type TripOccurrenceAttachment = Readonly<{
-  downloadUrl: string
-  expiresAt: string
-  id: string
-  mimeType: string
-}>
+/** Spec 161 T24: mesmo formato de `OccurrenceAttachment` (RF8) — o feed lê a mesma forma que o
+ * painel da nota, sem uma segunda definição para divergir dela. */
+export type TripOccurrenceAttachment = OccurrenceAttachment
 
 export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 

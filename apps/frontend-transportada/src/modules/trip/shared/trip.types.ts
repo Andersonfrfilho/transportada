@@ -130,13 +130,30 @@ export type TripDocument = Readonly<{
 export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp', 'backoffice'] as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
 
+/**
+ * Spec 161 T24 (RF8): o anexo de foto lido pelas três telas — painel da nota, feed e detalhe.
+ * `downloadUrl` é o original, `thumbnailUrl` a miniatura — os dois presigned de 5 min, e a lista
+ * usa a miniatura, nunca o original, até o usuário abrir a foto (CA6b). `thumbnailUrl` ausente
+ * (foto de WhatsApp, D14) cai para o original (RF32b). `expired: true` vem **sem** nenhuma das
+ * duas URLs (D11) — a tela mostra o selo de foto expirada, nunca `<img>`.
+ */
+export type OccurrenceAttachment = Readonly<{
+  downloadUrl?: string
+  expired: boolean
+  expiresAt?: string
+  id: string
+  mimeType: string
+  position: number
+  thumbnailUrl?: string
+}>
+
 /** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
 export type TripOccurrence = Readonly<{
   /** Spec 156 T9 (D3, M1): nasce opcional — API na frente do bundle não pode servir sem ele. */
   actorName?: null | string
-  /** Spec 161 T6/T22: `id`/`position` de cada foto gravada — a grade de miniaturas (T24) tipa e
-   * consome o conteúdo; aqui só não derruba o parse. */
-  attachments?: readonly Readonly<{ id: string; position: number }>[]
+  /** Spec 161 T6/T22/T24: fotos gravadas, ordenadas por `position` (RF9) — a grade de miniaturas
+   * consome o conteúdo; ausente vira `[]` sem derrubar a tela. */
+  attachments?: readonly OccurrenceAttachment[]
   channel?: TripFieldChannel
   createdAt: string
   id: string
@@ -188,7 +205,12 @@ export type TripTimelineDocumentReference = Readonly<{
   series: null | string
 }>
 
-export type TripTimelineOccurrenceReference = Readonly<{ note: string; typeName: string }>
+/** Spec 161 T24 (RF12): a contagem de fotos, sem URL nenhuma — quem quer ver abre a ocorrência. */
+export type TripTimelineOccurrenceReference = Readonly<{
+  attachmentCount?: number
+  note: string
+  typeName: string
+}>
 
 /** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
 export type TripTimelineItem = Readonly<{

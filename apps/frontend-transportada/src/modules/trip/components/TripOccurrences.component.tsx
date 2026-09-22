@@ -14,6 +14,7 @@ import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
+import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import styles from '../styles/trip.module.css'
 
@@ -100,6 +101,13 @@ export function TripOccurrences({
                   : ` — ${occurrence.productCode}`}
                 {occurrence.note === '' ? null : ` — ${occurrence.note}`}
                 {authorship === null ? null : <span className={styles.hint}> — {authorship}</span>}
+                {occurrence.attachments === undefined ||
+                occurrence.attachments.length === 0 ? null : (
+                  <OccurrenceAttachmentGrid
+                    attachments={occurrence.attachments}
+                    occurrenceCreatedAt={occurrence.createdAt}
+                  />
+                )}
               </li>
             )
           })}

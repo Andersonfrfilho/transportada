@@ -231,7 +231,7 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     sem foto o envio fica desabilitado; sexta foto não é oferecida. Primitivos do design system
     obrigatórios.
 
-- [ ] **T24** As três telas mostram miniatura (RF9/RF10/RF11/RF13/RF14/RF32/RF32b) —
+- [x] **T24** As três telas mostram miniatura (RF9/RF10/RF11/RF13/RF14/RF32/RF32b) —
       `trip.types.ts`, `tripResponse.validation.ts`, grade de miniaturas com overlay do original no
       painel da nota, no detalhe da ocorrência e no feed `/ocorrencias`
       (`TripOccurrenceTable.component.tsx`), esqueleto + `loading="lazy"`, selo de foto expirada,

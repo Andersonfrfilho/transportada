@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { TRIP_ERROR } from './trip.constant'
-import { isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
 import type {
   TripOccurrenceAttachment,
   TripOccurrenceFeedFilters,
@@ -69,16 +69,6 @@ function isFeedItem(value: unknown): value is TripOccurrenceFeedItem {
   )
 }
 
-function isAttachment(value: unknown): value is TripOccurrenceAttachment {
-  if (!isRecord(value)) return false
-  return (
-    isString(value.downloadUrl) &&
-    isString(value.expiresAt) &&
-    isString(value.id) &&
-    isString(value.mimeType)
-  )
-}
-
 function readPage(payload: unknown): TripOccurrenceFeedPage {
   if (!isRecord(payload) || !Array.isArray(payload.data) || !isRecord(payload.pagination)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -93,7 +83,7 @@ function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] 
   if (!isRecord(payload) || !Array.isArray(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  if (!payload.data.every(isAttachment)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  if (!payload.data.every(isOccurrenceAttachment)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   return payload.data
 }
 

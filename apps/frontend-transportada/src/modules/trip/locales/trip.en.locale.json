@@ -406,6 +406,8 @@
   "empty": "No trip found",
   "error": "Could not load trips",
   "eventTimeline": {
+    "attachmentCount_one": "{{count}} photo attached",
+    "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
@@ -567,6 +569,8 @@
       "noDescription": "No description recorded.",
       "open": "Details",
       "photoAlt": "Photo attached to the occurrence",
+      "photoExpired": "Expired photo (5-year retention)",
+      "photoLoadError": "Could not load the photo",
       "title": "Detail"
     },
     "empty": "No occurrence found for the applied filter.",

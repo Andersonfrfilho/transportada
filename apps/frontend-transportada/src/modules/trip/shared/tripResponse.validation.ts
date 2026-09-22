@@ -75,6 +75,7 @@ import {
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+  TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -121,6 +122,7 @@ import {
   isBoolean,
   isEveryItem,
   isNullableString,
+  isOccurrenceAttachment,
   isOneOf,
   isRecord,
   isString,
@@ -1071,8 +1073,7 @@ function isOccurrence(value: unknown): value is TripOccurrence {
   return (
     (value.actorName === undefined || isNullableString(value.actorName)) &&
     (value.attachments === undefined ||
-      (Array.isArray(value.attachments) &&
-        value.attachments.every(isOccurrenceAttachmentPosition))) &&
+      (Array.isArray(value.attachments) && value.attachments.every(isOccurrenceAttachment))) &&
     (value.channel === undefined || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isString(value.createdAt) &&
     isString(value.id) &&
@@ -1085,7 +1086,8 @@ function isOccurrence(value: unknown): value is TripOccurrence {
   )
 }
 
-/** Spec 161 T6/T22: `{ id, position }` de uma foto gravada — sem URL (D5). */
+/** Spec 161 T6/T22: `{ id, position }` de uma foto gravada — sem URL (D5), resposta estreita da
+ * rota de anexo (RF6), diferente do formato completo de leitura (RF8, `isOccurrenceAttachment`). */
 function isOccurrenceAttachmentPosition(
   value: unknown,
 ): value is Readonly<{ id: string; position: number }> {
@@ -1120,10 +1122,21 @@ function isTimelineDocumentReference(value: unknown): value is TripTimelineDocum
 }
 
 function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOccurrenceReference {
+  if (
+    !hasKeys(value, {
+      allowed: [
+        ...TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+        ...TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
+      ],
+      required: TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
-    hasExactKeys(value, TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS) &&
     isString(value.note) &&
-    isString(value.typeName)
+    isString(value.typeName) &&
+    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount))
   )
 }
 
