@@ -190,6 +190,12 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
  * corretamente, mas quebrando a tela inteira por um rótulo.
  */
 export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
+  /**
+   * Spec 164 T15 (RF21): a nota tem tratativa de ocorrência aberta. Opcional porque a API vai à
+   * frente do bundle — e porque exigi-lo derrubaria a viagem inteira em instalação de API antiga,
+   * que é exatamente a quebra que este campo causou em staging em 22/09 ao chegar sem estar aqui.
+   */
+  'openOccurrenceCase',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',
@@ -198,7 +204,14 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
 ] as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
-export const TRIP_STOP_OPTIONAL_KEYS = ['cityCode', 'latitude', 'longitude', 'state'] as const
+export const TRIP_STOP_OPTIONAL_KEYS = [
+  /** Spec 164 T15 (RF21): alguma nota desta parada tem tratativa aberta. Mesmo motivo do de cima. */
+  'hasOpenOccurrence',
+  'cityCode',
+  'latitude',
+  'longitude',
+  'state',
+] as const
 
 export const TRIP_STOP_KEYS = [
   'addressKey',

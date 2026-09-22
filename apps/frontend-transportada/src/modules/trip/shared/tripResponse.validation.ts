@@ -322,7 +322,13 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
   ) {
     return false
   }
-  return isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
+  return (
+    isDocumentFields(value) &&
+    isBoolean(value.cteAuthorized) &&
+    isString(value.fiscalStatus) &&
+    /** Spec 164 T15: ausente é API anterior ao marcador; presente tem de ser booleano. */
+    (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase))
+  )
 }
 
 function isStopDetail(value: unknown): value is TripStopDetail {
@@ -343,7 +349,8 @@ function isStopDetail(value: unknown): value is TripStopDetail {
     isEveryItem(value.documents, isDocumentDetail) &&
     isString(value.id) &&
     isString(value.label) &&
-    isUnsignedInteger(value.sequence)
+    isUnsignedInteger(value.sequence) &&
+    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence))
   )
 }
 

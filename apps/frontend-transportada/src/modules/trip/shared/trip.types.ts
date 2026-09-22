@@ -300,6 +300,8 @@ export type TripDocumentDetail = TripDocument &
   Readonly<{
     cteAuthorized: boolean
     fiscalStatus: string
+    /** Spec 164 T15 (RF21): esta nota tem tratativa de ocorrência aberta. Ausente é API anterior. */
+    openOccurrenceCase?: boolean
     /**
      * Spec 079 P2: quem recebe e como falar com ele. O telefone vem do `<enderDest><fone>` que a
      * nota já traz — nada é coletado.
@@ -320,6 +322,8 @@ export type TripDocumentDetail = TripDocument &
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
 export type TripStopDetail = Readonly<{
+  /** Spec 164 T15 (RF21): alguma nota desta parada tem tratativa aberta. Ausente é API anterior. */
+  hasOpenOccurrence?: boolean
   /**
    * Onde a parada fica, no vocabulário do IBGE — a UF diz qual malha o mapa busca, o código do
    * município diz qual polígono desenhar. Opcionais: campo novo nasce assim (spec 078 D2).
