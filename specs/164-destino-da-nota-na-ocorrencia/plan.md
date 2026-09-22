@@ -529,3 +529,61 @@ dedicado, com contrato negativo provando que nenhum caminho do portal alcança `
 (`released_at` + `stop_id = null`, e a parada some se esvaziar). A tela precisa dizer isso com todas as
 letras, e a reordenação continua permitida ao operador mesmo quando a proposta foi liberar: a coluna
 registra **o fato**, não a proposta.
+
+## Validação 🧠 da T16/Fase 5 (architect, opus) — o que reprova não é a migration
+
+A forma da migration está certa; o que reprova é o que ela deixa aberto. Bloqueantes:
+
+1. **`returned_goods` abriria duas rotas HTTP sem ninguém decidir.** `DELIVERY_CHARGE_TYPES` alimenta
+   também os schemas Zod de `POST .../charges` e `PUT .../charge-rules`: qualquer pessoa com
+   `trip.manage` lançaria mercadoria devolvida à mão, com valor livre, fora de qualquer tratativa — e
+   ela entraria no lote e no demonstrativo como se tivesse foto e ocorrência. Duas listas derivadas da
+   mesma fonte (`MANUAL_DELIVERY_CHARGE_TYPES` sem o tipo novo), contrato que reprova a volta, e CHECK
+   no banco amarrando `charge_type = 'returned_goods'` a `origin = 'occurrence' and occurrence_id is
+not null` — e o simétrico.
+2. **A linha de cobrança não pode ser inserida com o que a spec define**: `delivery_client_id` e
+   `charged_on` são `not null`, e `contractor_id` nulo faz a cobrança **sumir** (o fechamento do lote
+   filtra por ele — não recusa, não avisa). Os três vêm de `findChargeParties`, que hoje devolve nulo
+   com `return` silencioso porque perder uma sugestão não pode derrubar a entrega. No acerto é o
+   contrário: nulo é **422**, e a transação do acerto desfaz inteira. `charged_on` é a data do fato
+   (`trip_document_occurrences.created_at::date`), declarada, nunca implícita.
+3. **Falta a unicidade que a RF25 pressupõe**: o unique existente é parcial em `suggested` e não
+   alcança a cobrança de ocorrência, que nasce `recorded`. Sem
+   `delivery_charges_occurrence_unique (company_id, occurrence_id) where occurrence_id is not null`,
+   duas requisições concorrentes cobram o mesmo prejuízo duas vezes.
+4. **`origin: 'occurrence'` já existe e é da ocorrência de parada** (spec 060), que esta spec declara
+   fora de escopo. O discriminador é `charge_type` + `occurrence_id`, **nunca** `origin`.
+5. **`NOT VALID` + `VALIDATE CONSTRAINT` tem precedente** (`20260922112706`), ao contrário do que a
+   correção 6 da T1 afirmou — e é a forma certa para ampliar CHECK em tabela de produção: `DROP` +
+   `ADD` toma `ACCESS EXCLUSIVE` em `delivery_charges`, que é tabela quente.
+6. **A tabela de acerto chaveia pela tratativa** (`case_id` com FK composta e cascade), não pela
+   ocorrência — o acerto não existe sem tratativa decidida. `product_code = ''` é a linha da **nota
+   inteira** e precisa ser aceita: o validador que comparar só contra a tabela de itens recusaria o
+   caso mais comum, que é a avaria total.
+7. **Índice que falta e conserta o que já roda**: `delivery_charges_contractor_period_idx
+(company_id, contractor_id, charged_on)` serve o relatório novo **e** o fechamento de lote atual,
+   que hoje varre a tabela.
+
+### O demonstrativo é artefato imutável, gerado no fechamento
+
+Recomputar o PDF a cada leitura resolveria quatro riscos mal: a foto pode ter sido expurgada (o
+expurgo da 161 é cego à cobrança), o total poderia ser relido diferente, 50 downloads do bucket dentro
+de uma requisição estouram o prazo antes do tamanho, e o arquivo cresce sem teto. O demonstrativo é
+gerado uma vez, guardado em `stored_objects` com prazo próprio de guarda, e servido de lá. Teto
+declarado em constante, com teste que **falha** no caso acima do limite — senão o teste não prova teto.
+
+⚠️ O demonstrativo **não** é exposto sob `/client/me`: o caminho do portal já existe e pendurá-lo ali
+serviria a evidência a ator externo por outra autenticação, sem ninguém decidir. Contrato negativo.
+
+⚠️ A foto vira anexo de cobrança, e o expurgo da spec 161 não sabe disso. Enquanto o demonstrativo for
+imutável e guardado, a prova sobrevive ao expurgo da foto original — é essa a mitigação, e ela precisa
+estar escrita.
+
+⚠️ A spec entrega o PDF, **não** o envio: com a 143 aberta, quem manda à contratante é a pessoa.
+
+### A tensão que não some
+
+Pôr a cobrança de ocorrência em `delivery_charges` é a decisão certa (uma máquina de dinheiro, um
+lote, uma página pública), e o preço é poder quebrar o repasse de taxa que já roda. Os contratos de
+regressão do repasse — fechamento, sugestão recorrente, página pública — são parte da Fase 5, não da
+Fase 7.
