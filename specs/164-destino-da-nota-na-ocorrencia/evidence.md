@@ -319,3 +319,45 @@ Ambos sem erro, sem warning.
 ### Commit isolado
 
 Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
+
+## T3 — erros de domínio da tratativa de ocorrência
+
+Seis erros novos em `src/trips/domain/trip.error.ts`, quatro deles casando o `code` com
+`OCCURRENCE_CASE_TRANSITION_REFUSALS` (`occurrence-case-state.policy.ts`) em vez de repetir a
+string: `OccurrenceCaseNotFoundError` (404), `OccurrenceCaseTransitionNotAllowedError` (409),
+`OccurrenceCaseRedeliveryNotAllowedError` (422, cobre as duas recusas de reentrega da política via
+parâmetro) e `OccurrenceCaseSettlementWithoutItemsError` (422). `OccurrenceSettlementItemUnknownError`
+e `OccurrenceSettlementAmountInvalidError` (422) são código próprio — a T13 ainda não existe.
+
+Contrato novo: `test/trip-domain/occurrence-case.error.contract.ts`, importado por
+`test/trip-domain.contract.test.ts`. Confere `status`, `code` e a ausência de marcadores de PII
+(nome, telefone, e-mail, CPF) em toda mensagem — as mensagens são fixas, nunca interpoladas.
+
+### `bun --env-file=../../.env.test test ./test/trip-domain.contract.test.ts --timeout 120000`
+
+```
+ 230 pass
+ 0 fail
+ 1091 expect() calls
+Ran 230 tests across 1 file. [59.00ms]
+```
+
+### `bun --env-file=../../.env.test test --timeout 120000` (suíte inteira, contrato)
+
+```
+ 6966 pass
+ 23 skip
+ 0 fail
+ 23748 expect() calls
+Ran 6989 tests across 183 files. [22.00s]
+```
+
+8 testes a mais que a T2 (6958 → 6966): os 8 novos desta task.
+
+### `bun run lint` (raiz, 6 apps) e `bun run typecheck` (raiz)
+
+Ambos sem erro, sem warning.
+
+### Commit isolado
+
+Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
