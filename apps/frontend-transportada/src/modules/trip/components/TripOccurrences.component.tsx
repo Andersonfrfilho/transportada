@@ -20,6 +20,10 @@ import {
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
+import {
+  appendOccurrenceNotePreset,
+  OCCURRENCE_NOTE_PRESET_IDS,
+} from '../shared/occurrenceNotePreset.service'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
@@ -198,13 +202,33 @@ export function TripOccurrences({
             ]}
             value={productCode}
           />
-          <input
+          <textarea
             aria-label={t('occurrence.noteLabel')}
             onChange={(event) => setNote(event.target.value)}
             placeholder={t('occurrence.noteLabel')}
-            type="text"
+            rows={4}
             value={note}
           />
+          {/* Frases prontas: o botão escreve a frase inteira e o texto continua editável — quem
+              separa registra em pé, no celular do galpão. */}
+          <p className={styles.hint}>{t('occurrence.notePresetsHint')}</p>
+          <div className={styles.occurrenceNotePresets}>
+            {OCCURRENCE_NOTE_PRESET_IDS.map((presetId) => {
+              const preset = t(`occurrence.notePresets.${presetId}`)
+              return (
+                <Button
+                  key={presetId}
+                  onClick={() => setNote(appendOccurrenceNotePreset({ note, preset }))}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="add" />
+                  {preset}
+                </Button>
+              )
+            })}
+          </div>
           <OccurrencePhotoPicker disabled={isRegistering} onChange={setPhotos} photos={photos} />
           {/* CA17: sem foto o envio fica desabilitado, e o motivo fica visível — nunca só o botão
               cinza sem explicação. */}

@@ -668,12 +668,23 @@
   "occurrence": {
     "cancel": "Cancelar",
     "copyEmail": "Copiar e-mail",
+    "dialogTitle": "Ocorrência de separação — {{document}}",
     "emailBody": "Texto do e-mail",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "emailSubject": "Assunto do e-mail",
     "line": "{{type}} — {{moment}}",
     "none": "Nenhuma ocorrência registrada.",
     "noteLabel": "Observação",
+    "notePresets": {
+      "damagedProduct": "Produto avariado",
+      "violatedPackaging": "Embalagem violada",
+      "missingQuantity": "Falta de produto",
+      "divergentQuantity": "Quantidade divergente da nota",
+      "wrongProduct": "Produto trocado",
+      "expiredProduct": "Produto com validade vencida",
+      "wetVolume": "Volume molhado"
+    },
+    "notePresetsHint": "Frases prontas — clique para acrescentar à observação.",
     "photoPicker": {
       "captureFailed": "Não foi possível processar a foto — tente de novo.",
       "cameraDenied": "Câmera negada — envie a foto pelo arquivo abaixo.",
@@ -702,8 +713,7 @@
     },
     "submit": "Registrar",
     "title": "Ocorrências",
-    "wholeDocument": "A nota inteira",
-    "dialogTitle": "Ocorrência de separação — {{document}}"
+    "wholeDocument": "A nota inteira"
   },
   "occurrenceFeed": {
     "columns": {
