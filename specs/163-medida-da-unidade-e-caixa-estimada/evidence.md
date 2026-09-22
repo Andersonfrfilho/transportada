@@ -39,3 +39,16 @@
   volume" passa a valer para a medida real (a caixa estimada guarda `estimated_volume_cm3`, RF01).
 - Contratos da API completos: **6858 pass, 9 fail** — as 9 são as pré-existentes do
   "toll booth catalog repository" (dependem do Docker). Typecheck verde.
+
+## T005 — `record-package-box-unit.use-case.ts` + `DrizzlePackageBoxUnitRepository`
+
+- Vermelho: `bun test ./test/package-box-estimate.contract.test.ts` → erro de módulo inexistente
+  (`test/package-box-estimate/record-unit.contract.ts`, repositório falso).
+- Verde: **31 pass, 0 fail**. Cobre: grava unidade + estimativa `2x2x6` com `estimatedAt`; **RNF02** —
+  o objeto que chega ao repositório não tem `lengthMm/widthMm/heightMm/measurementSource`;
+  `unitsPerBox` informado recalcula; `unitsPerBox = 1` → estimativa `null`; estimativa fora de
+  20–2500 mm (1×1×97) não é gravada; CA03 2160 mm → 422 `UNIT_EDGE_OUT_OF_RANGE` sem gravar;
+  empresa alheia → `PackageBoxNotFoundError`.
+- Repositório: `SELECT … FOR UPDATE` e só escreve `estimated_*` quando `length_mm` é nulo; nenhum
+  `set` toca a medida real. Provado contra Postgres na T006.
+- Typecheck, eslint e prettier verdes.
