@@ -36,7 +36,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T011 UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
+- [x] T011 UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
 - [ ] T012 🧠 Revisão de design e usabilidade da fila, com print (CA08)
 - [ ] T013 `make check` + `evidence.md`
 

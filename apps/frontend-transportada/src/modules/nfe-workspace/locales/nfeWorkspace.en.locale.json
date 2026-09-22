@@ -612,6 +612,17 @@
       "empty": "There are no pending boxes to export.",
       "failed": "The file could not be prepared. Try again.",
       "rateLimited": "Too many exports in a row. Try again in a few minutes."
+    },
+    "estimate": {
+      "badge": "Estimated",
+      "title": "Estimated from the unit ({{arrangement}})",
+      "dimensions": "{{length}} × {{width}} × {{height}} cm",
+      "volume": "{{litres}} L",
+      "weight": "~{{kilograms}} kg",
+      "explanation": "Calculated from the product measurement — not a measurement. Measure the box or confirm it matches.",
+      "unit": "Unit: {{length}} × {{width}} × {{height}} cm",
+      "unitWeight": "{{grams}} g",
+      "confirm": "Confirm estimate"
     }
   },
   "addressCorrection": {

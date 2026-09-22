@@ -14,6 +14,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
 import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
+import { PackageBoxEstimateNotice } from './PackageBoxEstimateNotice.component'
 import { PackageBoxFamilyApplyButton } from './PackageBoxFamilyApplyButton.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
 import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
@@ -30,6 +31,7 @@ import {
   packageBoxMeasureFailureMessage,
   type Translate,
 } from '../shared/packageBoxMeasurementLabel.service'
+import { buildPackageBoxEstimateConfirmation } from '../shared/packageBoxEstimate.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
 import { resolveInitialUnitsPerBox } from '../shared/packageBoxUnitsPerBox.service'
@@ -922,6 +924,8 @@ function PackageBoxRow({
    */
   const canApplyFamilyMeasure =
     box.familyKey !== undefined && box.familyMeasuredCount >= 1 && box.familyPendingCount >= 1
+  /** Spec 163 (P5): confirmar a estimativa grava como `typed` — decisão humana, não estimativa. */
+  const estimateConfirmation = buildPackageBoxEstimateConfirmation(box)
 
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
@@ -961,6 +965,8 @@ function PackageBoxRow({
           </>
         )}
       </p>
+
+      {isEditing ? null : <PackageBoxEstimateNotice box={box} />}
 
       {box.measuredAt === null || isEditing ? null : (
         <p className={styles.hint}>
@@ -1009,6 +1015,18 @@ function PackageBoxRow({
             <Button onClick={onMeasureWithCamera} size="sm" type="button" variant="secondary">
               <Icon name="camera" />
               {t('packageBoxes.measureWithCamera')}
+            </Button>
+          )}
+          {estimateConfirmation === undefined ? null : (
+            <Button
+              disabled={saving}
+              onClick={() => onMeasure(estimateConfirmation)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="check" />
+              {t('packageBoxes.estimate.confirm')}
             </Button>
           )}
           {!canApplyFamilyMeasure ? null : (

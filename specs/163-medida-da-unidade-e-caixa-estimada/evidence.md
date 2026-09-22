@@ -143,3 +143,17 @@
   A linha `found_unit_manual` gravada passou por `mapPackageBoxCatalogCaptureUnit` (T009) →
   `{accepted: true, 60×90×30 mm, source: manual:www.drogaria.com.br}`.
 - Só os três arquivos de `scripts/box-catalog-harvest/` tocados nesta task entram no commit.
+
+## T011 — UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
+
+- `PackageBoxEstimateNotice.component.tsx` (novo): selo **Estimada** (`Badge` do design system),
+  "Estimada pela unidade (2 × 2 × 6)", medidas estimadas em cm, volume em L e peso ~kg, frase "não é
+  medida", e a linha da unidade informada. As ações ficam na linha: **Medir** (o de sempre) e
+  **Confirmar estimativa**, que grava pelo mesmo `PUT` da medida com `source: 'typed'` (decisão humana).
+- `packageBoxClient.service.ts`: tipos `PackageBoxUnit`/`PackageBoxEstimate`; campos opcionais no
+  tipo e no guard (API anterior continua passando), mas campo presente e torto derruba a fila.
+- `packageBoxEstimate.service.ts` (puro): descrição da estimativa/unidade e a confirmação `typed`.
+- Vermelho: `test/nfe-workspace/package-box-estimate.contract.ts` → erro de módulo inexistente; depois
+  1 falha (guard aceitava estimate torta). Verde: `bun test ./test/nfe-workspace.contract.test.ts` → **573 pass**.
+- `bun run --cwd apps/frontend-transportada test` → **4806 pass, 0 fail** (contratos, inclusive os de
+  design system e acentuação de locale) + **44 pass** (hooks). `bun run typecheck` e eslint limpos.

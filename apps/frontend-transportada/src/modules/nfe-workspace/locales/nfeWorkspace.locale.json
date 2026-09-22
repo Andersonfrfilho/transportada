@@ -786,6 +786,17 @@
       "empty": "Não há caixas pendentes para exportar.",
       "failed": "Não foi possível preparar o arquivo. Tente de novo.",
       "rateLimited": "Muitas exportações seguidas. Tente de novo em alguns minutos."
+    },
+    "estimate": {
+      "badge": "Estimada",
+      "title": "Estimada pela unidade ({{arrangement}})",
+      "dimensions": "{{length}} × {{width}} × {{height}} cm",
+      "volume": "{{litres}} L",
+      "weight": "~{{kilograms}} kg",
+      "explanation": "Calculada a partir da medida do produto — não é medida. Meça a caixa ou confirme se ela bate.",
+      "unit": "Unidade: {{length}} × {{width}} × {{height}} cm",
+      "unitWeight": "{{grams}} g",
+      "confirm": "Confirmar estimativa"
     }
   },
   "addressCorrection": {
