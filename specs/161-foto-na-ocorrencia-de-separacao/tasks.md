@@ -204,13 +204,12 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     (Docker fora do ar nesta máquina — ver T19); o rollback foi escrito no molde do repositório
     (`BEGIN`/`DO $$`/`ROW_COUNT = 1`/`COMMIT`) mas não executado contra Postgres.
 
-- [ ] **T19** Integração do expurgo — `test/trip-occurrence-attachment-purge.integration.test.ts` no
-      worker, **somado ao `package.json`** (`test` e `test:integration`).
+- [x] **T19** Integração do expurgo — `test/integration/trip-occurrence-attachment-purge.integration.ts`
+      no worker, **somado ao `package.json`** (`test:integration`).
   - Critério de aceite (CA15): via `make worker-integration`, foto vencida some do bucket (original e
     miniatura) e da tabela, e a ocorrência segue legível; foto dentro do prazo intocada.
-  - **Aberta**: o critério exige `make worker-integration` (Postgres + RabbitMQ + MinIO em Docker), e
-    o Docker está fora do ar nesta máquina — é o único gate que prova que os bytes saem do bucket de
-    verdade. Ver pendência datada em `evidence.md` § T19.
+  - Docker voltou nesta máquina (Postgres, RabbitMQ, MinIO saudáveis) — a prova rodou de verdade.
+    Detalhe em `evidence.md` § T19.
 
 - [x] **T20** Registro em `docs/SECURITY.md` (RF27) — entrada no formato do arquivo
       (`### AAAA-MM-DD — …`, com `Onde`, `O que é`, `Corrigido`/`O que continua aberto`, `Origem`),

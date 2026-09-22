@@ -1834,21 +1834,80 @@ api-transportada (6822 pass), worker-transportada (1407 pass), cron-transportada
 frontend-transportada (4769 + 44 pass) · `bun run typecheck`/`lint`/`format:check` (raiz) — todos
 verdes.
 
-### T19 — Integração do expurgo (aberta)
+### T19 — Integração do expurgo (fechada)
 
-**Não implementada.** O critério de aceite (CA15) é literalmente "via `make worker-integration`" —
-sobe Postgres, RabbitMQ e MinIO no Docker — e o Docker está fora do ar nesta máquina. É o único gate
-que prova que os bytes saem do bucket de verdade; os testes de contrato da T17 substituem o storage
-por porta falsa, o que prova a lógica, não a integração real com um provedor S3-compatível.
+Data: 2026-09-22. O Docker voltou nesta máquina (Postgres, RabbitMQ e MinIO saudáveis, inclusive o
+Postgres de teste que passou 42 h fora) — o único gate que faltava para provar que a rotina apaga
+bytes de verdade num bucket S3-compatível, não um dublê de porta.
 
-Um Postgres nativo descartável está disponível nesta máquina
-(`postgresql://postgres@127.0.0.1:65433/postgres`, o mesmo usado pelas integrações da Fase 1/4), e
-poderia provar a metade de banco da rotina (lock, transação por unidade, `DELETE`/`UPDATE`) — mas
-**não** a metade de bucket, que é justamente o que este teste existe para provar. Escrever o teste
-de integração contra um MinIO local que não existe, ou apontá-lo para um bucket compartilhado da
-instalação, violaria a instrução de não apagar bytes contra storage compartilhado. A task fica `[ ]`
-até o Docker voltar; o arquivo `test/trip-occurrence-attachment-purge.integration.test.ts` e a
-entrada em `package.json` (`test`/`test:integration`) ficam para quem retomar com Docker disponível.
+**Arquivo:** `apps/worker-transportada/test/integration/trip-occurrence-attachment-purge.integration.ts`,
+somado a `test:integration` em `apps/worker-transportada/package.json` (não existe `"test"` separado
+para integração nesta suíte — o `worker-integration` do Makefile roda só `test:integration`).
+
+**A rotina depende do MinIO de verdade, não só do Postgres**: `purgeOccurrenceAttachmentUnit`
+(`trip-occurrence-attachment-purge-unit.service.ts`) chama `deleteObject` — o gateway
+`createNfeStorageGatewayFromEnvironment` sobre `@adatechnology/object-storage-provider` — **antes**
+de tocar a linha do anexo ou do objeto no banco (comentário do próprio arquivo: "apaga os bytes
+antes de tocar o banco"). Sem bucket de verdade, `test/trip-occurrence-attachment-purge/purge-unit.contract.ts`
+(T17) já prova a ordem e a transação com uma porta falsa — mas nunca que o provedor S3 aceita a
+chamada e os bytes saem. Isso só se prova contra infraestrutura real, e é o que esta task fecha.
+
+**Fixture:** a tabela `trip_document_occurrence_attachments` tem FK completa até `companies` (via
+`trip_document_occurrences → trip_documents → trips`, e `trip_documents_entity_xor_check` exige uma
+nota real — não bastava um cálculo de frete nem nada vazio). O teste sobe a cadeia mínima por SQL
+cru contra o `worker_database` já migrado pelo `make worker-integration` (mesmo molde de
+`trip-location-purge.integration.test.ts`): `companies`, `identity_users`,
+`user_company_memberships`, `fleet_vehicles`, `trips`, uma nota fiscal mínima (`nfe_imports` +
+`nfe_documents`, só para satisfazer o CHECK de XOR e as FKs — nenhum dado fiscal real importa aqui),
+`company_occurrence_types`, `trip_document_occurrences` e, por fim, dois anexos:
+
+- Um **vencido** (`stored_objects.retention_until` no passado): original + miniatura, os dois
+  gravados de verdade no MinIO via `storage.storeObject` antes do teste rodar a rotina.
+- Um **dentro do prazo** (`retention_until` em 2031): mesma forma, para provar que a rotina não toca
+  no que ainda não venceu.
+
+**Resultado do ciclo:** `deleted: 1, missing: 1, failed: 0` — não `missing: 0` como o primeiro
+rascunho do teste assumia. Os dois `stored_objects` vencidos (original e miniatura) entram como
+candidatos no mesmo lote; o primeiro candidato resolve a unidade inteira via
+`findAttachmentByObjectId` (apaga os dois bytes do bucket, remove a linha do anexo, marca os dois
+objetos `deleted` — ajuste 4 do design) e o segundo candidato (a miniatura, cujo objeto já foi
+marcado `deleted` pela mesma transação da unidade) cai no ajuste 5/6 do próprio código: `lockStoredObjects`
+reconfere `status <> 'deleted'` e não encontra a linha, então a unidade "resolve por outro caminho"
+e conta como `missing` — não é falha, é o desenho da idempotência convergindo dentro do mesmo lote.
+
+**O que a prova mostrou, linha a linha:**
+
+- `trip_document_occurrence_attachments`: a linha do anexo vencido **sumiu**; a do anexo dentro do
+  prazo continua.
+- `stored_objects.status`: os dois objetos do anexo vencido viraram `deleted`; os dois do anexo
+  dentro do prazo continuam `final`.
+- MinIO (`storage.headObject`): os dois objetos vencidos (original e miniatura) devolvem
+  `undefined` — **os bytes saem do bucket de verdade**, não só a referência no banco. O objeto
+  dentro do prazo continua respondendo.
+- Segundo ciclo (mesmo teste, rodando de novo): `{ batches: 0, deleted: 0, failed: 0, missing: 0 }`
+  — nada sobra para o expurgo repetir, o mesmo comportamento que a batida diária tem todo dia.
+
+**Comando e evidência bruta:**
+
+```
+$ make worker-integration
+...
+$ bun test ./test/integration/... ./test/integration/trip-occurrence-attachment-purge.integration.ts
+ 129 pass
+ 3 fail
+ 585 expect() calls
+```
+
+Os dois testes desta task passam. Os 3 `fail` são `test/osrm-routing-matrix.integration.test.ts` —
+pré-existentes, sem relação com a spec 161: o comentário do próprio `Makefile` (linha do alvo
+`worker-integration`) já documenta que o OSRM é opt-in e que sem `make routing-fixture` + `routing-up`
+esses testes **deveriam pular**, não falhar; nesta máquina eles tentam conectar em
+`localhost:53005` e recebem `ConnectionRefused` porque o fixture do OSRM não foi levantado. Não é
+regressão desta task — não toquei em `src/routing/**` nem no fixture, e o comportamento
+"deveria pular, mas falha" é hoje um gap do próprio `describeDatabase`/`describe.skip` daquele
+arquivo, fora do escopo da 161.
+
+**Gates:** `bun run lint` (raiz) — verde, zero avisos. `bun run typecheck` (raiz, seis apps) — verde.
 
 ### T20 — Registro em `docs/SECURITY.md`
 
