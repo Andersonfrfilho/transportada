@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildOccurrencePhotoSendState,
   hasOccurrencePhotoSendFailure,
+  isSameOccurrencePhotoQueue,
   markOccurrencePhotoFailed,
   markOccurrencePhotoSending,
   markOccurrencePhotoSent,
@@ -173,5 +174,27 @@ describe('occurrencePhotoSend.service', () => {
     const retry = resolveOccurrencePhotoIdempotencyKey(keys, 'photo-1', generateKey)
     expect(retry.key).toBe('key-1')
     expect(counter).toBe(2)
+  })
+})
+
+/**
+ * B2 (revisão spec 161): reusar a fila por comprimento, não por identidade de `photoId`, fazia um
+ * segundo registro com o mesmo número de fotos herdar itens `sent` da fila anterior — o envio de
+ * verdade virava no-op silencioso para fotos que nunca tinham ido.
+ */
+describe('isSameOccurrencePhotoQueue — identidade da fila por photoId, não por comprimento', () => {
+  test('mesmo comprimento, fotos diferentes: não é a mesma fila', () => {
+    const previousState = buildOccurrencePhotoSendState(['photo-a1', 'photo-a2'])
+    expect(isSameOccurrencePhotoQueue(previousState, ['photo-b1', 'photo-b2'])).toBe(false)
+  })
+
+  test('mesmo conjunto de photoId (ordem diferente): é a mesma fila', () => {
+    const previousState = buildOccurrencePhotoSendState(['photo-a1', 'photo-a2'])
+    expect(isSameOccurrencePhotoQueue(previousState, ['photo-a2', 'photo-a1'])).toBe(true)
+  })
+
+  test('comprimento diferente: não é a mesma fila', () => {
+    const previousState = buildOccurrencePhotoSendState(['photo-a1'])
+    expect(isSameOccurrencePhotoQueue(previousState, ['photo-a1', 'photo-a2'])).toBe(false)
   })
 })

@@ -147,4 +147,29 @@ describe('varredura de fonte: botão na linha da nota', () => {
     const detailSource = await readFile('src/modules/trip/components/TripDetail.component.tsx')
     expect(detailSource).toContain('workspace.resetSeparationOccurrencePhotoSend')
   })
+
+  /**
+   * B2 (revisão spec 161): `onRegister` não lançava e o componente limpava/fechava o formulário
+   * antes de saber o resultado — falha parcial perdia as fotos que não foram, sem jeito de
+   * reenviar só elas. `handleSubmit` precisa aguardar `hasFailure` antes de limpar, e o botão de
+   * reenvio precisa existir para retomar a mesma fila sem `onReset`.
+   */
+  test('TripOccurrences só limpa o formulário quando o registro não deixa foto para trás, e oferece reenviar as falhas', async () => {
+    const source = await readFile('src/modules/trip/components/TripOccurrences.component.tsx')
+
+    expect(source).toContain('photoSendState')
+    expect(source).toMatch(/async function handleSubmit\(\)[\s\S]{0,200}await onRegister/)
+    expect(source).toContain('function handleRetryFailed')
+    expect(source).toContain('hasOccurrencePhotoSendFailure(photoSendState)')
+  })
+
+  test('TripDetail e SeparationOccurrenceDialog repassam photoSendState ao TripOccurrences', async () => {
+    const detailSource = await readFile('src/modules/trip/components/TripDetail.component.tsx')
+    expect(detailSource).toContain('photoSendState={workspace.occurrencePhotoSendState}')
+
+    const dialogSource = await readFile(
+      'src/modules/trip/components/SeparationOccurrenceDialog.component.tsx',
+    )
+    expect(dialogSource).toContain('photoSendState')
+  })
 })

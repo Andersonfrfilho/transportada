@@ -1083,7 +1083,7 @@ function SeparationOccurrenceDialogLoader({
       occurrences={workspace.occurrencesQuery.data ?? []}
       onClose={onClose}
       onRegister={(occurrence) =>
-        void workspace.sendSeparationOccurrencePhotos({
+        workspace.sendSeparationOccurrencePhotos({
           documentId,
           note: occurrence.note,
           occurrenceTypeId: occurrence.occurrenceTypeId,
@@ -1093,6 +1093,7 @@ function SeparationOccurrenceDialogLoader({
         })
       }
       onReset={workspace.resetSeparationOccurrencePhotoSend}
+      photoSendState={workspace.occurrencePhotoSendState}
       products={workspace.documentProductsQuery.data ?? []}
       types={workspace.occurrenceTypesQuery.data ?? []}
     />
@@ -1127,7 +1128,7 @@ function TripDeliveryProofLoader({
           isRegistering={workspace.isSendingOccurrencePhotos}
           occurrences={workspace.occurrencesQuery.data ?? []}
           onRegister={(occurrence) =>
-            void workspace.sendSeparationOccurrencePhotos({
+            workspace.sendSeparationOccurrencePhotos({
               documentId,
               note: occurrence.note,
               occurrenceTypeId: occurrence.occurrenceTypeId,
@@ -1137,6 +1138,7 @@ function TripDeliveryProofLoader({
             })
           }
           onReset={workspace.resetSeparationOccurrencePhotoSend}
+          photoSendState={workspace.occurrencePhotoSendState}
           products={workspace.documentProductsQuery.data ?? []}
           types={workspace.occurrenceTypesQuery.data ?? []}
         />

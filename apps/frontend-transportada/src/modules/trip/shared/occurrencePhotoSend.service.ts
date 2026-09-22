@@ -69,6 +69,22 @@ export function hasOccurrencePhotoSendFailure(state: readonly OccurrencePhotoSen
   return state.some((item) => item.status === 'failed')
 }
 
+/**
+ * B2 (revisão spec 161): o hook decidia reaproveitar a fila de envio comparando só o
+ * **comprimento** — um segundo registro com o mesmo número de fotos (mas fotos diferentes) reusava
+ * a fila do registro anterior, e se ela já tinha item `sent`, `resolveOccurrencePhotoSendQueue`
+ * devolvia menos fotos do que as que precisavam ir, um envio silenciosamente incompleto. A
+ * identidade certa é o **conjunto de `photoId`**, não o tamanho.
+ */
+export function isSameOccurrencePhotoQueue(
+  state: readonly OccurrencePhotoSendItem[],
+  photoIds: readonly string[],
+): boolean {
+  if (state.length !== photoIds.length) return false
+  const statePhotoIds = new Set(state.map((item) => item.photoId))
+  return photoIds.every((photoId) => statePhotoIds.has(photoId))
+}
+
 export type OccurrencePhotoSendPort = Readonly<{
   /** 2ª a 5ª foto — a ocorrência já existe. */
   attach: (input: Readonly<{ occurrenceId: string; photoId: string }>) => Promise<void>

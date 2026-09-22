@@ -9,6 +9,7 @@ import { TripOccurrences } from './TripOccurrences.component'
 import type { OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { OccurrencePhotoSendItem } from '../shared/occurrencePhotoSend.service'
 import type { TripDocumentDetail, TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
@@ -26,7 +27,8 @@ export type SeparationOccurrenceDialogProps = Readonly<{
     readonly occurrenceTypeId: string
     readonly photos: readonly OccurrencePhoto[]
     readonly productCode: string
-  }) => void
+  }) => Promise<Readonly<{ hasFailure: boolean }>>
+  photoSendState: readonly OccurrencePhotoSendItem[]
   products: readonly TripDocumentProduct[]
   types: readonly OccurrenceType[]
 }>
@@ -47,6 +49,7 @@ export function SeparationOccurrenceDialog({
   onClose,
   onRegister,
   onReset,
+  photoSendState,
   products,
   types,
 }: SeparationOccurrenceDialogProps) {
@@ -89,6 +92,7 @@ export function SeparationOccurrenceDialog({
           occurrences={occurrences}
           onRegister={onRegister}
           onReset={onReset}
+          photoSendState={photoSendState}
           products={products}
           types={types}
         />

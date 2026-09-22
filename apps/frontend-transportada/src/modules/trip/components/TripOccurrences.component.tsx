@@ -13,6 +13,10 @@ import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
+import {
+  hasOccurrencePhotoSendFailure,
+  type OccurrencePhotoSendItem,
+} from '../shared/occurrencePhotoSend.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
@@ -30,12 +34,20 @@ type TripOccurrencesProps = Readonly<{
    * sessão reusava o `occurrenceId` da primeira e as fotos dela viravam anexo da ocorrência errada.
    */
   onReset: () => void
+  /**
+   * B2 (revisão spec 161): devolve `hasFailure` porque o envio é **sequencial por foto** e não
+   * lança na falha de uma foto (`sendOccurrencePhotosSequentially` sempre resolve) — sem o retorno,
+   * o formulário não tinha como saber que precisa continuar aberto para o operador reenviar só o
+   * que falhou.
+   */
   onRegister: (input: {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly photos: readonly OccurrencePhoto[]
     readonly productCode: string
-  }) => void
+  }) => Promise<Readonly<{ hasFailure: boolean }>>
+  /** Estado por foto do envio em curso/do último tentado — vazio quando nada foi enviado ainda. */
+  photoSendState: readonly OccurrencePhotoSendItem[]
   products: readonly TripDocumentProduct[]
   types: readonly OccurrenceType[]
 }>
@@ -65,6 +77,7 @@ export function TripOccurrences({
   occurrences,
   onRegister,
   onReset,
+  photoSendState,
   products,
   types,
 }: TripOccurrencesProps) {
@@ -78,15 +91,33 @@ export function TripOccurrences({
   const [note, setNote] = useState('')
   const [photos, setPhotos] = useState<readonly OccurrencePhoto[]>([])
   const canSubmit = occurrenceTypeId !== '' && canSubmitOccurrenceWithPhotos(photos.length)
+  const hasFailedPhoto = hasOccurrencePhotoSendFailure(photoSendState)
 
-  function handleSubmit() {
-    if (!canSubmit) return
-    onReset()
-    onRegister({ note, occurrenceTypeId, photos, productCode })
+  function clearForm() {
     setNote('')
     setProductCode('')
     setPhotos([])
     setIsOpen(false)
+  }
+
+  /**
+   * B2 (revisão spec 161): o envio não lança na falha de uma foto — ele resolve sempre, marcando o
+   * item como `failed` no estado do hook. Limpar/fechar o formulário aqui **antes** de saber o
+   * resultado perdia os `Blob` das fotos que ainda não foram, sem jeito de reenviar só elas. Agora
+   * o formulário só fecha quando `hasFailure` volta `false` — com falha, ele continua aberto com as
+   * mesmas fotos, e o botão de reenvio (abaixo) chama `onRegister` de novo sem `onReset`, para o
+   * hook retomar a mesma fila pelo que ainda não foi `sent`.
+   */
+  async function handleSubmit() {
+    if (!canSubmit) return
+    onReset()
+    const result = await onRegister({ note, occurrenceTypeId, photos, productCode })
+    if (!result.hasFailure) clearForm()
+  }
+
+  async function handleRetryFailed() {
+    const result = await onRegister({ note, occurrenceTypeId, photos, productCode })
+    if (!result.hasFailure) clearForm()
   }
 
   return (
@@ -182,15 +213,42 @@ export function TripOccurrences({
               {t('occurrence.photoPicker.noPhoto')}
             </p>
           ) : null}
+          {/*
+           * B2 (revisão spec 161): progresso por foto — o operador vê qual foto está indo, qual já
+           * foi e qual falhou (com o motivo), em vez de um resultado só para o lote inteiro.
+           */}
+          {photoSendState.length === 0 ? null : (
+            <ul className={styles.hint} role="status">
+              {photoSendState.map((item, index) => (
+                <li key={item.photoId}>
+                  {t('occurrence.sendStatus.photoLabel', { position: index + 1 })}
+                  {': '}
+                  {t(`occurrence.sendStatus.${item.status}`)}
+                  {item.status === 'failed' && item.error !== undefined ? ` — ${item.error}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
           <Button
             disabled={isRegistering || !canSubmit}
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             size="sm"
             type="button"
           >
             <Icon name="save" />
             {t('occurrence.submit')}
           </Button>
+          {hasFailedPhoto ? (
+            <Button
+              disabled={isRegistering}
+              onClick={() => void handleRetryFailed()}
+              size="sm"
+              type="button"
+            >
+              <Icon name="save" />
+              {t('occurrence.sendStatus.retry')}
+            </Button>
+          ) : null}
           <Button
             onClick={() => {
               onReset()

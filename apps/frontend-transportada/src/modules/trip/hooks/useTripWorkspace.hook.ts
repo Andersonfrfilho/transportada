@@ -13,6 +13,8 @@ import type {
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import {
   buildOccurrencePhotoSendState,
+  hasOccurrencePhotoSendFailure,
+  isSameOccurrencePhotoQueue,
   markOccurrencePhotoFailed,
   markOccurrencePhotoSending,
   markOccurrencePhotoSent,
@@ -555,12 +557,17 @@ export function useTripWorkspace(
         }>[]
         productCode: string
       }>,
-  ): Promise<void> {
+  ): Promise<Readonly<{ hasFailure: boolean }>> {
     const photoById = new Map(input_.photos.map((photo) => [photo.photoId, photo] as const))
-    let state =
-      occurrencePhotoSendState.length === input_.photos.length
-        ? occurrencePhotoSendState
-        : buildOccurrencePhotoSendState(input_.photos.map((photo) => photo.photoId))
+    const photoIds = input_.photos.map((photo) => photo.photoId)
+    /**
+     * B2 (revisão spec 161): a identidade certa da fila é o **conjunto de `photoId`**, nunca o
+     * comprimento — um segundo registro com o mesmo número de fotos (mas fotos diferentes) herdava
+     * a fila anterior e, se ela já tinha item `sent`, o envio virava no-op silencioso.
+     */
+    let state = isSameOccurrencePhotoQueue(occurrencePhotoSendState, photoIds)
+      ? occurrencePhotoSendState
+      : buildOccurrencePhotoSendState(photoIds)
     setOccurrencePhotoSendState(state)
 
     function resolveKey(photoId: string): string {
@@ -634,6 +641,8 @@ export function useTripWorkspace(
       queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
     })
     void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+
+    return { hasFailure: hasOccurrencePhotoSendFailure(state) }
   }
 
   /**

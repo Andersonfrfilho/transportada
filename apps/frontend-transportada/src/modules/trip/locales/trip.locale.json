@@ -692,6 +692,14 @@
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "product": "Item da nota",
     "register": "Registrar ocorrência",
+    "sendStatus": {
+      "failed": "falhou",
+      "pending": "aguardando",
+      "photoLabel": "Foto {{position}}",
+      "retry": "Reenviar falhas",
+      "sending": "enviando",
+      "sent": "enviada"
+    },
     "submit": "Registrar",
     "title": "Ocorrências",
     "wholeDocument": "A nota inteira",
