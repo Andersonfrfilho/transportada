@@ -102,3 +102,27 @@
   depois, com a leitura da fila no CA05, `package-box-unit-estimate` → **4 pass, 39 expects**.
 - Contratos da API: **6880 pass, 9 fail** (as 9 pré-existentes do toll booth). Typecheck 0 erros.
 - `apps/api-transportada/CLAUDE.md` ganhou a invariante da spec 163 (rota nova, §14 do code-standart).
+
+## T009 — Importador da 162 aceita a unidade (RF05)
+
+- Formato: `extracted.unitEdges` (mesmas formas de `edges`: `comprimento/largura/altura` do Cosmos ou
+  `lado1..3` da seleção manual) e `extracted.unitGrossWeight` opcionais. Status que carregam unidade:
+  `found`, `no_dimensions` (origem `catalog`), `found_manual`, `found_unit_manual` (origem `manual:<domínio>`).
+  Linha só com unidade não conta mais como `ignored_status` nem como `EDGES_INCOMPLETE`.
+- Vermelho: `test/package-box-catalog/capture-unit.contract.ts` → erro de export inexistente
+  (`mapPackageBoxCatalogCaptureUnit`).
+- Verde: `bun test ./test/package-box-catalog.contract.test.ts ./test/package-box-estimate.contract.test.ts`
+  → **85 pass, 0 fail**. Cobre: linha "Unidade" do Cosmos → `catalog` em mm/g; a caixa da mesma
+  linha mapeia exatamente como na 162; `no_dimensions` + unidade aceita; `found_unit_manual` →
+  `manual:www.drogaria.com.br`; sem unidade declarada → `UNIT_MISSING`; aresta faltando →
+  `EDGES_INCOMPLETE`; unidade 216 cm → `UNIT_EDGE_OUT_OF_RANGE` (sanidade da T002), nada vai ao repositório.
+- Repositório: unidade gravada em toda caixa do `cartonGtin`, depois das caixas da mesma execução;
+  unidade `typed` nunca é sobrescrita (`unit_skipped_typed`); estimativa só sem medida real; nenhuma
+  escrita em `length_mm`/`measurement_source` nem em `nfe_package_box_measurements`.
+- Integração (Postgres nativo): `package-box-catalog-import` + `package-box-unit-estimate` → **11 pass, 0 fail**
+  (novos: simulação não grava; aplicação grava 60×90×30, 85 g, `manual:www.drogaria.com.br`, estimativa
+  `2x2x6`/188 mm, `length_mm` nulo e histórico vazio; unidade `typed` preservada).
+- Refatoração pequena: `estimateStorablePackageBoxFromUnit` (faixa do CHECK) na política, usada pelo
+  caso de uso da T005 e pelo importador. Contratos da API: **6891 pass, 9 fail** (toll booth, pré-existentes).
+  Typecheck 0, eslint limpo.
+- Políticas `-catalog-sanity`/`-catalog-consensus` da 160 intocadas.

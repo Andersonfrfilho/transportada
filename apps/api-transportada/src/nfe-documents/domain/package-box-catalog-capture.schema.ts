@@ -26,6 +26,12 @@ const extractedSchema = z
     edges: z.record(z.string(), edgeValueSchema).default({}),
     grossWeight: edgeValueSchema.optional(),
     unitsPerCarton: z.number().int().positive().optional(),
+    /**
+     * Spec 163 (RF05): a medida da **unidade** — a linha "Unidade" da tabela do Cosmos ou a seleção
+     * do Alt+U (`found_unit_manual`). Mesmas duas formas de `edges`. Opcional: a 162 segue igual.
+     */
+    unitEdges: z.record(z.string(), edgeValueSchema).optional(),
+    unitGrossWeight: edgeValueSchema.optional(),
   })
   .loose()
 

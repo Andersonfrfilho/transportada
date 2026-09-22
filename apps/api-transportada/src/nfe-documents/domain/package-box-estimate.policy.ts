@@ -5,6 +5,8 @@
  * ⚠️ É estimativa, nunca medida: quem chama grava em `estimated_*`, jamais em `length_mm` & cia.
  */
 
+import { EDGE_MAX_MM, EDGE_MIN_MM } from './package-box-catalog.constant.js'
+
 /** Folga de papelão por aresta: 4 mm por face, duas faces. */
 const CARDBOARD_ALLOWANCE_PER_EDGE_MM = 8
 
@@ -120,4 +122,18 @@ export function estimatePackageBoxFromUnit(
     ...estimate,
     grossWeightGrams: Math.round(unitsPerBox * unitWeight * PACKAGING_WEIGHT_FACTOR),
   }
+}
+
+/**
+ * A estimativa que pode ser gravada: dentro da faixa do CHECK
+ * `nfe_package_boxes_estimated_dimensions_check` (a mesma da caixa master da 160, 20–2500 mm).
+ * `1×1×n` gigante (n primo grande) não vira linha — sem estimativa é melhor que estimativa absurda.
+ */
+export function estimateStorablePackageBoxFromUnit(
+  params: EstimatePackageBoxFromUnitParams,
+): PackageBoxEstimate | undefined {
+  const estimate = estimatePackageBoxFromUnit(params)
+  if (estimate === undefined) return undefined
+  const edges = [estimate.lengthMm, estimate.widthMm, estimate.heightMm]
+  return edges.every((edge) => edge >= EDGE_MIN_MM && edge <= EDGE_MAX_MM) ? estimate : undefined
 }

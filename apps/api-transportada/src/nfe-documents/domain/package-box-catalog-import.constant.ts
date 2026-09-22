@@ -29,3 +29,18 @@ export type PackageBoxCatalogCaptureRejectionCode =
 export const PACKAGE_BOX_CATALOG_IMPORTABLE_STATUSES = ['found', 'found_manual'] as const
 export type PackageBoxCatalogImportableStatus =
   (typeof PACKAGE_BOX_CATALOG_IMPORTABLE_STATUSES)[number]
+
+/**
+ * Spec 163 (RF05): status cuja linha pode trazer a medida da **unidade**. `no_dimensions` (Cosmos
+ * sem a caixa, com a linha "Unidade") e `found_unit_manual` (Alt+U) deixam de ser ignorados quando
+ * trazem `unitEdges`; a caixa continua só de `found`/`found_manual`.
+ */
+export const PACKAGE_BOX_CATALOG_UNIT_STATUSES = [
+  'found',
+  'found_manual',
+  'found_unit_manual',
+  'no_dimensions',
+] as const
+
+/** Spec 163: status que são do Cosmos — a unidade deles grava origem `catalog`. */
+export const PACKAGE_BOX_CATALOG_COSMOS_STATUSES = ['found', 'no_dimensions'] as const

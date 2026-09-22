@@ -208,7 +208,96 @@ describe('importar medidas de catálogo (Postgres, spec 162)', () => {
       })
     },
   )
+
+  testWithPostgres(
+    'spec 163 RF05: linha só com unidade grava a unidade e a estimativa, nunca a medida',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { boxId } = await seedPendingBox(database)
+        await database.db
+          .update(nfePackageBoxes)
+          .set({ unitsPerBox: 24 })
+          .where(eq(nfePackageBoxes.id, boxId))
+        const importUseCase = createImportPackageBoxCatalog({
+          repository: new DrizzlePackageBoxCatalogImportRepository(database.db),
+        })
+
+        const simulated = await importUseCase.execute({ apply: false, lines: [unitOnlyLine()] })
+        expect(simulated.outcomes.unit_recorded).toBe(1)
+        expect(simulated.ignoredStatus).toBe(0)
+        const [untouched] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, boxId))
+        expect(untouched?.unitLengthMm).toBeNull()
+
+        const report = await importUseCase.execute({ apply: true, lines: [unitOnlyLine()] })
+        expect(report.outcomes.unit_recorded).toBe(1)
+        const [box] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, boxId))
+        expect([box?.unitLengthMm, box?.unitWidthMm, box?.unitHeightMm]).toEqual([60, 90, 30])
+        expect(box?.unitGrossWeightGrams).toBe(85)
+        expect(box?.unitMeasurementSource).toBe('manual:www.drogaria.com.br')
+        expect(box?.estimatedArrangement).toBe('2x2x6')
+        expect(box?.estimatedLengthMm).toBe(188)
+        // RNF02: a medida real segue vazia, e nenhum histórico de medida nasce da unidade.
+        expect(box?.lengthMm).toBeNull()
+        expect(box?.measurementSource).toBeNull()
+        expect(await database.db.select().from(nfePackageBoxMeasurements)).toHaveLength(0)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 163 RF05: unidade digitada pelo conferente nunca é sobrescrita',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { boxId } = await seedPendingBox(database)
+        await database.db
+          .update(nfePackageBoxes)
+          .set({
+            unitHeightMm: 40,
+            unitLengthMm: 40,
+            unitMeasurementSource: 'typed',
+            unitWidthMm: 40,
+          })
+          .where(eq(nfePackageBoxes.id, boxId))
+        const report = await createImportPackageBoxCatalog({
+          repository: new DrizzlePackageBoxCatalogImportRepository(database.db),
+        }).execute({ apply: true, lines: [unitOnlyLine()] })
+
+        expect(report.outcomes.unit_skipped_typed).toBe(1)
+        const [box] = await database.db
+          .select()
+          .from(nfePackageBoxes)
+          .where(eq(nfePackageBoxes.id, boxId))
+        expect(box?.unitLengthMm).toBe(40)
+        expect(box?.unitMeasurementSource).toBe('typed')
+      })
+    },
+  )
 })
+
+function unitOnlyLine(): string {
+  return JSON.stringify({
+    cartonGtin: CARTON_GTIN,
+    extracted: {
+      edges: {},
+      unitEdges: {
+        lado1: { unit: 'cm', value: '6' },
+        lado2: { unit: 'cm', value: '9' },
+        lado3: { unit: 'cm', value: '3' },
+      },
+      unitGrossWeight: { unit: 'g', value: '85' },
+    },
+    pageUrl: 'https://www.drogaria.com.br/lux-85g',
+    source: 'www.drogaria.com.br',
+    status: 'found_unit_manual',
+    unitGtin: '7891150059849',
+  })
+}
 
 async function seedPendingBox(
   database: TestDatabase,

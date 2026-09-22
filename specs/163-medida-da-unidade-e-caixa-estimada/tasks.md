@@ -29,7 +29,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T009 Importador da 162 aceita linha "Unidade" e `unitEdges` (RF05) — contrato
+- [x] T009 Importador da 162 aceita linha "Unidade" e `unitEdges` (RF05) — contrato
 - [ ] T010 Userscript Alt+U + servidor local `found_unit_manual` (RF06)
 
 ## Fase 5 — Tela e fechamento

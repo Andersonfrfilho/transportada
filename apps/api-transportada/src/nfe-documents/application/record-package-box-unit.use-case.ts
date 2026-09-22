@@ -1,9 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { EDGE_MAX_MM, EDGE_MIN_MM } from '../domain/package-box-catalog.constant.js'
 import {
-  estimatePackageBoxFromUnit,
+  estimateStorablePackageBoxFromUnit,
   type PackageBoxEstimate,
 } from '../domain/package-box-estimate.policy.js'
 import { PackageBoxNotFoundError } from '../domain/package-box-measurement.error.js'
@@ -32,13 +31,6 @@ export type RecordPackageBoxUnit = {
   execute(input: RecordPackageBoxUnitInput): Promise<RecordPackageBoxUnitResult>
 }
 
-/** A mesma faixa do CHECK `nfe_package_boxes_estimated_dimensions_check` (caixa master, 160). */
-function isStorableEstimate(estimate: PackageBoxEstimate): boolean {
-  return [estimate.lengthMm, estimate.widthMm, estimate.heightMm].every(
-    (edge) => edge >= EDGE_MIN_MM && edge <= EDGE_MAX_MM,
-  )
-}
-
 /**
  * Spec 163, P1 + RF03 + RF04: grava a medida da unidade e recalcula a caixa estimada. A estimativa
  * nunca vira medida (RNF02): o repositório não recebe campo de medida real, e só escreve a
@@ -60,11 +52,10 @@ export function createRecordPackageBoxUnit(dependencies: {
       })
       if (target === null) throw new PackageBoxNotFoundError()
 
-      const computed = estimatePackageBoxFromUnit({
+      const estimate = estimateStorablePackageBoxFromUnit({
         unit: input.unit,
         unitsPerBox: input.unitsPerBox ?? target.unitsPerBox,
       })
-      const estimate = computed !== undefined && isStorableEstimate(computed) ? computed : undefined
       const storedEstimate: PackageBoxStoredEstimate | null =
         estimate === undefined ? null : { ...estimate, estimatedAt: now() }
 

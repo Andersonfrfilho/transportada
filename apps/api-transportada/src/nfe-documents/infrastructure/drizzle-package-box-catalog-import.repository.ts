@@ -11,11 +11,13 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, isNull } from 'drizzle-orm'
 
 import { CATALOG_IMPORT_ACTOR_ID } from '../domain/package-box-catalog-import.constant.js'
+import { estimateStorablePackageBoxFromUnit } from '../domain/package-box-estimate.policy.js'
 import { nfePackageBoxes, nfePackageBoxMeasurements } from '../../database/nfe.schema.js'
 import type {
   PackageBoxCatalogImportCandidate,
   PackageBoxCatalogImportGroup,
   PackageBoxCatalogImportRepositoryPort,
+  PackageBoxCatalogImportUnit,
   PackageBoxCatalogImportWriteResult,
 } from '../application/package-box-catalog-import.port.js'
 
@@ -37,6 +39,7 @@ export class DrizzlePackageBoxCatalogImportRepository
   async importCandidates(input: {
     readonly apply: boolean
     readonly groups: readonly PackageBoxCatalogImportGroup[]
+    readonly units: readonly PackageBoxCatalogImportUnit[]
   }): Promise<readonly PackageBoxCatalogImportWriteResult[]> {
     const results: PackageBoxCatalogImportWriteResult[] = []
 
@@ -69,6 +72,11 @@ export class DrizzlePackageBoxCatalogImportRepository
               outcome,
             })
           }
+        }
+
+        // Spec 163 (RF05): depois das caixas — uma promoção desta mesma execução já trava a estimativa.
+        for (const unit of input.units) {
+          results.push(...(await this.#recordUnit(transaction, unit)))
         }
 
         if (!input.apply) throw new SimulationRollback()
@@ -149,6 +157,83 @@ export class DrizzlePackageBoxCatalogImportRepository
       widthMm: candidate.widthMm,
     })
     return 'promoted'
+  }
+
+  /**
+   * Spec 163 (RF04, RF05, RNF02): grava a unidade em toda caixa do `cartonGtin` (cada uma na sua
+   * empresa), sem nunca sobrescrever unidade digitada (`typed`), e recalcula a estimativa só na
+   * caixa sem medida real. Nenhum `set` daqui toca `length_mm` & cia. nem `measurement_source`.
+   */
+  async #recordUnit(
+    transaction: Transaction,
+    unit: PackageBoxCatalogImportUnit,
+  ): Promise<readonly PackageBoxCatalogImportWriteResult[]> {
+    const boxes = await transaction
+      .select({
+        companyId: nfePackageBoxes.companyId,
+        id: nfePackageBoxes.id,
+        lengthMm: nfePackageBoxes.lengthMm,
+        unitMeasurementSource: nfePackageBoxes.unitMeasurementSource,
+        unitsPerBox: nfePackageBoxes.unitsPerBox,
+      })
+      .from(nfePackageBoxes)
+      .where(eq(nfePackageBoxes.cartonGtin, unit.cartonGtin))
+      .for('update')
+    if (boxes.length === 0) return [{ cartonGtin: unit.cartonGtin, outcome: 'no_matching_box' }]
+
+    const results: PackageBoxCatalogImportWriteResult[] = []
+    for (const box of boxes) {
+      const outcome = await this.#writeUnit(transaction, box, unit)
+      results.push({
+        boxId: box.id,
+        cartonGtin: unit.cartonGtin,
+        companyId: box.companyId,
+        outcome,
+      })
+    }
+    return results
+  }
+
+  async #writeUnit(
+    transaction: Transaction,
+    box: {
+      readonly companyId: string
+      readonly id: string
+      readonly lengthMm: number | null
+      readonly unitMeasurementSource: string | null
+      readonly unitsPerBox: number
+    },
+    unit: PackageBoxCatalogImportUnit,
+  ): Promise<'unit_recorded' | 'unit_skipped_typed'> {
+    if (box.unitMeasurementSource === 'typed') return 'unit_skipped_typed'
+    const estimate =
+      box.lengthMm === null
+        ? estimateStorablePackageBoxFromUnit({ unit, unitsPerBox: box.unitsPerBox })
+        : undefined
+    const now = new Date()
+    await transaction
+      .update(nfePackageBoxes)
+      .set({
+        unitGrossWeightGrams: unit.grossWeightGrams ?? null,
+        unitHeightMm: unit.heightMm,
+        unitLengthMm: unit.lengthMm,
+        unitMeasurementSource: unit.source,
+        unitWidthMm: unit.widthMm,
+        updatedAt: now,
+        ...(box.lengthMm === null
+          ? {
+              estimatedArrangement: estimate?.arrangement ?? null,
+              estimatedAt: estimate === undefined ? null : now,
+              estimatedGrossWeightGrams: estimate?.grossWeightGrams ?? null,
+              estimatedHeightMm: estimate?.heightMm ?? null,
+              estimatedLengthMm: estimate?.lengthMm ?? null,
+              estimatedVolumeCm3: estimate?.volumeCm3 ?? null,
+              estimatedWidthMm: estimate?.widthMm ?? null,
+            }
+          : {}),
+      })
+      .where(and(eq(nfePackageBoxes.id, box.id), eq(nfePackageBoxes.companyId, box.companyId)))
+    return 'unit_recorded'
   }
 
   async #hasExistingProposal(
