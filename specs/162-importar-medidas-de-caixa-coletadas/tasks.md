@@ -26,7 +26,7 @@
 - [x] T006 `import-package-box-catalog.use-case.ts` (sanidade → consenso → proposta/promoção, relatório)
 - [x] T007 Integração CA03–CA06 — `bun --env-file=../../.env.test run test:integration` de dentro de
       `apps/api-transportada` (sem a flag a integração pula e não vale)
-- [ ] T008 CLI `src/cli/import-package-box-catalog.ts` (stdin, `--apply`, relatório JSON); conferir que entra na imagem
+- [x] T008 CLI `src/cli/import-package-box-catalog.ts` (stdin, `--apply`, relatório JSON); conferir que entra na imagem
 - [ ] T009 `scripts/box-catalog-harvest/import-to-production.sh` (simulação padrão; `--apply` pede `IMPORTAR`)
 
 ## Fase 4 — Fechamento
