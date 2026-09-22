@@ -1652,3 +1652,95 @@ corrigido (CSS duplicado) e uma pendência explícita (prova visual).
   por escopo (nenhuma mudança de backend) e por Docker indisponível.
 
 Nenhum código de `apps/api-transportada` ou `specs/162-*` foi tocado nesta sessão, conforme pedido.
+
+## Revisão final em `opus` (2026-09-22) — quatro achados, um commit por achado
+
+Revisão final reprovou a publicação com quatro achados (B1, B2, I3, I6). Cada um fechou com teste
+que reproduziu o defeito antes da correção, num commit isolado, sem push.
+
+### B1 — a segunda ocorrência de separação virava anexo da primeira
+
+**Teste que reproduziu o defeito (antes):**
+
+- WhatsApp: `test/whatsapp-commands/operator-flow-actions.contract.ts` — `"escolher o tipo de
+ocorrência de novo limpa o occurrenceId de um registro anterior na mesma sessão"`. Simula a
+  sessão com `occurrenceId` de uma ocorrência anterior e prova, via `Object.hasOwn` + a mesma fusão
+  `{...contextoAnterior, ...result.context}` que o `FlowInterpreter` do `meta-whatsapp-module` faz
+  de verdade, que o patch de `occurrenceTypeRouter` **não** zerava a chave — `Object.hasOwn`
+  retornava `false` antes da correção (o `toEqual` ingênuo não pegava isso: ausência de chave e
+  `undefined` explícito são iguais para ele, por isso o teste simula o merge manualmente).
+- Frontend (wiring): `test/trip/separation-occurrence-button.contract.ts` — varredura de fonte
+  provando que `TripOccurrences.component.tsx` chama `onReset()` ao abrir/cancelar o formulário e
+  no início de `handleSubmit`, e que `SeparationOccurrenceDialog`/`TripDetail` repassam
+  `workspace.resetSeparationOccurrencePhotoSend`. Falhava antes: nenhum desses pontos existia
+  (`resetSeparationOccurrencePhotoSend` já existia no hook, mas sem consumidor — grep confirmado).
+- Frontend (hook): `test/trip-hooks/separation-occurrence-session.contract.ts` — prova por fora que
+  o hook, quando `resetSeparationOccurrencePhotoSend` **é** chamado entre dois registros, chama
+  `registerTripOccurrence` de novo para o segundo (`['type-A', 'type-B']`); sem o reset, o segundo
+  reusa o `occurrenceId` do primeiro e `registerTripOccurrence` só é chamado uma vez
+  (`['type-A']`) — o teste que documenta esse comportamento antigo continua verde de propósito,
+  como characterization test do que a UI evita agora.
+
+**Correção:** `occurrenceTypeRouter` (`register-operator-trip-flow-actions.ts`) zera
+`OPERATOR_FLOW_CONTEXT_KEY.occurrenceId` ao escolher um tipo (começo de ocorrência nova).
+`TripOccurrences.component.tsx` ganhou a prop `onReset`, chamada ao abrir o formulário, ao
+cancelar e no início de `handleSubmit`; `SeparationOccurrenceDialog` e as duas montagens em
+`TripDetail.component.tsx` passam `workspace.resetSeparationOccurrencePhotoSend`.
+
+**Gates:** `bun --env-file=../../.env.test test` (api, 6811→6811 pass) · `bun run --cwd
+apps/frontend-transportada test` (4764 pass + `test:hooks` 42 pass) · `bun run lint/typecheck/format:check` (raiz) — todos verdes.
+
+### B2 — a recuperação de falha parcial estava pronta e desligada
+
+**Teste que reproduziu o defeito (antes):** `test/trip/separation-occurrence-button.contract.ts` —
+`TripOccurrences.component.tsx` não continha `photoSendState`, nem `async function handleSubmit()`
+aguardando `onRegister`, nem `handleRetryFailed`; a varredura falhava. No hook,
+`test/trip-hooks/separation-occurrence-session.contract.ts` prova que com uma foto falhando no
+meio do lote, `sendSeparationOccurrencePhotos` devolve `{ hasFailure: true }` e o reenvio (sem
+`onReset`) retoma a mesma fila, completando só a foto que faltou
+(`attachedPhotoIds` = `['photo-2']`, uma tentativa só). O correlato da fila por comprimento tem
+teste próprio em `test/trip/occurrence-photo-send.contract.ts`
+(`isSameOccurrencePhotoQueue`) e no hook (duas ocorrências com o mesmo número de fotos, sem reset,
+provando que a fila da segunda reflete o `photoId` dela, nunca a da primeira).
+
+**Correção:** `sendSeparationOccurrencePhotos` (hook) passa a devolver `Readonly<{ hasFailure:
+boolean }>`; a fila de envio passa a ser reaproveitada por `isSameOccurrencePhotoQueue` (conjunto
+de `photoId`), não por `.length`. `TripOccurrences.component.tsx` só limpa/fecha o formulário
+quando `hasFailure` volta `false`; com falha, mostra progresso por foto (`occurrence.sendStatus.*`,
+locale nova) e o botão "Reenviar falhas" chama `onRegister` de novo sem `onReset`, retomando a
+mesma fila pelo que não foi `sent`.
+
+**Gates:** `bun run --cwd apps/frontend-transportada test` (4767→4769 pass) + `test:hooks` (44
+pass) · `bun run lint/typecheck/format:check` (raiz) — todos verdes.
+
+### I3 — idempotência do WhatsApp colidia entre notas
+
+**Teste que reproduziu o defeito (antes):**
+`test/trip-occurrence/attachment-policy.contract.ts` — `"mesma foto/tipo/nota em documentId
+diferente não colide — impressões distintas"`: chama `buildOccurrenceAttachmentCreateFingerprint`
+duas vezes com o mesmo `attachmentSha256`/`note`/`occurrenceTypeId`/`productCode` e só `documentId`
+diferente; antes da correção as duas impressões eram **iguais** (o `documentId` extra passado ao
+teste era ignorado pela função, que ainda não o lia) — falha reproduzida (`not.toBe` acusando
+igualdade).
+
+**Correção:** `BuildOccurrenceAttachmentCreateFingerprintParams` ganhou `documentId` (obrigatório)
+e `buildOccurrenceAttachmentCreateFingerprint` o inclui na impressão. Os dois pontos que montam a
+`operation` de `withFieldReport` em `main.ts` (WhatsApp e a rota HTTP
+`POST .../documents/:documentId/occurrences`) passam `documentId: input.documentId`.
+
+**Gates:** `test/trip-occurrence/attachment-policy.contract.ts` (11→12 pass) ·
+`bun --env-file=../../.env.test test` (api, 6811→6812 pass) ·
+`DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres bun --env-file=../../.env.test test` nos dois arquivos de integração tocados
+(`trip-occurrence-attachment.integration.ts` 6 pass, `whatsapp-operator-flow-actions.integration.ts`
+7 pass — Postgres local descartável, Docker seguia fora do ar) · `bun run
+lint/typecheck/format:check` (raiz) — todos verdes.
+
+### I6 — a dívida de retenção precisava sair do `evidence.md`
+
+Sem teste de código (item de documentação): a Fase 5 (T17–T20, expurgo da retenção de cinco anos)
+ficou fora do recorte desta spec — `retention_until` é gravado, nada apaga. Isso é dado pessoal
+guardado além da finalidade (LGPD, minimização), então virou item **datado** em `docs/SECURITY.md`
+("2026-09-22 — retenção de cinco anos da foto de ocorrência de separação é declarada, mas nada
+expurga"), com onde, o risco aceito, o dado pessoal guardado e o que falta (a própria Fase 5).
+
+**Gates:** `bun run format:check` (raiz) — verde.
