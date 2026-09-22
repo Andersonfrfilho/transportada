@@ -357,6 +357,9 @@ import { createTripDocumentReviewRoutes } from './trips/presentation/trip-docume
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
 import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-occurrence-case.repository.js'
+import { createRedeliveryProposalRoutes } from './trips/presentation/redelivery-proposal.routes.js'
+import { getRedeliveryProposal } from './trips/application/redelivery-proposal.use-case.js'
+import { DrizzleRedeliveryProposalRepository } from './trips/infrastructure/drizzle-redelivery-proposal.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
@@ -1834,6 +1837,8 @@ function createApplicationRoutes({
   const occurrenceCaseUseCase = createOccurrenceCaseUseCase({
     repository: occurrenceCaseRepository,
   })
+  /** Spec 164 T14a: só leitura — a proposta de reentrega. */
+  const redeliveryProposalRepository = new DrizzleRedeliveryProposalRepository(database)
   /** Spec 164 T10: mesmo escritor único de transição do escritório (T4/T5) — só muda o ator. */
   const decideOccurrenceCase = createDecideOccurrenceCaseUseCase({
     cases: {
@@ -2605,6 +2610,12 @@ function createApplicationRoutes({
     ...createOccurrenceCaseRoutes({
       findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
       occurrenceCase: occurrenceCaseUseCase,
+    }),
+    ...createRedeliveryProposalRoutes({
+      redeliveryProposal: {
+        getProposal: (input) =>
+          getRedeliveryProposal({ ...input, repository: redeliveryProposalRepository }),
+      },
     }),
     ...createExtraChargeBatchRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
