@@ -91,7 +91,8 @@ export async function openOccurrenceCase(
 export type OccurrenceCaseTransitionInput = {
   readonly action: OccurrenceCaseAction
   readonly actorKind: TripOccurrenceCaseActorKind
-  readonly actorUserId: string | null
+  /** Spec 164 T9: obrigatória para os dois atores — interno ou contratante. */
+  readonly actorUserId: string
   readonly caseId: string
   readonly companyId: string
   /** Só em `decide`: a decisão sendo aplicada agora (T5/T9-T10) — `null` nas demais ações. */

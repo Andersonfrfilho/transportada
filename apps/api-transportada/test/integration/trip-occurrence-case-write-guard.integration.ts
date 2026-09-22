@@ -174,6 +174,7 @@ describe('escritor único da tratativa: corrida real contra Postgres (spec 164 T
         })
 
         const race = await raceAgainstBlocker(database, {
+          actorUserId: company.userId,
           blockerNextStatus: 'returned_to_warehouse',
           caseId: caseRow.id,
           companyId: company.companyId,
@@ -222,6 +223,7 @@ describe('escritor único da tratativa: corrida real contra Postgres (spec 164 T
 async function raceAgainstBlocker(
   database: TestDatabase,
   input: {
+    readonly actorUserId: string
     readonly blockerNextStatus: 'returned_to_warehouse'
     readonly caseId: string
     readonly companyId: string
@@ -257,6 +259,7 @@ async function raceAgainstBlocker(
       .where(eq(tripOccurrenceCases.id, input.caseId))
     await transaction.insert(tripOccurrenceCaseEvents).values({
       actorKind: 'internal',
+      actorUserId: input.actorUserId,
       caseId: input.caseId,
       companyId: input.companyId,
       fromStatus: 'under_review',

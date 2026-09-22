@@ -23,12 +23,16 @@ describe('o portal do contratante (spec 063 T002)', () => {
    * ADR-0050: o contratante é usuário do mesmo Keycloak. O que o recorta não é o papel — é o
    * vínculo, e é por isso que ele existe como tabela e não como coluna solta na membership.
    *
-   * As duas permissões são separadas de propósito (§6): acompanhar entrega e decidir repasse são
-   * atos diferentes, e o segundo é dinheiro.
+   * As permissões são separadas de propósito (§6): acompanhar entrega, decidir repasse e decidir a
+   * tratativa da ocorrência (spec 164 T9) são atos diferentes — os dois últimos são decisão.
    */
-  test('o papel existe e concede só as duas permissões do portal', () => {
+  test('o papel existe e concede só as três permissões do portal', () => {
     expect(COMPANY_ROLES).toContain('contractor')
-    expect(ROLE_PERMISSIONS.contractor).toEqual(['deliveries.track', 'charges.decide'])
+    expect(ROLE_PERMISSIONS.contractor).toEqual([
+      'deliveries.track',
+      'charges.decide',
+      'occurrences.decide',
+    ])
   })
 
   /**

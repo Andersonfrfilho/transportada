@@ -78,6 +78,8 @@ describe('authorization contract', () => {
       'charges.decide',
       // Spec 164 T6: tratar a tratativa da ocorrência é do escritório — nunca separador/driver/aggregate
       'occurrences.resolve',
+      // Spec 164 T9: o contratante decide a tratativa que chegou até ele — só o papel contractor
+      'occurrences.decide',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -185,7 +187,7 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
-      contractor: ['deliveries.track', 'charges.decide'],
+      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
       automation: ['mdfe.auto-issue', 'whatsapp.settle'],
     })
   })
@@ -401,7 +403,8 @@ describe('authorization contract', () => {
         permission !== 'mdfe.auto-issue' &&
         permission !== 'whatsapp.settle' &&
         permission !== 'deliveries.track' &&
-        permission !== 'charges.decide',
+        permission !== 'charges.decide' &&
+        permission !== 'occurrences.decide',
     )
 
     expect([...permissions]).toEqual(companyPermissions)

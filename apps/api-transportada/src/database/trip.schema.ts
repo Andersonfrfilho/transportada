@@ -1931,8 +1931,13 @@ export const tripOccurrenceCaseEvents = pgTable(
     fromStatus: text('from_status').$type<TripOccurrenceCaseStatus>(),
     toStatus: text('to_status').notNull().$type<TripOccurrenceCaseStatus>(),
     actorKind: text('actor_kind').notNull().$type<TripOccurrenceCaseActorKind>(),
-    /** Só quando `actor_kind = 'internal'` — a decisão do contratante não tem membership interna. */
-    actorUserId: uuid('actor_user_id'),
+    /**
+     * Spec 164 T9 (correção do `architect`, Fase 3): obrigatória para **os dois** atores — a
+     * decisão do contratante grava o `userId` da conta dele (RF14), e "só existe para ator
+     * interno" (redação original) mentia sobre o que a RF14 pede. Coluna de auditoria com
+     * comentário que mente é o pior modo de falha possível.
+     */
+    actorUserId: uuid('actor_user_id').notNull(),
     note: text().notNull().default(''),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },

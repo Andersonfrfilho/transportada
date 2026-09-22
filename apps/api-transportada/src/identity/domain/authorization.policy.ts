@@ -97,6 +97,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * viagem, nem do motorista/agregado, que só reportam campo.
    */
   'occurrences.resolve',
+  /**
+   * Spec 164 T9: o contratante decide a tratativa que chegou até ele — nunca por consequência de
+   * `occurrences.resolve` (interno) nem de `deliveries.track` (só acompanha). Papel único:
+   * `contractor`; nenhum papel interno recebe esta permissão.
+   */
+  'occurrences.decide',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -239,7 +245,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
    * documento fiscal: quem paga o frete acompanha a carga, não administra a transportadora.
    */
-  contractor: Object.freeze(['deliveries.track', 'charges.decide']),
+  contractor: Object.freeze(['deliveries.track', 'charges.decide', 'occurrences.decide']),
   /**
    * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
    * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.

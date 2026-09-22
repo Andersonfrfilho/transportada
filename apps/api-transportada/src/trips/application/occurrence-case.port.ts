@@ -15,7 +15,8 @@ import type {
 export type OccurrenceCaseTransitionInput = {
   readonly action: 'cancel' | 'closure' | 'contractor_submission' | 'review' | 'warehouse_return'
   readonly actorKind: TripOccurrenceCaseActorKind
-  readonly actorUserId: string | null
+  /** Spec 164 T9: obrigatória para os dois atores — interno ou contratante. */
+  readonly actorUserId: string
   readonly caseId: string
   readonly companyId: string
   readonly decisionKind?: TripOccurrenceCaseDecisionKind

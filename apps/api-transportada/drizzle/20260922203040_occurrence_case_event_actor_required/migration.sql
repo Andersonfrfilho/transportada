@@ -1,0 +1,1 @@
+ALTER TABLE "trip_occurrence_case_events" ALTER COLUMN "actor_user_id" SET NOT NULL;
