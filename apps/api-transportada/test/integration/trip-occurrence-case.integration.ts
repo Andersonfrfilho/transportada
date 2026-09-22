@@ -19,6 +19,7 @@ import {
   companyOccurrenceTypes,
   tripDocuments,
   tripOccurrenceCaseEvents,
+  tripOccurrenceCases,
 } from '../../src/database/trip.schema.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
@@ -128,14 +129,12 @@ async function bindContractor(
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId: company.companyId, id: membershipId, status: 'active', userId })
-  await database.db
-    .insert(contractors)
-    .values({
-      companyId: company.companyId,
-      displayName: 'Spani Atacadista',
-      id: contractorId,
-      taxId,
-    })
+  await database.db.insert(contractors).values({
+    companyId: company.companyId,
+    displayName: 'Spani Atacadista',
+    id: contractorId,
+    taxId,
+  })
   await database.db.insert(nfeParticipants).values({
     companyId: company.companyId,
     documentId: nfeDocumentId,
@@ -287,6 +286,38 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
           ),
         )
       expect(decideEvents).toHaveLength(1)
+
+      /**
+       * ⚠️ O 409 acima passou pelo atalho do caso de uso, que lê **fora** da transação — duas abas
+       * simultâneas passariam as duas por ele. Aqui a decisão divergente vai direto ao escritor
+       * único, como a corrida faria: a máquina responde `unchanged` (o destino já foi alcançado) e
+       * é o escritor que precisa recusar. Sem isso, a segunda decisão sumia com 200.
+       */
+      await expect(
+        cases.transition({
+          action: 'decide',
+          actorKind: 'contractor',
+          actorUserId: contractorContext.userId,
+          caseId: (await findCaseId(database, company.companyId, occurrence.id)) ?? '',
+          companyId: company.companyId,
+          decisionKind: 'goods_paid',
+          decisionNote: 'pela porta dos fundos',
+          hasSettlementItems: false,
+          note: 'pela porta dos fundos',
+        }),
+      ).rejects.toMatchObject({ code: 'OCCURRENCE_CASE_DECISION_CONFLICT', status: 409 })
+
+      // E a decisão gravada continua sendo a primeira.
+      const [stored] = await database.db
+        .select({ kind: tripOccurrenceCases.decisionKind })
+        .from(tripOccurrenceCases)
+        .where(
+          and(
+            eq(tripOccurrenceCases.companyId, company.companyId),
+            eq(tripOccurrenceCases.occurrenceId, occurrence.id),
+          ),
+        )
+      expect(stored?.kind).toBe('redelivery_authorized')
     })
   })
 

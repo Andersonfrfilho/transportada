@@ -14,6 +14,7 @@
 import type { TripOccurrenceCaseDecisionKind } from '../../database/trip.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { ApiError } from '../../shared/api.error.js'
+import { OccurrenceCaseDecisionConflictError } from '../../trips/domain/trip.error.js'
 import { ContractorOccurrenceNotFoundError } from '../domain/contractor-portal.error.js'
 import type { ContractorScope } from '../domain/contractor-scope.policy.js'
 import type {
@@ -115,15 +116,16 @@ export function createDecideOccurrenceCaseUseCase(dependencies: {
        * não distingue "mesma decisão" de "outra decisão", ela só sabe que o estado de destino já foi
        * alcançado; quem faz essa distinção é este caso de uso, antes de chamar o repositório.
        */
+      /**
+       * ⚠️ Esta comparação é **atalho**, não garantia: ela lê fora da transação, então duas abas
+       * decidindo ao mesmo tempo passam as duas por aqui. Quem decide de verdade é o escritor
+       * único, sobre a linha travada (`OccurrenceCaseDecisionConflictError`).
+       */
       if (
         detail.caseStatus === 'decided' &&
         (detail.decisionKind !== kind || detail.decisionNote !== trimmedNote)
       ) {
-        throw new ApiError({
-          code: 'OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED',
-          message: 'This occurrence case was already decided',
-          status: 409,
-        })
+        throw new OccurrenceCaseDecisionConflictError()
       }
 
       const result = await dependencies.cases.transition({

@@ -711,6 +711,23 @@ export class OccurrenceCaseTransitionNotAllowedError extends ApiError {
 }
 
 /**
+ * Spec 164 (revisão 🧠 da Fase 4): decisão **diferente** sobre uma tratativa já decidida. A máquina
+ * de estados não distingue "mesma decisão" de "outra decisão" — para ela o destino já foi
+ * alcançado, e o resultado é `unchanged`. Sem este erro, a segunda decisão sumia em silêncio com
+ * 200: o contratante via a tela responder com sucesso e o que ficou gravado era a decisão do outro.
+ * A comparação vale dentro da transação, sobre a linha travada, nunca sobre leitura anterior.
+ */
+export class OccurrenceCaseDecisionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_DECISION_CONFLICT',
+      message: 'This occurrence case was already decided with a different outcome.',
+      status: 409,
+    })
+  }
+}
+
+/**
  * Espelha as duas recusas de reentrega da política: `redeliveryNotAllowed` (o tipo do dano não
  * admite segunda tentativa, RF16) e `redeliveryBlockedHasNoQuestion` (tratativa `blocked` sem item
  * acertado não tem pergunta a fazer ao contratante, RF7). Um código por chamada, nunca os dois.

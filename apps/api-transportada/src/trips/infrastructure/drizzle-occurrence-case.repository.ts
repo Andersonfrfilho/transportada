@@ -39,6 +39,7 @@ import type {
 } from '../domain/occurrence-case-state.policy.js'
 import { resolveOccurrenceCaseOpening } from '../domain/occurrence-case.policy.js'
 import {
+  OccurrenceCaseDecisionConflictError,
   OccurrenceCaseNotFoundError,
   OccurrenceCaseRedeliveryNotAllowedError,
   OccurrenceCaseSettlementWithoutItemsError,
@@ -152,6 +153,7 @@ async function applyTransition(
   const [locked] = await transaction
     .select({
       decisionKind: tripOccurrenceCases.decisionKind,
+      decisionNote: tripOccurrenceCases.decisionNote,
       redeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
       status: tripOccurrenceCases.status,
     })
@@ -175,7 +177,22 @@ async function applyTransition(
   })
 
   if (transition.kind === 'refused') throw refusalError(transition.code)
-  if (transition.kind === 'unchanged') return { kind: 'unchanged', status: transition.to }
+  if (transition.kind === 'unchanged') {
+    /**
+     * ⚠️ Convergir é para a **mesma** decisão. Duas abas decidindo coisas diferentes chegam as duas
+     * aqui — a máquina só sabe que `decided` já foi alcançado —, e devolver `unchanged` faria a
+     * segunda sumir com 200, deixando gravada a decisão da primeira sem ninguém saber. A comparação
+     * é contra a linha **travada**, nunca contra leitura feita fora da transação.
+     */
+    if (
+      input.action === 'decide' &&
+      (locked.decisionKind !== (input.decisionKind ?? null) ||
+        locked.decisionNote !== (input.decisionNote ?? ''))
+    ) {
+      throw new OccurrenceCaseDecisionConflictError()
+    }
+    return { kind: 'unchanged', status: transition.to }
+  }
 
   const isDecide = input.action === 'decide'
   const resolvesNow = TERMINAL_STATUSES.has(transition.to)
