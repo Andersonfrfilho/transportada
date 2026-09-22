@@ -147,7 +147,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     `media-id` nunca em log e ausente do contexto ao fim do turno (é handle resgatável com o token
     da empresa, vale como credencial de curta duração).
 
-- [ ] **T15** Passo de foto no fluxo do operador (RF18/RF18b/RF18c/RF19/RF20) —
+- [x] **T15** Passo de foto no fluxo do operador (RF18/RF18b/RF18c/RF19/RF20) —
       `whatsapp-operator-flow.constant.ts` (nó `operator_occurrence_photo_entry`, `actionKind`,
       chaves de contexto, rótulos "✅ Concluir" e "❌ Cancelar ocorrência", e o texto que avisa que
       sem foto nada é registrado), `register-operator-trip-flow-actions.ts` (`noteRouter` l.580-620
@@ -163,7 +163,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     o teste falha se o fluxo repetir o pedido indefinidamente; cancelar não grava nada; sexta imagem
     recusada; falha de download não grava ocorrência.
 
-- [ ] **T16** Idempotência e integração ponta a ponta (RF20b) — chave por **sha256 do arquivo
+- [x] **T16** Idempotência e integração ponta a ponta (RF20b) — chave por **sha256 do arquivo
       baixado**, nunca `media-id` (muda no reenvio) nem `occurrenceId` (circular: ainda não existe
       no momento do upload); `test/integration/whatsapp-operator-flow-actions.integration.ts` (já
       listado).

@@ -985,3 +985,125 @@ inalterada); `persist-separation-occurrence-attachment.service.ts` (T6) já exis
 fixo em `OCCURRENCE_PHOTO_MAX_BYTES` — parametrizá-lo é explicitamente T15, não T13, e não toquei
 nisso agora (T13 não passa nenhuma foto de verdade, então o teto atual nunca é exercitado pelo
 WhatsApp ainda).
+
+### T15 — passo de foto no fluxo do operador
+
+Commit `69c664653`.
+
+Nó `operator_note_router` deixa de terminar em `completeOccurrence` — passa a `photoPrompt`
+(`OPERATOR_FLOW_ACTION_KIND.photoPrompt`), que avisa "sem foto nada é registrado" e oferece
+✅ Concluir/❌ Cancelar ocorrência por lista (`OPERATOR_OCCURRENCE_PHOTO_ANSWER`), e manda para o nó
+novo `operator_occurrence_photo_entry` (`entrada_choice`, contexto `photoAnswer`) →
+`operator_occurrence_photo_router` (`photoRouter`). `photoRouter` decide por precedência: imagem no
+contexto (T14) → `handlePhotoUpload`; senão `photoAnswer` igual a Concluir/Cancelar; senão conta para
+o handoff (`operatorOccurrencePhotoInvalidAttempts`, próprio deste passo — o contador genérico do
+despachante é zerado a cada turno antes de qualquer `FlowActionHandler` rodar, T14, e não sobrevive
+entre os vários turnos que o passo de foto pode levar).
+
+`handlePhotoUpload`: baixa por `channel.fetchMediaAsBase64`, primeira foto por
+`deps.registerOccurrence` (que já é `persistSeparationOccurrenceWithAttachment`, T13), demais por
+`deps.attachOccurrencePhoto` (nova dep, mesma `attachOccurrencePhoto` de T7). O teto de bytes do
+original virou **parâmetro** (`maxOriginalBytes?`) em `persistSeparationOccurrenceWithAttachment`
+(default `OCCURRENCE_PHOTO_MAX_BYTES`, a web não muda); o WhatsApp passa `OFFICE_PROOF_MAX_BYTES`
+(960 KiB, importado de `delivery-proof.policy.ts` — nenhuma constante nova, §16 do code-standart).
+`describeTripError` ganha os dois casos de `TripDeliveryProofRejectedError` (tamanho/tipo), com o
+limite na mensagem, e `TripFieldReportKeyReusedError` (adiantado de T16, para o `catch` genérico não
+relançar cru se a idempotência colidir).
+
+**As três armadilhas do prompt:**
+
+1. **Teto por parâmetro** — provado a dois níveis: contrato de unidade em
+   `test/whatsapp-commands/operator-flow-actions.contract.ts` ("primeira foto... chega inteira a
+   registerOccurrence") mostra que o router não trunca/valida à revelia (600 KiB passa intacto ao
+   dep); a validação de verdade contra o teto (512 KiB vs 960 KiB) já é do contrato de T6
+   (`persistSeparationOccurrenceWithAttachment`) — reaproveitada, não reescrita — mais a fiação em
+   `main.ts` (`maxOriginalBytes: OFFICE_PROOF_MAX_BYTES` na dep do WhatsApp).
+2. **Contador de tentativas inválidas** — `photoRouter` incrementa
+   `operatorOccurrencePhotoInvalidAttempts` a cada resposta que não é imagem nem Concluir/Cancelar;
+   na segunda, lança `WhatsAppCommandHandoffRequestedError` (mesmo mecanismo de D8). Teste
+   "texto fora das opções incrementa o contador; na segunda vez chama uma pessoa" prova as duas
+   chamadas e que a segunda **rejeita** com a exceção — o teste falharia se o fluxo repetisse o
+   pedido pela terceira vez em vez de chamar handoff.
+3. **Idempotência por sha256, nunca media-id/occurrenceId** — adiantada nesta task na assinatura
+   (`attachOccurrencePhoto`/`registerOccurrence` já recebem só bytes, nunca media-id), fechada de
+   verdade em T16.
+
+Testes de contrato reescritos: as duas suítes que exercitavam `completeOccurrence` direto
+(gravava sem foto) foram **substituídas**, não deletadas — uma prova que `photoPrompt` não grava
+nada e oferece Concluir/Cancelar, a outra (limite de observação) só trocou o `kind`. Nove testes
+novos cobrem: primeira foto aceita, foto grande recusada com o limite na mensagem, tipo não
+suportado, segunda foto por `attachOccurrencePhoto`, sexta foto (`TripOccurrenceAttachmentLimitError`),
+falha de download não grava nada, "Concluir" sem foto/com foto, "Cancelar" antes de qualquer foto,
+handoff na segunda resposta inválida.
+
+`test/integration/whatsapp-operator-flow-actions.integration.ts` (pré-existente, T016) tinha
+`registerOccurrence` ainda em `saveTripOccurrence` cru, sem `attachOccurrencePhoto` — quebrava o
+typecheck assim que o tipo de deps ganhou o campo novo. Corrigido para o mesmo molde de `main.ts`
+(`persistSeparationOccurrenceWithAttachment`/`attachOccurrencePhoto`, com `fakeAttachmentStorage` no
+lugar do bucket real) — sem isso nem T15 nem T16 compilariam.
+
+Gates: `bun test test/whatsapp-commands.contract.test.ts` (414 pass) · `bun test` completo da API
+(6810 pass, 32 skip, 0 fail) · `bun run typecheck`/`lint`/`format:check` na raiz — todos verdes.
+
+### T16 — idempotência e integração ponta a ponta
+
+Commit `709254ff2`.
+
+`registerOccurrence` (criação) e `attachOccurrencePhoto` (T7) do WhatsApp passam a rodar dentro de
+`withFieldReport`, igual à rota HTTP (T8), mas com a chave sendo o **sha256 do arquivo baixado**
+(`sha256Hex(attachment.bytes)`) — nunca `media-id` (muda a cada reenvio pela Meta) nem `occurrenceId`
+(circular: não existe no momento do upload da primeira foto). Autoria `whatsapp`/
+`onBehalfOfDriverId: null`. `whatsappFieldReportGuardTransaction` é instância própria em
+`bootstrap()` (a de `createApplicationRoutes`, escopo diferente, não alcançável dali — TS acusou
+`Cannot find name` na primeira tentativa de reusar a existente).
+
+`test/integration/whatsapp-operator-flow-actions.integration.ts` ganhou `buildScenario().deps`
+(os mesmos objetos de dependência que alimentam `createOperatorWhatsAppFlowActions`, expostos para
+o teste chamar direto — a persistência é o que esta task prova; o download de mídia via Graph API já
+é coberto por T15 em unidade, e simular o download real (duas chamadas HTTP encadeadas do módulo)
+contra o `graphServer` fake do arquivo quebraria o handler, que só responde `Response.json` para
+corpo JSON — GET de metadado de mídia não tem corpo).
+
+Cinco testes novos, todos contra Postgres descartável (porta 65433, `runAllDatabaseMigrations`):
+
+1. **Reenviar a mesma foto (mesmo sha256) não duplica** — duas chamadas a `registerOccurrence` com
+   os mesmos bytes devolvem o **mesmo** `id`, e só uma linha em
+   `trip_document_occurrence_attachments`.
+2. **Segunda foto em diante também converge** — duas chamadas a `attachOccurrencePhoto` com os
+   mesmos bytes devolvem o mesmo `id`/`position`, e só duas linhas no total (a primeira + a segunda,
+   não uma terceira).
+3. **Nenhum `stored_objects` de origem WhatsApp nasce com purpose diferente de
+   `trip_occurrence_attachment`** — varredura por `purpose LIKE 'trip_occurrence%'` (⚠️ a primeira
+   versão comparava **toda** a `stored_objects` da empresa e pegou o XML da NF-e semeada pelo mundo
+   de teste, `purpose: 'nfe_document'` — falso positivo corrigido filtrando pelo prefixo, que é o que
+   a task realmente pede: nenhum objeto **de ocorrência** com purpose errado).
+4. **A reentrega do mesmo webhook é barrada pelo `nonceStore`** — dois `receive()` com o **mesmo**
+   `id` de mensagem (`wamid.repeat-...`) resultam no mesmo número de mensagens enviadas depois do
+   segundo — provado, não assumido (a suposição estava proibida explicitamente no pedido).
+5. **Nenhum log carrega telefone ou `mediaId`** — `JSON.stringify(scenario.logged)` não contém o
+   telefone do mundo semeado nem a substring `mediaid` (case-insensitive).
+
+`describeTripError` ganhou `TripFieldReportKeyReusedError` → "Essa foto já foi processada com outros
+dados. Envie a foto de novo." (RF20b: colisão de chave é erro do cliente, não repetição — mesmo
+raciocínio da web).
+
+Gates: `bun test ./test/integration/whatsapp-operator-flow-actions.integration.ts` isolado (7 pass) ·
+`DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres bun --env-file=../../.env.test
+run test:integration` completo → **493 pass, 17 fail** (as 17 são todas
+`toll-booth-reload.integration.ts`, `ObjectStorageError: Object storage is unavailable` — MinIO
+local fora do ar, pré-existente e alheio a esta spec, confirmado pelo enunciado da task) · `bun test`
+completo da API (6810 pass, 32 skip, 0 fail) · `bun run typecheck`/`lint`/`format:check` na raiz —
+todos verdes.
+
+### Divergências entre a spec corrigida e o código encontrado (fase 4 inteira)
+
+Nenhuma divergência de arquitetura. Duas correções feitas durante a implementação, registradas para
+não se perderem:
+
+- **T13**: a primeira tentativa de contrato de regressão (CA9c) casou com o bloco errado — há duas
+  deps `registerOccurrence` em `main.ts` (motorista e operador), e `indexOf` ingênuo achou a do
+  motorista primeiro. Corrigido ancorando a busca em `createOperatorWhatsAppFlowActions(`.
+- **T14**: o teste inicial do contexto de imagem entrou em loop dentro do `FlowInterpreter` de
+  verdade (nó de ação apontando para si mesmo como `next`) até estourar o teto interno do
+  interpretador (50 iterações) — não é vazamento, é a mesma armadilha que `command-driver.contract.ts`
+  já evita com nós terminais sem `actionKind`. Corrigido apontando para um nó terminal novo.
