@@ -1698,6 +1698,15 @@ export const tripDocumentOccurrences = pgTable(
      * que o mesmo lote gravou. No molde de `trip_stop_occurrences.attachment_object_id`.
      */
     attachmentObjectId: uuid('attachment_object_id'),
+    /**
+     * Spec 167 (RF6): cancelamento é três colunas, não tabela nova — no máximo uma linha por
+     * ocorrência, e uma tabela 1-para-0..1 pagaria join em toda leitura para representar isto. O
+     * CHECK abaixo casa a presença dos três: existem juntos ou nenhum existe.
+     */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByUserId: uuid('cancelled_by_user_id'),
+    /** Teto de 500 (RF6) é validado na política — o banco só garante presença, não tamanho. */
+    cancellationReason: text('cancellation_reason'),
   },
   (table) => [
     /**
@@ -1755,6 +1764,72 @@ export const tripDocumentOccurrences = pgTable(
     index('trip_document_occurrences_company_document_idx').on(
       table.companyId,
       table.tripDocumentId,
+      table.createdAt,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.cancelledByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trip_document_occurrences_company_cancelled_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'trip_document_occurrences_cancellation_presence_check',
+      sql`(${table.cancelledAt} is null) = (${table.cancelledByUserId} is null)
+        and (${table.cancelledAt} is null) = (${table.cancellationReason} is null)`,
+    ),
+  ],
+)
+
+/**
+ * Spec 167 (RF1): a correção guarda o **passado**, não duplica o presente — o conjunto atual
+ * continua em `trip_document_occurrence_products`. `previousItems` é o retrato (código, quantidade,
+ * unidade) de como a ocorrência estava imediatamente antes desta correção.
+ *
+ * FK composta `(company_id, occurrence_id)` para `trip_document_occurrences`, `on delete restrict`:
+ * histórico de correção nunca some por efeito de uma exclusão em cascata de outra tabela.
+ */
+export const tripDocumentOccurrenceCorrections = pgTable(
+  'trip_document_occurrence_corrections',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    /** `[{ code, quantity, unit }]` — o conjunto anterior, na ordem em que estava marcado. */
+    previousItems: jsonb('previous_items').notNull(),
+    correctedByUserId: uuid('corrected_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_corrections_company_id_id_unique').on(
+      table.companyId,
+      table.id,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_corrections_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_corrections_company_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.correctedByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trip_document_occurrence_corrections_company_corrected_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** A chave de leitura do histórico: por ocorrência, do mais antigo ao mais novo. */
+    index('trip_document_occurrence_corrections_company_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
       table.createdAt,
     ),
   ],
