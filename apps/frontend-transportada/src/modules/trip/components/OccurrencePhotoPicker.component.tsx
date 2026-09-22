@@ -14,7 +14,11 @@ import {
 } from '@/components/ui/barcodeScanner.service'
 import { useCameraStream } from '@/components/ui/useCameraStream.hook'
 
-import { buildOccurrencePhotoAttachment } from '../shared/occurrencePhotoImage.service'
+import {
+  buildOccurrencePhotoAttachment,
+  isOccurrencePdfMimeType,
+  OCCURRENCE_ATTACHMENT_ACCEPT,
+} from '../shared/occurrencePhotoImage.service'
 import {
   canAddOccurrencePhoto,
   OCCURRENCE_PHOTO_LIMIT,
@@ -23,6 +27,10 @@ import {
 import styles from '../styles/trip.module.css'
 
 export type OccurrencePhoto = Readonly<{
+  /** O nome do arquivo escolhido — é o rótulo do PDF na grade, que não tem miniatura a mostrar. */
+  label: string
+  /** `application/pdf` entra como está: sem reencode, sem miniatura, e nunca desenhado em `<img>`. */
+  mimeType: string
   original: Blob
   photoId: string
   previewUrl: string
@@ -92,6 +100,8 @@ export function OccurrencePhotoPicker({
     try {
       const attachment = await buildOccurrencePhotoAttachment(file)
       const photo: OccurrencePhoto = {
+        label: file.name,
+        mimeType: attachment.original.type,
         original: attachment.original,
         photoId: crypto.randomUUID(),
         previewUrl: URL.createObjectURL(attachment.original),
@@ -182,7 +192,19 @@ export function OccurrencePhotoPicker({
             const isConfirming = confirmingRemoveId === photo.photoId
             return (
               <li className={styles.occurrencePhotoThumb} key={photo.photoId}>
-                <img alt={t('occurrence.photoPicker.thumbAlt')} src={photo.previewUrl} />
+                {isOccurrencePdfMimeType(photo.mimeType) ? (
+                  <a
+                    className={styles.occurrencePhotoDocument}
+                    href={photo.previewUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <Icon name="document" />
+                    <span>{photo.label}</span>
+                  </a>
+                ) : (
+                  <img alt={t('occurrence.photoPicker.thumbAlt')} src={photo.previewUrl} />
+                )}
                 <button
                   aria-label={
                     isConfirming
@@ -271,10 +293,14 @@ export function OccurrencePhotoPicker({
                 : t('occurrence.photoPicker.switchToBack')}
             </Button>
           ) : null}
+          {/*
+           * Sem `capture`: o atributo faz o Android abrir a câmera direto, e nenhuma câmera produz
+           * um PDF — com ele, o seletor deixaria de alcançar justamente o arquivo que esta entrada
+           * existe para alcançar. Fotografar continua no botão próprio, acima.
+           */}
           <FileField
-            accept="image/*"
+            accept={OCCURRENCE_ATTACHMENT_ACCEPT}
             actionLabel={t('occurrence.photoPicker.uploadChoose')}
-            capture={facingMode === 'environment' ? 'environment' : 'user'}
             className={styles.occurrencePhotoUpload}
             disabled={disabled || isProcessing}
             label={t('occurrence.photoPicker.uploadLabel')}

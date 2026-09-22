@@ -554,7 +554,8 @@
       "thumbAlt": "Occurrence photo",
       "uploadChoose": "Choose file",
       "uploadEmpty": "No file chosen",
-      "uploadLabel": "Upload photo"
+      "uploadLabel": "Upload photo or PDF",
+      "documentAlt": "Attached PDF document"
     },
     "typeLabel": "Occurrence type"
   },
@@ -583,7 +584,8 @@
       "photoExpired": "Expired photo (5-year retention)",
       "photoLoadError": "Could not load the photo",
       "title": "Detail",
-      "photoRetry": "Try again"
+      "photoRetry": "Try again",
+      "documentLabel": "Document {{position}} (PDF)"
     },
     "empty": "No occurrence found for the applied filter.",
     "filters": {

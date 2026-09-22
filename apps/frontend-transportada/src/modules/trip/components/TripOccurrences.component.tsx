@@ -11,6 +11,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
+import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
@@ -281,7 +282,14 @@ export function TripOccurrences({
                   {t('occurrence.sendStatus.photoLabel', { position: index + 1 })}
                   {': '}
                   {t(`occurrence.sendStatus.${item.status}`)}
-                  {item.status === 'failed' && item.error !== undefined ? ` — ${item.error}` : ''}
+                  {/*
+                   * O motivo sai traduzido, não como código cru: a recusa do servidor por tipo ou
+                   * tamanho (o PDF tem teto próprio) é a que o operador mais vê, e
+                   * `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE` na tela não diz o que fazer a seguir.
+                   */}
+                  {item.status === 'failed' && item.error !== undefined
+                    ? ` — ${t(`feedback.${resolveTripFeedbackKey(new Error(item.error)) ?? 'requestFailed'}`)}`
+                    : ''}
                 </li>
               ))}
             </ul>

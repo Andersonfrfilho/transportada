@@ -103,6 +103,21 @@ function AttachmentCell({
     return <Skeleton className={styles.occurrenceAttachmentSkeleton} height="100%" width="100%" />
   }
 
+  /** O PDF abre no visualizador do aparelho — não há miniatura a desenhar, e `<img>` não o mostra. */
+  if (display.kind === 'document') {
+    return (
+      <a
+        className={styles.occurrenceAttachmentDocument}
+        href={display.url}
+        rel="noreferrer"
+        target="_blank"
+      >
+        <Icon name="document" />
+        <span>{t('occurrenceFeed.detail.documentLabel', { position: current.position })}</span>
+      </a>
+    )
+  }
+
   /**
    * A frase morta virou frase com saída: depois da releitura automática, quem decide tentar de
    * novo é o usuário — e o botão zera o teto só desta foto.

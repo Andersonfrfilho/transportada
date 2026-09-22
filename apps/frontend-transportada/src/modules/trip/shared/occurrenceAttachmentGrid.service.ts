@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { isOccurrencePdfMimeType } from './occurrencePhotoImage.service'
 import type { OccurrenceAttachment } from './trip.types'
 
 /**
@@ -14,6 +15,7 @@ export function capOccurrenceAttachments(
 }
 
 export type OccurrenceAttachmentDisplay =
+  | Readonly<{ kind: 'document'; url: string }>
   | Readonly<{ kind: 'expired' }>
   | Readonly<{ isThumbnail: boolean; kind: 'image'; src: string }>
   | Readonly<{ kind: 'unavailable' }>
@@ -29,6 +31,12 @@ export function resolveOccurrenceAttachmentDisplay(
   attachment: OccurrenceAttachment,
 ): OccurrenceAttachmentDisplay {
   if (attachment.expired) return { kind: 'expired' }
+  /** PDF não tem miniatura e nunca vira `<img>`: o ícone `document` é o que a leitura desenha. */
+  if (isOccurrencePdfMimeType(attachment.mimeType)) {
+    return attachment.downloadUrl === undefined
+      ? { kind: 'unavailable' }
+      : { kind: 'document', url: attachment.downloadUrl }
+  }
   if (attachment.thumbnailUrl !== undefined) {
     return { isThumbnail: true, kind: 'image', src: attachment.thumbnailUrl }
   }

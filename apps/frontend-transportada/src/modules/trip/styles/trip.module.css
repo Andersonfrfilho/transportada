@@ -2040,6 +2040,34 @@
 }
 
 /* Selo de foto expirada (D11) ou de falha de carregamento (RF13) — nunca ícone quebrado. */
+/*
+ * PDF não tem miniatura: o ladrilho é o ícone `document` do design system com o rótulo do anexo,
+ * na mesma caixa de 8rem × 6rem das miniaturas para a grade continuar fechando em linha.
+ */
+.occurrenceAttachmentDocument {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 8rem;
+  height: 6rem;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-slate);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.occurrenceAttachmentDocument:hover,
+.occurrenceAttachmentDocument:focus-visible {
+  border-color: var(--color-slate);
+  color: var(--color-fog);
+}
+
 .occurrenceAttachmentBadge {
   display: flex;
   flex-direction: column;
@@ -3133,6 +3161,23 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* O PDF escolhido ocupa o mesmo ladrilho da foto, com ícone e nome em vez de miniatura. */
+.occurrencePhotoDocument {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--color-slate);
+  text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .occurrencePhotoRemove {

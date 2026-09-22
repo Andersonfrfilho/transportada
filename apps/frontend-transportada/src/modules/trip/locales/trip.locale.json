@@ -713,7 +713,8 @@
       "torchOn": "Ligar lanterna",
       "uploadChoose": "Escolher arquivo",
       "uploadEmpty": "Nenhum arquivo escolhido",
-      "uploadLabel": "Enviar foto"
+      "uploadLabel": "Enviar foto ou PDF",
+      "documentAlt": "Documento PDF anexado"
     },
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "product": "Item da nota",
@@ -756,7 +757,8 @@
       "photoExpired": "Foto expirada (retenção de 5 anos)",
       "photoLoadError": "Não foi possível carregar a foto",
       "title": "Detalhe",
-      "photoRetry": "Tentar de novo"
+      "photoRetry": "Tentar de novo",
+      "documentLabel": "Documento {{position}} (PDF)"
     },
     "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
     "filters": {

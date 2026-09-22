@@ -15,6 +15,21 @@ export const OCCURRENCE_THUMBNAIL_MAX_SIDE = 320
 export const OCCURRENCE_THUMBNAIL_QUALITY = 0.7
 export const OCCURRENCE_THUMBNAIL_TARGET_BYTES = 60 * 1024
 
+/**
+ * O PDF entra **como está**: reencodar pelo canvas é o que descarta o EXIF de uma foto, e não há
+ * canvas que abra um PDF. Ele também não ganha miniatura no navegador — a leitura o desenha com o
+ * ícone `document`, nunca em `<img>`.
+ */
+export const OCCURRENCE_PDF_MIME_TYPE = 'application/pdf'
+
+/** O `accept` do seletor: foto de qualquer formato que o aparelho ofereça, mais o PDF. */
+export const OCCURRENCE_ATTACHMENT_ACCEPT = `image/*,${OCCURRENCE_PDF_MIME_TYPE}`
+
+/** O tipo pode vir com parâmetro (`application/pdf; charset=…`) — compara o tipo, não a string. */
+export function isOccurrencePdfMimeType(mimeType: string): boolean {
+  return mimeType.trim().toLowerCase().split(';')[0] === OCCURRENCE_PDF_MIME_TYPE
+}
+
 export type OccurrencePhotoImageSize = Readonly<{ height: number; width: number }>
 
 export type OccurrencePhotoAttachment = Readonly<{
@@ -152,6 +167,8 @@ function encodeOccurrencePhotoThumbnail(
 export async function buildOccurrencePhotoAttachment(
   file: File,
 ): Promise<OccurrencePhotoAttachment> {
+  if (isOccurrencePdfMimeType(file.type)) return { original: file, thumbnail: undefined }
+
   const image = await loadImageFromFile(file)
   const sourceSize: OccurrencePhotoImageSize = {
     height: image.naturalHeight,
