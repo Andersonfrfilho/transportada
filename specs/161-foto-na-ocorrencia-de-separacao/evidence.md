@@ -1872,3 +1872,111 @@ Nenhum achado antigo foi apagado — os três seguem em "Abertos", com a data de
 atualização datada de hoje.
 
 **Gates:** `bun run format:check` (raiz) — verde.
+
+### T21 — Controle explícito do expurgo: nasce desligada, botão de ligar/desligar (pedido do usuário)
+
+**Contexto:** a Fase 5 (T17/T18) fez `trip.occurrence-attachment.purge` nascer **habilitada** — inerte
+na prática (retenção de cinco anos a partir de hoje), mas o usuário pediu controle explícito: "pode
+manter desligado e um botão para ligar ele e um botão de se quisermos apagar manualmente tbm".
+
+**1) Nasce desligada.** O CHECK `job_schedules_pause_check` original exigia `enabled = (paused_at is
+null)` **e** `(paused_at is null) = (paused_by is null)` — pausa sempre com autor. A migration
+original (`20260922112706_…`) semeou a linha `enabled: true` porque não havia usuário para atribuir
+a uma pausa na origem.
+
+Decisão: o CHECK foi **afrouxado**, não removido — `paused_by` pode ser nulo **só quando `paused_at`
+está preenchido** (pausa de origem); o inverso continua proibido (`paused_by` sem `paused_at` nunca
+foi e não passou a ser válido). Nova fórmula em `src/database/job-schedule.schema.ts`:
+
+```
+enabled = (paused_at is null) and (paused_by is null or paused_at is not null)
+```
+
+Isso preserva a regra que a spec original documentava ("pausa feita por pessoa tem dono") para toda
+pausa que passa pela tela — o botão sempre grava os dois campos juntos — e abre exceção só para a
+pausa que a migration grava sem ator. Migration nova
+`drizzle/20260922114949_job_schedule_pause_control/` (gerada por `bun run db:generate`, snapshot
+incluso): troca o CHECK e faz `UPDATE job_schedules SET enabled = false, paused_at = now() WHERE job
+= 'trip.occurrence-attachment.purge' AND enabled = true` — a linha existente vira desligada em vez de
+inserir uma segunda linha, preferindo "presente e desabilitada" a "ausente", como pedido (a tela
+mostra o estado e oferece ligar, em vez da rotina ser invisível).
+
+**Gate da migration cumprido via Postgres nativo** (Docker fora do ar):
+`postgresql://postgres@127.0.0.1:65433/`. Banco descartável criado
+(`transportada_migration_test`), `runDatabaseMigrations` aplicado do zero (220 pastas, incluindo as
+duas de hoje) — `select … from job_schedules where job = 'trip.occurrence-attachment.purge'` devolveu
+`enabled=false, paused_at=<agora>, paused_by=NULL`, provando que o CHECK aceita a pausa de origem.
+`rollback.sql` executado na sequência: devolveu `enabled=true, paused_at=NULL, paused_by=NULL` e
+removeu a linha do `drizzle.__drizzle_migrations`, provando o caminho de volta. Banco descartável
+apagado ao final.
+
+**2) Botão de ligar/desligar.** Três rotas novas em `operations.routes.ts`, mesma permissão
+`operations.run` das rotas vizinhas (a mesma cota de decisão operacional que "rodar agora"):
+
+- `GET /operations/job-schedules` (`operations.read`) — lista o relógio das rotinas (`enabled`,
+  `pausedAt`, `pausedBy`, `nextRunAt`), para a tela mostrar o estado.
+- `POST /operations/jobs/:job/pause` — grava `enabled=false`, `paused_at=now()`,
+  `paused_by=<ator autenticado>`.
+- `POST /operations/jobs/:job/resume` — limpa os três de volta a `enabled=true`, `paused_at=null`,
+  `paused_by=null`.
+
+Camadas novas: `operations/application/job-schedule-control.port.ts` (port),
+`job-schedule-control.use-case.ts` (valida a rotina contra `SCHEDULED_JOBS`, 400
+`UNKNOWN_SCHEDULED_JOB` fora do catálogo, 404 `JOB_SCHEDULE_NOT_FOUND` se a linha não existir),
+`infrastructure/drizzle-job-schedule-control.repository.ts` (UPDATE direto em `job_schedules`,
+`returning()`), fiadas em `main.ts` ao lado do `runJob` existente.
+
+**Trilha de auditoria (regra §10):** `paused_at`/`paused_by` **são** a trilha — quem desligou e
+quando, na mesma linha que o agendador lê, consultável a qualquer momento pela tela. O IP e o
+correlation id de toda chamada (inclusive esta) já saem no log estruturado
+`http_request_completed` do `request-handler.service.ts` — nada aqui duplica isso numa segunda
+tabela. `auditLogs` (a tabela genérica de trilha) não serve: `entityId` é `uuid` não-anulável, e
+`job_schedules` tem `job` (texto) como chave — forçar um UUID sintético ali seria complexidade sem
+consumidor.
+
+**3) Botão de rodar agora — já cobria a rotina nova, nada duplicado.** `SCHEDULED_JOBS` (import de
+`jobCatalog.constant.ts`) já inclui `trip.occurrence-attachment.purge` desde a T18; o painel
+(`OperationsDashboard.page.tsx`) itera esse array para renderizar uma `RunJobRow` por rotina — a
+rotina nova já aparecia na lista antes desta task, sem código extra. Confirmado por leitura, não
+foi criado nada para isso.
+
+**4) Tela.** `RunJobRow` ganhou um segundo botão (ligar/desligar) ao lado do de rodar, lendo o estado
+de `GET /operations/job-schedules` (`workspace.jobSchedulesQuery`). Texto explícito por rotina:
+"Ligada — roda sozinha na cadência da instalação" / "Desligada — só roda pelo botão 'Rodar agora'",
+com a data de quando foi desligada quando houver. A frase "apaga arquivo sem volta" e "hoje não tem o
+que apagar" (retenção de cinco anos) não entrou como texto fixo na tela — decisão de escopo: o botão
+de rodar já existia sem esse aviso para as outras nove rotinas, e adicioná-lo só para esta quebraria
+a consistência visual sem gate de teste que prove a frase. Registrado aqui para quem quiser essa
+melhoria de UX como task própria.
+
+**Vermelho → verde:**
+
+- `bunx tsc --noEmit` (api) acusou `Dependencies.jobSchedules` ausente no fixture HTTP → corrigido
+  em `test/fixtures/operations-http.fixture.ts` (dependência + `JOB_SCHEDULES_PAGE` + calls
+  gravados).
+- `test/operations-http/job-schedule-control.contract.ts` (6 testes novos: lista, desliga e grava
+  ator, liga e limpa, 400 fora do catálogo, 404 sem linha, 403 só com `operations.read`) — todos
+  vermelhos antes das rotas existirem, verdes depois.
+- `test/operations-http/security-and-cors.contract.ts` (rota documentada) — precisou das três rotas
+  novas na lista esperada.
+- `test/database-migration/static-migration.contract.ts` — precisou da nova pasta de migration na
+  lista de diretórios.
+- Frontend: `test/operations/client-and-queries.contract.ts` ganhou 2 testes (lista+pausa+retoma
+  pelo caminho feliz; `null` sem lançar quando a chamada falha, mesmo padrão do `runJob`).
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada test` → 6828 pass, 32 skip, 0 fail (inclui os 6 testes novos
+  de `job-schedule-control.contract.ts`; os 9 testes de `toll-booth-catalog-repository.integration`
+  que dependem de Postgres real só falham com `.env.test` carregado e Docker fora do ar —
+  pré-existente, sem relação com esta task).
+- `bun run --cwd apps/cron-transportada test` → 101 pass, 0 fail (rotina lida por `enabled`, sem
+  mudança de código no cron — `listDue` já filtrava por `enabled = true`).
+- `bun run --cwd apps/frontend-transportada test` → 44 pass, 0 fail (`test/operations.contract.test.ts`,
+  incluindo os 2 testes novos do cliente).
+- `bun run lint` / `bun run typecheck` / `bun run format:check` (raiz) — todos verdes.
+- Migration + rollback: Postgres nativo (`127.0.0.1:65433`), descrito acima — Docker fora do ar.
+- `bun --env-file=../../.env.test run test:integration` (api) **não** rodou — aponta para o Postgres
+  dockerizado (55432), fora do ar; mesma limitação já registrada na T19. Nenhum teste de integração
+  novo depende de bucket ou fila — a única prova que falta é a mesma classe de gate que a T19 já
+  deixou pendente.
