@@ -94,6 +94,16 @@ export type OperatorFlowActionDependencies = {
   }) => Promise<TransitionTripDocumentResult>
   readonly registerOccurrence: (input: {
     readonly actorUserId: string
+    /**
+     * Spec 161 T13/T15: a foto baixada do WhatsApp (RF16/RF19). Ausente aqui ainda recusa com
+     * `OccurrencePhotoRequiredError` (D1/RF4) — é a T15 que passa a preencher este campo a partir
+     * do passo de foto do fluxo do operador.
+     */
+    readonly attachment?: {
+      readonly bytes: Uint8Array
+      readonly mimeType: string
+      readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+    }
     readonly companyId: string
     readonly documentId: string
     readonly note: string

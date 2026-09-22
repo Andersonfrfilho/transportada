@@ -839,9 +839,18 @@ export function bootstrap(): Bun.Server<undefined> {
         repository: whatsappTripDocumentRepository,
         tripId: input.tripId,
       }),
+    /**
+     * Spec 161 T13 (CA9b/CA9c/RF16): a mesma persistência da rota HTTP
+     * (`persistSeparationOccurrenceWithAttachment`, `src/main.ts:2861` na rota
+     * `POST .../occurrences`) — nunca `saveTripOccurrence` cru, que não sobe `stored_objects` nem
+     * grava purpose/retenção. `attachment` ainda é opcional aqui: até a T15 ligar o passo de foto
+     * do fluxo do operador, `registerTripOccurrence` recusa com `OccurrencePhotoRequiredError`
+     * (D1/RF4) para qualquer ocorrência de galpão, como já acontecia antes desta task.
+     */
     registerOccurrence: (input) =>
       registerTripOccurrence({
         actorUserId: input.actorUserId,
+        ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
         companyId: input.companyId,
         documentId: input.documentId,
         note: input.note,
@@ -853,7 +862,28 @@ export function bootstrap(): Bun.Server<undefined> {
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
           listOccurrences: (query) => listTripOccurrences(database.db, query),
           readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
-          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
+          saveOccurrence: (query) =>
+            persistSeparationOccurrenceWithAttachment({
+              attachment: query.attachment,
+              input: {
+                actorUserId: query.actorUserId,
+                companyId: query.companyId,
+                documentId: query.documentId,
+                note: query.note,
+                occurrenceTypeId: query.occurrenceTypeId,
+                productCode: query.productCode,
+                stage: query.stage,
+                tripId: query.tripId,
+                typeName: query.typeName,
+              },
+              newObjectId: () => crypto.randomUUID(),
+              now: () => new Date(),
+              storage: createDeliveryProofStorage({
+                bucket: whatsappStorageBucket,
+                storage: whatsappStorageGateway,
+              }),
+              unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db),
+            }),
         },
         tripId: input.tripId,
       }),
