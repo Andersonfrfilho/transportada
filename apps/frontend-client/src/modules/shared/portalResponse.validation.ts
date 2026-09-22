@@ -5,6 +5,10 @@ import type {
   Delivery,
   DeliveryLocation,
   DeliverySchedule,
+  Occurrence,
+  OccurrenceAttachment,
+  OccurrenceDecisionKind,
+  OccurrenceDecisionResult,
 } from './portal.types'
 
 /**
@@ -109,4 +113,66 @@ export function toSingleChargeBatch(payload: unknown): ChargeBatch | null {
   if (!isRecord(payload) || !isRecord(payload.data)) return null
 
   return toChargeBatch(payload.data)
+}
+
+function readBoolean(record: Record<string, unknown>, key: string): boolean {
+  return record[key] === true
+}
+
+function readNumber(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  return typeof value === 'number' ? value : 0
+}
+
+const OCCURRENCE_DECISION_KINDS: readonly OccurrenceDecisionKind[] = [
+  'goods_paid',
+  'other',
+  'redelivery_authorized',
+]
+
+function toOccurrenceDecisionKind(value: unknown): OccurrenceDecisionKind | null {
+  return typeof value === 'string' &&
+    (OCCURRENCE_DECISION_KINDS as readonly string[]).includes(value)
+    ? (value as OccurrenceDecisionKind)
+    : null
+}
+
+function toOccurrenceAttachment(row: Record<string, unknown>): OccurrenceAttachment {
+  return {
+    downloadUrl: readNullableString(row, 'downloadUrl'),
+    expired: readBoolean(row, 'expired'),
+    id: readString(row, 'id'),
+    position: readNumber(row, 'position'),
+    thumbnailUrl: readNullableString(row, 'thumbnailUrl'),
+  }
+}
+
+function toOccurrence(row: Record<string, unknown>): Occurrence {
+  return {
+    attachments: Array.isArray(row.attachments)
+      ? row.attachments.filter(isRecord).map(toOccurrenceAttachment)
+      : [],
+    caseStatus: readString(row, 'caseStatus'),
+    decidedAt: readNullableString(row, 'decidedAt'),
+    decisionKind: toOccurrenceDecisionKind(row.decisionKind),
+    occurrenceId: readString(row, 'occurrenceId'),
+    occurrenceTypeName: readString(row, 'occurrenceTypeName'),
+    openedAt: readString(row, 'openedAt'),
+    stage: readString(row, 'stage'),
+  }
+}
+
+export function toOccurrences(payload: unknown): readonly Occurrence[] {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return []
+
+  return payload.data.filter(isRecord).map(toOccurrence)
+}
+
+export function toOccurrenceDecisionResult(payload: unknown): OccurrenceDecisionResult | null {
+  if (!isRecord(payload) || !isRecord(payload.data)) return null
+  const row = payload.data
+  const kind = row.kind
+  if (kind !== 'changed' && kind !== 'unchanged') return null
+
+  return { kind, status: readString(row, 'status') }
 }

@@ -5,6 +5,9 @@ import type {
   Delivery,
   DeliveryLocation,
   DeliverySchedule,
+  Occurrence,
+  OccurrenceDecisionInput,
+  OccurrenceDecisionResult,
   ScheduleInput,
 } from './portal.types'
 import {
@@ -12,11 +15,14 @@ import {
   toDeliveries,
   toDeliveryLocation,
   toDeliverySchedule,
+  toOccurrenceDecisionResult,
+  toOccurrences,
   toSingleChargeBatch,
 } from './portalResponse.validation'
 
 const DELIVERIES_PATH = '/client/me/deliveries'
 const BATCHES_PATH = '/client/me/extra-charge-batches'
+const OCCURRENCES_PATH = '/client/me/occurrences'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -29,8 +35,10 @@ export type PortalClient = Readonly<{
     readonly batchId: string
     readonly decisions: readonly ChargeDecision[]
   }) => Promise<ChargeBatch | null>
+  decideOccurrence: (input: OccurrenceDecisionInput) => Promise<OccurrenceDecisionResult | null>
   listBatches: () => Promise<readonly ChargeBatch[]>
   listDeliveries: () => Promise<readonly Delivery[]>
+  listOccurrences: () => Promise<readonly Occurrence[]>
   readLocation: (accessKey: string) => Promise<DeliveryLocation | null>
   schedule: (input: ScheduleInput) => Promise<DeliverySchedule | null>
 }>
@@ -74,6 +82,15 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
   }
 
   return {
+    async decideOccurrence({ kind, note, occurrenceId }) {
+      return toOccurrenceDecisionResult(
+        await request({
+          body: { kind, ...(note === undefined ? {} : { note }) },
+          method: 'POST',
+          path: `${OCCURRENCES_PATH}/${encodeURIComponent(occurrenceId)}/decision`,
+        }),
+      )
+    },
     async decideBatch({ batchId, decisions }) {
       return toSingleChargeBatch(
         await request({
@@ -88,6 +105,9 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
     },
     async listDeliveries() {
       return toDeliveries(await request({ method: 'GET', path: DELIVERIES_PATH }))
+    },
+    async listOccurrences() {
+      return toOccurrences(await request({ method: 'GET', path: OCCURRENCES_PATH }))
     },
     async readLocation(accessKey) {
       return toDeliveryLocation(

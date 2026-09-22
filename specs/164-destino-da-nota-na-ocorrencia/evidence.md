@@ -1096,3 +1096,74 @@ migration que mexe nessas duas superfícies. Ambos corrigidos e commitados junto
 ### Commit desta rodada
 
 1. `feat(api): spec 164 T20 — o demonstrativo de ressarcimento em PDF`
+
+## T25 — apps/frontend-client: tela "Ocorrências" do portal do contratante
+
+Escopo estrito: só `apps/frontend-client`. `apps/frontend-transportada` e `apps/api-transportada`
+não foram tocados nesta rodada — outra sessão trabalhava neles.
+
+### O que foi feito
+
+- `src/modules/shared/portal.types.ts`: `OccurrenceAttachment`, `Occurrence`,
+  `OccurrenceDecisionKind` (`'goods_paid' | 'other' | 'redelivery_authorized'`),
+  `OccurrenceDecisionInput`, `OccurrenceDecisionResult`.
+- `src/modules/shared/portalResponse.validation.ts`: `toOccurrences` / `toOccurrenceDecisionResult`,
+  no mesmo molde de type guard manual das outras respostas (sem zod nesta app).
+- `src/modules/shared/portalClient.service.ts`: `listOccurrences` (`GET /client/me/occurrences`) e
+  `decideOccurrence` (`POST /client/me/occurrences/:id/decision`).
+- `src/modules/deliveries/queries/portal.query.ts`: `useOccurrences` / `useDecideOccurrence`
+  (TanStack Query), reaproveitando o arquivo que já serve `charges` — é o ponto único de query do
+  portal, não um por módulo.
+- `src/modules/occurrences/OccurrenceList.page.tsx`, `DecisionForm.component.tsx`,
+  `shared/occurrenceStatus.service.ts` — molde de `ChargeBatchList.page.tsx`: cartão por ocorrência,
+  badge de estado, miniatura das fotos (`OccurrencePhoto`), foto original ao clicar
+  (`OccurrenceOriginalPhoto`), e os três botões de decisão em `DecisionForm` (rádio nativo — lista de
+  3, dentro do limite do web.md §11 — com o texto do que cada opção significa e o campo de motivo
+  obrigatório só em "outra solução").
+- `src/main.tsx`: terceira aba "Ocorrências" ao lado de "Entregas"/"Repasses".
+- `src/styles/index.css`: três classes novas (`.occurrence-photo`, `.occurrence-photo--large`,
+  `.occurrence-photo-button`), todas em cima das variáveis já existentes — nenhum valor hardcoded.
+- Foto que vence: a URL assinada dura 5 minutos (mordida conhecida no painel interno). `onError` da
+  `<img>` tenta `refetch()` da lista **uma vez** (o `useOccurrences` volta com URL nova) antes de
+  mostrar "não foi possível carregar a foto" com botão "Tentar de novo" — nunca falha permanente sem
+  saída. Foto `expired` (retenção vencida, `occurrence-attachment.service.ts` da API) é selo textual
+  desde o início, sem nunca tentar `<img>`.
+- Decisão repetida converge (a mutação só invalida a query, sem aviso — o `200` da API já é
+  silencioso) e decisão divergente sobre tratativa `decided` (`409
+OCCURRENCE_CASE_DECISION_CONFLICT`) vira frase própria — "já foi decidida com outra opção", nunca
+  o genérico de erro de sistema. `422 OCCURRENCE_CASE_NOTE_REQUIRED` também tem frase própria, mesmo
+  o formulário já bloqueando o envio sem nota em "outra solução" no cliente.
+- Nenhum dado interno na tela: o campo `stage` (`delivery`/`separation`) e `caseStatus` são
+  traduzidos por `occurrenceStatus.service.ts`; nada de motorista, canal ou id interno — a API já não
+  os publica (`contractor-occurrence.routes.ts` serializa campo a campo).
+
+### ⚠️ Divergência achada entre a spec e a API já publicada — não é desta task, registro para quem
+
+decidir
+
+RF13/RF35 pedem que a lista traga **nota, itens e observação** junto de tipo e fotos. Lendo
+`apps/api-transportada/src/contractor-portal/presentation/contractor-occurrence.routes.ts` (rota já
+em staging, T10/T11), o `GET /client/me/occurrences` serializa hoje só `attachments`, `caseStatus`,
+`decidedAt`, `decisionKind`, `occurrenceId`, `occurrenceTypeName`, `openedAt`, `stage` — nota (número
+da NF-e), itens e a observação (`note`) existem em `ContractorOccurrenceDetail`
+(`findContractorOccurrenceDetail`, usado só pelo `POST .../decision` antes de decidir), mas não saem
+no `GET` de listagem. A tela desta task não inventa esses três campos: eles não existem na resposta
+que o front recebe, e exibir um valor que nunca chega seria pior que omitir. Se a intenção é mesmo
+que a lista os carregue, é mudança do lado da API (adicionar ao `serialize()` da rota), fora do
+escopo de "só frontend-client" desta rodada.
+
+### Gates (dentro de `apps/frontend-client`, rodados a partir da raiz do worktree)
+
+- `bun run lint` — limpo (`eslint .`).
+- `bun run typecheck` — limpo (`tsc --noEmit`).
+- `bunx prettier --check .` (raiz, escopo do repo inteiro) — limpo depois de `--write` nos dois
+  arquivos que precisaram (`OccurrenceList.page.tsx`, `test/occurrences/occurrence-status.contract.ts`).
+- `bun run --cwd apps/frontend-client test` — **55 pass, 0 fail**, 128 `expect()`, 5 arquivos (o
+  novo `test/occurrences.contract.test.ts` → `test/occurrences/occurrence-status.contract.ts` soma
+  4 testes: tradução do selo por `caseStatus`, `isDecidable` só em `awaiting_contractor`, rótulo das
+  três decisões, tradução de `stage` com fallback pro valor cru). O teste novo entrou na lista
+  explícita de `apps/frontend-client/package.json` `scripts.test` — sem isso ele não roda.
+
+### Commit desta rodada
+
+1. `feat(frontend-client): spec 164 T25 — tela de ocorrências do contratante`

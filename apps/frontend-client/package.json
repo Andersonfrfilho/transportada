@@ -11,7 +11,7 @@
     "preview": "vite preview --host 0.0.0.0 --port ${FRONTEND_CLIENT_PORT:-53100}",
     "serve": "bun ./server.ts",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-53100}",
-    "test": "bun test test/shared.contract.test.ts test/deliveries.contract.test.ts test/keycloak-auth-provider.test.ts test/login-hint-client.test.ts",
+    "test": "bun test test/shared.contract.test.ts test/deliveries.contract.test.ts test/occurrences.contract.test.ts test/keycloak-auth-provider.test.ts test/login-hint-client.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
