@@ -600,9 +600,16 @@ unique `(company_id, occurrence_id)` → `inner join` em `company_occurrence_typ
 - `bun run db:generate` → `no_changes` depois da migration nova.
 - `make migration-test` — **110 pass, 0 fail** (a suíte de migration/rollback contra Postgres
   descartável, incluindo a migration nova da T9).
-- `bun --env-file=../../.env.test run test:integration` — rodada completa da suíte inteira em
-  andamento; o arquivo novo desta rodada (`trip-occurrence-case.integration.ts`) já foi confirmado
-  verde isoladamente acima.
+- `bun --env-file=../../.env.test run test:integration` (suíte inteira) — **521 pass, 8 fail, 7
+  skip, 3076 expect()**, 536 testes em 96 arquivos. Delta contra a T8 (518 pass / 9 fail / 534
+  testes / 95 arquivos): **+3 pass, +2 testes, +1 arquivo** — exatamente os dois testes novos desta
+  rodada, e a nona falha da T8 (timeout de contenção em repasse/`delivery_charges`, já registrada
+  como não-determinística) não se repetiu. As oito falhas restantes são as mesmas já diagnosticadas
+  desde a T1 — `toll booth catalog reload integration` (3 nesta rodada, as outras somem/reaparecem
+  por ordem) e `toll booth extract create-only`/`cte archive gateway` —, todas
+  `OBJECT_STORAGE_UNAVAILABLE` pela credencial divergente do MinIO no `.env.test` local. Nenhuma
+  toca `trip_occurrence_cases`, `trip_occurrence_case_events`, `contractor_portal_bindings` ou
+  qualquer caminho tocado por T9–T12.
 
 ### Commits isolados desta rodada
 
