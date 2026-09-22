@@ -1,8 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
-import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_ITEM_QUANTITY_UNIT,
+  TRIP_OCCURRENCE_STAGE,
+} from '../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceItemQuantityUnit,
+  TripOccurrenceStage,
+} from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -1687,6 +1693,13 @@ export const tripDocumentOccurrenceProducts = pgTable(
     /** O código do item em `nfe_products`, conferido contra a nota antes de gravar. */
     productCode: text('product_code').notNull(),
     position: smallint().notNull(),
+    /**
+     * Spec 166 (RF1/RF2): quanto do item foi atingido — opcional, e sempre ao lado da unidade
+     * (o CHECK abaixo casa os dois). Escala 3 para caber contagem de peça fracionada sem ficar
+     * larga demais para uma coisa que hoje só é digitada.
+     */
+    quantity: numeric('quantity', { precision: 12, scale: 3 }),
+    quantityUnit: varchar('quantity_unit', { length: 8 }).$type<OccurrenceItemQuantityUnit>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1717,6 +1730,23 @@ export const tripDocumentOccurrenceProducts = pgTable(
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
+    /**
+     * Os dois andam juntos (RF1): quantidade sem unidade é número sem significado, e unidade sem
+     * quantidade é escolha que não diz de quê.
+     */
+    check(
+      'trip_document_occurrence_products_quantity_presence_check',
+      sql`(${table.quantity} is null) = (${table.quantityUnit} is null)`,
+    ),
+    /** RF2: zero é "não aconteceu" — isso se diz não registrando o item, nunca com zero gravado. */
+    check(
+      'trip_document_occurrence_products_quantity_positive_check',
+      sql`${table.quantity} is null or ${table.quantity} > 0`,
+    ),
+    check(
+      'trip_document_occurrence_products_quantity_unit_check',
+      sql`${table.quantityUnit} is null or ${table.quantityUnit} in (${raw(inList(Object.values(OCCURRENCE_ITEM_QUANTITY_UNIT)))})`,
+    ),
   ],
 )
 
@@ -1770,6 +1800,11 @@ export const companyOccurrenceTypes = pgTable(
       .notNull()
       .$type<RedeliveryPolicy>()
       .default('unset'),
+    /**
+     * Spec 166 (RF3): se este tipo aceita mais de um item marcado. Padrão `true` preserva o
+     * comportamento de hoje — nenhuma instalação muda de comportamento ao aplicar esta migration.
+     */
+    allowsMultipleItems: boolean('allows_multiple_items').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

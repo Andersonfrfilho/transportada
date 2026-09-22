@@ -47,3 +47,16 @@ const STAGE_BY_TYPE = new Map<string, TripOccurrenceStage>(
 export function resolveOccurrenceStage(type: string): null | TripOccurrenceStage {
   return STAGE_BY_TYPE.get(type) ?? null
 }
+
+/**
+ * Spec 166 (RF1): a unidade da quantidade apontada por item — peça ou caixa fechada, à escolha de
+ * quem registra. `VARCHAR` com CHECK, nunca ENUM nativo (code-standart §8). Cópia por valor no
+ * frontend, no mesmo molde de `TRIP_OCCURRENCE_STAGE` acima.
+ */
+export const OCCURRENCE_ITEM_QUANTITY_UNIT = {
+  box: 'box',
+  unit: 'unit',
+} as const
+
+export type OccurrenceItemQuantityUnit =
+  (typeof OCCURRENCE_ITEM_QUANTITY_UNIT)[keyof typeof OCCURRENCE_ITEM_QUANTITY_UNIT]
