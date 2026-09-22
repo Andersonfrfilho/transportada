@@ -326,6 +326,13 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    * derruba a resposta inteira — 201 gravado, tela dizendo que falhou (medido em 22/09).
    */
   'products',
+  /**
+   * Spec 167 RF9: o histórico da ocorrência. `corrections` guarda o conjunto que valia **antes** de
+   * cada correção; `cancellation` é o cancelamento com motivo e autor, ou `null`. Opcionais aqui
+   * antes de a API mandá-las, pela mesma razão de `products`.
+   */
+  'corrections',
+  'cancellation',
 ] as const
 
 /** Spec 166 RF1: em que a quantidade do item é contada. Peça solta ou volume fechado. */

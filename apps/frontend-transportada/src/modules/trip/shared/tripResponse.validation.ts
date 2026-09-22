@@ -6,6 +6,8 @@ import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
   TripDocumentProduct,
+  OccurrenceCancellation,
+  OccurrenceCorrection,
   OccurrenceProduct,
   TripOccurrence,
   TripCargoLayout,
@@ -1091,6 +1093,29 @@ function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
   )
 }
 
+/**
+ * Spec 167 RF9: a correção sem o conjunto anterior chegaria à tela como histórico vazio — pior que
+ * histórico ausente, porque parece que ninguém mexeu na ocorrência.
+ */
+function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
+  return (
+    hasExactKeys(value, ['correctedAt', 'correctedByName', 'previousItems'] as const) &&
+    isString(value.correctedAt) &&
+    isString(value.correctedByName) &&
+    isEveryItem(value.previousItems, isOccurrenceProduct)
+  )
+}
+
+/** O motivo é o que justifica o cancelamento: cancelamento sem ele não chega à tela. */
+function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
+  return (
+    hasExactKeys(value, ['cancelledAt', 'cancelledByName', 'reason'] as const) &&
+    isString(value.cancelledAt) &&
+    isString(value.cancelledByName) &&
+    isString(value.reason)
+  )
+}
+
 export function isTripOccurrence(value: unknown): value is TripOccurrence {
   if (
     !hasKeys(value, {
@@ -1113,6 +1138,10 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
     isString(value.productCode) &&
     (value.productCodes === undefined || isEveryItem(value.productCodes, isString)) &&
     (value.products === undefined || isEveryItem(value.products, isOccurrenceProduct)) &&
+    (value.corrections === undefined || isEveryItem(value.corrections, isOccurrenceCorrection)) &&
+    (value.cancellation === undefined ||
+      value.cancellation === null ||
+      isOccurrenceCancellation(value.cancellation)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
   )

@@ -174,6 +174,10 @@ export type TripOccurrence = Readonly<{
    * no banco e nunca vira float binário no caminho. Nulo é item sem contagem, que continua válido.
    */
   products?: readonly OccurrenceProduct[]
+  /** Spec 167: uma entrada por correção, com o conjunto de itens que valia antes dela. */
+  corrections?: readonly OccurrenceCorrection[]
+  /** Spec 167: `null` é "não foi cancelada" — ausente é "esta API ainda não publica o campo". */
+  cancellation?: null | OccurrenceCancellation
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
@@ -196,6 +200,20 @@ export type OccurrenceProduct = Readonly<{
   code: string
   quantity: null | string
   unit: null | OccurrenceQuantityUnit
+}>
+
+/** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
+export type OccurrenceCorrection = Readonly<{
+  correctedAt: string
+  correctedByName: string
+  previousItems: readonly OccurrenceProduct[]
+}>
+
+/** Spec 167 RF6: a ocorrência cancelada continua visível — com motivo e autor, nunca apagada. */
+export type OccurrenceCancellation = Readonly<{
+  cancelledAt: string
+  cancelledByName: string
+  reason: string
 }>
 
 export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
