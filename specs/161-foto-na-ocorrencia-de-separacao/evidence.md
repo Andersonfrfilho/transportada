@@ -643,3 +643,251 @@ leituras **e** — pela mesma exigência do `tasks.md` de T16 para o WhatsApp �
 o caso de idempotência do HTTP também, por já precisar de banco de verdade e de uma ocorrência
 gravada de ponta a ponta). Registrar aqui para não se perder: a task de integração de T12 precisa
 cobrir também o cenário de reenvio da T8, não só as três leituras do `plan.md`.
+
+## T9 — Painel da nota devolve `attachments[]` com miniatura
+
+Data: 2026-09-21. Commit `b211dd104`.
+
+### O ponto que decidia esta task
+
+Medido antes de tocar em código: `listTripOccurrences` (`delivery-proof-read.support.ts:175-271`)
+tinha **doze menções** a "attachment" — o tipo `TripOccurrenceAttachmentLocation` (linha 169), o
+campo `attachment` no tipo de retorno (linha 184), as três colunas selecionadas
+`attachmentBucket`/`attachmentMimeType`/`attachmentObjectKey` (189-191), o `leftJoin` contra
+`storedObjects` pela coluna antiga `attachmentObjectId` (218-224) e as quatro linhas do mapeamento
+que montavam o `attachment` singular a partir dele (255-261). Todas as onze olhavam **só** para
+`attachment_object_id` — nenhuma delas via a tabela nova. A décima segunda menção
+(`findOccurrenceForAttachment`, linha 659) é função **diferente**, de T7 (resolve a ocorrência para
+a rota de anexo adicional, sem ler o anexo em si) — confirmado por leitura, não tocada.
+
+**Como provei que as onze relevantes foram cobertas**: removi o tipo `TripOccurrenceAttachmentLocation`,
+as três colunas do `select`, o `leftJoin` inteiro e o bloco de mapeamento — `listTripOccurrences`
+não menciona mais `stored_objects`/`attachment` em nenhuma forma; `command grep -n -i "attachment"
+delivery-proof-read.support.ts` depois da mudança só devolve `findOccurrenceForAttachment` (T7,
+função diferente) e comentários explicando a decisão. `bun run typecheck` confirma que nada mais no
+projeto lia o campo `attachment` removido (o único consumidor de `listTripOccurrences`, o
+`repository.listOccurrences` do caso de uso, já era tipado como `TripOccurrence[]` — não olhava
+para `attachment`).
+
+### O que mudou
+
+- `src/trips/infrastructure/delivery-proof-read.support.ts`: `listTripOccurrences` para de juntar
+  `stored_objects` pela coluna antiga; devolve só os campos da ocorrência + `id`.
+- `src/trips/application/register-trip-occurrence.use-case.ts`: `TripOccurrenceWithAttachment.attachment`
+  (singular) vira `.attachments: readonly OccurrenceAttachmentView[]` (RF8); `TripOccurrenceAttachmentSummary`
+  (não usado em mais nenhum lugar) sai.
+- `src/trips/application/occurrence-attachment.service.ts`: `readOccurrenceAttachments` passa a
+  delegar para uma função nova exportada, `buildOccurrenceAttachmentViews` — a mesma regra de
+  apresentação (expired/thumbnailUrl ausente) fica reaproveitável por quem já resolveu os
+  `OccurrenceAttachmentRecord[]` por outro caminho (T10 usa isso no feed).
+- `src/main.ts`: `listTripOccurrences.execute` para de assinar a URL do `attachment` legado à mão —
+  chama `readOccurrenceAttachments` (T3) por ocorrência, com `DrizzleOccurrenceAttachmentRepository`
+  e `createDeliveryProofDownloadGateway` já existentes.
+
+### O que essa task entregou
+
+`GET /trips/:id/documents/:documentId/occurrences` devolve `attachments[]` ordenado por `position`
+(a ordenação já é garantida por `DrizzleOccurrenceAttachmentRepository.listOccurrenceAttachments`,
+`orderBy(asc(position))`, T3); `downloadUrl`/`thumbnailUrl` assinados; nunca `objectKey`/`bucket`
+(o tipo `OccurrenceAttachmentView` não tem esses campos — impossível vazar por acidente);
+ocorrência sem anexo devolve `[]`; anexo sem miniatura sai sem `thumbnailUrl`; retenção vencida sai
+sem nenhuma URL (`expired: true`) — os quatro comportamentos são os mesmos já provados pelo unitário
+de T3 (`attachment-read.contract.ts`), agora ligados na composição real.
+
+### Gates
+
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run --cwd apps/api-transportada test test/trip-occurrence.contract.test.ts
+test/trip-field-office.contract.test.ts test/trip-http.contract.test.ts
+test/trip-infrastructure.contract.test.ts test/trip-application.contract.test.ts` → verde (447
+  testes, 0 fail).
+- `bun run --cwd apps/api-transportada test` (suíte completa) → **6794 pass, 32 skip, 0 fail**.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde.
+
+### O que não foi provado aqui
+
+A composição em `main.ts` (o `listTripOccurrences.execute` de verdade) não tem dublê de contrato —
+segue o mesmo padrão que já existia antes desta spec (nenhuma composição de `main.ts` é testada
+isoladamente neste projeto; é `test/integration/*` que exercita o `main.ts`). A prova de ponta a
+ponta desta task está em T12.
+
+## T10 — Feed e consulta de ocorrências: `hasAttachment` real e leitura no formato RF8
+
+Data: 2026-09-21. Commit `8947aeff5`.
+
+### O que mudou
+
+- `src/trips/infrastructure/trip-occurrence-feed.query.ts`:
+  - `listDocumentOccurrenceRows`: `hasAttachment: false` fixo (linha 234 do `plan.md`/`tasks.md`)
+    vira uma condição `EXISTS` contra `trip_document_occurrence_attachments` **ou**
+    `attachment_object_id is not null` — a mesma união de RF15, calculada no banco, sem trazer a
+    linha do anexo para a listagem (RNF2).
+  - `listStopOccurrenceAttachmentLocations`/`listDocumentOccurrenceAttachmentLocations`/
+    `listTripOccurrenceAttachmentLocations` deixam de devolver `{bucket, id, mimeType, objectKey}`
+    cru — passam a devolver `OccurrenceAttachmentRecord[]` (o mesmo tipo de T3): para a nota, a
+    tabela nova (com miniatura, ordenada por `position`) quando existem linhas, senão a coluna
+    antiga; para a parada (fora do escopo desta spec, D2/D12), sempre `position: 1` sem miniatura.
+- `src/trips/application/trip-occurrence-feed.use-case.ts`: `TripOccurrenceFeedReaderPort.
+listAttachmentLocations` muda de tipo de retorno; `createReadTripOccurrenceAttachmentsUseCase`
+  para de montar a view à mão (só assinava o original) e passa a chamar `buildOccurrenceAttachmentViews`
+  (T9) — `GET /trip-occurrences/:id/attachments` publica agora no **mesmo formato RF8** do painel:
+  `position`, `expired`, `thumbnailUrl` quando há miniatura. `TripOccurrenceAttachmentView` vira
+  alias de `OccurrenceAttachmentView`, para não obrigar os dois chamadores a importar de dois
+  lugares o mesmo formato.
+
+### Critério de aceite (CA6)
+
+- Ocorrência de nota com foto: `hasAttachment: true` (medido pela integração de T12, ver abaixo —
+  o `EXISTS` não é testável sem banco).
+- `GET /trip-occurrences/:id/attachments` no formato de RF8, com `thumbnailUrl` quando há miniatura
+  e sem ele quando não há (a query nova já devolve `thumbnail: null` para a coluna antiga e para a
+  parada; `buildOccurrenceAttachmentViews` omite a chave `thumbnailUrl` nesse caso — mesma regra de
+  T3, reaproveitada).
+
+### Gates
+
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run --cwd apps/api-transportada test test/trip-occurrence.contract.test.ts
+test/trip-http.contract.test.ts` → verde.
+- `bun run --cwd apps/api-transportada test` (suíte completa) → **6794 pass, 32 skip, 0 fail**.
+- `bun run lint` / `bun run format:check` → verdes.
+
+### O que não foi provado aqui
+
+O `EXISTS` do `hasAttachment` e a união das duas fontes de `listTripOccurrenceAttachmentLocations`
+são consultas SQL — não há contrato unitário sem banco que os exercite de verdade (os contratos
+existentes de feed usam dublê de `TripOccurrenceFeedReaderPort`, então não pegam um erro de SQL na
+consulta real). A prova fica em T12.
+
+## T11 — Linha do tempo: contagem de fotos, nenhuma URL assinada
+
+Data: 2026-09-21. Commit `b606129a1`.
+
+### O que mudou
+
+- `src/trips/application/trip-timeline.types.ts`: `TripTimelineOccurrenceReference` ganha
+  `attachmentCount: number`.
+- `src/trips/infrastructure/trip-timeline-document.query.ts`: `listDocumentOccurrenceRows` calcula
+  `attachmentCount` por `CASE` — conta a tabela nova quando `> 0`, senão `1` se a coluna antiga tem
+  anexo, senão `0`. Nenhuma URL é gerada (nem pedida): o tipo `TripTimelineItem` não carrega
+  `downloadUrl`/`thumbnailUrl` em nenhum lugar, então vazar uma URL aqui exigiria mudar o tipo, não
+  só o valor.
+- `src/trips/infrastructure/trip-timeline-stop.query.ts`: `listStopOccurrenceRows` (ocorrência de
+  parada, fora do escopo da spec 161) ganha `attachmentCount: 0 | 1` a partir da mesma
+  `attachmentObjectId` que já decidia `hasAttachment` no feed — só para satisfazer o tipo comum
+  `TripTimelineOccurrenceReference`, sem mudar o comportamento dela.
+
+### Critério de aceite (CA7)
+
+`attachmentCount` correto; nenhuma URL assinada, nem de original nem de miniatura — provado por
+construção de tipo (o `TripTimelineItem` não tem campo de URL) e, contra dados reais, por T12.
+
+### Gates
+
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run --cwd apps/api-transportada test test/trip-http.contract.test.ts` → verde (nenhum
+  contrato unitário existente exercitava a forma de `occurrence` da linha do tempo com dado real —
+  os contratos de rota stubam a dependência inteira).
+- `bun run --cwd apps/api-transportada test` (suíte completa) → **6794 pass, 32 skip, 0 fail**.
+- `bun run lint` / `bun run format:check` → verdes.
+
+## T12 — Integração das três leituras contra o Postgres
+
+Data: 2026-09-21. Commit `73ea73de`.
+
+### Ambiente
+
+Docker local fora do ar (`docs/ai-context` já registra isso) — rodei contra o Postgres nativo
+descartável de T1, porta `65433`:
+
+```
+DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test --timeout 120000 \
+  ./test/integration/trip-occurrence-attachment.integration.ts
+```
+
+### O que o arquivo prova
+
+`test/integration/trip-occurrence-attachment.integration.ts`, seis testes, todos contra banco
+descartável criado e migrado do zero (`withDisposableDatabase`, molde de T5):
+
+1. **Painel + feed + linha do tempo sobre a mesma linha da tabela nova, com miniatura.** Registro
+   real via `registerTripOccurrence` → `persistSeparationOccurrenceWithAttachment` (o mesmo caminho
+   de `main.ts`, com `withFieldReport` de verdade). `readOccurrenceAttachments` (painel) devolve
+   `downloadUrl` + `thumbnailUrl`, `expired: false`, `position: 1`;
+   `listTripOccurrenceFeed`.`hasAttachment` é `true`; `listTripOccurrenceAttachmentLocations`
+   devolve o registro com `thumbnail` preenchido; `listDocumentOccurrenceRows` (linha do tempo)
+   devolve `attachmentCount: 1` e a linha **não tem** as chaves `downloadUrl`/`thumbnailUrl`.
+2. **Ocorrência de rua (coluna antiga, D6): um item sem `thumbnailUrl`, nas três leituras.** Insert
+   direto simulando dado anterior à spec (`attachment_object_id` preenchido, nenhuma linha na
+   tabela nova) — as três leituras devolvem um item de `position: 1` sem miniatura.
+3. **Retenção vencida (RF26): `expired: true`, sem nenhuma URL, antes do expurgo passar.** Registro
+   normal, depois `UPDATE stored_objects SET retention_until = <passado>` — o painel devolve
+   `expired: true` sem `downloadUrl` nem `thumbnailUrl`, provando que a expiração é a **data**, não
+   uma marca que só o expurgo (T17) grava.
+4. **Isolamento por empresa.** Ocorrência da empresa A, lida com o `companyId` da empresa B: painel
+   e feed devolvem lista vazia — nunca o anexo de outra empresa (RNF6).
+5. **Reenvio idempotente do registro (pendência de T8).** Mesma `Idempotency-Key` e mesmo conteúdo
+   → mesmo `id` de ocorrência, uma linha só na tabela de anexos (nenhuma duplicata); mesma chave com
+   conteúdo diferente → `TripFieldReportKeyReusedError` (409 `TRIP_FIELD_REPORT_KEY_REUSED`),
+   provado contra o unique `(company_id, idempotency_key)` de `trip_field_reports` de verdade — o
+   que a T8 não tinha como provar sem banco.
+6. **Sexta foto bate no teto pelo caminho real do banco (pendência de T8).** Quatro `attach`
+   sucessivos sobre uma ocorrência já com uma foto (total 5), `countOccurrenceAttachments` confirma
+   5, e o sexto `attach` lança `TripOccurrenceAttachmentLimitError` — vindo do `23505`/`23514`
+   mapeado em `insertOccurrenceAttachmentRow` (T1/T6), não de uma contagem no aplicativo.
+
+### O vermelho e o verde
+
+Não houve vermelho intencional (TDD clássico) nesta task porque o alvo é a integração de código já
+escrito e testado em unidade nas tasks anteriores — o "vermelho" real foi o `typecheck` até acertar
+a assinatura de `registerTripOccurrence` (faltava `note`) e do `insert` direto em
+`tripDocumentOccurrences` (faltava `actorUserId`), os dois corrigidos antes da primeira execução.
+Na primeira execução contra Postgres os seis testes já passaram — o comportamento tinha sido
+provado peça por peça nos unitários de T3/T9/T10; a integração não achou divergência entre o que os
+dublês assumiam e o banco de verdade.
+
+```
+$ DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres \
+  bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occurrence-attachment.integration.ts
+ 6 pass
+ 0 fail
+ 27 expect() calls
+```
+
+### Gates
+
+- `bun run --cwd apps/api-transportada test` (contrato) → **6794 pass, 32 skip, 0 fail**.
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test run test:integration` (integração
+  completa, 91 arquivos) → **488 pass, 17 fail**. As 17 falhas são todas em
+  `toll-booth-reload.integration.ts` (spec 154), com `ObjectStorageError: Object storage is
+unavailable` — MinIO fora do ar neste ambiente (o mesmo Docker local que o `CLAUDE.md` já registra
+  como quebrado), **nada relacionado a esta spec**: nenhuma falha em `trip-occurrence-attachment`,
+  `trip-timeline`, `trip-field-office` ou qualquer arquivo tocado pela fase 3. Os seis testes novos
+  passaram nas duas execuções (isolada e dentro da suíte completa).
+- `bun run typecheck` / `bun run lint` / `bun run format:check` (raiz) → verdes.
+- Arquivo somado à lista explícita de `test:integration` em `apps/api-transportada/package.json`
+  (§"⚠️ O teste da API são dois comandos" do `CLAUDE.md` da raiz — sem isso o arquivo existiria e
+  nunca rodaria).
+
+### O que a integração revelou que os contratos não pegavam
+
+- O `readOccurrenceAttachments` de T3 nunca tinha sido chamado com um repositório **de verdade**
+  contra uma linha com `thumbnail_object_id` preenchido — só com dublês. A junção `leftJoin` de
+  `DrizzleOccurrenceAttachmentRepository.listOccurrenceAttachments` (T3) e a ordem
+  `orderBy(asc(position))` funcionaram de primeira, mas só a integração prova que o `alias()` duplo
+  de `stored_objects` (original/miniatura) não colide no SQL gerado — um erro aí teria passado
+  batido em todo unitário desta fase.
+- O `EXISTS` de `hasAttachment` (T10) e a condição `CASE` de `attachmentCount` (T11) são SQL puro,
+  sem cobertura nenhuma fora de integração — a sintaxe (`select 1 from ... where company_id = ...`)
+  só é validada quando o Postgres de verdade compila a query. As duas passaram de primeira.
+- O reenvio idempotente (T8) nunca tinha rodado contra o unique real de `trip_field_reports` — só
+  contra dublê de `claim`/`settle`. A integração prova que `withFieldReport` + o unitário de
+  trabalho do banco convergem como o `plan.md` descreve, inclusive o caminho de erro (chave
+  reaproveitada com conteúdo diferente).
+- A sexta foto (T8) nunca tinha sido gravada cinco vezes seguidas contra o banco — só contra o
+  dublê de `countOccurrenceAttachments`. A integração prova que o `INSERT ... SELECT ...
+coalesce(max(position), 0) + 1` (T1) calcula as posições 2 a 5 corretamente em sequência e que o
+  sexto insert bate no `CHECK`/`unique` antes de qualquer contagem no aplicativo teria a chance de
+  errar.

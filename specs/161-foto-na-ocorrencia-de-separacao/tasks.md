@@ -98,24 +98,24 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T9** Painel da nota devolve `attachments[]` com miniatura (RF8/RF9) —
+- [x] **T9** Painel da nota devolve `attachments[]` com miniatura (RF8/RF9) —
       `delivery-proof-read.support.ts:175-271`, `main.ts:2717-2745` (sai o `attachment` singular).
   - Critério de aceite (CA5): ordem por `position`; `downloadUrl` e `thumbnailUrl` assinados;
     **ausência** de `objectKey`/`bucket`; `[]` para ocorrência antiga; anexo sem miniatura sem
     `thumbnailUrl`; anexo vencido sem nenhuma URL.
 
-- [ ] **T10** Feed / consulta de ocorrências (RF10) — `trip-occurrence-feed.query.ts` (sai o
+- [x] **T10** Feed / consulta de ocorrências (RF10) — `trip-occurrence-feed.query.ts` (sai o
       `hasAttachment: false` fixo da linha 234; `listTripOccurrenceAttachmentLocations` passa a unir
       a tabela nova e a devolver miniatura).
   - Critério de aceite (CA6): ocorrência de nota com e sem foto; `/trip-occurrences/:id/attachments`
     lista as cinco no formato de RF8, com e sem `thumbnailUrl`.
 
-- [ ] **T11** Linha do tempo com contagem (RF12) — fonte de ocorrência de nota do
+- [x] **T11** Linha do tempo com contagem (RF12) — fonte de ocorrência de nota do
       `GET /trips/:id/timeline`.
   - Critério de aceite (CA7): `attachmentCount` correto, **nenhuma** URL assinada (nem de original,
     nem de miniatura), cursor inalterado.
 
-- [ ] **T12** Integração da leitura contra Postgres —
+- [x] **T12** Integração da leitura contra Postgres —
       `test/integration/trip-occurrence-attachment.integration.ts` criado e **somado ao script
       `test:integration`**; rodar com `bun --env-file=../../.env.test run test:integration`.
   - Critério de aceite: as três leituras (painel, feed, linha do tempo) sobre as mesmas linhas, com
