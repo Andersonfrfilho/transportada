@@ -362,23 +362,93 @@ Ambos sem erro, sem warning.
 
 Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
 
-## T4 — repositório escritor único e abertura na transação
+## T4 — repositório escritor e abertura da tratativa na transação
 
-Fechada em 2026-09-22, contra a infra Docker do projeto (Postgres de teste na 65432).
+`src/trips/infrastructure/drizzle-occurrence-case.repository.ts` (novo): `openOccurrenceCase`
+(chamada de dentro da transação de `saveTripOccurrence`, `unset` não abre) e
+`DrizzleOccurrenceCaseRepository.transition` — molde de `DrizzleTripRepository.close`: `select …
+for no key update` imediatamente antes do `update` (nunca `for update`), recheca
+`checkOccurrenceCaseTransition` depois do lock, grava por compare-and-set (`where status =
+<travado>`) e insere o evento só quando o status mudou. Zero linhas no CAS → 409
+`OccurrenceCaseTransitionNotAllowedError`, nunca 404 nem silêncio.
 
-- `bun run lint` e `bun run typecheck` (raiz, seis apps) — limpos.
-- `bun --env-file=../../.env.test test --timeout 120000` — **6990 pass, 23 skip, 0 fail** (183 arquivos).
-- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-case-write-guard.integration.ts`
-  — **3 pass, 0 fail**: abertura em `allowed`/`blocked`, `unset` que não abre nada, e a corrida real
-  entre duas transições na mesma tratativa (a perdedora recebe 409, nunca 404 e nunca silêncio).
-- Integração de ocorrência que poderia ter regredido — `occurrence-type-catalog-seed`,
-  `trip-occurrence-attachment`, `trip-field-office`, `trip-field-authorship` — **30 pass, 0 fail**.
+`redeliveryPolicy` passou a viajar (opcional, `exactOptionalPropertyTypes`-seguro) por toda a
+cadeia dos dois fluxos de registro: `register-trip-occurrence.use-case.ts` →
+`persist-separation-occurrence-attachment.service.ts` →
+`drizzle-separation-occurrence.repository.ts` → `saveTripOccurrence`
+(`delivery-proof-read.support.ts`, que agora abre a tratativa) — e o mesmo para o lote do
+escritório (`office-occurrence-batch.types.ts` / `.service.ts` →
+`drizzle-office-occurrence-batch.repository.ts`, que reusa `saveTripOccurrence`). As duas fiações
+de `src/main.ts` (WhatsApp e HTTP) atualizadas para repassar o campo. `findOccurrenceType`
+(`delivery-proof-read.support.ts`) agora seleciona `company_occurrence_types.redelivery_policy`.
 
-⚠️ A suíte de integração **completa** não fechou nesta rodada: o processo que a rodava em segundo
-plano não devolveu resultado. Rodaram os arquivos acima, que são os que a T4 toca. Fica registrado
-como o que faltou, não como verde.
+`test/trip-schema/tenant-safety.contract.ts`: `trip_occurrence_cases` e
+`trip_occurrence_case_events` somadas a `TRIP_TABLES`, mais o teste da FK composta que alcança a
+ocorrência e o evento sempre por `(company_id, id)`.
 
-⚠️ As 8 falhas conhecidas por `OBJECT_STORAGE_UNAVAILABLE` (CT-e e pedágio) são credencial do
-`.env.test` local — `STORAGE_SECRET_KEY=replace-me` contra o `minio-local-password` que o
-`compose.yaml` fixa. O template do repositório já foi corrigido (`df3093365`); o arquivo local do
-usuário não é editável daqui. Não contam contra esta task, e nenhuma delas toca ocorrência.
+`test/integration/trip-occurrence-case-write-guard.integration.ts` (novo, somado ao
+`test:integration` do `package.json`): três provas contra Postgres de verdade — (1) tipo
+`allowed`/`blocked` abre a tratativa em `recorded` com o evento de abertura (`from_status` nulo),
+na mesma transação de `persistSeparationOccurrenceWithAttachment` (o caminho real de
+`register-trip-occurrence.use-case.ts` em produção); (2) tipo `unset` não abre nada; (3) a corrida
+real — molde de `raceAgainstBlocker` em `trip-status-write-guard.integration.ts`: uma transação
+bloqueadora seura o `for no key update` da tratativa, muda o status e libera só depois que a
+transação perdedora já está bloqueada no mesmo lock; a perdedora relê o status (já mudado) e a
+própria `checkOccurrenceCaseTransition` recusa com 409, provado pelo `toBeInstanceOf`.
+
+### `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-case-write-guard.integration.ts --timeout 120000`
+
+```
+ 3 pass
+ 0 fail
+ 11 expect() calls
+Ran 3 tests across 1 file. [3.90s]
+```
+
+### `bun --env-file=../../.env.test test --timeout 120000` (suíte inteira, contrato)
+
+```
+ 6967 pass
+ 23 skip
+ 0 fail
+ 23752 expect() calls
+Ran 6990 tests across 183 files. [22.32s]
+```
+
+Nenhuma regressão (6966 → 6967: o teste novo desta task, `trip-schema.contract.test.ts` com a FK
+composta a mais).
+
+### `bun run typecheck` (raiz, 6 apps) e `bun run lint` (raiz, 6 apps)
+
+Ambos sem erro, sem warning.
+
+### `bun --env-file=../../.env.test run test:integration` (suíte inteira, integração)
+
+```
+ 517 pass
+ 7 skip
+ 8 fail
+ 3059 expect() calls
+Ran 532 tests across 94 files. [422.83s]
+```
+
+Delta contra a T1 (última vez que a suíte inteira rodou: 514 pass / 529 testes / 93 arquivos):
+**+3 pass, +3 testes, +1 arquivo, +11 expect()** — exatamente o arquivo novo desta task, nada mais
+mudou de resultado.
+
+As 8 falhas são as mesmas 4 suítes já diagnosticadas na T1 — `cte archive gateway integration` (2),
+`toll booth extract create-only integration` (2) e `toll booth catalog reload integration` (4) —,
+todas por `OBJECT_STORAGE_UNAVAILABLE`: o `.env.test` local deste checkout tem
+`STORAGE_SECRET_KEY=replace-me` enquanto o compose fixa `minio-local-password`. **Não são desta
+task** — o template do repositório (`.env.example`) já corrige o valor (commit `df3093365`,
+anterior a esta sessão); é o `.env.test` já existente na máquina que ficou para trás. Nenhuma delas
+toca `trip_occurrence_cases`, `trip_occurrence_case_events`, `company_occurrence_types` ou qualquer
+caminho de registro de ocorrência.
+
+### Commit isolado
+
+Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
+
+## Fase 1 encerrada
+
+T1–T4 commitadas e verificadas. Fase 2 (T5–T8) fica para outra rodada.
