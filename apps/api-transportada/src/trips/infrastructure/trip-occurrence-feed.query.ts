@@ -11,7 +11,7 @@
  * caberem na mesma projeção — e elas não cabem: uma tem tipo cadastrado, a outra tem anexo.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { SQL, SQLWrapper } from 'drizzle-orm'
 
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
@@ -23,6 +23,7 @@ import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
   TRIP_STOP_OCCURRENCE_KINDS,
+  tripDocumentOccurrenceAttachments,
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
@@ -42,6 +43,7 @@ import type {
   TripOccurrenceFeedPage,
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
+import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
@@ -146,6 +148,19 @@ async function listDocumentOccurrenceRows(
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
       driverName: tripDrivers.driverName,
+      /**
+       * Spec 161 T10 (RF10): sai o `false` fixo — a nota de galpão grava na tabela nova (D2), a de
+       * rua na coluna antiga (D6); `hasAttachment` real é a união das duas, sem trazer o anexo
+       * inteiro para a listagem (RNF2, nunca URL assinada no cursor).
+       */
+      hasAttachment: sql<boolean>`(
+        exists (
+          select 1 from trip_document_occurrence_attachments
+          where company_id = ${tripDocumentOccurrences.companyId}
+            and occurrence_id = ${tripDocumentOccurrences.id}
+        )
+        or ${tripDocumentOccurrences.attachmentObjectId} is not null
+      )`,
       id: tripDocumentOccurrences.id,
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
@@ -231,7 +246,7 @@ async function listDocumentOccurrenceRows(
     createdAt: row.createdAt,
     description: row.description,
     driverName: row.driverName ?? '',
-    hasAttachment: false,
+    hasAttachment: Boolean(row.hasAttachment),
     id: row.id,
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
@@ -397,27 +412,26 @@ export async function listTripOccurrenceFeed(
   }
 }
 
-type OccurrenceAttachmentLocationRow = {
-  readonly bucket: string
-  readonly id: string
-  readonly mimeType: string
-  readonly objectKey: string
-}
+const feedAttachmentOriginals = alias(storedObjects, 'trip_occurrence_feed_attachment_original')
+const feedAttachmentThumbnails = alias(storedObjects, 'trip_occurrence_feed_attachment_thumbnail')
 
 /**
  * Os anexos de uma ocorrência de parada, para a rota de presign. Id que não é desta empresa, ou que
- * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência.
+ * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência. Fora do escopo da
+ * spec 161 (D2/D12): sempre `position: 1`, sem miniatura — a coluna de anexo da parada é sempre a
+ * única fonte, e permanece intocada por esta feature.
  */
 async function listStopOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
-  return queryable
+): Promise<readonly OccurrenceAttachmentRecord[]> {
+  const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
       id: tripStopOccurrences.id,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      retentionUntil: storedObjects.retentionUntil,
     })
     .from(tripStopOccurrences)
     .innerJoin(
@@ -433,19 +447,94 @@ async function listStopOccurrenceAttachmentLocations(
         eq(tripStopOccurrences.id, input.occurrenceId),
       ),
     )
+
+  return rows.map((row) => ({
+    id: row.id,
+    original: {
+      bucket: row.bucket,
+      mimeType: row.mimeType,
+      objectKey: row.objectKey,
+      retentionUntil: row.retentionUntil?.toISOString() ?? null,
+    },
+    position: 1,
+    thumbnail: null,
+  }))
 }
 
-/** Spec 156 T7b (D7 §3.5): a mesma leitura, para a foto opcional da ocorrência de nota (lote). */
+/**
+ * Spec 161 T10 (RF10/RF15): a ocorrência de nota lê pelo mesmo ponto único de `occurrence-attachment.
+ * service.ts` (T3) — tabela nova (D2/D12, com miniatura) quando existem linhas, senão a coluna
+ * antiga (D6, ocorrência de rua, sempre `position: 1` sem miniatura).
+ */
 async function listDocumentOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
-  return queryable
+): Promise<readonly OccurrenceAttachmentRecord[]> {
+  const newRows = await queryable
+    .select({
+      id: tripDocumentOccurrenceAttachments.id,
+      originalBucket: feedAttachmentOriginals.bucket,
+      originalMimeType: feedAttachmentOriginals.mimeType,
+      originalObjectKey: feedAttachmentOriginals.objectKey,
+      originalRetentionUntil: feedAttachmentOriginals.retentionUntil,
+      position: tripDocumentOccurrenceAttachments.position,
+      thumbnailBucket: feedAttachmentThumbnails.bucket,
+      thumbnailMimeType: feedAttachmentThumbnails.mimeType,
+      thumbnailObjectKey: feedAttachmentThumbnails.objectKey,
+      thumbnailRetentionUntil: feedAttachmentThumbnails.retentionUntil,
+    })
+    .from(tripDocumentOccurrenceAttachments)
+    .innerJoin(
+      feedAttachmentOriginals,
+      and(
+        eq(feedAttachmentOriginals.companyId, tripDocumentOccurrenceAttachments.companyId),
+        eq(feedAttachmentOriginals.id, tripDocumentOccurrenceAttachments.storedObjectId),
+      ),
+    )
+    .leftJoin(
+      feedAttachmentThumbnails,
+      and(
+        eq(feedAttachmentThumbnails.companyId, tripDocumentOccurrenceAttachments.companyId),
+        eq(feedAttachmentThumbnails.id, tripDocumentOccurrenceAttachments.thumbnailObjectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrenceAttachments.companyId, input.companyId),
+        eq(tripDocumentOccurrenceAttachments.occurrenceId, input.occurrenceId),
+      ),
+    )
+    .orderBy(asc(tripDocumentOccurrenceAttachments.position))
+
+  if (newRows.length > 0) {
+    return newRows.map((row) => ({
+      id: row.id,
+      original: {
+        bucket: row.originalBucket,
+        mimeType: row.originalMimeType,
+        objectKey: row.originalObjectKey,
+        retentionUntil: row.originalRetentionUntil?.toISOString() ?? null,
+      },
+      position: row.position,
+      thumbnail:
+        row.thumbnailBucket === null || row.thumbnailObjectKey === null
+          ? null
+          : {
+              bucket: row.thumbnailBucket,
+              mimeType: row.thumbnailMimeType ?? '',
+              objectKey: row.thumbnailObjectKey,
+              retentionUntil: row.thumbnailRetentionUntil?.toISOString() ?? null,
+            },
+    }))
+  }
+
+  const legacyRows = await queryable
     .select({
       bucket: storedObjects.bucket,
       id: tripDocumentOccurrences.id,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      retentionUntil: storedObjects.retentionUntil,
     })
     .from(tripDocumentOccurrences)
     .innerJoin(
@@ -461,6 +550,18 @@ async function listDocumentOccurrenceAttachmentLocations(
         eq(tripDocumentOccurrences.id, input.occurrenceId),
       ),
     )
+
+  return legacyRows.map((row) => ({
+    id: row.id,
+    original: {
+      bucket: row.bucket,
+      mimeType: row.mimeType,
+      objectKey: row.objectKey,
+      retentionUntil: row.retentionUntil?.toISOString() ?? null,
+    },
+    position: 1,
+    thumbnail: null,
+  }))
 }
 
 /**
@@ -470,7 +571,7 @@ async function listDocumentOccurrenceAttachmentLocations(
 export async function listTripOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
+): Promise<readonly OccurrenceAttachmentRecord[]> {
   const [stopRows, documentRows] = await Promise.all([
     listStopOccurrenceAttachmentLocations(queryable, input),
     listDocumentOccurrenceAttachmentLocations(queryable, input),
