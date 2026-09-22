@@ -91,6 +91,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'deliveries.track',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
   'charges.decide',
+  /**
+   * Spec 164 T6: tratar a tratativa da ocorrência (revisar, devolver ao galpão, enviar ao
+   * contratante, fechar, cancelar) é decisão do escritório — nunca do separador, que só monta a
+   * viagem, nem do motorista/agregado, que só reportam campo.
+   */
+  'occurrences.resolve',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -130,6 +136,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'trip.report-on-behalf',
     'trip.financials',
     'cargo.measure',
+    'occurrences.resolve',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -142,6 +149,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'operations.read',
     'view-preferences.manage',
     'nfse.read',
+    'occurrences.resolve',
   ]),
   fiscal: Object.freeze([
     'invoices.import',
@@ -200,6 +208,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
      */
     'trip.financials',
     'cargo.measure',
+    'occurrences.resolve',
   ]),
   viewer: Object.freeze([
     'invoices.read',
