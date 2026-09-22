@@ -518,19 +518,6 @@ export function useTripWorkspace(
     onSuccess: invalidateDocumentLink,
   })
   /**
-   * A ocorrência **só anota**: nada de invalidar a viagem inteira, porque o estado da nota não
-   * mudou. Invalidar a chave da viagem aqui daria a impressão de que ela muda alguma coisa.
-   */
-  const registerOccurrenceMutation = useMutation({
-    mutationFn: controller.registerTripOccurrence,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
-      })
-    },
-  })
-
-  /**
    * Spec 161 T22 (RF31, CA16): a foto do galpão vai **uma requisição por foto**, nunca o lote
    * inteiro — a primeira cria a ocorrência (`registerTripOccurrence`), a segunda em diante anexa
    * (`attachOccurrencePhoto`). `occurrencePhotoOccurrenceIdRef` é o que faz o reenvio depois de uma
@@ -874,7 +861,6 @@ export function useTripWorkspace(
     documentProductsQuery,
     occurrenceTypesQuery,
     occurrencesQuery,
-    registerOccurrenceMutation,
     isSendingOccurrencePhotos,
     lastOccurrenceEmail,
     occurrencePhotoSendState,

@@ -216,14 +216,14 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
   - Critério de aceite (CA7b): contrato antes do código — dimensões e alvos respeitados; EXIF
     ausente no resultado; falha de geração da miniatura devolve só o original, sem lançar.
 
-- [ ] **T22** Cliente e envio sequencial (RF31) — `tripClient.service.ts` (multipart com `file` +
+- [x] **T22** Cliente e envio sequencial (RF31) — `tripClient.service.ts` (multipart com `file` +
       `thumbnail`, `attachOccurrencePhoto`), `occurrencePhotoSend.service.ts` (estado por foto,
       reenvio só do que falhou), `useTripWorkspace.hook.ts` (chave estável por foto, invalidação de
       `occurrences` e `['trip','occurrence-feed']`).
   - Critério de aceite (CA16): uma foto por requisição levando os dois objetos; chave repetida no
     reenvio; falha da terceira de cinco preserva as duas anteriores.
 
-- [ ] **T23** Seletor de foto com câmera e arquivo (RF28/RF30/D3/D4) —
+- [x] **T23** Seletor de foto com câmera e arquivo (RF28/RF30/D3/D4) —
       `OccurrencePhotoPicker.component.tsx` (novo, sobre `useCameraStream`, miniaturas locais,
       remover, teto de cinco), `TripOccurrences.component.tsx` (envio bloqueado sem foto, com motivo
       visível), `SeparationOccurrenceDialog.component.tsx`.

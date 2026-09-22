@@ -1155,3 +1155,139 @@ Verde após o serviço: `bun run --cwd apps/frontend-transportada test` → 1252
 
 Nenhuma. RF29/RF29b e D12 batem com o que foi implementado; T22 (cliente/envio) é quem vai consumir
 `buildOccurrencePhotoAttachment` para montar o multipart com `file` + `thumbnail`.
+
+## T22 — Cliente e envio sequencial (RF31)
+
+### O que mudou
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripClient.service.ts`: `registerTripOccurrence`
+  passou a multipart (`file` sempre exigido, `thumbnail` opcional, `idempotencyKey`) — o servidor
+  (T6) só aceita multipart desde a spec 161, e o corpo JSON antigo já respondia 400 contra a API
+  real. `attachOccurrencePhoto` novo, `POST .../occurrences/:occurrenceId/attachments` (T7),
+  mesma forma multipart, sem `note`/`occurrenceTypeId`/`productCode`.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts`/`trip.types.ts`/
+  `tripResponse.validation.ts`: `attachments?: readonly {id, position}[]` entrou como chave opcional
+  tolerada em `TripOccurrence` — sem isso, `registerTripOccurrence`/`readTripOccurrences` rejeitavam
+  (`RESPONSE_INVALID`) toda resposta do servidor desde que T6 passou a devolver `attachments` junto
+  da ocorrência. A grade de miniaturas (T24) tipa o conteúdo; aqui só evita o parse quebrado.
+- `apps/frontend-transportada/src/modules/trip/shared/occurrencePhotoSend.service.ts` (novo, puro):
+  estado por foto (`pending → sending → sent | failed`), fila de reenvio
+  (`resolveOccurrencePhotoSendQueue`, só o que não chegou a `sent`), o orquestrador sequencial
+  (`sendOccurrencePhotosSequentially` — primeira foto registra, 2ª-5ª anexam, uma requisição por
+  foto, para no primeiro erro) e a chave de idempotência estável por foto
+  (`resolveOccurrencePhotoIdempotencyKey`, mesmo molde de `resolveFieldReportKey` do hook).
+- `apps/frontend-transportada/src/modules/trip/hooks/useTripWorkspace.hook.ts`: `attachOccurrencePhoto`
+  no `TripController`; `sendSeparationOccurrencePhotos` novo — monta/atualiza
+  `occurrencePhotoSendState`, guarda a `occurrenceId` criada (`occurrencePhotoOccurrenceIdRef`) para
+  o reenvio anexar em vez de criar outra ocorrência, guarda o e-mail pronto (`lastOccurrenceEmail`) e
+  invalida `occurrences`/`occurrence-feed` ao fim. `resetSeparationOccurrencePhotoSend` limpa tudo ao
+  fechar o diálogo (mesmo gatilho de `resetFieldOccurrenceIdempotency`).
+
+### Como a falha da terceira de cinco foi provada (CA16)
+
+`test/trip/occurrence-photo-send.contract.ts` (novo), importado por `test/trip.contract.test.ts`: um
+`port` falso conta quantas vezes `registerFirst`/`attach` foram chamados e com qual foto. Com
+`failOn: ['photo-3']`, o teste `CA16: falha da terceira de cinco preserva as duas anteriores` afirma:
+
+- `port.registered === ['photo-1']` e `port.attached === ['photo-2']` — nunca as duas fotos na mesma
+  chamada, uma requisição por foto.
+- Depois da falha: `photo-1`/`photo-2` ficam `sent`, `photo-3` fica `failed`, `photo-4`/`photo-5`
+  ficam `pending` (nem tentadas — sequencial, não "tudo ou nada").
+- `resolveOccurrencePhotoSendQueue` no reenvio devolve só `['photo-3', 'photo-4', 'photo-5']` — as
+  duas primeiras não voltam a ser tentadas.
+- No reenvio, com a `occurrenceId` da primeira tentativa passada de volta, as três fotos restantes
+  vão por `attach` (nunca `registerFirst` de novo — não cria uma segunda ocorrência).
+
+Chave de idempotência: teste próprio (`chave de idempotência: nasce na primeira tentativa e se
+repete no reenvio da mesma foto`) confere que a mesma `photoId` devolve sempre a mesma chave, e que
+`generateKey` não é chamado de novo no reenvio.
+
+### Vermelho e verde
+
+Vermelho: `sendOccurrencePhotosSequentially`/`resolveOccurrencePhotoSendQueue`/
+`resolveOccurrencePhotoIdempotencyKey` não existiam — `bun test ./test/trip.contract.test.ts` falhava
+na importação antes do serviço nascer. Verde após o serviço + a mudança do cliente:
+`bun run --cwd apps/frontend-transportada test` → 4744 pass em `trip.contract.test.ts` (0 fail) + 40
+pass na suíte de hooks.
+
+### Gates (T22)
+
+- `bun run --cwd apps/frontend-transportada test` → verde.
+- `bun run lint` (raiz) → verde, após trocar `async` sem `await` por `await Promise.resolve()` no
+  `port` falso do teste (`require-await`).
+- `bun run typecheck` (raiz) → verde.
+- `bun run format:check` (raiz) → verde após `prettier --write`.
+
+### Divergência frente à spec
+
+Nenhuma nova. A mudança de `attachments` opcional em `TripOccurrence` é a correção de um parse já
+quebrado pela T6 (API), não uma decisão desta task — sem ela, `registerTripOccurrence` não tinha como
+devolver a `occurrenceId` para o envio sequencial funcionar.
+
+## T23 — Seletor de foto com câmera e arquivo (RF28/RF30/D3/D4)
+
+### O que mudou
+
+- `apps/frontend-transportada/src/modules/trip/shared/occurrencePhotoPicker.service.ts` (novo, puro):
+  o degradê (`resolveOccurrencePhotoPickerShowsCamera` — `denied`/`unavailable` caem no arquivo,
+  copiado do recorte `showCamera` de `FieldDeliveryCaptureStep`), o teto
+  (`canAddOccurrencePhoto`, `OCCURRENCE_PHOTO_LIMIT = 5`) e a decisão do botão de envio
+  (`canSubmitOccurrenceWithPhotos` — só habilita com ao menos uma foto).
+- `apps/frontend-transportada/src/modules/trip/components/OccurrencePhotoPicker.component.tsx`
+  (novo): sobre `useCameraStream` (dono próprio da trilha, mesmo padrão de
+  `FieldDeliveryCaptureStep`), miniatura local (`URL.createObjectURL` do original reduzido por
+  `buildOccurrencePhotoAttachment`, T21), botão de remover por foto, `FileField` sempre oferecido ao
+  lado da câmera (D4) e aviso com o motivo quando a câmera está negada/indisponível — nunca só o
+  seletor de arquivo mudo.
+- `TripOccurrences.component.tsx`: `photos` em estado local, `OccurrencePhotoPicker` dentro do
+  formulário, aviso `occurrence.photoPicker.noPhoto` visível e botão de envio desabilitado sem foto
+  (CA17) — `canSubmit` usa `canSubmitOccurrenceWithPhotos`.
+- `SeparationOccurrenceDialog.component.tsx`: só o tipo de `onRegister` acompanhou `photos` (o
+  diálogo é moldura, não dono do estado).
+- `TripDetail.component.tsx`: os dois pontos que chamavam `registerOccurrenceMutation.mutate`
+  (painel da nota e comprovante) passaram a chamar `workspace.sendSeparationOccurrencePhotos`, com
+  `isRegistering`/`email` vindo de `isSendingOccurrencePhotos`/`lastOccurrenceEmail`.
+- `trip.module.css`: classes novas do picker (`.occurrencePhotoPicker`, `.occurrencePhotoViewport`,
+  `.occurrencePhotoGrid`, `.occurrencePhotoThumb`, `.occurrencePhotoRemove`), tokens de espaçamento
+  e `--control-height-compact`; o quadrado da miniatura usa `aspect-ratio: 1` em vez de
+  largura/altura literais iguais, para não cair no achado de
+  `control-height.contract.ts` ("nenhum módulo inventa o tamanho de um controle só-ícone").
+- `trip.locale.json`/`trip.en.locale.json`: `occurrence.photoPicker.*` (captura, upload, remover,
+  avisos de câmera negada/indisponível, teto atingido, sem foto).
+
+### Como o degradê de câmera foi provado
+
+`test/trip/occurrence-photo-picker.contract.ts` (novo), importado por `test/trip.contract.test.ts`:
+`resolveOccurrencePhotoPickerShowsCamera('denied') === false`,
+`resolveOccurrencePhotoPickerShowsCamera('unavailable') === false`, e `true` para
+`idle`/`starting`/`ready` (CA17). `canAddOccurrencePhoto`: `true` até 4 fotos, `false` a partir de 5
+— a sexta não é oferecida. `canSubmitOccurrenceWithPhotos`: `false` com 0 fotos, `true` com 1+.
+
+### Vermelho e verde
+
+Vermelho: `occurrencePhotoPicker.service.ts` não existia — `bun test ./test/trip.contract.test.ts`
+falhava na importação. Verde após o serviço:
+`bun run --cwd apps/frontend-transportada test` → 4744 pass (0 fail) + 40 pass na suíte de hooks.
+
+### Gates (T23)
+
+- `bun run --cwd apps/frontend-transportada test` → verde.
+- `bun run lint` (raiz) → verde, após trocar o `eslint-disable-next-line` (regra inexistente no
+  projeto) por um `ref` que segue a lista de fotos sem recriar o efeito de limpeza.
+- `bun run typecheck` (raiz) → verde.
+- `bun run format:check` (raiz) → verde após `prettier --write`.
+- Revisão de design (`web.md` §15) parcial: o picker reusa `Button`/`FileField`/`Icon` do design
+  system (nenhum primitivo cru), e o quadrado de miniatura foi ajustado para não disparar o achado
+  de tamanho hardcoded. **Print da tela renderizada não foi tirado nesta passada** — pendência
+  explícita para a T27 (revisão de design e usabilidade dedicada, já prevista no `tasks.md`), que é
+  quem fecha a spec com prova visual.
+
+### Divergência frente à spec / pendências
+
+- T24 (miniatura nas três telas) e T25 (textos/remoção de `occurrencePhotoHint`) continuam
+  pendentes — combinado no prompt de execução, não avancei para elas.
+- O e-mail pronto (`lastOccurrenceEmail`) passou a viver no hook em vez de `useMutation.data`, porque
+  `sendSeparationOccurrencePhotos` faz N chamadas por trás de uma função, não uma mutation só —
+  `registerOccurrenceMutation` (o `useMutation` antigo, com o corpo JSON que a API não aceita mais)
+  ficou sem consumidor e foi removido do hook nesta mesma task, para não deixar código morto para
+  trás.
