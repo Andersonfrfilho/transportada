@@ -136,6 +136,8 @@ export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
 export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
+/** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */
+export const API_CLIENT_OCCURRENCES_PATH = '/client/me/occurrences'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'

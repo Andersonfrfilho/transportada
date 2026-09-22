@@ -484,6 +484,12 @@ import { createContractorExtraChargeRoutes } from './contractor-portal/presentat
 import { createReadContractorDeliveriesUseCase } from './contractor-portal/application/read-contractor-deliveries.use-case.js'
 import { DrizzleContractorPortalRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal.repository.js'
 import { DrizzleContractorPortalBindingRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal-binding.repository.js'
+import { createDecideOccurrenceCaseUseCase } from './contractor-portal/application/decide-occurrence-case.use-case.js'
+import { createContractorOccurrenceRoutes } from './contractor-portal/presentation/contractor-occurrence.routes.js'
+import {
+  findContractorOccurrenceDetail,
+  listContractorOccurrences,
+} from './contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
@@ -1828,6 +1834,17 @@ function createApplicationRoutes({
   const occurrenceCaseUseCase = createOccurrenceCaseUseCase({
     repository: occurrenceCaseRepository,
   })
+  /** Spec 164 T10: mesmo escritor único de transição do escritório (T4/T5) — só muda o ator. */
+  const decideOccurrenceCase = createDecideOccurrenceCaseUseCase({
+    cases: {
+      transition: (input) => occurrenceCaseRepository.transition(input),
+    },
+    occurrences: {
+      findDetail: (input) => findContractorOccurrenceDetail(database, input),
+      list: (input) => listContractorOccurrences(database, input),
+    },
+    repository: contractorPortalRepository,
+  })
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -2649,6 +2666,21 @@ function createApplicationRoutes({
     ...createContractorExtraChargeRoutes({
       decideBatch: { execute: (input) => contractorExtraCharges.decide(input) },
       listBatches: { execute: (input) => contractorExtraCharges.list(input) },
+    }),
+    ...createContractorOccurrenceRoutes({
+      decideOccurrenceCase,
+      /**
+       * Spec 164 T11: o mesmo ponto único de leitura do anexo (`readOccurrenceAttachments`) — o
+       * `occurrenceId` já chegou aqui filtrado pelo escopo do contratante (T9/T10), nunca cru do
+       * caminho.
+       */
+      readAttachments: (input) =>
+        readOccurrenceAttachments({
+          companyId: input.context.companyId,
+          downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+          occurrenceId: input.occurrenceId,
+          repository: new DrizzleOccurrenceAttachmentRepository(database),
+        }),
     }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
