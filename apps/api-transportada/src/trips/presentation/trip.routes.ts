@@ -1756,6 +1756,7 @@ function serializeTripDocumentDetail(input: {
     nfeNumber: document.nfeNumber,
     nfeSeries: document.nfeSeries,
     nfeTotalValue: document.nfeTotalValue,
+    openOccurrenceCase: document.openOccurrenceCase,
   }
   return redactTripDocumentMoney({
     canReadFinancials: input.canReadFinancials,

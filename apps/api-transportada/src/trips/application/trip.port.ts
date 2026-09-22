@@ -98,6 +98,13 @@ export type TripDocumentDetail = TripDocument & {
   readonly cteAuthorized: boolean
   readonly fiscalStatus: string
   /**
+   * Spec 164 T15 (RF20): derivado na leitura de `trip_occurrence_cases` — existe tratativa ainda
+   * não terminal para alguma ocorrência desta nota. **Nenhuma ação some por causa dele** — a nota
+   * não é presa; é só o marcador que a tela usa para não oferecer de novo as mesmas ações como se
+   * nada estivesse pendente. `GET /trips/:id/allowed-actions` não lê este campo.
+   */
+  readonly openOccurrenceCase: boolean
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
@@ -127,6 +134,12 @@ export type TripDocumentDetail = TripDocument & {
  */
 export type TripStopDetail = {
   readonly addressKey: string
+  /**
+   * Spec 164 T15 (RF21): `true` quando alguma nota da parada tem `openOccurrenceCase` — o sinal que
+   * o mapa usa para desenhar o ícone de problema sem uma segunda chamada. Derivado das próprias
+   * `documents` da parada, nunca gravado.
+   */
+  readonly hasOpenOccurrence: boolean
   /**
    * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`
    * — **não** de `trip_stops.latitude/longitude`, que existem e nunca são escritos (achado da T009).

@@ -101,6 +101,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   nfeNumber: null,
   nfeSeries: null,
   nfeTotalValue: null,
+  openOccurrenceCase: false,
 })
 
 type FixtureParams = {

@@ -68,6 +68,7 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
 import {
   createRequestCargoLayoutForTrip,
@@ -912,6 +913,15 @@ async function readTripDetail(
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
   })
+  /**
+   * Spec 164 T15 (RF20): uma leitura a mais, fixa — nunca por nota nem por parada — que devolve só
+   * os `trip_documents.id` com tratativa ainda não terminal. Sem escrita nenhuma em
+   * `trip_documents.separation_status`.
+   */
+  const openOccurrenceCaseDocumentIds = await loadTripDocumentIdsWithOpenOccurrenceCase(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
@@ -919,6 +929,7 @@ async function readTripDetail(
         row.document.nfeDocumentId === null
           ? null
           : (contacts.get(row.document.nfeDocumentId) ?? null),
+      openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
     }),
   )
 
@@ -1077,6 +1088,10 @@ async function readTripDetail(
       longitude: row.longitude,
       cityCode: addressOf(row.stop.id)?.components.cityCode ?? '',
       state: addressOf(row.stop.id)?.state ?? '',
+      /** Spec 164 T15 (RF21): o sinal do mapa — deriva das notas já agrupadas, sem consulta nova. */
+      hasOpenOccurrence: (documentsByStopId.get(row.stop.id) ?? []).some(
+        (document) => document.openOccurrenceCase,
+      ),
     })),
   }
 }

@@ -61,7 +61,7 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
 
 export function mapTripStop(
   record: TripStopRecord,
-): Omit<TripStopDetail, 'documents' | 'latitude' | 'longitude'> {
+): Omit<TripStopDetail, 'documents' | 'hasOpenOccurrence' | 'latitude' | 'longitude'> {
   return {
     addressKey: record.addressKey,
     arrivedAt: record.arrivedAt === null ? null : record.arrivedAt.toISOString(),
@@ -96,6 +96,8 @@ export function mapTripDocumentDetail(input: {
   readonly nfeNumber?: null | string
   readonly nfeSeries?: null | string
   readonly nfeTotalValue?: null | string
+  /** Spec 164 T15 (RF20): derivado fora daqui (`occurrence-case-marker.query.ts`) — padrão `false`. */
+  readonly openOccurrenceCase?: boolean
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
@@ -108,6 +110,7 @@ export function mapTripDocumentDetail(input: {
     nfeNumber: input.nfeNumber ?? null,
     nfeSeries: input.nfeSeries ?? null,
     nfeTotalValue: input.nfeTotalValue ?? null,
+    openOccurrenceCase: input.openOccurrenceCase ?? false,
   }
 }
 

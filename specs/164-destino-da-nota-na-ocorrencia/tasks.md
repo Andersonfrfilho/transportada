@@ -152,7 +152,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     cancelada devolve `refused`. **Nenhuma escrita nova em `trip_stops` ou `trip_documents`** —
     aplicar é `PATCH /trips/:id/stops/order`, que já existe.
 
-- [ ] **T15** O marcador derivado — `readTripDetail` e a listagem devolvem
+- [x] **T15** O marcador derivado — `readTripDetail` e a listagem devolvem
       `openOccurrenceCase` por nota e `hasOpenOccurrence` por parada, derivados na leitura.
   - Critério de aceite (CA5/RF20/RF21): contrato de regressão prova que
     `GET /trips/:id/allowed-actions` fica **idêntico** com tratativa aberta — o teste falha se

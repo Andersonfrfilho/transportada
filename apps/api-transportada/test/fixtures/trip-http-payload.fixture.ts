@@ -167,6 +167,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   nfeNumber: '883658',
   nfeSeries: '1',
   nfeTotalValue: '1500.0000',
+  openOccurrenceCase: false,
 }
 
 export const TRIP_DETAIL: TripDetail = {

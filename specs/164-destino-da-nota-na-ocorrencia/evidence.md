@@ -621,3 +621,67 @@ unique `(company_id, occurrence_id)` → `inner join` em `company_occurrence_typ
 (`contractor-occurrence.routes.ts`), e as duas dependências (`decideOccurrenceCase`,
 `readAttachments`) são fiadas juntas em `src/main.ts` no mesmo bloco — separar o commit exigiria
 uma rota "de mentira" no meio do caminho. Registrado aqui em vez de forçar o isolamento.
+
+## Fase 4 — T15: o marcador derivado (RF20/RF21)
+
+`readTripDetail` passa a devolver `openOccurrenceCase: boolean` por nota (RF20) e
+`hasOpenOccurrence: boolean` por parada (RF21), os dois **derivados na leitura** — nenhuma escrita
+em `trip_documents.separation_status`, nenhuma migration nova. A leitura é uma consulta a mais e
+fixa: `loadTripDocumentIdsWithOpenOccurrenceCase`
+(`src/trips/infrastructure/occurrence-case-marker.query.ts`) faz `trip_document_occurrences` `inner
+join` `trip_occurrence_cases`, filtrando `status not in (returned_to_warehouse, closed, cancelled)`
+pelos `tripDocumentId`s que o detalhe já buscou — nunca uma consulta por parada ou por nota, e
+reaproveita os índices existentes (`trip_document_occurrences_company_document_idx`,
+`trip_occurrence_cases_occurrence_unique`), sem migration.
+
+Teste novo, contra Postgres real: `test/integration/trip-detail-occurrence-marker.integration.ts`
+(somado à lista explícita de `test:integration` no `package.json`) — abre uma tratativa de verdade
+(`redeliveryPolicy: 'allowed'`, via `persistSeparationOccurrenceWithAttachment`) e prova as três
+invariantes da task:
+
+- `openOccurrenceCase`/`hasOpenOccurrence` nascem `false` e viram `true` depois da abertura;
+- `GET /trips/:id/allowed-actions` (exercitado pelo mesmo par `readTripActionSnapshot` +
+  `resolveTripAllowedActions` que a rota usa) devolve **exatamente o mesmo objeto** antes e depois
+  — `expect(actionsAfter).toEqual(actionsBefore)` — provando CA5/RF20 (nenhuma ação some);
+- `trip_documents.separation_status` continua `'loaded'` depois da abertura, lido direto do banco.
+
+### Gates da T15
+
+- `bun run lint` (raiz, seis apps) — limpo.
+- `bun run typecheck` (raiz, seis apps) — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` — **6992 pass, 0 fail** (183 arquivos,
+  23817 `expect()`), era 6991/23816 antes desta task (+1 pela fixture nova de tipo). Ajustei duas
+  fixtures que construíam `TripDocumentDetail` sem o campo novo
+  (`test/trip-application/trip-use-case.contract.ts`, `test/fixtures/trip-http-payload.fixture.ts`)
+  e movi `hasOpenOccurrence` para depois de `label:` em `readTripDetail` porque
+  `test/trip-domain/stop-label-refresh.contract.ts` lê uma janela fixa de 600 caracteres a partir de
+  `stops: stopRecords.map(` — o campo antes do `label` estourava essa janela e escondia
+  `label: labelOf(...)` dela.
+- `bun --env-file=../../.env.test test ./test/integration/trip-detail-query-count.integration.ts
+./test/integration/trip-repository.integration.ts
+./test/integration/trip-detail-occurrence-marker.integration.ts --timeout 120000` — **4 pass, 0
+  fail, 100 `expect()` calls** — os três arquivos que este marcador toca: a prova de "sem N+1"
+  (`trip-detail-query-count`, mesma contagem de `select`s com 1 ou 40 paradas — a consulta nova é
+  fixa, não cresce), a suíte geral de `readTripDetail` (`trip-repository`) e o teste novo desta task.
+- ⚠️ **A suíte inteira de `test:integration` (`bun --env-file=../../.env.test run test:integration`,
+  ~100+ arquivos) não terminou dentro desta sessão** — passa de 250 s e a instrução da task é não
+  ficar esperando processo em segundo plano. Os três arquivos que a T15 toca (acima) rodaram
+  isolados e fecharam verdes; a suíte completa (que inclui as 8 falhas conhecidas de
+  `OBJECT_STORAGE_UNAVAILABLE` já registradas nas fases anteriores, sem relação com esta task) fica
+  para a próxima rodada confirmar o número total.
+- Nenhuma migration nova — reaproveita índices existentes, confirmado pela ausência de
+  `drizzle/*settlement*` ou pasta nova em `git status`.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T15 — marcador derivado de tratativa aberta na nota e na parada`
+
+## Fase 4 — T13 adiada
+
+**T13 não foi implementada nesta rodada.** A tabela de que ela depende
+(`trip_occurrence_item_settlements`) foi deliberadamente movida da T1 para a T16 (Fase 5, decisão já
+registrada acima, "Escopo alterado nesta task"), porque o item do acerto e a cobrança que ele
+alimenta em `delivery_charges` mexem no mesmo dinheiro e a validação `architect`/`opus` da T16 cobre
+os dois juntos. Implementar T13 antes da T16 exigiria ou criar essa tabela sem a revisão que a fase
+exige, ou fechar a task sem prova real contra Postgres — as duas descartadas. T13 foi reposicionada
+para depois da T16 na Fase 5.
