@@ -265,6 +265,12 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     com miniaturas, diálogo em modo "só arquivo" (câmera negada), painel da nota com três fotos,
     feed `/ocorrencias` com a grade de miniaturas, e painel com foto expirada — em 390×844 e
     1440×900, tema claro e escuro.
+  - **Bloqueada nesta sessão**: Docker local fora do ar (`docker info` recusa) impede a API real do
+    `playwright.config.ts` (precisa Postgres **e** RabbitMQ, este conecta no boot). O molde da
+    spec 159 evita Keycloak/rede real, mas os mocks de rota para
+    `documents/:id/occurrences`/`occurrences/:id/attachments`/`/ocorrencias` ainda não existem em
+    `trip-smoke.helper.ts`. Nenhum print inventado, nenhum spec quebrado commitado — plano detalhado
+    de retomada em `evidence.md` § T26.
 
 - [ ] **T27** Revisão de design e usabilidade (`web.md` §15) — comparar o picker e a grade com os
       vizinhos da mesma tela (campo com campo, botão com botão), conferir contraste no estado normal

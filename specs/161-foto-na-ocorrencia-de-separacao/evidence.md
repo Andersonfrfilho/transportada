@@ -1471,3 +1471,54 @@ remoção pedida pelo RF33.
 - `bun run lint` (raiz, todas as apps) → verde.
 - `bun run typecheck` (raiz, todas as apps) → verde.
 - `bun run format:check` (raiz) → verde, sem tocar em nada além dos 3 arquivos editados.
+
+## T26 — Smoke e prints: bloqueada, débito registrado
+
+Investigação antes de escrever o spec (sem gastar rodada de Playwright sem necessidade):
+
+- **O obstáculo é real e mais fundo que o Docker do frontend/API.** `playwright.config.ts` sobe dois
+  `webServer`: o preview do frontend (`vite preview`, sem dependência de banco) e a API real
+  (`bun run build && bun run start`, `apps/api-transportada/src/main.ts`). O `main.ts` chama
+  `createDatabaseProvider` (drizzle sobre `pg`, conexão preguiçosa — não bloqueia o boot) **e**
+  `createRabbitMqProvider` (conecta na inicialização). Com o daemon do Docker parado
+  (`docker info` → "Cannot connect to the Docker daemon"), não há Postgres nem RabbitMQ locais; a API
+  real não sobe.
+- **O caminho da spec 159 (`PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true` +
+  `VITE_SMOKE_AUTH_BYPASS=true`) evita Keycloak e evita que o browser espere resposta real da API**
+  (todo `fetch` é interceptado por `page.route` antes de sair do navegador) — mas só evita o
+  `webServer` da API **se já houver algo escutando na porta** quando o Playwright checa
+  `reuseExistingServer`. Na sessão da spec 159 o Postgres do `docker-compose` estava de pé
+  (`transportada-local-postgres-1`, evidência da própria spec, linha 205/278) — ou seja, a API real
+  provavelmente **estava** rodando ali, só que mockada por cima; não é evidência de que o flag por si
+  sozinho dispensa infraestrutura. Um contorno viável e não testado nesta sessão: subir um processo
+  qualquer escutando a porta 53001 (ex. `nc -l` ou um servidor Bun de uma linha) só para o
+  `reuseExistingServer: true` encontrar a porta ocupada e nunca disparar o comando real — como
+  `page.route` intercepta antes da rede, o stub nunca precisaria responder nada. Não cheguei a montar
+  e validar esse contorno.
+- **O trabalho de mock em si ainda não existe** e é maior que o obstáculo de infraestrutura:
+  `test/trip-smoke.helper.ts` (867 linhas) não tem nenhuma rota para
+  `GET/POST /trips/:id/documents/:documentId/occurrences` nem
+  `POST .../occurrences/:occurrenceId/attachments` (as rotas que `tripClient.service.ts:832-871`
+  chama para o painel da nota e o anexo da T22). O gatilho do diálogo é
+  `onOpenSeparationOccurrence(documentId)` → `workspace.setOpenSeparationOccurrenceDocumentId`
+  (`TripDetail.component.tsx:349-350`), renderizado por `SeparationOccurrenceDialogLoader`
+  (linha 844). O feed `/ocorrencias` (`src/main.tsx:117`) também não tem helper de mock hoje.
+
+### O que falta para fechar T26
+
+1. Contorno de infraestrutura: processo-stub na porta 53001 (ou subir Docker) + confirmar que
+   `PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true` não tenta rodar `bun run build && bun run start` da
+   API com o stub no lugar.
+2. Rotas novas em `trip-smoke.helper.ts` (ou helper dedicado) para o painel da nota
+   (`documents/:id/occurrences`), o anexo (`occurrences/:id/attachments`, multipart) e o feed
+   `/ocorrencias`, com fixtures cobrindo: diálogo com miniaturas, diálogo em "só arquivo" (negar
+   permissão de câmera via `page.context().grantPermissions([])` / mock de `getUserMedia`), painel da
+   nota com três fotos, feed com a grade, e um anexo `expired: true`.
+3. `test/spec-161-prints.smoke.spec.ts` no molde de `spec-159-prints.smoke.spec.ts`, com o PNG 1×1
+   sintético já usado lá (`PHOTO_BYTES`), 390×844 e 1440×900 — o `tasks.md` desta task pedia
+   1440×900, alinhado ao padrão real da 159 (o prompt de execução citou 1280, mas o precedente da
+   própria 159 usa 1440×900; segui o precedente do arquivo-molde).
+
+**Nenhum print foi gerado nem inventado.** Não commitei um arquivo de spec incompleto para não deixar
+código morto/quebrado no repositório (violaria os gates de lint/typecheck se entrasse na suíte, e um
+spec que não roda não é evidência). T26 permanece com a caixa **não marcada** em `tasks.md`.
