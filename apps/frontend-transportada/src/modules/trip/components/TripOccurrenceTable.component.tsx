@@ -79,7 +79,13 @@ function OccurrenceAttachments({ item }: Readonly<{ item: TripOccurrenceFeedItem
   const attachments = attachmentsQuery.data ?? []
   if (attachments.length === 0) return null
 
-  return <OccurrenceAttachmentGrid attachments={attachments} occurrenceCreatedAt={item.createdAt} />
+  return (
+    <OccurrenceAttachmentGrid
+      attachments={attachments}
+      occurrenceCreatedAt={item.createdAt}
+      onRefresh={async () => (await attachmentsQuery.refetch()).data ?? []}
+    />
+  )
 }
 
 function OccurrenceDetailRow({

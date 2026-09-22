@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
@@ -187,6 +188,7 @@ export function TripOccurrences({
                   <OccurrenceAttachmentGrid
                     attachments={occurrence.attachments}
                     occurrenceCreatedAt={occurrence.createdAt}
+                    onRefresh={() => loadTripOccurrenceAttachments(occurrence.id)}
                   />
                 )}
               </li>

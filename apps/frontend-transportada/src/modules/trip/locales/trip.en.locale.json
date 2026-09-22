@@ -582,7 +582,8 @@
       "photoAlt": "Photo attached to the occurrence",
       "photoExpired": "Expired photo (5-year retention)",
       "photoLoadError": "Could not load the photo",
-      "title": "Detail"
+      "title": "Detail",
+      "photoRetry": "Try again"
     },
     "empty": "No occurrence found for the applied filter.",
     "filters": {

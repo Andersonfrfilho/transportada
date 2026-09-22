@@ -755,7 +755,8 @@
       "photoAlt": "Foto anexada à ocorrência",
       "photoExpired": "Foto expirada (retenção de 5 anos)",
       "photoLoadError": "Não foi possível carregar a foto",
-      "title": "Detalhe"
+      "title": "Detalhe",
+      "photoRetry": "Tentar de novo"
     },
     "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
     "filters": {

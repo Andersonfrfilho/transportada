@@ -11,6 +11,7 @@ import {
 import {
   serializeTripOccurrenceQuery,
   TRIP_OCCURRENCE_PER_PAGE,
+  type TripOccurrenceAttachment,
   type TripOccurrenceFeedFilters,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
@@ -57,6 +58,17 @@ export function useTripOccurrenceFeedQuery(input: UseTripOccurrenceFeedInput) {
       }),
     queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, input.companyId, filterKey],
   })
+}
+
+/**
+ * A releitura das URLs assinadas fora de uma consulta do TanStack: o painel da nota recebe os
+ * anexos embutidos no detalhe da ocorrência, sem consulta própria para invalidar — quando a URL
+ * vence, o que ele precisa é da rota de anexos, e só dela.
+ */
+export function loadTripOccurrenceAttachments(
+  occurrenceId: string,
+): Promise<readonly TripOccurrenceAttachment[]> {
+  return getTripOccurrenceFeedClient().listAttachments({ occurrenceId })
 }
 
 export type UseTripOccurrenceAttachmentsInput = Readonly<{
