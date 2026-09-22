@@ -176,8 +176,13 @@ export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
  * ⚠️ O texto volta **para o operador conferir e enviar**, não para o sistema enviar — o
  * destinatário é externo. `null` quando o tipo não tem modelo.
  */
-export type RegisteredOccurrence = TripOccurrence &
-  Readonly<{ email: null | Readonly<{ body: string; subject: string }> }>
+export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
+  Readonly<{
+    /** ⚠️ O registro devolve o formato **estreito** do anexo (`{ id, position }`, sem URL — RF6/D5),
+     * diferente do `attachments` completo da leitura. */
+    attachments: readonly Readonly<{ id: string; position: number }>[]
+    email: null | Readonly<{ body: string; subject: string }>
+  }>
 
 /**
  * Spec 158 D5: ⚠️ Cópia por valor de `TRIP_TIMELINE_KINDS` da API

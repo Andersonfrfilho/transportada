@@ -21,6 +21,7 @@ const { useTripWorkspace } = await import('@/modules/trip/hooks/useTripWorkspace
 
 function buildRegistered(id: string): RegisteredOccurrence {
   return {
+    attachments: [{ id: `${id}-attachment-1`, position: 1 }],
     createdAt: '2026-09-22T12:00:00.000Z',
     email: null,
     id,

@@ -869,12 +869,22 @@ export function createTripResponseAdapters() {
      */
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
-      const { email, ...occurrence } = input
+      const { attachments, email, ...occurrence } = input
       if (!isOccurrence(occurrence)) throw invalid()
+      if (
+        attachments !== undefined &&
+        !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
+      ) {
+        throw invalid()
+      }
       if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
         throw invalid()
       }
-      return { ...occurrence, email: email as RegisteredOccurrence['email'] }
+      return {
+        ...occurrence,
+        attachments: attachments ?? [],
+        email: email as RegisteredOccurrence['email'],
+      }
     },
     /** Spec 161 T7/T22: `POST .../occurrences/:occurrenceId/attachments` — `{ id, position }`. */
     occurrenceAttachmentPositionFromApi(
