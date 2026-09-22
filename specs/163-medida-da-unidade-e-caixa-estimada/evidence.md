@@ -52,3 +52,17 @@
 - Repositório: `SELECT … FOR UPDATE` e só escreve `estimated_*` quando `length_mm` é nulo; nenhum
   `set` toca a medida real. Provado contra Postgres na T006.
 - Typecheck, eslint e prettier verdes.
+
+## T006 — Integração CA05, CA06
+
+- `test/integration/package-box-unit-estimate.integration.ts` (na lista explícita de `test:integration`).
+- De `apps/api-transportada`, Postgres 18 nativo (o do Docker está quebrado localmente):
+  `U=postgres://test@127.0.0.1:56998/s163; DRIZZLE_TEST_DATABASE_URL=$U API_TEST_DATABASE_URL=$U DATABASE_URL=$U bun --env-file=../../.env.test test --timeout 120000 ./test/integration/package-box-unit-estimate.integration.ts`
+  → **3 pass, 0 fail, 26 expects**.
+  - CA05: depois da unidade, `length_mm/width_mm/height_mm/measured_at/measurement_source` seguem
+    `null` e `estimated_*` = 188×188×128, 2x2x6, 4 524 cm³, 2 142 g; cubagem → estimada. Medida real
+    via `DrizzlePackageBoxRepository.measure` → cubagem lê a real (`isEstimated: false`), estimativa
+    preservada; nova unidade depois disso não recalcula a estimativa nem toca a medida.
+  - CA06: `companyId` de outra empresa → `PackageBoxNotFoundError`, e `saveUnit` direto devolve `false`
+    sem gravar nada.
+  - CA03 contra o banco: 2160 mm → `PackageBoxUnitRejectedError`, nada gravado.
