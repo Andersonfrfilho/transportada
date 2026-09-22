@@ -225,3 +225,23 @@ Commits: `e7a8e3d23` (T304 + transporte da quantidade), `e02e37fe7` (T301–T303
 - **`make smoke`/Playwright** (`verify-picker.smoke.spec.ts` e afins): não fazem parte do gate
   `bun run test` da app nem foram pedidos; não rodei.
 - Publicação em staging (Fase 3): não fiz deploy — só implementei e testei localmente, como pedido.
+
+## T402 — Revisão de design (web.md §15)
+
+Recorte do formulário montado com os tokens reais (`--field-height`, `--field-padding`,
+`--color-*`) e o CSS literal de `.occurrenceForm input`, `.occurrenceItemQuantityFields` e do
+`.trigger` do `Select` do design system.
+
+**Divergência achada e corrigida na mesma task:** o campo de quantidade nascia com
+`border-radius: var(--radius-sm)` (regra do formulário) ao lado do `Select` da unidade, que tem
+canto **reto** por desenho do design system. Lado a lado, na mesma linha, a diferença lê como
+defeito. O número passou a acompanhar o seletor (`border-radius: 0` dentro do par) — quem manda
+num par de controles é o primitivo do design system, não a regra do formulário.
+
+**Divergência sistêmica registrada, não corrigida aqui:** em toda a aplicação os campos de texto
+têm canto arredondado e os `Select` têm canto reto. Não é defeito desta spec, e uniformizar isso é
+mudança de design system inteira — fica como pendência explícita.
+
+Conferido também: altura idêntica entre o campo e o seletor (os dois em `--field-height`),
+contraste do rótulo e do valor no tema escuro único, e o item sem contagem ficando **em branco**,
+nunca com zero.

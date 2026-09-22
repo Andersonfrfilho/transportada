@@ -1289,6 +1289,13 @@
   gap: var(--space-2);
 }
 
+/* Revisão de design (web.md §15): o `Select` do design system tem canto reto, e o campo de texto do
+   formulário tem `--radius-sm`. Lado a lado na mesma linha a diferença vira defeito visível, e quem
+   manda no par é o primitivo — o número acompanha o seletor da unidade, não o contrário. */
+.occurrenceItemQuantityFields input {
+  border-radius: 0;
+}
+
 /* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
 .occurrenceForm input,
 .occurrenceForm textarea {
