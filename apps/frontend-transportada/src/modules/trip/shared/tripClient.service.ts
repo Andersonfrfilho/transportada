@@ -99,7 +99,7 @@ import {
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type { OccurrenceType } from './occurrence.constant'
+import type { OccurrenceRedeliveryPolicy, OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -239,6 +239,8 @@ export type TripClient = Readonly<{
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
+      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
+      redeliveryPolicy: OccurrenceRedeliveryPolicy
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
@@ -739,6 +741,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
+          redeliveryPolicy: input.redeliveryPolicy,
           stage: input.stage,
         }),
         dependencies,

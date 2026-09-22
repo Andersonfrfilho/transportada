@@ -278,6 +278,10 @@
     "editTemplates": "Edit email templates",
     "legacyTemplate": "{{subject}} — own template (legacy)",
     "withoutTemplate": "No email: this type is only logged on the trip.",
-    "allowsMultipleItems": "Allows multiple items"
+    "allowsMultipleItems": "Allows multiple items",
+    "redeliveryPolicy": "Allows redelivery",
+    "redeliveryPolicyUnset": "Unset (no case opens)",
+    "redeliveryPolicyAllowed": "Allows redelivery",
+    "redeliveryPolicyBlocked": "Blocks redelivery"
   }
 }

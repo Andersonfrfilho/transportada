@@ -9,8 +9,15 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 
-import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
-import type { OccurrenceType, TripOccurrenceStage } from '@/modules/trip/shared/occurrence.constant'
+import {
+  OCCURRENCE_REDELIVERY_POLICY,
+  TRIP_OCCURRENCE_STAGE,
+} from '@/modules/trip/shared/occurrence.constant'
+import type {
+  OccurrenceRedeliveryPolicy,
+  OccurrenceType,
+  TripOccurrenceStage,
+} from '@/modules/trip/shared/occurrence.constant'
 import {
   buildOccurrenceEmailTemplateOptions,
   OCCURRENCE_TEMPLATE_NONE,
@@ -31,6 +38,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
+    /** Spec 164 RF1: conjunto completo — sempre enviado, nunca omitido no `PUT`. */
+    readonly redeliveryPolicy: OccurrenceRedeliveryPolicy
     readonly stage: TripOccurrenceStage
   }) => void
   types: readonly OccurrenceType[]
@@ -65,6 +74,25 @@ export function OccurrenceTypeCatalogPanel({
   const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
   /** RF3: o padrão é aceitar vários itens — preserva o comportamento de hoje. */
   const [allowsMultipleItems, setAllowsMultipleItems] = useState(true)
+  /** Spec 164 D1: nasce `unset` — nenhum tipo novo escala para o contratante sem decisão explícita. */
+  const [redeliveryPolicy, setRedeliveryPolicy] = useState<OccurrenceRedeliveryPolicy>(
+    OCCURRENCE_REDELIVERY_POLICY.unset,
+  )
+
+  const redeliveryPolicyOptions = [
+    {
+      label: t('occurrenceTypeCatalog.redeliveryPolicyUnset'),
+      value: OCCURRENCE_REDELIVERY_POLICY.unset,
+    },
+    {
+      label: t('occurrenceTypeCatalog.redeliveryPolicyAllowed'),
+      value: OCCURRENCE_REDELIVERY_POLICY.allowed,
+    },
+    {
+      label: t('occurrenceTypeCatalog.redeliveryPolicyBlocked'),
+      value: OCCURRENCE_REDELIVERY_POLICY.blocked,
+    },
+  ]
 
   const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
   const templateOptions = buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? [])
@@ -90,12 +118,14 @@ export function OccurrenceTypeCatalogPanel({
       name,
       notifies,
       occurrenceTypeId: null,
+      redeliveryPolicy,
       stage,
     })
     setName('')
     setNotifies(false)
     setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
     setAllowsMultipleItems(true)
+    setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
   }
 
   function handleEditTemplates() {
@@ -141,6 +171,7 @@ export function OccurrenceTypeCatalogPanel({
                       name: type.name,
                       notifies: value,
                       occurrenceTypeId: type.id,
+                      redeliveryPolicy: type.redeliveryPolicy,
                       stage: type.stage,
                     })
                   }
@@ -157,6 +188,7 @@ export function OccurrenceTypeCatalogPanel({
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
+                      redeliveryPolicy: type.redeliveryPolicy,
                       stage: type.stage,
                     })
                   }
@@ -173,9 +205,28 @@ export function OccurrenceTypeCatalogPanel({
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
+                      redeliveryPolicy: type.redeliveryPolicy,
                       stage: type.stage,
                     })
                   }
+                />
+                <Select
+                  ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
+                  disabled={!canManage || isSaving}
+                  onChange={(value) =>
+                    onSave({
+                      active: type.active,
+                      allowsMultipleItems: type.allowsMultipleItems,
+                      emailTemplateKey: type.emailTemplateKey,
+                      name: type.name,
+                      notifies: type.notifies,
+                      occurrenceTypeId: type.id,
+                      redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
+                      stage: type.stage,
+                    })
+                  }
+                  options={redeliveryPolicyOptions}
+                  value={type.redeliveryPolicy}
                 />
               </div>
             ))}
@@ -216,6 +267,12 @@ export function OccurrenceTypeCatalogPanel({
             checked={allowsMultipleItems}
             label={t('occurrenceTypeCatalog.allowsMultipleItems')}
             onChange={setAllowsMultipleItems}
+          />
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
+            onChange={(value) => setRedeliveryPolicy(value as OccurrenceRedeliveryPolicy)}
+            options={redeliveryPolicyOptions}
+            value={redeliveryPolicy}
           />
           <Select
             ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}

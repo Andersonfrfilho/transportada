@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
-import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { OccurrenceRedeliveryPolicy, OccurrenceType } from '../shared/occurrence.constant'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
@@ -147,6 +147,8 @@ export type TripController = Readonly<{
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
+      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
+      redeliveryPolicy: OccurrenceRedeliveryPolicy
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>

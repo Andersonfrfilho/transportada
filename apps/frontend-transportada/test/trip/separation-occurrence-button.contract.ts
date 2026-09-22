@@ -20,6 +20,7 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
     id: 'type-1',
     name: 'Avaria',
     notifies: false,
+    redeliveryPolicy: 'unset',
     stage: 'separation',
     ...overrides,
   }

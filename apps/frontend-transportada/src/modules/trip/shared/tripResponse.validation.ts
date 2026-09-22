@@ -1377,6 +1377,7 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
       'id',
       'name',
       'notifies',
+      'redeliveryPolicy',
       'stage',
     ] as const)
   ) {
@@ -1391,6 +1392,9 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
+    (value.redeliveryPolicy === 'unset' ||
+      value.redeliveryPolicy === 'allowed' ||
+      value.redeliveryPolicy === 'blocked') &&
     (value.stage === 'delivery' || value.stage === 'separation')
   )
 }

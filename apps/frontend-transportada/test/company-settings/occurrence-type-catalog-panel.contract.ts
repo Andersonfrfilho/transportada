@@ -139,3 +139,64 @@ describe('spec 166: interruptor "aceita vários itens" no cadastro', () => {
     expect(companySettingsEn.occurrenceTypeCatalog.allowsMultipleItems).toBeString()
   })
 })
+
+/**
+ * Spec 164 T21/RF1: o tipo declara se admite reentrega, em três estados. A armadilha registrada na
+ * revisão é que `PUT /company-settings/occurrence-types` grava o conjunto **completo** — se a tela
+ * mandar sem o campo, a API não tem como saber a diferença entre "continua unset" e "esqueceu de
+ * mandar", e um tipo marcado "permite" volta para indefinido sem erro nenhum. Este contrato prova
+ * que a tela **sempre** manda o campo, tanto no cadastro quanto em cada edição de checkbox.
+ */
+describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => {
+  it('o tipo do domínio e o guard de validação exigem redeliveryPolicy', () => {
+    const constant = readFileSync(
+      new URL('../../src/modules/trip/shared/occurrence.constant.ts', import.meta.url),
+      'utf8',
+    )
+    expect(constant).toContain('OCCURRENCE_REDELIVERY_POLICY')
+    expect(constant).toContain('redeliveryPolicy: OccurrenceRedeliveryPolicy')
+
+    const validation = readFileSync(
+      new URL('../../src/modules/trip/shared/tripResponse.validation.ts', import.meta.url),
+      'utf8',
+    )
+    expect(validation).toContain("'redeliveryPolicy'")
+    expect(validation).toContain('value.redeliveryPolicy')
+  })
+
+  it('toda chamada a onSave no painel carrega redeliveryPolicy — nenhuma escapa sem o campo', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    const calls = panel.split('onSave({').slice(1)
+    expect(calls.length).toBeGreaterThan(0)
+    for (const call of calls) {
+      const body = call.slice(0, call.indexOf('})'))
+      expect(body).toContain('redeliveryPolicy')
+    }
+  })
+
+  it('o cliente HTTP grava redeliveryPolicy no corpo do PUT, sempre', () => {
+    const client = readFileSync(
+      new URL('../../src/modules/trip/shared/tripClient.service.ts', import.meta.url),
+      'utf8',
+    )
+    expect(client).toContain('redeliveryPolicy: input.redeliveryPolicy')
+  })
+
+  it('o painel explica que unset não abre tratativa', () => {
+    expect(companySettingsPt.occurrenceTypeCatalog.redeliveryPolicyUnset).toBeString()
+    expect(companySettingsPt.occurrenceTypeCatalog.redeliveryPolicyUnset.toLowerCase()).toInclude(
+      'tratativa',
+    )
+    expect(companySettingsPt.occurrenceTypeCatalog.redeliveryPolicyAllowed).toBeString()
+    expect(companySettingsPt.occurrenceTypeCatalog.redeliveryPolicyBlocked).toBeString()
+    expect(companySettingsEn.occurrenceTypeCatalog.redeliveryPolicyUnset).toBeString()
+  })
+
+  it('o painel usa o Select do design system, nunca <select> cru, para a política', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toMatch(
+      /<Select[^>]*ariaLabel=\{t\('occurrenceTypeCatalog\.redeliveryPolicy'\)\}/u,
+    )
+    expect(panel).not.toMatch(/<select[\s>]/u)
+  })
+})

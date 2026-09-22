@@ -278,6 +278,10 @@
     "editTemplates": "Editar modelos de e-mail",
     "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
-    "allowsMultipleItems": "Aceita vários itens"
+    "allowsMultipleItems": "Aceita vários itens",
+    "redeliveryPolicy": "Admite reentrega",
+    "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
+    "redeliveryPolicyAllowed": "Admite reentrega",
+    "redeliveryPolicyBlocked": "Não admite reentrega"
   }
 }
