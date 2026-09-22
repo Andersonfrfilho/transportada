@@ -16,3 +16,10 @@
   menor que 24 × unidade → `VOLUME_BELOW_CONTENT`; peso bruto abaixo → `GROSS_WEIGHT_BELOW_CONTENT`
   (tipos extraídos de `PackageBoxCatalogSanityRejectionCode` da 160, sem código novo para a conferência).
 - Políticas da 160 (`-catalog-sanity`, `-consensus`) intocadas. Typecheck, eslint e prettier verdes.
+
+## T003 — `package-box-cubage-dimensions.policy.ts` (RF07)
+
+- Vermelho: `bun test ./test/package-box-estimate.contract.test.ts` → erro de módulo inexistente.
+- Verde: **24 pass, 0 fail**. Real vence estimada; real incompleta cai na estimada (`isEstimated: true`);
+  nenhuma das duas → `undefined`; leitor sem campos de estimativa só vê a medida real.
+- Typecheck, eslint e prettier verdes.

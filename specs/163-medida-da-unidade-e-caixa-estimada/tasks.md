@@ -8,7 +8,7 @@
 
 - [x] T001 Contrato + `package-box-estimate.policy.ts` (CA01, CA02)
 - [x] T002 Contrato + `package-box-unit-sanity.policy.ts` (CA03) e conferência caixa × unidade (CA04, reusando códigos da 160)
-- [ ] T003 Contrato + `package-box-cubage-dimensions.policy.ts` (real > estimada > nada)
+- [x] T003 Contrato + `package-box-cubage-dimensions.policy.ts` (real > estimada > nada)
 
 ## Fase 2 — Banco e caso de uso
 

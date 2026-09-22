@@ -3,3 +3,4 @@
  */
 import './package-box-estimate/estimate.contract.js'
 import './package-box-estimate/unit-sanity.contract.js'
+import './package-box-estimate/cubage-dimensions.contract.js'
