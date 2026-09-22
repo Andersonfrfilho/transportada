@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import type { TripTransitionBlock } from './trip-state.policy.js'
 
 export class TripVehicleNotFoundError extends ApiError {
@@ -675,6 +676,89 @@ export class TripOccurrenceNotFoundError extends ApiError {
       code: 'TRIP_OCCURRENCE_NOT_FOUND',
       message: 'The occurrence was not found for this trip.',
       status: 404,
+    })
+  }
+}
+
+/**
+ * Spec 164 T3: a tratativa (`trip_occurrence_cases`) não existe nesta empresa — de outra empresa
+ * ou inexistente respondem igual, no mesmo desenho de `TripOccurrenceNotFoundError`.
+ */
+export class OccurrenceCaseNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_NOT_FOUND',
+      message: 'The occurrence case is not registered in this company.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Espelha `OCCURRENCE_CASE_TRANSITION_REFUSALS.transitionNotAllowed`
+ * (`occurrence-case-state.policy.ts`): o estado atual da tratativa não admite a ação pedida. 409,
+ * não 422 — é o mesmo motivo de `TripStateTransitionNotAllowedError`, um recado idempotente para
+ * quem repetiu a chamada de rede.
+ */
+export class OccurrenceCaseTransitionNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS.transitionNotAllowed,
+      message: 'The occurrence case does not accept this action from its current status.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Espelha as duas recusas de reentrega da política: `redeliveryNotAllowed` (o tipo do dano não
+ * admite segunda tentativa, RF16) e `redeliveryBlockedHasNoQuestion` (tratativa `blocked` sem item
+ * acertado não tem pergunta a fazer ao contratante, RF7). Um código por chamada, nunca os dois.
+ */
+export class OccurrenceCaseRedeliveryNotAllowedError extends ApiError {
+  public constructor(
+    code: Extract<
+      keyof typeof OCCURRENCE_CASE_TRANSITION_REFUSALS,
+      'redeliveryBlockedHasNoQuestion' | 'redeliveryNotAllowed'
+    > = 'redeliveryNotAllowed',
+  ) {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS[code],
+      message: 'The occurrence type does not allow a redelivery decision here.',
+      status: 422,
+    })
+  }
+}
+
+/** Espelha `OCCURRENCE_CASE_TRANSITION_REFUSALS.settlementWithoutItems`: fechar `goods_paid` sem nenhum item acertado é fechar sem cobrar o que foi decidido. */
+export class OccurrenceCaseSettlementWithoutItemsError extends ApiError {
+  public constructor() {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS.settlementWithoutItems,
+      message: 'Closing this decision requires at least one settled item.',
+      status: 422,
+    })
+  }
+}
+
+/** T13: o item do acerto aponta para algo que não está entre os itens desta ocorrência. */
+export class OccurrenceSettlementItemUnknownError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_ITEM_UNKNOWN',
+      message: 'The settlement item is not part of this occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/** T13: valor de acerto que não é maior que zero — dinheiro é `Decimal`, nunca float, nunca negativo. */
+export class OccurrenceSettlementAmountInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_AMOUNT_INVALID',
+      message: 'A settlement amount must be greater than zero.',
+      status: 422,
     })
   }
 }
