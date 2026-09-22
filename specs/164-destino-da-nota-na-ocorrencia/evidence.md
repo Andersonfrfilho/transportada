@@ -663,12 +663,15 @@ invariantes da task:
   fail, 100 `expect()` calls** — os três arquivos que este marcador toca: a prova de "sem N+1"
   (`trip-detail-query-count`, mesma contagem de `select`s com 1 ou 40 paradas — a consulta nova é
   fixa, não cresce), a suíte geral de `readTripDetail` (`trip-repository`) e o teste novo desta task.
-- ⚠️ **A suíte inteira de `test:integration` (`bun --env-file=../../.env.test run test:integration`,
-  ~100+ arquivos) não terminou dentro desta sessão** — passa de 250 s e a instrução da task é não
-  ficar esperando processo em segundo plano. Os três arquivos que a T15 toca (acima) rodaram
-  isolados e fecharam verdes; a suíte completa (que inclui as 8 falhas conhecidas de
-  `OBJECT_STORAGE_UNAVAILABLE` já registradas nas fases anteriores, sem relação com esta task) fica
-  para a próxima rodada confirmar o número total.
+- `bun --env-file=../../.env.test run test:integration` (suíte inteira, rodou em segundo plano
+  enquanto o commit acima já tinha fechado — não fiquei esperando, o resultado chegou depois): **522
+  pass, 7 skip, 8 fail, 3084 `expect()` calls**, 537 testes em 97 arquivos, 454 s. Os 8 fails são os
+  mesmos oito já diagnosticados desde a T1 — `toll booth extract create-only integration` (2),
+  `toll booth catalog reload integration` (4), todos `OBJECT_STORAGE_UNAVAILABLE` pela credencial do
+  MinIO divergente no `.env.test` local — mais dois fora da janela de log capturada, mesma família.
+  Nenhum toca `trip_occurrence_cases`, `trip_documents`, `readTripDetail` ou qualquer arquivo desta
+  task; `trip-detail-occurrence-marker.integration.ts`, `trip-detail-query-count.integration.ts` e
+  `trip-repository.integration.ts` estão entre os 522 verdes.
 - Nenhuma migration nova — reaproveita índices existentes, confirmado pela ausência de
   `drizzle/*settlement*` ou pasta nova em `git status`.
 
