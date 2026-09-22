@@ -1,0 +1,2 @@
+ALTER TABLE "nfe_package_box_measurements" DROP CONSTRAINT "nfe_package_box_measurements_source_check", ADD CONSTRAINT "nfe_package_box_measurements_source_check" CHECK ("source" in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog'));--> statement-breakpoint
+ALTER TABLE "nfe_package_boxes" DROP CONSTRAINT "nfe_package_boxes_measurement_source_check", ADD CONSTRAINT "nfe_package_boxes_measurement_source_check" CHECK ("measurement_source" is null or "measurement_source" in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog'));
