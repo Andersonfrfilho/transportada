@@ -71,6 +71,7 @@ export const API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
+export const API_OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'
 /** Spec 061 D5: o acumulado dos resultados congelados, por período, veículo ou motorista. */
 export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
 /**

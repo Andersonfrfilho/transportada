@@ -507,12 +507,15 @@ import { createExtraChargeBatchesUseCase } from './delivery-clients/application/
 import { DrizzleExtraChargeBatchRepository } from './delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.js'
 import { createExtraChargeBatchRoutes } from './delivery-clients/presentation/extra-charge-batch.routes.js'
 import { createPublicExtraChargeBatchRoutes } from './delivery-clients/presentation/public-extra-charge-batch.routes.js'
+import { createOccurrenceChargeReportUseCase } from './delivery-clients/application/occurrence-charge-report.use-case.js'
 import { createSuggestDeliveryCharges } from './delivery-clients/application/suggest-delivery-charges.use-case.js'
 import {
   DrizzleDeliveryChargeRepository,
   DrizzleDeliveryChargeRuleRepository,
 } from './delivery-clients/infrastructure/drizzle-delivery-charge.repository.js'
+import { DrizzleOccurrenceChargeReportRepository } from './delivery-clients/infrastructure/drizzle-occurrence-charge-report.repository.js'
 import { createDeliveryChargeRoutes } from './delivery-clients/presentation/delivery-charge.routes.js'
+import { createOccurrenceChargeReportRoutes } from './delivery-clients/presentation/occurrence-charge-report.routes.js'
 import { createTripStopSchedulesUseCase } from './delivery-clients/application/trip-stop-schedule.use-case.js'
 import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
@@ -1620,6 +1623,9 @@ function createApplicationRoutes({
     repository: new DrizzleMunicipalHolidayRepository(database),
   })
   const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
+  const occurrenceChargeReport = createOccurrenceChargeReportUseCase({
+    report: new DrizzleOccurrenceChargeReportRepository(database),
+  })
   const deliveryChargeRuleRepository = new DrizzleDeliveryChargeRuleRepository(database)
   const deliveryCharges = createDeliveryChargesUseCase({ repository: deliveryChargeRepository })
   const suggestDeliveryCharges = createSuggestDeliveryCharges({
@@ -2668,6 +2674,9 @@ function createApplicationRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
       decideBatch: { execute: (input) => extraChargeBatches.decide(input) },
       readReport: { execute: (input) => extraChargeBatches.readReport(input) },
+    }),
+    ...createOccurrenceChargeReportRoutes({
+      readReport: { execute: (input) => occurrenceChargeReport.read.execute(input) },
     }),
     ...createDeliveryChargeRoutes({
       confirmCharges: { execute: (input) => deliveryCharges.confirm(input) },
