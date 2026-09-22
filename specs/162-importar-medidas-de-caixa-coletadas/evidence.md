@@ -11,7 +11,7 @@ fixa, sem linha de banco criada pela migration.
 
 Comando: `bun run db:generate --name package_box_catalog_source` (dentro de
 `apps/api-transportada`), após alargar as duas CHECKs em `src/database/nfe.schema.ts` para incluir
-`'catalog'`. Resultado: `drizzle/20260922020751_package_box_catalog_source/migration.sql` com
+`'catalog'`. Resultado: `drizzle/20260922024059_package_box_catalog_source/migration.sql` com
 exatamente as duas ALTER TABLE esperadas (`nfe_package_box_measurements_source_check`,
 `nfe_package_boxes_measurement_source_check`). `rollback.sql` escrito à mão seguindo o padrão de
 `20260917153054_package_box_replicated_source`.
@@ -27,7 +27,7 @@ DATABASE_URL=postgres://test@127.0.0.1:56998/transportada_mig162_<epoch> \
 → aplicou sem erro; `pg_get_constraintdef` confirmou as duas CHECKs com `'catalog'` no `ANY(ARRAY[...])`.
 
 ```
-psql ... -f drizzle/20260922020751_package_box_catalog_source/rollback.sql
+psql ... -f drizzle/20260922024059_package_box_catalog_source/rollback.sql
 ```
 
 → `BEGIN / DO / ALTER TABLE / ALTER TABLE / DO / COMMIT`; `pg_get_constraintdef` confirmou a CHECK
@@ -94,7 +94,7 @@ num argumento único).
 - `bun run test` (api-transportada, 181 arquivos / 3611+ contratos incluindo os novos): 6743 pass,
   0 fail, 32 skip (skips pré-existentes, não relacionados). Precisou de um ajuste em
   `test/database-migration/static-migration.contract.ts` (lista estática de diretórios de
-  migration) para incluir `20260922020751_package_box_catalog_source` — sem isso o contrato
+  migration) para incluir `20260922024059_package_box_catalog_source` — sem isso o contrato
   `preserves baseline and identity bytes` falhava sozinho, nada a ver com a migration em si.
 - `bun run test:integration` (api-transportada, 73 arquivos, cada um com seu próprio banco
   descartável): 495 pass, 9 fail, 376s. As falhas são **pré-existentes, sem relação com a spec
