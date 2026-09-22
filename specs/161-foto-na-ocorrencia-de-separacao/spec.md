@@ -75,21 +75,47 @@ registro, por expurgo que apaga o objeto de verdade.
   de follow-up migrar a de rua (backfill `coluna → tabela` e `DROP COLUMN`), só o caminho de escrita
   do lote muda. Migrar junto agora custaria tocar `office-occurrence-batch.service.ts`, o app do
   motorista e o feed no mesmo commit.
-- **D7. O WhatsApp passa a pedir a foto — e o canal tem como obtê-la.** Medido, com evidência: o
-  webhook já recebe e persiste `message.image`
-  (`whatsAppMessageSchema` aceita `image`, e `ReceiveWebhookUseCase.handleMessage` grava
-  `extractPayload(message)` em `messages.payload`); o provider do pacote sabe baixar a mídia
-  (`fetchMediaAsBase64(mediaId)`, que faz `GET /{media-id}` e depois o download autenticado com o
-  token do canal, exposto pelo adapter do módulo); e o token é o **por empresa**, selado em
-  `whatsapp_channels.secret_envelope` e já aberto pelo resolver. O que falta é ligação, não
-  capacidade: `createMetaWhatsAppModule` só constrói `IngestInboundMediaUseCase` quando recebe
-  `providers.objectStorage`, e `src/whatsapp/application/meta-whatsapp-module.resolver.ts:85-98`
-  monta o módulo **sem** `providers`. Esta spec injeta esse provider e liga o download.
+- **D7. O WhatsApp passa a pedir a foto — e a capacidade de baixar já está na mão do handler.**
+  Medido: o webhook recebe e persiste `message.image` (`whatsAppMessageSchema` aceita `image`, e
+  `ReceiveWebhookUseCase.handleMessage` grava `extractPayload(message)` em `messages.payload`);
+  `channel.fetchMediaAsBase64` é **campo do contrato do canal**, e **todo `FlowActionHandler` já
+  recebe `channel`** — o router da foto baixa a mídia hoje, sem injetar nada. O token é o por
+  empresa, selado em `whatsapp_channels.secret_envelope` e já aberto pelo resolver.
+  - ⚠️ **Correção de uma versão anterior desta spec**, que afirmava "falta ligação, não capacidade" e
+    propunha injetar `providers.objectStorage` para acender o `IngestInboundMediaUseCase` do pacote.
+    É o inverso, e a injeção foi **descartada na validação de arquitetura**, por dois motivos
+    medidos: (a) o `IngestInboundMediaUseCase` **não grava em `stored_objects`** — usa chave fixa do
+    pacote (`meta-whatsapp/{companyId}/inbound/{mediaId}`), sem purpose, sem `retention_until` e sem
+    sha256, de modo que RF2, RF3 e RNF1 seriam inalcançáveis por aquele caminho; (b) injetar o
+    provider **acende caminhos hoje dormentes** no módulo inteiro — `sendMedia` passaria a subir
+    binário, `DeleteConversation` e `PurgeExpiredDocuments` passariam a apagar bytes no bucket, e o
+    nó de fluxo `send_media`, que hoje encerra em silêncio, passaria a enviar arquivo de verdade.
+    Nada disso foi pedido por esta feature. `meta-whatsapp-module.resolver.ts:82-95` continua
+    montando o módulo **sem** `providers`, e um contrato trava essa ausência (RF16).
 - **D8. O fluxo do operador ganha um passo de foto, obrigatório, com desistência explícita.** Depois
   da observação (`operator_note_entry`), o fluxo pede a foto e espera uma imagem. Quem não puder
-  mandar foto usa a opção "❌ Cancelar ocorrência" e nada é gravado — o fluxo **não** oferece "pular",
-  porque pular seria burlar a D1 pelo canal mais fácil. Isso exige `extractWhatsAppAnswer` aprender
-  a devolver a mídia recebida, e não só texto/botão.
+  mandar foto usa a opção "❌ Cancelar ocorrência" e nada é gravado — o fluxo **não** oferece
+  "pular", porque pular seria burlar a D1 pelo canal mais fácil.
+- **D15. Abandonar no passo da foto perde a ocorrência inteira — aceito, e dito ao operador.** Hoje
+  o `noteRouter` (`register-operator-trip-flow-actions.ts:580-620`) grava assim que recebe a
+  observação. Com a foto obrigatória **antes** da gravação, quem sair da conversa no passo da foto
+  perde tipo e observação junto, e **não há TTL de sessão** que limpe ou recupere isso: o contexto
+  fica na `sessions` até a próxima interação sobrescrevê-lo.
+  - Aceito, porque a alternativa é pior: gravar a ocorrência antes da foto criaria exatamente o
+    registro sem prova que a D1 existe para impedir, e "completar depois" exigiria uma ocorrência em
+    estado inválido, visível nas três telas, esperando uma foto que talvez nunca venha.
+  - Mitigação, que é requisito (RF18): a mensagem do passo **diz** que sem a foto nada será
+    registrado, e o "❌ Cancelar ocorrência" é a saída limpa. O operador perde o que digitou, não
+    uma ocorrência que ele pensava ter registrado.
+- **D16. A mídia viaja por contexto, não pela assinatura de `extractWhatsAppAnswer`.** Devolver um
+  objeto de mídia não compila: o `FlowInterpreter` do pacote tipa `userAnswer?: string` e o handler
+  **não recebe a mensagem**. Então `extractWhatsAppAnswer` mantém `string | undefined`, e o
+  despachante escreve o descritor da imagem numa chave de contexto ao montar o cursor
+  (`whatsapp-command-driver.service.ts:222-229`); o router da foto lê e **apaga no mesmo turno**.
+  - Consequência aceita: imagem enviada num nó de **escolha** continua sendo resposta inválida e
+    conta para o handoff humano, como qualquer outra resposta fora das opções.
+  - Segurança: o `media-id` é um **handle resgatável com o token da empresa** — vale como credencial
+    de curta duração. Nunca entra em log, e sai do contexto no mesmo turno em que foi usado.
 - **D9. Retenção de cinco anos, com expurgo que apaga de verdade.** Cinco anos é o horizonte da
   guarda fiscal do produto (CT-e/NF-e) e o prazo em que um sinistro ou uma discussão de avaria ainda
   pode ser reaberta — a foto da caixa violada é a prova dessa discussão, então guardá-la menos que o
@@ -276,21 +302,40 @@ bucket, a linha do anexo some, e a ocorrência continua legível com o selo "fot
 
 ### WhatsApp
 
-- **RF16.** `meta-whatsapp-module.resolver.ts` passa a injetar `providers.objectStorage`, ligando a
-  ingestão de mídia recebida do pacote. O objeto entra com o purpose de RF2 e a retenção de RF3.
-- **RF17.** `extractWhatsAppAnswer` passa a reconhecer `message.image` e a devolver um descritor de
-  mídia (`{ kind: 'media', mediaId, mimeType }`), sem deixar de reconhecer botão, lista e texto. Nó
-  que espera texto continua rejeitando mídia — a mudança é aditiva.
+- **RF16.** A ocorrência do WhatsApp passa a nascer pelo **mesmo** bloco de persistência da rota
+  HTTP: a dep `registerOccurrence` (`src/main.ts:826-843`) troca o `saveOccurrence` cru por
+  `persistSeparationOccurrenceWithAttachment` (já usado em `src/main.ts:2799-2824`), com
+  `attachment` opcional. `meta-whatsapp-module.resolver.ts:82-95` **continua sem** `providers`, e um
+  contrato trava essa ausência como regressão (D7).
+- **RF17.** `extractWhatsAppAnswer` mantém a assinatura `string | undefined`. O descritor da imagem
+  é escrito pelo despachante numa chave de contexto ao montar o cursor
+  (`whatsapp-command-driver.service.ts:222-229`), lido pelo router da foto e **apagado no mesmo
+  turno** (D16). Imagem em nó de escolha segue sendo resposta inválida e conta para o handoff.
 - **RF18.** O fluxo do operador ganha o nó `operator_occurrence_photo_entry` depois de
-  `operator_note_entry`: pede a foto, aceita até cinco (cada imagem enviada anexa e repete o pedido,
-  com "✅ Concluir" quando já há pelo menos uma), e oferece "❌ Cancelar ocorrência". Resposta de
-  texto no passo repete a instrução; segunda resposta inválida segue a regra de rejeição já
-  existente do driver.
+  `operator_note_entry` (`register-operator-trip-flow-actions.ts:580-620`): pede a foto **dizendo
+  que sem ela nada será registrado** (D15), aceita até cinco (cada imagem anexa e repete o pedido,
+  com "✅ Concluir" quando já há pelo menos uma), e oferece "❌ Cancelar ocorrência".
+- **RF18b.** O router da foto **incrementa o contador de tentativas inválidas** a cada resposta que
+  não é imagem. Sem isso, quem responde texto entra em **laço infinito**: o contador só roda em nó
+  de escolha hoje, e o passo da foto não é um. Estourado o limite, vale o handoff humano já
+  existente.
+- **RF18c.** `describeTripError` ganha os casos `TRIP_DELIVERY_PROOF_TOO_LARGE` e
+  `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE`, com mensagem que diz o **limite** e a **saída** ("mande
+  uma foto menor" / "mande JPEG, PNG ou WebP") — hoje esses códigos cairiam na mensagem genérica, e
+  o operador não saberia o que corrigir.
 - **RF19.** A ocorrência do WhatsApp só é gravada **depois** da primeira foto baixada com sucesso, na
   mesma transação do anexo. Falha de download responde ao operador que a foto não chegou e mantém o
   passo, sem gravar nada.
-- **RF20.** A mídia do WhatsApp passa pelas mesmas validações de tamanho, tipo e assinatura de bytes
-  (RF7) — o canal não é rota de escape para arquivo grande ou tipo inesperado.
+- **RF20.** A mídia do WhatsApp passa pelas mesmas validações de tipo e assinatura de bytes (RF7) —
+  o canal não é rota de escape para tipo inesperado. O **teto de bytes vira parâmetro** de
+  `persistSeparationOccurrenceWithAttachment`, que hoje fixa `OCCURRENCE_PHOTO_MAX_BYTES` (512 KiB):
+  o WhatsApp passa `OFFICE_PROOF_MAX_BYTES` (960 KiB), **importado** de `delivery-proof.policy.ts`,
+  sem constante nova (§16 do code-standart). Sem essa parametrização a foto de 700 KiB passaria no
+  router e seria recusada lá dentro, com mensagem que não corresponde ao limite anunciado.
+- **RF20b.** A idempotência do canal é por **sha256 do arquivo baixado**, nunca por `media-id`: o
+  `media-id` muda quando o operador reenvia a mesma foto, e uma chave derivada de `occurrenceId`
+  seria circular — no momento do upload a ocorrência ainda não existe. A reentrega do mesmo webhook
+  pela Meta é barrada antes disso, pelo `nonceStore` que o módulo já usa.
 
 ### Retenção e expurgo
 
@@ -376,8 +421,11 @@ bucket, a linha do anexo some, e a ocorrência continua legível com o selo "fot
 - WhatsApp: mídia expirada na Meta (o link de download tem validade) ou `media-id` desconhecido →
   mensagem ao operador e o passo continua, sem gravar.
 - WhatsApp: operador manda vídeo, documento ou áudio no passo da foto → mesma instrução de imagem.
-- WhatsApp: operador abandona a conversa no passo da foto → nada gravado; a sessão expira pelo
-  caminho já existente.
+- WhatsApp: operador abandona a conversa no passo da foto → **nada gravado, e o tipo e a observação
+  que ele já tinha escolhido se perdem** (D15). Não há TTL de sessão: o contexto fica na `sessions`
+  até a próxima interação sobrescrevê-lo. Comportamento declarado e aceito, com aviso no passo.
+- WhatsApp: operador responde texto várias vezes no passo da foto → o contador de tentativas
+  inválidas sobe e o handoff humano acontece (RF18b); o fluxo **não** repete o pedido para sempre.
 - Objeto apagado do bucket com a linha viva: a leitura omite o anexo e não derruba a resposta.
 - Expurgo interrompido no meio do lote: converge no ciclo seguinte (marcação é idempotente).
 - Expurgo com objeto já ausente no bucket: marca e segue (RF24).
@@ -413,14 +461,30 @@ bucket, a linha do anexo some, e a ocorrência continua legível com o selo "fot
   422; `thumbnail` sem `file` → 400.
 - **CA8.** Isolamento: nenhuma query nova alcança anexo de outra empresa
   (`tenant-safety.contract.ts`).
-- **CA9.** Contrato do WhatsApp: `extractWhatsAppAnswer` devolve descritor de mídia para
-  `message.image` e continua devolvendo botão/lista/texto como hoje; nó de texto segue rejeitando
-  mídia.
+- **CA9.** Contrato do WhatsApp: `extractWhatsAppAnswer` **mantém** `string | undefined`; o
+  descritor da imagem chega pelo contexto escrito no cursor e é apagado no mesmo turno; imagem em nó
+  de escolha vira resposta inválida e conta para o handoff; `media-id` não aparece em log nenhum.
+- **CA9b.** Contrato de regressão: `meta-whatsapp-module.resolver.ts` monta o módulo **sem**
+  `providers` — o teste falha se alguém injetar `objectStorage` (D7).
+- **CA9c.** Contrato: a ocorrência vinda do WhatsApp nasce por
+  `persistSeparationOccurrenceWithAttachment`, com `stored_objects` de purpose
+  `trip_occurrence_attachment`, `retention_until` de cinco anos, chave
+  `tenants/…/trip-occurrence-attachments/…` e **sem** miniatura.
 - **CA10.** Contrato do WhatsApp: o fluxo do operador chega a `operator_occurrence_photo_entry` depois
   da nota; imagem anexa e repete o pedido com "✅ Concluir"; texto repete a instrução; "❌ Cancelar
   ocorrência" não grava nada; a sexta imagem não é aceita.
-- **CA11.** Contrato do WhatsApp: falha de download da mídia **não** grava ocorrência (RF19), e a
-  mídia grande/de tipo errado é recusada pelas mesmas regras da web (RF20).
+- **CA11.** Contrato do WhatsApp: falha de download da mídia **não** grava ocorrência (RF19); foto
+  entre 512 KiB e 960 KiB é **aceita** (prova que o teto é parâmetro, RF20); acima de 960 KiB e tipo
+  errado são recusados com a mensagem de `describeTripError` que diz o limite e a saída (RF18c);
+  resposta de texto no passo incrementa o contador de tentativas e o handoff acontece (RF18b) — o
+  teste falha se o fluxo repetir o pedido indefinidamente.
+- **CA11b.** Contrato: a idempotência é por sha256 do arquivo baixado (RF20b) — reenviar a mesma
+  foto com `media-id` diferente não duplica anexo; e a **reentrega do mesmo webhook é barrada pelo
+  `nonceStore`**, provado por teste, não assumido.
+- **CA11c.** Contrato: nenhum `stored_objects` com origem WhatsApp nasce com purpose diferente de
+  `trip_occurrence_attachment`.
+- **CA11d.** Contrato: abandonar no passo da foto não grava nada, e a mensagem do passo avisa disso
+  antes (D15/RF18).
 - **CA12.** Integração: o fluxo do operador ponta a ponta contra Postgres grava ocorrência + anexo +
   `stored_objects` com o purpose e a retenção corretos
   (`test/integration/whatsapp-operator-flow-actions.integration.ts`).

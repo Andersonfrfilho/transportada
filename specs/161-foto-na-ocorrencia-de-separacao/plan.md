@@ -16,11 +16,19 @@ Quase tudo já existe e é reaproveitado em vez de reescrito:
   (`src/modules/trip/shared/fieldDeliveryImage.service.ts`), `FieldDeliveryCaptureStep` como
   referência de degradê de câmera, `OccurrenceAttachments`
   (`TripOccurrenceTable.component.tsx:66-111`) como referência de grade.
-- WhatsApp: o pacote já sabe baixar mídia — `fetchMediaAsBase64(mediaId)` no provider e
-  `IngestInboundMediaUseCase` no módulo, construído **só** quando `providers.objectStorage` é
-  injetado; `src/whatsapp/application/meta-whatsapp-module.resolver.ts:85-98` monta o módulo sem
-  `providers`, e `src/main.ts:1176-1188` não passa storage. O access token por empresa já é aberto
-  pelo resolver a partir de `whatsapp_channels.secret_envelope`.
+- WhatsApp: `channel.fetchMediaAsBase64` é campo do contrato do canal e **todo `FlowActionHandler`
+  já recebe `channel`** — o router da foto baixa a mídia sem injeção nenhuma. O access token por
+  empresa já é aberto pelo resolver a partir de `whatsapp_channels.secret_envelope`.
+  ⚠️ **`providers.objectStorage` não é injetado** (reprovado na validação de arquitetura, D7): o
+  `IngestInboundMediaUseCase` do pacote não grava em `stored_objects` — chave fixa
+  `meta-whatsapp/{companyId}/inbound/{mediaId}`, sem purpose, sem `retention_until`, sem sha256 —
+  e injetar acenderia `sendMedia`, `DeleteConversation`, `PurgeExpiredDocuments` e o nó `send_media`,
+  nada disso pedido aqui. `meta-whatsapp-module.resolver.ts:82-95` segue sem `providers`, travado por
+  contrato.
+- A persistência com anexo já existe e é reusada pelo canal:
+  `persistSeparationOccurrenceWithAttachment` (importado em `src/main.ts:233`, usado pela rota HTTP
+  em `src/main.ts:2799-2824`). A dep do WhatsApp em `src/main.ts:826-843` ainda usa `saveOccurrence`
+  cru — é essa linha que muda.
 - Expurgo: `rate-limit.window.purge` é o molde exato — catálogo em `job-catalog.constant.ts`
   (cópia por valor nas 4 apps), rotina em
   `apps/worker-transportada/src/rate-limit-window-purge/` (porta de lote, laço com `MAX_BATCHES` e
@@ -84,21 +92,27 @@ Premissas verificadas:
 
 **API — WhatsApp**
 
-- `src/whatsapp/application/meta-whatsapp-module.resolver.ts:85-98`: passa `providers.objectStorage`
-  (adapter novo sobre o gateway de storage do app, gravando com a chave de RNF1, o purpose de RF2 e
-  a retenção de RF3) — é a ligação que hoje falta para o `IngestInboundMediaUseCase` existir.
-- `src/whatsapp-commands/domain/whatsapp-answer.policy.ts:7-13`: `extractWhatsAppAnswer` passa a
-  devolver `{ kind: 'media', mediaId, mimeType }` para `message.image`, mantendo
-  botão/lista/texto (RF13). Nó de texto continua rejeitando mídia.
+- `src/whatsapp/application/meta-whatsapp-module.resolver.ts:82-95`: **não muda** — o contrato novo
+  é que ele continue sem `providers`.
+- `src/whatsapp-commands/domain/whatsapp-answer.policy.ts:7-13`: `extractWhatsAppAnswer` mantém
+  `string | undefined` (o `FlowInterpreter` tipa `userAnswer?: string` e o handler não recebe a
+  mensagem). O descritor da imagem é escrito pelo despachante em
+  `whatsapp-command-driver.service.ts:222-229`, ao montar o cursor, e lido/apagado pelo router no
+  mesmo turno.
+- `src/trips/application/persist-separation-occurrence-with-attachment.ts`: o teto de bytes vira
+  **parâmetro** (hoje fixa `OCCURRENCE_PHOTO_MAX_BYTES`); o WhatsApp passa `OFFICE_PROOF_MAX_BYTES`
+  importado de `delivery-proof.policy.ts`.
+- `describeTripError`: casos `TRIP_DELIVERY_PROOF_TOO_LARGE` e `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE`.
 - `src/whatsapp-commands/domain/whatsapp-operator-flow.constant.ts`: nó
   `operator_occurrence_photo_entry`, `actionKind` novo, chave de contexto
   `operatorOccurrenceId`/`operatorOccurrencePhotoCount`, rótulos "✅ Concluir" e
   "❌ Cancelar ocorrência".
-- `register-operator-trip-flow-actions.ts`: `noteRouter` (l.580-616) deixa de registrar direto e
-  passa a `photoPrompt`; `photoRouter` novo baixa a mídia, valida (RF16), grava (RF15) e decide
-  entre repetir, concluir ou cancelar.
-- `src/main.ts:825-841`: `registerOccurrence` passa a levar o anexo; entra a porta de download de
-  mídia.
+- `register-operator-trip-flow-actions.ts`: `noteRouter` (l.580-620) deixa de registrar direto e
+  passa a `photoPrompt`; `photoRouter` novo lê o descritor do contexto, baixa por
+  `channel.fetchMediaAsBase64`, valida (RF20), grava (RF19), **incrementa o contador de tentativas
+  inválidas** em resposta que não é imagem (RF18b) e decide entre repetir, concluir ou cancelar.
+- `src/main.ts:826-843`: a dep `registerOccurrence` troca `saveOccurrence` cru por
+  `persistSeparationOccurrenceWithAttachment` com `attachment` opcional e teto de 960 KiB.
 
 **Worker + cron**
 
@@ -285,9 +299,10 @@ purposes.
   `withFieldReport`, operação `separation.document.occurrence`.
 - Anexo (web): operação `separation.document.occurrence-attachment`, fingerprint com `occurrenceId` +
   sha256 da foto — reenviar a mesma foto converge.
-- WhatsApp: a chave de idempotência é derivada do `media-id` da Meta + `occurrenceId` — reentrega do
-  mesmo webhook (que a Meta faz) não duplica anexo. A ingestão do pacote já é idempotente por
-  `sourceMediaId`.
+- WhatsApp: a chave de idempotência é o **sha256 do arquivo baixado**. O `media-id` não serve (muda
+  quando o operador reenvia a mesma foto) e `occurrenceId` seria circular — no momento do upload a
+  ocorrência ainda não existe. A reentrega do mesmo webhook pela Meta é barrada antes, pelo
+  `nonceStore` que o módulo já usa, e isso entra como teste, não como suposição.
 - Corrida da sexta foto: o unique `(company_id, occurrence_id, position)` decide; a violação vira 409
   `TRIP_OCCURRENCE_ATTACHMENT_LIMIT`, não 500.
 - Upload e escrita na mesma transação, com limpeza do objeto se ela desfizer.
@@ -337,9 +352,15 @@ purposes.
   por isso o passo tem cancelamento explícito (D8) e a mensagem diz por que a foto é necessária. Se a
   operação reclamar, a saída é permitir texto **com** justificativa — decisão de produto, não desta
   spec.
-- **Ligar `providers.objectStorage` afeta o módulo inteiro do WhatsApp**, não só a ocorrência: a
-  partir daí toda mídia recebida passa a ser ingerida. Mitigação: o contrato da injeção precisa
-  medir o que passa a ser gravado, e o `docs/SECURITY.md` registra o alargamento.
+- **Perda de trabalho no WhatsApp** (D15): abandonar no passo da foto descarta tipo e observação, e
+  não há TTL de sessão. Risco de produto aceito, com aviso no passo; se a operação reclamar, a saída
+  é rascunho persistido, que é feature própria.
+- **O `media-id` no contexto é credencial de curta duração**: com o token da empresa ele resgata a
+  mídia. Fica no `sessions.context` só dentro do turno, some depois, e nunca entra em log.
+- **Risco evitado, registrado para não voltar**: injetar `providers.objectStorage` acenderia
+  `sendMedia`, `DeleteConversation`, `PurgeExpiredDocuments` e o nó `send_media` do pacote, além de
+  gravar fora de `stored_objects`. O contrato de CA9b existe para que uma sessão futura não refaça
+  esse caminho achando que está "só ligando o download".
 - **Expurgo que apaga de verdade é irreversível.** Mitigação: rollback da migration não devolve
   arquivo — por isso a rotina nasce com teto de lotes, log de contadores e um ciclo de observação em
   staging antes de produção; e a marcação (`deleted`) preserva a trilha de que existiu.
