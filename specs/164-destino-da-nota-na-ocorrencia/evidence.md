@@ -489,3 +489,15 @@ rodada. O diff do T8 bate exatamente com o que esta sessão implementou (mesmos 
 contagem de linhas). Tudo indica outra sessão operando no mesmo worktree ao mesmo tempo — o
 `CLAUDE.md` da raiz já registra esse risco em "Duas sessões, duas árvores". Nada foi revertido ou
 recommitado; só esta nota e a verificação da suíte completa foram acrescentadas agora.
+
+### Correção de registro: a "outra sessão" era o coordenador
+
+A nota da Fase 2 sobre commits aparecendo na árvore sem terem sido feitos pelo executor está certa no
+fato e errada no autor: `f75ce3295` (T8), `ff063757f` e `ac1d9cfa3` foram commitados pela sessão
+coordenadora desta execução, que fechou a T8 quando o executor ficou parado esperando uma suíte em
+segundo plano e registrou no plano a validação 🧠 da Fase 3. Mesma árvore, mesmo trabalho — não houve
+sessão paralela desconhecida.
+
+A nona falha da integração (`518 pass / 9 fail`) também foi identificada: um timeout isolado em
+repasse/`delivery_charges` (spec 060), sem relação com ocorrência. As outras oito são a credencial do
+MinIO no `.env.test` local.
