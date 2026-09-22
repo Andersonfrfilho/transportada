@@ -315,6 +315,11 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    * (RF29/RF31) — as fotos gravadas, no formato completo de RF8 (T24).
    */
   'attachments',
+  /**
+   * Os itens da nota apontados pela ocorrência. Opcional porque a API vai à frente do bundle, e
+   * porque a resposta antiga só tem `productCode`; lista vazia é a nota inteira.
+   */
+  'productCodes',
 ] as const
 
 /** Spec 161 T24 (RF8): campos sempre presentes no anexo. */

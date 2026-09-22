@@ -826,7 +826,7 @@ export function createTripResponseAdapters() {
       return input
     },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
-      if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
+      if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
     /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
@@ -870,7 +870,7 @@ export function createTripResponseAdapters() {
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
       const { attachments, email, ...occurrence } = input
-      if (!isOccurrence(occurrence)) throw invalid()
+      if (!isTripOccurrence(occurrence)) throw invalid()
       if (
         attachments !== undefined &&
         !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
@@ -1071,7 +1071,8 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
   )
 }
 
-function isOccurrence(value: unknown): value is TripOccurrence {
+/** Exportada para o contrato: a guarda é de chave exata, e campo novo é mudança de contrato. */
+export function isTripOccurrence(value: unknown): value is TripOccurrence {
   if (
     !hasKeys(value, {
       allowed: [...TRIP_OCCURRENCE_KEYS, ...TRIP_OCCURRENCE_OPTIONAL_KEYS],
@@ -1091,6 +1092,7 @@ function isOccurrence(value: unknown): value is TripOccurrence {
     (value.onBehalfOfDriverName === undefined || isNullableString(value.onBehalfOfDriverName)) &&
     isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
+    (value.productCodes === undefined || isEveryItem(value.productCodes, isString)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
   )

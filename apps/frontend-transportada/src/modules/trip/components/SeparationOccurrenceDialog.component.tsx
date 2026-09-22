@@ -28,7 +28,8 @@ export type SeparationOccurrenceDialogProps = Readonly<{
     readonly note: string
     readonly occurrenceTypeId: string
     readonly photos: readonly OccurrencePhoto[]
-    readonly productCode: string
+    /** Lista vazia é a nota inteira — não existe código sentinela para ela. */
+    readonly productCodes: readonly string[]
   }) => Promise<Readonly<{ hasFailure: boolean }>>
   photoSendState: readonly OccurrencePhotoSendItem[]
   products: readonly TripDocumentProduct[]

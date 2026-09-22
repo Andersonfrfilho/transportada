@@ -6,11 +6,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
+import {
+  formatOccurrenceProductLabel,
+  OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+  resolveOccurrenceProductCodes,
+  resolveOccurrenceProductSelection,
+  resolveOccurrenceProductSelectionValues,
+} from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
@@ -67,7 +75,8 @@ type TripOccurrencesProps = Readonly<{
     readonly note: string
     readonly occurrenceTypeId: string
     readonly photos: readonly OccurrencePhoto[]
-    readonly productCode: string
+    /** Lista vazia é a nota inteira — não existe código sentinela para ela. */
+    readonly productCodes: readonly string[]
   }) => Promise<Readonly<{ hasFailure: boolean }>>
   /** Estado por foto do envio em curso/do último tentado — vazio quando nada foi enviado ainda. */
   photoSendState: readonly OccurrencePhotoSendItem[]
@@ -112,7 +121,7 @@ export function TripOccurrences({
     (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation,
   )
   const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
-  const [productCode, setProductCode] = useState('')
+  const [productCodes, setProductCodes] = useState<readonly string[]>([])
   const [note, setNote] = useState('')
   const [photos, setPhotos] = useState<readonly OccurrencePhoto[]>([])
   /** Revisão de UX (spec 161): Cancelar também confirma quando há foto ou observação em progresso. */
@@ -128,7 +137,7 @@ export function TripOccurrences({
 
   function clearForm() {
     setNote('')
-    setProductCode('')
+    setProductCodes([])
     setPhotos([])
     setIsConfirmingCancel(false)
     setIsOpen(false)
@@ -155,12 +164,12 @@ export function TripOccurrences({
   async function handleSubmit() {
     if (!canSubmit) return
     onReset()
-    const result = await onRegister({ note, occurrenceTypeId, photos, productCode })
+    const result = await onRegister({ note, occurrenceTypeId, photos, productCodes })
     if (!result.hasFailure) clearForm()
   }
 
   async function handleRetryFailed() {
-    const result = await onRegister({ note, occurrenceTypeId, photos, productCode })
+    const result = await onRegister({ note, occurrenceTypeId, photos, productCodes })
     if (!result.hasFailure) clearForm()
   }
 
@@ -179,9 +188,10 @@ export function TripOccurrences({
                   moment: momentFormatter.format(new Date(occurrence.createdAt)),
                   type: occurrence.typeName,
                 })}
-                {occurrence.productCode === ''
-                  ? ` — ${t('occurrence.wholeDocument')}`
-                  : ` — ${occurrence.productCode}`}
+                {` — ${formatOccurrenceProductLabel({
+                  codes: resolveOccurrenceProductCodes(occurrence),
+                  wholeDocumentLabel: t('occurrence.wholeDocument'),
+                })}`}
                 {occurrence.note === '' ? null : ` — ${occurrence.note}`}
                 {authorship === null ? null : <span className={styles.hint}> — {authorship}</span>}
                 {occurrence.attachments === undefined ||
@@ -244,19 +254,39 @@ export function TripOccurrences({
                 value={occurrenceTypeId}
               />
             </label>
+            {/*
+             * Uma ocorrência aponta vários itens: uma caixa quebrada e um volume molhado na mesma
+             * nota são o mesmo registro, com as mesmas fotos. "A nota inteira" segue sendo o padrão
+             * e é exclusiva — a regra da exclusividade mora em
+             * `resolveOccurrenceProductSelection`, não aqui.
+             */}
             <label>
               <span>{t('occurrence.product')}</span>
-              <Select
+              <MultiSelect
                 ariaLabel={t('occurrence.product')}
-                onChange={setProductCode}
+                clearAllLabel={t('occurrence.productClear')}
+                emptyLabel={t('occurrence.productEmpty')}
+                onChange={(next) =>
+                  setProductCodes(
+                    resolveOccurrenceProductSelection({
+                      next,
+                      previous: resolveOccurrenceProductSelectionValues(productCodes),
+                    }),
+                  )
+                }
                 options={[
-                  { label: t('occurrence.wholeDocument'), value: '' },
+                  { label: t('occurrence.wholeDocument'), value: OCCURRENCE_WHOLE_DOCUMENT_VALUE },
                   ...products.map((product) => ({
-                    label: `${product.code} — ${product.description}`,
+                    description: product.description,
+                    label: product.code,
                     value: product.code,
                   })),
                 ]}
-                value={productCode}
+                placeholder={t('occurrence.wholeDocument')}
+                removeLabel={t('occurrence.productRemove')}
+                searchPlaceholder={t('occurrence.productSearch')}
+                summaryLabel={(count) => t('occurrence.productSummary', { count })}
+                values={resolveOccurrenceProductSelectionValues(productCodes)}
               />
             </label>
           </div>

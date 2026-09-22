@@ -1088,7 +1088,7 @@ function SeparationOccurrenceDialogLoader({
           note: occurrence.note,
           occurrenceTypeId: occurrence.occurrenceTypeId,
           photos: occurrence.photos,
-          productCode: occurrence.productCode,
+          productCodes: occurrence.productCodes,
           tripId: document.tripId,
         })
       }
@@ -1133,7 +1133,7 @@ function TripDeliveryProofLoader({
               note: occurrence.note,
               occurrenceTypeId: occurrence.occurrenceTypeId,
               photos: occurrence.photos,
-              productCode: occurrence.productCode,
+              productCodes: occurrence.productCodes,
               tripId: document.tripId,
             })
           }

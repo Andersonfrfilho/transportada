@@ -160,8 +160,13 @@ export type TripOccurrence = Readonly<{
   note: string
   occurrenceTypeId: string
   onBehalfOfDriverName?: null | string
-  /** Vazio é a nota inteira: recusa total não tem item a apontar. */
+  /** Vazio é a nota inteira: recusa total não tem item a apontar. Legado — ver `productCodes`. */
   productCode: string
+  /**
+   * Os itens apontados pela ocorrência; lista vazia é a nota inteira. Ausente é resposta de uma
+   * API anterior ao campo, e aí quem responde é `productCode`.
+   */
+  productCodes?: readonly string[]
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string

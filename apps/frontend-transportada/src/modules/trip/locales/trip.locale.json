@@ -730,7 +730,12 @@
     "submit": "Registrar",
     "title": "Ocorrências",
     "typeLabel": "Tipo de ocorrência",
-    "wholeDocument": "A nota inteira"
+    "wholeDocument": "A nota inteira",
+    "productClear": "Limpar itens escolhidos",
+    "productEmpty": "Nenhum item encontrado",
+    "productRemove": "Tirar este item",
+    "productSearch": "Buscar item da nota",
+    "productSummary": "{{count}} itens escolhidos"
   },
   "occurrenceFeed": {
     "columns": {

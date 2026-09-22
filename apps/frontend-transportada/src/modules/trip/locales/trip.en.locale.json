@@ -557,7 +557,12 @@
       "uploadLabel": "Upload photo or PDF",
       "documentAlt": "Attached PDF document"
     },
-    "typeLabel": "Occurrence type"
+    "typeLabel": "Occurrence type",
+    "productClear": "Clear chosen items",
+    "productEmpty": "No item found",
+    "productRemove": "Remove this item",
+    "productSearch": "Search invoice item",
+    "productSummary": "{{count}} items chosen"
   },
   "occurrenceFeed": {
     "columns": {

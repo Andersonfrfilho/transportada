@@ -252,7 +252,8 @@ export type TripClient = Readonly<{
       readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
-      readonly productCode: string
+      /** Lista vazia é a nota inteira. O `productCode` legado sai junto, ver o cliente. */
+      readonly productCodes: readonly string[]
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
@@ -852,7 +853,13 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const form = new FormData()
       form.set('occurrenceTypeId', input.occurrenceTypeId)
       form.set('note', input.note)
-      form.set('productCode', input.productCode)
+      /**
+       * Os dois campos saem juntos: `productCodes` é o contrato novo (repetido, um por item), e
+       * `productCode` legado continua indo com o primeiro item para o bundle não quebrar contra
+       * uma API que ainda não subiu — a API nova ignora o legado quando a lista vem.
+       */
+      form.set('productCode', input.productCodes[0] ?? '')
+      for (const productCode of input.productCodes) form.append('productCodes', productCode)
       form.set('file', input.file)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
 

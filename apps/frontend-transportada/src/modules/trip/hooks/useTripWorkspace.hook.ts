@@ -154,7 +154,7 @@ export type TripController = Readonly<{
       readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
-      readonly productCode: string
+      readonly productCodes: readonly string[]
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
@@ -555,7 +555,7 @@ export function useTripWorkspace(
           photoId: string
           thumbnail: Blob | undefined
         }>[]
-        productCode: string
+        productCodes: readonly string[]
       }>,
   ): Promise<Readonly<{ hasFailure: boolean }>> {
     const photoById = new Map(input_.photos.map((photo) => [photo.photoId, photo] as const))
@@ -624,7 +624,7 @@ export function useTripWorkspace(
               idempotencyKey: resolveKey(photoId),
               note: input_.note,
               occurrenceTypeId: input_.occurrenceTypeId,
-              productCode: input_.productCode,
+              productCodes: input_.productCodes,
               tripId: input_.tripId,
               ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
             })

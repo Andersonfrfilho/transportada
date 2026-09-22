@@ -62,7 +62,7 @@ describe('sessão de fotos de ocorrência de separação entre dois registros (B
       note: 'ocorrência A',
       occurrenceTypeId: 'type-A',
       photos: [{ original: new Blob(), photoId: 'photo-a1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
 
@@ -73,7 +73,7 @@ describe('sessão de fotos de ocorrência de separação entre dois registros (B
       note: 'ocorrência B',
       occurrenceTypeId: 'type-B',
       photos: [{ original: new Blob(), photoId: 'photo-b1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
 
@@ -101,7 +101,7 @@ describe('sessão de fotos de ocorrência de separação entre dois registros (B
       note: 'ocorrência A',
       occurrenceTypeId: 'type-A',
       photos: [{ original: new Blob(), photoId: 'photo-a1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
 
@@ -112,7 +112,7 @@ describe('sessão de fotos de ocorrência de separação entre dois registros (B
       note: 'ocorrência B',
       occurrenceTypeId: 'type-B',
       photos: [{ original: new Blob(), photoId: 'photo-b1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
 
@@ -154,7 +154,7 @@ describe('recuperação de falha parcial no envio de fotos (B2)', () => {
         { original: new Blob(), photoId: 'photo-1', thumbnail: undefined },
         { original: new Blob(), photoId: 'photo-2', thumbnail: undefined },
       ],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     }
 
@@ -200,7 +200,7 @@ describe('recuperação de falha parcial no envio de fotos (B2)', () => {
       note: 'ocorrência A',
       occurrenceTypeId: 'type-A',
       photos: [{ original: new Blob(), photoId: 'photo-a1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
     await waitFor(() => expect(rendered.result().occurrencePhotoSendState[0]?.status).toBe('sent'))
@@ -213,7 +213,7 @@ describe('recuperação de falha parcial no envio de fotos (B2)', () => {
       note: 'ocorrência B',
       occurrenceTypeId: 'type-B',
       photos: [{ original: new Blob(), photoId: 'photo-b1', thumbnail: undefined }],
-      productCode: '',
+      productCodes: [],
       tripId: 'trip-1',
     })
 
