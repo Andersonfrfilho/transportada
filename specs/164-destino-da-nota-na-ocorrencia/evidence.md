@@ -832,3 +832,62 @@ sem precisar duplicar a asserção no caso de uso.
 ### Commit desta rodada
 
 1. `feat(api): spec 164 T16 — returned_goods e occurrence_id em delivery_charges`
+
+## T17 — a ponte acerto → cobrança
+
+`trips/domain/occurrence-charge.policy.ts` (pura: `OCCURRENCE_CHARGE_INITIAL_STATUS = 'recorded'`,
+`isOccurrenceChargeWritable`), `trips/application/occurrence-settlement-charge.port.ts` e
+`trips/infrastructure/drizzle-occurrence-settlement-charge.repository.ts`
+(`DrizzleOccurrenceSettlementChargeRepository`) — escritor único da linha de `delivery_charges` que
+o acerto de uma tratativa alimenta.
+
+⚠️ **T13 está fora do escopo desta rodada** (instrução explícita), e é o caso de uso que abriria
+`PUT /trip-occurrences/:id/case/settlement`. Sem ele, não existe transação de settlement para esta
+ponte se encostar por HTTP ainda — o que existe hoje é o repositório pronto para ser chamado **de
+dentro** da transação que a T13 vai abrir (recebe `TripTransaction` já aberta, nunca abre a própria,
+no molde de `DrizzleRedeliveryApplicationRepository`), com toda a semântica de RF25/CA9c provada
+direto contra Postgres. Quando a T13 for feita, ela chama
+`bridge.applyOccurrenceSettlementCharge({ ..., transaction })` de dentro do próprio
+`database.transaction`, depois de gravar `trip_occurrence_item_settlements` e somar o total com
+`Decimal` — nenhum código desta ponte muda.
+
+- `findChargeParties` é **injetada** (função do `DrizzleDeliveryChargeRepository` já existente),
+  nunca reimplementada — duas cópias da mesma junção nota → cliente → contratante divergiriam com o
+  tempo. Nulo vira `OccurrenceChargePartiesUnresolvedError` (422 `DELIVERY_CLIENT_NOT_RESOLVED`,
+  nova em `trip.error.ts`) — o oposto do `return` silencioso da sugestão recorrente: aqui o acerto já
+  decidiu cobrar, e a transação inteira desfaz.
+- `chargedOn` é `trip_document_occurrences.created_at::date`, lido dentro da própria consulta —
+  nunca implícito.
+- A linha é travada com `select … for no key update` antes de decidir inserir ou atualizar —
+  ausente é `insert` direto (`status: 'recorded'`); presente e `recorded` é `update` do `amount`
+  (mesma linha, nunca duplica); presente e além de `recorded` lança
+  `DeliveryChargeTransitionNotAllowedError` (409 `DELIVERY_CHARGE_TRANSITION_NOT_ALLOWED`, a mesma
+  classe que `delivery-charges.use-case.ts` já usa) e **não** escreve.
+- O discriminador é `charge_type: 'returned_goods'` + `occurrence_id`, nunca `origin` (que continua
+  `'occurrence'` só porque o CHECK do banco amarra os dois — `origin: 'occurrence'` sozinho já é a
+  ocorrência de parada da spec 060, fora de escopo).
+
+### Testes contra Postgres (`test/integration/occurrence-settlement-charge-bridge.integration.ts`)
+
+Dois cenários, repositório direto (sem HTTP, já que a T13 não existe ainda):
+
+1. Grava (`status: 'recorded'`, `chargeType: 'returned_goods'`, `origin: 'occurrence'`,
+   `occurrenceId`/`deliveryClientId`/`contractorId` corretos) → regrava a **mesma linha** com valor
+   novo (`countRows` prova que continua 1 linha) → a linha vai a `submitted` por SQL direto → a
+   terceira chamada lança `DeliveryChargeTransitionNotAllowedError` e o valor **não muda** (provado
+   por leitura da tabela, não por ausência de erro).
+2. Nota sem `nfeParticipants`/`deliveryClients` cadastrados → `OccurrenceChargePartiesUnresolvedError`
+   → nenhuma linha gravada em `delivery_charges` (a transação do chamador desfez tudo).
+
+- `bun --env-file=../../.env.test test ./test/integration/occurrence-settlement-charge-bridge.integration.ts --timeout 120000` — **2 pass, 0 fail**.
+- `bun --env-file=../../.env.test run test:integration` (suíte inteira, arquivo somado à lista
+  explícita do `package.json`) — **528 pass, 7 skip, 8 fail** (543 testes em 99 arquivos, 533 s). Os
+  8 fails são a mesma família conhecida `OBJECT_STORAGE_UNAVAILABLE` (`cte-archive-gateway`,
+  `toll-booth-extract-create-only`, `toll-booth-reload` — credencial do MinIO no `.env.test` local);
+  nenhum toca `delivery_charges`, `trip_occurrence_item_settlements` ou qualquer arquivo desta task.
+- `bun run typecheck` / `bun run lint` (raiz) — limpos.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) — **7031 pass, 0 fail**.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T17 — a ponte acerto → cobrança`

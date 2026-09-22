@@ -837,3 +837,19 @@ export class OccurrenceSettlementAmountInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * T17 (RF25, validação 🧠 da Fase 5, achado 2): `findChargeParties` devolve nulo com `return`
+ * silencioso na sugestão recorrente — perder uma sugestão não pode derrubar a entrega do motorista.
+ * Aqui é o oposto: o acerto é dinheiro que a tratativa já decidiu cobrar, e gravar o acerto sem
+ * conseguir gravar a cobrança é o defeito mais caro desta spec. Nulo aqui desfaz a transação inteira.
+ */
+export class OccurrenceChargePartiesUnresolvedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_NOT_RESOLVED',
+      message: 'The delivery client and contractor for this occurrence could not be resolved.',
+      status: 422,
+    })
+  }
+}
