@@ -604,6 +604,54 @@ export async function findOccurrenceType(
 }
 
 /**
+ * Spec 161 T8 (CA18): o `recall` de `withFieldReport` — reenviar a mesma chave com o mesmo
+ * conteúdo devolve a ocorrência já gravada, sem repetir o efeito. Só os campos de `TripOccurrence`
+ * (sem autoria/anexo): quem monta o `RegisteredOccurrence` completo é o chamador.
+ */
+export async function findTripOccurrenceById(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | TripOccurrence> {
+  const [row] = await queryable
+    .select({
+      createdAt: tripDocumentOccurrences.createdAt,
+      id: tripDocumentOccurrences.id,
+      note: tripDocumentOccurrences.note,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
+      productCode: tripDocumentOccurrences.productCode,
+      stage: tripDocumentOccurrences.stage,
+      typeName: companyOccurrenceTypes.name,
+    })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+    .limit(1)
+
+  if (row === undefined) return null
+
+  return {
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+    note: row.note,
+    occurrenceTypeId: row.occurrenceTypeId,
+    productCode: row.productCode,
+    stage: row.stage,
+    typeName: row.typeName,
+  }
+}
+
+/**
  * Spec 161 T7 (RF6): resolve a ocorrência pela **empresa do contexto** — de outra empresa,
  * inexistente, responde igual (`null`), porque distinguir os dois diria a quem tenta se aquele
  * identificador existe em algum lugar. É o que faz o anexo adicional 404 antes de qualquer escrita.

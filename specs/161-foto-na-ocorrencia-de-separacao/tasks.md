@@ -87,11 +87,12 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
   - Critério de aceite (CA3): `position: 2`; sexta → 409; outra empresa → 404; `delivery` → 422;
     aceita `file` + `thumbnail` como RF5. Ver `evidence.md`.
 
-- [ ] **T8** Idempotência e rate limit registrados — fingerprints em
+- [x] **T8** Idempotência e rate limit registrados — fingerprints em
       `occurrence-attachment.policy.ts` (sha256 do **original**, não da miniatura),
       `test/rate-limited-routes.contract.test.ts`.
   - Critério de aceite (CA18): mesma chave e mesmo conteúdo convergem; conteúdo diferente → 409
-    `TRIP_FIELD_REPORT_KEY_REUSED`; as duas rotas listadas no contrato de rate limit.
+    `TRIP_FIELD_REPORT_KEY_REUSED`; as duas rotas listadas no contrato de rate limit. Ver
+    `evidence.md` — a prova contra Postgres de verdade fica para T12/T16 (integração).
 
 ## Fase 3 — Leitura nas três telas
 

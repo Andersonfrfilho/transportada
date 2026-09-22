@@ -565,3 +565,81 @@ como funções puras injetadas) para manter os dois casos de uso de anexo com a 
 está no `plan.md` mas é consistente com "o `count` antes do insert serve para mensagem amigável,
 nunca como trava" (nota da migration, T1) — implementei exatamente essa leitura: o `count` só evita
 gasto de rede/bucket no caso comum, e quem decide de verdade é o banco.
+
+## T8 — Idempotência e rate limit registrados (CA18)
+
+### O que já existia (T2) e o que faltava
+
+`buildOccurrenceAttachmentCreateFingerprint`/`buildOccurrenceAttachmentAppendFingerprint`
+(`src/trips/domain/occurrence-attachment.policy.ts`) já existiam desde T2, provadas puras em
+`test/trip-occurrence/attachment-policy.contract.ts` (sha256 do original; miniatura nunca entra na
+impressão; `productCode` ausente/nulo produzem a mesma impressão). O que faltava era a **ligação**:
+nenhuma das duas rotas (`POST .../occurrences`, T6; `POST .../occurrences/:occurrenceId/attachments`,
+T7) chamava `withFieldReport` — `idempotencyKey` era parseado da rota e descartado em `main.ts`, sem
+reservar chave nenhuma. Confirmado por leitura antes de codar: `grep idempotencyKey src/main.ts`
+não tinha nenhuma ocorrência nas duas fiações.
+
+### A reserva da chave, sem `FieldTripTarget`
+
+O galpão não tem alvo de campo (D6: `saveTripOccurrence` já grava `channel = 'driver_app'` por
+padrão da coluna quando `authorship` está ausente — é o **mesmo** valor que este fluxo sempre
+gravou). `withFieldReport` exige uma autoria (`FieldAuthorship`) para reservar a chave em
+`trip_field_reports`; usei `{ channel: 'driver_app', onBehalfOfDriverId: null }` — consistente com
+o que a linha da ocorrência já grava, sem inventar um canal novo.
+
+### `src/main.ts`
+
+- `fieldReportGuardTransaction` (perto de `driverFieldReports`, linha ~1587): adaptador
+  `Pick<DriverFieldReportTransactionPort, 'claim' | 'settle'>` — cada chamada abre sua própria
+  transação curta via `driverFieldReports.execute(...)`, **não** a mesma transação da escrita.
+  Decisão registrada no comentário do código: `withFieldReport` já trata `resultId: null` como
+  "roda de novo" (ver `trip-field-report.port.ts`), então uma falha entre o `claim` e o efeito
+  converge no **próximo reenvio** — não precisa da mesma transação para ser seguro, ao custo de não
+  ser estritamente atômico com a escrita (diferente do padrão de `document-outcome.service.ts`, que
+  aninha tudo numa transação só porque tem `DriverFieldReportUnitOfWork.execute` disponível
+  naturalmente ali). Registrado como decisão além do que a spec fixava — plan.md não detalha o
+  desenho da transação da idempotência.
+- `registerTripOccurrence.execute`: envolvido em `withFieldReport` — `operation` é
+  `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(...)}`
+  (sha256 do `input.attachment.bytes`, nunca da miniatura); `perform` é o `registerTripOccurrence`
+  de sempre; `recall` busca a ocorrência por id (`findTripOccurrenceById`, novo em
+  `delivery-proof-read.support.ts`) e os anexos (`DrizzleOccurrenceAttachmentRepository.
+listOccurrenceAttachments`), devolvendo `email: null` no reenvio (o texto pronto não é
+  reconstruído — quem precisava dele já o leu na primeira resposta).
+- `attachOccurrencePhoto.execute`: mesmo molde — `operation` com
+  `OCCURRENCE_ATTACHMENT_APPEND_OPERATION` + `buildOccurrenceAttachmentAppendFingerprint`; `recall`
+  usa `findAttachmentPosition` (novo método em `DrizzleOccurrenceAttachmentRepository`) para devolver
+  `{ id, position }` sem inserir de novo.
+
+### Novidades de infraestrutura
+
+- `findTripOccurrenceById` (`delivery-proof-read.support.ts`): `SELECT` de `TripOccurrence` por
+  `companyId` + `occurrenceId`, sem autoria/anexo (o `recall` monta o resto).
+- `findAttachmentPosition` (`drizzle-occurrence-attachment.repository.ts`): `SELECT id, position`
+  por `companyId` + `id` da linha de anexo.
+
+### Gates
+
+- `bun --env-file=../../.env.test test test/trip-occurrence.contract.test.ts --timeout 120000` →
+  **122 pass, 0 fail** (sem mudança de contagem — T8 não trocou o comportamento observável dos
+  casos de uso puros, só a fiação em `main.ts`, que os testes de contrato existentes não exercitam
+  diretamente; ver "o que não foi provado" abaixo).
+- `bun run --cwd apps/api-transportada test` (suíte completa) → **6794 pass, 32 skip, 0 fail**,
+  23303 `expect()` em 182 arquivos.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde.
+- `bun --env-file=../../.env.test run test:integration` **não rodou nesta task** — ver abaixo.
+
+### O que não foi provado nesta task, e por quê
+
+A fiação de `withFieldReport` em `main.ts` só é exercitável de ponta a ponta contra `trip_field_reports`
+de verdade (o `claim` depende do unique `(company_id, idempotency_key)` do Postgres para decidir a
+corrida) — não há dublê de `main.ts` nos testes de contrato desta suíte. O CA18 completo (mesma
+chave/mesmo conteúdo converge sem duplicar; mesma chave/conteúdo diferente → 409
+`TRIP_FIELD_REPORT_KEY_REUSED`) fica provado contra Postgres em `test/integration/trip-occurrence-
+attachment.integration.ts`, que é T12 (a spec já reserva essa task para a integração das três
+leituras **e** — pela mesma exigência do `tasks.md` de T16 para o WhatsApp — é o lugar natural para
+o caso de idempotência do HTTP também, por já precisar de banco de verdade e de uma ocorrência
+gravada de ponta a ponta). Registrar aqui para não se perder: a task de integração de T12 precisa
+cobrir também o cenário de reenvio da T8, não só as três leituras do `plan.md`.

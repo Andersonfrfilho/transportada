@@ -111,6 +111,32 @@ export class DrizzleOccurrenceAttachmentRepository implements ReadOccurrenceAtta
     return insertOccurrenceAttachmentRow(this.database, input)
   }
 
+  /**
+   * Spec 161 T8 (CA18): o `recall` do anexo adicional — reenviar a mesma chave com a mesma foto
+   * devolve a posição já gravada, sem inserir de novo. `null` só é alcançável se a linha sumiu
+   * entre o `settle` e o reenvio (nunca deveria acontecer — o anexo é append-only).
+   */
+  public async findAttachmentPosition(input: {
+    readonly companyId: string
+    readonly id: string
+  }): Promise<InsertOccurrenceAttachmentResult | null> {
+    const [row] = await this.database
+      .select({
+        id: tripDocumentOccurrenceAttachments.id,
+        position: tripDocumentOccurrenceAttachments.position,
+      })
+      .from(tripDocumentOccurrenceAttachments)
+      .where(
+        and(
+          eq(tripDocumentOccurrenceAttachments.companyId, input.companyId),
+          eq(tripDocumentOccurrenceAttachments.id, input.id),
+        ),
+      )
+      .limit(1)
+
+    return row ?? null
+  }
+
   public async countOccurrenceAttachments(input: {
     readonly companyId: string
     readonly occurrenceId: string

@@ -235,6 +235,14 @@ import { DrizzleSeparationOccurrenceUnitOfWork } from './trips/infrastructure/dr
 import { attachOccurrencePhoto } from './trips/application/attach-occurrence-photo.use-case.js'
 import { DrizzleAttachOccurrencePhotoUnitOfWork } from './trips/infrastructure/drizzle-attach-occurrence-photo.repository.js'
 import { DrizzleOccurrenceAttachmentRepository } from './trips/infrastructure/drizzle-occurrence-attachment.repository.js'
+import { withFieldReport } from './trips/application/trip-field-report.port.js'
+import {
+  buildOccurrenceAttachmentAppendFingerprint,
+  buildOccurrenceAttachmentCreateFingerprint,
+  OCCURRENCE_ATTACHMENT_APPEND_OPERATION,
+  OCCURRENCE_ATTACHMENT_CREATE_OPERATION,
+  sha256Hex,
+} from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
@@ -250,6 +258,7 @@ import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurr
 import {
   findDriverReachableDocument,
   findOccurrenceForAttachment,
+  findTripOccurrenceById,
   listDeliveryProofs,
   listDocumentProducts,
   findOccurrenceType,
@@ -383,6 +392,7 @@ import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/d
 import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
+import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
 import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
@@ -1575,6 +1585,20 @@ function createApplicationRoutes({
     readiness: tripFiscalReadinessQuery,
   })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
+  /**
+   * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria
+   * transação curta (não a mesma da escrita). É o que `FieldReportGuardInput.transaction` exige
+   * (`Pick<DriverFieldReportTransactionPort, 'claim' | 'settle'>`); a resiliência do reenvio não
+   * depende de as duas estarem na mesma transação — `withFieldReport` já trata `resultId: null`
+   * como "roda de novo" (`trip-field-report.port.ts`), então uma falha entre o `claim` e o efeito
+   * converge no próximo reenvio, em vez de travar a chave para sempre.
+   */
+  const fieldReportGuardTransaction = {
+    claim: (input: Parameters<DriverFieldReportTransactionPort['claim']>[0]) =>
+      driverFieldReports.execute((transaction) => transaction.claim(input)),
+    settle: (input: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
+      driverFieldReports.execute((transaction) => transaction.settle(input)),
+  }
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
   const tripPlannedRouteRepository = new DrizzleTripPlannedRouteRepository(database)
@@ -2765,93 +2789,170 @@ function createApplicationRoutes({
           listFeed: (query) => listTripOccurrenceFeed(database, query),
         },
       }),
+      /**
+       * Spec 161 T8 (CA18): `Idempotency-Key` + impressão do conteúdo (sha256 do **original**,
+       * nunca da miniatura — RF3) na operação, no mesmo molde do lote do escritório
+       * (`buildOccurrenceBatchOperation`). Reenviar a mesma chave com a mesma foto devolve a
+       * ocorrência já gravada (`recall`); com outra foto (ou outro texto/tipo/produto) é 409
+       * `TRIP_FIELD_REPORT_KEY_REUSED` — chave reaproveitada é erro do cliente, não repetição.
+       * ⚠️ Autoria `driver_app`/`onBehalfOfDriverId: null`: o galpão não tem `FieldTripTarget`
+       * (D6, `saveTripOccurrence`) — é o mesmo padrão da coluna que este fluxo já grava.
+       */
       registerTripOccurrence: {
         execute: async (input) =>
-          registerTripOccurrence({
-            actorUserId: input.context.userId,
-            attachment: input.attachment,
-            companyId: input.context.companyId,
-            documentId: input.documentId,
-            note: input.note,
-            /**
-             * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da configuração
-             * acontece por registro — é uma consulta pequena, por empresa, e cacheá-la faria a
-             * escolha recém-salva demorar a valer sem ninguém entender por quê.
-             */
-            notificationParameters: {
-              ...(await readOccurrenceLabels(database, {
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.driverApp, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
+                {
+                  attachmentSha256: sha256Hex(input.attachment.bytes),
+                  note: input.note,
+                  occurrenceTypeId: input.occurrenceTypeId,
+                  productCode: input.productCode,
+                },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: async () =>
+              registerTripOccurrence({
+                actorUserId: input.context.userId,
+                attachment: input.attachment,
                 companyId: input.context.companyId,
                 documentId: input.documentId,
+                note: input.note,
+                /**
+                 * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da
+                 * configuração acontece por registro — é uma consulta pequena, por empresa, e
+                 * cacheá-la faria a escolha recém-salva demorar a valer sem ninguém entender por
+                 * quê.
+                 */
+                notificationParameters: {
+                  ...(await readOccurrenceLabels(database, {
+                    companyId: input.context.companyId,
+                    documentId: input.documentId,
+                    tripId: input.tripId,
+                  })),
+                  documentId: input.documentId,
+                  /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
+                  occurrenceType: '',
+                  tripId: input.tripId,
+                },
+                notifier: occurrenceNotifier,
+                occurrenceTypeId: input.occurrenceTypeId,
+                /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
+                 * acontece. */
+                occurredOn: new Date().toLocaleDateString('pt-BR'),
+                productCode: input.productCode,
+                repository: {
+                  findOccurrenceType: (query) => findOccurrenceType(database, query),
+                  listDocumentProducts: (query) => listDocumentProducts(database, query),
+                  listOccurrences: (query) => listTripOccurrences(database, query),
+                  readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+                  /**
+                   * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
+                   * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
+                   * de `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
+                   * `runWithStoredObjectCleanup` desfaz o que subiu.
+                   */
+                  saveOccurrence: (query) =>
+                    persistSeparationOccurrenceWithAttachment({
+                      attachment: query.attachment,
+                      input: {
+                        actorUserId: query.actorUserId,
+                        companyId: query.companyId,
+                        documentId: query.documentId,
+                        note: query.note,
+                        occurrenceTypeId: query.occurrenceTypeId,
+                        productCode: query.productCode,
+                        stage: query.stage,
+                        tripId: query.tripId,
+                        typeName: query.typeName,
+                      },
+                      newObjectId: () => crypto.randomUUID(),
+                      now: () => new Date(),
+                      storage: createDeliveryProofStorage({
+                        bucket: storageBucket,
+                        storage: storageGateway,
+                      }),
+                      unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database),
+                    }),
+                },
                 tripId: input.tripId,
-              })),
-              documentId: input.documentId,
-              /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
-              occurrenceType: '',
-              tripId: input.tripId,
+              }),
+            recall: async (resultId) => {
+              const occurrence = await findTripOccurrenceById(database, {
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
+              })
+              if (occurrence === null) return null
+              const attachments = await new DrizzleOccurrenceAttachmentRepository(
+                database,
+              ).listOccurrenceAttachments({
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
+              })
+              return {
+                ...occurrence,
+                attachments: attachments.map((attachment) => ({
+                  id: attachment.id,
+                  position: attachment.position,
+                })),
+                /** Reenvio não reconstrói o e-mail pronto — quem precisa dele releu no primeiro. */
+                email: null,
+              }
             },
-            notifier: occurrenceNotifier,
-            occurrenceTypeId: input.occurrenceTypeId,
-            /** A data que o modelo imprime é a de agora: a ocorrência é registrada quando acontece. */
-            occurredOn: new Date().toLocaleDateString('pt-BR'),
-            productCode: input.productCode,
-            repository: {
-              findOccurrenceType: (query) => findOccurrenceType(database, query),
-              listDocumentProducts: (query) => listDocumentProducts(database, query),
-              listOccurrences: (query) => listTripOccurrences(database, query),
-              readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
-              /**
-               * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem o
-               * original e a miniatura opcional e grava a linha de anexo, tudo na transação de
-               * `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
-               * `runWithStoredObjectCleanup` desfaz o que subiu.
-               */
-              saveOccurrence: (query) =>
-                persistSeparationOccurrenceWithAttachment({
-                  attachment: query.attachment,
-                  input: {
-                    actorUserId: query.actorUserId,
-                    companyId: query.companyId,
-                    documentId: query.documentId,
-                    note: query.note,
-                    occurrenceTypeId: query.occurrenceTypeId,
-                    productCode: query.productCode,
-                    stage: query.stage,
-                    tripId: query.tripId,
-                    typeName: query.typeName,
-                  },
+          }),
+      },
+      /**
+       * Spec 161 T7/T8 (RF6, CA18): a segunda foto em diante. Mesmo molde de idempotência do
+       * registro, com a operação de anexo (`buildOccurrenceAttachmentAppendFingerprint`) — a
+       * mesma chave com a mesma foto converge; com outra foto, a mesma chave já usada é 409
+       * `TRIP_FIELD_REPORT_KEY_REUSED`, não um sexto anexo.
+       */
+      attachOccurrencePhoto: {
+        execute: (input) =>
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.driverApp, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_ATTACHMENT_APPEND_OPERATION}:${buildOccurrenceAttachmentAppendFingerprint(
+                {
+                  attachmentSha256: sha256Hex(input.attachment.bytes),
+                  occurrenceId: input.occurrenceId,
+                },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: () =>
+              attachOccurrencePhoto({
+                attachment: input.attachment,
+                companyId: input.context.companyId,
+                occurrenceId: input.occurrenceId,
+                repository: {
+                  countOccurrenceAttachments: (query) =>
+                    new DrizzleOccurrenceAttachmentRepository(database).countOccurrenceAttachments(
+                      query,
+                    ),
+                  findOccurrence: (query) => findOccurrenceForAttachment(database, query),
                   newObjectId: () => crypto.randomUUID(),
                   now: () => new Date(),
                   storage: createDeliveryProofStorage({
                     bucket: storageBucket,
                     storage: storageGateway,
                   }),
-                  unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database),
-                }),
-            },
-            tripId: input.tripId,
-          }),
-      },
-      /** Spec 161 T7 (RF6): a segunda foto em diante, para uma ocorrência já registrada. */
-      attachOccurrencePhoto: {
-        execute: (input) =>
-          attachOccurrencePhoto({
-            attachment: input.attachment,
-            companyId: input.context.companyId,
-            occurrenceId: input.occurrenceId,
-            repository: {
-              countOccurrenceAttachments: (query) =>
-                new DrizzleOccurrenceAttachmentRepository(database).countOccurrenceAttachments(
-                  query,
-                ),
-              findOccurrence: (query) => findOccurrenceForAttachment(database, query),
-              newObjectId: () => crypto.randomUUID(),
-              now: () => new Date(),
-              storage: createDeliveryProofStorage({
-                bucket: storageBucket,
-                storage: storageGateway,
+                  unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database),
+                },
               }),
-              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database),
-            },
+            recall: async (resultId) =>
+              new DrizzleOccurrenceAttachmentRepository(database).findAttachmentPosition({
+                companyId: input.context.companyId,
+                id: resultId,
+              }),
           }),
       },
       readTripDocumentProducts: {
