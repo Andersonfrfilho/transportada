@@ -157,3 +157,29 @@
   1 falha (guard aceitava estimate torta). Verde: `bun test ./test/nfe-workspace.contract.test.ts` → **573 pass**.
 - `bun run --cwd apps/frontend-transportada test` → **4806 pass, 0 fail** (contratos, inclusive os de
   design system e acentuação de locale) + **44 pass** (hooks). `bun run typecheck` e eslint limpos.
+
+## T012 🧠 — Revisão de design e usabilidade da fila (CA08) — **BLOQUEADA no print**
+
+**Bloqueio (sem print):** a stack local de login não está de pé nesta máquina — `curl` em
+`127.0.0.1:53000` (frontend) e `127.0.0.1:58080` (Keycloak) → sem resposta; `docker ps` só mostra
+containers de outros projetos, e o Postgres do Docker deste repositório está quebrado localmente
+(memória do projeto). Sem Keycloak não há login, e sem login a aba Caixas não abre. **Nenhum print foi
+tirado nem simulado.** CA08 fica pendente de um print feito com a stack de pé (`make dev`, aba
+Notas → Caixas, uma caixa com unidade informada e sem medida).
+
+**Revisão feita contra o código da própria tela** (`web.md` §15, elemento tocado × vizinhos):
+
+- Selo "Estimada": `Badge variant="secondary"`, o mesmo primitivo do selo de embalagem (`CX24 · 24 un`)
+  da mesma linha — sem primitivo cru. Para não se confundir com ele, o bloco da estimativa tem fundo
+  e borda à esquerda cobre (`--color-copper`, o mesmo tom de "fora da cobertura" da fila), que marca
+  "atenção, não é medida" sem usar o vermelho de erro.
+- "Confirmar estimativa": `Button size="sm" variant="secondary"` com `Icon name="check"`, igual aos
+  vizinhos "Medir" (`edit`) e "Medir pela câmera" (`camera`); desabilitado enquanto grava, como o form.
+- Texto: arranjo por extenso (`2 × 2 × 6`), medidas em cm com vírgula (mesmo `toCentimetres` da
+  medida real), e a frase "Calculada a partir da medida do produto — não é medida" — o conferente
+  nunca lê a estimativa como medida. Locale acentuado (contrato `locale-accents` verde).
+- Layout estreito: `.estimateHeader` e `.actions` com `flex-wrap`; nenhum `max-width`/largura própria.
+- Estado com medida real: o bloco estimado some (`isEstimated` falso) e volta a valer só a linha
+  "medida · origem" de sempre; a unidade continua visível como referência.
+- Contraste: texto `.hint` (`--color-slate`) sobre fundo cobre a 6% — mesma base do `.item`; não
+  verificado em pixel por falta do print.
