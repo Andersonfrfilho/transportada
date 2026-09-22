@@ -52,6 +52,12 @@ const OCCURRENCE_MULTIPART_FIELD = {
   productCode: 'productCode',
   /** Repetido uma vez por item marcado — é assim que `FormData` carrega lista. */
   productCodes: 'productCodes',
+  /**
+   * Spec 166 (RF4): alinhados por índice a `productCodes` — a política pura confere o par e o
+   * alinhamento (`occurrence-item-quantity.policy.ts`). Branco na posição é item sem contagem.
+   */
+  productQuantities: 'productQuantities',
+  productQuantityUnits: 'productQuantityUnits',
   thumbnail: 'thumbnail',
 } as const
 
@@ -79,6 +85,9 @@ export type RegisterOccurrenceMultipartBody = {
   readonly occurrenceTypeId: string
   readonly productCode: string
   readonly productCodes: readonly string[]
+  /** Vazia é "ninguém mandou nada" — o alinhamento com `productCodes` é conferido na política. */
+  readonly productQuantities: readonly string[]
+  readonly productQuantityUnits: readonly string[]
 }
 
 export async function parseRegisterOccurrenceMultipartRequest(
@@ -122,6 +131,14 @@ export async function parseRegisterOccurrenceMultipartRequest(
       OCCURRENCE_PRODUCT_CODE_MAX_LENGTH,
     ),
     productCodes: parseOccurrenceProductCodes(form),
+    productQuantities: parseOccurrenceRepeatedField(
+      form,
+      OCCURRENCE_MULTIPART_FIELD.productQuantities,
+    ),
+    productQuantityUnits: parseOccurrenceRepeatedField(
+      form,
+      OCCURRENCE_MULTIPART_FIELD.productQuantityUnits,
+    ),
   }
 }
 
@@ -138,6 +155,29 @@ function parseOccurrenceProductCodes(form: OfficeForm): readonly string[] {
     if (typeof value !== 'string') throw new ApiError(HTTP_ERROR.invalidRequest)
     const trimmed = value.trim()
     if (trimmed.length > OCCURRENCE_PRODUCT_CODE_MAX_LENGTH) {
+      throw new ApiError(HTTP_ERROR.invalidRequest)
+    }
+    return trimmed
+  })
+}
+
+/** Cabe `"999999999.999"` (escala 3 do banco) sobrando espaço, e `"unit"`/`"box"` folgado. */
+const OCCURRENCE_ITEM_QUANTITY_TOKEN_MAX_LENGTH = 32
+
+/**
+ * Spec 166 (RF4): `productQuantities`/`productQuantityUnits`, alinhados por índice a
+ * `productCodes` — **preserva branco na posição**, ao contrário de `parseOccurrenceProductCodes`:
+ * é assim que a política pura (`occurrence-item-quantity.policy.ts`) distingue "sem contagem" de
+ * "desalinhado".
+ */
+function parseOccurrenceRepeatedField(form: OfficeForm, field: string): readonly string[] {
+  const values = form.getAll(field)
+  if (values.length > OCCURRENCE_PRODUCT_CODES_LIMIT) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return values.map((value) => {
+    if (typeof value !== 'string') throw new ApiError(HTTP_ERROR.invalidRequest)
+    const trimmed = value.trim()
+    if (trimmed.length > OCCURRENCE_ITEM_QUANTITY_TOKEN_MAX_LENGTH) {
       throw new ApiError(HTTP_ERROR.invalidRequest)
     }
     return trimmed
@@ -207,6 +247,8 @@ export async function parseAttachOccurrencePhotoRequest(
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
+    /** Spec 166 (RF3/RF9): padrão `true` preserva o comportamento de hoje. */
+    allowsMultipleItems: z.boolean().default(true),
     /**
      * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
      * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.

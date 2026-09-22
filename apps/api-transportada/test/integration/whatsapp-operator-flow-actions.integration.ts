@@ -692,6 +692,7 @@ async function buildScenario(db: Database, companyId: string) {
                   actorUserId: query.actorUserId,
                   companyId: query.companyId,
                   documentId: query.documentId,
+                  items: [],
                   note: query.note,
                   occurrenceTypeId: query.occurrenceTypeId,
                   productCode: query.productCode,

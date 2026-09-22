@@ -969,6 +969,7 @@ export function bootstrap(): Bun.Server<undefined> {
                   companyId: query.companyId,
                   documentId: query.documentId,
                   note: query.note,
+                  items: query.items,
                   occurrenceTypeId: query.occurrenceTypeId,
                   productCode: query.productCode,
                   productCodes: query.productCodes,
@@ -2986,6 +2987,7 @@ function createApplicationRoutes({
             },
             values: {
               active: input.active,
+              allowsMultipleItems: input.allowsMultipleItems,
               emailBody: input.emailBody,
               emailSubject: input.emailSubject,
               emailTemplateKey: input.emailTemplateKey,
@@ -3104,6 +3106,8 @@ function createApplicationRoutes({
                 occurredOn: new Date().toLocaleDateString('pt-BR'),
                 productCode: input.productCode,
                 productCodes: input.productCodes,
+                productQuantities: input.productQuantities,
+                productQuantityUnits: input.productQuantityUnits,
                 repository: {
                   findOccurrenceType: (query) => findOccurrenceType(database, query),
                   listDocumentProducts: (query) => listDocumentProducts(database, query),
@@ -3122,6 +3126,7 @@ function createApplicationRoutes({
                         actorUserId: query.actorUserId,
                         companyId: query.companyId,
                         documentId: query.documentId,
+                        items: query.items,
                         note: query.note,
                         occurrenceTypeId: query.occurrenceTypeId,
                         productCode: query.productCode,

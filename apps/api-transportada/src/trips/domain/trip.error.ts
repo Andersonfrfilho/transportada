@@ -388,6 +388,17 @@ export class OccurrenceTypeNotSeparationError extends ApiError {
   }
 }
 
+/** Spec 166 (RF8/CA08): tipo com `allowsMultipleItems` desligado aceita só um item marcado. */
+export class OccurrenceTypeSingleItemError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_SINGLE_ITEM',
+      message: 'This occurrence type accepts a single item.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em

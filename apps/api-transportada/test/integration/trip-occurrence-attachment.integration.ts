@@ -82,6 +82,7 @@ async function seedSeparationOccurrenceType(
   const id = crypto.randomUUID()
   await database.db.insert(companyOccurrenceTypes).values({
     active: true,
+    allowsMultipleItems: true,
     companyId: company.companyId,
     id,
     name: 'Caixa violada',
@@ -157,6 +158,7 @@ function wireOccurrenceUseCases(database: TestDatabase) {
           repository: {
             findOccurrenceType: async () => ({
               active: true,
+              allowsMultipleItems: true,
               emailBody: '',
               emailSubject: '',
               emailTemplateKey: null,
@@ -187,6 +189,7 @@ function wireOccurrenceUseCases(database: TestDatabase) {
                   actorUserId: query.actorUserId,
                   companyId: query.companyId,
                   documentId: query.documentId,
+                  items: [],
                   note: query.note,
                   occurrenceTypeId: query.occurrenceTypeId,
                   productCode: query.productCode,

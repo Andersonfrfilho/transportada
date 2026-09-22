@@ -31,6 +31,7 @@ function repository(
         if (overrides.typeFound === false) return null
         return {
           active: overrides.active ?? true,
+          allowsMultipleItems: true,
           emailBody: '',
           emailSubject: '',
           emailTemplateKey: null,

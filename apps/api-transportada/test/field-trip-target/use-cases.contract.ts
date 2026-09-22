@@ -290,6 +290,7 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       repository: {
         findOccurrenceType: async () => ({
           active: true,
+          allowsMultipleItems: true,
           emailBody: '',
           emailSubject: '',
           emailTemplateKey: null,

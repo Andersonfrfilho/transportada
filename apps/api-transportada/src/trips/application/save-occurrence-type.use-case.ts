@@ -19,6 +19,8 @@ export type OccurrenceEmailTemplateCatalogPort = {
 
 export type SaveOccurrenceTypeValues = {
   readonly active: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
+  readonly allowsMultipleItems: boolean
   readonly emailBody: string
   readonly emailSubject: string
   readonly emailTemplateKey: null | string

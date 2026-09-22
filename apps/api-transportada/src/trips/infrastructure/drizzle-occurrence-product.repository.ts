@@ -7,12 +7,15 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { tripDocumentOccurrenceProducts } from '../../database/trip.schema.js'
+import type { OccurrenceItemQuantityUnit } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type InsertOccurrenceProductsInput = {
   readonly companyId: string
   readonly occurrenceId: string
-  readonly productCodes: readonly string[]
+  /** O item marcado, com a quantidade/unidade já resolvidas pela política (spec 166). */
+  readonly items: readonly OccurrenceItemQuantity[]
 }
 
 /**
@@ -27,16 +30,24 @@ export async function insertOccurrenceProductRows(
   queryable: TripQueryable,
   input: InsertOccurrenceProductsInput,
 ): Promise<void> {
-  if (input.productCodes.length === 0) return
+  if (input.items.length === 0) return
 
   await queryable.insert(tripDocumentOccurrenceProducts).values(
-    input.productCodes.map((productCode, index) => ({
+    input.items.map((item, index) => ({
       companyId: input.companyId,
       occurrenceId: input.occurrenceId,
       position: index + 1,
-      productCode,
+      productCode: item.code,
+      quantity: item.quantity,
+      quantityUnit: item.unit,
     })),
   )
+}
+
+export type OccurrenceProductRow = {
+  readonly code: string
+  readonly quantity: null | string
+  readonly unit: null | OccurrenceItemQuantityUnit
 }
 
 /**
@@ -44,17 +55,19 @@ export async function insertOccurrenceProductRows(
  * por ocorrência. Ocorrência sem linha nenhuma simplesmente não aparece no mapa, e quem lê deriva
  * da coluna antiga (`resolveOccurrenceProductCodes`).
  */
-export async function listOccurrenceProductCodes(
+export async function listOccurrenceProducts(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceIds: readonly string[] },
-): Promise<ReadonlyMap<string, readonly string[]>> {
-  const codesByOccurrence = new Map<string, string[]>()
-  if (input.occurrenceIds.length === 0) return codesByOccurrence
+): Promise<ReadonlyMap<string, readonly OccurrenceProductRow[]>> {
+  const productsByOccurrence = new Map<string, OccurrenceProductRow[]>()
+  if (input.occurrenceIds.length === 0) return productsByOccurrence
 
   const rows = await queryable
     .select({
       occurrenceId: tripDocumentOccurrenceProducts.occurrenceId,
       productCode: tripDocumentOccurrenceProducts.productCode,
+      quantity: tripDocumentOccurrenceProducts.quantity,
+      quantityUnit: tripDocumentOccurrenceProducts.quantityUnit,
     })
     .from(tripDocumentOccurrenceProducts)
     .where(
@@ -69,10 +82,31 @@ export async function listOccurrenceProductCodes(
     )
 
   for (const row of rows) {
-    const codes = codesByOccurrence.get(row.occurrenceId)
-    if (codes === undefined) codesByOccurrence.set(row.occurrenceId, [row.productCode])
-    else codes.push(row.productCode)
+    const item: OccurrenceProductRow = {
+      code: row.productCode,
+      quantity: row.quantity,
+      unit: row.quantityUnit,
+    }
+    const items = productsByOccurrence.get(row.occurrenceId)
+    if (items === undefined) productsByOccurrence.set(row.occurrenceId, [item])
+    else items.push(item)
   }
 
+  return productsByOccurrence
+}
+
+/** Compatibilidade: só os códigos, para quem ainda não precisa de quantidade/unidade. */
+export async function listOccurrenceProductCodes(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceIds: readonly string[] },
+): Promise<ReadonlyMap<string, readonly string[]>> {
+  const productsByOccurrence = await listOccurrenceProducts(queryable, input)
+  const codesByOccurrence = new Map<string, readonly string[]>()
+  for (const [occurrenceId, items] of productsByOccurrence) {
+    codesByOccurrence.set(
+      occurrenceId,
+      items.map((item) => item.code),
+    )
+  }
   return codesByOccurrence
 }

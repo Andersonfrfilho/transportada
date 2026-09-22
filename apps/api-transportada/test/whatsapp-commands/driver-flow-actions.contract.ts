@@ -194,6 +194,7 @@ function buildDriverTrip(input: {
 function buildOccurrenceType(overrides: Partial<OccurrenceTypeRecord> = {}): OccurrenceTypeRecord {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,

@@ -94,6 +94,7 @@ function registrar(input: {
       async findOccurrenceType() {
         return {
           active: true,
+          allowsMultipleItems: true,
           emailBody: 'Itens: {{item}}',
           emailSubject: 'Ocorrência',
           emailTemplateKey: null,
@@ -130,6 +131,7 @@ function registrar(input: {
           actorUserId: saved.actorUserId,
           companyId: saved.companyId,
           documentId: saved.documentId,
+          items: saved.items,
           note: saved.note,
           occurrenceTypeId: saved.occurrenceTypeId,
           productCode: saved.productCode,
@@ -271,7 +273,7 @@ describe('os itens entram na mesma transação da ocorrência', () => {
           insertOccurrenceProducts: (input: {
             readonly companyId: string
             readonly occurrenceId: string
-            readonly productCodes: readonly string[]
+            readonly items: SeparationOccurrenceSaveInput['items']
           }) => Promise<void>
           insertStoredObject: () => Promise<void>
           saveOccurrence: (input: SeparationOccurrenceSaveInput) => Promise<{
@@ -293,7 +295,7 @@ describe('os itens entram na mesma transação da ocorrência', () => {
           insertOccurrenceProducts: async (products) => {
             seen.products = {
               occurrenceId: products.occurrenceId,
-              productCodes: products.productCodes,
+              productCodes: products.items.map((item) => item.code),
             }
           },
           insertStoredObject: async () => undefined,
@@ -316,6 +318,7 @@ describe('os itens entram na mesma transação da ocorrência', () => {
       actorUserId: ACTOR_USER_ID,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
+      items: productCodes.map((code) => ({ code, quantity: null, unit: null })),
       note: '',
       occurrenceTypeId: TIPO,
       productCode: productCodes[0] ?? '',

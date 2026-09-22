@@ -8,12 +8,15 @@ import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
+import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
+import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
   OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
+  OccurrenceTypeSingleItemError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
@@ -79,6 +82,11 @@ export type RegisteredOccurrence = TripOccurrence & {
    * de `productCode` (o primeiro deles), que continua existindo para quem já lia dele.
    */
   readonly productCodes: readonly string[]
+  /**
+   * Spec 166 (RF5): a mesma lista de `productCodes`, com a quantidade/unidade de cada item —
+   * `null` nos dois é item sem contagem. `productCodes` continua saindo, inalterado.
+   */
+  readonly products: readonly OccurrenceItemQuantity[]
   /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
    * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
   readonly attachments: readonly TripOccurrenceAttachmentPosition[]
@@ -88,6 +96,8 @@ export type RegisteredOccurrence = TripOccurrence & {
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
 export type OccurrenceTypeRecord = {
   readonly active: boolean
+  /** Spec 166 (RF3/RF8): se este tipo aceita mais de um item marcado. Padrão `true`. */
+  readonly allowsMultipleItems: boolean
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
   readonly emailSubject: string
@@ -150,6 +160,8 @@ export type TripOccurrencePort = {
     readonly productCodes: readonly string[]
     /** Spec 164 T4 (RF3): repassada ao escritor da ocorrência, que abre a tratativa dentro da mesma transação. */
     readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 166: os mesmos itens de `productCodes`, com a quantidade/unidade já resolvidas. */
+    readonly items: readonly OccurrenceItemQuantity[]
     readonly stage: TripOccurrenceStage
     readonly tripId: string
     readonly typeName: string
@@ -207,6 +219,12 @@ export type RegisterTripOccurrenceInput = {
    * os dois preenchidos é 422 — ver `resolveOccurrenceProductSelection`.
    */
   readonly productCodes?: readonly string[]
+  /**
+   * Spec 166 (RF4): alinhadas por índice à lista final de itens marcados — vazias é "ninguém
+   * mandou nada" (compatibilidade), e o alinhamento é conferido por `resolveOccurrenceItemQuantities`.
+   */
+  readonly productQuantities?: readonly string[]
+  readonly productQuantityUnits?: readonly string[]
   readonly repository: TripOccurrencePort
   readonly tripId: string
   readonly occurrenceTypeId: string
@@ -263,11 +281,28 @@ export async function registerTripOccurrence(
     products: await repository.listDocumentProducts({ companyId, documentId, tripId }),
   })
 
+  /**
+   * Spec 166 (RF8/CA08): o cadastro decide se o tipo aceita mais de um item. A recusa é **antes**
+   * de `saveOccurrence`, pelo mesmo motivo da foto acima — nenhum efeito de borda para uma
+   * ocorrência que não vai nascer.
+   */
+  if (!occurrenceType.allowsMultipleItems && scope.productCodes.length > 1) {
+    throw new OccurrenceTypeSingleItemError()
+  }
+
+  /** Spec 166 (RF4): a quantidade/unidade por item, alinhada à lista final de itens marcados. */
+  const items = resolveOccurrenceItemQuantities({
+    productCodes: scope.productCodes,
+    quantities: input.productQuantities ?? [],
+    units: input.productQuantityUnits ?? [],
+  })
+
   const saved = await repository.saveOccurrence({
     actorUserId,
     attachment,
     companyId,
     documentId,
+    items,
     note,
     occurrenceTypeId: occurrenceType.id,
     productCode: scope.productCode,
@@ -293,6 +328,7 @@ export async function registerTripOccurrence(
     attachments: saved.attachments ?? [],
     email: await renderEmail({ input, occurrenceType, scope }),
     productCodes: scope.productCodes,
+    products: items,
   }
 }
 

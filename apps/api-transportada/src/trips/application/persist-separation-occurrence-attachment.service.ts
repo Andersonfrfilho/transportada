@@ -15,6 +15,7 @@ import {
   OCCURRENCE_PHOTO_MAX_BYTES,
   resolveOccurrenceAttachmentRetentionUntil,
 } from '../domain/occurrence-attachment.policy.js'
+import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
 import { runWithStoredObjectCleanup } from './stored-object-cleanup.service.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
@@ -34,6 +35,8 @@ export type SeparationOccurrenceSaveInput = {
   readonly productCodes: readonly string[]
   /** Spec 164 T4 (RF3): repassada ao escritor, que abre a tratativa na mesma transação. */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 166: os mesmos itens de `productCodes`, com a quantidade/unidade já resolvidas. */
+  readonly items: readonly OccurrenceItemQuantity[]
   readonly stage: TripOccurrence['stage']
   readonly tripId: string
   readonly typeName: string
@@ -66,7 +69,7 @@ export type SeparationOccurrenceTransactionPort = {
   insertOccurrenceProducts(input: {
     readonly companyId: string
     readonly occurrenceId: string
-    readonly productCodes: readonly string[]
+    readonly items: readonly OccurrenceItemQuantity[]
   }): Promise<void>
   insertStoredObject(input: InsertStoredObjectInput): Promise<void>
   saveOccurrence(input: SeparationOccurrenceSaveInput): Promise<null | TripOccurrence>
@@ -127,8 +130,8 @@ export async function persistSeparationOccurrenceWithAttachment(
 
         await transaction.insertOccurrenceProducts({
           companyId: params.input.companyId,
+          items: params.input.items,
           occurrenceId: saved.id,
-          productCodes: params.input.productCodes,
         })
 
         const retentionUntil = resolveOccurrenceAttachmentRetentionUntil(params.now())

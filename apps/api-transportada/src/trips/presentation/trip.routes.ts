@@ -169,6 +169,9 @@ type RegisterOccurrenceRouteInput = {
   readonly productCode: string
   /** Vários itens da mesma nota. Vazia é a nota inteira; junto com `productCode` é 422. */
   readonly productCodes: readonly string[]
+  /** Spec 166 (RF4): alinhadas por índice a `productCodes` — vazias é "ninguém mandou nada". */
+  readonly productQuantities: readonly string[]
+  readonly productQuantityUnits: readonly string[]
   readonly tripId: string
 }
 
@@ -211,6 +214,8 @@ const ATTACH_OCCURRENCE_PHOTO_RATE_LIMIT = {
 
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
+  readonly allowsMultipleItems: boolean
   readonly context: CompanyContext
   readonly emailBody: string
   readonly emailSubject: string
@@ -1332,6 +1337,8 @@ export function createTripRoutes(
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
           productCodes: body.productCodes,
+          productQuantities: body.productQuantities,
+          productQuantityUnits: body.productQuantityUnits,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },

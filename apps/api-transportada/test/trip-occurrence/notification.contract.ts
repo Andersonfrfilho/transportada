@@ -27,6 +27,7 @@ function repository(notifies: boolean) {
     async findOccurrenceType() {
       return {
         active: true,
+        allowsMultipleItems: true,
         emailBody: '',
         emailSubject: '',
         emailTemplateKey: null,

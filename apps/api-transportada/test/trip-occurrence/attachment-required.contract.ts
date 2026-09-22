@@ -49,6 +49,7 @@ function registrar(input: {
       async findOccurrenceType() {
         return {
           active: true,
+          allowsMultipleItems: true,
           emailBody: '',
           emailSubject: '',
           emailTemplateKey: null,

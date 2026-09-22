@@ -100,6 +100,7 @@ describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
         async findOccurrenceType() {
           return {
             active: true,
+            allowsMultipleItems: true,
             emailBody: '',
             emailSubject: '',
             emailTemplateKey: null,

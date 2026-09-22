@@ -48,9 +48,10 @@ import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
-import { listOccurrenceProductCodes } from './drizzle-occurrence-product.repository.js'
+import { listOccurrenceProducts } from './drizzle-occurrence-product.repository.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /**
@@ -189,6 +190,8 @@ export async function listTripOccurrences(
     TripOccurrenceAuthorship & {
       readonly id: string
       readonly productCodes: readonly string[]
+      /** Spec 166 (RF5): a mesma lista de `productCodes`, com quantidade/unidade por item. */
+      readonly products: readonly OccurrenceItemQuantity[]
     })[]
 > {
   const rows = await queryable
@@ -252,27 +255,41 @@ export async function listTripOccurrences(
    * Uma consulta para todas as ocorrências da nota, nunca uma por linha. Ocorrência antiga (e a do
    * WhatsApp) não tem linha na tabela nova e cai na coluna — `resolveOccurrenceProductCodes`.
    */
-  const productCodesByOccurrence = await listOccurrenceProductCodes(queryable, {
+  const productsByOccurrence = await listOccurrenceProducts(queryable, {
     companyId: input.companyId,
     occurrenceIds: rows.map((row) => row.id),
   })
 
-  return rows.map((row) => ({
-    actorName: row.actorName ?? null,
-    channel: row.channel,
-    createdAt: row.createdAt.toISOString(),
-    id: row.id,
-    note: row.note,
-    onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
-    occurrenceTypeId: row.occurrenceTypeId,
-    productCode: row.productCode,
-    productCodes: resolveOccurrenceProductCodes({
+  return rows.map((row) => {
+    const storedProducts = productsByOccurrence.get(row.id) ?? []
+    const productCodes = resolveOccurrenceProductCodes({
       productCode: row.productCode,
-      productCodes: productCodesByOccurrence.get(row.id) ?? [],
-    }),
-    stage: row.stage,
-    typeName: row.typeName,
-  }))
+      productCodes: storedProducts.map((product) => product.code),
+    })
+    /**
+     * Spec 166 (RF5): ocorrência antiga (ou sem linha na tabela nova) sai sem contagem — `null`
+     * nos dois, nunca zero. `products` acompanha `productCodes` na mesma ordem.
+     */
+    const products: readonly OccurrenceItemQuantity[] =
+      storedProducts.length > 0
+        ? storedProducts
+        : productCodes.map((code) => ({ code, quantity: null, unit: null }))
+
+    return {
+      actorName: row.actorName ?? null,
+      channel: row.channel,
+      createdAt: row.createdAt.toISOString(),
+      id: row.id,
+      note: row.note,
+      onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
+      occurrenceTypeId: row.occurrenceTypeId,
+      productCode: row.productCode,
+      productCodes,
+      products,
+      stage: row.stage,
+      typeName: row.typeName,
+    }
+  })
 }
 
 /**
@@ -604,6 +621,7 @@ export async function findOccurrenceType(
   const [row] = await queryable
     .select({
       active: companyOccurrenceTypes.active,
+      allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
@@ -634,7 +652,13 @@ export async function findOccurrenceType(
 export async function findTripOccurrenceById(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<null | (TripOccurrence & { readonly productCodes: readonly string[] })> {
+): Promise<
+  | null
+  | (TripOccurrence & {
+      readonly productCodes: readonly string[]
+      readonly products: readonly OccurrenceItemQuantity[]
+    })
+> {
   const [row] = await queryable
     .select({
       createdAt: tripDocumentOccurrences.createdAt,
@@ -663,9 +687,14 @@ export async function findTripOccurrenceById(
 
   if (row === undefined) return null
 
-  const productCodesByOccurrence = await listOccurrenceProductCodes(queryable, {
+  const productsByOccurrence = await listOccurrenceProducts(queryable, {
     companyId: input.companyId,
     occurrenceIds: [row.id],
+  })
+  const storedProducts = productsByOccurrence.get(row.id) ?? []
+  const productCodes = resolveOccurrenceProductCodes({
+    productCode: row.productCode,
+    productCodes: storedProducts.map((product) => product.code),
   })
 
   return {
@@ -674,10 +703,11 @@ export async function findTripOccurrenceById(
     note: row.note,
     occurrenceTypeId: row.occurrenceTypeId,
     productCode: row.productCode,
-    productCodes: resolveOccurrenceProductCodes({
-      productCode: row.productCode,
-      productCodes: productCodesByOccurrence.get(row.id) ?? [],
-    }),
+    productCodes,
+    products:
+      storedProducts.length > 0
+        ? storedProducts
+        : productCodes.map((code) => ({ code, quantity: null, unit: null })),
     stage: row.stage,
     typeName: row.typeName,
   }
@@ -717,6 +747,7 @@ export async function listOccurrenceTypes(
   return queryable
     .select({
       active: companyOccurrenceTypes.active,
+      allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
@@ -734,6 +765,7 @@ export async function saveOccurrenceType(
   queryable: TripQueryable,
   input: {
     readonly active: boolean
+    readonly allowsMultipleItems: boolean
     readonly companyId: string
     readonly emailBody: string
     readonly emailSubject: string
@@ -746,6 +778,7 @@ export async function saveOccurrenceType(
 ): Promise<OccurrenceTypeRecord> {
   const values = {
     active: input.active,
+    allowsMultipleItems: input.allowsMultipleItems,
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
@@ -773,6 +806,7 @@ export async function saveOccurrenceType(
 
   return {
     active: saved.active,
+    allowsMultipleItems: saved.allowsMultipleItems,
     emailBody: saved.emailBody,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,

@@ -18,6 +18,7 @@ const TIPO = '00000000-0000-4000-8000-0000000000e1'
 
 const BASE_VALUES = {
   active: true,
+  allowsMultipleItems: true,
   emailBody: 'corpo digitado',
   emailSubject: 'assunto digitado',
   emailTemplateKey: null as null | string,
@@ -30,6 +31,7 @@ const BASE_VALUES = {
 function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeRecord {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
