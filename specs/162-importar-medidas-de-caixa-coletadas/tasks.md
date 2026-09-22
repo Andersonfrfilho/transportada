@@ -6,9 +6,9 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T001 Fixture de JSONL real (3 linhas: `found` com cm/kg, `found_manual` com `lado1..3`, torta da 160) —
+- [x] T001 Fixture de JSONL real (3 linhas: `found` com cm/kg, `found_manual` com `lado1..3`, torta da 160) —
       `test/fixtures/package-box-catalog-capture.fixture.ts`
-- [ ] T002 Contrato do parser/mapper (CA01, CA02) antes → `package-box-catalog-capture.schema.ts` e
+- [x] T002 Contrato do parser/mapper (CA01, CA02) antes → `package-box-catalog-capture.schema.ts` e
       `.mapper.ts` — testes verdes, entrada no `package.json`
 
 ## Fase 2 — Banco
