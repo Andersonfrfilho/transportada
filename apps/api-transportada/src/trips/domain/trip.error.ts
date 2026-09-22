@@ -650,6 +650,53 @@ export class OccurrenceProductNotInDocumentError extends ApiError {
 }
 
 /**
+ * Spec 166 (RF4/CA05): as quantidades enviadas não alinham por índice com os itens marcados —
+ * `400`, nunca alinhamento por adivinhação.
+ */
+export class OccurrenceItemQuantityLengthMismatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_LENGTH_MISMATCH',
+      message: 'productQuantities and productQuantityUnits must align with productCodes.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 166 (RF1): quantidade sem unidade, ou o contrário, é número/escolha sem significado. */
+export class OccurrenceItemQuantityUnitPairingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_PAIRING',
+      message: 'An item quantity must come with its unit, and a unit with its quantity.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 166 (RF2/CA04): zero é "não aconteceu" — isso se diz não marcando o item, nunca com zero. */
+export class OccurrenceItemQuantityNotPositiveError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_NOT_POSITIVE',
+      message: 'An item quantity must be a positive number.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 166: unidade fora de `unit`/`box` nunca cai em `unit` por padrão. */
+export class OccurrenceItemQuantityUnitUnknownError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN',
+      message: 'The item quantity unit must be "unit" or "box".',
+      status: 400,
+    })
+  }
+}
+
+/**
  * RF29b/RF32b: a miniatura é **cache, nunca prova**, e PDF não tem miniatura. Guardar um retrato de
  * um PDF na lista mostraria uma imagem que ninguém reconhece como o documento que ela representa —
  * e, pior, uma miniatura sobrevivendo por engano viraria a única coisa visível do anexo. Recusar
