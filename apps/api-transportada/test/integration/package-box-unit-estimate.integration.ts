@@ -81,6 +81,23 @@ describe('medida da unidade e caixa estimada (spec 163, T006)', () => {
           isEstimated: true,
         })
 
+        // RF08: a fila expõe a unidade, a estimativa e isEstimated ao lado da medida real (nula).
+        const [queued] = await new DrizzlePackageBoxRepository(database.db).list({
+          companyId: scenario.companyId,
+          filters: { status: 'pending' },
+          limit: 10,
+        })
+        expect(queued?.lengthMm).toBeNull()
+        expect(queued?.isEstimated).toBe(true)
+        expect(queued?.estimate?.arrangement).toBe('2x2x6')
+        expect(queued?.unit).toEqual({
+          grossWeightGrams: 85,
+          heightMm: 30,
+          lengthMm: 60,
+          source: 'typed',
+          widthMm: 90,
+        })
+
         const measured = await new DrizzlePackageBoxRepository(database.db).measure({
           boxId: scenario.boxId,
           companyId: scenario.companyId,

@@ -312,6 +312,8 @@ describe('separator role contract', () => {
        */
       'POST /trips/cargo-preview',
       'PUT /nfe-package-boxes/:id',
+      // Spec 163 (P1): a medida da unidade é a mesma cargo.measure de quem mede a caixa.
+      'PUT /nfe-package-boxes/:id/unit',
     ])
   })
 

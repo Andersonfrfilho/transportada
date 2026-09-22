@@ -357,6 +357,12 @@ Invariantes mais cotadas para não reimplementar por engano:
   ator. Interruptor por empresa (`company_cargo_settings.camera_measurement_enabled`, padrão `false`)
   desliga a câmera sem deploy; com a função desligada, `PUT` com `source: camera|camera_adjusted`
   retorna **422** `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` (spec 152, ADR-0065).
+- **A unidade estima a caixa, nunca a mede** (spec 163): `PUT /nfe-package-boxes/:id/unit`
+  (`cargo.measure`) grava `unit_*` e recalcula `estimated_*` (`estimatePackageBoxFromUnit`, menor
+  área, 4 mm por face, +5% de peso) só enquanto a caixa não tem medida real. ⚠️ A estimativa nunca
+  escreve `length_mm/width_mm/height_mm` nem `measurement_source`; a cubagem lê as duas por
+  `resolveBoxDimensionsForCubage` (real > estimada) e a nota com caixa estimada sai `partial`.
+  A fila expõe `unit`, `estimate` e `isEstimated`; mediana e formas medidas seguem só com medida real.
 - O desenho da carga é a vista em perspectiva por camada (`TripCargoLayers` sobre
   `cargo-isometric.tsx`, `<svg>` do design system, nunca cru), alimentada por `cargoLayout.placement`.
   A planta em escala (`scale-plan.tsx`) e a fileira da 085 saíram da tela em `453e0b1e`; sem as três

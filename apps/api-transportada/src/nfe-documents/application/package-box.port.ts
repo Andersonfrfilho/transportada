@@ -7,8 +7,34 @@ import type {
   PackageBoxMeasurementWarning,
 } from '../domain/package-box-measurement.constant.js'
 
+/** Spec 163 (RF08): a medida da unidade, opcional — nunca é medida da caixa. */
+export type PackageBoxUnitView = {
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number
+  readonly lengthMm: number
+  /** `typed` | `catalog` | `manual:<domínio>`. */
+  readonly source: string | null
+  readonly widthMm: number
+}
+
+/** Spec 163 (RF08): a caixa estimada pela unidade — rotulada, nunca confundida com medida. */
+export type PackageBoxEstimateView = {
+  readonly arrangement: string | null
+  readonly estimatedAt: string | null
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number
+  readonly lengthMm: number
+  readonly volumeCm3: number | null
+  readonly widthMm: number
+}
+
 export type PackageBoxView = {
   readonly cartonGtin: string | null
+  /** Spec 163 (RF08): `null` sem unidade informada ou sem estimativa possível. */
+  readonly estimate: PackageBoxEstimateView | null
+  /** Spec 163 (RF08): `true` quando a cubagem usa a estimativa (sem medida real). */
+  readonly isEstimated: boolean
+  readonly unit: PackageBoxUnitView | null
   readonly commercialUnit: string
   readonly description: string
   readonly emitterTaxId: string

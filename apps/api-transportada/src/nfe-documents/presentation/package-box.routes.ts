@@ -15,13 +15,15 @@ import type { ListPackageBoxes } from '../application/list-package-boxes.use-cas
 import type { ListPackageBoxSiblings } from '../application/list-package-box-siblings.use-case.js'
 import type { MeasurePackageBox } from '../application/measure-package-box.use-case.js'
 import type { PackageBoxMeasurement } from '../application/package-box.port.js'
+import type { RecordPackageBoxUnit } from '../application/record-package-box-unit.use-case.js'
 import type { ReplicatePackageBoxMeasurement } from '../application/replicate-package-box-measurement.use-case.js'
 import {
   parsePackageBoxList,
   parsePackageBoxMeasurement,
   parsePackageBoxReplication,
+  parsePackageBoxUnit,
 } from './package-box.schema.js'
-import type { PackageBoxListInput } from './package-box.schema.js'
+import type { PackageBoxListInput, PackageBoxUnitInput } from './package-box.schema.js'
 import { PACKAGE_BOX_PENDING_EXPORT_RATE_LIMIT } from './package-box-pending-export.rate-limit.js'
 
 export const API_NFE_PACKAGE_BOXES_PATH = '/nfe-package-boxes'
@@ -44,6 +46,10 @@ type SiblingsInput = {
   readonly boxId: string
 }
 
+type UnitInput = PackageBoxUnitInput & {
+  readonly boxId: string
+}
+
 type ReplicateInput = {
   readonly boxId: string
   readonly targetIds: readonly string[]
@@ -55,6 +61,7 @@ export function createPackageBoxRoutes(dependencies: {
   readonly listPackageBoxes: ListPackageBoxes
   readonly listPackageBoxSiblings: ListPackageBoxSiblings
   readonly measurePackageBox: MeasurePackageBox
+  readonly recordPackageBoxUnit: RecordPackageBoxUnit
   readonly replicatePackageBoxMeasurement: ReplicatePackageBoxMeasurement
 }): readonly ReturnType<typeof defineRoute>[] {
   return [
@@ -134,6 +141,30 @@ export function createPackageBoxRoutes(dependencies: {
         measurement: parsePackageBoxMeasurement(await readMeasurementBody(request)),
       }),
       pathname: `${API_NFE_PACKAGE_BOXES_PATH}/:id`,
+      policy: CARGO_MEASURE_POLICY,
+    }),
+    /**
+     * Spec 163 (P1): o conferente informa a medida da **unidade** da caixa. Grava como `typed` e
+     * recalcula a caixa estimada; nunca toca a medida real da caixa (RNF02). Unidade implausível é
+     * 422 com o código da sanidade (`UNIT_EDGE_OUT_OF_RANGE`), nunca corrigida.
+     */
+    defineRoute<UnitInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.recordPackageBoxUnit.execute({
+          boxId: input.boxId,
+          context: { companyId: context.scope.companyId },
+          source: 'typed',
+          unit: input.unit,
+          ...(input.unitsPerBox === undefined ? {} : { unitsPerBox: input.unitsPerBox }),
+        })
+        return jsonResponse({ body: { data: { estimate: result.estimate ?? null } }, status: 200 })
+      },
+      method: 'PUT',
+      parse: async ({ pathParameters, request }): Promise<UnitInput> => ({
+        boxId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        ...parsePackageBoxUnit(await readMeasurementBody(request)),
+      }),
+      pathname: `${API_NFE_PACKAGE_BOXES_PATH}/:id/unit`,
       policy: CARGO_MEASURE_POLICY,
     }),
     /** Spec 155 (G003): as irmãs de família (replicáveis) e de embalagem (só mostradas, D3). */

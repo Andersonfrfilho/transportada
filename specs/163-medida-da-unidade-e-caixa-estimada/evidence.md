@@ -86,3 +86,19 @@
   `trip-detail-query-count`, `trip-document-review`, `mixed-cargo-end-to-end`, `trip-repository`
   → **42 pass, 0 fail**.
 - Contratos da API: **6871 pass, 9 fail** (as 9 pré-existentes do toll booth). Typecheck, eslint verdes.
+
+## T008 — Rota da unidade + fila com `unit`, `estimate`, `isEstimated`
+
+- Vermelho: `test/package-box-estimate/unit-route.contract.ts` → erro de módulo (`package-box-unit.mapper`)
+  e export inexistente (`parsePackageBoxUnit`).
+- Verde: `bun test ./test/package-box-estimate.contract.test.ts ./test/nfe-package-box.contract.test.ts ./test/separator-role.contract.test.ts ./test/composition.contract.test.ts`
+  → **209 pass, 0 fail**. Cobre: `PUT /nfe-package-boxes/:id/unit` pede `cargo.measure`; grava como
+  `typed` com a empresa do **contexto**; corpo `.strict()` recusa `companyId`, `source` e
+  `measurementSource`; resposta `{ data: { estimate } }` (null sem estimativa); mapeador da fila
+  (`isEstimated` só sem medida real). Lista de rotas atualizada em `routes.contract.ts` e na lista
+  do separador (`separator-role.contract.test.ts`, mesma `cargo.measure`).
+- Integração (Postgres nativo): `package-box-unit-estimate` + `package-box-pending-export` +
+  `package-box-replication` + `measurement-history` + `package-box-catalog-import` → **26 pass, 0 fail**;
+  depois, com a leitura da fila no CA05, `package-box-unit-estimate` → **4 pass, 39 expects**.
+- Contratos da API: **6880 pass, 9 fail** (as 9 pré-existentes do toll booth). Typecheck 0 erros.
+- `apps/api-transportada/CLAUDE.md` ganhou a invariante da spec 163 (rota nova, §14 do code-standart).

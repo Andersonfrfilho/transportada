@@ -578,6 +578,8 @@ import { createListPackageBoxes } from './nfe-documents/application/list-package
 import { createExportPendingPackageBoxes } from './nfe-documents/application/export-pending-package-boxes.use-case'
 import { createListPackageBoxSiblings } from './nfe-documents/application/list-package-box-siblings.use-case'
 import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
+import { createRecordPackageBoxUnit } from './nfe-documents/application/record-package-box-unit.use-case'
+import { DrizzlePackageBoxUnitRepository } from './nfe-documents/infrastructure/drizzle-package-box-unit.repository'
 import { createReplicatePackageBoxMeasurement } from './nfe-documents/application/replicate-package-box-measurement.use-case'
 import { createListPackageBoxMeasurements } from './nfe-documents/application/list-package-box-measurements.use-case'
 import { DrizzlePackageBoxRepository } from './nfe-documents/infrastructure/drizzle-package-box.repository'
@@ -3635,6 +3637,9 @@ function createApplicationRoutes({
       measurePackageBox: createMeasurePackageBox({
         cameraMeasurementSettings: cameraMeasurementSettingsRepository,
         repository: packageBoxRepository,
+      }),
+      recordPackageBoxUnit: createRecordPackageBoxUnit({
+        repository: new DrizzlePackageBoxUnitRepository(database),
       }),
       replicatePackageBoxMeasurement: createReplicatePackageBoxMeasurement({
         repository: packageBoxRepository,

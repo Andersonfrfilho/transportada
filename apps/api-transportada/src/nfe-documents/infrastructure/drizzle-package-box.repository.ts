@@ -33,6 +33,7 @@ import {
   PackageBoxReplicationTargetOutsideFamilyError,
 } from '../domain/package-box-measurement.error.js'
 import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
+import { toPackageBoxUnitFields } from './package-box-unit.mapper.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -130,6 +131,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         commercialUnit: nfePackageBoxes.commercialUnit,
         description: nfePackageBoxes.description,
         emitterTaxId: nfePackageBoxes.emitterTaxId,
+        ...PACKAGE_BOX_UNIT_COLUMNS,
         grossWeightGrams: nfePackageBoxes.grossWeightGrams,
         heightMm: nfePackageBoxes.heightMm,
         id: nfePackageBoxes.id,
@@ -200,12 +202,42 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     )
     const packagingCounts = countPackagingSiblings(companyBoxes)
 
-    return rows.map((row) => {
+    return rows.map((fullRow) => {
+      const {
+        estimatedArrangement,
+        estimatedAt,
+        estimatedGrossWeightGrams,
+        estimatedHeightMm,
+        estimatedLengthMm,
+        estimatedVolumeCm3,
+        estimatedWidthMm,
+        unitGrossWeightGrams,
+        unitHeightMm,
+        unitLengthMm,
+        unitMeasurementSource,
+        unitWidthMm,
+        ...row
+      } = fullRow
       const family = familyCounts.get(row.id)
       const packaging = packagingCounts.get(row.id)
 
       return {
         ...row,
+        ...toPackageBoxUnitFields({
+          estimatedArrangement,
+          estimatedAt,
+          estimatedGrossWeightGrams,
+          estimatedHeightMm,
+          estimatedLengthMm,
+          estimatedVolumeCm3,
+          estimatedWidthMm,
+          lengthMm: row.lengthMm,
+          unitGrossWeightGrams,
+          unitHeightMm,
+          unitLengthMm,
+          unitMeasurementSource,
+          unitWidthMm,
+        }),
         familyKey: family?.familyKey,
         familyMeasuredCount: family?.familyMeasuredCount ?? 0,
         familyPendingCount: family?.familyPendingCount ?? 0,
@@ -401,6 +433,22 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     })
   }
 }
+
+/** Spec 163 (RF08): as colunas da unidade e da caixa estimada, lidas para a fila. */
+const PACKAGE_BOX_UNIT_COLUMNS = {
+  estimatedArrangement: nfePackageBoxes.estimatedArrangement,
+  estimatedAt: nfePackageBoxes.estimatedAt,
+  estimatedGrossWeightGrams: nfePackageBoxes.estimatedGrossWeightGrams,
+  estimatedHeightMm: nfePackageBoxes.estimatedHeightMm,
+  estimatedLengthMm: nfePackageBoxes.estimatedLengthMm,
+  estimatedVolumeCm3: nfePackageBoxes.estimatedVolumeCm3,
+  estimatedWidthMm: nfePackageBoxes.estimatedWidthMm,
+  unitGrossWeightGrams: nfePackageBoxes.unitGrossWeightGrams,
+  unitHeightMm: nfePackageBoxes.unitHeightMm,
+  unitLengthMm: nfePackageBoxes.unitLengthMm,
+  unitMeasurementSource: nfePackageBoxes.unitMeasurementSource,
+  unitWidthMm: nfePackageBoxes.unitWidthMm,
+} as const
 
 const SIBLING_COLUMNS = {
   commercialUnit: nfePackageBoxes.commercialUnit,
