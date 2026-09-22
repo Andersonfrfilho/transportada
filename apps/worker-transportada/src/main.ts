@@ -227,6 +227,9 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { createTripOccurrenceAttachmentPurgeRoutine } from './trip-occurrence-attachment-purge/application/trip-occurrence-attachment-purge.routine.js'
+import { TRIP_OCCURRENCE_ATTACHMENT_PURGE_JOB } from './trip-occurrence-attachment-purge/domain/trip-occurrence-attachment-purge.constant.js'
+import { createDrizzlePurgeOccurrenceAttachmentBatch } from './trip-occurrence-attachment-purge/infrastructure/drizzle-trip-occurrence-attachment-purge.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -1212,6 +1215,19 @@ export async function startWorkerRuntime(
             purge: createDrizzlePurgeExpiredRateLimitWindows(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+          }),
+          /**
+           * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
+           * cinco anos, e o prazo só existe porque uma rotina o cumpre. A porta é mínima
+           * (`deleteObject`): rotina de manutenção não recebe a capacidade de gravar no bucket.
+           */
+          [TRIP_OCCURRENCE_ATTACHMENT_PURGE_JOB]: createTripOccurrenceAttachmentPurgeRoutine({
+            logger,
+            now: () => new Date(),
+            purge: createDrizzlePurgeOccurrenceAttachmentBatch({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
+            }),
           }),
           /**
            * Ausente quando a instalação não declara credencial de administração do realm: sem

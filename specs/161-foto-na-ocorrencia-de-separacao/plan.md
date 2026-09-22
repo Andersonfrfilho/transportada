@@ -29,12 +29,20 @@ Quase tudo já existe e é reaproveitado em vez de reescrito:
   `persistSeparationOccurrenceWithAttachment` (importado em `src/main.ts:233`, usado pela rota HTTP
   em `src/main.ts:2799-2824`). A dep do WhatsApp em `src/main.ts:826-843` ainda usa `saveOccurrence`
   cru — é essa linha que muda.
-- Expurgo: `rate-limit.window.purge` é o molde exato — catálogo em `job-catalog.constant.ts`
-  (cópia por valor nas 4 apps), rotina em
-  `apps/worker-transportada/src/rate-limit-window-purge/` (porta de lote, laço com `MAX_BATCHES` e
-  `isStopRequested`, log de ciclo), registro em `apps/worker-transportada/src/main.ts:1208-1215`, e
-  a linha de `job_schedules` criada pela migration da API
-  (`drizzle/20260915233000_rate_limit_windows/migration.sql:11-17`).
+- ⚠️ **Corrigido em 22/09/2026, na implementação (T17) — a validação de arquitetura em `opus`
+  apontou o molde errado.** `rate-limit.window.purge` é o mais pobre dos três expurgos do worker (uma
+  tabela, uma instrução, sem transação) e não tem o que este expurgo precisa: transação, `for update
+skip locked` e duas tabelas com contadores separados. O molde certo de estrutura é
+  `apps/worker-transportada/src/trip-cargo-layout-purge/` (transação por unidade, lock, duas
+  tabelas), e para o bucket o precedente já existe em
+  `apps/worker-transportada/src/storage/infrastructure/nfe-storage-gateway.ts:36,39-48`
+  (`deleteObject({bucket, key})` — porta mínima, nunca o gateway inteiro). Catálogo em
+  `job-catalog.constant.ts` (cópia por valor nas 4 apps), rotina em
+  `apps/worker-transportada/src/trip-occurrence-attachment-purge/`, registro em
+  `apps/worker-transportada/src/main.ts`, e a linha de `job_schedules` criada pela migration
+  `drizzle/20260922112706_trip_occurrence_attachment_purge_job/migration.sql`. O log sem PII segue o
+  precedente de `trip-location-purge.routine.ts:94-95` — só contadores, correlação e id de execução;
+  nunca chave de objeto, bucket, `companyId`, `occurrenceId` ou `attachmentId`.
 
 Premissas verificadas:
 
@@ -117,7 +125,9 @@ Premissas verificadas:
 **Worker + cron**
 
 - `apps/worker-transportada/src/trip-occurrence-attachment-purge/` (novo): `*.constant.ts`,
-  `*.port.ts`, `*.routine.ts`, `drizzle-*.repository.ts` — no molde de `rate-limit-window-purge/`.
+  `*.port.ts`, `*.routine.ts`, `drizzle-*.repository.ts` — no molde de `trip-cargo-layout-purge/`
+  (transação, lock, duas tabelas), não de `rate-limit-window-purge/` (corrigido em 22/09/2026, ver
+  acima).
 - `apps/worker-transportada/src/main.ts`: registra a rotina no `createJobCycle` (sem guarda de
   config, como o expurgo de rate limit).
 - `job-catalog.constant.ts` das **quatro** apps (API, worker, cron, frontend): entrada nova com
@@ -264,10 +274,15 @@ CREATE INDEX stored_objects_purpose_retention_idx
 Justificativas: o teto de cinco é `CHECK` **e** unique de posição — o `CHECK` sozinho deixaria cinco
 linhas na mesma posição, e a corrida de duas abas enviando a sexta foto é resolvida pelo unique, não
 pelo `SELECT count(*)`. `ON DELETE cascade` para a ocorrência (o anexo não sobrevive ao fato) e
-`restrict` para o objeto (apagar objeto referenciado é defeito, não operação) — por isso o expurgo
-remove a linha do anexo **antes** de marcar o objeto, e nunca dá `DELETE` em `stored_objects`. O
-índice parcial da varredura é o que impede a rotina de varrer todo o bucket de todas as empresas a
-cada hora. Sem ENUM nativo (§8 do code-standart), PK em uuid.
+`restrict` para o objeto (apagar objeto referenciado é defeito, não operação) — mas `restrict` só
+morde `DELETE` da linha pai, que a RF23 já proíbe de qualquer forma; um `UPDATE stored_objects SET
+status = 'deleted'` com o anexo ainda apontando para o objeto **passa liso** pela FK, porque não é
+`DELETE`. A ordem certa do expurgo — apagar os bytes, então remover a linha do anexo e só então
+marcar os dois objetos como `deleted` — é uma invariante **de código** (T17, ajuste 3 da validação de
+arquitetura de 22/09/2026), não uma proteção do banco: quem escrever a rotina não pode confiar na FK
+para impedir a ordem errada, porque ela não impede. O índice parcial da varredura é o que impede a
+rotina de varrer todo o bucket de todas as empresas a cada hora. Sem ENUM nativo (§8 do
+code-standart), PK em uuid.
 
 Rollbacks no molde do repositório: `BEGIN`, bloco `DO $$` com `RAISE EXCEPTION` se há linhas/valores
 novos, `DROP TABLE`/`DROP CONSTRAINT`/`DELETE FROM job_schedules`, remoção da entrada em
