@@ -45,6 +45,7 @@ import {
   OccurrenceCaseTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { TripQueryable, TripTransaction } from './trip-queryable.type.js'
+import type { OccurrenceCaseRepositoryPort } from '../application/occurrence-case.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -111,7 +112,7 @@ export type OccurrenceCaseTransitionResult = {
  * Escritor único das transições da tratativa — usado pelas quatro ações internas (T5) e pela
  * decisão do contratante (T9/T10). Nenhuma outra camada faz `update` em `trip_occurrence_cases`.
  */
-export class DrizzleOccurrenceCaseRepository {
+export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepositoryPort {
   public constructor(private readonly database: Database) {}
 
   public async transition(
