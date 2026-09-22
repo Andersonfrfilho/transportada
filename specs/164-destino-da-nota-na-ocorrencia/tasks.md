@@ -94,7 +94,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 > 🤖 Modelo: `sonnet` — **T9 é 🧠**: permissão nova numa superfície externa, com a fronteira de
 > visibilidade dentro do SQL. Validar com `architect` em `opus` e fechar com `security-reviewer`.
 
-- [ ] **T9** 🧠 Permissão `occurrences.decide` (papel `contractor`, nenhum papel interno) e a
+- [x] **T9** 🧠 Permissão `occurrences.decide` (papel `contractor`, nenhum papel interno) e a
       consulta do portal — `contractor-portal/infrastructure/contractor-occurrence.query.ts`,
       projeção enumerada campo a campo, `inner join` com a tratativa filtrada por
       `CONTRACTOR_VISIBLE_CASE_STATUSES`, sobre o `ContractorScope` que já existe.
@@ -102,7 +102,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `returned_to_warehouse` não aparecem na consulta; contratante de outra empresa não alcança nada;
     nenhuma coluna fora da projeção escrita à mão; nenhum `select *`.
 
-- [ ] **T10** `decide-occurrence-case.use-case.ts` e
+- [x] **T10** `decide-occurrence-case.use-case.ts` e
       `contractor-portal/presentation/contractor-occurrence.routes.ts` —
       `GET /client/me/occurrences` (`deliveries.track`) e
       `POST /client/me/occurrences/:id/decision` (`occurrences.decide`), com
@@ -111,12 +111,12 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     sobre tratativa `blocked` é 422; decisão repetida converge, decisão diferente sobre `decided` é
     409; a trilha grava o `userId` do contratante.
 
-- [ ] **T11** Foto da ocorrência no portal — reuso de
+- [x] **T11** Foto da ocorrência no portal — reuso de
       `trips/application/occurrence-attachment.service.ts` e do gateway de presigned de 5 min.
   - Critério de aceite: URL assinada na leitura de detalhe; **sem** `objectKey` e **sem** `bucket` na
     resposta; anexo vencido (retenção de 5 anos, spec 161) sai com selo e sem URL.
 
-- [ ] **T12** Integração contra Postgres —
+- [x] **T12** Integração contra Postgres —
       `test/integration/trip-occurrence-case.integration.ts`, **somado ao script `test:integration`
       do `package.json`**.
   - Critério de aceite (CA10): a máquina inteira sobre as mesmas linhas, as duas consultas (feed

@@ -501,3 +501,116 @@ sessão paralela desconhecida.
 A nona falha da integração (`518 pass / 9 fail`) também foi identificada: um timeout isolado em
 repasse/`delivery_charges` (spec 060), sem relação com ocorrência. As outras oito são a credencial do
 MinIO no `.env.test` local.
+
+## Fase 3 — T9, T10, T11, T12
+
+Rodada única (sessão nova, sem exploração delegada, sem espera de processo em segundo plano além do
+`test:integration` final): permissão `occurrences.decide`, a consulta do portal, a decisão do
+contratante, a foto reaproveitada e a integração contra Postgres.
+
+### T9 — permissão `occurrences.decide` e `contractor-occurrence.query.ts`
+
+- `src/identity/domain/authorization.policy.ts`: `occurrences.decide` somada a
+  `TRANSPORTADA_PERMISSIONS` e só ao papel `contractor` (nenhum papel interno).
+- `src/contractor-portal/infrastructure/contractor-occurrence.query.ts`: `listContractorOccurrences`
+  e `findContractorOccurrenceDetail`, com `inner join` em `trip_occurrence_cases` filtrado por
+  `CONTRACTOR_VISIBLE_CASE_STATUSES` e recorte do contratante por `exists` sobre `nfe_participants`
+  (nunca `innerJoin` + `distinct`).
+- **Contradição resolvida antes da T10** (correção do `architect` no `plan.md`):
+  `trip_occurrence_case_events.actor_user_id` passa a `NOT NULL` — o comentário antigo dizia "só
+  para ator interno", e a RF14 manda gravar quem do contratante decidiu. Como a migration da
+  T1/T2 (`20260922174226_trip_occurrence_cases`) já estava publicada em `origin/staging`
+  (`git log --oneline origin/staging -- drizzle/20260922174226_trip_occurrence_cases/` devolveu os
+  dois commits), a correção foi uma migration **nova** e aditiva —
+  `drizzle/20260922203040_occurrence_case_event_actor_required/` — em vez de editar a pasta antiga.
+  `bun run db:generate --name check_no_changes` → `{"status":"no_changes"}` depois de aplicada.
+- Todo caminho que grava `trip_occurrence_case_events` foi conferido: `openOccurrenceCase` e
+  `applyTransition` (`drizzle-occurrence-case.repository.ts`) já gravavam `actorUserId` não nulo;
+  `occurrence-case.port.ts` e o tipo do repositório foram apertados de `string | null` para `string`.
+  Um `insert` direto em teste de integração
+  (`trip-occurrence-case-write-guard.integration.ts`) não passava `actorUserId` — corrigido.
+
+### T10 — `decide-occurrence-case.use-case.ts` e `contractor-occurrence.routes.ts`
+
+- `GET /client/me/occurrences` (`deliveries.track`) e
+  `POST /client/me/occurrences/:id/decision` (`occurrences.decide`).
+- `requireOccurrenceInScope` roda antes de qualquer leitura (molde de `requireBatchInScope`); fora
+  de escopo, ou tratativa em `recorded`/`under_review`/`returned_to_warehouse`, responde `404`
+  (`OCCURRENCE_CASE_NOT_FOUND`) — nunca `403`, e byte a byte igual ao id inexistente, porque o
+  filtro por `CONTRACTOR_VISIBLE_CASE_STATUSES` mora na mesma consulta do escopo.
+- `actorKind: 'contractor'` é constante literal da rota, nunca parâmetro — quem garante que o
+  chamador é o contratante é `resolveContractorScope`, não o token sozinho.
+- Decisão repetida (mesma dupla `kind`/`note`) converge (`unchanged`, 200, sem novo evento);
+  decisão **diferente** sobre tratativa já `decided` é `409` — a máquina
+  (`checkOccurrenceCaseTransition`) não distingue as duas (as duas batem `status === to`), então
+  quem distingue é o caso de uso, comparando contra `decisionKind`/`decisionNote` já gravados,
+  **antes** de chamar o repositório.
+
+### T11 — a foto no portal
+
+- Reaproveitado o ponto único de leitura (`readOccurrenceAttachments`,
+  `trips/application/occurrence-attachment.service.ts`) e o gateway de presigned de 5 min
+  (`createDeliveryProofDownloadGateway`) já usados pelo escritório — sem `objectKey`/`bucket` na
+  resposta, anexo vencido sai com `expired: true` e sem URL.
+- `occurrenceId` entregue a `readOccurrenceAttachments` é sempre o da linha já resolvida pela
+  consulta com escopo (T9), nunca lido cru do caminho.
+
+### T12 — `test/integration/trip-occurrence-case.integration.ts`
+
+Somado à lista explícita de `test:integration` no `package.json` (teste novo não roda sem isso).
+
+```
+bun --env-file=../../.env.test test ./test/integration/trip-occurrence-case.integration.ts --timeout 120000
+ 2 pass
+ 0 fail
+ 12 expect() calls
+Ran 2 tests across 1 file.
+```
+
+Cobre, contra Postgres real:
+
+- a máquina inteira (`recorded → under_review → awaiting_contractor → decided`) sobre a mesma linha;
+- a consulta do portal (T9): invisível em `recorded`/`under_review`, visível em
+  `awaiting_contractor`, e nunca a ocorrência de outra empresa/contratante mesmo no mesmo estado;
+- a decisão (T10): converge em repetição da mesma decisão, `409` numa decisão diferente sobre
+  `decided`, e um único evento `to_status = 'decided'` gravado (a convergência não escreveu de
+  novo);
+- a corrida das duas abas: duas chamadas concorrentes de `decide` com a mesma decisão devolvem
+  `['changed', 'unchanged']` (nunca as duas `changed`, nunca as duas `unchanged` por erro) e só um
+  evento de decisão é gravado — o `for no key update` + compare-and-set do repositório (T4) é quem
+  garante isso, exercitado aqui contra Postgres de verdade, não dublê.
+
+`explain` das duas consultas novas (RNF5) — rodado à mão contra o banco local do compose, com os
+dados semeados pelo teste acima ainda no ar antes do `afterAll` derrubar o banco descartável:
+`listContractorOccurrences`/`findContractorOccurrenceDetail` resolvem por
+`trip_document_occurrences.company_id` (índice de FK) → `inner join` em `trip_occurrence_cases` pela
+unique `(company_id, occurrence_id)` → `inner join` em `company_occurrence_types` pela unique
+`(company_id, id)` → `inner join` em `trip_documents` pela PK, com o filtro `exists` sobre
+`nfe_participants` resolvendo por `nfe_participants_company_id_document_id_idx` (mesmo padrão que
+`listContractorDeliveries` já usa em produção) — sem sequential scan em nenhuma tabela grande.
+
+### Gates da Fase 3
+
+- `bun run lint` (raiz) — limpo.
+- `bun run typecheck` (raiz, seis apps) — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` — **6992 pass, 0 fail** (183 arquivos,
+  23817 `expect()`), depois de ajustar as três suítes que enumeravam a lista fechada de permissões
+  (`authorization.contract.test.ts`, `contractor-portal-schema/registry.contract.ts`) e a lista de
+  pastas de migration (`database-migration/static-migration.contract.ts`).
+- `bun run db:generate` → `no_changes` depois da migration nova.
+- `make migration-test` — **110 pass, 0 fail** (a suíte de migration/rollback contra Postgres
+  descartável, incluindo a migration nova da T9).
+- `bun --env-file=../../.env.test run test:integration` — rodada completa da suíte inteira em
+  andamento; o arquivo novo desta rodada (`trip-occurrence-case.integration.ts`) já foi confirmado
+  verde isoladamente acima.
+
+### Commits isolados desta rodada
+
+1. `feat(api): spec 164 T9 — permissão occurrences.decide e a consulta do portal`
+2. `feat(api): spec 164 T10/T11 — decisão do contratante e a foto no portal`
+3. `feat(api): spec 164 T12 — integração contra Postgres da tratativa` (a seguir)
+
+⚠️ T10 e T11 fecharam num commit só: a foto entra na mesma resposta das rotas do T10
+(`contractor-occurrence.routes.ts`), e as duas dependências (`decideOccurrenceCase`,
+`readAttachments`) são fiadas juntas em `src/main.ts` no mesmo bloco — separar o commit exigiria
+uma rota "de mentira" no meio do caminho. Registrado aqui em vez de forçar o isolamento.
