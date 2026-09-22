@@ -1744,3 +1744,131 @@ guardado além da finalidade (LGPD, minimização), então virou item **datado**
 expurga"), com onde, o risco aceito, o dado pessoal guardado e o que falta (a própria Fase 5).
 
 **Gates:** `bun run format:check` (raiz) — verde.
+
+## Fase 5
+
+### T17 — Rotina `trip.occurrence-attachment.purge` no worker
+
+Commit `eb68fd2b0`.
+
+**Validação de arquitetura antes de codar (`opus`), dois ajustes ao `plan.md`:** o molde citado
+(`rate-limit-window-purge/`) era o expurgo mais pobre dos três — uma tabela, uma instrução, sem
+transação. A estrutura certa é `trip-cargo-layout-purge/` (transação, lock, duas tabelas); para o
+bucket, o precedente é `nfe-storage-gateway.ts:36,39-48` (`deleteObject({bucket, key})`, porta
+mínima — nunca o gateway inteiro, para uma rotina de manutenção não ganhar a capacidade de gravar).
+O segundo ajuste corrige o texto do `plan.md:267-269`: `RESTRICT` só morde `DELETE` da linha pai
+(que a RF23 já proíbe), nunca `UPDATE` — um `UPDATE stored_objects SET status = 'deleted'` com o
+anexo ainda apontando para o objeto passa liso pela FK. A ordem das operações é invariante de
+**código**, não do banco; o comentário ficou em `purge-occurrence-attachment-unit.service.ts` e no
+`plan.md` corrigido, para a próxima sessão não confiar numa proteção que não existe.
+
+**Desenho:** `trip-occurrence-attachment-purge.routine.ts` (laço de lotes) →
+`drizzle-trip-occurrence-attachment-purge.repository.ts` (seleciona candidatos pelo índice parcial,
+um por um) → `trip-occurrence-attachment-purge-unit.service.ts` (algoritmo puro, **sem** Drizzle,
+recebendo `OccurrenceAttachmentPurgeGateway` injetado) → `drizzle-occurrence-attachment-purge-gateway.ts`
+(adaptador Drizzle real). A separação existe para o algoritmo de ordem ser testável com portas
+falsas, sem Postgres — é o que o gate pede ("asserção de ordem").
+
+Unidade de trabalho é o anexo (CA13): resolve `trip_document_occurrence_attachments` por
+`stored_object_id OR thumbnail_object_id`; os dois `stored_objects` são travados na ordem
+determinística de `id` (`for update skip locked`, evita deadlock entre execuções que chegam pelo
+original e pela miniatura), reconferidos depois do lock, e só então os bytes saem do bucket — antes
+de qualquer escrita no banco. `DELETE` do anexo e `UPDATE status='deleted'`/`deleted_at` (os dois
+campos no mesmo `UPDATE`, porque o CHECK do banco é uma equivalência) fecham a unidade, numa
+transação **por unidade**, nunca a do lote — a falha de uma não desfaz o que outra já confirmou.
+Objeto órfão (sem linha de anexo — mídia que rolou para trás, transação desfeita) é apagado e
+marcado sozinho.
+
+O laço da rotina quebra em `processed === 0`, nunca em `deleted === 0` (objeto órfão, lock perdido
+ou falha de storage deixam `deleted` em zero com candidatas restando). Um teto de falhas de storage
+seguidas (`TRIP_OCCURRENCE_ATTACHMENT_PURGE_MAX_CONSECUTIVE_STORAGE_FAILURES = 5`) interrompe o
+ciclo em vez de queimar os 200 lotes contra um bucket fora do ar; `deleteObject` tem prazo explícito
+(10 s) porque a transação da unidade fica aberta durante o I/O de rede. Lote pequeno (25) porque cada
+candidato pode abrir chamada de rede.
+
+**Log sem PII:** `trip_occurrence_attachment_purge_cycle_finished` leva `batches`, `deleted`,
+`missing`, `failed`, `exhausted`, `stoppedByStorageFailures`, `correlationId`, `executionId` — nunca
+chave de objeto, bucket, `companyId`, `occurrenceId` ou `attachmentId` (a chave carrega tenant e
+ocorrência). Precedente e frase: `trip-location-purge.routine.ts:94-95`.
+
+**Prova:** `test/trip-occurrence-attachment-purge.contract.test.ts` (barril de três suítes, 17
+casos):
+
+- `purge-unit.contract.ts` — a asserção de ordem (`deleteObject` termina antes de `deleteAttachment`
+  e `markObjectsDeleted` aparecerem na trilha de chamadas, com porta falsa registrando cada
+  chamada), objeto órfão sozinho, convergência com lock perdido (objeto inteiro e miniatura), falha
+  de storage não toca o banco (rollback da unidade), e miniatura ausente (D14, foto do WhatsApp).
+- `purge-cycle.contract.ts` — o laço nunca para em `deleted === 0`, parada pelo operador, teto de
+  lotes, teto de falhas de storage seguidas, base vazia, e o formato do log sem PII.
+- `schema-parity.contract.ts` — as cópias por valor de `stored_objects` e
+  `trip_document_occurrence_attachments` batem coluna a coluna com a API (`company_id` conferido só
+  pelo nome via `getTableConfig`, porque a API o declara com FK em várias linhas).
+
+**Gates:** `bun test test/trip-occurrence-attachment-purge.contract.test.ts` (17 pass) ·
+`bun test` completo do worker (1407 pass, 0 fail) · `bun run typecheck`/`lint`/`format:check`
+(raiz) — todos verdes.
+
+### T18 — Catálogo e agendamento
+
+Commit `4c1576c43`.
+
+`trip.occurrence-attachment.purge` entra em `job-catalog.constant.ts` das quatro apps (API, worker,
+cron, frontend), `failureOutcomes: []` (a rotina só toca o próprio banco e o bucket — falha de
+storage vira contador, nunca exceção) e `minimumIntervalSeconds: 86_400`. Migration
+`drizzle/20260922112706_trip_occurrence_attachment_purge_job/` (gerada por `bun run db:generate`,
+sem precisar de Postgres — o `snapshot.json` saiu junto) amplia os CHECKs de
+`job_executions`/`job_schedules` com `NOT VALID` + `VALIDATE CONSTRAINT`, semeia a linha em
+`job_schedules`, e cria `stored_objects_purpose_retention_idx` (parcial, `status <> 'deleted' and
+retention_until is not null`) em `storage.schema.ts` — é o índice que a T17 lê.
+
+**Gate parcial:** `make migration-test` (Postgres descartável + rollback) **não** rodou — Docker
+fora do ar nesta máquina. `bun run db:check` e `schema-snapshot.contract.ts` (via `bun test
+test/database-migration.contract.test.ts`, 65 pass) confirmam que a migration bate com o schema TS
+e que os bytes/hashes das migrations antigas continuam intactos; o rollback foi escrito no molde do
+repositório (`BEGIN`/`DO $$`/`ROW_COUNT = 1`/`COMMIT`, seguindo
+`20260915233000_rate_limit_windows/rollback.sql`) mas não executado.
+
+**Gates:** `bun test test/job-catalog.contract.test.ts` nas quatro apps (13/5/6/6 pass) · `bun test
+test/database-migration.contract.test.ts` (api, 65 pass) · `bun run test` completo em
+api-transportada (6822 pass), worker-transportada (1407 pass), cron-transportada (101 pass),
+frontend-transportada (4769 + 44 pass) · `bun run typecheck`/`lint`/`format:check` (raiz) — todos
+verdes.
+
+### T19 — Integração do expurgo (aberta)
+
+**Não implementada.** O critério de aceite (CA15) é literalmente "via `make worker-integration`" —
+sobe Postgres, RabbitMQ e MinIO no Docker — e o Docker está fora do ar nesta máquina. É o único gate
+que prova que os bytes saem do bucket de verdade; os testes de contrato da T17 substituem o storage
+por porta falsa, o que prova a lógica, não a integração real com um provedor S3-compatível.
+
+Um Postgres nativo descartável está disponível nesta máquina
+(`postgresql://postgres@127.0.0.1:65433/postgres`, o mesmo usado pelas integrações da Fase 1/4), e
+poderia provar a metade de banco da rotina (lock, transação por unidade, `DELETE`/`UPDATE`) — mas
+**não** a metade de bucket, que é justamente o que este teste existe para provar. Escrever o teste
+de integração contra um MinIO local que não existe, ou apontá-lo para um bucket compartilhado da
+instalação, violaria a instrução de não apagar bytes contra storage compartilhado. A task fica `[ ]`
+até o Docker voltar; o arquivo `test/trip-occurrence-attachment-purge.integration.test.ts` e a
+entrada em `package.json` (`test`/`test:integration`) ficam para quem retomar com Docker disponível.
+
+### T20 — Registro em `docs/SECURITY.md`
+
+Commit `d72c3d82`.
+
+Sem teste de código (item de documentação). Três mudanças em `docs/SECURITY.md`:
+
+1. O achado de 22/09/2026 sobre a retenção não executada foi **atualizado**, não duplicado — passa a
+   dizer que a rotina existe (T17/T18), com o que ela cobre e o que continua em aberto (a prova
+   ponta-a-ponta da T19).
+2. O achado de 2026-09-18 sobre objeto órfão sem varredura periódica (`docs/SECURITY.md:149-172`)
+   ganhou um "fechado parcialmente": `trip-occurrence-attachments/` agora tem varredura (só depois
+   que `retention_until` vence, não logo após a transação desfazer); `delivery-proofs/` continua sem
+   nenhuma.
+3. Entrada nova: a foto vinda do WhatsApp entra sem reencode no servidor (EXIF/GPS preservado, sem
+   miniatura, D14) — risco aceito, com a justificativa de não acrescentar `sharp` (binário nativo,
+   compatibilidade com Bun, CVE de decodificador, CPU no request) e o que limita o estrago (bucket
+   privado, presigned de 5 min, mesma permissão de leitura da ocorrência).
+
+Nenhum achado antigo foi apagado — os três seguem em "Abertos", com a data de origem preservada e a
+atualização datada de hoje.
+
+**Gates:** `bun run format:check` (raiz) — verde.

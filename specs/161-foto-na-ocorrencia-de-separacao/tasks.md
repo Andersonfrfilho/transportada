@@ -181,14 +181,14 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
       `apps/worker-transportada/src/trip-occurrence-attachment-purge/`, registro em
       `apps/worker-transportada/src/main.ts`. ⚠️ **Corrigido na implementação (22/09/2026), validação
       de arquitetura em `opus`**: o molde é `trip-cargo-layout-purge/` (transação, `for update skip
-    locked`, duas tabelas), não `rate-limit-window-purge/` — ver `plan.md`. A porta de bucket é
+locked`, duas tabelas), não `rate-limit-window-purge/` — ver `plan.md`. A porta de bucket é
       mínima (`deleteObject({bucket, key})`, precedente em `nfe-storage-gateway.ts:36,39-48`); a
       unidade de trabalho é o **anexo** (`stored_object_id OR thumbnail_object_id`), numa transação
       por unidade — nunca a do lote inteiro. A ordem (apagar bytes → `DELETE` do anexo → `UPDATE`
       dos dois objetos no mesmo comando) é invariante de **código**, não do banco (o `plan.md:267`
       antigo estava errado: `RESTRICT` só morde `DELETE` da linha pai). Objeto órfão (sem linha de
       anexo) é apagado e marcado sozinho. O laço quebra em `processed === 0`, nunca em `deleted ===
-    0`, e há teto de falhas de storage seguidas que interrompe o ciclo.
+0`, e há teto de falhas de storage seguidas que interrompe o ciclo.
   - Critério de aceite (CA13): apaga original **e** miniatura na mesma unidade, marca
     `status: 'deleted'`/`deleted_at` no mesmo `UPDATE`, remove a linha do anexo, **não** toca a
     ocorrência, respeita lote/`MAX_BATCHES`/`isStopRequested`, converge com objeto ausente, e loga só
