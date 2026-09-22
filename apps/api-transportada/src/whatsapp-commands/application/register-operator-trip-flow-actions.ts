@@ -621,8 +621,15 @@ export function createOperatorWhatsAppFlowActions(
     }
 
     return {
+      /**
+       * B1 (revisão spec 161): ocorrência nova começa aqui — sem zerar `occurrenceId`, uma segunda
+       * ocorrência na mesma sessão herdava o id da primeira (o merge do FlowInterpreter só
+       * sobrescreve chave presente no patch, nunca ausente) e `photoRouter` anexava a foto de B à
+       * ocorrência A em vez de criar uma nova.
+       */
       context: {
         [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: undefined,
         [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId]: answer,
       },
       next: OPERATOR_FLOW_NODE.notePrompt,

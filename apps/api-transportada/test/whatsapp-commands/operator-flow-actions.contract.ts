@@ -314,6 +314,44 @@ describe('resposta de lista conferida contra a lista relida (spec 144 T020, B5)'
       next: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
     })
   })
+
+  /**
+   * B1 (revisão da spec 161): registrar a ocorrência A e, na mesma sessão, começar outra sem
+   * recarregar o WhatsApp deixava `occurrenceId` da sessão apontando para A — `photoRouter` via o
+   * contexto com id preenchido e nunca chamava `registerOccurrence` de novo, então a foto da
+   * segunda ocorrência (B) era anexada à primeira (A) em silêncio. `occurrenceTypeRouter` começa
+   * uma ocorrência nova a cada tipo escolhido, então ele é quem tem de zerar o id da sessão
+   * anterior.
+   */
+  test('escolher o tipo de ocorrência de novo limpa o occurrenceId de um registro anterior na mesma sessão', async () => {
+    const { channel } = buildChannel()
+    const sessionContextBeforeThisTurn = {
+      [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+    }
+
+    const result = await callAction({
+      channel,
+      context: {
+        ...sessionContextBeforeThisTurn,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({ listOccurrenceTypes: async () => [buildOccurrenceType()] }),
+      kind: OPERATOR_FLOW_ACTION_KIND.occurrenceTypeRouter,
+    })
+
+    /**
+     * `FlowInterpreter.step` (meta-whatsapp-module) funde o patch por `{ ...contextoAnterior,
+     * ...result.context }` — uma chave **ausente** do patch preserva o valor antigo da sessão;
+     * só uma chave presente com `undefined` sobrescreve. `toEqual` não distingue as duas formas
+     * (trata ausência e `undefined` como iguais), então a prova certa é `Object.hasOwn` no patch
+     * em si, e a simulação do merge que o pacote faz de verdade.
+     */
+    if (result === undefined) throw new Error('occurrenceTypeRouter não devolveu resultado')
+    expect(Object.hasOwn(result.context ?? {}, OPERATOR_FLOW_CONTEXT_KEY.occurrenceId)).toBe(true)
+
+    const mergedSessionContext = { ...sessionContextBeforeThisTurn, ...result.context }
+    expect(mergedSessionContext[OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]).toBeUndefined()
+  })
 })
 
 describe('resolveOperatorTripActions — tabela estado → ações (espelha state-gates.contract.ts)', () => {

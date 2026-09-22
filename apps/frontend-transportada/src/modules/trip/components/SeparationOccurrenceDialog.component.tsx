@@ -20,6 +20,7 @@ export type SeparationOccurrenceDialogProps = Readonly<{
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
   onClose: () => void
+  onReset: () => void
   onRegister: (input: {
     readonly note: string
     readonly occurrenceTypeId: string
@@ -45,6 +46,7 @@ export function SeparationOccurrenceDialog({
   occurrences,
   onClose,
   onRegister,
+  onReset,
   products,
   types,
 }: SeparationOccurrenceDialogProps) {
@@ -70,7 +72,10 @@ export function SeparationOccurrenceDialog({
           <button
             aria-label={t('mdfeGate.close')}
             className={styles.iconAction}
-            onClick={onClose}
+            onClick={() => {
+              onReset()
+              onClose()
+            }}
             type="button"
           >
             <Icon name="close" />
@@ -83,6 +88,7 @@ export function SeparationOccurrenceDialog({
           isRegistering={isRegistering}
           occurrences={occurrences}
           onRegister={onRegister}
+          onReset={onReset}
           products={products}
           types={types}
         />

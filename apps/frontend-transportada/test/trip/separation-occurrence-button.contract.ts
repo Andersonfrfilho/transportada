@@ -122,4 +122,29 @@ describe('varredura de fonte: botão na linha da nota', () => {
     expect(source).toContain('TripOccurrences')
     expect(source).toContain('useModalDialog')
   })
+
+  /**
+   * B1 (revisão spec 161): registrar a ocorrência A e, sem recarregar, registrar B na mesma nota (ou
+   * noutra) fazia B virar anexo de A — `occurrencePhotoOccurrenceIdRef` do hook não tinha ninguém
+   * chamando `resetSeparationOccurrencePhotoSend`. A correção liga o reset ao abrir o formulário, ao
+   * cancelar e no início de cada novo registro.
+   */
+  test('TripOccurrences reseta a sessão de envio ao abrir/cancelar o formulário e ao começar um novo registro', async () => {
+    const source = await readFile('src/modules/trip/components/TripOccurrences.component.tsx')
+
+    expect(source).toContain('onReset: () => void')
+    expect(source).toMatch(/onReset\(\)[\s\S]{0,80}setIsOpen\(true\)/)
+    expect(source).toMatch(/onReset\(\)[\s\S]{0,80}setIsOpen\(false\)/)
+    expect(source).toMatch(/function handleSubmit\(\)[\s\S]{0,200}onReset\(\)/)
+  })
+
+  test('SeparationOccurrenceDialog e TripDetail repassam o reset da sessão de fotos ao TripOccurrences', async () => {
+    const dialogSource = await readFile(
+      'src/modules/trip/components/SeparationOccurrenceDialog.component.tsx',
+    )
+    expect(dialogSource).toContain('onReset')
+
+    const detailSource = await readFile('src/modules/trip/components/TripDetail.component.tsx')
+    expect(detailSource).toContain('workspace.resetSeparationOccurrencePhotoSend')
+  })
 })

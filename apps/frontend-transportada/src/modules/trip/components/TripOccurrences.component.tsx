@@ -24,6 +24,12 @@ type TripOccurrencesProps = Readonly<{
   email: null | Readonly<{ body: string; subject: string }>
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
+  /**
+   * B1 (revisão spec 161): zera a sessão de envio de fotos do hook
+   * (`resetSeparationOccurrencePhotoSend`) — sem isto, a segunda ocorrência de separação na mesma
+   * sessão reusava o `occurrenceId` da primeira e as fotos dela viravam anexo da ocorrência errada.
+   */
+  onReset: () => void
   onRegister: (input: {
     readonly note: string
     readonly occurrenceTypeId: string
@@ -58,6 +64,7 @@ export function TripOccurrences({
   isRegistering,
   occurrences,
   onRegister,
+  onReset,
   products,
   types,
 }: TripOccurrencesProps) {
@@ -74,6 +81,7 @@ export function TripOccurrences({
 
   function handleSubmit() {
     if (!canSubmit) return
+    onReset()
     onRegister({ note, occurrenceTypeId, photos, productCode })
     setNote('')
     setProductCode('')
@@ -126,7 +134,15 @@ export function TripOccurrences({
         </div>
       )}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
-        <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">
+        <Button
+          onClick={() => {
+            onReset()
+            setIsOpen(true)
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
           <Icon name="alert" />
           {t('occurrence.register')}
         </Button>
@@ -175,7 +191,15 @@ export function TripOccurrences({
             <Icon name="save" />
             {t('occurrence.submit')}
           </Button>
-          <Button onClick={() => setIsOpen(false)} size="sm" type="button" variant="ghost">
+          <Button
+            onClick={() => {
+              onReset()
+              setIsOpen(false)
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
             <Icon name="close" />
             {t('occurrence.cancel')}
           </Button>

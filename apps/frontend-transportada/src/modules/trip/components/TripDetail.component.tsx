@@ -1092,6 +1092,7 @@ function SeparationOccurrenceDialogLoader({
           tripId: document.tripId,
         })
       }
+      onReset={workspace.resetSeparationOccurrencePhotoSend}
       products={workspace.documentProductsQuery.data ?? []}
       types={workspace.occurrenceTypesQuery.data ?? []}
     />
@@ -1135,6 +1136,7 @@ function TripDeliveryProofLoader({
               tripId: document.tripId,
             })
           }
+          onReset={workspace.resetSeparationOccurrencePhotoSend}
           products={workspace.documentProductsQuery.data ?? []}
           types={workspace.occurrenceTypesQuery.data ?? []}
         />
