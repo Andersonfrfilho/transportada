@@ -25,7 +25,9 @@ type Transaction = Parameters<Parameters<Database['db']['transaction']>[0]>[0]
 /** Simulação (P4): sinalizador interno para forçar `ROLLBACK` sem propagar erro ao chamador. */
 class SimulationRollback extends Error {}
 
-export class DrizzlePackageBoxCatalogImportRepository implements PackageBoxCatalogImportRepositoryPort {
+export class DrizzlePackageBoxCatalogImportRepository
+  implements PackageBoxCatalogImportRepositoryPort
+{
   readonly #database: Database['db']
 
   constructor(database: Database['db']) {
