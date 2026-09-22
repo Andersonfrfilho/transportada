@@ -5,6 +5,8 @@ import type {
   CoverableSuggestionStop,
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
+
+import type { OccurrenceQuantityUnit } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -167,6 +169,11 @@ export type TripOccurrence = Readonly<{
    * API anterior ao campo, e aí quem responde é `productCode`.
    */
   productCodes?: readonly string[]
+  /**
+   * Spec 166: o mesmo item com a contagem. `quantity` é string decimal — a quantidade é `numeric`
+   * no banco e nunca vira float binário no caminho. Nulo é item sem contagem, que continua válido.
+   */
+  products?: readonly OccurrenceProduct[]
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
@@ -181,6 +188,16 @@ export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
  * ⚠️ O texto volta **para o operador conferir e enviar**, não para o sistema enviar — o
  * destinatário é externo. `null` quando o tipo não tem modelo.
  */
+/**
+ * Spec 166 RF1/RF5: o item da nota apontado pela ocorrência, com a contagem. Os dois campos andam
+ * juntos — quantidade sem unidade é número sem significado, e o banco recusa o par quebrado.
+ */
+export type OccurrenceProduct = Readonly<{
+  code: string
+  quantity: null | string
+  unit: null | OccurrenceQuantityUnit
+}>
+
 export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
   Readonly<{
     /** ⚠️ O registro devolve o formato **estreito** do anexo (`{ id, position }`, sem URL — RF6/D5),

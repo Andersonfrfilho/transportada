@@ -6,6 +6,7 @@ import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
   TripDocumentProduct,
+  OccurrenceProduct,
   TripOccurrence,
   TripCargoLayout,
   TripCargoLayoutPoll,
@@ -68,6 +69,7 @@ import {
   TRIP_STOP_OPTIONAL_KEYS,
   TRIP_CARGO_LAYOUT_STATE_KEYS,
   TRIP_CARGO_LAYOUT_POLL_KEYS,
+  OCCURRENCE_QUANTITY_UNITS,
   TRIP_OCCURRENCE_OPTIONAL_KEYS,
   FIELD_OCCURRENCE_TYPE_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
@@ -1072,6 +1074,23 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
 }
 
 /** Exportada para o contrato: a guarda é de chave exata, e campo novo é mudança de contrato. */
+/**
+ * Spec 166 RF1/RF6: o item com a contagem. Tolerar a chave nova **não** é aceitar qualquer coisa
+ * dentro dela: unidade que este bundle não conhece chegaria à tela como texto cru, e quantidade em
+ * número (em vez de string decimal) seria float binário numa contagem. Item torto recusa a resposta,
+ * como qualquer outra forma inesperada.
+ */
+function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
+  return (
+    hasExactKeys(value, ['code', 'quantity', 'unit'] as const) &&
+    isString(value.code) &&
+    (value.quantity === null || isString(value.quantity)) &&
+    (value.unit === null || isOneOf(value.unit, OCCURRENCE_QUANTITY_UNITS)) &&
+    /** Os dois andam juntos, como no banco — meia contagem não chega à tela. */
+    (value.quantity === null) === (value.unit === null)
+  )
+}
+
 export function isTripOccurrence(value: unknown): value is TripOccurrence {
   if (
     !hasKeys(value, {
@@ -1093,6 +1112,7 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
     isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
     (value.productCodes === undefined || isEveryItem(value.productCodes, isString)) &&
+    (value.products === undefined || isEveryItem(value.products, isOccurrenceProduct)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
   )

@@ -320,7 +320,17 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    * porque a resposta antiga só tem `productCode`; lista vazia é a nota inteira.
    */
   'productCodes',
+  /**
+   * Spec 166 RF6: os itens **com quantidade** (`{ code, quantity, unit }`). Entra opcional aqui
+   * antes de a API mandá-lo, e a ordem não é zelo: a lista é fechada, então chave desconhecida
+   * derruba a resposta inteira — 201 gravado, tela dizendo que falhou (medido em 22/09).
+   */
+  'products',
 ] as const
+
+/** Spec 166 RF1: em que a quantidade do item é contada. Peça solta ou volume fechado. */
+export const OCCURRENCE_QUANTITY_UNITS = ['box', 'unit'] as const
+export type OccurrenceQuantityUnit = (typeof OCCURRENCE_QUANTITY_UNITS)[number]
 
 /** Spec 161 T24 (RF8): campos sempre presentes no anexo. */
 export const TRIP_OCCURRENCE_ATTACHMENT_KEYS = ['expired', 'id', 'mimeType', 'position'] as const
