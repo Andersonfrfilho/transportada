@@ -1042,3 +1042,62 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 167 (RF4/RF8): a tratativa já abriu — o número já está valendo dinheiro e não muda por trás
+ * da cobrança. 409, o mesmo padrão de `OccurrenceCaseTransitionNotAllowedError`.
+ */
+export class OccurrenceCaseAlreadyOpenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_ALREADY_OPEN',
+      message:
+        'This occurrence already has an open case; it can no longer be corrected or cancelled.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6): cancelar uma ocorrência já cancelada é 409, nunca 204 silencioso. */
+export class OccurrenceAlreadyCancelledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ALREADY_CANCELLED',
+      message: 'This occurrence was already cancelled.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6): corrigir uma ocorrência cancelada é 409 — cancelada é fim de linha. */
+export class OccurrenceCancelledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLED',
+      message: 'This occurrence was cancelled and can no longer be corrected.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 167 (RF6/CA07): motivo do cancelamento vazio (ou só espaço). */
+export class OccurrenceCancellationReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLATION_REASON_REQUIRED',
+      message: 'A cancellation reason is required.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 167 (RF6): teto de 500 caracteres no motivo do cancelamento. */
+export class OccurrenceCancellationReasonTooLongError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CANCELLATION_REASON_TOO_LONG',
+      message: 'The cancellation reason must be at most 500 characters.',
+      status: 400,
+    })
+  }
+}
