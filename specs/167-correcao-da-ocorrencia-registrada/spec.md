@@ -123,4 +123,4 @@ que passou a ser; e aceita cancelamento com motivo, ficando visível e fora das 
 ## Dúvidas
 
 - `[NEEDS CLARIFICATION: depois de uma correção, o e-mail ao embarcador é reenviado, é enviado um
-  aviso de correção, ou nada sai?]` — bloqueia só a parte de e-mail; o resto da spec anda sem isso.
+aviso de correção, ou nada sai?]` — bloqueia só a parte de e-mail; o resto da spec anda sem isso.
