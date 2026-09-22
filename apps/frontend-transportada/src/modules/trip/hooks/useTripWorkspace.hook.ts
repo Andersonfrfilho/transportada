@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
   TripDocumentProduct,
@@ -140,6 +141,8 @@ export type TripController = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
+      allowsMultipleItems: boolean
       emailTemplateKey: null | string
       name: string
       notifies: boolean
@@ -155,6 +158,12 @@ export type TripController = Readonly<{
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCodes: readonly string[]
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. Ausente ou item vazio é "sem
+       * contagem" — a quantidade nunca é obrigatória.
+       */
+      readonly productQuantities?: readonly (null | string)[]
+      readonly productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
@@ -556,6 +565,8 @@ export function useTripWorkspace(
           thumbnail: Blob | undefined
         }>[]
         productCodes: readonly string[]
+        productQuantities?: readonly (null | string)[]
+        productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
       }>,
   ): Promise<Readonly<{ hasFailure: boolean }>> {
     const photoById = new Map(input_.photos.map((photo) => [photo.photoId, photo] as const))
@@ -626,6 +637,12 @@ export function useTripWorkspace(
               occurrenceTypeId: input_.occurrenceTypeId,
               productCodes: input_.productCodes,
               tripId: input_.tripId,
+              ...(input_.productQuantities === undefined
+                ? {}
+                : { productQuantities: input_.productQuantities }),
+              ...(input_.productQuantityUnits === undefined
+                ? {}
+                : { productQuantityUnits: input_.productQuantityUnits }),
               ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
             })
             setLastOccurrenceEmail(registered.email)

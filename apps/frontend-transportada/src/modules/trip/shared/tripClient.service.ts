@@ -8,6 +8,7 @@ import {
   TRIP_CARGO_LAYOUTS_PATH,
   TRIP_DOCUMENT_REVIEWS_PATH,
   TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+  type OccurrenceQuantityUnit,
 } from './trip.constant'
 import {
   isFieldDeliveryOcrDocumentsResponse,
@@ -232,6 +233,8 @@ export type TripClient = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
+      allowsMultipleItems: boolean
       emailTemplateKey: null | string
       name: string
       notifies: boolean
@@ -254,6 +257,12 @@ export type TripClient = Readonly<{
       readonly occurrenceTypeId: string
       /** Lista vazia é a nota inteira. O `productCode` legado sai junto, ver o cliente. */
       readonly productCodes: readonly string[]
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. Ausente ou item vazio é "sem
+       * contagem" — a quantidade nunca é obrigatória.
+       */
+      readonly productQuantities?: readonly (null | string)[]
+      readonly productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
       readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
@@ -725,6 +734,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const response = await authorizedRequest({
         body: JSON.stringify({
           active: input.active,
+          allowsMultipleItems: input.allowsMultipleItems,
           emailTemplateKey: input.emailTemplateKey,
           name: input.name,
           notifies: input.notifies,
@@ -860,6 +870,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
        */
       form.set('productCode', input.productCodes[0] ?? '')
       for (const productCode of input.productCodes) form.append('productCodes', productCode)
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes` — posição vazia é item sem
+       * contagem. Sem a lista (chamador que não passa quantidade), cada posição sai em branco.
+       */
+      for (let index = 0; index < input.productCodes.length; index += 1) {
+        form.append('productQuantities', input.productQuantities?.[index] ?? '')
+        form.append('productQuantityUnits', input.productQuantityUnits?.[index] ?? '')
+      }
       form.set('file', input.file)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
 

@@ -2,9 +2,13 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  formatOccurrenceProductEntryLabel,
   formatOccurrenceProductLabel,
+  formatOccurrenceProductsLine,
   OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+  resolveOccurrenceItemQuantityFields,
   resolveOccurrenceProductCodes,
+  resolveOccurrenceProductEntries,
   resolveOccurrenceProductSelection,
   resolveOccurrenceProductSelectionValues,
 } from '@/modules/trip/shared/occurrenceProductSelection.service'
@@ -108,5 +112,113 @@ describe('a leitura aceita o contrato novo e o antigo', () => {
   test('`productCodes` que não é lista de texto é recusado', () => {
     expect(isTripOccurrence({ ...base, productCode: '', productCodes: [1] })).toBe(false)
     expect(isTripOccurrence({ ...base, productCode: '', productCodes: 'A1' })).toBe(false)
+  })
+})
+
+const UNIT_LABELS = { box: 'caixa(s)', unit: 'peça(s)' } as const
+
+describe('spec 166: quantidade por item no envio (RF4, RF7, CA05)', () => {
+  test('item com quantidade digitada viaja com a unidade, item em branco viaja nulo', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1', 'B2'],
+      quantitiesByCode: new Map([['A1', { quantity: '3', unit: 'box' }]]),
+    })
+
+    expect(result.productQuantities).toEqual(['3', null])
+    expect(result.productQuantityUnits).toEqual(['box', null])
+  })
+
+  test('quantidade só com espaços conta como em branco', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1'],
+      quantitiesByCode: new Map([['A1', { quantity: '  ', unit: 'box' }]]),
+    })
+
+    expect(result.productQuantities).toEqual([null])
+    expect(result.productQuantityUnits).toEqual([null])
+  })
+
+  test('sem nenhuma entrada, as duas listas saem alinhadas e nulas', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1', 'B2'],
+      quantitiesByCode: new Map(),
+    })
+
+    expect(result.productQuantities).toEqual([null, null])
+    expect(result.productQuantityUnits).toEqual([null, null])
+  })
+})
+
+describe('spec 166: a leitura mostra a contagem, item sem ela some — nunca vira zero (P3)', () => {
+  const base = {
+    createdAt: '2026-09-22T12:00:00.000Z',
+    id: 'occurrence-1',
+    note: '',
+    occurrenceTypeId: 'type-1',
+    stage: 'separation' as const,
+    typeName: 'Item avariado',
+  }
+
+  test('item com contagem casa com o produto do `products`', () => {
+    const entries = resolveOccurrenceProductEntries({
+      ...base,
+      productCode: 'A1',
+      productCodes: ['A1', 'B2'],
+      products: [{ code: 'A1', quantity: '3.000', unit: 'unit' }],
+    })
+
+    expect(entries).toEqual([
+      { code: 'A1', quantity: '3.000', unit: 'unit' },
+      { code: 'B2', quantity: null, unit: null },
+    ])
+  })
+
+  test('sem `products` (ocorrência antiga), todo item sai sem contagem', () => {
+    const entries = resolveOccurrenceProductEntries({
+      ...base,
+      productCode: 'A1',
+      productCodes: ['A1'],
+    })
+
+    expect(entries).toEqual([{ code: 'A1', quantity: null, unit: null }])
+  })
+
+  test('item sem contagem aparece só com o código, nunca com "0"', () => {
+    expect(
+      formatOccurrenceProductEntryLabel({
+        entry: { code: 'A1', quantity: null, unit: null },
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toBe('A1')
+  })
+
+  test('item com contagem aparece com a quantidade e a unidade por extenso', () => {
+    expect(
+      formatOccurrenceProductEntryLabel({
+        entry: { code: 'A1', quantity: '3.000', unit: 'unit' },
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toBe('A1 (3.000 peça(s))')
+  })
+
+  test('a linha inteira mistura item com e sem contagem, e a nota inteira quando não há item', () => {
+    const line = formatOccurrenceProductsLine({
+      occurrence: {
+        ...base,
+        productCode: 'A1',
+        productCodes: ['A1', 'B2'],
+        products: [{ code: 'A1', quantity: '2.000', unit: 'box' }],
+      },
+      unitLabels: UNIT_LABELS,
+      wholeDocumentLabel: 'A nota inteira',
+    })
+    expect(line).toBe('A1 (2.000 caixa(s)), B2')
+
+    const wholeDocument = formatOccurrenceProductsLine({
+      occurrence: { ...base, productCode: '', productCodes: [] },
+      unitLabels: UNIT_LABELS,
+      wholeDocumentLabel: 'A nota inteira',
+    })
+    expect(wholeDocument).toBe('A nota inteira')
   })
 })

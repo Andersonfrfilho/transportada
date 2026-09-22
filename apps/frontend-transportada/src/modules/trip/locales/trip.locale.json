@@ -737,7 +737,14 @@
     "productEmpty": "Nenhum item encontrado",
     "productRemove": "Tirar este item",
     "productSearch": "Buscar item da nota",
-    "productSummary": "{{count}} itens escolhidos"
+    "productSummary": "{{count}} itens escolhidos",
+    "quantityLabel": "Quantidade",
+    "quantityUnitLabel": "Unidade",
+    "quantityUnits": {
+      "box": "Caixa",
+      "unit": "Peça"
+    },
+    "singleItemHint": "Este tipo aceita só um item — escolher outro substitui o anterior."
   },
   "occurrenceFeed": {
     "columns": {

@@ -1334,6 +1334,7 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
   if (
     !hasExactKeys(value, [
       'active',
+      'allowsMultipleItems',
       'emailBody',
       'emailSubject',
       'emailTemplateKey',
@@ -1347,6 +1348,7 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
   }
   return (
     isBoolean(value.active) &&
+    isBoolean(value.allowsMultipleItems) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&

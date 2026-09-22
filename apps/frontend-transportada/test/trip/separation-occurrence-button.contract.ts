@@ -13,6 +13,7 @@ function readFile(path: string): Promise<string> {
 function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,

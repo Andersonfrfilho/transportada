@@ -563,7 +563,14 @@
     "productEmpty": "No item found",
     "productRemove": "Remove this item",
     "productSearch": "Search invoice item",
-    "productSummary": "{{count}} items chosen"
+    "productSummary": "{{count}} items chosen",
+    "quantityLabel": "Quantity",
+    "quantityUnitLabel": "Unit",
+    "quantityUnits": {
+      "box": "Box",
+      "unit": "Piece"
+    },
+    "singleItemHint": "This type only accepts one item — choosing another replaces it."
   },
   "occurrenceFeed": {
     "columns": {

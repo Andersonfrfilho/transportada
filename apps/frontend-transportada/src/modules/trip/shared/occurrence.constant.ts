@@ -18,6 +18,12 @@ export type TripOccurrenceStage = (typeof TRIP_OCCURRENCE_STAGE)[keyof typeof TR
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
+  /**
+   * Spec 166 RF3/RF8/RF9: tipo com o interruptor desligado só aceita **um** item por ocorrência —
+   * o campo de item vira seleção única, e trocar a escolha substitui em vez de somar. Padrão
+   * `true` preserva o comportamento de hoje.
+   */
+  allowsMultipleItems: boolean
   /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
   emailBody: string
   emailSubject: string

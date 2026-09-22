@@ -120,3 +120,22 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
     expect(await findOccurrences('occurrenceNotifications')).toEqual([])
   })
 })
+
+/**
+ * Spec 166 RF9/CA10: o cadastro ganha o interruptor "aceita vários itens" — padrão ligado (RF3),
+ * gravado pelo mesmo `onSave` que já manda os outros campos do tipo.
+ */
+describe('spec 166: interruptor "aceita vários itens" no cadastro', () => {
+  it('o painel usa o primitivo Checkbox, nunca o input cru', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain('allowsMultipleItems')
+    expect(panel).toContain("t('occurrenceTypeCatalog.allowsMultipleItems')")
+    expect(panel).toMatch(/<Checkbox[^>]*checked=\{allowsMultipleItems\}/u)
+    expect(panel).toMatch(/<Checkbox[^>]*checked=\{type\.allowsMultipleItems\}/u)
+  })
+
+  it('o rótulo está nos dois locales', () => {
+    expect(companySettingsPt.occurrenceTypeCatalog.allowsMultipleItems).toBeString()
+    expect(companySettingsEn.occurrenceTypeCatalog.allowsMultipleItems).toBeString()
+  })
+})

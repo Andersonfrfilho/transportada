@@ -25,6 +25,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
   isSaving: boolean
   onSave: (input: {
     readonly active: boolean
+    /** Spec 166 RF9: desligado, o campo de item na tela de registro vira seleção única. */
+    readonly allowsMultipleItems: boolean
     readonly emailTemplateKey: null | string
     readonly name: string
     readonly notifies: boolean
@@ -61,6 +63,8 @@ export function OccurrenceTypeCatalogPanel({
   const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
   const [notifies, setNotifies] = useState(false)
   const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
+  /** RF3: o padrão é aceitar vários itens — preserva o comportamento de hoje. */
+  const [allowsMultipleItems, setAllowsMultipleItems] = useState(true)
 
   const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
   const templateOptions = buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? [])
@@ -81,6 +85,7 @@ export function OccurrenceTypeCatalogPanel({
     if (name.trim() === '') return
     onSave({
       active: true,
+      allowsMultipleItems,
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
       name,
       notifies,
@@ -90,6 +95,7 @@ export function OccurrenceTypeCatalogPanel({
     setName('')
     setNotifies(false)
     setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
+    setAllowsMultipleItems(true)
   }
 
   function handleEditTemplates() {
@@ -130,6 +136,7 @@ export function OccurrenceTypeCatalogPanel({
                   onChange={(value) =>
                     onSave({
                       active: type.active,
+                      allowsMultipleItems: type.allowsMultipleItems,
                       emailTemplateKey: type.emailTemplateKey,
                       name: type.name,
                       notifies: value,
@@ -145,6 +152,23 @@ export function OccurrenceTypeCatalogPanel({
                   onChange={(value) =>
                     onSave({
                       active: value,
+                      allowsMultipleItems: type.allowsMultipleItems,
+                      emailTemplateKey: type.emailTemplateKey,
+                      name: type.name,
+                      notifies: type.notifies,
+                      occurrenceTypeId: type.id,
+                      stage: type.stage,
+                    })
+                  }
+                />
+                <Checkbox
+                  checked={type.allowsMultipleItems}
+                  disabled={!canManage || isSaving}
+                  label={t('occurrenceTypeCatalog.allowsMultipleItems')}
+                  onChange={(value) =>
+                    onSave({
+                      active: type.active,
+                      allowsMultipleItems: value,
                       emailTemplateKey: type.emailTemplateKey,
                       name: type.name,
                       notifies: type.notifies,
@@ -187,6 +211,11 @@ export function OccurrenceTypeCatalogPanel({
             checked={notifies}
             label={t('occurrenceTypeCatalog.notifies')}
             onChange={setNotifies}
+          />
+          <Checkbox
+            checked={allowsMultipleItems}
+            label={t('occurrenceTypeCatalog.allowsMultipleItems')}
+            onChange={setAllowsMultipleItems}
           />
           <Select
             ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}

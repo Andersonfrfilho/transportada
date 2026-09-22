@@ -277,6 +277,7 @@
     "emailTemplateNone": "No email",
     "editTemplates": "Edit email templates",
     "legacyTemplate": "{{subject}} — own template (legacy)",
-    "withoutTemplate": "No email: this type is only logged on the trip."
+    "withoutTemplate": "No email: this type is only logged on the trip.",
+    "allowsMultipleItems": "Allows multiple items"
   }
 }
