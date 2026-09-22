@@ -467,12 +467,20 @@ export const nfeVolumes = pgTable(
  * edicao fica registrada.
  * `replicated` (spec 155, D6) e medida copiada de outra variacao do mesmo produto: nao foi
  * conferida nesta caixa, e o cadastro precisa saber a diferenca.
+ * `catalog` (spec 160) e proposta promovida do catalogo publico de GTIN — duas fontes concordando
+ * dentro da tolerancia (RNF03), nunca conferida por gente.
+ *
+ * A CHECK do banco (`nfe_package_boxes_measurement_source_check`,
+ * `nfe_package_box_measurements_source_check`) já alarga para `catalog` desde a migration da spec
+ * 162 (`package_box_catalog_source`) — só o importador (spec 162) grava esse valor, nunca uma rota
+ * digitada.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
   'camera',
   'camera_adjusted',
   'replicated',
+  'catalog',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 
@@ -577,7 +585,7 @@ export const nfePackageBoxes = pgTable(
     ),
     check(
       'nfe_package_boxes_measurement_source_check',
-      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
+      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog')`,
     ),
     check(
       'nfe_package_boxes_measurement_margin_check',
@@ -681,7 +689,7 @@ export const nfePackageBoxMeasurements = pgTable(
       .onUpdate('cascade'),
     check(
       'nfe_package_box_measurements_source_check',
-      sql`${table.source} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
+      sql`${table.source} in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog')`,
     ),
     /** Réplica sem origem não é auditável, e origem em medida que não é réplica não descreve nada. */
     check(

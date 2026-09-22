@@ -7,12 +7,16 @@
  * `PACKAGE_BOX_MEASUREMENT_WARNINGS` (`database/nfe.schema.ts`) — o domínio não importa schema de
  * banco (camada sem I/O), e o contrato de paridade
  * (`test/nfe-package-box/measurement-source.contract.ts`) garante que as duas listas nunca divergem.
+ *
+ * ⚠️ `catalog` (spec 160, T006) ainda não é gravável: a CHECK do banco não foi alargada nesta fase
+ * (T006 pediu para não gerar migration) — ver o comentário em `database/nfe.schema.ts`.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
   'camera',
   'camera_adjusted',
   'replicated',
+  'catalog',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 
