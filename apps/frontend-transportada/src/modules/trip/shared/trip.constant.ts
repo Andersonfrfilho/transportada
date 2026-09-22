@@ -310,6 +310,11 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
   'actorName',
   'channel',
   'onBehalfOfDriverName',
+  /**
+   * Spec 161 T6/T22: nasce opcional aqui só para não derrubar o parse do registro (RF29/RF31) —
+   * `id`/`position` de cada foto gravada. A grade de miniaturas (T24) tipa e consome o conteúdo.
+   */
+  'attachments',
 ] as const
 
 /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */

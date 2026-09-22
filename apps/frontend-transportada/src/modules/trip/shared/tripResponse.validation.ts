@@ -874,6 +874,13 @@ export function createTripResponseAdapters() {
       }
       return { ...occurrence, email: email as RegisteredOccurrence['email'] }
     },
+    /** Spec 161 T7/T22: `POST .../occurrences/:occurrenceId/attachments` — `{ id, position }`. */
+    occurrenceAttachmentPositionFromApi(
+      input: unknown,
+    ): Readonly<{ id: string; position: number }> {
+      if (!isOccurrenceAttachmentPosition(input)) throw invalid()
+      return input
+    },
     documentProductsFromApi(input: unknown): readonly TripDocumentProduct[] {
       if (!Array.isArray(input) || !input.every(isDocumentProduct)) throw invalid()
       return input
@@ -1063,6 +1070,9 @@ function isOccurrence(value: unknown): value is TripOccurrence {
   }
   return (
     (value.actorName === undefined || isNullableString(value.actorName)) &&
+    (value.attachments === undefined ||
+      (Array.isArray(value.attachments) &&
+        value.attachments.every(isOccurrenceAttachmentPosition))) &&
     (value.channel === undefined || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isString(value.createdAt) &&
     isString(value.id) &&
@@ -1072,6 +1082,17 @@ function isOccurrence(value: unknown): value is TripOccurrence {
     isString(value.productCode) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
+  )
+}
+
+/** Spec 161 T6/T22: `{ id, position }` de uma foto gravada — sem URL (D5). */
+function isOccurrenceAttachmentPosition(
+  value: unknown,
+): value is Readonly<{ id: string; position: number }> {
+  return (
+    hasExactKeys(value, ['id', 'position'] as const) &&
+    isString(value.id) &&
+    typeof value.position === 'number'
   )
 }
 

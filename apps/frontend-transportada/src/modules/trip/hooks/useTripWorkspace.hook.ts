@@ -11,6 +11,16 @@ import type {
   TripOccurrence,
 } from '../shared/trip.types'
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
+import {
+  buildOccurrencePhotoSendState,
+  markOccurrencePhotoFailed,
+  markOccurrencePhotoSending,
+  markOccurrencePhotoSent,
+  type OccurrencePhotoSendItem,
+  resolveOccurrencePhotoIdempotencyKey,
+  resolveOccurrencePhotoSendQueue,
+  sendOccurrencePhotosSequentially,
+} from '../shared/occurrencePhotoSend.service'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 import {
   type CargoLayoutPendingEpisode,
@@ -135,13 +145,26 @@ export type TripController = Readonly<{
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
+  /** Spec 161 T22 (RF29/RF31): multipart — `file` é sempre exigido, `thumbnail` é opcional. */
   registerTripOccurrence: (
     input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
+      readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
+  /** Spec 161 T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
+  attachOccurrencePhoto: (
+    input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+      readonly thumbnail?: Blob
+    },
+  ) => Promise<Readonly<{ id: string; position: number }>>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -227,6 +250,8 @@ export function createTripController(
       canManageSettings ? input.client.saveOccurrenceType(body) : forbidden(),
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
+    attachOccurrencePhoto: (body) =>
+      canManageTrips ? input.client.attachOccurrencePhoto(body) : forbidden(),
     readTripDocumentProducts: (body) =>
       canReadTripFleetDetails ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
@@ -506,6 +531,125 @@ export function useTripWorkspace(
   })
 
   /**
+   * Spec 161 T22 (RF31, CA16): a foto do galpão vai **uma requisição por foto**, nunca o lote
+   * inteiro — a primeira cria a ocorrência (`registerTripOccurrence`), a segunda em diante anexa
+   * (`attachOccurrencePhoto`). `occurrencePhotoOccurrenceIdRef` é o que faz o reenvio depois de uma
+   * falha continuar anexando à mesma ocorrência, em vez de criar uma segunda; a chave de
+   * idempotência por foto (`occurrencePhotoKeysRef`) segue o mesmo molde de `resolveFieldReportKey`
+   * acima — nasce na primeira tentativa e é reusada em todo reenvio da mesma foto.
+   */
+  const [occurrencePhotoSendState, setOccurrencePhotoSendState] = useState<
+    readonly OccurrencePhotoSendItem[]
+  >([])
+  const [isSendingOccurrencePhotos, setIsSendingOccurrencePhotos] = useState(false)
+  const [lastOccurrenceEmail, setLastOccurrenceEmail] = useState<null | Readonly<{
+    body: string
+    subject: string
+  }>>(null)
+  const occurrencePhotoKeysRef = useRef<Record<string, string>>({})
+  const occurrencePhotoOccurrenceIdRef = useRef<string | undefined>(undefined)
+
+  function resetSeparationOccurrencePhotoSend(): void {
+    occurrencePhotoKeysRef.current = {}
+    occurrencePhotoOccurrenceIdRef.current = undefined
+    setOccurrencePhotoSendState([])
+    setLastOccurrenceEmail(null)
+  }
+
+  async function sendSeparationOccurrencePhotos(
+    input_: TripDocumentActionInput &
+      Readonly<{
+        note: string
+        occurrenceTypeId: string
+        photos: readonly Readonly<{
+          original: Blob
+          photoId: string
+          thumbnail: Blob | undefined
+        }>[]
+        productCode: string
+      }>,
+  ): Promise<void> {
+    const photoById = new Map(input_.photos.map((photo) => [photo.photoId, photo] as const))
+    let state =
+      occurrencePhotoSendState.length === input_.photos.length
+        ? occurrencePhotoSendState
+        : buildOccurrencePhotoSendState(input_.photos.map((photo) => photo.photoId))
+    setOccurrencePhotoSendState(state)
+
+    function resolveKey(photoId: string): string {
+      const resolved = resolveOccurrencePhotoIdempotencyKey(
+        occurrencePhotoKeysRef.current,
+        photoId,
+        () => crypto.randomUUID(),
+      )
+      occurrencePhotoKeysRef.current = resolved.keys
+      return resolved.key
+    }
+
+    setIsSendingOccurrencePhotos(true)
+    try {
+      await sendOccurrencePhotosSequentially({
+        occurrenceId: occurrencePhotoOccurrenceIdRef.current,
+        onFailed: (photoId, error) => {
+          state = markOccurrencePhotoFailed(
+            state,
+            photoId,
+            error instanceof Error ? error.message : String(error),
+          )
+          setOccurrencePhotoSendState(state)
+        },
+        onSending: (photoId) => {
+          state = markOccurrencePhotoSending(state, photoId)
+          setOccurrencePhotoSendState(state)
+        },
+        onSent: (photoId, occurrenceId) => {
+          occurrencePhotoOccurrenceIdRef.current = occurrenceId
+          state = markOccurrencePhotoSent(state, photoId)
+          setOccurrencePhotoSendState(state)
+        },
+        photoIds: resolveOccurrencePhotoSendQueue(state),
+        port: {
+          attach: async ({ occurrenceId, photoId }) => {
+            const photo = photoById.get(photoId)
+            if (photo === undefined) throw new Error('OCCURRENCE_PHOTO_MISSING')
+            await controller.attachOccurrencePhoto({
+              documentId: input_.documentId,
+              file: photo.original,
+              idempotencyKey: resolveKey(photoId),
+              occurrenceId,
+              tripId: input_.tripId,
+              ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
+            })
+          },
+          registerFirst: async ({ photoId }) => {
+            const photo = photoById.get(photoId)
+            if (photo === undefined) throw new Error('OCCURRENCE_PHOTO_MISSING')
+            const registered = await controller.registerTripOccurrence({
+              documentId: input_.documentId,
+              file: photo.original,
+              idempotencyKey: resolveKey(photoId),
+              note: input_.note,
+              occurrenceTypeId: input_.occurrenceTypeId,
+              productCode: input_.productCode,
+              tripId: input_.tripId,
+              ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
+            })
+            setLastOccurrenceEmail(registered.email)
+            return { occurrenceId: registered.id }
+          },
+        },
+      })
+    } finally {
+      setIsSendingOccurrencePhotos(false)
+    }
+
+    void queryClient.invalidateQueries({
+      queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
+    })
+    void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+  }
+
+  /**
    * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
    * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
    */
@@ -731,6 +875,11 @@ export function useTripWorkspace(
     occurrenceTypesQuery,
     occurrencesQuery,
     registerOccurrenceMutation,
+    isSendingOccurrencePhotos,
+    lastOccurrenceEmail,
+    occurrencePhotoSendState,
+    resetSeparationOccurrencePhotoSend,
+    sendSeparationOccurrencePhotos,
     openProofDocumentId,
     setOpenProofDocumentId,
     openSeparationOccurrenceDocumentId,

@@ -242,13 +242,29 @@ export type TripClient = Readonly<{
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
+  /**
+   * Spec 161 T6/T22 (RF29/RF31): registro multipart — `file` é sempre exigido (uma foto por
+   * ocorrência), `thumbnail` é opcional (RF29b: falha na miniatura não impede o original).
+   */
   registerTripOccurrence: (
     input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
+      readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
+  /** Spec 161 T7/T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
+  attachOccurrencePhoto: (
+    input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+      readonly thumbnail?: Blob
+    },
+  ) => Promise<Readonly<{ id: string; position: number }>>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -833,17 +849,35 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       return adapters.tripTimelineFromApi(readEnvelopeData(response))
     },
     async registerTripOccurrence(input) {
+      const form = new FormData()
+      form.set('occurrenceTypeId', input.occurrenceTypeId)
+      form.set('note', input.note)
+      form.set('productCode', input.productCode)
+      form.set('file', input.file)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
+
       const response = await authorizedRequest({
-        body: JSON.stringify({
-          note: input.note,
-          occurrenceTypeId: input.occurrenceTypeId,
-          productCode: input.productCode,
-        }),
         dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
         method: 'POST',
         path: `${documentPath(input)}/occurrences`,
       })
       return adapters.registeredOccurrenceFromApi(readEnvelopeData(response))
+    },
+    async attachOccurrencePhoto(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/occurrences/${input.occurrenceId}/attachments`,
+      })
+      return adapters.occurrenceAttachmentPositionFromApi(readEnvelopeData(response))
     },
     async readDeliveryProofs(input) {
       const response = await authorizedRequest({

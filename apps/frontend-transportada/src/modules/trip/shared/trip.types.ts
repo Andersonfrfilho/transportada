@@ -134,6 +134,9 @@ export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
 export type TripOccurrence = Readonly<{
   /** Spec 156 T9 (D3, M1): nasce opcional — API na frente do bundle não pode servir sem ele. */
   actorName?: null | string
+  /** Spec 161 T6/T22: `id`/`position` de cada foto gravada — a grade de miniaturas (T24) tipa e
+   * consome o conteúdo; aqui só não derruba o parse. */
+  attachments?: readonly Readonly<{ id: string; position: number }>[]
   channel?: TripFieldChannel
   createdAt: string
   id: string
