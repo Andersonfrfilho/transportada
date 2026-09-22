@@ -58,3 +58,27 @@ texto selecionado.
 
 Saída: `~/Library/Application Support/transportada/box-catalog-harvest.jsonl`.
 Log: saída do `Bun.serve` no terminal.
+
+## Importar o JSONL coletado (spec 162)
+
+A captura deste diretório só grava localmente — nada chega a `nfe_package_boxes` sozinho. Quem leva
+o JSONL para produção é a CLI da API (`apps/api-transportada/src/cli/import-package-box-catalog.ts`,
+bundlada em `dist/cli/import-package-box-catalog.js`), que aplica a sanidade e o consenso da spec
+160 antes de gravar proposta (fila do conferente) ou promoção — nunca sobrescreve medida humana.
+
+```bash
+# simulação (padrão): roda em transação com ROLLBACK, nada é gravado
+scripts/box-catalog-harvest/import-to-production.sh \
+  "$HOME/Library/Application Support/transportada/box-catalog-harvest.jsonl" \
+  --environment staging
+
+# grava de verdade — pede para digitar IMPORTAR
+scripts/box-catalog-harvest/import-to-production.sh \
+  "$HOME/Library/Application Support/transportada/box-catalog-harvest.jsonl" \
+  --environment production --apply
+```
+
+O relatório (JSON no stdout, via `railway ssh --service api`) mostra contagens de proposta,
+promoção, pulo por já medida e rejeição por código — sem GTIN de conteúdo, só arestas
+(`EDGE_TOO_LARGE`/`EDGE_TOO_SMALL`/`UNIT_AMBIGUOUS`) protegem hoje; ver o aviso no topo de
+`import-package-box-catalog.use-case.ts`.
