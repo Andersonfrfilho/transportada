@@ -79,9 +79,35 @@ cancelada (409), CA08 (cancelamento grava motivo/autor/hora e a ocorrência nunc
 tratativa — `hasOpenCase` trava a correção/cancelamento futuros e a cobrança da spec 164 nunca a
 alcança), CA07 (cancelar duas vezes é 409).
 
-`bun --env-file=../../.env.test run test:integration` (72 arquivos, toda a suíte) foi disparado
-em background nesta sessão para confirmar zero regressão nos demais testes de integração; o
-resultado não chegou a tempo de entrar nesta evidência — conferir antes de publicar.
+`bun --env-file=../../.env.test run test:integration` (100 arquivos, toda a suíte) rodou em
+background: **503 pass, 27 fail, 1 error** em 906s. As falhas visíveis no log truncado
+(`toll-booth-reload.integration.ts` — `OBJECT_STORAGE_UNAVAILABLE`, MinIO fora do ar nesta
+worktree; `whatsapp-operator-flow-actions`/`contractor-mail-template-repository` — timeout de
+hook; `ERR_POSTGRES_CONNECTION_CLOSED` entre testes) são infraestrutura da suíte inteira rodando
+de uma vez (pool de conexão/MinIO), não relacionadas a esta spec — nenhuma menciona
+`occurrence`/`trip-occurrence-correction`. Rodando só os 10 arquivos de integração de
+viagem/ocorrência (inclusive o novo desta spec) isoladamente:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-attachment.integration.ts \
+    ./test/integration/trip-occurrence-case-write-guard.integration.ts \
+    ./test/integration/trip-occurrence-feed-case.integration.ts \
+    ./test/integration/trip-occurrence-case.integration.ts \
+    ./test/integration/trip-redelivery-application.integration.ts \
+    ./test/integration/trip-detail-occurrence-marker.integration.ts \
+    ./test/integration/trip-occurrence-item-quantity.integration.ts \
+    ./test/integration/trip-occurrence-correction.integration.ts \
+    ./test/integration/trip-lifecycle.integration.ts \
+    ./test/integration/trip-repository.integration.ts --timeout 120000
+33 pass
+0 fail
+179 expect() calls
+Ran 33 tests across 10 files. [43.08s]
+```
+
+Zero regressão nos testes de viagem/ocorrência. As 27 falhas da suíte cheia pré-existiam ao
+ambiente desta worktree (MinIO/pool de conexão) e não foram introduzidas por esta task —
+confirmar com outra sessão antes de assumir a suíte cheia como gate de publicação.
 
 ## Lint e formatação
 
