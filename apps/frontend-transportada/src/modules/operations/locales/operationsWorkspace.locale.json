@@ -46,5 +46,12 @@
       "already_running": "Já existe uma execução em andamento para esta rotina.",
       "failed": "Não foi possível disparar agora."
     }
+  },
+  "schedule": {
+    "enabled": "Ligada — roda sozinha na cadência da instalação.",
+    "disabled": "Desligada — só roda pelo botão \"Rodar agora\".",
+    "enable": "Ligar",
+    "disable": "Desligar",
+    "pausedAt": "Desligada em {{pausedAt}}"
   }
 }

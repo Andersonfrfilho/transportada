@@ -65,6 +65,16 @@ export type AuditEvent = Readonly<{
   targetType: string
 }>
 
+/** Spec 161 T21: o relógio de cada rotina — habilitada ou não, e quem desligou. */
+export type JobSchedule = Readonly<{
+  enabled: boolean
+  intervalSeconds: number
+  job: string
+  nextRunAt: string
+  pausedAt: string | null
+  pausedBy: string | null
+}>
+
 export type OperationsPage<TEntity> = Readonly<{
   items: readonly TEntity[]
   nextCursor: null | string
@@ -126,6 +136,10 @@ export type OperationsClient = Readonly<{
    * um aviso o faria concluir que o botão não funciona.
    */
   runJob: (input: Readonly<{ job: string }>) => Promise<RunJobOutcome>
+  /** Spec 161 T21: liga/desliga uma rotina. `false` quando a chamada falha ou falta permissão. */
+  listJobSchedules: () => Promise<readonly JobSchedule[]>
+  pauseJob: (input: Readonly<{ job: string }>) => Promise<JobSchedule | null>
+  resumeJob: (input: Readonly<{ job: string }>) => Promise<JobSchedule | null>
 }>
 
 /**
@@ -178,6 +192,39 @@ async function authorizedGet(
   })
 }
 
+/**
+ * `null` quando a rotina não tem linha no relógio ou o operador não tem permissão (`403`/`404`) —
+ * a tela lê isso como "não mudou nada", nunca lança, pelo mesmo motivo do `runJob`.
+ */
+async function postJobScheduleControl(
+  input: Readonly<{ dependencies: ClientDependencies; job: string; verb: 'pause' | 'resume' }>,
+): Promise<JobSchedule | null> {
+  const accessToken = await input.dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(
+      new Request(
+        `${input.dependencies.apiUrl}/operations/jobs/${encodeURIComponent(input.job)}/${input.verb}`,
+        {
+          cache: 'no-store',
+          headers: { authorization: `Bearer ${accessToken}` },
+          method: 'POST',
+        },
+      ),
+    )
+  } catch {
+    return null
+  }
+  if (!response.ok) return null
+
+  try {
+    const body = JSON.parse(await response.text()) as { readonly data: JobSchedule }
+    return body.data
+  } catch {
+    return null
+  }
+}
+
 export function createOperationsClient(dependencies: ClientDependencies): OperationsClient {
   const adapters = createOperationsResponseAdapters()
   return {
@@ -207,6 +254,14 @@ export function createOperationsClient(dependencies: ClientDependencies): Operat
 
       return response.ok ? 'started' : 'failed'
     },
+    async listJobSchedules() {
+      const body = (await authorizedGet({ dependencies, path: '/operations/job-schedules' })) as {
+        readonly data: readonly JobSchedule[]
+      }
+      return body.data
+    },
+    pauseJob: (input) => postJobScheduleControl({ dependencies, job: input.job, verb: 'pause' }),
+    resumeJob: (input) => postJobScheduleControl({ dependencies, job: input.job, verb: 'resume' }),
     async getSummary(input) {
       return adapters.summaryFromApi(
         await authorizedGet({
