@@ -6,7 +6,7 @@
  * 'driver_app'` ali significa "canal não registrado" — sai como `channel: null`). Escopadas por
  * `company_id` em cada junção.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { nfeDocuments } from '../../database/nfe.schema.js'
@@ -58,6 +58,27 @@ export async function listDocumentOccurrenceRows(
   const rows = await queryable
     .select({
       actorName: timelineActorProfile.name,
+      /**
+       * Spec 161 T11 (RF12): a contagem da tabela nova (D2) quando existe, senão 1 quando a
+       * coluna antiga (D6) tem anexo, senão 0 — o mesmo desempate de RF15, sem trazer nenhuma
+       * linha do anexo para a linha do tempo.
+       */
+      attachmentCount: sql<number>`(
+        case
+          when (
+            select count(*) from trip_document_occurrence_attachments
+            where company_id = ${tripDocumentOccurrences.companyId}
+              and occurrence_id = ${tripDocumentOccurrences.id}
+          ) > 0
+          then (
+            select count(*) from trip_document_occurrence_attachments
+            where company_id = ${tripDocumentOccurrences.companyId}
+              and occurrence_id = ${tripDocumentOccurrences.id}
+          )
+          when ${tripDocumentOccurrences.attachmentObjectId} is not null then 1
+          else 0
+        end
+      )`,
       channel: tripDocumentOccurrences.channel,
       documentId: tripDocuments.id,
       id: tripDocumentOccurrences.id,
@@ -125,7 +146,11 @@ export async function listDocumentOccurrenceRows(
     fromStatus: null,
     id: row.id,
     kind: 'document.occurrence' as const,
-    occurrence: { note: row.note, typeName: row.typeName },
+    occurrence: {
+      attachmentCount: Number(row.attachmentCount),
+      note: row.note,
+      typeName: row.typeName,
+    },
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,

@@ -54,7 +54,13 @@ export type TripTimelineDocumentReference = {
   readonly series: string | null
 }
 
+/**
+ * Spec 161 T11 (RF12/CA7): a contagem de fotos, **nunca** URL assinada — nem de original, nem de
+ * miniatura. Quem quer ver a foto abre a ocorrência (painel ou feed), que é onde RF8/RF9/RF10 já
+ * assinam.
+ */
 export type TripTimelineOccurrenceReference = {
+  readonly attachmentCount: number
   readonly note: string
   readonly typeName: string
 }
