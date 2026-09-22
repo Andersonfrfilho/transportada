@@ -453,3 +453,44 @@ A migration da T1 ainda não estava publicada quando a T2 chegou (ajustada no lu
   outro é a nota devolvida na rua. Nenhuma transição desta política escreve em `trip_documents`;
   roteiro e liberação de nota continuam sendo decisão confirmada por gente, em
   `redelivery-proposal.policy.ts` (T14) e no `PATCH /trips/:id/stops/order` que já existe (RF18).
+
+## Validação 🧠 da Fase 3 (architect, opus) — correções obrigatórias
+
+A superfície externa foi revisada antes de a fase ser escrita. Doze achados bloqueantes, os quatro
+primeiros estruturais:
+
+1. **Quem assina é o vínculo, não a permissão.** `resolveCompanyPermissions` soma papel, grupo e
+   concessão direta: um interno com `groups.manage` pode conceder `occurrences.decide` a si mesmo.
+   `actorKind = 'contractor'` só quando `resolveContractorScope` produziu escopo para aquela
+   membership; o caso de uso recusa qualquer outra origem. `actorKind` **nunca** é parâmetro de
+   entrada — é constante literal de cada rota.
+2. **Duas rotas, dois casos de uso.** A decisão do contratante (`POST /client/me/occurrences/:id/decision`,
+   `occurrences.decide`) e a decisão interna em nome dele (`occurrences.resolve`, grava `internal`
+   com nota obrigatória) não compartilham caminho nem flag.
+3. **404 cobre o estado, não só o escopo.** Tratativa invisível alcançada pelo `POST` responde 404
+   igual ao id inexistente, byte a byte — 409 "transição não permitida" já conta que a ocorrência
+   existe e está em análise interna. O filtro por `CONTRACTOR_VISIBLE_CASE_STATUSES` mora na mesma
+   consulta do escopo.
+4. **`img-src 'self'` do portal bloqueia a foto.** A URL assinada aponta para o host do storage;
+   sem ampliar a CSP (por env, como `connectSource` já faz) a tela sai com imagem quebrada e sem
+   erro de rede. Precisa de contrato sobre a string da CSP.
+
+Demais: decisão repetida não pode inserir evento (o CHECK `from_status <> to_status` viraria 500) —
+converge lendo sob `for no key update` e respondendo 200 sem escrever; recorte do contratante por
+`exists`, nunca `innerJoin` + `distinct`, senão o `limit` mente; 409 sem estado interno no corpo;
+`rateLimit` declarado (nenhuma rota do portal tem hoje) e miniatura assinada só na lista, original só
+no detalhe; `note` com teto no Zod; caminho `/client/me/occurrences` em constante; e o
+`occurrenceId` entregue a `readOccurrenceAttachments` é o da linha com escopo, nunca o do caminho.
+
+⚠️ Contradição a resolver antes da T10: o comentário de `trip_occurrence_case_events.actor_user_id`
+diz que a coluna só existe para ator interno, e a RF14 manda gravar o usuário do contratante. A
+coluna passa a ser obrigatória nos dois atores, com CHECK, e o comentário reescrito — coluna de
+auditoria com comentário que mente é o pior modo de falha possível.
+
+### Payload do portal — o que não sai
+
+`actor_user_id` e `on_behalf_of_driver_id` da ocorrência, `channel`, qualquer dado de motorista,
+`tripId`/`stopId`/`tripDocumentId`/`occurrenceTypeId`, `bucket`/`objectKey`/ids de objeto,
+`redelivery_policy`/`redelivery_application`, `decided_by_user_id`, o histórico de eventos inteiro
+(carrega nota interna de cancelamento e de devolução ao barracão) e tudo de acerto financeiro.
+Serialização campo a campo, `cache-control: no-store`.
