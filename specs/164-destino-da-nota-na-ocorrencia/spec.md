@@ -316,6 +316,12 @@ a `closed`, o marcador some da listagem e do mapa, e o histórico continua legí
   item para acertar — não há o que perguntar ao contratante.
 - RF8. `POST /trip-occurrences/:id/case/closure` → `closed`, só de `decided`. Permissão
   `occurrences.resolve`.
+- RF8b. `POST /trip-occurrences/:id/case/cancel` → `cancelled`, `note` obrigatória. Permissão
+  `occurrences.resolve`. Só de `recorded`/`under_review` — depois de enviada ao contratante, a
+  máquina recusa com 409. **Esta rota nasceu na Fase 2 (T7)**, de uma decisão do usuário posterior
+  a esta spec: o estado terminal `cancelled` e a ação `cancel` já existiam na máquina desde a T2
+  ("ocorrência aberta por engano"), mas a spec original não previa rota para alcançá-lo — a lacuna
+  era da spec, não uma decisão de deixar `cancel` fora das rotas.
 - RF9. Toda transição é idempotente pela chave `(occurrenceId, action, ator)`; repetir converge.
   Estado incompatível → 409 `OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED`, com a transição pretendida na
   mensagem e **sem PII**.

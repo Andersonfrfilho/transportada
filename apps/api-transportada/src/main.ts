@@ -354,6 +354,9 @@ import {
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
+import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
+import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
+import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
@@ -1820,6 +1823,11 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
     tripRouteTollFreezer,
   )
+  /** Spec 164 T5/T7: as ações internas da tratativa da ocorrência. */
+  const occurrenceCaseRepository = new DrizzleOccurrenceCaseRepository(database)
+  const occurrenceCaseUseCase = createOccurrenceCaseUseCase({
+    repository: occurrenceCaseRepository,
+  })
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -2577,6 +2585,10 @@ function createApplicationRoutes({
     }),
     /** Spec 148 T7: a fila de revisão das notas que não couberam. */
     ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
+    ...createOccurrenceCaseRoutes({
+      findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
+      occurrenceCase: occurrenceCaseUseCase,
+    }),
     ...createExtraChargeBatchRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
       decideBatch: { execute: (input) => extraChargeBatches.decide(input) },

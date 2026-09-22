@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
+import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
@@ -169,6 +170,33 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /** Spec 164 T7: as cinco ações internas da tratativa dividem um balde só. */
+  test('as cinco ações internas da tratativa dividem o balde trip-occurrence-case', () => {
+    const unused = unusedDependencies() as never
+    const routes = createOccurrenceCaseRoutes(unused)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    const rateLimit = {
+      maxRequests: 120,
+      scope: 'trip-occurrence-case',
+      store: 'postgres',
+      windowSeconds: 300,
+    } as const
+    expect(limited).toEqual([
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/review' },
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/warehouse-return' },
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/contractor-submission' },
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/closure' },
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/cancel' },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -180,6 +208,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
+      'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/trip-field-office-document.routes.ts',
       'trips/presentation/trip-field-office-occurrence.routes.ts',
       'trips/presentation/trip-field-office-trip.routes.ts',

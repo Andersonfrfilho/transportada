@@ -120,6 +120,28 @@ export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepository
   ): Promise<OccurrenceCaseTransitionResult> {
     return this.database.transaction((transaction) => applyTransition(transaction, input))
   }
+
+  /**
+   * Spec 164 T7: `:id` na rota é o id da **ocorrência** (`trip_document_occurrences.id`), não o
+   * `caseId` que o escritor de transição espera — a rota resolve um pelo outro aqui. `null` quando
+   * a ocorrência não tem tratativa aberta (tipo `unset`) ou não é desta empresa.
+   */
+  public async findIdByOccurrenceId(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<string | null> {
+    const [found] = await this.database
+      .select({ id: tripOccurrenceCases.id })
+      .from(tripOccurrenceCases)
+      .where(
+        and(
+          eq(tripOccurrenceCases.companyId, input.companyId),
+          eq(tripOccurrenceCases.occurrenceId, input.occurrenceId),
+        ),
+      )
+      .limit(1)
+    return found?.id ?? null
+  }
 }
 
 async function applyTransition(

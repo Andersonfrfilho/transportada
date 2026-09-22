@@ -77,8 +77,10 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 
 - [ ] **T7** Rotas internas — `trips/presentation/occurrence-case.routes.ts` e
       `occurrence-case.schema.ts` (Zod `.strict()`), fiação em `src/main.ts`, `rateLimit` no
-      Postgres declarado em cada uma.
-  - Critério de aceite (RNF3): as quatro rotas listadas em
+      Postgres declarado em cada uma. **Cinco rotas, não quatro**: RF5–RF8 mais RF8b (`cancel`) — a
+      spec original não previa rota para o estado terminal `cancelled` que a T2 já tinha criado
+      ("ocorrência aberta por engano"); a lacuna era da spec, e esta task a fecha.
+  - Critério de aceite (RNF3): as cinco rotas listadas em
     `test/rate-limited-routes.contract.test.ts`; ocorrência de outra empresa é 404; corrida perdida
     é 409.
 
