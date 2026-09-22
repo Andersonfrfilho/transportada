@@ -12,6 +12,7 @@ import { isChoiceNode } from '../domain/whatsapp-answer.policy.js'
 import {
   WHATSAPP_COMMAND_LOG,
   WHATSAPP_DEFAULT_PROMPT,
+  WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY,
   WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY,
 } from '../domain/whatsapp-command.constant.js'
 import { renderWhatsAppChoice } from './whatsapp-choice-renderer.service.js'
@@ -72,7 +73,7 @@ export async function runWhatsAppFlow(input: {
   }
 
   const nextCursor = {
-    context: result.context,
+    context: withoutIncomingImage(result.context),
     currentNodeId: next.startNodeId,
     graph: next,
     userAnswer: undefined,
@@ -90,13 +91,24 @@ export async function clearWhatsAppFlowPosition(input: {
     companyId,
     input.turn.phone,
     currentState,
-    withoutInvalidAttempts(input.context),
+    withoutIncomingImage(withoutInvalidAttempts(input.context)),
   )
 }
 
 export function withoutInvalidAttempts(context: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(context).filter(([key]) => key !== WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY),
+  )
+}
+
+/**
+ * Spec 161 T14 (RF17/D16): o `media-id` nunca sobrevive além do turno em que chegou — apagado do
+ * contexto persistido em **todo** ponto de gravação, consumido ou não pelo `FlowActionHandler` do
+ * nó alcançado. É credencial de curta duração (resgata a mídia com o token da empresa).
+ */
+export function withoutIncomingImage(context: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(context).filter(([key]) => key !== WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY),
   )
 }
 
@@ -109,7 +121,12 @@ async function settleFlow(input: {
   const { companyId, currentState } = turn.session
   if (result.kind === 'awaiting-answer') {
     await turn.deps.sessions.setFlowPosition(companyId, turn.phone, graph.key, result.nodeId)
-    await turn.deps.sessions.setState(companyId, turn.phone, currentState, result.context)
+    await turn.deps.sessions.setState(
+      companyId,
+      turn.phone,
+      currentState,
+      withoutIncomingImage(result.context),
+    )
     const node = graph.nodes[result.nodeId]
     if (node !== undefined) await renderNode({ node, turn })
     return

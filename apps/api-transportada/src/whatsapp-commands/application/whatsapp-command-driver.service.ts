@@ -16,6 +16,7 @@ import { maskPhone } from '../../logging/phone-mask.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
   extractWhatsAppAnswer,
+  extractWhatsAppIncomingImage,
   isChoiceNode,
   isOfferedOption,
 } from '../domain/whatsapp-answer.policy.js'
@@ -27,6 +28,7 @@ import {
   WHATSAPP_DENIED_REPLY,
   WHATSAPP_DENIED_REPLY_LIMIT,
   WHATSAPP_HANDOFF_REPLY,
+  WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY,
   WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF,
   WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY,
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
@@ -214,14 +216,29 @@ async function advanceConversation(
       return
     }
     if (!isOfferedOption(located.node, answer)) {
+      /** RF17/D16 (CA9): imagem num nó de escolha nunca é opção válida — vira resposta inválida,
+       * como qualquer texto fora do menu, e conta para o handoff (D8). */
       await rejectAnswer({ context, node: located.node, turn })
       return
     }
   }
 
+  /**
+   * Spec 161 T14 (RF17/D16): a imagem viaja pelo contexto, nunca pela assinatura de
+   * `userAnswer` — só o router do nó alcançado (o passo de foto, T15) sabe o que fazer com ela.
+   * O driver escreve e sempre apaga a chave ao persistir o turno (`withoutIncomingImage`, no
+   * `settleFlow`/`clearWhatsAppFlowPosition`), consumida ou não pelo `FlowActionHandler` —
+   * `media-id` é credencial de curta duração e nunca sobrevive além do turno em que chegou.
+   */
+  const incomingImage = extractWhatsAppIncomingImage(turn.message)
   await runWhatsAppFlow({
     cursor: {
-      context: withoutInvalidAttempts(context),
+      context: {
+        ...withoutInvalidAttempts(context),
+        ...(incomingImage === undefined
+          ? {}
+          : { [WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY]: incomingImage }),
+      },
       currentNodeId: located.node.id,
       graph,
       userAnswer: answer,
