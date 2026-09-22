@@ -12,7 +12,9 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
+import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
@@ -24,6 +26,7 @@ type TripOccurrencesProps = Readonly<{
   onRegister: (input: {
     readonly note: string
     readonly occurrenceTypeId: string
+    readonly photos: readonly OccurrencePhoto[]
     readonly productCode: string
   }) => void
   products: readonly TripDocumentProduct[]
@@ -65,12 +68,15 @@ export function TripOccurrences({
   const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
   const [productCode, setProductCode] = useState('')
   const [note, setNote] = useState('')
+  const [photos, setPhotos] = useState<readonly OccurrencePhoto[]>([])
+  const canSubmit = occurrenceTypeId !== '' && canSubmitOccurrenceWithPhotos(photos.length)
 
   function handleSubmit() {
-    if (occurrenceTypeId === '') return
-    onRegister({ note, occurrenceTypeId, productCode })
+    if (!canSubmit) return
+    onRegister({ note, occurrenceTypeId, photos, productCode })
     setNote('')
     setProductCode('')
+    setPhotos([])
     setIsOpen(false)
   }
 
@@ -144,7 +150,20 @@ export function TripOccurrences({
             type="text"
             value={note}
           />
-          <Button disabled={isRegistering} onClick={handleSubmit} size="sm" type="button">
+          <OccurrencePhotoPicker disabled={isRegistering} onChange={setPhotos} photos={photos} />
+          {/* CA17: sem foto o envio fica desabilitado, e o motivo fica visível — nunca só o botão
+              cinza sem explicação. */}
+          {photos.length === 0 ? (
+            <p className={styles.hint} role="alert">
+              {t('occurrence.photoPicker.noPhoto')}
+            </p>
+          ) : null}
+          <Button
+            disabled={isRegistering || !canSubmit}
+            onClick={handleSubmit}
+            size="sm"
+            type="button"
+          >
             <Icon name="save" />
             {t('occurrence.submit')}
           </Button>

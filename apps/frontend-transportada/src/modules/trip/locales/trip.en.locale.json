@@ -528,7 +528,22 @@
     "title": "Pending CT-e"
   },
   "occurrence": {
-    "dialogTitle": "Separation occurrence — {{document}}"
+    "dialogTitle": "Separation occurrence — {{document}}",
+    "photoPicker": {
+      "captureFailed": "Could not process the photo — try again.",
+      "cameraDenied": "Camera denied — send the photo through the file field below.",
+      "cameraLabel": "Camera for the occurrence photo",
+      "cameraUnavailable": "Camera unavailable on this device — send the photo through the file field below.",
+      "capture": "Take photo",
+      "empty": "No photo added yet.",
+      "limitReached": "Limit of {{limit}} photos reached.",
+      "noPhoto": "Add at least one photo to register the occurrence.",
+      "remove": "Remove photo",
+      "thumbAlt": "Occurrence photo",
+      "uploadChoose": "Choose file",
+      "uploadEmpty": "No file chosen",
+      "uploadLabel": "Upload photo"
+    }
   },
   "occurrenceFeed": {
     "columns": {

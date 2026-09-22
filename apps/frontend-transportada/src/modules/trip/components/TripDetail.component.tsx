@@ -1077,16 +1077,17 @@ function SeparationOccurrenceDialogLoader({
     <SeparationOccurrenceDialog
       canRegister={workspace.controller.canManageTrips}
       document={document}
-      email={workspace.registerOccurrenceMutation.data?.email ?? null}
+      email={workspace.lastOccurrenceEmail}
       isOpen
-      isRegistering={workspace.registerOccurrenceMutation.isPending}
+      isRegistering={workspace.isSendingOccurrencePhotos}
       occurrences={workspace.occurrencesQuery.data ?? []}
       onClose={onClose}
       onRegister={(occurrence) =>
-        workspace.registerOccurrenceMutation.mutate({
+        void workspace.sendSeparationOccurrencePhotos({
           documentId,
           note: occurrence.note,
           occurrenceTypeId: occurrence.occurrenceTypeId,
+          photos: occurrence.photos,
           productCode: occurrence.productCode,
           tripId: document.tripId,
         })
@@ -1121,14 +1122,15 @@ function TripDeliveryProofLoader({
       occurrences={
         <TripOccurrences
           canRegister={workspace.controller.canManageTrips}
-          email={workspace.registerOccurrenceMutation.data?.email ?? null}
-          isRegistering={workspace.registerOccurrenceMutation.isPending}
+          email={workspace.lastOccurrenceEmail}
+          isRegistering={workspace.isSendingOccurrencePhotos}
           occurrences={workspace.occurrencesQuery.data ?? []}
           onRegister={(occurrence) =>
-            workspace.registerOccurrenceMutation.mutate({
+            void workspace.sendSeparationOccurrencePhotos({
               documentId,
               note: occurrence.note,
               occurrenceTypeId: occurrence.occurrenceTypeId,
+              photos: occurrence.photos,
               productCode: occurrence.productCode,
               tripId: document.tripId,
             })

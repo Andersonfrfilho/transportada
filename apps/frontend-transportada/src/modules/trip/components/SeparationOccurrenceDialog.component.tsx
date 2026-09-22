@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { TripOccurrences } from './TripOccurrences.component'
+import type { OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import type { TripDocumentDetail, TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
@@ -22,6 +23,7 @@ export type SeparationOccurrenceDialogProps = Readonly<{
   onRegister: (input: {
     readonly note: string
     readonly occurrenceTypeId: string
+    readonly photos: readonly OccurrencePhoto[]
     readonly productCode: string
   }) => void
   products: readonly TripDocumentProduct[]
