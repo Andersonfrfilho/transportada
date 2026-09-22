@@ -187,7 +187,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 > de taxa em produção, e recria um CHECK que existe em **duas** tabelas. Validar com `architect` em
 > `opus` antes de escrever o SQL.
 
-- [ ] **T16** 🧠 `charge_type` `returned_goods` e a coluna `occurrence_id` em `delivery_charges`, **e**
+- [x] **T16** 🧠 `charge_type` `returned_goods` e a coluna `occurrence_id` em `delivery_charges`, **e**
       a tabela `trip_occurrence_item_settlements` (movida da T1: o item do acerto e a cobrança que
       ele alimenta mexem no mesmo dinheiro e fecham juntas) — `DELIVERY_CHARGE_TYPES` em
       `src/database/delivery-client.schema.ts`, FK composta, índice parcial, os **dois** CHECKs
@@ -200,7 +200,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `returned_goods` — mercadoria devolvida não é taxa que se repete, e o teste falha se ele voltar
     à lista de sugestão.
 
-- [ ] **T17** A ponte acerto → cobrança — `trips/domain/occurrence-charge.policy.ts` (status inicial
+- [x] **T17** A ponte acerto → cobrança — `trips/domain/occurrence-charge.policy.ts` (status inicial
       `recorded`, imutabilidade a partir de `submitted`) e a escrita na **mesma transação** do
       `PUT .../settlement`.
   - Critério de aceite (CA9c/RF25): grava **uma** linha com `origin: 'occurrence'`,
@@ -208,6 +208,13 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `Decimal`; regravar atualiza a mesma linha enquanto `recorded`; linha `submitted` ou além recusa
     com 409 `DELIVERY_CHARGE_TRANSITION_NOT_ALLOWED` e o valor **não** muda — provado por leitura da
     tabela, não por ausência de erro.
+  - ⚠️ **T13 ficou fora desta rodada (instrução explícita)**: a política e o repositório
+    (`DrizzleOccurrenceSettlementChargeRepository`) estão prontos e provados direto contra Postgres
+    (`test/integration/occurrence-settlement-charge-bridge.integration.ts`, sem HTTP), mas
+    `PUT /trip-occurrences/:id/case/settlement` ainda não existe — quando a T13 for feita, ela chama
+    `bridge.applyOccurrenceSettlementCharge({ ..., transaction })` de dentro da própria transação,
+    depois de somar os itens com `Decimal`. `amount` chega pronto por parâmetro; a soma em si é da
+    T13. Ver `evidence.md`.
 
 - [ ] **T18** Ressarcimento de quem pagou —
       `POST /trip-occurrences/:id/case/settlement/reimbursement` (`occurrences.resolve`).

@@ -771,3 +771,64 @@ para depois da T16 na Fase 5.
 ### Commit desta rodada
 
 1. `feat(api): spec 164 T14b — aplicar a proposta de reentrega é transação do servidor`
+
+## T16 🧠 — `returned_goods` e `occurrence_id` em `delivery_charges`, mais `trip_occurrence_item_settlements`
+
+Duas pastas de migration, como a validação 🧠 exigiu — a que mexe em `delivery_charges` (tabela de
+produção) separada da que só cria tabela nova:
+
+- `drizzle/20260922215410_trip_occurrence_item_settlements/` — `CREATE TABLE` puro (a tabela do
+  acerto por item, movida da T1: `case_id` com FK composta/cascade para `trip_occurrence_cases`,
+  `unique(company_id, case_id, product_code)`, `product_code = ''` aceito de propósito (avaria
+  total), `amount numeric(14,4) > 0`, `(payer_kind, payer_id)` com os CHECKs de par — só `driver`
+  carrega `payer_id`, `carrier` nunca se ressarce —, FK composta para `fleet_drivers` com índice
+  parcial ao lado). Rollback: `drop table`, recusa (`RAISE`) se houver linha.
+- `drizzle/20260922215436_delivery_charges_occurrence/` — `DELIVERY_CHARGE_TYPES` ganha
+  `returned_goods`; `MANUAL_DELIVERY_CHARGE_TYPES` (nova constante, exclui o tipo) passou a alimentar
+  os dois `z.enum` das rotas manuais (`POST .../documents/:id/charges`,
+  `PUT .../delivery-clients/:id/charge-rules`) — `returned_goods` só nasce pela ponte da T17, nunca
+  por rota que uma pessoa aciona. `occurrence_id` nulável + FK composta para
+  `trip_document_occurrences`; unique parcial `delivery_charges_occurrence_unique` (evita cobrar o
+  mesmo prejuízo duas vezes); índice `delivery_charges_contractor_period_idx` (serve o relatório da
+  T19 e conserta o fechamento de lote atual, que hoje varre a tabela); os dois CHECKs simétricos
+  amarrando `returned_goods` a `origin = 'occurrence' and occurrence_id is not null`. O CHECK de
+  `charge_type` (que existe em **duas** tabelas — `delivery_charges` e
+  `delivery_client_charge_rules`) foi recriado com `ADD CONSTRAINT ... NOT VALID` +
+  `VALIDATE CONSTRAINT` nas duas, no molde de `drizzle/20260922112706_trip_occurrence_attachment_purge_job/`
+  — evita o `ACCESS EXCLUSIVE` do `DROP`+`ADD` cru numa tabela quente. (A correção 6 da T1, que dizia
+  não haver precedente, estava desatualizada — corrigida no `plan.md`, achado 5 da validação 🧠.)
+  Rollback: reverte os dois CHECKs para a lista antiga, derruba FK/índices/coluna, recusa (`RAISE`)
+  se alguma linha já usa `occurrence_id`.
+
+Receita seguida à risca (CLAUDE.md § "Migration à mão é permitida"): as duas pastas nasceram de
+`bun run db:generate --name <x>` em duas passadas (primeiro só a tabela nova, depois as mudanças de
+`delivery_charges`), gerando `snapshot.json` correto para cada uma — nunca escritas à mão. O CHECK
+`NOT VALID`/`VALIDATE` foi o único ajuste manual no `migration.sql` gerado.
+
+Numeração conferida contra `origin/staging` antes de commitar: `git diff --stat origin/staging --
+drizzle/` vazio antes de gerar, e o próximo timestamp (`20260922215410`) ficou acima da última pasta
+existente (`20260922211520_redelivery_applied_audit`) — sem colisão.
+
+### Contrato: a regra recorrente nunca propõe `returned_goods`
+
+`test/delivery-clients/manual-charge-types.contract.ts` (novo, listado em
+`test/delivery-clients.contract.test.ts`): `MANUAL_DELIVERY_CHARGE_TYPES` não contém
+`returned_goods` enquanto `DELIVERY_CHARGE_TYPES` contém; as duas rotas manuais (`recordSchema`/
+`ruleSchema`, exportados como `deliveryChargeRecordSchema`/`deliveryChargeRuleSchema` para o teste)
+recusam `chargeType: 'returned_goods'` no `safeParse`. Como `suggest-delivery-charges.use-case.ts`
+só propõe a partir de regras ativas (`deliveryClientChargeRules`), e uma regra com esse tipo é
+impossível de criar pela rota, a regra recorrente nunca propõe `returned_goods` por construção —
+sem precisar duplicar a asserção no caso de uso.
+
+### Testes
+
+- `bun run typecheck` / `bun run lint` (raiz) — limpos.
+- `bun run db:generate` — **`no_changes`** depois das duas migrations (schema e SQL batem).
+- `make migration-test` — **110 pass, 0 fail** (`static-migration.contract.ts` atualizado com as
+  duas pastas novas na lista estática).
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) — **7031 pass, 0 fail**
+  (183 arquivos, 23943 `expect()`), incluindo o arquivo novo.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T16 — returned_goods e occurrence_id em delivery_charges`

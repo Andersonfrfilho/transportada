@@ -167,6 +167,24 @@ export type TripOccurrenceCaseRedeliveryApplication =
 export const TRIP_OCCURRENCE_CASE_ACTOR_KINDS = ['internal', 'contractor'] as const
 export type TripOccurrenceCaseActorKind = (typeof TRIP_OCCURRENCE_CASE_ACTOR_KINDS)[number]
 
+/** Spec 164 T16: de onde saiu o valor de cada item do acerto — da nota, ou digitado por gente. */
+export const TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES = ['nfe', 'manual'] as const
+export type TripOccurrenceSettlementAmountSource =
+  (typeof TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES)[number]
+
+/**
+ * Spec 164 T16 (RF22): quem paga o item acertado. Só `driver` carrega `payer_id` — carrier não se
+ * ressarce de si mesmo (é a transportadora), e `contractor`/`insurer` não têm cadastro nesta tabela.
+ */
+export const TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS = [
+  'driver',
+  'carrier',
+  'contractor',
+  'insurer',
+] as const
+export type TripOccurrenceSettlementPayerKind =
+  (typeof TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS)[number]
+
 /** `unset` nunca aparece em `trip_occurrence_cases.redelivery_policy` — só no tipo cadastrado. */
 export const REDELIVERY_POLICIES = ['unset', 'allowed', 'blocked'] as const
 export type RedeliveryPolicy = (typeof REDELIVERY_POLICIES)[number]
@@ -2053,5 +2071,97 @@ export const tripOccurrenceCaseEvents = pgTable(
       table.occurredAt,
       table.id,
     ),
+  ],
+)
+
+/**
+ * Spec 164 T16 (RF22, movida da T1 pela revisão do `architect`): o acerto por item de uma tratativa
+ * decidida `goods_paid`. Chaveia pela **tratativa** (`case_id`), não pela ocorrência — o acerto não
+ * existe sem decisão, e a T17 lê esta tabela para somar a cobrança que alimenta `delivery_charges`.
+ *
+ * ⚠️ **Sem FK composta para `trip_document_occurrence_products`** (tentação recusada, mesma razão de
+ * `trip_occurrence_cases`): a ocorrência antiga e a do WhatsApp gravam só `product_code` solto, e a
+ * nota inteira grava `''` — nenhuma chave composta serve às três formas.
+ *
+ * `product_code = ''` é a linha da **nota inteira** (avaria total), e precisa ser aceita — um
+ * validador que exigisse casar contra a tabela de itens recusaria o caso mais comum.
+ */
+export const tripOccurrenceItemSettlements = pgTable(
+  'trip_occurrence_item_settlements',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    caseId: uuid('case_id').notNull(),
+    productCode: text('product_code').notNull().default(''),
+    amount: numeric({ precision: 14, scale: 4 }).notNull(),
+    amountSource: text('amount_source').notNull().$type<TripOccurrenceSettlementAmountSource>(),
+    payerKind: text('payer_kind').notNull().$type<TripOccurrenceSettlementPayerKind>(),
+    /** Só preenchido quando `payerKind = 'driver'` — ver o CHECK de par abaixo. */
+    payerId: uuid('payer_id'),
+    reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
+    reimbursedByUserId: uuid('reimbursed_by_user_id'),
+    recordedByUserId: uuid('recorded_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_item_settlements_company_id_id_unique').on(table.companyId, table.id),
+    /** Um acerto por item da ocorrência — substituir a lista é `delete` + `insert`, nunca duplicar. */
+    unique('trip_occurrence_item_settlements_company_case_product_unique').on(
+      table.companyId,
+      table.caseId,
+      table.productCode,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_item_settlements_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.caseId],
+      foreignColumns: [tripOccurrenceCases.companyId, tripOccurrenceCases.id],
+      name: 'trip_occurrence_item_settlements_company_case_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.payerId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_occurrence_item_settlements_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15 (achado repetido): FK sem índice faz renumerar/apagar motorista varrer a tabela.
+     * Parcial: só `driver` preenche a coluna.
+     */
+    index('trip_occurrence_item_settlements_company_driver_idx')
+      .on(table.companyId, table.payerId)
+      .where(sql`${table.payerId} is not null`),
+    check(
+      'trip_occurrence_item_settlements_amount_source_check',
+      sql`${table.amountSource} in (${raw(inList(TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES))})`,
+    ),
+    check(
+      'trip_occurrence_item_settlements_payer_kind_check',
+      sql`${table.payerKind} in (${raw(inList(TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS))})`,
+    ),
+    /** Só `driver` tem cadastro nesta tabela — `payer_id` é o par exato dele. */
+    check(
+      'trip_occurrence_item_settlements_payer_id_check',
+      sql`(${table.payerKind} = 'driver') = (${table.payerId} is not null)`,
+    ),
+    /** `carrier` é a própria transportadora — ela não se ressarce de si mesma. */
+    check(
+      'trip_occurrence_item_settlements_reimbursement_check',
+      sql`${table.payerKind} <> 'carrier' or ${table.reimbursedAt} is null`,
+    ),
+    check(
+      'trip_occurrence_item_settlements_reimbursed_by_check',
+      sql`(${table.reimbursedAt} is null) = (${table.reimbursedByUserId} is null)`,
+    ),
+    /** Dinheiro é `Decimal`: zero ou negativo é lançamento que ninguém precisava fazer. */
+    check('trip_occurrence_item_settlements_amount_check', sql`${table.amount} > 0`),
   ],
 )

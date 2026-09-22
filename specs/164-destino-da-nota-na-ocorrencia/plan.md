@@ -274,9 +274,14 @@ create index trip_occurrence_case_events_company_case_occurred_at_idx
    `trip_occurrence_case_events_company_case_occurred_at_idx (company_id, case_id, occurred_at, id)`
    **ascendente**, como `trip_status_events_company_trip_occurred_at_idx`.
 5. `status` nasce **sem `default`** — quem abre a tratativa (T4) grava `'recorded'` explicitamente.
-6. Nenhum CHECK novo usa `not valid` + `validate constraint`: sem precedente nas 224 migrations do
-   projeto, e a coluna nova nasce com `default 'unset'`, então o CHECK valida instantâneo —
-   confirmado pelo `db:generate` devolvendo `no_changes` e por `make migration-test` verde.
+6. Nenhum CHECK novo desta task (T1) usa `not valid` + `validate constraint`: a coluna nasce com
+   `default 'unset'`, então o CHECK valida instantâneo — confirmado pelo `db:generate` devolvendo
+   `no_changes` e por `make migration-test` verde. ⚠️ **Correção (validação 🧠 da T16/Fase 5,
+   achado 5): a frase "sem precedente nas 224 migrations do projeto" estava errada** — o precedente
+   já existia em `drizzle/20260922112706_trip_occurrence_attachment_purge_job/migration.sql`
+   (`job_executions_job_check`/`job_schedules_job_check`). A T16 usa esse padrão para ampliar o CHECK
+   de `charge_type` em `delivery_charges`/`delivery_client_charge_rules` — tabelas de produção, onde
+   `DROP`+`ADD` cru tomaria `ACCESS EXCLUSIVE`.
 7. A coluna é `resolved_at`, não `closed_at` — ela também é preenchida por
    `returned_to_warehouse`, e `closed_at` sugeriria só o fechamento formal. Escolhido renomear (em
    vez de só comentar) para a leitura do nome não mentir; o comentário no schema reforça.

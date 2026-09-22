@@ -285,6 +285,8 @@ describe('Drizzle migrations', () => {
       '20260922174226_trip_occurrence_cases',
       '20260922203040_occurrence_case_event_actor_required',
       '20260922211520_redelivery_applied_audit',
+      '20260922215410_trip_occurrence_item_settlements',
+      '20260922215436_delivery_charges_occurrence',
       '20260922215520_quantity_and_multi_item_occurrence',
     ])
 
