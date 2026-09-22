@@ -25,6 +25,7 @@ import {
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
 import {
+  formatMeasuredAtDate,
   measurementSourceLabel,
   type Translate,
 } from '../shared/packageBoxMeasurementLabel.service'
@@ -44,6 +45,7 @@ import {
   shouldOpenReplicateDialog,
   type ReplicateOffer,
 } from '../shared/packageBoxReplicateOffer.service'
+import { resolvePackageBoxScanMatch } from '../shared/packageBoxScanResolution.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurementPanelProps = Readonly<{
@@ -199,6 +201,12 @@ export function PackageBoxMeasurementPanel({
    * motivos (troca de situação, busca) que não devem reabrir a escolha.
    */
   const [candidates, setCandidates] = useState<readonly PackageBox[] | null>(null)
+  /**
+   * A caixa achada pela etiqueta (câmera, pistola ou escolha entre candidatas) que já tem medida —
+   * o aviso "Caixa já medida" fica em cima até o operador decidir (Conferir ou Ler outra), nunca
+   * some sozinho como o feedback de achou/não achou.
+   */
+  const [alreadyMeasuredBox, setAlreadyMeasuredBox] = useState<PackageBox | undefined>(undefined)
   const closeScanTimer = useRef<number | undefined>(undefined)
   /**
    * Spec 152 T11 (entrada unificada): com a função ligada, "Ler etiqueta" abre o
@@ -286,9 +294,29 @@ export function PackageBoxMeasurementPanel({
   }
 
   /**
-   * A resposta da fila chegou: uma caixa, abre a medição dela; nenhuma, segue lendo; mais de uma —
-   * o GTIN ainda não está gravado, então a etiqueta pode casar com caixas de emitentes diferentes —
-   * o operador escolhe, nunca a tela.
+   * ⚠️ Caixa já medida nunca abre a edição em silêncio: o aviso fica em cima da leitura (a câmera,
+   * se estava aberta, continua atrás) até o operador escolher Conferir ou Ler outra.
+   */
+  function openAlreadyMeasuredNotice(box: PackageBox): void {
+    setScanFeedback(undefined)
+    setAlreadyMeasuredBox(box)
+  }
+
+  function confirmAlreadyMeasured(): void {
+    if (alreadyMeasuredBox === undefined) return
+    const { id } = alreadyMeasuredBox
+    setAlreadyMeasuredBox(undefined)
+    openMeasurementForScannedBox(id)
+  }
+
+  function dismissAlreadyMeasured(): void {
+    setAlreadyMeasuredBox(undefined)
+  }
+
+  /**
+   * A resposta da fila chegou: uma caixa pendente, abre a medição dela; já medida, mostra o aviso de
+   * conferência; nenhuma, segue lendo; mais de uma — o GTIN ainda não está gravado, então a etiqueta
+   * pode casar com caixas de emitentes diferentes — o operador escolhe, nunca a tela.
    */
   useEffect(() => {
     /**
@@ -302,17 +330,20 @@ export function PackageBoxMeasurementPanel({
     }
     if (!awaitingScan || matching) return
     setAwaitingScan(false)
-    const items = queue?.items ?? []
-    if (items.length === 0) {
+    const resolution = resolvePackageBoxScanMatch(queue?.items ?? [])
+    if (resolution.kind === 'notFound') {
       setScanFeedback({ kind: 'notFound', message: t('packageBoxes.scanner.notFound') })
       return
     }
-    if (items.length > 1) {
-      setCandidates(items)
+    if (resolution.kind === 'candidates') {
+      setCandidates(resolution.candidates)
       return
     }
-    const [match] = items
-    if (match !== undefined) openMeasurementForScannedBox(match.id)
+    if (resolution.kind === 'alreadyMeasured') {
+      openAlreadyMeasuredNotice(resolution.box)
+      return
+    }
+    openMeasurementForScannedBox(resolution.box.id)
   }, [awaitingScan, isCameraFlowOpen, matching, queue, t, openMeasurementForScannedBox])
 
   useEffect(() => {
@@ -587,10 +618,22 @@ export function PackageBoxMeasurementPanel({
         <PackageBoxCandidatePicker
           candidates={candidates}
           onBack={() => setCandidates(null)}
-          onSelect={(id) => {
+          onSelect={(box) => {
             setCandidates(null)
-            openMeasurementForScannedBox(id)
+            if (box.measuredAt === null) {
+              openMeasurementForScannedBox(box.id)
+              return
+            }
+            openAlreadyMeasuredNotice(box)
           }}
+        />
+      )}
+
+      {alreadyMeasuredBox === undefined ? null : (
+        <PackageBoxAlreadyMeasuredNotice
+          box={alreadyMeasuredBox}
+          onConfirm={confirmAlreadyMeasured}
+          onDismiss={dismissAlreadyMeasured}
         />
       )}
 
@@ -634,7 +677,7 @@ export function PackageBoxMeasurementPanel({
 type PackageBoxCandidatePickerProps = Readonly<{
   candidates: readonly PackageBox[]
   onBack: () => void
-  onSelect: (id: string) => void
+  onSelect: (box: PackageBox) => void
 }>
 
 /**
@@ -689,7 +732,7 @@ function PackageBoxCandidatePicker({
             <li data-candidate key={box.id}>
               <Button
                 className={styles.candidateButton}
-                onClick={() => onSelect(box.id)}
+                onClick={() => onSelect(box)}
                 type="button"
                 variant="secondary"
               >
@@ -705,6 +748,13 @@ function PackageBoxCandidatePicker({
                       <span className={styles.candidateMeasured}>
                         {t('packageBoxes.scanner.candidates.measured')}
                       </span>
+                      {' · '}
+                      {t('packageBoxes.measured', {
+                        height: toCentimetres(box.heightMm),
+                        length: toCentimetres(box.lengthMm),
+                        units: box.unitsPerBox,
+                        width: toCentimetres(box.widthMm),
+                      })}
                     </>
                   )}
                 </span>
@@ -717,6 +767,91 @@ function PackageBoxCandidatePicker({
             {t('packageBoxes.scanner.candidates.overflow', { shown: shown.length, total })}
           </p>
         ) : null}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+type PackageBoxAlreadyMeasuredNoticeProps = Readonly<{
+  box: PackageBox
+  onConfirm: () => void
+  onDismiss: () => void
+}>
+
+const ALREADY_MEASURED_TITLE_ID = 'package-box-already-measured-title'
+
+/**
+ * A etiqueta lida casou com uma caixa que já tem medida — o aviso mostra as medidas atuais e deixa o
+ * operador decidir, nunca abre a edição sozinho nem some antes de uma escolha (Conferir/Ler outra).
+ * Mesma moldura do `PackageBoxCandidatePicker`: portal sobre a leitura, tela cheia no celular.
+ */
+function PackageBoxAlreadyMeasuredNotice({
+  box,
+  onConfirm,
+  onDismiss,
+}: PackageBoxAlreadyMeasuredNoticeProps) {
+  const { t } = useTranslation('nfeWorkspace')
+  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose: onDismiss })
+
+  useEffect(() => {
+    dialogRef.current?.querySelector<HTMLElement>('[data-already-measured-confirm]')?.focus()
+  }, [dialogRef])
+
+  return createPortal(
+    <div className={styles.candidatesOverlay} onKeyDown={handleKeyDown} role="presentation">
+      <div
+        aria-labelledby={ALREADY_MEASURED_TITLE_ID}
+        aria-modal="true"
+        className={styles.candidatesDialog}
+        ref={dialogRef}
+        role="dialog"
+        tabIndex={-1}
+      >
+        <div className={styles.candidatesHead}>
+          <h3 className={styles.candidatesTitle} id={ALREADY_MEASURED_TITLE_ID}>
+            {t('packageBoxes.scanner.alreadyMeasured.title')}
+          </h3>
+          <Button
+            aria-label={t('packageBoxes.scanner.candidates.back')}
+            onClick={onDismiss}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="close" />
+          </Button>
+        </div>
+        <p className={styles.hint}>
+          <strong>{box.description || box.productCode}</strong>
+        </p>
+        <p className={styles.hint}>
+          {t('packageBoxes.measured', {
+            height: toCentimetres(box.heightMm),
+            length: toCentimetres(box.lengthMm),
+            units: box.unitsPerBox,
+            width: toCentimetres(box.widthMm),
+          })}
+          {' · '}
+          {measurementSourceLabel(t as Translate, box)}
+        </p>
+        {box.measuredAt === null ? null : (
+          <p className={styles.hint}>
+            {t('packageBoxes.scanner.alreadyMeasured.measuredOn', {
+              date: formatMeasuredAtDate(box.measuredAt),
+            })}
+          </p>
+        )}
+        <div className={styles.actions}>
+          <Button data-already-measured-confirm onClick={onConfirm} type="button">
+            <Icon name="edit" />
+            {t('packageBoxes.scanner.alreadyMeasured.confirm')}
+          </Button>
+          <Button onClick={onDismiss} type="button" variant="secondary">
+            <Icon name="camera" />
+            {t('packageBoxes.scanner.alreadyMeasured.readAnother')}
+          </Button>
+        </div>
       </div>
     </div>,
     document.body,

@@ -461,6 +461,12 @@
         "position": "{{position}} of {{total}}",
         "measured": "Already measured",
         "overflow": "Showing {{shown}} of {{total}} candidates. Narrow the search to find the right box."
+      },
+      "alreadyMeasured": {
+        "title": "Box already measured — check the measurements",
+        "measuredOn": "Measured on {{date}}",
+        "confirm": "Check",
+        "readAnother": "Scan another"
       }
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
