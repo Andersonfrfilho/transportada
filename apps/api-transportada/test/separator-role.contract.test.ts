@@ -264,6 +264,8 @@ describe('separator role contract', () => {
        * novo. Bloqueada a partir de `route_planned` pela própria máquina de estados.
        */
       'PATCH /trips/:id/crew',
+      /** Spec 167 (RF2/RF10): mesma permissão do registro — corrigir o conjunto de itens. */
+      'PATCH /trips/:id/documents/:documentId/occurrences/:occurrenceId/items',
       'PATCH /trips/:id/stops/order',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
@@ -320,6 +322,8 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/occurrences',
       /** Spec 161 T7 (RF6): mesma permissão do registro — a segunda foto em diante. */
       'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
+      /** Spec 167 (RF6/RF10): mesma permissão do registro — cancelar com motivo. */
+      'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/cancellation',
       'POST /trips/:id/documents/:documentId/separate',
       /**
        * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o

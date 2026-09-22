@@ -271,6 +271,18 @@ import {
   sha256Hex,
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
+import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
+import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
+import {
+  DrizzleOccurrenceCorrectionUnitOfWork,
+  readOccurrenceView as readCorrectedOccurrenceView,
+} from './trips/infrastructure/drizzle-occurrence-correction.repository.js'
+import {
+  buildOccurrenceCancellationFingerprint,
+  buildOccurrenceCorrectionFingerprint,
+  OCCURRENCE_CANCELLATION_OPERATION,
+  OCCURRENCE_CORRECTION_OPERATION,
+} from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
   createListTripOccurrenceFeedUseCase,
@@ -3839,6 +3851,76 @@ function createApplicationRoutes({
               new DrizzleOccurrenceAttachmentRepository(database).findAttachmentPosition({
                 companyId: input.context.companyId,
                 id: resultId,
+              }),
+          }),
+      },
+      /**
+       * Spec 167 T301/T302/T305 (RF2/RF4): idempotência pelo canal `backoffice`
+       * (ADR-0068 §3, "ação do escritório que não é em nome do motorista") — a mesma chave com o
+       * mesmo conjunto de itens converge; com outro conjunto, a chave reaproveitada é 409.
+       */
+      correctOccurrenceItems: {
+        execute: (input) =>
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.backoffice, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_CORRECTION_OPERATION}:${buildOccurrenceCorrectionFingerprint(
+                {
+                  occurrenceId: input.occurrenceId,
+                  productCodes: input.productCodes,
+                  productQuantities: input.productQuantities,
+                  productQuantityUnits: input.productQuantityUnits,
+                },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: () =>
+              correctOccurrenceItems({
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                occurrenceId: input.occurrenceId,
+                productCode: '',
+                productCodes: input.productCodes,
+                productQuantities: input.productQuantities,
+                productQuantityUnits: input.productQuantityUnits,
+                unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
+              }),
+            recall: (resultId) =>
+              readCorrectedOccurrenceView(database, {
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
+              }),
+          }),
+      },
+      /** Spec 167 T303/T304/T305 (RF6/RF8): mesmo canal e mesmo desenho de idempotência acima. */
+      cancelOccurrence: {
+        execute: (input) =>
+          withFieldReport({
+            guard: {
+              actorUserId: input.context.userId,
+              authorship: { channel: TRIP_FIELD_CHANNELS.backoffice, onBehalfOfDriverId: null },
+              companyId: input.context.companyId,
+              idempotencyKey: input.idempotencyKey,
+              operation: `${OCCURRENCE_CANCELLATION_OPERATION}:${buildOccurrenceCancellationFingerprint(
+                { occurrenceId: input.occurrenceId, reason: input.reason },
+              )}`,
+              transaction: fieldReportGuardTransaction,
+            },
+            perform: () =>
+              cancelOccurrence({
+                actorUserId: input.context.userId,
+                companyId: input.context.companyId,
+                occurrenceId: input.occurrenceId,
+                reason: input.reason,
+                unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
+              }),
+            recall: (resultId) =>
+              readCorrectedOccurrenceView(database, {
+                companyId: input.context.companyId,
+                occurrenceId: resultId,
               }),
           }),
       },

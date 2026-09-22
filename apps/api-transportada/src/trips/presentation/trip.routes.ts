@@ -14,9 +14,12 @@ import type {
 } from '../application/register-trip-occurrence.use-case.js'
 import {
   parseAttachOccurrencePhotoRequest,
+  parseCancelOccurrenceRequest,
+  parseCorrectOccurrenceItemsRequest,
   parseOccurrenceTypeRequest,
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
+import type { CorrectedOccurrenceView } from '../application/occurrence-correction.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
@@ -220,6 +223,38 @@ const ATTACH_OCCURRENCE_PHOTO_RATE_LIMIT = {
   store: 'postgres',
   windowSeconds: 300,
 } as const
+
+/**
+ * Spec 167 (RF2, RF6): correção e cancelamento de uma ocorrência já registrada. `:occurrenceId`
+ * casa com o `:id` de `TRIP_OCCURRENCE_ATTACHMENTS_PATH` — o mesmo padrão de rota aninhada sob a
+ * nota, nunca sob a raiz de ocorrências.
+ */
+const TRIP_OCCURRENCE_ITEMS_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/:occurrenceId/items`
+const TRIP_OCCURRENCE_CANCELLATION_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/:occurrenceId/cancellation`
+
+/** Mesmo teto do registro (RF10/RF14: idempotência por chave, não pensado para uso em massa). */
+const OCCURRENCE_CORRECTION_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'trip-occurrence-correction',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+type CorrectOccurrenceItemsRouteInput = {
+  readonly context: CompanyContext
+  readonly idempotencyKey: string
+  readonly occurrenceId: string
+  readonly productCodes: readonly string[]
+  readonly productQuantities: readonly string[]
+  readonly productQuantityUnits: readonly string[]
+}
+
+type CancelOccurrenceRouteInput = {
+  readonly context: CompanyContext
+  readonly idempotencyKey: string
+  readonly occurrenceId: string
+  readonly reason: string
+}
 
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
@@ -471,6 +506,14 @@ type Dependencies = {
   }
   readonly registerTripOccurrence: {
     execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<RegisteredOccurrence>
+  }
+  /** Spec 167 T301/T302 (RF2/RF4): substitui o conjunto inteiro de itens da ocorrência. */
+  readonly correctOccurrenceItems: {
+    execute(input: TenantInput<CorrectOccurrenceItemsRouteInput>): Promise<CorrectedOccurrenceView>
+  }
+  /** Spec 167 T303/T304 (RF6/RF8): cancela com motivo — nunca apaga. */
+  readonly cancelOccurrence: {
+    execute(input: TenantInput<CancelOccurrenceRouteInput>): Promise<CorrectedOccurrenceView>
   }
   /** Spec 161 T7 (RF6): o anexo adicional a uma ocorrência já registrada — segunda foto em diante. */
   readonly attachOccurrencePhoto: {
@@ -1547,6 +1590,54 @@ export function createTripRoutes(
       pathname: TRIP_OCCURRENCE_ATTACHMENTS_PATH,
       policy: TRIP_MANAGE_POLICY,
       rateLimit: ATTACH_OCCURRENCE_PHOTO_RATE_LIMIT,
+    }),
+    /**
+     * Spec 167 (RF2, CA02/CA04/CA05/CA06): substitui o conjunto inteiro de itens. 404 de outra
+     * empresa, 400 item/quantidade inválidos, 409 tratativa aberta ou ocorrência cancelada, 422
+     * teto de item único.
+     */
+    defineRoute<Omit<CorrectOccurrenceItemsRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const occurrence = await dependencies.correctOccurrenceItems.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: occurrence }, status: 200 })
+      },
+      method: 'PATCH',
+      async parse({ pathParameters, request }) {
+        const body = await parseCorrectOccurrenceItemsRequest(request)
+        return {
+          idempotencyKey: parseIdempotencyKey(request),
+          occurrenceId: parseUuidPathIdentifier(pathParameters.occurrenceId ?? ''),
+          ...body,
+        }
+      },
+      pathname: TRIP_OCCURRENCE_ITEMS_PATH,
+      policy: TRIP_MANAGE_POLICY,
+      rateLimit: OCCURRENCE_CORRECTION_RATE_LIMIT,
+    }),
+    /** Spec 167 (RF6, CA06/CA07): cancela com motivo. 400 motivo vazio, 409 já cancelada ou tratativa aberta. */
+    defineRoute<Omit<CancelOccurrenceRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const occurrence = await dependencies.cancelOccurrence.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: occurrence }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseCancelOccurrenceRequest(request)
+        return {
+          idempotencyKey: parseIdempotencyKey(request),
+          occurrenceId: parseUuidPathIdentifier(pathParameters.occurrenceId ?? ''),
+          reason: body.reason,
+        }
+      },
+      pathname: TRIP_OCCURRENCE_CANCELLATION_PATH,
+      policy: TRIP_MANAGE_POLICY,
+      rateLimit: OCCURRENCE_CORRECTION_RATE_LIMIT,
     }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {

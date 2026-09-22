@@ -334,3 +334,49 @@ export async function parseOccurrenceTypeRequest(
 ): Promise<z.infer<typeof occurrenceTypeSchema>> {
   return parseBody(occurrenceTypeSchema, request)
 }
+
+/**
+ * Spec 167 (RF2): `PATCH .../items` substitui o conjunto inteiro — o corpo manda o que passa a
+ * valer, nunca `add`/`remove`. `code` é obrigatório; `quantity`/`unit` são opcionais e o par é
+ * conferido pela política pura (`occurrence-item-quantity.policy.ts`), a mesma do registro.
+ */
+const correctOccurrenceItemsSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            code: z.string().trim().min(1).max(60),
+            quantity: z.string().trim().max(32).optional(),
+            unit: z.string().trim().max(8).optional(),
+          })
+          .strict(),
+      )
+      .max(200)
+      .default([]),
+  })
+  .strict()
+
+export type CorrectOccurrenceItemsBody = {
+  readonly productCodes: readonly string[]
+  readonly productQuantities: readonly string[]
+  readonly productQuantityUnits: readonly string[]
+}
+
+export async function parseCorrectOccurrenceItemsRequest(
+  request: Request,
+): Promise<CorrectOccurrenceItemsBody> {
+  const body = await parseBody(correctOccurrenceItemsSchema, request)
+  return {
+    productCodes: body.items.map((item) => item.code),
+    productQuantities: body.items.map((item) => item.quantity ?? ''),
+    productQuantityUnits: body.items.map((item) => item.unit ?? ''),
+  }
+}
+
+/** Spec 167 (RF6): `reason` obrigatório — a política (`occurrence-cancellation.policy.ts`) confere teto e vazio. */
+const cancelOccurrenceSchema = z.object({ reason: z.string() }).strict()
+
+export async function parseCancelOccurrenceRequest(request: Request): Promise<{ reason: string }> {
+  return parseBody(cancelOccurrenceSchema, request)
+}
