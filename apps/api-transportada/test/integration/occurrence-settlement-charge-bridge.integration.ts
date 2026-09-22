@@ -120,6 +120,7 @@ async function registerOccurrence(
       actorUserId: company.userId,
       companyId: company.companyId,
       documentId: trip.documentId,
+      items: [],
       note: 'avaria total',
       occurrenceTypeId,
       productCode: '',
