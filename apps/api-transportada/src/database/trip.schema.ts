@@ -109,9 +109,14 @@ export const TRIP_DOCUMENT_SEPARATION_STATUSES = [
 export type TripDocumentSeparationStatus = (typeof TRIP_DOCUMENT_SEPARATION_STATUSES)[number]
 
 /**
- * Spec 164 T1: os seis estados da tratativa de uma ocorrência de nota. Definida aqui, no schema, e
- * não em `trips/domain` (T2), porque o CHECK precisa do vocabulário antes de a máquina existir;
+ * Spec 164 T1/T2: os sete estados da tratativa de uma ocorrência de nota. Definida aqui, no schema,
+ * e não em `trips/domain` (T2), porque o CHECK precisa do vocabulário antes de a máquina existir;
  * `occurrence-case-state.policy.ts` reexporta, no mesmo molde de `TripStatus` acima.
+ *
+ * ⚠️ **`cancelled` entrou na T2, decisão do usuário**: ocorrência aberta por engano. Sai só de
+ * `recorded` e `under_review` — nunca de `awaiting_contractor` em diante, pela mesma razão da D4
+ * (depois que o contratante viu, esconder é reescrever o que ele leu). É terminal, como
+ * `returned_to_warehouse` e `closed`.
  */
 export const TRIP_OCCURRENCE_CASE_STATUSES = [
   'recorded',
@@ -120,6 +125,7 @@ export const TRIP_OCCURRENCE_CASE_STATUSES = [
   'awaiting_contractor',
   'decided',
   'closed',
+  'cancelled',
 ] as const
 export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
 
@@ -129,6 +135,27 @@ export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
   'other',
 ] as const
 export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
+
+/**
+ * Spec 164 T2: o que aconteceu com a proposta de reentrega (T14, `redelivery-proposal.policy.ts`) —
+ * `reorder_stop` aplicada (`reordered`), `release_document` aplicada (`released`), ou a viagem
+ * despachada recusou a mudança de roteiro (`refused`, D9). `null` é "nunca chegou a propor" — a
+ * decisão não foi `redelivery_authorized`, ou a proposta ainda não foi confirmada por gente.
+ *
+ * ⚠️ **Coluna, não tabela nova** (correção da revisão): a RF18 pede registrar a recusa de
+ * reordenação, mas `trip_occurrence_case_events` só aceita evento quando o estado muda
+ * (`transition_check`) — aplicar/recusar a reentrega não move `status`. Decisão registrada em
+ * `plan.md`: uma tabela de eventos própria para isso duplicaria o histórico sem mudar estado
+ * nenhum, e afrouxar o CHECK do histórico deixaria `trip_occurrence_case_events` aceitar "evento"
+ * sem transição — a garantia que ele existe para dar.
+ */
+export const TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS = [
+  'reordered',
+  'released',
+  'refused',
+] as const
+export type TripOccurrenceCaseRedeliveryApplication =
+  (typeof TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS)[number]
 
 /** Quem gravou a transição: o time interno ou a decisão do contratante no portal (T9/T10). */
 export const TRIP_OCCURRENCE_CASE_ACTOR_KINDS = ['internal', 'contractor'] as const
@@ -1812,6 +1839,9 @@ export const tripOccurrenceCases = pgTable(
     openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
     /** Fechamento **ou** devolução ao barracão — ver a nota acima sobre o nome da coluna. */
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** RF18 (T14): o que aconteceu com a proposta de reentrega — ver o comentário do tipo acima. */
+    redeliveryApplication:
+      text('redelivery_application').$type<TripOccurrenceCaseRedeliveryApplication>(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1838,6 +1868,10 @@ export const tripOccurrenceCases = pgTable(
     check(
       'trip_occurrence_cases_policy_check',
       sql`${table.redeliveryPolicy} in ('allowed','blocked')`,
+    ),
+    check(
+      'trip_occurrence_cases_redelivery_application_check',
+      sql`${table.redeliveryApplication} is null or ${table.redeliveryApplication} in (${raw(inList(TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS))})`,
     ),
     check(
       'trip_occurrence_cases_decision_check',
@@ -1867,7 +1901,7 @@ export const tripOccurrenceCases = pgTable(
     ),
     check(
       'trip_occurrence_cases_resolved_check',
-      sql`(${table.status} in ('closed','returned_to_warehouse')) = (${table.resolvedAt} is not null)`,
+      sql`(${table.status} in ('closed','returned_to_warehouse','cancelled')) = (${table.resolvedAt} is not null)`,
     ),
     /**
      * O feed lê por empresa e estado; nenhuma consulta da spec pagina por `updated_at` — o cursor do
@@ -1934,10 +1968,10 @@ export const tripOccurrenceCaseEvents = pgTable(
       'trip_occurrence_case_events_transition_check',
       sql`${table.fromStatus} is null or ${table.fromStatus} <> ${table.toStatus}`,
     ),
-    /** `closed` e `returned_to_warehouse` são terminais — nenhum evento parte deles de novo. */
+    /** `closed`, `returned_to_warehouse` e `cancelled` são terminais — nenhum evento parte deles de novo. */
     check(
       'trip_occurrence_case_events_terminal_check',
-      sql`${table.fromStatus} is null or ${table.fromStatus} not in ('closed','returned_to_warehouse')`,
+      sql`${table.fromStatus} is null or ${table.fromStatus} not in ('closed','returned_to_warehouse','cancelled')`,
     ),
     /** Uma abertura por tratativa — uma segunda linha com `from_status` nulo é escritor duplicado. */
     uniqueIndex('trip_occurrence_case_events_opening_unique')
@@ -1946,6 +1980,11 @@ export const tripOccurrenceCaseEvents = pgTable(
     check(
       'trip_occurrence_case_events_warehouse_note_check',
       sql`${table.toStatus} <> 'returned_to_warehouse' or length(btrim(${table.note})) > 0`,
+    ),
+    /** Decisão do usuário na T2: cancelar exige motivo — ocorrência aberta por engano se explica. */
+    check(
+      'trip_occurrence_case_events_cancel_note_check',
+      sql`${table.toStatus} <> 'cancelled' or length(btrim(${table.note})) > 0`,
     ),
     /** A linha do tempo lê por tratativa, ordenada — sem este índice ela varre a tabela inteira. */
     index('trip_occurrence_case_events_company_case_occurred_at_idx').on(

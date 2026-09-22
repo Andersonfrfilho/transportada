@@ -399,3 +399,57 @@ pega.
 6. **Confundir o demonstrativo com fiscal é o erro caro.** Por isso a frase vai **dentro** do
    documento (RF30) e o teste de integração lê `billing_*`, `cte_*`, `nfse_*` e `fiscal_sequences`
    depois de gerar, provando que nada foi tocado.
+
+## T2 — decisões que mudaram o desenho da T1
+
+A migration da T1 ainda não estava publicada quando a T2 chegou (ajustada no lugar, mesma pasta
+`drizzle/20260922174226_trip_occurrence_cases/`, snapshot regerado pela receita de migration à mão
+— `bun run db:generate --name tmp`, mover `snapshot.json`, apagar a pasta `tmp`).
+
+- **Estado terminal `cancelled` (ação `cancel`).** Decisão do usuário: ocorrência aberta por
+  engano. Sai só de `recorded` e `under_review` — nunca de `awaiting_contractor` em diante (mesma
+  razão da D4: depois que o contratante viu, esconder é reescrever o que ele leu). Motivo
+  obrigatório: `trip_occurrence_case_events_cancel_note_check` (CHECK novo, molde do
+  `..._warehouse_note_check`) exige nota não vazia quando `to_status = 'cancelled'`.
+  `resolved_at` e o CHECK de terminal do histórico (`..._terminal_check`) passam a cobrir os três
+  terminais (`closed`, `returned_to_warehouse`, `cancelled`). A ocorrência em si continua no
+  histórico — quem some é o marcador de problema da listagem e do mapa (T15).
+- **`decide` aceita ator interno.** O escritório pode decidir no lugar do contratante que não
+  responde, tipicamente `other` com nota obrigatória; a trilha grava `actor_kind = 'internal'`
+  quando é o caso. `checkOccurrenceCaseTransition` não sabe quem está chamando — só valida se a
+  transição é legal; **quem pode chamar `decide` é autorização (T5/T10), não esta política**.
+- **`decide` é aresta da máquina, não `if` do portal.** `OCCURRENCE_CASE_ACTIONS` ganhou `decide`
+  ao lado de `review`, `warehouse_return`, `contractor_submission`, `closure` e `cancel` — a T10
+  vai chamar `checkOccurrenceCaseTransition`, nunca reimplementar a tabela.
+- **Contexto da política, não só `{action, status}`.** `checkOccurrenceCaseTransition` recebe
+  `{ action, status, redeliveryPolicy, decisionKind, hasSettlementItems }`. Três recusas de negócio
+  vivem na política, não no caso de uso: `contractor_submission` sobre `blocked` sem item
+  (`redeliveryBlockedHasNoQuestion`, RF7); `decide` com `redelivery_authorized` sobre `blocked`
+  (`redeliveryNotAllowed`, RF16); `closure` sobre `goods_paid` sem item acertado
+  (`settlementWithoutItems`).
+- **`code` é união literal.** `OccurrenceCaseTransitionRefusalCode` deriva de
+  `OCCURRENCE_CASE_TRANSITION_REFUSALS` — copiar o `code: string` de
+  `delivery-charge-state.policy.ts` apagaria a garantia de código estável.
+- **`unchanged` carrega `to`.** A forma diverge de `checkTripTransition`
+  (`applied | unchanged | blocked`, `trip-state.policy.ts`) de propósito — documentado no
+  cabeçalho de `occurrence-case-state.policy.ts`: ator externo no meio (o contratante decide pelo
+  portal), recusa vira 409 idempotente, e é o mesmo molde de `checkDeliveryChargeTransition` que a
+  T17 vai encostar do outro lado (a cobrança que o acerto gera).
+- **Nomes de ação valem os das rotas** (`warehouse_return`, `contractor_submission`), não
+  `keep_internal`/`send_to_contractor` do diagrama original do `spec.md` — a D3 foi corrigida para
+  o mesmo par usado nas rotas RF5–RF8.
+- **`OCCURRENCE_CASE_TERMINAL_STATUSES` exportado.** O teste de contrato confere esta lista contra
+  os dois CHECKs de terminal do schema (`trip_occurrence_cases_resolved_check` e
+  `trip_occurrence_case_events_terminal_check`), para "o que é terminal" não ficar escrito em três
+  lugares sem nenhum deles se conferir contra os outros.
+- **RF18 (registrar a recusa de reordenação) vira coluna, não tabela nova.** Contradição: a RF18
+  pede registrar a recusa, mas `trip_occurrence_case_events` só aceita evento quando o `status`
+  muda (`transition_check`, molde de `recordTripStatusChange`) — aplicar ou recusar a reentrega não
+  move o estado da tratativa. Resolvido com `trip_occurrence_cases.redelivery_application`
+  (`reordered | released | refused`, nulável, CHECK próprio), gravada por quem aplica a proposta
+  (T14), sem afrouxar o CHECK do histórico e sem tabela de eventos nova.
+- **Fronteira com a viagem.** `returned_to_warehouse` **não** é
+  `trip_documents.separation_status = 'returned'` — um é a tratativa morrendo no galpão (D4), o
+  outro é a nota devolvida na rua. Nenhuma transição desta política escreve em `trip_documents`;
+  roteiro e liberação de nota continuam sendo decisão confirmada por gente, em
+  `redelivery-proposal.policy.ts` (T14) e no `PATCH /trips/:id/stops/order` que já existe (RF18).

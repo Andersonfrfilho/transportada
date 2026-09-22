@@ -197,3 +197,125 @@ $ bun run typecheck
 ### Commit isolado
 
 Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).
+
+## T2 — A máquina de estados da tratativa
+
+### Duas decisões do usuário (mudaram o desenho da T1)
+
+1. **Estado terminal `cancelled`, ação `cancel`.** Ocorrência aberta por engano. Sai só de
+   `recorded` e `under_review` — nunca de `awaiting_contractor` em diante (D4: depois que o
+   contratante viu, esconder é reescrever o que ele leu). Motivo obrigatório, no banco
+   (`trip_occurrence_case_events_cancel_note_check`) e na política. `resolved_at` e o CHECK de
+   terminal do histórico passam a cobrir os três terminais.
+2. **O escritório pode decidir no lugar do contratante que não responde.** `decide` aceita ator
+   interno (tipicamente `other`, com nota obrigatória — validada em outra camada, T5/T10), e a
+   trilha grava `actor_kind = 'internal'`. A política decide a transição; permissão é de outra
+   camada.
+
+Decisão completa, com todas as correções da revisão, em `plan.md` § "T2 — decisões que mudaram o
+desenho da T1".
+
+### Migration da T1 ajustada no lugar (ainda não publicada)
+
+Mesma pasta `drizzle/20260922174226_trip_occurrence_cases/`: `TRIP_OCCURRENCE_CASE_STATUSES` ganhou
+`cancelled`; `trip_occurrence_cases` ganhou a coluna `redelivery_application` (RF18, ver abaixo) e o
+CHECK `trip_occurrence_cases_redelivery_application_check`; `trip_occurrence_cases_resolved_check`
+e `trip_occurrence_case_events_terminal_check` passaram a cobrir `cancelled`; CHECK novo
+`trip_occurrence_case_events_cancel_note_check`. `migration.sql`/`rollback.sql` editados à mão
+(hash do `rollback.sql` recalculado: `f4d80dd16189575d22d2d12c1b1c25bd2df15bbb00ee3ddb25a7b3ea0ba04b6e`),
+`snapshot.json` regerado pela receita (`db:generate --name tmp`, mover, apagar `tmp`, `prevIds`
+corrigido para encadear no snapshot anterior à T1).
+
+```
+$ bun run db:generate
+{"status":"no_changes","dialect":"postgresql"}
+```
+
+### RF18 — a coluna, não a tabela
+
+`trip_occurrence_cases.redelivery_application` (`reordered | released | refused`, nulável) — ver a
+contradição e a resolução em `plan.md`. Não é tocada nesta task (T14 grava); só o schema nasceu.
+
+### Arquivos tocados
+
+- `src/database/trip.schema.ts` — `TRIP_OCCURRENCE_CASE_STATUSES` (+`cancelled`),
+  `TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS` (novo), coluna `redelivery_application` e os
+  CHECKs acima.
+- `src/trips/domain/occurrence-case-state.policy.ts` (novo) — `OCCURRENCE_CASE_ACTIONS`,
+  `OCCURRENCE_CASE_TERMINAL_STATUSES`, `OCCURRENCE_CASE_TRANSITION_REFUSALS`,
+  `checkOccurrenceCaseTransition`.
+- `src/trips/domain/occurrence-case.policy.ts` (novo) — `resolveOccurrenceCaseOpening`,
+  `CONTRACTOR_VISIBLE_CASE_STATUSES`.
+- `test/trip-domain/occurrence-case-state.contract.ts` (novo, quatro camadas — ver abaixo).
+- `test/trip-domain/occurrence-case.contract.ts` (novo).
+- `test/trip-domain.contract.test.ts` — dois imports novos (entrypoint que o `bun test` já
+  descobre por padrão; sem lista explícita no `package.json` para testes de domínio puro).
+- `drizzle/20260922174226_trip_occurrence_cases/{migration.sql,rollback.sql,snapshot.json}`.
+- `specs/164-destino-da-nota-na-ocorrencia/plan.md` — seção "T2 — decisões que mudaram o desenho da
+  T1".
+
+### A máquina, por extenso (base da tabela do teste)
+
+```
+recorded ─review─→ under_review ─warehouse_return─→ returned_to_warehouse   (terminal)
+   │                         └─contractor_submission─→ awaiting_contractor
+   │                                                       │
+   └──────────────────cancel──────────────────────┐  decide│
+                                                    ↓       ↓
+                                               cancelled  decided ─closure─→ closed   (terminal)
+                                               (terminal)
+```
+
+7 arestas `changed`, 7 `unchanged` (uma por ação, no próprio destino), 28 `refused`
+(`OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED`) — 42 combinações no total (`7 status × 6 ações`).
+
+### `bun --env-file=../../.env.test test test/trip-domain.contract.test.ts --timeout 60000`
+
+```
+ 222 pass
+ 0 fail
+ 1024 expect() calls
+Ran 222 tests across 1 file. [88.00ms]
+```
+
+As quatro camadas do teste de `occurrence-case-state.contract.ts`: (1) tabela literal
+`STATUSES × ACTIONS` escrita à mão, `toEqual` sobre o objeto inteiro — sem derivar nada do próprio
+resultado (a comparação tautológica do molde `charge-state.contract.ts` foi propositalmente **não**
+copiada); (2) `expect(changedEdges.length).toBe(7)`; (3) nenhum `changed` sai dos três terminais,
+varrendo as seis ações contra os três; (4) travessia (DFS/BFS) a partir de `recorded` pelas arestas
+`changed` — lança se alguma apontar para um estado já no caminho atual, e confere que os sete
+estados são todos alcançáveis. Mais: idempotência de todas as combinações `changed`, e um caso por
+recusa de negócio (RF7, RF16, `settlementWithoutItems`), cada um com a variante que **não** recusa
+ao lado.
+
+### `bun --env-file=../../.env.test test --timeout 120000` (suíte inteira, contrato)
+
+```
+ 6958 pass
+ 23 skip
+ 0 fail
+ 23681 expect() calls
+Ran 6981 tests across 183 files. [28.99s]
+```
+
+Nenhuma regressão nas 6946 → 6958 (as 12 a mais são os testes novos desta task; nenhuma suíte
+existente mudou de resultado).
+
+### `make migration-test` (migrate + rollback em Postgres descartável)
+
+```
+ 110 pass
+ 0 fail
+ 1417 expect() calls
+Ran 110 tests across 8 files. [50.07s]
+```
+
+Mesma contagem da T1 (110 pass) — a migration ajustada continua migrando e revertendo limpa.
+
+### `bun run lint` (raiz, 6 apps) e `bun run typecheck` (raiz)
+
+Ambos sem erro, sem warning.
+
+### Commit isolado
+
+Commit único desta task (SHA e mensagem no relatório final da conversa — sem push).

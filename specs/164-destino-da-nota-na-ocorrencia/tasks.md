@@ -37,7 +37,7 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
     rollback reverte com as tabelas vazias e recusa (`raise`) com linha presente; todo tipo
     existente fica `unset` e nenhuma suíte de ocorrência de hoje muda.
 
-- [ ] **T2** 🧠 A máquina — `trips/domain/occurrence-case-state.policy.ts`
+- [x] **T2** 🧠 A máquina — `trips/domain/occurrence-case-state.policy.ts`
       (`OCCURRENCE_CASE_STATUSES`, `OCCURRENCE_CASE_ACTIONS`, `checkOccurrenceCaseTransition`
       devolvendo `changed | unchanged | refused`, no molde de `checkDeliveryChargeTransition`) e
       `trips/domain/occurrence-case.policy.ts` (abertura a partir do tipo, `unset` não abre;

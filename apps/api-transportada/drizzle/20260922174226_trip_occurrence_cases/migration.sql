@@ -10,11 +10,12 @@ CREATE TABLE "trip_occurrence_case_events" (
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "trip_occurrence_case_events_company_id_id_unique" UNIQUE("company_id","id"),
 	CONSTRAINT "trip_occurrence_case_events_actor_kind_check" CHECK ("actor_kind" in ('internal', 'contractor')),
-	CONSTRAINT "trip_occurrence_case_events_from_status_check" CHECK ("from_status" is null or "from_status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed')),
-	CONSTRAINT "trip_occurrence_case_events_to_status_check" CHECK ("to_status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed')),
+	CONSTRAINT "trip_occurrence_case_events_from_status_check" CHECK ("from_status" is null or "from_status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed', 'cancelled')),
+	CONSTRAINT "trip_occurrence_case_events_to_status_check" CHECK ("to_status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed', 'cancelled')),
 	CONSTRAINT "trip_occurrence_case_events_transition_check" CHECK ("from_status" is null or "from_status" <> "to_status"),
-	CONSTRAINT "trip_occurrence_case_events_terminal_check" CHECK ("from_status" is null or "from_status" not in ('closed','returned_to_warehouse')),
-	CONSTRAINT "trip_occurrence_case_events_warehouse_note_check" CHECK ("to_status" <> 'returned_to_warehouse' or length(btrim("note")) > 0)
+	CONSTRAINT "trip_occurrence_case_events_terminal_check" CHECK ("from_status" is null or "from_status" not in ('closed','returned_to_warehouse','cancelled')),
+	CONSTRAINT "trip_occurrence_case_events_warehouse_note_check" CHECK ("to_status" <> 'returned_to_warehouse' or length(btrim("note")) > 0),
+	CONSTRAINT "trip_occurrence_case_events_cancel_note_check" CHECK ("to_status" <> 'cancelled' or length(btrim("note")) > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "trip_occurrence_cases" (
@@ -29,18 +30,20 @@ CREATE TABLE "trip_occurrence_cases" (
 	"decided_at" timestamp with time zone,
 	"opened_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"resolved_at" timestamp with time zone,
+	"redelivery_application" text,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "trip_occurrence_cases_company_id_id_unique" UNIQUE("company_id","id"),
 	CONSTRAINT "trip_occurrence_cases_occurrence_unique" UNIQUE("company_id","occurrence_id"),
-	CONSTRAINT "trip_occurrence_cases_status_check" CHECK ("status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed')),
+	CONSTRAINT "trip_occurrence_cases_status_check" CHECK ("status" in ('recorded', 'under_review', 'returned_to_warehouse', 'awaiting_contractor', 'decided', 'closed', 'cancelled')),
 	CONSTRAINT "trip_occurrence_cases_policy_check" CHECK ("redelivery_policy" in ('allowed','blocked')),
+	CONSTRAINT "trip_occurrence_cases_redelivery_application_check" CHECK ("redelivery_application" is null or "redelivery_application" in ('reordered', 'released', 'refused')),
 	CONSTRAINT "trip_occurrence_cases_decision_check" CHECK (("decision_kind" is null) = ("decided_at" is null)),
 	CONSTRAINT "trip_occurrence_cases_decision_kind_check" CHECK ("decision_kind" is null or "decision_kind" in ('redelivery_authorized', 'goods_paid', 'other')),
 	CONSTRAINT "trip_occurrence_cases_decided_status_check" CHECK ("status" not in ('decided','closed') or "decision_kind" is not null),
 	CONSTRAINT "trip_occurrence_cases_decision_status_check" CHECK ("decision_kind" is null or "status" in ('decided','closed')),
 	CONSTRAINT "trip_occurrence_cases_decided_by_check" CHECK (("decided_at" is null) = ("decided_by_user_id" is null)),
 	CONSTRAINT "trip_occurrence_cases_decision_note_check" CHECK ("decision_kind" <> 'other' or length(btrim("decision_note")) > 0),
-	CONSTRAINT "trip_occurrence_cases_resolved_check" CHECK (("status" in ('closed','returned_to_warehouse')) = ("resolved_at" is not null))
+	CONSTRAINT "trip_occurrence_cases_resolved_check" CHECK (("status" in ('closed','returned_to_warehouse','cancelled')) = ("resolved_at" is not null))
 );
 --> statement-breakpoint
 ALTER TABLE "company_occurrence_types" ADD COLUMN "redelivery_policy" text DEFAULT 'unset' NOT NULL;--> statement-breakpoint
