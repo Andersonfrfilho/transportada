@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "ff0610c6-5c19-4e9e-ba98-80bf90c2d5c7",
+  "id": "027b6466-e780-4f2c-ab8b-bd8809efef7e",
   "prevIds": [
-    "8a8d40b9-10e0-422d-8428-6ca1501a9854"
+    "9132cf6b-13fe-4b7d-bd86-7f8cb6c90b87"
   ],
   "ddl": [
     {
@@ -28695,7 +28695,7 @@
     {
       "type": "uuid",
       "typeSchema": null,
-      "notNull": false,
+      "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -28883,6 +28883,32 @@
       "generated": null,
       "identity": null,
       "name": "redelivery_application",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_occurrence_cases"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "redelivery_applied_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_occurrence_cases"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "redelivery_applied_by_user_id",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_occurrence_cases"
@@ -53637,6 +53663,27 @@
     {
       "value": "\"redelivery_application\" is null or \"redelivery_application\" in ('reordered', 'released', 'refused')",
       "name": "trip_occurrence_cases_redelivery_application_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_occurrence_cases"
+    },
+    {
+      "value": "\"redelivery_application\" is null or \"decision_kind\" = 'redelivery_authorized'",
+      "name": "trip_occurrence_cases_redelivery_application_decision_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_occurrence_cases"
+    },
+    {
+      "value": "(\"redelivery_applied_at\" is null) = (\"redelivery_applied_by_user_id\" is null)",
+      "name": "trip_occurrence_cases_redelivery_applied_by_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_occurrence_cases"
+    },
+    {
+      "value": "(\"redelivery_application\" is null) = (\"redelivery_applied_at\" is null)",
+      "name": "trip_occurrence_cases_redelivery_applied_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_occurrence_cases"

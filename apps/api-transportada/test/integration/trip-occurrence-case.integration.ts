@@ -82,6 +82,8 @@ async function registerOccurrence(
       actorUserId: company.userId,
       companyId: company.companyId,
       documentId: trip.documentId,
+      /** Spec 166: a nota inteira, sem item apontado — nada a contar. */
+      items: [],
       note: 'caixa com avaria visível',
       occurrenceTypeId,
       productCode: '',
