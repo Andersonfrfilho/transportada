@@ -66,4 +66,4 @@ fi
 echo "enviando $(wc -c < "$JSONL_PATH" | tr -d ' ') bytes para o serviço api ($ENVIRONMENT)…" >&2
 
 base64 < "$JSONL_PATH" | railway ssh --service api --environment "$ENVIRONMENT" -- sh -c \
-  "base64 -d | bun apps/api-transportada/dist/cli/import-package-box-catalog.js $CLI_FLAG"
+  "base64 -d | bun /app/apps/api-transportada/dist/cli/import-package-box-catalog.js $CLI_FLAG"
