@@ -84,7 +84,24 @@ export async function readOccurrenceAttachments({
 
   const records = await resolveOccurrenceAttachmentRecords({ companyId, occurrenceId, repository })
 
-  return Promise.all(records.map((record) => toView({ downloads, now: resolvedNow, record })))
+  return buildOccurrenceAttachmentViews({ downloads, now: () => resolvedNow, records })
+}
+
+/**
+ * Spec 161 T10 (RF8/RF10/CA6): a mesma regra de apresentação de `readOccurrenceAttachments` —
+ * `expired`, `thumbnailUrl` ausente sem miniatura, nunca `objectKey`/`bucket` — reaproveitada por
+ * quem já resolveu os registros por outro caminho (o feed une nota e parada antes de perguntar).
+ */
+export function buildOccurrenceAttachmentViews(input: {
+  readonly downloads: OccurrenceAttachmentDownloadPort
+  /** Injetável só para teste — o relógio real por padrão. */
+  readonly now?: () => Date
+  readonly records: readonly OccurrenceAttachmentRecord[]
+}): Promise<readonly OccurrenceAttachmentView[]> {
+  const resolvedNow = (input.now ?? (() => new Date()))()
+  return Promise.all(
+    input.records.map((record) => toView({ downloads: input.downloads, now: resolvedNow, record })),
+  )
 }
 
 async function resolveOccurrenceAttachmentRecords(input: {

@@ -6,6 +6,7 @@
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -33,16 +34,6 @@ export type TripOccurrence = {
 }
 
 /**
- * Spec 156 T7b: o que a leitura de ocorrências publica para o anexo — URL assinada de vida curta,
- * pela mesma `anyPermission` da rota (D11), nunca bucket nem chave.
- */
-export type TripOccurrenceAttachmentSummary = {
-  readonly downloadUrl: string
-  readonly expiresAt: string
-  readonly mimeType: string
-}
-
-/**
  * Spec 156 T9 (D3): quem registrou e em nome de quem — só nomes, nunca CPF/e-mail/telefone
  * (D11). `actorName`/`onBehalfOfDriverName` são `null` quando o usuário ou o motorista não têm
  * mais vínculo ativo na empresa (nome não resolvido, id nunca vaza).
@@ -53,9 +44,15 @@ export type TripOccurrenceAuthorship = {
   readonly onBehalfOfDriverName: string | null
 }
 
+/**
+ * Spec 161 T9 (RF8/RF9): sai o `attachment` singular — o painel da nota devolve `attachments[]`
+ * ordenado por `position`, no mesmo formato que a leitura unificada (`occurrence-attachment.service.ts`,
+ * T3) já publica para o feed e para a rota de anexos: `downloadUrl`/`thumbnailUrl` assinados,
+ * `expired`, nunca `objectKey`/`bucket`.
+ */
 export type TripOccurrenceWithAttachment = TripOccurrence &
   TripOccurrenceAuthorship & {
-    readonly attachment: TripOccurrenceAttachmentSummary | null
+    readonly attachments: readonly OccurrenceAttachmentView[]
   }
 
 /**

@@ -235,6 +235,7 @@ import { DrizzleSeparationOccurrenceUnitOfWork } from './trips/infrastructure/dr
 import { attachOccurrencePhoto } from './trips/application/attach-occurrence-photo.use-case.js'
 import { DrizzleAttachOccurrencePhotoUnitOfWork } from './trips/infrastructure/drizzle-attach-occurrence-photo.repository.js'
 import { DrizzleOccurrenceAttachmentRepository } from './trips/infrastructure/drizzle-occurrence-attachment.repository.js'
+import { readOccurrenceAttachments } from './trips/application/occurrence-attachment.service.js'
 import { withFieldReport } from './trips/application/trip-field-report.port.js'
 import {
   buildOccurrenceAttachmentAppendFingerprint,
@@ -2744,6 +2745,12 @@ function createApplicationRoutes({
        * Spec 156 T7b: mesma `anyPermission` da leitura de ocorrências (D11) — o anexo do lote sai
        * por URL assinada nesta resposta, sem uma segunda rota com política diferente.
        */
+      /**
+       * Spec 161 T9 (RF8/RF9/CA5): `attachments[]` no lugar do `attachment` singular, pelo ponto
+       * único de leitura (`readOccurrenceAttachments`, T3) — tabela nova quando existem linhas,
+       * senão a coluna antiga (D6). Ordenado por `position`, com `thumbnailUrl` ausente quando não
+       * há miniatura e sem URL nenhuma para anexo com retenção vencida.
+       */
       listTripOccurrences: {
         execute: async (input) => {
           const occurrences = await listTripOccurrences(database, {
@@ -2752,24 +2759,17 @@ function createApplicationRoutes({
             tripId: input.tripId,
           })
           const downloads = createDeliveryProofDownloadGateway({ storage: storageGateway })
+          const attachmentRepository = new DrizzleOccurrenceAttachmentRepository(database)
 
           return Promise.all(
-            occurrences.map(async ({ attachment, ...occurrence }) => ({
+            occurrences.map(async (occurrence) => ({
               ...occurrence,
-              attachment:
-                attachment === null
-                  ? null
-                  : await downloads
-                      .createDownloadUrl({
-                        bucket: attachment.bucket,
-                        fileName: `ocorrencia-${occurrence.id}`,
-                        objectKey: attachment.objectKey,
-                      })
-                      .then((download) => ({
-                        downloadUrl: download.url,
-                        expiresAt: download.expiresAt,
-                        mimeType: attachment.mimeType,
-                      })),
+              attachments: await readOccurrenceAttachments({
+                companyId: input.context.companyId,
+                downloads,
+                occurrenceId: occurrence.id,
+                repository: attachmentRepository,
+              }),
             })),
           )
         },

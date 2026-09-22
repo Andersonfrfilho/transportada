@@ -165,13 +165,13 @@ export async function listDocumentProducts(
   return rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }))
 }
 
-/** Spec 156 T7b: a localização crua do anexo — quem assina a URL é o chamador. */
-export type TripOccurrenceAttachmentLocation = {
-  readonly bucket: string
-  readonly mimeType: string
-  readonly objectKey: string
-}
-
+/**
+ * Spec 161 T9 (RF9/RF15): a leitura da nota **não junta mais** `stored_objects` pela coluna antiga
+ * — o anexo (`attachments[]`) é resolvido à parte, por ocorrência, pelo ponto único de
+ * `readOccurrenceAttachments` (`occurrence-attachment.service.ts`, T3), que decide entre a tabela
+ * nova e a coluna legada. Juntar aqui era exatamente o que deixava a ocorrência de galpão (tabela
+ * nova) sem nenhuma foto nesta resposta — o `leftJoin` só enxergava `attachment_object_id`.
+ */
 export async function listTripOccurrences(
   queryable: TripQueryable,
   input: {
@@ -179,16 +179,10 @@ export async function listTripOccurrences(
     readonly documentId: string
     readonly tripId: string
   },
-): Promise<
-  readonly (TripOccurrence &
-    TripOccurrenceAuthorship & { readonly attachment: TripOccurrenceAttachmentLocation | null })[]
-> {
+): Promise<readonly (TripOccurrence & TripOccurrenceAuthorship & { readonly id: string })[]> {
   const rows = await queryable
     .select({
       actorName: occurrenceActorProfile.name,
-      attachmentBucket: storedObjects.bucket,
-      attachmentMimeType: storedObjects.mimeType,
-      attachmentObjectKey: storedObjects.objectKey,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       id: tripDocumentOccurrences.id,
@@ -213,13 +207,6 @@ export async function listTripOccurrences(
       and(
         eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
-      ),
-    )
-    .leftJoin(
-      storedObjects,
-      and(
-        eq(storedObjects.companyId, tripDocumentOccurrences.companyId),
-        eq(storedObjects.id, tripDocumentOccurrences.attachmentObjectId),
       ),
     )
     .leftJoin(
@@ -252,14 +239,6 @@ export async function listTripOccurrences(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
-    attachment:
-      row.attachmentBucket === null || row.attachmentObjectKey === null
-        ? null
-        : {
-            bucket: row.attachmentBucket,
-            mimeType: row.attachmentMimeType ?? '',
-            objectKey: row.attachmentObjectKey,
-          },
     channel: row.channel,
     createdAt: row.createdAt.toISOString(),
     id: row.id,
