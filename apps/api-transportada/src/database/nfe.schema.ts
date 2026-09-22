@@ -470,12 +470,10 @@ export const nfeVolumes = pgTable(
  * `catalog` (spec 160) e proposta promovida do catalogo publico de GTIN — duas fontes concordando
  * dentro da tolerancia (RNF03), nunca conferida por gente.
  *
- * ⚠️ **A CHECK do banco (`nfe_package_boxes_measurement_source_check`,
- * `nfe_package_box_measurements_source_check`) ainda lista só os quatro valores antigos** — este
- * array TS por si só não torna `catalog` gravável; falta a migration aditiva que alarga as duas
- * CHECKs (fora do escopo da Fase 1 da spec 160, T006 pediu explicitamente para não gerar migration
- * aqui). Até essa migration existir, `catalog` só serve para o domínio raciocinar sobre a origem
- * antes de ela ser persistida.
+ * A CHECK do banco (`nfe_package_boxes_measurement_source_check`,
+ * `nfe_package_box_measurements_source_check`) já alarga para `catalog` desde a migration da spec
+ * 162 (`package_box_catalog_source`) — só o importador (spec 162) grava esse valor, nunca uma rota
+ * digitada.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
@@ -587,7 +585,7 @@ export const nfePackageBoxes = pgTable(
     ),
     check(
       'nfe_package_boxes_measurement_source_check',
-      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
+      sql`${table.measurementSource} is null or ${table.measurementSource} in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog')`,
     ),
     check(
       'nfe_package_boxes_measurement_margin_check',
@@ -691,7 +689,7 @@ export const nfePackageBoxMeasurements = pgTable(
       .onUpdate('cascade'),
     check(
       'nfe_package_box_measurements_source_check',
-      sql`${table.source} in ('typed', 'camera', 'camera_adjusted', 'replicated')`,
+      sql`${table.source} in ('typed', 'camera', 'camera_adjusted', 'replicated', 'catalog')`,
     ),
     /** Réplica sem origem não é auditável, e origem em medida que não é réplica não descreve nada. */
     check(
