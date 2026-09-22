@@ -61,9 +61,15 @@ export const jobSchedules = pgTable(
       sql`${table.intervalSeconds} >= ${sql.raw(String(JOB_SCHEDULE_MINIMUM_INTERVAL_SECONDS))}`,
     ),
     // Rotina pausada é estado que se anuncia: sem desde quando e por quem, ela morre calada
+    /**
+     * `paused_by` nulo com `paused_at` preenchido é a pausa **de origem** — a migration que faz a
+     * rotina nascer desligada, sem usuário para atribuir. `paused_by` preenchido sem `paused_at`
+     * continua impossível: pausa feita por pessoa sempre tem quando. A tela que liga/desliga grava
+     * os dois campos juntos, então nunca produz o caso frouxo.
+     */
     check(
       'job_schedules_pause_check',
-      sql`${table.enabled} = (${table.pausedAt} is null) and (${table.pausedAt} is null) = (${table.pausedBy} is null)`,
+      sql`${table.enabled} = (${table.pausedAt} is null) and (${table.pausedBy} is null or ${table.pausedAt} is not null)`,
     ),
   ],
 )

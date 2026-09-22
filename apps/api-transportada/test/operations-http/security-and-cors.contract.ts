@@ -71,6 +71,10 @@ describe('Operations HTTP security and CORS contract', () => {
       'GET /operations/jobs',
       /** Spec 072: o botão. `operations.run`, separada de `operations.read` — disparar não é ler. */
       'POST /operations/jobs/:job/run',
+      /** Spec 161 T21: o relógio de cada rotina, e o par de botões que liga/desliga. */
+      'GET /operations/job-schedules',
+      'POST /operations/jobs/:job/pause',
+      'POST /operations/jobs/:job/resume',
       `GET ${AUDIT_EVENTS_PATH}`,
     ])
   })

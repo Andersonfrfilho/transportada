@@ -415,6 +415,8 @@ import { createGoogleGeocodingGateway } from './routing/infrastructure/google-ge
 import { createRunJobUseCase } from './operations/application/run-job.use-case.js'
 import type { JobRunPublisher } from './operations/application/run-job.port.js'
 import { createDrizzleManualExecutionRepository } from './operations/infrastructure/drizzle-manual-execution.repository.js'
+import { createJobScheduleControlUseCase } from './operations/application/job-schedule-control.use-case.js'
+import { createDrizzleJobScheduleControlRepository } from './operations/infrastructure/drizzle-job-schedule-control.repository.js'
 import { buildJobRunRabbitMqTopology } from './operations/infrastructure/job-run-rabbitmq-topology.js'
 import { createLazyRabbitMqJobRunPublisher } from './operations/infrastructure/rabbitmq-job-run.publisher.js'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
@@ -3553,6 +3555,9 @@ function createApplicationRoutes({
       runJob: createRunJobUseCase({
         executions: createDrizzleManualExecutionRepository(database),
         publisher: buildJobRunPublisher(messaging),
+      }),
+      jobSchedules: createJobScheduleControlUseCase({
+        repository: createDrizzleJobScheduleControlRepository(database),
       }),
       operations: {
         getSummary: (input) => operations.getSummary(input),

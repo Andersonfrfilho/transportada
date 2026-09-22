@@ -6,7 +6,10 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { SCHEDULED_JOBS } from '../../shared/job-catalog.constant.js'
 import {
   API_AUDIT_EVENTS_PATH,
+  API_OPERATIONS_JOB_PAUSE_PATH,
+  API_OPERATIONS_JOB_RESUME_PATH,
   API_OPERATIONS_JOB_RUN_PATH,
+  API_OPERATIONS_JOB_SCHEDULES_PATH,
   API_OPERATIONS_JOBS_PATH,
   API_OPERATIONS_SUMMARY_PATH,
   API_OPERATIONS_TIMELINE_PATH,
@@ -54,6 +57,15 @@ type Dependencies = {
     readonly getSummary: (input: WithContext<SummaryInput>) => Promise<Record<string, unknown>>
     readonly listJobs: (input: WithContext<PageInput>) => Promise<Record<string, unknown>>
     readonly listTimeline: (input: WithContext<PageInput>) => Promise<Record<string, unknown>>
+  }
+  /** Spec 161 T21: o botão de ligar/desligar cada rotina, ao lado do de rodar agora. */
+  readonly jobSchedules: {
+    readonly listSchedules: () => Promise<readonly Record<string, unknown>[]>
+    readonly pause: (input: {
+      readonly actorUserId: string
+      readonly job: never
+    }) => Promise<Record<string, unknown>>
+    readonly resume: (input: { readonly job: never }) => Promise<Record<string, unknown>>
   }
 }
 
@@ -152,6 +164,41 @@ export function createOperationsRoutes(
        * roteador recusaria o caminho com `404` **antes** de qualquer validação nossa — mesmo caso da
        * chave de endereço em `/geocoded-addresses/:addressKey`.
        */
+      pathParameterFormat: 'raw',
+      policy: OPERATIONS_RUN_POLICY,
+    }),
+    defineRoute<Record<string, never>>({
+      async handle(): Promise<Response> {
+        const schedules = await dependencies.jobSchedules.listSchedules()
+        return jsonResponse({ body: { data: schedules }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: API_OPERATIONS_JOB_SCHEDULES_PATH,
+      policy: OPERATIONS_READ_POLICY,
+    }),
+    defineRoute<{ readonly job: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const schedule = await dependencies.jobSchedules.pause({
+          actorUserId: context.scope.userId,
+          job: input.job as never,
+        })
+        return jsonResponse({ body: { data: schedule }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({ job: parseScheduledJob(pathParameters.job ?? '') }),
+      pathname: API_OPERATIONS_JOB_PAUSE_PATH,
+      pathParameterFormat: 'raw',
+      policy: OPERATIONS_RUN_POLICY,
+    }),
+    defineRoute<{ readonly job: string }>({
+      async handle({ input }): Promise<Response> {
+        const schedule = await dependencies.jobSchedules.resume({ job: input.job as never })
+        return jsonResponse({ body: { data: schedule }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({ job: parseScheduledJob(pathParameters.job ?? '') }),
+      pathname: API_OPERATIONS_JOB_RESUME_PATH,
       pathParameterFormat: 'raw',
       policy: OPERATIONS_RUN_POLICY,
     }),

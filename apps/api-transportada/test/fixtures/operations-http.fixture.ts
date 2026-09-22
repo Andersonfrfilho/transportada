@@ -27,9 +27,19 @@ type CreateFixtureParams = {
   readonly authenticationError?: Error
   readonly jobError?: Error
   readonly jobAlreadyRunning?: boolean
+  readonly jobScheduleError?: Error
+  readonly jobScheduleNotFound?: boolean
   readonly permissions?: CompanyContext['permissions']
   readonly summaryError?: Error
   readonly timelineError?: Error
+}
+
+function scheduleNotFoundError(): ApiError {
+  return new ApiError({
+    code: 'JOB_SCHEDULE_NOT_FOUND',
+    message: 'Job schedule not found',
+    status: 404,
+  })
 }
 
 type OperationsHttpRouteDependencies = {
@@ -49,6 +59,23 @@ type OperationsHttpRouteDependencies = {
       | { readonly outcome: 'already_running' }
     >
   }
+  readonly jobSchedules: {
+    readonly listSchedules: () => Promise<readonly JobScheduleRow[]>
+    readonly pause: (input: {
+      readonly actorUserId: string
+      readonly job: never
+    }) => Promise<JobScheduleRow>
+    readonly resume: (input: { readonly job: never }) => Promise<JobScheduleRow>
+  }
+}
+
+type JobScheduleRow = {
+  readonly enabled: boolean
+  readonly intervalSeconds: number
+  readonly job: string
+  readonly nextRunAt: string
+  readonly pausedAt: string | null
+  readonly pausedBy: string | null
 }
 
 export const FRONTEND_ORIGIN = 'http://localhost:53000'
@@ -193,13 +220,34 @@ export const AUDIT_PAGE = {
   nextCursor: '2026-07-23T15:01:00.000Z::00000000-0000-4000-8000-000000000011',
 } as const
 
+const RUNNING_SCHEDULE: JobScheduleRow = {
+  enabled: true,
+  intervalSeconds: 300,
+  job: 'geocoding.backfill',
+  nextRunAt: '2026-07-23T15:05:00.000Z',
+  pausedAt: null,
+  pausedBy: null,
+}
+const PAUSED_SCHEDULE: JobScheduleRow = {
+  enabled: false,
+  intervalSeconds: 86_400,
+  job: 'trip.occurrence-attachment.purge',
+  nextRunAt: '2026-09-22T11:27:06.000Z',
+  pausedAt: '2026-09-22T11:27:06.000Z',
+  pausedBy: null,
+}
+
+export const JOB_SCHEDULES_PAGE: readonly JobScheduleRow[] = [RUNNING_SCHEDULE, PAUSED_SCHEDULE]
+
 export async function createOperationsHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly auditCalls: OperationsCall[]
   readonly events: string[]
   readonly handle: (request: Request) => Promise<Response>
   readonly jobCalls: OperationsCall[]
   readonly options: () => Promise<readonly string[]>
+  readonly pauseCalls: { readonly actorUserId: string; readonly job: string }[]
   readonly reprocessCalls: OperationsCall[]
+  readonly resumeCalls: { readonly job: string }[]
   readonly runJobCalls: OperationsCall[]
   readonly summaryCalls: OperationsCall[]
   readonly timelineCalls: OperationsCall[]
@@ -211,6 +259,8 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
   const summaryCalls: OperationsCall[] = []
   const timelineCalls: OperationsCall[] = []
   const runJobCalls: OperationsCall[] = []
+  const pauseCalls: { readonly actorUserId: string; readonly job: string }[] = []
+  const resumeCalls: { readonly job: string }[] = []
   const routes = await loadRoutes({
     runJob: {
       async run(input) {
@@ -218,6 +268,22 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
         if (params.jobAlreadyRunning === true) return { outcome: 'already_running' as const }
 
         return { executionId: 'execution-1', outcome: 'started' as const }
+      },
+    },
+    jobSchedules: {
+      async listSchedules() {
+        if (params.jobScheduleError) throw params.jobScheduleError
+        return JOB_SCHEDULES_PAGE
+      },
+      async pause(input) {
+        pauseCalls.push(structuredClone(input) as { actorUserId: string; job: string })
+        if (params.jobScheduleNotFound === true) throw scheduleNotFoundError()
+        return { ...PAUSED_SCHEDULE, pausedBy: input.actorUserId }
+      },
+      async resume(input) {
+        resumeCalls.push(structuredClone(input) as { job: string })
+        if (params.jobScheduleNotFound === true) throw scheduleNotFoundError()
+        return { ...RUNNING_SCHEDULE }
       },
     },
     audit: {
@@ -265,7 +331,9 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
     handle: (request) => handleRequest(request, { timeout() {} }),
     jobCalls,
     options: async () => routes.map((route) => `${route.method} ${route.pathname}`),
+    pauseCalls,
     reprocessCalls,
+    resumeCalls,
     summaryCalls,
     runJobCalls,
     timelineCalls,
@@ -395,6 +463,24 @@ function authenticatedContext(
 
 export function runJobRequest(job = 'geocoding.backfill'): Request {
   return new Request(`${FRONTEND_ORIGIN}/operations/jobs/${encodeURIComponent(job)}/run`, {
+    headers: { origin: FRONTEND_ORIGIN, 'x-correlation-id': 'correlation-1' },
+    method: 'POST',
+  })
+}
+
+export function listJobSchedulesRequest(): Request {
+  return authenticatedRequest('/operations/job-schedules')
+}
+
+export function pauseJobRequest(job = 'trip.occurrence-attachment.purge'): Request {
+  return new Request(`${FRONTEND_ORIGIN}/operations/jobs/${encodeURIComponent(job)}/pause`, {
+    headers: { origin: FRONTEND_ORIGIN, 'x-correlation-id': 'correlation-1' },
+    method: 'POST',
+  })
+}
+
+export function resumeJobRequest(job = 'trip.occurrence-attachment.purge'): Request {
+  return new Request(`${FRONTEND_ORIGIN}/operations/jobs/${encodeURIComponent(job)}/resume`, {
     headers: { origin: FRONTEND_ORIGIN, 'x-correlation-id': 'correlation-1' },
     method: 'POST',
   })

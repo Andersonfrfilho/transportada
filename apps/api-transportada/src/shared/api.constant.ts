@@ -151,6 +151,10 @@ export const API_OPERATIONS_TIMELINE_PATH = '/operations/timeline'
 export const API_OPERATIONS_JOBS_PATH = '/operations/jobs'
 /** Spec 072: o botão que o schema já previa — `origin: 'manual'` e o `409` do índice único. */
 export const API_OPERATIONS_JOB_RUN_PATH = '/operations/jobs/:job/run'
+/** Spec 161 T21: o relógio de cada rotina — habilitada ou não, e quem desligou. */
+export const API_OPERATIONS_JOB_SCHEDULES_PATH = '/operations/job-schedules'
+export const API_OPERATIONS_JOB_PAUSE_PATH = '/operations/jobs/:job/pause'
+export const API_OPERATIONS_JOB_RESUME_PATH = '/operations/jobs/:job/resume'
 export const API_AUDIT_EVENTS_PATH = '/audit/events'
 export const API_NFE_IMPORTS_PATH = '/nfe-imports'
 export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
