@@ -127,7 +127,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
 > `providers.objectStorage`; a validação de arquitetura reprovou esse desenho (D7), e o que sobrou é
 > reuso de um bloco que já existe, sem decisão estrutural pendente.
 
-- [ ] **T13** A ocorrência do WhatsApp usa a mesma persistência da rota HTTP (RF16) — na dep
+- [x] **T13** A ocorrência do WhatsApp usa a mesma persistência da rota HTTP (RF16) — na dep
       `registerOccurrence` de `src/main.ts:826-843`, trocar o `saveOccurrence` cru por
       `persistSeparationOccurrenceWithAttachment` (já importado em `src/main.ts:233` e usado pela
       rota em `src/main.ts:2799-2824`), com `attachment` opcional.
@@ -137,7 +137,7 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     que `meta-whatsapp-module.resolver.ts:82-95` continua **sem** `providers` — falha se alguém
     injetar `objectStorage`.
 
-- [ ] **T14** A imagem viaja por contexto, não pela assinatura (RF17/D16) —
+- [x] **T14** A imagem viaja por contexto, não pela assinatura (RF17/D16) —
       `whatsapp-answer.policy.ts:7-13` **mantém** `string | undefined`; o despachante escreve o
       descritor da imagem numa chave de contexto ao montar o cursor
       (`whatsapp-command-driver.service.ts:222-229`), e o router lê e **apaga no mesmo turno**.

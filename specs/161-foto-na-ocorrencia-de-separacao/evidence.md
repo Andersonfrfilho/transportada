@@ -891,3 +891,97 @@ unavailable` — MinIO fora do ar neste ambiente (o mesmo Docker local que o `CL
 coalesce(max(position), 0) + 1` (T1) calcula as posições 2 a 5 corretamente em sequência e que o
   sexto insert bate no `CHECK`/`unique` antes de qualquer contagem no aplicativo teria a chance de
   errar.
+
+## Fase 4
+
+### T13 — a ocorrência do WhatsApp usa a mesma persistência da rota HTTP
+
+Commit `21b3ac047`.
+
+`main.ts` — a dep `registerOccurrence` de `createOperatorWhatsAppFlowActions` (usada só pelo
+operador; a do motorista continua em `saveTripOccurrence`, fora do escopo desta task) passa a
+implementar `saveOccurrence` com `persistSeparationOccurrenceWithAttachment`, no mesmo molde do
+bloco da rota HTTP (`main.ts:2861` na versão anterior a esta task). `attachment` vira campo opcional
+em `RegisterOperatorTripFlowDependencies.registerOccurrence` (tipo) e é repassado do input —
+`exactOptionalPropertyTypes` exigiu o spread condicional em vez de `attachment: input.attachment`
+direto. `whatsappStorageBucket`/`whatsappStorageGateway` (já existentes, criados logo depois deste
+bloco em `main.ts`) e `DrizzleSeparationOccurrenceUnitOfWork` alimentam a chamada.
+
+Comportamento inalterado: nenhum caminho ainda escreve `attachment` de verdade (a T15 liga o passo
+de foto) — `registerTripOccurrence` continua recusando com `OccurrencePhotoRequiredError` (422)
+toda ocorrência do operador, como já documentado pela T5. O que muda é _qual_ implementação de
+`saveOccurrence` seria chamada se um `attachment` chegasse — e é isso que os dois testes provam.
+
+**CA9b/CA9c** — não há como montar `main.ts` (composition root) num teste isolado com fakes; segui
+o padrão já usado por `test/trip-schema/trip-status-writers.contract.ts` (varredura de texto-fonte)
+em vez de reinventar. `test/whatsapp/occurrence-persistence-wiring.contract.ts`:
+
+- isola o bloco da dep `registerOccurrence` do operador (ancorado em
+  `createOperatorWhatsAppFlowActions(`, porque há uma segunda dep `registerOccurrence` — a do
+  motorista — mais acima no arquivo, e o primeiro `indexOf` ingênuo casou com ela) e prova que o
+  texto contém `persistSeparationOccurrenceWithAttachment(` e não contém mais
+  `saveOccurrence: (query) => saveTripOccurrence(`;
+- prova a regressão de D7: `meta-whatsapp-module.resolver.ts` não contém as palavras `providers`
+  nem `objectStorage`.
+
+Vermelho antes da implementação (o primeiro assert falhou por casar com o bloco errado do
+motorista; corrigido ancorando a busca; depois falhou como esperado contra o bloco real do
+operador, que ainda usava `saveTripOccurrence`), verde depois. A garantia comportamental de
+`persistSeparationOccurrenceWithAttachment` em si (purpose, retenção, chave, limpeza) já é do
+contrato de T6 — este contrato só garante que o WhatsApp de fato passa por ali.
+
+Gates: `bun test test/whatsapp.contract.test.ts` (48 pass) e depois `bun test` completo da API
+(6796 pass, 32 skip, 0 fail) · `bun run typecheck`/`lint`/`format:check` na raiz — todos verdes.
+
+### T14 — a imagem viaja por contexto, não pela assinatura
+
+Commit `3d4c671a8`.
+
+`extractWhatsAppAnswer` (`whatsapp-answer.policy.ts`) **não mudou** — continua `string | undefined`.
+Nova função `extractWhatsAppIncomingImage` no mesmo arquivo lê `message.image` (`id`/`mime_type`,
+os dois opcionais no schema do pacote — só devolve o descritor quando ambos existem). O despachante
+(`whatsapp-command-driver.service.ts`, `advanceConversation`) escreve
+`{ mediaId, mimeType }` sob `WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY` (novo, em
+`whatsapp-command.constant.ts`) no `cursor.context`, só no branch que já tinha nó localizado (a
+segunda montagem de cursor) — é o único caso em que um `FlowActionHandler` de ação (o router de
+foto, T15) pode estar do outro lado.
+
+A chave é apagada do contexto persistido em **todo** ponto de gravação de estado do turno —
+`withoutIncomingImage` (nova, ao lado de `withoutInvalidAttempts` em `whatsapp-flow-step.service.ts`)
+aplicada em `clearWhatsAppFlowPosition`, no branch `awaiting-answer` de `settleFlow` e no
+`nextCursor` do salto entre fluxos — consumida ou não pelo handler do nó alcançado. Sem isso, um nó
+que recebesse imagem mas não fosse o router de foto deixaria o `media-id` vazando para o próximo
+turno; o handler de T15 nem precisa se lembrar de apagá-la.
+
+**CA9** — `test/whatsapp-commands/incoming-image-context.contract.ts`, com o `FlowInterpreter` real
+do pacote (mesmo molde de `command-driver.contract.ts`):
+
+- mensagem de imagem com a posição já no nó de ação `photo` (`actionKind: contract.photo`) chega ao
+  handler com `context[WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY] = { mediaId, mimeType }`;
+- a chave nunca aparece em nenhum `storedContexts` nem na posição final — mesmo o handler de teste
+  **não** apagando (prova que o driver escrupula sozinho, não que o handler colabora);
+- imagem enviada com a posição num nó de escolha (`menu`) não avança e não grava a chave — o
+  caminho existente de resposta inválida (`rejectAnswer`, D8) já cobre isso, porque
+  `extractWhatsAppAnswer` devolve `undefined` para mensagem sem texto/interativo e
+  `isOfferedOption` recusa `undefined`; nenhuma mudança de código precisou aqui, só o teste que
+  prova que continua assim;
+- `MEDIA_ID` nunca aparece em `JSON.stringify(logged)`.
+
+Vermelho: a primeira versão do teste usava `next: 'photo'` no handler de teste (o mesmo nó como
+próprio destino), o que **não é infra-vazamento nenhum** — é o `FlowInterpreter` de verdade
+reexecutando o nó de ação em loop e estourando o teto interno dele (50 iterações, o teste falhou
+com `photoHandlerContexts` de tamanho 50). Troquei o destino para um nó terminal (`photoDone`, sem
+`actionKind`) — nó de ação sem `actionKind` é tratado como mensagem final pelo interpretador, no
+mesmo padrão que `command-driver.contract.ts` já usa (`done_a`). Depois disso, vermelho esperado
+(campo `attachment`/contexto ainda não existia) → verde após a implementação.
+
+Gates: `bun test test/whatsapp-commands.contract.test.ts` (404 pass) e `bun test` completo da API
+(6800 pass, 32 skip, 0 fail) · `bun run typecheck`/`lint`/`format:check` na raiz — todos verdes.
+
+### Divergência entre a spec e o código encontrado
+
+Nenhuma. `whatsapp-answer.policy.ts:7-13` já estava exatamente como a T14 descreve (assinatura
+inalterada); `persist-separation-occurrence-attachment.service.ts` (T6) já existia com o teto ainda
+fixo em `OCCURRENCE_PHOTO_MAX_BYTES` — parametrizá-lo é explicitamente T15, não T13, e não toquei
+nisso agora (T13 não passa nenhuma foto de verdade, então o teto atual nunca é exercitado pelo
+WhatsApp ainda).
