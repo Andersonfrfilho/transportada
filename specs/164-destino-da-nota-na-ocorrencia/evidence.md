@@ -973,3 +973,68 @@ contratante.
    repositório (`drizzle-occurrence-settlement.repository.ts` implementa as duas portas), então
    separar o diff por task exigiria desmontar esses arquivos sem ganho real de revisão — a mesma
    lógica que já levou T16 a absorver a tabela que "pertencia" à T1.
+
+## T19 — a leitura do acumulado, com filtros
+
+`GET /occurrence-charges/report` (`trip.financials`): `OccurrenceChargeReportPort`/
+`DrizzleOccurrenceChargeReportRepository` (`src/delivery-clients/infrastructure/`),
+`createOccurrenceChargeReportUseCase` e `occurrence-charge-report.routes.ts`. Registrado em
+`main.ts` ao lado de `extraChargeBatches`. Constante nova: `API_OCCURRENCE_CHARGES_REPORT_PATH`.
+
+- Recorte: `delivery_charges` com `occurrence_id is not null` e `batch_id is null` — "sem lote",
+  nunca "do mês corrente" (decisão do usuário em `plan.md` § "O fechamento é por seleção, com
+  filtros"). Filtros: `contractorId`, `from`/`to` (intervalo de datas), `chargeType`, `status`,
+  `hasSettlement` (existência de `trip_occurrence_item_settlements` ligada pela tratativa da mesma
+  ocorrência) e `search` (por `accessKey`/`number` da nota, via `trip_documents` → `nfe_documents`).
+  Totais (`totalAmount`, `totalCount`, quebra por `chargeType`) somados em SQL (`numeric`,
+  `coalesce(sum(...))::text`), nunca em JS, e cobrem o filtro inteiro — não a página do cursor.
+- ⚠️ **Nenhuma tabela de lote nova** — RF27 continua sendo `extra_charge_batches`; esta task só lê.
+- `explain` provado em `test/integration/occurrence-charge-report.integration.ts` (terceiro teste):
+  `set local enable_seqscan = off` + `explain select … where company_id = … and contractor_id = …
+and charged_on between … and …` casa `Index Scan using delivery_charges_contractor_period_idx`
+  (índice da T16) — a consulta real do repositório usa as mesmas três colunas no `where` antes de
+  qualquer filtro opcional, então o mesmo índice cobre o caso comum.
+- Isolamento por empresa e o recorte "sem lote" provados contra Postgres de verdade (banco
+  descartável, duas empresas, uma cobrança já em lote, uma cobrança de outra empresa) — nenhuma das
+  duas aparece na leitura da primeira empresa.
+
+### Comandos rodados (T19)
+
+- `bunx tsc --noEmit` (api-transportada) — limpo.
+- `bunx eslint src test --max-warnings=0` (api-transportada) — limpo.
+- `bunx prettier --check` — 4 arquivos corrigidos com `--write` antes do commit; limpo depois.
+- `bun run db:generate` — **`no_changes`** (leitura pura, nenhuma tabela/coluna nova).
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo da API) —
+  **7084 pass, 23 skip, 0 fail** (183 arquivos).
+- `bun --env-file=../../.env.test test ./test/integration/occurrence-charge-report.integration.ts --timeout 120000`
+  — **3 pass, 0 fail**, 11 `expect()` (inclui o teste de `explain`).
+- `bun run lint` / `bun run typecheck` na raiz (6 apps) — limpos.
+- Arquivo somado à lista explícita de `test:integration` em `apps/api-transportada/package.json`.
+
+Commit: `feat(api): spec 164 T19 — leitura do acumulado de ocorrência, por seleção`.
+
+## T20 — o demonstrativo em PDF — **não fechada nesta rodada**
+
+Não foi implementada. Registro do que falta, para quem continuar:
+
+- `stored_objects.purpose` precisa de um valor novo (`extra_charge_batch_statement` ou similar) em
+  `STORAGE_OBJECT_PURPOSES` (`src/database/storage.schema.ts`) — isso muda o CHECK gerado e exige
+  migration aditiva própria (`drizzle/<ts>_.../` com `migration.sql`, `rollback.sql`, `snapshot.json`
+  - `make migration-test`), separada da leitura da T19.
+- `src/delivery-clients/domain/occurrence-statement-layout.policy.ts` (puro, molde de
+  `billing/domain/invoice-layout.policy.ts`) e
+  `src/delivery-clients/infrastructure/occurrence-statement-pdf.gateway.ts` (`pdfkit`, só desenho,
+  molde de `billing/infrastructure/invoice-pdf.gateway.ts`) — nenhum dos dois foi criado.
+  `OCCURRENCE_STATEMENT_MAX_BYTES` (sugerido 8 MiB) e o teste que falha acima do teto também faltam.
+- `GET /extra-charge-batches/:id/statement` (`trip.financials`, `application/pdf`) não existe.
+- Geração no fechamento (não recomputada a cada leitura), download das fotos com concorrência
+  limitada, selo textual para anexo vencido, a frase "não é documento fiscal" dentro do PDF, e o
+  contrato negativo provando que o token público de `extra_charge_batches` não abre o demonstrativo
+  — nada disso foi tocado.
+- Risco 5 do `plan.md` ("o demonstrativo pode ficar pesado") segue sem mitigação de código.
+
+Motivo do corte: T20 tem escopo de várias tasks em uma (migration própria, política pura, gateway
+`pdfkit`, download de anexos com concorrência limitada, teto de tamanho com teste que prova o
+estouro, contrato negativo de superfície pública) e não coube no orçamento desta rodada depois de
+T19. Não há commit para T20 — nada de código incompleto ou quebrado foi deixado no worktree por
+causa dela.
