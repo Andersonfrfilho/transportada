@@ -209,6 +209,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'address-correction/presentation/address-correction.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
+      'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
       'trips/presentation/redelivery-proposal.routes.ts',
       'trips/presentation/trip-field-office-document.routes.ts',

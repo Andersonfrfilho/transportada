@@ -14,7 +14,10 @@ import {
   OccurrenceCaseSettlementWithoutItemsError,
   OccurrenceCaseTransitionNotAllowedError,
   OccurrenceSettlementAmountInvalidError,
+  OccurrenceSettlementItemNotFoundError,
   OccurrenceSettlementItemUnknownError,
+  OccurrenceSettlementNotReimbursableError,
+  OccurrenceSettlementPayerInvalidError,
 } from '../../src/trips/domain/trip.error.js'
 
 /** Palavras que nunca podem aparecer numa mensagem de erro deste módulo — indício de PII vazada. */
@@ -74,6 +77,27 @@ describe('occurrence case domain errors', () => {
     const error = new OccurrenceSettlementAmountInvalidError()
     expect(error.status).toBe(422)
     expect(error.code).toBe('OCCURRENCE_SETTLEMENT_AMOUNT_INVALID')
+    assertNoPii(error.message)
+  })
+
+  test('OccurrenceSettlementPayerInvalidError: 422, código próprio (spec 164 T13)', () => {
+    const error = new OccurrenceSettlementPayerInvalidError()
+    expect(error.status).toBe(422)
+    expect(error.code).toBe('OCCURRENCE_SETTLEMENT_PAYER_INVALID')
+    assertNoPii(error.message)
+  })
+
+  test('OccurrenceSettlementItemNotFoundError: 404, código próprio (spec 164 T18)', () => {
+    const error = new OccurrenceSettlementItemNotFoundError()
+    expect(error.status).toBe(404)
+    expect(error.code).toBe('OCCURRENCE_SETTLEMENT_ITEM_NOT_FOUND')
+    assertNoPii(error.message)
+  })
+
+  test('OccurrenceSettlementNotReimbursableError: 422, código próprio (spec 164 T18)', () => {
+    const error = new OccurrenceSettlementNotReimbursableError()
+    expect(error.status).toBe(422)
+    expect(error.code).toBe('OCCURRENCE_SETTLEMENT_NOT_REIMBURSABLE')
     assertNoPii(error.message)
   })
 

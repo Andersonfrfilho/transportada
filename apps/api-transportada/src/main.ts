@@ -363,6 +363,11 @@ import { DrizzleRedeliveryProposalRepository } from './trips/infrastructure/driz
 import { createRedeliveryApplicationRoutes } from './trips/presentation/redelivery-application.routes.js'
 import { applyRedeliveryApplication } from './trips/application/redelivery-application.use-case.js'
 import { DrizzleRedeliveryApplicationRepository } from './trips/infrastructure/drizzle-redelivery-application.repository.js'
+import { createOccurrenceSettlementRoutes } from './trips/presentation/occurrence-settlement.routes.js'
+import { createRecordOccurrenceSettlementUseCase } from './trips/application/record-occurrence-settlement.use-case.js'
+import { createReimburseOccurrenceSettlementUseCase } from './trips/application/reimburse-occurrence-settlement.use-case.js'
+import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
+import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
@@ -1848,6 +1853,21 @@ function createApplicationRoutes({
     database,
     cargoLayoutLeaseOptions,
   )
+  /** Spec 164 T17: a ponte acerto → cobrança — `findChargeParties` é a mesma consulta da sugestão recorrente. */
+  const occurrenceSettlementChargeRepository = new DrizzleOccurrenceSettlementChargeRepository(
+    (input) => deliveryChargeRepository.findChargeParties(input),
+  )
+  /** Spec 164 T13/T18: o acerto por item, com o pagador, e o ressarcimento de quem pagou. */
+  const occurrenceSettlementRepository = new DrizzleOccurrenceSettlementRepository(
+    database,
+    occurrenceSettlementChargeRepository,
+  )
+  const recordOccurrenceSettlement = createRecordOccurrenceSettlementUseCase({
+    repository: occurrenceSettlementRepository,
+  })
+  const reimburseOccurrenceSettlement = createReimburseOccurrenceSettlementUseCase({
+    repository: occurrenceSettlementRepository,
+  })
   /** Spec 164 T10: mesmo escritor único de transição do escritório (T4/T5) — só muda o ator. */
   const decideOccurrenceCase = createDecideOccurrenceCaseUseCase({
     cases: {
@@ -2619,6 +2639,11 @@ function createApplicationRoutes({
     ...createOccurrenceCaseRoutes({
       findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
       occurrenceCase: occurrenceCaseUseCase,
+    }),
+    ...createOccurrenceSettlementRoutes({
+      findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
+      settlement: recordOccurrenceSettlement,
+      settlementReimbursement: reimburseOccurrenceSettlement,
     }),
     ...createRedeliveryProposalRoutes({
       redeliveryProposal: {

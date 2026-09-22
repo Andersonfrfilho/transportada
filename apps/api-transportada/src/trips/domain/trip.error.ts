@@ -838,6 +838,39 @@ export class OccurrenceSettlementAmountInvalidError extends ApiError {
   }
 }
 
+/** T13 (RF23): `driver` sem `payerId`, ou qualquer outro tipo com `payerId` — o mesmo par que o CHECK do banco reprova. */
+export class OccurrenceSettlementPayerInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_PAYER_INVALID',
+      message: 'The payer kind and payer id pair is invalid for this settlement item.',
+      status: 422,
+    })
+  }
+}
+
+/** T18: o ressarcimento aponta um item que não está acertado para esta tratativa. */
+export class OccurrenceSettlementItemNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_ITEM_NOT_FOUND',
+      message: 'The settlement item was not found for this occurrence case.',
+      status: 404,
+    })
+  }
+}
+
+/** T18 (RF31): a transportadora não se ressarce de si mesma — `payer_kind = 'carrier'` recusa. */
+export class OccurrenceSettlementNotReimbursableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_NOT_REIMBURSABLE',
+      message: 'A settlement item paid by the carrier itself cannot be reimbursed.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * T17 (RF25, validação 🧠 da Fase 5, achado 2): `findChargeParties` devolve nulo com `return`
  * silencioso na sugestão recorrente — perder uma sugestão não pode derrubar a entrega do motorista.
