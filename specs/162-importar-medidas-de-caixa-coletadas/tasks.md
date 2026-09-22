@@ -33,7 +33,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T010 `make check` + evidência em `evidence.md`; README do `box-catalog-harvest` com o passo de importação
+- [x] T010 `make check` + evidência em `evidence.md`; README do `box-catalog-harvest` com o passo de importação
 
 ## Prompt de execução (OpenCode)
 
