@@ -117,9 +117,11 @@ describe('a trilha chega ao elemento de vídeo (C2)', () => {
     expect(attachAndStart ?? '').not.toContain('srcObject')
   })
 
-  it('reabre só quando isActive muda — não a cada renderização', async () => {
+  /** Reabrir a cada renderização pisca a câmera e pede permissão de novo; a escolha de câmera é a
+   * única entrada nova que **deve** reabrir a sessão. */
+  it('reabre só quando isActive ou a câmera escolhida mudam — não a cada renderização', async () => {
     const hook = await readApplicationFile(CAMERA_STREAM_HOOK_PATH)
-    expect(hook).toMatch(/\}, \[isActive\]\)/)
+    expect(hook).toMatch(/\}, \[facingMode, isActive\]\)/)
   })
 
   it('expõe status e o MediaStream para quem hospeda etiqueta e medida', async () => {

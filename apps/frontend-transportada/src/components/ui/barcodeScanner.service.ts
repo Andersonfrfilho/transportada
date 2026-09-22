@@ -1,9 +1,34 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-export const CAMERA_CONSTRAINTS = {
-  audio: false,
-  video: { facingMode: { ideal: 'environment' } },
-} as const
+/**
+ * Traseira é o padrão — é a câmera que enxerga a caixa, a etiqueta e o canhoto. A frontal existe
+ * porque nem todo aparelho de galpão tem traseira funcionando, e porque tablet montado em bancada
+ * costuma ter só a de cima.
+ */
+export const CAMERA_FACING_MODES = ['environment', 'user'] as const
+
+export type CameraFacingMode = (typeof CAMERA_FACING_MODES)[number]
+
+export const DEFAULT_CAMERA_FACING_MODE: CameraFacingMode = 'environment'
+
+/**
+ * ⚠️ `ideal`, nunca `exact`: com `exact` o aparelho de uma câmera só responde `OverconstrainedError`
+ * e a tela cai no seletor de arquivo como se a câmera não existisse.
+ */
+export function buildCameraConstraints(
+  facingMode: CameraFacingMode = DEFAULT_CAMERA_FACING_MODE,
+): Readonly<{
+  audio: false
+  video: Readonly<{ facingMode: Readonly<{ ideal: CameraFacingMode }> }>
+}> {
+  return { audio: false, video: { facingMode: { ideal: facingMode } } }
+}
+
+export function nextCameraFacingMode(current: CameraFacingMode): CameraFacingMode {
+  return current === 'environment' ? 'user' : 'environment'
+}
+
+export const CAMERA_CONSTRAINTS = buildCameraConstraints()
 
 export type MediaStreamLike = Readonly<{
   getTracks: () => readonly Readonly<{ stop: () => void }>[]
@@ -43,11 +68,14 @@ export function isCameraCapable(source: unknown): boolean {
 }
 
 /** Câmera impossível é resposta, nunca exceção: a tela cai no campo digitado. */
-export async function openCameraStream(source: unknown): Promise<CameraStreamResult> {
+export async function openCameraStream(
+  source: unknown,
+  facingMode: CameraFacingMode = DEFAULT_CAMERA_FACING_MODE,
+): Promise<CameraStreamResult> {
   const getUserMedia = readGetUserMedia(source)
   if (getUserMedia === undefined) return { status: 'unavailable' }
   try {
-    const stream = await getUserMedia(CAMERA_CONSTRAINTS)
+    const stream = await getUserMedia(buildCameraConstraints(facingMode))
     if (!isMediaStreamLike(stream)) return { status: 'unavailable' }
     return { status: 'ready', stream }
   } catch (error) {
@@ -149,5 +177,32 @@ export async function createNativeBarcodeDetector(
     return new Detector({ formats })
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Quantas câmeras o aparelho tem. Só isso decide mostrar o botão de virar: oferecer a troca em
+ * aparelho de uma câmera só é botão que não faz nada, e esconder a troca em celular é a queixa.
+ *
+ * ⚠️ Antes da permissão, o navegador devolve a lista sem rótulo — mas **com** uma entrada por
+ * dispositivo, que é o que se conta aqui. Falha de enumeração responde `0`, nunca exceção.
+ */
+export async function countVideoInputDevices(source: unknown): Promise<number> {
+  if (typeof source !== 'object' || source === null) return 0
+  const { mediaDevices } = source as Readonly<{ mediaDevices?: unknown }>
+  if (typeof mediaDevices !== 'object' || mediaDevices === null) return 0
+  const { enumerateDevices } = mediaDevices as Readonly<{ enumerateDevices?: unknown }>
+  if (typeof enumerateDevices !== 'function') return 0
+  try {
+    const devices = await (enumerateDevices as () => Promise<unknown>).call(mediaDevices)
+    if (!Array.isArray(devices)) return 0
+    return devices.filter(
+      (device) =>
+        typeof device === 'object' &&
+        device !== null &&
+        (device as Readonly<{ kind?: unknown }>).kind === 'videoinput',
+    ).length
+  } catch {
+    return 0
   }
 }

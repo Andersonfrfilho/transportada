@@ -5,7 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
-import { attachStreamToVideo, detachStreamFromVideo } from '@/components/ui/barcodeScanner.service'
+import {
+  attachStreamToVideo,
+  detachStreamFromVideo,
+  DEFAULT_CAMERA_FACING_MODE,
+  nextCameraFacingMode,
+  type CameraFacingMode,
+} from '@/components/ui/barcodeScanner.service'
 import { useCameraStream } from '@/components/ui/useCameraStream.hook'
 
 import { buildOccurrencePhotoAttachment } from '../shared/occurrencePhotoImage.service'
@@ -42,7 +48,12 @@ export function OccurrencePhotoPicker({
 }: OccurrencePhotoPickerProps) {
   const { t } = useTranslation('trip')
   const canAdd = canAddOccurrencePhoto(photos.length)
-  const { status: cameraStatus, stream } = useCameraStream({ isActive: canAdd })
+  const [facingMode, setFacingMode] = useState<CameraFacingMode>(DEFAULT_CAMERA_FACING_MODE)
+  const {
+    hasMultipleCameras,
+    status: cameraStatus,
+    stream,
+  } = useCameraStream({ facingMode, isActive: canAdd })
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [captureError, setCaptureError] = useState<string | undefined>(undefined)
@@ -169,10 +180,26 @@ export function OccurrencePhotoPicker({
               {t('occurrence.photoPicker.capture')}
             </Button>
           ) : null}
+          {/* Só aparece em aparelho com mais de uma câmera: botão que não faz nada é pior que
+              botão nenhum. O rótulo diz para qual câmera vai, não em qual está. */}
+          {showCamera && hasMultipleCameras ? (
+            <Button
+              disabled={disabled || isProcessing}
+              onClick={() => setFacingMode(nextCameraFacingMode(facingMode))}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="refresh" />
+              {facingMode === 'environment'
+                ? t('occurrence.photoPicker.switchToFront')
+                : t('occurrence.photoPicker.switchToBack')}
+            </Button>
+          ) : null}
           <FileField
             accept="image/*"
             actionLabel={t('occurrence.photoPicker.uploadChoose')}
-            capture="environment"
+            capture={facingMode === 'environment' ? 'environment' : 'user'}
             disabled={disabled || isProcessing}
             label={t('occurrence.photoPicker.uploadLabel')}
             onSelect={(file) => void (file !== undefined && addPhoto(file))}
